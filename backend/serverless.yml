@@ -1,0 +1,15 @@
+service: emotioxv3-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+
+functions:
+  # Add your Lambda functions here
+
+plugins:
+  - serverless-offline
