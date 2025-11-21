@@ -1,0 +1,64 @@
+import { useState } from 'react';
+
+/**
+ * Página principal de Research
+ * Contiene dos tabs: crear tipo de research y crear research
+ */
+export const ResearchPage = () => {
+    const [activeTab, setActiveTab] = useState<'type' | 'research'>('type');
+
+    return (
+        <div className="h-full p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-semibold text-gray-800">Research</h1>
+                <p className="mt-1 text-sm text-gray-500">Gestiona tipos de investigación y crea nuevas investigaciones</p>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+                <div className="border-b border-gray-200">
+                    <nav className="flex -mb-px">
+                        <button
+                            onClick={() => setActiveTab('type')}
+                            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                                activeTab === 'type'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Crear Tipo de Research
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('research')}
+                            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                                activeTab === 'research'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            Crear Research
+                        </button>
+                    </nav>
+                </div>
+
+                {/* Tab Content */}
+                <div className="p-6">
+                    {activeTab === 'type' && (
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Crear Tipo de Research</h2>
+                            <p className="text-gray-600">Formulario para crear un nuevo tipo de investigación aparecerá aquí</p>
+                        </div>
+                    )}
+
+                    {activeTab === 'research' && (
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Crear Research</h2>
+                            <p className="text-gray-600">Formulario para crear una nueva investigación aparecerá aquí</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+

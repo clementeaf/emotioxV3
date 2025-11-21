@@ -5,6 +5,7 @@ import { RegisterPage } from '../pages/auth/RegisterPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ErrorPage } from '../pages/ErrorPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
+import { ResearchPage } from '../pages/research/ResearchPage';
 
 export interface RouteConfig {
     path: string;
@@ -50,6 +51,13 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Profile' },
+    },
+    {
+        path: '/research',
+        element: <ResearchPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research' },
     },
 
     // Redirección por defecto

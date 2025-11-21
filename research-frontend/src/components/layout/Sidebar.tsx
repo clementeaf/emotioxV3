@@ -27,7 +27,7 @@ export const Sidebar = () => {
     const location = useLocation();
 
     return (
-        <div className="w-38 bg-white border-r border-gray-100 flex flex-col h-screen rounded-lg">
+        <div className="w-38 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg">
             {/* Logo y dropdown */}
             <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center justify-between">
