@@ -1,0 +1,28 @@
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { success, error } from '../../utils/response';
+import { requireAuth } from '../../utils/auth';
+import * as analysisService from './analysis.service';
+
+export const handleAnalysisRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const { httpMethod, path } = event;
+    try {
+        await requireAuth(event);
+
+        if (path === '/analysis/modules' && httpMethod === 'GET') {
+            const modules = await analysisService.getModules();
+            return success({ modules });
+        }
+
+        const match = path.match(/^\/analysis\/question\/([^\/]+)$/);
+        if (match && httpMethod === 'POST') {
+            const questionId = match[1];
+            const body = JSON.parse(event.body || '{}');
+            const result = await analysisService.analyzeQuestion(questionId, body.module_type);
+            return success({ analysis: result });
+        }
+
+        return error('Route not found', 404);
+    } catch (err: any) {
+        return error(err.message || 'Internal server error', 500);
+    }
+};
