@@ -5,7 +5,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
@@ -32,48 +31,48 @@ export const LoginPage = () => {
     };
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="text-center text-xl">Sign in to your account</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                    {error && (
-                        <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md border border-red-200">
-                            {error}
-                        </div>
-                    )}
-
-                    <Input
-                        id="email"
-                        label="Email address"
-                        type="email"
-                        autoComplete="email"
-                        {...register('email')}
-                        error={errors.email?.message}
-                    />
-
-                    <Input
-                        id="password"
-                        label="Password"
-                        type="password"
-                        autoComplete="current-password"
-                        {...register('password')}
-                        error={errors.password?.message}
-                    />
-
-                    <Button type="submit" className="w-full" isLoading={isLoading}>
-                        Sign in
-                    </Button>
-
-                    <div className="text-center text-sm">
-                        <span className="text-gray-500">Don't have an account? </span>
-                        <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
-                            Register here
-                        </Link>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-8">
+            <div className="mb-8">
+                <h1 className="text-2xl font-semibold text-gray-800 text-center">
+                    Sign in to your account
+                </h1>
+            </div>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                {error && (
+                    <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100">
+                        {error}
                     </div>
-                </form>
-            </CardContent>
-        </Card>
+                )}
+
+                <Input
+                    id="email"
+                    label="Email address"
+                    type="email"
+                    autoComplete="email"
+                    {...register('email')}
+                    error={errors.email?.message}
+                />
+
+                <Input
+                    id="password"
+                    label="Password"
+                    type="password"
+                    autoComplete="current-password"
+                    {...register('password')}
+                    error={errors.password?.message}
+                />
+
+                <Button type="submit" className="w-full" isLoading={isLoading}>
+                    Sign in
+                </Button>
+
+                <div className="text-center text-sm pt-2">
+                    <span className="text-gray-500">Don't have an account? </span>
+                    <Link to="/register" className="font-medium text-blue-500 hover:text-blue-600">
+                        Register here
+                    </Link>
+                </div>
+            </form>
+        </div>
     );
 };

@@ -17,11 +17,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, asChild, ...props }, ref) => {
         const variants = {
-            primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
-            secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500',
-            outline: 'border border-gray-300 bg-transparent hover:bg-gray-50 text-gray-700',
-            ghost: 'bg-transparent hover:bg-gray-100 text-gray-700',
-            danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+            primary: 'bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-400 shadow-sm',
+            secondary: 'bg-gray-100 text-gray-800 hover:bg-gray-200 focus:ring-gray-300',
+            outline: 'border border-gray-200 bg-transparent hover:bg-gray-50 text-gray-700 hover:border-gray-300',
+            ghost: 'bg-transparent hover:bg-gray-50 text-gray-700',
+            danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-400',
         };
 
         const sizes = {
