@@ -25,7 +25,7 @@ export const LoginPage = () => {
         try {
             await login(data);
             navigate('/dashboard');
-        } catch (err) {
+        } catch {
             // Error is handled by store
         }
     };

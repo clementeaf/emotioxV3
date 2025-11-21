@@ -33,7 +33,7 @@ export const ProfilePage = () => {
                 last_name: data.lastName,
                 email: data.email,
             });
-        } catch (err) {
+        } catch {
             // Error handled by store
         }
     };

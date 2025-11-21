@@ -81,7 +81,7 @@ export const useAuthStore = create<AuthState>()(
                             user: userResponse.user,
                             isLoading: false,
                         });
-                    } catch (userError: unknown) {
+                    } catch {
                         // Si falla getMe, limpiar todo el estado para evitar inconsistencia
                         set({
                             user: null,

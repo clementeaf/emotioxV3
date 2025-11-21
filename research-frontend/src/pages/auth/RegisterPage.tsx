@@ -40,7 +40,7 @@ export const RegisterPage = () => {
             });
             // Auto login or redirect to login
             navigate('/login');
-        } catch (err) {
+        } catch {
             // Error handled by store
         }
     };

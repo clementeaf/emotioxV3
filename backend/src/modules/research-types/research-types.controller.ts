@@ -4,23 +4,22 @@ import { requireAuth } from '../../utils/auth';
 import * as researchTypesService from './research-types.service';
 import * as authService from '../auth/auth.service';
 
-const requireAdmin = async (event: APIGatewayProxyEvent) => {
-    const decoded = await requireAuth(event);
-    const user = await authService.getMe(decoded.sub);
-
-    if (user.role !== 'admin') {
-        throw new Error('Admin access required');
-    }
-
-    return user;
-};
-
 export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
 
     try {
-        // All research-types routes require admin
-        const user = await requireAdmin(event);
+        // All research-types routes require authentication (admin check removed temporarily)
+        let user;
+        try {
+            const decoded = await requireAuth(event);
+            user = await authService.getMe(decoded.sub);
+        } catch (authError: unknown) {
+            const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+            if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
+                return error(authErrorMessage, 401);
+            }
+            throw authError;
+        }
 
         // GET /research-types
         if (path === '/research-types' && httpMethod === 'GET') {
@@ -69,13 +68,21 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
             return success({ researchType: type });
         }
 
+        // GET /research-types/:id/techniques
+        const techniquesMatch = path.match(/^\/research-types\/([^\/]+)\/techniques$/);
+        if (techniquesMatch && httpMethod === 'GET') {
+            const id = techniquesMatch[1];
+            const techniques = await researchTypesService.getTechniquesByType(id);
+            return success({ researchTechniques: techniques });
+        }
+
         return error('Route not found', 404);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Research types controller error:', err);
 
-        if (errorMessage === 'Admin access required') {
-            return error(errorMessage, 403);
+        if (errorMessage === 'Invalid or expired token' || errorMessage === 'No authorization header' || errorMessage === 'No token provided') {
+            return error(errorMessage, 401);
         }
 
         return error(errorMessage || 'Internal server error', 500);

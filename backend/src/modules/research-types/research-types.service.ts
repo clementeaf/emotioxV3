@@ -3,44 +3,93 @@ import pool from '../../config/database';
 export interface ResearchTypeData {
     name: string;
     description?: string;
+    research_technique_id?: string;
     default_modules?: Record<string, unknown>[];
     settings?: Record<string, unknown>;
 }
 
 export const list = async () => {
+    // Only return research types that have at least one technique associated in the junction table
     const query = `
-    SELECT id, name, description, default_modules, settings, is_active, created_at
-    FROM research_types
-    WHERE is_active = true
-    ORDER BY name
+    SELECT DISTINCT
+        rt.id, 
+        rt.name, 
+        rt.description, 
+        rt.default_modules, 
+        rt.settings, 
+        rt.is_active, 
+        rt.created_at
+    FROM research_types rt
+    INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_type_id
+    INNER JOIN research_techniques tech ON rtt.research_technique_id = tech.id
+    WHERE rt.is_active = true AND tech.is_active = true
+    ORDER BY rt.name
   `;
     const result = await pool.query(query);
     return result.rows;
 };
 
 export const create = async (data: ResearchTypeData, createdBy: string) => {
-    const { name, description, default_modules = [], settings = {} } = data;
+    const { name, description, research_technique_id, default_modules = [], settings = {} } = data;
+    const client = await pool.connect();
 
-    const query = `
-    INSERT INTO research_types (name, description, default_modules, settings, created_by)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id, name, description, default_modules, settings, is_active, created_at
-  `;
-    const result = await pool.query(query, [
-        name,
-        description,
-        JSON.stringify(default_modules),
-        JSON.stringify(settings),
-        createdBy,
-    ]);
-    return result.rows[0];
+    try {
+        await client.query('BEGIN');
+
+        // Create research type
+        const query = `
+            INSERT INTO research_types (name, description, research_technique_id, default_modules, settings, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, name, description, research_technique_id, default_modules, settings, is_active, created_at
+        `;
+        const result = await client.query(query, [
+            name,
+            description,
+            research_technique_id || null,
+            JSON.stringify(default_modules),
+            JSON.stringify(settings),
+            createdBy,
+        ]);
+
+        const researchType = result.rows[0];
+
+        // If a research technique is provided, associate it in the junction table
+        if (research_technique_id) {
+            const junctionQuery = `
+                INSERT INTO research_types_techniques (research_type_id, research_technique_id)
+                VALUES ($1, $2)
+                ON CONFLICT (research_type_id, research_technique_id) DO NOTHING
+            `;
+            await client.query(junctionQuery, [researchType.id, research_technique_id]);
+        }
+
+        await client.query('COMMIT');
+        return researchType;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 export const getById = async (id: string) => {
     const query = `
-    SELECT id, name, description, default_modules, settings, is_active, created_at, updated_at
-    FROM research_types
-    WHERE id = $1
+    SELECT 
+        rt.id, 
+        rt.name, 
+        rt.description, 
+        rt.research_technique_id,
+        rt.default_modules, 
+        rt.settings, 
+        rt.is_active, 
+        rt.created_at, 
+        rt.updated_at,
+        rt2.name as research_technique_name,
+        rt2.description as research_technique_description
+    FROM research_types rt
+    LEFT JOIN research_techniques rt2 ON rt.research_technique_id = rt2.id
+    WHERE rt.id = $1
   `;
     const result = await pool.query(query, [id]);
 
@@ -52,10 +101,10 @@ export const getById = async (id: string) => {
 };
 
 export const update = async (id: string, data: Partial<ResearchTypeData>) => {
-    const { name, description, default_modules, settings } = data;
+    const { name, description, research_technique_id, default_modules, settings } = data;
 
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (name !== undefined) {
@@ -65,6 +114,10 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
     if (description !== undefined) {
         updates.push(`description = $${paramIndex++}`);
         values.push(description);
+    }
+    if (research_technique_id !== undefined) {
+        updates.push(`research_technique_id = $${paramIndex++}`);
+        values.push(research_technique_id || null);
     }
     if (default_modules !== undefined) {
         updates.push(`default_modules = $${paramIndex++}`);
@@ -85,7 +138,7 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
     UPDATE research_types
     SET ${updates.join(', ')}
     WHERE id = $${paramIndex}
-    RETURNING id, name, description, default_modules, settings, is_active, updated_at
+    RETURNING id, name, description, research_technique_id, default_modules, settings, is_active, updated_at
   `;
 
     const result = await pool.query(query, values);
@@ -127,4 +180,28 @@ export const updateModules = async (id: string, modules: Record<string, unknown>
     }
 
     return result.rows[0];
+};
+
+/**
+ * Gets all research techniques associated with a research type
+ * @param researchTypeId - ID of the research type
+ * @returns Array of research techniques
+ */
+export const getTechniquesByType = async (researchTypeId: string) => {
+    const query = `
+    SELECT 
+        rt.id,
+        rt.name,
+        rt.description,
+        rt.created_by,
+        rt.is_active,
+        rt.created_at,
+        rt.updated_at
+    FROM research_techniques rt
+    INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_technique_id
+    WHERE rtt.research_type_id = $1 AND rt.is_active = true
+    ORDER BY rt.name
+  `;
+    const result = await pool.query(query, [researchTypeId]);
+    return result.rows;
 };

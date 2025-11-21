@@ -4,6 +4,8 @@ export interface ResearchData {
     name: string;
     description?: string;
     research_type_id?: string;
+    research_technique_id?: string;
+    enterprise_id?: string;
     settings?: Record<string, unknown>;
     use_default_modules?: string[]; // Module names to clone from template
 }
@@ -27,19 +29,21 @@ export const create = async (userId: string, data: ResearchData) => {
     try {
         await client.query('BEGIN');
 
-        const { name, description, research_type_id, settings = {}, use_default_modules = [] } = data;
+        const { name, description, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
 
         // Create research
         const researchQuery = `
-      INSERT INTO researches (user_id, name, description, research_type_id, settings, status)
-      VALUES ($1, $2, $3, $4, $5, 'draft')
-      RETURNING id, name, description, status, research_type_id, settings, created_at
+      INSERT INTO researches (user_id, name, description, research_type_id, research_technique_id, enterprise_id, settings, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
+      RETURNING id, name, description, status, research_type_id, research_technique_id, enterprise_id, settings, created_at
     `;
         const researchResult = await client.query(researchQuery, [
             userId,
             name,
             description,
-            research_type_id,
+            research_type_id || null,
+            research_technique_id || null,
+            enterprise_id || null,
             JSON.stringify(settings),
         ]);
 

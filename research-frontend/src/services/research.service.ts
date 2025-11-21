@@ -13,9 +13,11 @@ export interface Research {
 }
 
 export interface CreateResearchData {
-    title: string;
+    name: string;
     description?: string;
     research_type_id: string;
+    enterprise_id?: string;
+    research_technique_id?: string;
 }
 
 export interface UpdateResearchData {

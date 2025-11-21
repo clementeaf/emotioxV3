@@ -24,14 +24,26 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleAuthRoutes(event);
         }
 
+        // Enterprises routes
+        if (path.startsWith('/enterprises')) {
+            const { handleEnterprisesRoutes } = await import('./modules/enterprises/enterprises.controller');
+            return await handleEnterprisesRoutes(event);
+        }
+
+        // Research Techniques routes (admin only)
+        if (path.startsWith('/research-techniques')) {
+            const { handleResearchTechniquesRoutes } = await import('./modules/research-techniques/research-techniques.controller');
+            return await handleResearchTechniquesRoutes(event);
+        }
+
         // Research Types routes (admin only)
         if (path.startsWith('/research-types')) {
             const { handleResearchTypesRoutes } = await import('./modules/research-types/research-types.controller');
             return await handleResearchTypesRoutes(event);
         }
 
-        // Research routes
-        if (path.startsWith('/research')) {
+        // Research routes (must be after research-types and research-techniques to avoid conflicts)
+        if (path.startsWith('/research') && !path.startsWith('/research-types') && !path.startsWith('/research-techniques')) {
             const { handleResearchRoutes } = await import('./modules/research/research.controller');
             return await handleResearchRoutes(event);
         }

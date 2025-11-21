@@ -1,5 +1,6 @@
 import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
+import type { ResearchTechnique } from './researchTechniques.service';
 
 export interface ResearchType {
     id: string;
@@ -13,6 +14,8 @@ export interface ResearchType {
 export interface CreateResearchTypeData {
     name: string;
     description?: string;
+    research_technique_id?: string;
+    settings?: Record<string, unknown>;
 }
 
 export interface UpdateResearchTypeData {
@@ -123,6 +126,20 @@ class ResearchTypesService {
             return await apiClient.delete<DeleteResponse>(`/research-types/${id}`);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete research type');
+        }
+    }
+
+    /**
+     * Obtiene las técnicas de investigación asociadas a un tipo de investigación
+     * @param id - ID del tipo de investigación
+     * @returns Lista de técnicas de investigación
+     * @throws ApiErrorResponse si falla la petición
+     */
+    async getTechniquesByType(id: string): Promise<{ researchTechniques: ResearchTechnique[] }> {
+        try {
+            return await apiClient.get<{ researchTechniques: ResearchTechnique[] }>(`/research-types/${id}/techniques`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to fetch research techniques for type');
         }
     }
 
