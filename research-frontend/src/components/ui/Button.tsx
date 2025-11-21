@@ -11,10 +11,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
     size?: 'sm' | 'md' | 'lg';
     isLoading?: boolean;
+    asChild?: boolean;
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-    ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, ...props }, ref) => {
+    ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, asChild, ...props }, ref) => {
         const variants = {
             primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
             secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500',
@@ -29,15 +30,22 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             lg: 'h-12 px-6 text-lg',
         };
 
+        const baseClasses = cn(
+            'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none',
+            variants[variant],
+            sizes[size],
+            className
+        );
+
+        // asChild feature removed - use Link component directly instead
+        if (asChild) {
+            console.warn('Button asChild prop is deprecated. Use Link component directly instead.');
+        }
+
         return (
             <button
                 ref={ref}
-                className={cn(
-                    'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none',
-                    variants[variant],
-                    sizes[size],
-                    className
-                )}
+                className={baseClasses}
                 disabled={disabled || isLoading}
                 {...props}
             >

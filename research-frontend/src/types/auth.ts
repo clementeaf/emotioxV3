@@ -6,13 +6,16 @@ export interface User {
     role: 'admin' | 'researcher';
 }
 
-export interface AuthResponse {
+export interface LoginResponse {
     tokens: {
         accessToken: string;
         idToken: string;
         refreshToken: string;
         expiresIn: number;
     };
+}
+
+export interface RegisterResponse {
     user: User;
 }
 

@@ -7,7 +7,10 @@ const client = jwksClient({
     jwksUri: `${cognitoConfig.issuer}/.well-known/jwks.json`,
 });
 
-function getKey(header: any, callback: any) {
+function getKey(
+    header: { kid?: string; alg?: string },
+    callback: (err: Error | null, key?: string) => void
+): void {
     client.getSigningKey(header.kid, (err, key) => {
         if (err) {
             callback(err);
@@ -22,7 +25,7 @@ export interface DecodedToken {
     sub: string;
     email: string;
     'cognito:username': string;
-    [key: string]: any;
+    [key: string]: string | number | boolean | undefined;
 }
 
 export const verifyToken = (token: string): Promise<DecodedToken> => {

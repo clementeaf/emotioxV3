@@ -28,8 +28,11 @@ export const ProfilePage = () => {
 
     const onSubmit = async (data: ProfileForm) => {
         try {
-            // Note: Backend update endpoint might not be implemented yet
-            await updateProfile(data);
+            await updateProfile({
+                first_name: data.firstName,
+                last_name: data.lastName,
+                email: data.email,
+            });
         } catch (err) {
             // Error handled by store
         }

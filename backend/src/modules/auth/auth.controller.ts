@@ -27,12 +27,17 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             const user = await authService.getMe(decoded.sub);
             return success({ user });
         }
-
-        // DELETE /auth/account
-        if (path === '/auth/account' && httpMethod === 'DELETE') {
+        // PUT /auth/me (update profile)
+        if (path === '/auth/me' && httpMethod === 'PUT') {
             const decoded = await requireAuth(event);
-            const user = await authService.getMe(decoded.sub);
-            const result = await authService.deleteAccount(user.id);
+            const body = JSON.parse(event.body || '{}');
+            const updatedUser = await authService.updateUser(decoded.sub, body);
+            return success({ user: updatedUser });
+        }
+        // DELETE /auth/me
+        if (path === '/auth/me' && httpMethod === 'DELETE') {
+            const decoded = await requireAuth(event);
+            const result = await authService.deleteAccount(decoded.sub);
             return success(result);
         }
 

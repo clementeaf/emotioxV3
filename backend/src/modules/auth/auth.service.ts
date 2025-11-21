@@ -63,9 +63,10 @@ export const register = async (data: RegisterData) => {
         const result = await pool.query(query, [email, cognitoSub, role, firstName, lastName]);
 
         return result.rows[0];
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to register user';
         console.error('Register error:', error);
-        throw new Error(error.message || 'Failed to register user');
+        throw new Error(errorMessage);
     }
 };
 
@@ -121,24 +122,64 @@ export const getMe = async (cognitoSub: string) => {
         throw new Error(errorMessage);
     }
 };
+// New interface for updating user profile
+export interface UpdateUserData {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+}
 
-export const deleteAccount = async (userId: string) => {
+// Update user profile by Cognito sub
+export const updateUser = async (cognitoSub: string, data: UpdateUserData) => {
+    try {
+        const fields: string[] = [];
+        const values: (string | undefined)[] = [];
+        let idx = 1;
+        if (data.first_name !== undefined) {
+            fields.push(`first_name = $${idx++}`);
+            values.push(data.first_name);
+        }
+        if (data.last_name !== undefined) {
+            fields.push(`last_name = $${idx++}`);
+            values.push(data.last_name);
+        }
+        if (data.email !== undefined) {
+            fields.push(`email = $${idx++}`);
+            values.push(data.email);
+        }
+        if (fields.length === 0) {
+            throw new Error('No fields to update');
+        }
+        values.push(cognitoSub);
+        const query = `
+            UPDATE users SET ${fields.join(', ')} WHERE cognito_sub = $${idx} RETURNING id, email, role, first_name, last_name, created_at, updated_at
+        `;
+        const result = await pool.query(query, values);
+        return result.rows[0];
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to update user';
+        console.error('UpdateUser error:', error);
+        throw new Error(message);
+    }
+};
+export const deleteAccount = async (cognitoSub: string) => {
     try {
         const query = `
       UPDATE users
       SET deleted_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND deleted_at IS NULL
+      WHERE cognito_sub = $1 AND deleted_at IS NULL
       RETURNING id
     `;
-        const result = await pool.query(query, [userId]);
+        const result = await pool.query(query, [cognitoSub]);
 
         if (result.rows.length === 0) {
             throw new Error('User not found');
         }
 
         return { message: 'Account deleted successfully' };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to delete account';
         console.error('DeleteAccount error:', error);
-        throw new Error(error.message || 'Failed to delete account');
+        throw new Error(message);
     }
 };
