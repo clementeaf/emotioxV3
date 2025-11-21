@@ -1,101 +1,117 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { type ReactElement, type ReactNode } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { PageErrorBoundary } from './components/PageErrorBoundary';
 import { AuthLayout } from './components/layout/AuthLayout';
-import { LoginPage } from './pages/auth/LoginPage';
-import { RegisterPage } from './pages/auth/RegisterPage';
-import { ErrorPage } from './pages/ErrorPage';
-import { useIsAuthenticated } from './stores/auth.store';
-
 import { DashboardLayout } from './components/layout/DashboardLayout';
-import { ProfilePage } from './pages/profile/ProfilePage';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { routesConfig, type RouteConfig } from './config/routes';
 
-// Protected Route Wrapper
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const isAuthenticated = useIsAuthenticated();
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
+/**
+ * Renderiza un elemento con sus ErrorBoundaries si están configurados
+ */
+const renderWithErrorBoundaries = (route: RouteConfig): ReactNode => {
+    let element = route.element;
+
+    if (route.errorBoundary?.pageName) {
+        element = <PageErrorBoundary pageName={route.errorBoundary.pageName}>{element}</PageErrorBoundary>;
+    }
+
+    return element;
+};
+
+interface LayoutConfig {
+    component: () => ReactElement;
+    context?: 'auth' | 'dashboard' | 'general';
+    isProtected?: boolean;
+    renderRoutes: (routes: RouteConfig[]) => ReactElement[];
+}
+
+/**
+ * Configuración de layouts disponibles
+ */
+const layoutsConfig: Record<string, LayoutConfig> = {
+    auth: {
+        component: AuthLayout,
+        context: 'auth',
+        renderRoutes: (routes) => [
+            <Route
+                key="auth-layout"
+                element={
+                    <RouteErrorBoundary context="auth">
+                        <AuthLayout />
+                    </RouteErrorBoundary>
+                }
+            >
+                {routes.map((route) => (
+                    <Route key={route.path} path={route.path} element={renderWithErrorBoundaries(route)} />
+                ))}
+            </Route>,
+        ],
+    },
+    dashboard: {
+        component: DashboardLayout,
+        context: 'dashboard',
+        isProtected: true,
+        renderRoutes: (routes) => [
+            <Route
+                key="dashboard-layout"
+                element={
+                    <RouteErrorBoundary context="dashboard">
+                        <ProtectedRoute>
+                            <DashboardLayout />
+                        </ProtectedRoute>
+                    </RouteErrorBoundary>
+                }
+            >
+                {routes.map((route) => (
+                    <Route key={route.path} path={route.path} element={renderWithErrorBoundaries(route)} />
+                ))}
+            </Route>,
+        ],
+    },
+    none: {
+        component: () => <></>,
+        renderRoutes: (routes) =>
+            routes.map((route) => <Route key={route.path} path={route.path} element={route.element} />),
+    },
+};
+
+/**
+ * Genera todas las rutas desde la configuración
+ */
+const generateRoutes = (): ReactElement[] => {
+    const routesByLayout = new Map<string, RouteConfig[]>();
+
+    routesConfig.forEach((route) => {
+        const layout = route.layout || 'none';
+        if (!routesByLayout.has(layout)) {
+            routesByLayout.set(layout, []);
+        }
+        routesByLayout.get(layout)?.push(route);
+    });
+
+    const routes: ReactElement[] = [];
+
+    routesByLayout.forEach((routesInLayout, layoutKey) => {
+        const layoutConfig = layoutsConfig[layoutKey] || layoutsConfig.none;
+        routes.push(...layoutConfig.renderRoutes(routesInLayout));
+    });
+
+    return routes;
 };
 
 function App() {
-  return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Auth Routes - Aisladas con su propio ErrorBoundary */}
-          <Route
-            element={
-              <RouteErrorBoundary context="auth">
-                <AuthLayout />
-              </RouteErrorBoundary>
-            }
-          >
-            <Route
-              path="/login"
-              element={
-                <PageErrorBoundary pageName="Login">
-                  <LoginPage />
-                </PageErrorBoundary>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PageErrorBoundary pageName="Register">
-                  <RegisterPage />
-                </PageErrorBoundary>
-              }
-            />
-          </Route>
+    const routes = generateRoutes();
 
-          {/* Protected Routes - Aisladas con su propio ErrorBoundary */}
-          <Route
-            element={
-              <RouteErrorBoundary context="dashboard">
-                <ProtectedRoute>
-                  <DashboardLayout />
-                </ProtectedRoute>
-              </RouteErrorBoundary>
-            }
-          >
-            <Route
-              path="/dashboard"
-              element={
-                <PageErrorBoundary pageName="Dashboard">
-                  <div className="p-8">
-                    <div className="mb-8">
-                      <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-                      <p className="mt-2 text-gray-500">Welcome to Emotiox V3</p>
-                    </div>
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                      <p className="text-gray-600">Your dashboard content will appear here.</p>
-                    </div>
-                  </div>
-                </PageErrorBoundary>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <PageErrorBoundary pageName="Profile">
-                  <ProfilePage />
-                </PageErrorBoundary>
-              }
-            />
-          </Route>
-
-          {/* Default Redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-          {/* Error Route */}
-          <Route path="*" element={<ErrorPage />} />
-        </Routes>
-      </BrowserRouter>
-    </ErrorBoundary>
-  );
+    return (
+        <ErrorBoundary>
+            <BrowserRouter>
+                <Routes>{routes}</Routes>
+            </BrowserRouter>
+        </ErrorBoundary>
+    );
 }
 
 export default App;
