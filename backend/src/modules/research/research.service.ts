@@ -4,7 +4,7 @@ export interface ResearchData {
     name: string;
     description?: string;
     research_type_id?: string;
-    settings?: any;
+    settings?: Record<string, unknown>;
     use_default_modules?: string[]; // Module names to clone from template
 }
 

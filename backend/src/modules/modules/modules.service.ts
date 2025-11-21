@@ -1,6 +1,6 @@
 import pool from '../../config/database';
 
-export const create = async (researchId: string, data: any) => {
+export const create = async (researchId: string, data: Record<string, unknown>) => {
     const { name, description, order_index, config = {} } = data;
 
     // Check if research exists and is not deleted
@@ -18,7 +18,7 @@ export const create = async (researchId: string, data: any) => {
     return result.rows[0];
 };
 
-export const update = async (moduleId: string, data: any) => {
+export const update = async (moduleId: string, data: Record<string, unknown>) => {
     const { name, description, config } = data;
     const updates: string[] = [];
     const values: any[] = [];

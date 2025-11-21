@@ -37,8 +37,9 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         }
 
         return error('Route not found', 404);
-    } catch (err: any) {
-        console.error('Auth controller error:', err);
-        return error(err.message || 'Internal server error', 500);
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        console.error('Auth error:', err);
+        return error(errorMessage, 500);
     }
 };

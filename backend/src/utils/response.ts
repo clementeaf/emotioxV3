@@ -5,7 +5,7 @@ export const corsHeaders = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
 };
 
-export const success = (data: any, statusCode: number = 200) => ({
+export const success = <T>(data: T, statusCode: number = 200) => ({
     statusCode,
     headers: corsHeaders,
     body: JSON.stringify(data),

@@ -94,9 +94,10 @@ export const login = async (data: LoginData) => {
             refreshToken: authResult.AuthenticationResult.RefreshToken,
             expiresIn: authResult.AuthenticationResult.ExpiresIn,
         };
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to login';
         console.error('Login error:', error);
-        throw new Error(error.message || 'Failed to login');
+        throw new Error(errorMessage);
     }
 };
 
@@ -114,9 +115,10 @@ export const getMe = async (cognitoSub: string) => {
         }
 
         return result.rows[0];
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to get user';
         console.error('GetMe error:', error);
-        throw new Error(error.message || 'Failed to get user');
+        throw new Error(errorMessage);
     }
 };
 

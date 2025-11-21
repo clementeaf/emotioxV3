@@ -70,13 +70,14 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         }
 
         return error('Route not found', 404);
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Research types controller error:', err);
 
-        if (err.message === 'Admin access required') {
-            return error(err.message, 403);
+        if (errorMessage === 'Admin access required') {
+            return error(errorMessage, 403);
         }
 
-        return error(err.message || 'Internal server error', 500);
+        return error(errorMessage || 'Internal server error', 500);
     }
 };

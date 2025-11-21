@@ -1,31 +1,41 @@
 import pool from '../../config/database';
 
-export const create = async (moduleId: string, data: any) => {
-    const { question_type, question_text, order_index, config = {}, validation = {}, required = false } = data;
+export const create = async (moduleId: string, data: Record<string, unknown>) => {
+    const { question_text, type, order_index, config = {}, validation = {}, required = false } = data;
 
     const ALLOWED_TYPES = ['text', 'textarea', 'range', 'image_preference', 'image_hitzone', 'checkbox', 'radio'];
-    if (!ALLOWED_TYPES.includes(question_type)) {
+    if (typeof type !== 'string' || !ALLOWED_TYPES.includes(type)) {
         throw new Error(`Invalid question type. Allowed: ${ALLOWED_TYPES.join(', ')}`);
     }
 
     const query = `
-    INSERT INTO questions (module_id, question_type, question_text, order_index, config, validation, required)
+    INSERT INTO questions (module_id, question_text, type, order_index, config, validation, required)
     VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
   `;
-    const result = await pool.query(query, [moduleId, question_type, question_text, order_index, JSON.stringify(config), JSON.stringify(validation), required]);
+    const values = [
+        moduleId,
+        question_text,
+        type,
+        order_index || 0,
+        config,
+        validation,
+        required
+    ];
+
+    const result = await pool.query(query, values);
     return result.rows[0];
 };
 
-export const update = async (questionId: string, data: any) => {
-    const { question_type, question_text, config, validation, required } = data;
+export const update = async (questionId: string, data: Record<string, unknown>) => {
+    const { question_text, type, config, validation, required } = data;
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
-    if (question_type !== undefined) {
-        updates.push(`question_type = $${paramIndex++}`);
-        values.push(question_type);
+    if (type !== undefined) {
+        updates.push(`type = $${paramIndex++}`);
+        values.push(type);
     }
     if (question_text !== undefined) {
         updates.push(`question_text = $${paramIndex++}`);
@@ -33,11 +43,11 @@ export const update = async (questionId: string, data: any) => {
     }
     if (config !== undefined) {
         updates.push(`config = $${paramIndex++}`);
-        values.push(JSON.stringify(config));
+        values.push(config);
     }
     if (validation !== undefined) {
         updates.push(`validation = $${paramIndex++}`);
-        values.push(JSON.stringify(validation));
+        values.push(validation);
     }
     if (required !== undefined) {
         updates.push(`required = $${paramIndex++}`);

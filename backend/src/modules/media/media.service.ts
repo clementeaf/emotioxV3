@@ -19,7 +19,7 @@ export const generateUploadUrl = async (researchId: string, fileName: string, co
     return { uploadUrl: url, key, bucket: BUCKET_NAME };
 };
 
-export const saveMetadata = async (researchId: string, questionId: string | null, s3Key: string, metadata: any) => {
+export const saveMetadata = async (researchId: string, questionId: string | null, s3Key: string, metadata: Record<string, unknown>) => {
     const query = `
     INSERT INTO media (research_id, question_id, s3_key, s3_bucket, file_name, file_type, file_size, metadata)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

@@ -3,8 +3,8 @@ import pool from '../../config/database';
 export interface ResearchTypeData {
     name: string;
     description?: string;
-    default_modules?: any[];
-    settings?: any;
+    default_modules?: Record<string, unknown>[];
+    settings?: Record<string, unknown>;
 }
 
 export const list = async () => {
@@ -113,7 +113,7 @@ export const deleteResearchType = async (id: string) => {
     return { message: 'Research type deleted successfully' };
 };
 
-export const updateModules = async (id: string, modules: any[]) => {
+export const updateModules = async (id: string, modules: Record<string, unknown>[]) => {
     const query = `
     UPDATE research_types
     SET default_modules = $1

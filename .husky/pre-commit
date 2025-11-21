@@ -1,0 +1,23 @@
+
+
+echo "🛡️  Running strict type checks..."
+
+# Check Backend
+echo "📦 Checking Backend..."
+cd backend
+if ! npx tsc --noEmit; then
+  echo "❌ Backend type check failed!"
+  exit 1
+fi
+cd ..
+
+# Check Research Frontend
+echo "🎨 Checking Research Frontend..."
+cd research-frontend
+if ! npx tsc -b; then
+  echo "❌ Research Frontend type check failed!"
+  exit 1
+fi
+cd ..
+
+echo "✅ Strict type check passed! Committing..."

@@ -34,7 +34,9 @@ export const handleModulesRoutes = async (event: APIGatewayProxyEvent): Promise<
         }
 
         return error('Route not found', 404);
-    } catch (err: any) {
-        return error(err.message || 'Internal server error', 500);
+    } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        console.error('Modules error:', err);
+        return error(errorMessage, 500);
     }
 };
