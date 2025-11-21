@@ -30,15 +30,15 @@ export interface DeleteAccountResponse {
 }
 
 /**
- * Servicio de autenticación
- * Maneja todas las operaciones relacionadas con autenticación y usuarios
+ * Authentication service
+ * Handles all operations related to authentication and users
  */
 class AuthService {
     /**
-     * Registra un nuevo usuario
-     * @param credentials - Credenciales del usuario
-     * @returns Usuario creado
-     * @throws ApiErrorResponse si falla el registro
+     * Registers a new user
+     * @param credentials - User credentials
+     * @returns Created user
+     * @throws ApiErrorResponse if registration fails
      */
     async register(credentials: RegisterCredentials): Promise<RegisterResponse> {
         try {
@@ -54,10 +54,10 @@ class AuthService {
     }
 
     /**
-     * Inicia sesión con email y contraseña
-     * @param credentials - Credenciales de login
-     * @returns Tokens de autenticación
-     * @throws ApiErrorResponse si falla el login
+     * Logs in with email and password
+     * @param credentials - Login credentials
+     * @returns Authentication tokens
+     * @throws ApiErrorResponse if login fails
      */
     async login(credentials: LoginCredentials): Promise<LoginResponse> {
         try {
@@ -68,9 +68,9 @@ class AuthService {
     }
 
     /**
-     * Obtiene el perfil del usuario autenticado
-     * @returns Datos del usuario
-     * @throws ApiErrorResponse si falla la petición
+     * Gets the authenticated user profile
+     * @returns User data
+     * @throws ApiErrorResponse if request fails
      */
     async getMe(): Promise<UserResponse> {
         try {
@@ -81,10 +81,10 @@ class AuthService {
     }
 
     /**
-     * Actualiza el perfil del usuario autenticado
-     * @param data - Datos a actualizar
-     * @returns Usuario actualizado
-     * @throws ApiErrorResponse si falla la actualización
+     * Updates the authenticated user profile
+     * @param data - Data to update
+     * @returns Updated user
+     * @throws ApiErrorResponse if update fails
      */
     async updateProfile(data: UpdateUserData): Promise<UserResponse> {
         try {
@@ -110,9 +110,9 @@ class AuthService {
     }
 
     /**
-     * Elimina la cuenta del usuario autenticado
-     * @returns Mensaje de confirmación
-     * @throws ApiErrorResponse si falla la eliminación
+     * Deletes the authenticated user account
+     * @returns Confirmation message
+     * @throws ApiErrorResponse if deletion fails
      */
     async deleteAccount(): Promise<DeleteAccountResponse> {
         try {
@@ -123,10 +123,10 @@ class AuthService {
     }
 
     /**
-     * Maneja errores de API y los convierte en mensajes legibles
-     * @param error - Error capturado
-     * @param defaultMessage - Mensaje por defecto si no se puede extraer
-     * @returns Error con mensaje formateado
+     * Handles API errors and converts them to readable messages
+     * @param error - Caught error
+     * @param defaultMessage - Default message if cannot be extracted
+     * @returns Error with formatted message
      */
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {

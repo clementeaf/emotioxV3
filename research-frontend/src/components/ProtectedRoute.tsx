@@ -2,8 +2,8 @@ import { Navigate } from 'react-router-dom';
 import { useIsAuthenticated } from '../stores/auth.store';
 
 /**
- * Wrapper para rutas protegidas
- * Verifica autenticación antes de renderizar
+ * Wrapper for protected routes
+ * Verifies authentication before rendering
  */
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const isAuthenticated = useIsAuthenticated();

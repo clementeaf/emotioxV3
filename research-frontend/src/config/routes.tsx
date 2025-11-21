@@ -19,11 +19,11 @@ export interface RouteConfig {
 }
 
 /**
- * Configuración centralizada de todas las rutas
- * Facilita el mantenimiento y la escalabilidad
+ * Centralized configuration of all routes
+ * Facilitates maintenance and scalability
  */
 export const routesConfig: RouteConfig[] = [
-    // Rutas públicas - Autenticación
+    // Public routes - Authentication
     {
         path: '/login',
         element: <LoginPage />,
@@ -37,7 +37,7 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'auth', pageName: 'Register' },
     },
 
-    // Rutas protegidas - Dashboard
+    // Protected routes - Dashboard
     {
         path: '/dashboard',
         element: <DashboardPage />,
@@ -60,14 +60,14 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'dashboard', pageName: 'Research' },
     },
 
-    // Redirección por defecto
+    // Default redirect
     {
         path: '/',
         element: <Navigate to="/dashboard" replace />,
         layout: 'none',
     },
 
-    // Ruta de error 404
+    // 404 error route
     {
         path: '*',
         element: <ErrorPage />,

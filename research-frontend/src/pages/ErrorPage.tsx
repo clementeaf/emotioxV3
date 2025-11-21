@@ -3,13 +3,13 @@ import { AlertTriangle, Home, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
 /**
- * Página de error para errores de routing
- * Se muestra cuando ocurre un error en las rutas de React Router
+ * Error page for routing errors
+ * Displayed when an error occurs in React Router routes
  */
 export const ErrorPage = () => {
     const error = useRouteError();
 
-    let errorMessage = 'Ha ocurrido un error inesperado';
+    let errorMessage = 'An unexpected error occurred';
     let errorStatus = 500;
 
     if (isRouteErrorResponse(error)) {
@@ -37,13 +37,13 @@ export const ErrorPage = () => {
                         <Link to="/">
                             <Button className="flex items-center justify-center gap-2">
                                 <Home className="h-4 w-4" />
-                                Ir al inicio
+                                Go Home
                             </Button>
                         </Link>
                         <Link to="..">
                             <Button variant="outline" className="flex items-center justify-center gap-2">
                                 <ArrowLeft className="h-4 w-4" />
-                                Volver
+                                Go Back
                             </Button>
                         </Link>
                     </div>

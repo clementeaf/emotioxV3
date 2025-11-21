@@ -2,8 +2,8 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 
 /**
- * Layout principal del dashboard
- * Incluye Sidebary área de contenido principal
+ * Main dashboard layout
+ * Includes Sidebar and main content area
  */
 export const DashboardLayout = () => {
     return (

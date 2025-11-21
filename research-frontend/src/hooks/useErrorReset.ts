@@ -2,22 +2,22 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * Hook para resetear errores y navegar
- * Útil para componentes que necesitan resetear el estado después de un error
+ * Hook to reset errors and navigate
+ * Useful for components that need to reset state after an error
  */
 export const useErrorReset = () => {
     const navigate = useNavigate();
 
     /**
-     * Resetea el error y recarga la página actual
+     * Resets the error and reloads the current page
      */
     const resetAndReload = useCallback(() => {
         window.location.reload();
     }, []);
 
     /**
-     * Resetea el error y navega a una ruta específica
-     * @param path - Ruta a la que navegar
+     * Resets the error and navigates to a specific route
+     * @param path - Route to navigate to
      */
     const resetAndNavigate = useCallback(
         (path: string) => {
@@ -27,7 +27,7 @@ export const useErrorReset = () => {
     );
 
     /**
-     * Resetea el error y vuelve a la página anterior
+     * Resets the error and goes back to the previous page
      */
     const resetAndGoBack = useCallback(() => {
         navigate(-1);

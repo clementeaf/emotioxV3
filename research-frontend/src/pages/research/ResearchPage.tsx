@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
 /**
- * Página principal de Research
- * Contiene dos tabs: crear tipo de research y crear research
+ * Main Research page
+ * Contains two tabs: create research type and create research
  */
 export const ResearchPage = () => {
     const [activeTab, setActiveTab] = useState<'type' | 'research'>('type');
@@ -11,7 +11,7 @@ export const ResearchPage = () => {
         <div className="h-full p-6">
             <div className="mb-6">
                 <h1 className="text-2xl font-semibold text-gray-800">Research</h1>
-                <p className="mt-1 text-sm text-gray-500">Gestiona tipos de investigación y crea nuevas investigaciones</p>
+                <p className="mt-1 text-sm text-gray-500">Manage research types and create new researches</p>
             </div>
 
             {/* Tabs */}
@@ -26,7 +26,7 @@ export const ResearchPage = () => {
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
-                            Crear Tipo de Research
+                            Create Research Type
                         </button>
                         <button
                             onClick={() => setActiveTab('research')}
@@ -36,7 +36,7 @@ export const ResearchPage = () => {
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
-                            Crear Research
+                            Create Research
                         </button>
                     </nav>
                 </div>
@@ -45,15 +45,15 @@ export const ResearchPage = () => {
                 <div className="p-6">
                     {activeTab === 'type' && (
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Crear Tipo de Research</h2>
-                            <p className="text-gray-600">Formulario para crear un nuevo tipo de investigación aparecerá aquí</p>
+                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Create Research Type</h2>
+                            <p className="text-gray-600">Form to create a new research type will appear here</p>
                         </div>
                     )}
 
                     {activeTab === 'research' && (
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Crear Research</h2>
-                            <p className="text-gray-600">Formulario para crear una nueva investigación aparecerá aquí</p>
+                            <h2 className="text-lg font-semibold text-gray-800 mb-2">Create Research</h2>
+                            <p className="text-gray-600">Form to create a new research will appear here</p>
                         </div>
                     )}
                 </div>

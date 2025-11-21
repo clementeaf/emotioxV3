@@ -17,8 +17,8 @@ interface RouteErrorBoundaryState {
 }
 
 /**
- * ErrorBoundary específico para rutas
- * Permite aislar errores por sección de la aplicación
+ * ErrorBoundary specific for routes
+ * Allows isolating errors by application section
  */
 export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBoundaryState> {
     constructor(props: RouteErrorBoundaryProps) {
@@ -100,8 +100,8 @@ interface RouteErrorFallbackPropsWithHooks extends Omit<RouteErrorFallbackProps,
 }
 
 /**
- * Componente de fallback específico para rutas
- * Adapta el mensaje según el contexto
+ * Route-specific fallback component
+ * Adapts message according to context
  */
 const RouteErrorFallback: React.FC<RouteErrorFallbackPropsWithHooks> = ({ error, errorInfo, context, onReset, navigate, location }) => {
     const isDevelopment = import.meta.env.DEV;
@@ -110,21 +110,21 @@ const RouteErrorFallback: React.FC<RouteErrorFallbackPropsWithHooks> = ({ error,
         switch (context) {
             case 'auth':
                 return {
-                    title: 'Error en autenticación',
-                    message: 'Ha ocurrido un error al cargar la página de autenticación. Por favor, intenta de nuevo.',
-                    actionLabel: 'Volver al login',
+                    title: 'Authentication Error',
+                    message: 'An error occurred while loading the authentication page. Please try again.',
+                    actionLabel: 'Go to Login',
                 };
             case 'dashboard':
                 return {
-                    title: 'Error en el dashboard',
-                    message: 'Ha ocurrido un error al cargar esta sección. Puedes intentar recargar o navegar a otra página.',
-                    actionLabel: 'Ir al dashboard',
+                    title: 'Dashboard Error',
+                    message: 'An error occurred while loading this section. You can try reloading or navigating to another page.',
+                    actionLabel: 'Go to Dashboard',
                 };
             default:
                 return {
-                    title: 'Algo salió mal',
-                    message: 'Ha ocurrido un error inesperado en esta página. Por favor, intenta de nuevo.',
-                    actionLabel: 'Volver',
+                    title: 'Something went wrong',
+                    message: 'An unexpected error occurred on this page. Please try again.',
+                    actionLabel: 'Go Back',
                 };
         }
     };
@@ -171,10 +171,10 @@ const RouteErrorFallback: React.FC<RouteErrorFallbackPropsWithHooks> = ({ error,
                     {isDevelopment && error && (
                         <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-md">
                             <h2 className="text-lg font-semibold text-red-800 mb-2">
-                                Detalles del error (solo en desarrollo):
+                                Error details (development only):
                             </h2>
                             <div className="text-xs text-gray-500 mb-2">
-                                Ruta: {location.pathname} | Contexto: {context || 'general'}
+                                Route: {location.pathname} | Context: {context || 'general'}
                             </div>
                             <pre className="text-sm text-red-700 overflow-auto max-h-64">
                                 <code>{error.toString()}</code>

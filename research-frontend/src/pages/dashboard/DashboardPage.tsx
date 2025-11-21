@@ -1,5 +1,5 @@
 /**
- * Página principal del Dashboard
+ * Main Dashboard page
  */
 export const DashboardPage = () => {
     return (

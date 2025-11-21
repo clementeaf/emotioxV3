@@ -9,7 +9,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { routesConfig, type RouteConfig } from './config/routes';
 
 /**
- * Renderiza un elemento con sus ErrorBoundaries si están configurados
+ * Renders an element with its ErrorBoundaries if configured
  */
 const renderWithErrorBoundaries = (route: RouteConfig): ReactNode => {
     let element = route.element;
@@ -29,7 +29,7 @@ interface LayoutConfig {
 }
 
 /**
- * Configuración de layouts disponibles
+ * Available layouts configuration
  */
 const layoutsConfig: Record<string, LayoutConfig> = {
     auth: {
@@ -79,7 +79,7 @@ const layoutsConfig: Record<string, LayoutConfig> = {
 };
 
 /**
- * Genera todas las rutas desde la configuración
+ * Generates all routes from configuration
  */
 const generateRoutes = (): ReactElement[] => {
     const routesByLayout = new Map<string, RouteConfig[]>();

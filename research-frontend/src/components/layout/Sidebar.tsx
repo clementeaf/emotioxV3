@@ -3,7 +3,6 @@ import {
     BrainCircuit, 
     LayoutDashboard,
     Settings,
-    ChevronDown,
     FileText
 } from 'lucide-react';
 import { cn } from '../ui/Button';
@@ -20,8 +19,8 @@ const navItems: NavItem[] = [
 ];
 
 /**
- * Sidebar de navegación principal
- * Muestra el logo, items de navegación y ajustes
+ * Main navigation sidebar
+ * Displays logo, navigation items and settings
  */
 export const Sidebar = () => {
     const location = useLocation();
@@ -30,13 +29,13 @@ export const Sidebar = () => {
         <div className="w-38 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg">
             {/* Logo y dropdown */}
             <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col items-center justify-between gap-4">
                     <div className="flex items-center">
                         <div className="rounded-full bg-blue-500 p-2">
                             <BrainCircuit className="h-5 w-5 text-white" />
                         </div>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                    {/* <ChevronDown className="h-4 w-4 text-gray-400" /> */}
                 </div>
             </div>
 
@@ -77,7 +76,7 @@ export const Sidebar = () => {
                     )}
                 >
                     <Settings className={cn('h-5 w-5 mr-3', location.pathname === '/settings' ? 'text-blue-600' : 'text-gray-400')} />
-                    Ajustes
+                    Settings
                 </Link>
             </div>
         </div>

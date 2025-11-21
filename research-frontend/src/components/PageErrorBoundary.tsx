@@ -17,8 +17,8 @@ interface PageErrorBoundaryState {
 }
 
 /**
- * ErrorBoundary específico para páginas individuales
- * Permite aislar errores a nivel de página
+ * ErrorBoundary specific for individual pages
+ * Allows isolating errors at page level
  */
 export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErrorBoundaryState> {
     constructor(props: PageErrorBoundaryProps) {
@@ -98,7 +98,7 @@ interface PageErrorFallbackPropsWithHooks extends Omit<PageErrorFallbackProps, '
 }
 
 /**
- * Componente de fallback para errores de página
+ * Fallback component for page errors
  */
 const PageErrorFallback: React.FC<PageErrorFallbackPropsWithHooks> = ({ error, pageName, onReset, navigate }) => {
     const isDevelopment = import.meta.env.DEV;
@@ -112,17 +112,17 @@ const PageErrorFallback: React.FC<PageErrorFallbackPropsWithHooks> = ({ error, p
                     </div>
 
                     <h2 className="text-2xl font-bold text-gray-900 text-center mb-3">
-                        Error en {pageName || 'esta página'}
+                        Error on {pageName || 'this page'}
                     </h2>
 
                     <p className="text-gray-600 text-center mb-6">
-                        Ha ocurrido un error al cargar esta página. Puedes intentar recargar o volver atrás.
+                        An error occurred while loading this page. You can try reloading or going back.
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
                         <Button onClick={onReset} size="sm" className="flex items-center justify-center gap-2">
                             <RefreshCw className="h-4 w-4" />
-                            Reintentar
+                            Retry
                         </Button>
                         <Button
                             onClick={() => navigate(-1)}
@@ -131,13 +131,13 @@ const PageErrorFallback: React.FC<PageErrorFallbackPropsWithHooks> = ({ error, p
                             className="flex items-center justify-center gap-2"
                         >
                             <ArrowLeft className="h-4 w-4" />
-                            Volver
+                            Go Back
                         </Button>
                     </div>
 
                     {isDevelopment && error && (
                         <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded-md">
-                            <h3 className="text-sm font-semibold text-red-800 mb-2">Detalles del error:</h3>
+                            <h3 className="text-sm font-semibold text-red-800 mb-2">Error details:</h3>
                             <pre className="text-xs text-red-700 overflow-auto max-h-48">
                                 <code>{error.toString()}</code>
                             </pre>
