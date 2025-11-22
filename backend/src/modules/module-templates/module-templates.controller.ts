@@ -23,7 +23,7 @@ export const handleModuleTemplatesRoutes = async (event: APIGatewayProxyEvent): 
             // TODO: Add authentication and use real user ID
             const template = await moduleTemplatesService.create({
                 ...body,
-                created_by: '00000000-0000-0000-0000-000000000000' // Temporary placeholder
+                created_by: null // Temporary: null until authentication is implemented
             });
             return success(template, 201);
         }

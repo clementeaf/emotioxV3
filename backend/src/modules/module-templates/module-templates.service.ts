@@ -4,7 +4,7 @@ export interface ModuleTemplateData {
     name: string;
     description?: string;
     structure?: any[];
-    created_by: string;
+    created_by: string | null;
 }
 
 export const list = async () => {
