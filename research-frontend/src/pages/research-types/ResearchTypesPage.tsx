@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { researchTypesService, type ResearchType } from '../../services/researchTypes.service';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +10,10 @@ export const ResearchTypesPage = () => {
     const [researchTypes, setResearchTypes] = useState<ResearchType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [researchTypeToDelete, setResearchTypeToDelete] = useState<ResearchType | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         loadResearchTypes();
@@ -27,14 +32,25 @@ export const ResearchTypesPage = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this research type?')) return;
+    const handleDeleteClick = (type: ResearchType) => {
+        setResearchTypeToDelete(type);
+        setDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!researchTypeToDelete) return;
+
         try {
-            await researchTypesService.delete(id);
+            setIsDeleting(true);
+            await researchTypesService.delete(researchTypeToDelete.id);
             await loadResearchTypes();
+            setDeleteModalOpen(false);
+            setResearchTypeToDelete(null);
         } catch (err) {
             console.error('Failed to delete research type:', err);
             alert('Failed to delete research type');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -95,7 +111,7 @@ export const ResearchTypesPage = () => {
                                     <Pencil className="h-4 w-4" />
                                 </button>
                                 <button
-                                    onClick={() => handleDelete(type.id)}
+                                    onClick={() => handleDeleteClick(type)}
                                     className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                     title="Delete"
                                 >
@@ -124,6 +140,17 @@ export const ResearchTypesPage = () => {
                     ))}
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title="Delete Research Type"
+                message={`Are you sure you want to delete "${researchTypeToDelete?.name}"? This action cannot be undone.`}
+                confirmText="Delete"
+                variant="danger"
+                isLoading={isDeleting}
+            />
         </div>
     );
 };
