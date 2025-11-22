@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../ui/Button';
 
 interface ModalProps {
@@ -82,7 +83,7 @@ export const Modal = ({
         }
     };
 
-    return (
+    const modalContent = (
         <div
             className={cn(
                 "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm",
@@ -92,6 +93,7 @@ export const Modal = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? 'modal-title' : undefined}
+            style={{ zIndex: 9999 }}
         >
             <div
                 className={cn(
@@ -142,5 +144,7 @@ export const Modal = ({
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 };
 
