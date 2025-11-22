@@ -10,6 +10,7 @@ import { ModulesPage } from '../pages/modules/ModulesPage';
 import { ModuleBuilderPage } from '../pages/modules/ModuleBuilderPage';
 import { ResearchTypesPage } from '../pages/research-types/ResearchTypesPage';
 import { ResearchTypeBuilderPage } from '../pages/research-types/ResearchTypeBuilderPage';
+import { ModuleTemplateAssignationPage } from '../pages/research-types/ModuleTemplateAssignationPage';
 import { ResearchTechniquesPage } from '../pages/research-techniques/ResearchTechniquesPage';
 import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/ResearchTechniqueBuilderPage';
 
@@ -106,6 +107,13 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Edit Research Type' },
+    },
+    {
+        path: '/research-types/:id/module-template-assignation',
+        element: <ModuleTemplateAssignationPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Assign Module Templates' },
     },
     {
         path: '/research-techniques',

@@ -206,6 +206,13 @@ export const ResearchTypesPage = () => {
                                                 <Link className="h-4 w-4" />
                                                 Assign Techniques
                                             </button>
+                                            <button
+                                                onClick={() => navigate(`/research-types/${type.id}/module-template-assignation`)}
+                                                className="mt-2 flex items-center gap-2 text-sm text-green-600 hover:text-green-700 font-medium"
+                                            >
+                                                <Link className="h-4 w-4" />
+                                                Assign Modules
+                                            </button>
                                         </div>
                                     </div>
                                 </div>

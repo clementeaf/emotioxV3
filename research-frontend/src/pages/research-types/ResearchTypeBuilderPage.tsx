@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { researchTypesService } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
-import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
+
 
 export const ResearchTypeBuilderPage = () => {
     const navigate = useNavigate();
@@ -14,10 +14,7 @@ export const ResearchTypeBuilderPage = () => {
 
     const [name, setName] = useState('');
     const [selectedTechniqueIds, setSelectedTechniqueIds] = useState<string[]>([]);
-    const [selectedModules, setSelectedModules] = useState<string[]>([]);
-
     const [techniques, setTechniques] = useState<ResearchTechnique[]>([]);
-    const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -34,12 +31,8 @@ export const ResearchTypeBuilderPage = () => {
 
     const loadData = async () => {
         try {
-            const [techniquesRes, modulesRes] = await Promise.all([
-                researchTechniquesService.list(),
-                moduleTemplatesService.list()
-            ]);
+            const techniquesRes = await researchTechniquesService.list();
             setTechniques(techniquesRes.researchTechniques);
-            setModuleTemplates(modulesRes);
         } catch (error) {
             console.error('Failed to load data:', error);
         }
@@ -70,14 +63,6 @@ export const ResearchTypeBuilderPage = () => {
             prev.includes(techniqueId)
                 ? prev.filter(id => id !== techniqueId)
                 : [...prev, techniqueId]
-        );
-    };
-
-    const handleModuleToggle = (moduleId: string) => {
-        setSelectedModules(prev =>
-            prev.includes(moduleId)
-                ? prev.filter(id => id !== moduleId)
-                : [...prev, moduleId]
         );
     };
 
@@ -136,10 +121,10 @@ export const ResearchTypeBuilderPage = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-                <div className="max-w-4xl mx-auto space-y-8">
+            <div className="flex-1 overflow-y-auto py-6">
+                <div className="px-6 space-y-8">
                     {/* Basic Info */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <div className="rounded-lg border border-gray-200 p-6 space-y-4">
                         <h2 className="text-lg font-semibold text-gray-900">Basic Information</h2>
                         <Input
                             id="name"
@@ -152,7 +137,7 @@ export const ResearchTypeBuilderPage = () => {
                     </div>
 
                     {/* Research Techniques */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <div className="rounded-lg border border-gray-200 p-6 space-y-4">
                         <div>
                             <h2 className="text-lg font-semibold text-gray-900">Research Techniques</h2>
                             <p className="text-sm text-gray-500 mt-1">
@@ -191,52 +176,6 @@ export const ResearchTypeBuilderPage = () => {
                                                 <div className="text-sm text-gray-500 mt-1">
                                                     <span className="font-medium">Description:</span> {technique.description}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </label>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Module Assignment */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">Module Templates</h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Select which module templates should be included in this research type
-                            </p>
-                        </div>
-
-                        {moduleTemplates.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                <p>No module templates available.</p>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => navigate('/modules/new')}
-                                    className="mt-2"
-                                >
-                                    Create a module template first
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {moduleTemplates.map((module) => (
-                                    <label
-                                        key={module.id}
-                                        className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedModules.includes(module.id)}
-                                            onChange={() => handleModuleToggle(module.id)}
-                                            className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900">{module.name}</div>
-                                            {module.description && (
-                                                <div className="text-sm text-gray-500 mt-1">{module.description}</div>
                                             )}
                                         </div>
                                     </label>
