@@ -1,5 +1,5 @@
 import { Input } from '../ui/Input';
-import { Autocomplete, type AutocompleteOption } from '../common/Autocomplete';
+import { Autocomplete, type AutocompleteOption } from '../ui/Autocomplete';
 import { type Enterprise } from '../../services/enterprises.service';
 
 interface ResearchFormStep1Props {

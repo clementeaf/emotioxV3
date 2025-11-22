@@ -1,4 +1,4 @@
-import { CustomSelect } from '../common/CustomSelect';
+import { CustomSelect } from '../ui/CustomSelect';
 import { type ResearchTechnique } from '../../services/researchTechniques.service';
 
 interface ResearchFormStep2Props {

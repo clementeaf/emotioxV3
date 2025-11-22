@@ -4,7 +4,7 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
-import { CustomSelect } from '../../components/common/CustomSelect';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 import { researchTypesService } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';

@@ -4,16 +4,10 @@ import { ArrowLeft, Plus, Save, Trash2, GripVertical } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
-import { CustomSelect } from '../../components/common/CustomSelect';
+import { CustomSelect } from '../../components/ui/CustomSelect';
+import { ComponentConfigPanel } from '../../components/modules/ComponentConfigPanel';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
-
-interface ComponentConfig {
-    id: string;
-    type: 'input' | 'textarea' | 'select' | 'checkbox' | 'radio';
-    label: string;
-    required: boolean;
-    options?: { label: string; value: string }[]; // For select, radio
-}
+import type { ComponentConfig } from '../../types/moduleBuilder.types';
 
 export const ModuleBuilderPage = () => {
     const navigate = useNavigate();
@@ -54,7 +48,6 @@ export const ModuleBuilderPage = () => {
             id: crypto.randomUUID(),
             type: 'input',
             label: 'New Question',
-            required: false,
         };
         setComponents([...components, newComponent]);
     };
@@ -178,33 +171,26 @@ export const ModuleBuilderPage = () => {
                                                     />
                                                     <CustomSelect
                                                         id={`type-${component.id}`}
+                                                        label="Component Type"
                                                         value={component.type}
-                                                        onChange={(value) => handleUpdateComponent(component.id, { type: value as 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' })}
+                                                        onChange={(value) => handleUpdateComponent(component.id, { type: value as ComponentConfig['type'] })}
                                                         options={[
                                                             { value: 'input', label: 'Text Input' },
                                                             { value: 'textarea', label: 'Text Area' },
                                                             { value: 'select', label: 'Select / Dropdown' },
                                                             { value: 'checkbox', label: 'Checkbox' },
                                                             { value: 'radio', label: 'Radio Buttons' },
+                                                            { value: 'file-upload', label: 'File Upload' },
                                                         ]}
                                                         placeholder="Select Type"
                                                     />
                                                 </div>
 
-                                                {/* Type specific settings could go here */}
-
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={`required-${component.id}`}
-                                                        checked={component.required}
-                                                        onChange={(e) => handleUpdateComponent(component.id, { required: e.target.checked })}
-                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    />
-                                                    <label htmlFor={`required-${component.id}`} className="text-sm text-gray-700">
-                                                        Required field
-                                                    </label>
-                                                </div>
+                                                {/* Type-specific configuration panel */}
+                                                <ComponentConfigPanel
+                                                    component={component}
+                                                    onUpdate={(updates) => handleUpdateComponent(component.id, updates)}
+                                                />
                                             </div>
                                             <Button
                                                 variant="ghost"

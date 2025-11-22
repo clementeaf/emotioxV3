@@ -1,11 +1,11 @@
 import { type FormEvent } from 'react';
-import { Stepper } from '../common/Stepper';
+import { Stepper } from '../ui/Stepper';
 import { Button } from '../ui/Button';
 import { ResearchFormStep1 } from './ResearchFormStep1';
 import { ResearchFormStep2 } from './ResearchFormStep2';
 import { useResearchForm } from '../../hooks/useResearchForm';
 import { useEnterprise } from '../../hooks/useEnterprise';
-import { type AutocompleteOption } from '../common/Autocomplete';
+import { type AutocompleteOption } from '../ui/Autocomplete';
 
 export const CreateResearchForm = () => {
     const {

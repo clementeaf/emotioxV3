@@ -1,4 +1,4 @@
-import { Modal } from '../common/Modal';
+import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
