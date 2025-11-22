@@ -10,6 +10,7 @@ interface ModalProps {
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
     closeOnOverlayClick?: boolean;
     closeOnEscape?: boolean;
+    fullScreen?: boolean;
     className?: string;
 }
 
@@ -32,6 +33,7 @@ const sizeClasses = {
  * @param closeOnOverlayClick - Whether clicking overlay closes modal
  * @param closeOnEscape - Whether pressing Escape closes modal
  * @param className - Additional CSS classes
+ * @param fullScreen - Whether the modal should occupy the full screen
  */
 export const Modal = ({
     isOpen,
@@ -43,6 +45,7 @@ export const Modal = ({
     closeOnOverlayClick = true,
     closeOnEscape = true,
     className,
+    fullScreen = false,
 }: ModalProps) => {
     useEffect(() => {
         if (!isOpen || !closeOnEscape) return;
@@ -81,7 +84,10 @@ export const Modal = ({
 
     return (
         <div
-            className="absolute top-0 left-0 right-0 bottom-0 flex h-full items-center justify-center bg-black/50 backdrop-blur-sm"
+            className={cn(
+                "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm",
+                fullScreen ? "p-0" : "p-4"
+            )}
             onClick={handleOverlayClick}
             role="dialog"
             aria-modal="true"
@@ -89,8 +95,9 @@ export const Modal = ({
         >
             <div
                 className={cn(
-                    'bg-white rounded-lg shadow-xl w-full flex flex-col max-h-[90vh] overflow-hidden',
-                    sizeClasses[size],
+                    'bg-white shadow-xl w-full flex flex-col overflow-hidden',
+                    fullScreen ? 'h-full max-h-screen rounded-none' : 'rounded-lg max-h-[90vh]',
+                    !fullScreen && sizeClasses[size],
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}
