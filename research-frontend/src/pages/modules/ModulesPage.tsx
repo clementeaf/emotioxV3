@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Boxes, Plus, Pencil, Trash2, Eye } from 'lucide-react';
+import { Boxes, Plus, Pencil, Trash2, Eye, Grid3x3, List } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
 import { useNavigate } from 'react-router-dom';
+
+type ViewMode = 'cards' | 'list';
 
 export const ModulesPage = () => {
     const navigate = useNavigate();
@@ -12,6 +14,7 @@ export const ModulesPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedModule, setSelectedModule] = useState<ModuleTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [viewMode, setViewMode] = useState<ViewMode>('cards');
 
     useEffect(() => {
         loadTemplates();
@@ -61,10 +64,35 @@ export const ModulesPage = () => {
                         Manage and configure reusable research modules
                     </p>
                 </div>
-                <Button onClick={() => navigate('/modules/new')}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Module
-                </Button>
+                <div className="flex items-center gap-3">
+                    {/* View Toggle */}
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        <button
+                            onClick={() => setViewMode('cards')}
+                            className={`p-2 rounded-md transition-colors ${viewMode === 'cards'
+                                    ? 'bg-white text-blue-600 shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            title="Card view"
+                        >
+                            <Grid3x3 className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-2 rounded-md transition-colors ${viewMode === 'list'
+                                    ? 'bg-white text-blue-600 shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            title="List view"
+                        >
+                            <List className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <Button onClick={() => navigate('/modules/new')}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Module
+                    </Button>
+                </div>
             </div>
 
             {isLoading ? (
@@ -92,7 +120,8 @@ export const ModulesPage = () => {
                         </Button>
                     </div>
                 </div>
-            ) : (
+            ) : viewMode === 'cards' ? (
+                /* Card View */
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {templates.map((template) => (
                         <div
@@ -138,6 +167,74 @@ export const ModulesPage = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+            ) : (
+                /* List View */
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Module
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Description
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Updated
+                                </th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {templates.map((template) => (
+                                <tr
+                                    key={template.id}
+                                    onClick={() => handlePreview(template)}
+                                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                                >
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-50 rounded-lg">
+                                                <Boxes className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div className="font-medium text-gray-900">{template.name}</div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm text-gray-500 line-clamp-1">
+                                            {template.description || 'No description provided'}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="text-sm text-gray-500">
+                                            {new Date(template.updated_at).toLocaleDateString()}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button
+                                                onClick={(e) => handleEdit(template.id, e)}
+                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                title="Edit"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleDelete(template.id, e)}
+                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                                title="Delete"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             )}
 
