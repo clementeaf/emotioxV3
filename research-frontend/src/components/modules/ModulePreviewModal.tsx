@@ -12,7 +12,9 @@ interface ModulePreviewModalProps {
 export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewModalProps) => {
     if (!module) return null;
 
-    const components = (module.structure as unknown as ComponentConfig[]) || [];
+    // Parse the structure to get components array
+    const structure = module.structure as { components?: ComponentConfig[] };
+    const components = structure?.components || [];
 
     return (
         <Modal
