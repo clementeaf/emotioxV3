@@ -29,7 +29,7 @@ export const list = async () => {
     return result.rows;
 };
 
-export const create = async (data: ResearchTypeData, createdBy: string) => {
+export const create = async (data: ResearchTypeData, createdBy: string | null) => {
     const { name, description, research_technique_id, default_modules = [], settings = {} } = data;
     const client = await pool.connect();
 
