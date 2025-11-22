@@ -188,7 +188,9 @@ export const ResearchTypeBuilderPage = () => {
                                         <div className="flex-1">
                                             <div className="font-medium text-gray-900">{technique.name}</div>
                                             {technique.description && (
-                                                <div className="text-sm text-gray-500 mt-1">{technique.description}</div>
+                                                <div className="text-sm text-gray-500 mt-1">
+                                                    <span className="font-medium">Description:</span> {technique.description}
+                                                </div>
                                             )}
                                         </div>
                                     </label>
