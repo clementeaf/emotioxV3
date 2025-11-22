@@ -20,6 +20,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
             onClose={onClose}
             title={`Preview: ${module.name}`}
             size="lg"
+            className="h-full"
         >
             <div className="space-y-6">
                 {/* Module Description */}
