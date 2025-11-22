@@ -18,7 +18,8 @@ export const list = async () => {
         rt.default_modules, 
         rt.settings, 
         rt.is_active, 
-        rt.created_at
+        rt.created_at,
+        rt.updated_at
     FROM research_types rt
     INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_type_id
     INNER JOIN research_techniques tech ON rtt.research_technique_id = tech.id

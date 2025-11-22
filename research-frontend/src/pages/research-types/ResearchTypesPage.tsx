@@ -118,7 +118,7 @@ export const ResearchTypesPage = () => {
                                 {type.description || 'No description provided'}
                             </p>
                             <div className="text-xs text-gray-400">
-                                Updated {new Date(type.updated_at).toLocaleDateString()}
+                                Updated {new Date(type.updated_at || type.created_at).toLocaleDateString()}
                             </div>
                         </div>
                     ))}
