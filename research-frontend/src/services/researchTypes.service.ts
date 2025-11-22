@@ -9,18 +9,20 @@ export interface ResearchType {
     created_by: string;
     created_at: string;
     updated_at: string;
+    research_techniques?: ResearchTechnique[];
 }
 
 export interface CreateResearchTypeData {
     name: string;
     description?: string;
-    research_technique_id?: string;
+    research_technique_ids?: string[];
     settings?: Record<string, unknown>;
 }
 
 export interface UpdateResearchTypeData {
     name?: string;
     description?: string;
+    research_technique_ids?: string[];
 }
 
 export interface ResearchTypeResponse {

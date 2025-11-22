@@ -10,6 +10,8 @@ import { ModulesPage } from '../pages/modules/ModulesPage';
 import { ModuleBuilderPage } from '../pages/modules/ModuleBuilderPage';
 import { ResearchTypesPage } from '../pages/research-types/ResearchTypesPage';
 import { ResearchTypeBuilderPage } from '../pages/research-types/ResearchTypeBuilderPage';
+import { ResearchTechniquesPage } from '../pages/research-techniques/ResearchTechniquesPage';
+import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/ResearchTechniqueBuilderPage';
 
 export interface RouteConfig {
     path: string;
@@ -104,6 +106,27 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Edit Research Type' },
+    },
+    {
+        path: '/research-techniques',
+        element: <ResearchTechniquesPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Techniques' },
+    },
+    {
+        path: '/research-techniques/new',
+        element: <ResearchTechniqueBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Create Research Technique' },
+    },
+    {
+        path: '/research-techniques/:id',
+        element: <ResearchTechniqueBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Edit Research Technique' },
     },
 
     // Default redirect
