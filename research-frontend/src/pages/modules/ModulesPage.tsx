@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Boxes, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Boxes, Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +10,8 @@ export const ModulesPage = () => {
     const [templates, setTemplates] = useState<ModuleTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedModule, setSelectedModule] = useState<ModuleTemplate | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
 
     useEffect(() => {
         loadTemplates();
@@ -27,7 +30,8 @@ export const ModulesPage = () => {
         }
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card click
         if (!window.confirm('Are you sure you want to delete this module template?')) return;
         try {
             await moduleTemplatesService.delete(id);
@@ -36,6 +40,16 @@ export const ModulesPage = () => {
             console.error('Failed to delete template:', err);
             alert('Failed to delete module template');
         }
+    };
+
+    const handlePreview = (template: ModuleTemplate) => {
+        setSelectedModule(template);
+        setShowPreview(true);
+    };
+
+    const handleEdit = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent card click
+        navigate(`/modules/${id}`);
     };
 
     return (
@@ -83,7 +97,8 @@ export const ModulesPage = () => {
                     {templates.map((template) => (
                         <div
                             key={template.id}
-                            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                            onClick={() => handlePreview(template)}
+                            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
                         >
                             <div className="flex items-start justify-between mb-4">
                                 <div className="p-2 bg-blue-50 rounded-lg">
@@ -91,14 +106,14 @@ export const ModulesPage = () => {
                                 </div>
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => navigate(`/modules/${template.id}`)}
+                                        onClick={(e) => handleEdit(template.id, e)}
                                         className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                                         title="Edit"
                                     >
                                         <Pencil className="h-4 w-4" />
                                     </button>
                                     <button
-                                        onClick={() => handleDelete(template.id)}
+                                        onClick={(e) => handleDelete(template.id, e)}
                                         className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                                         title="Delete"
                                     >
@@ -112,13 +127,25 @@ export const ModulesPage = () => {
                             <p className="text-sm text-gray-500 line-clamp-2 mb-4">
                                 {template.description || 'No description provided'}
                             </p>
-                            <div className="text-xs text-gray-400">
-                                Updated {new Date(template.updated_at).toLocaleDateString()}
+                            <div className="flex items-center justify-between">
+                                <div className="text-xs text-gray-400">
+                                    Updated {new Date(template.updated_at).toLocaleDateString()}
+                                </div>
+                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                    <Eye className="h-3 w-3" />
+                                    <span>Click to preview</span>
+                                </div>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+
+            <ModulePreviewModal
+                module={selectedModule}
+                isOpen={showPreview}
+                onClose={() => setShowPreview(false)}
+            />
         </div>
     );
 };
