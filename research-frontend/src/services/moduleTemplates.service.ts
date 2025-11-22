@@ -4,7 +4,7 @@ export interface ModuleTemplate {
     id: string;
     name: string;
     description?: string;
-    structure: Record<string, unknown>[];
+    structure: Record<string, unknown>;
     created_by: string;
     is_active: boolean;
     created_at: string;
@@ -14,13 +14,13 @@ export interface ModuleTemplate {
 export interface CreateModuleTemplateData {
     name: string;
     description?: string;
-    structure?: Record<string, unknown>[];
+    structure?: Record<string, unknown>;
 }
 
 export interface UpdateModuleTemplateData {
     name?: string;
     description?: string;
-    structure?: Record<string, unknown>[];
+    structure?: Record<string, unknown>;
 }
 
 export const moduleTemplatesService = {

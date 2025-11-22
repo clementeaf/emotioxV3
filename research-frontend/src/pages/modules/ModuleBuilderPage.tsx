@@ -27,8 +27,9 @@ export const ModuleBuilderPage = () => {
                 const template = await moduleTemplatesService.getById(templateId);
                 setName(template.name);
                 setDescription(template.description || '');
-                // Cast the structure to ComponentConfig[] as we know the shape
-                setComponents((template.structure as unknown) as ComponentConfig[] || []);
+                // Parse the structure to get components array
+                const structure = template.structure as { components?: ComponentConfig[] };
+                setComponents(structure?.components || []);
             } catch (error) {
                 console.error('Failed to load template:', error);
                 alert('Failed to load module template');
@@ -71,7 +72,7 @@ export const ModuleBuilderPage = () => {
             const data = {
                 name,
                 description,
-                structure: components as unknown as Record<string, unknown>[],
+                structure: { components } as unknown as Record<string, unknown>,
             };
 
             if (isEditing && id) {
