@@ -1,8 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { requireAuth } from '../../utils/auth';
 import * as researchTypesService from './research-types.service';
-import * as authService from '../auth/auth.service';
 
 export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;

@@ -2,9 +2,7 @@ import {
     CognitoIdentityProviderClient,
     SignUpCommand,
     InitiateAuthCommand,
-    AdminGetUserCommand,
     AdminSetUserPasswordCommand,
-    AdminUpdateUserAttributesCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import pool from '../../config/database';
 import { cognitoConfig } from '../../config/cognito';
