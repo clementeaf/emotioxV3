@@ -1,11 +1,26 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
+import { requireAuth } from '../../utils/auth';
 import * as moduleTemplatesService from './module-templates.service';
+import * as authService from '../auth/auth.service';
 
 export const handleModuleTemplatesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
 
     try {
+        // All module-templates routes require authentication
+        let user;
+        try {
+            const decoded = await requireAuth(event);
+            user = await authService.getMe(decoded.sub);
+        } catch (authError: unknown) {
+            const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+            if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
+                return error(authErrorMessage, 401);
+            }
+            throw authError;
+        }
+
         // GET /module-templates
         if (path === '/module-templates' && httpMethod === 'GET') {
             const templates = await moduleTemplatesService.list();
@@ -20,10 +35,9 @@ export const handleModuleTemplatesRoutes = async (event: APIGatewayProxyEvent): 
                 return error('Name is required', 400);
             }
 
-            // TODO: Add authentication and use real user ID
             const template = await moduleTemplatesService.create({
                 ...body,
-                created_by: null // Temporary: null until authentication is implemented
+                created_by: user.id
             });
             return success(template, 201);
         }

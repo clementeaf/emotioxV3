@@ -1,24 +1,25 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
+import { requireAuth } from '../../utils/auth';
 import * as researchTypesService from './research-types.service';
+import * as authService from '../auth/auth.service';
 
 export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
 
     try {
-        // TODO: Re-enable authentication when auth is fully implemented
-        // All research-types routes require authentication (temporarily disabled)
-        // let user;
-        // try {
-        //     const decoded = await requireAuth(event);
-        //     user = await authService.getMe(decoded.sub);
-        // } catch (authError: unknown) {
-        //     const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
-        //     if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
-        //         return error(authErrorMessage, 401);
-        //     }
-        //     throw authError;
-        // }
+        // All research-types routes require authentication
+        let user;
+        try {
+            const decoded = await requireAuth(event);
+            user = await authService.getMe(decoded.sub);
+        } catch (authError: unknown) {
+            const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+            if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
+                return error(authErrorMessage, 401);
+            }
+            throw authError;
+        }
 
         // GET /research-types
         if (path === '/research-types' && httpMethod === 'GET') {
@@ -29,7 +30,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         // POST /research-types
         if (path === '/research-types' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
-            const type = await researchTypesService.create(body, null); // Temporary: null until auth is implemented
+            const type = await researchTypesService.create(body, user.id);
             return success({ researchType: type }, 201);
         }
 
