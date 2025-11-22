@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Pencil, Trash2 } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, Link } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { AssignTechniquesModal } from '../../components/research-types/AssignTechniquesModal';
 import { researchTypesService, type ResearchType } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +28,10 @@ export const ResearchTypesPage = () => {
     const [deleteTechniqueModalOpen, setDeleteTechniqueModalOpen] = useState(false);
     const [techniqueToDelete, setTechniqueToDelete] = useState<ResearchTechnique | null>(null);
     const [isDeletingTechnique, setIsDeletingTechnique] = useState(false);
+
+    // Assign techniques modal state
+    const [assignModalOpen, setAssignModalOpen] = useState(false);
+    const [typeToAssign, setTypeToAssign] = useState<ResearchType | null>(null);
 
     useEffect(() => {
         loadResearchTypes();
@@ -101,6 +106,15 @@ export const ResearchTypesPage = () => {
         } finally {
             setIsDeletingTechnique(false);
         }
+    };
+
+    const handleAssignTechniquesClick = (type: ResearchType) => {
+        setTypeToAssign(type);
+        setAssignModalOpen(true);
+    };
+
+    const handleAssignSuccess = async () => {
+        await loadResearchTypes();
     };
 
     return (
@@ -185,6 +199,13 @@ export const ResearchTypesPage = () => {
                                             <p className="text-xs text-gray-400 mt-1">
                                                 Updated {new Date(type.updated_at || type.created_at).toLocaleDateString()}
                                             </p>
+                                            <button
+                                                onClick={() => handleAssignTechniquesClick(type)}
+                                                className="mt-3 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                            >
+                                                <Link className="h-4 w-4" />
+                                                Assign Techniques
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -297,6 +318,14 @@ export const ResearchTypesPage = () => {
                 confirmText="Delete"
                 variant="danger"
                 isLoading={isDeletingTechnique}
+            />
+
+            {/* Assign Techniques Modal */}
+            <AssignTechniquesModal
+                isOpen={assignModalOpen}
+                onClose={() => setAssignModalOpen(false)}
+                researchType={typeToAssign}
+                onSuccess={handleAssignSuccess}
             />
         </div>
     );
