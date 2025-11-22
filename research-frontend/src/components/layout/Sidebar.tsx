@@ -1,9 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { 
-    BrainCircuit, 
+import {
+    BrainCircuit,
     LayoutDashboard,
     Settings,
-    FileText
+    FileText,
+    Boxes,
+    Wrench
 } from 'lucide-react';
 import { cn } from '../ui/Button';
 
@@ -16,6 +18,8 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/dashboard', label: 'Home', icon: LayoutDashboard },
     { path: '/research', label: 'Research', icon: FileText },
+    { path: '/research-types', label: 'Research Type Builder', icon: Wrench },
+    { path: '/modules', label: 'Modules', icon: Boxes },
 ];
 
 /**
@@ -43,8 +47,9 @@ export const Sidebar = () => {
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
                 {navItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = location.pathname === item.path || 
-                                   (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+                    // Exact match or starts with path followed by a slash (to avoid /research matching /research-types)
+                    const isActive = location.pathname === item.path ||
+                        (item.path !== '/dashboard' && location.pathname.startsWith(item.path + '/'));
 
                     return (
                         <Link

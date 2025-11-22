@@ -1,0 +1,227 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Plus, Save, Trash2, GripVertical } from 'lucide-react';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { CustomSelect } from '../../components/common/CustomSelect';
+import { moduleTemplatesService } from '../../services/moduleTemplates.service';
+
+interface ComponentConfig {
+    id: string;
+    type: 'input' | 'textarea' | 'select' | 'checkbox' | 'radio';
+    label: string;
+    required: boolean;
+    options?: { label: string; value: string }[]; // For select, radio
+}
+
+export const ModuleBuilderPage = () => {
+    const navigate = useNavigate();
+    const { id } = useParams();
+    const isEditing = !!id;
+
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [components, setComponents] = useState<ComponentConfig[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        const loadTemplate = async (templateId: string) => {
+            try {
+                setIsLoading(true);
+                const template = await moduleTemplatesService.getById(templateId);
+                setName(template.name);
+                setDescription(template.description || '');
+                // Cast the structure to ComponentConfig[] as we know the shape
+                setComponents((template.structure as unknown) as ComponentConfig[] || []);
+            } catch (error) {
+                console.error('Failed to load template:', error);
+                alert('Failed to load module template');
+                navigate('/modules');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (isEditing && id) {
+            void loadTemplate(id);
+        }
+    }, [isEditing, id, navigate]);
+
+    const handleAddComponent = () => {
+        const newComponent: ComponentConfig = {
+            id: crypto.randomUUID(),
+            type: 'input',
+            label: 'New Question',
+            required: false,
+        };
+        setComponents([...components, newComponent]);
+    };
+
+    const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
+        setComponents(components.map(c => c.id === id ? { ...c, ...updates } : c));
+    };
+
+    const handleDeleteComponent = (id: string) => {
+        setComponents(components.filter(c => c.id !== id));
+    };
+
+    const handleSave = async () => {
+        if (!name.trim()) {
+            alert('Module name is required');
+            return;
+        }
+
+        try {
+            setIsSaving(true);
+            const data = {
+                name,
+                description,
+                structure: components as unknown as Record<string, unknown>[],
+            };
+
+            if (isEditing && id) {
+                await moduleTemplatesService.update(id, data);
+            } else {
+                await moduleTemplatesService.create(data);
+            }
+            navigate('/modules');
+        } catch (error) {
+            console.error('Failed to save template:', error);
+            alert('Failed to save module template');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (isLoading) {
+        return <div className="p-6 text-center">Loading...</div>;
+    }
+
+    return (
+        <div className="h-full flex flex-col">
+            {/* Header */}
+            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/modules')}>
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        Back
+                    </Button>
+                    <div>
+                        <h1 className="text-xl font-bold text-gray-900">
+                            {isEditing ? 'Edit Module' : 'Create New Module'}
+                        </h1>
+                    </div>
+                </div>
+                <Button onClick={handleSave} isLoading={isSaving} disabled={isSaving}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Module
+                </Button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="max-w-4xl mx-auto space-y-8">
+                    {/* Basic Info */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                        <h2 className="text-lg font-semibold text-gray-900">Basic Information</h2>
+                        <Input
+                            id="name"
+                            label="Module Name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="e.g., Demographics, Satisfaction Survey"
+                            required
+                        />
+                        <Textarea
+                            id="description"
+                            label="Description"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Describe the purpose of this module..."
+                        />
+                    </div>
+
+                    {/* Components Builder */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-gray-900">Components</h2>
+                            <Button onClick={handleAddComponent} variant="outline" size="sm">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Component
+                            </Button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {components.length === 0 ? (
+                                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                    <p className="text-gray-500">No components added yet.</p>
+                                    <Button onClick={handleAddComponent} variant="ghost" className="mt-2">
+                                        Add your first component
+                                    </Button>
+                                </div>
+                            ) : (
+                                components.map((component) => (
+                                    <div key={component.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                                        <div className="flex items-start gap-4">
+                                            <div className="mt-2 cursor-move text-gray-400">
+                                                <GripVertical className="h-5 w-5" />
+                                            </div>
+                                            <div className="flex-1 space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <Input
+                                                        id={`label-${component.id}`}
+                                                        label="Label / Question"
+                                                        value={component.label}
+                                                        onChange={(e) => handleUpdateComponent(component.id, { label: e.target.value })}
+                                                    />
+                                                    <CustomSelect
+                                                        id={`type-${component.id}`}
+                                                        value={component.type}
+                                                        onChange={(value) => handleUpdateComponent(component.id, { type: value as 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' })}
+                                                        options={[
+                                                            { value: 'input', label: 'Text Input' },
+                                                            { value: 'textarea', label: 'Text Area' },
+                                                            { value: 'select', label: 'Select / Dropdown' },
+                                                            { value: 'checkbox', label: 'Checkbox' },
+                                                            { value: 'radio', label: 'Radio Buttons' },
+                                                        ]}
+                                                        placeholder="Select Type"
+                                                    />
+                                                </div>
+
+                                                {/* Type specific settings could go here */}
+
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`required-${component.id}`}
+                                                        checked={component.required}
+                                                        onChange={(e) => handleUpdateComponent(component.id, { required: e.target.checked })}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <label htmlFor={`required-${component.id}`} className="text-sm text-gray-700">
+                                                        Required field
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleDeleteComponent(component.id)}
+                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

@@ -6,6 +6,10 @@ import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ErrorPage } from '../pages/ErrorPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ResearchPage } from '../pages/research/ResearchPage';
+import { ModulesPage } from '../pages/modules/ModulesPage';
+import { ModuleBuilderPage } from '../pages/modules/ModuleBuilderPage';
+import { ResearchTypesPage } from '../pages/research-types/ResearchTypesPage';
+import { ResearchTypeBuilderPage } from '../pages/research-types/ResearchTypeBuilderPage';
 
 export interface RouteConfig {
     path: string;
@@ -58,6 +62,48 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research' },
+    },
+    {
+        path: '/modules',
+        element: <ModulesPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Modules' },
+    },
+    {
+        path: '/modules/new',
+        element: <ModuleBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Create Module' },
+    },
+    {
+        path: '/modules/:id',
+        element: <ModuleBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Edit Module' },
+    },
+    {
+        path: '/research-types',
+        element: <ResearchTypesPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Types' },
+    },
+    {
+        path: '/research-types/new',
+        element: <ResearchTypeBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Create Research Type' },
+    },
+    {
+        path: '/research-types/:id',
+        element: <ResearchTypeBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Edit Research Type' },
     },
 
     // Default redirect

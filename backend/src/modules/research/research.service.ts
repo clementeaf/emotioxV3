@@ -29,7 +29,17 @@ export const create = async (userId: string, data: ResearchData) => {
     try {
         await client.query('BEGIN');
 
-        const { name, description, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
+        let { description } = data;
+        const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
+
+        // If description is not provided and we have a technique, try to get it from the technique
+        if (!description && research_technique_id) {
+            const techniqueQuery = 'SELECT description FROM research_techniques WHERE id = $1';
+            const techniqueResult = await client.query(techniqueQuery, [research_technique_id]);
+            if (techniqueResult.rows.length > 0) {
+                description = techniqueResult.rows[0].description;
+            }
+        }
 
         // Create research
         const researchQuery = `
