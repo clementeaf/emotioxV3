@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Boxes, Plus, Pencil, Trash2, Eye, Grid3x3, List } from 'lucide-react';
+import { Boxes, Plus, Trash2, Eye, Grid3x3, List } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
@@ -72,10 +72,7 @@ export const ModulesPage = () => {
         setShowPreview(true);
     };
 
-    const handleEdit = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card click
-        navigate(`/modules/${id}`);
-    };
+
 
     const filteredTemplates = templates.filter(template =>
         template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -163,21 +160,14 @@ export const ModulesPage = () => {
                     {filteredTemplates.map((template) => (
                         <div
                             key={template.id}
-                            onClick={() => handlePreview(template)}
-                            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                            onClick={() => navigate(`/modules/${template.id}`)}
+                            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer group"
                         >
                             <div className="flex items-start justify-between mb-4">
                                 <div className="p-2 bg-blue-50 rounded-lg">
                                     <Boxes className="h-6 w-6 text-blue-600" />
                                 </div>
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={(e) => handleEdit(template.id, e)}
-                                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                                        title="Edit"
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </button>
                                     <button
                                         onClick={(e) => handleDeleteClick(template, e)}
                                         className="p-1 text-gray-400 hover:text-red-600 transition-colors"
@@ -187,7 +177,7 @@ export const ModulesPage = () => {
                                     </button>
                                 </div>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                                 {template.name}
                             </h3>
                             <p className="text-sm text-gray-500 line-clamp-2 mb-4">
@@ -197,10 +187,16 @@ export const ModulesPage = () => {
                                 <div className="text-xs text-gray-400">
                                     Updated {new Date(template.updated_at).toLocaleDateString()}
                                 </div>
-                                <div className="flex items-center gap-1 text-xs text-blue-600">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePreview(template);
+                                    }}
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                                >
                                     <Eye className="h-3 w-3" />
-                                    <span>Click to preview</span>
-                                </div>
+                                    <span>Preview</span>
+                                </button>
                             </div>
                         </div>
                     ))}
@@ -229,7 +225,7 @@ export const ModulesPage = () => {
                             {filteredTemplates.map((template) => (
                                 <tr
                                     key={template.id}
-                                    onClick={() => handlePreview(template)}
+                                    onClick={() => navigate(`/modules/${template.id}`)}
                                     className="hover:bg-gray-50 cursor-pointer transition-colors"
                                 >
                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -253,11 +249,14 @@ export const ModulesPage = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={(e) => handleEdit(template.id, e)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handlePreview(template);
+                                                }}
                                                 className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                                title="Edit"
+                                                title="Preview"
                                             >
-                                                <Pencil className="h-4 w-4" />
+                                                <Eye className="h-4 w-4" />
                                             </button>
                                             <button
                                                 onClick={(e) => handleDeleteClick(template, e)}
@@ -279,6 +278,11 @@ export const ModulesPage = () => {
                 module={selectedModule}
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
+                onEdit={() => {
+                    if (selectedModule) {
+                        navigate(`/modules/${selectedModule.id}`);
+                    }
+                }}
             />
 
             <ConfirmationModal

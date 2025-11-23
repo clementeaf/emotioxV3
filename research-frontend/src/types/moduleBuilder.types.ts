@@ -28,4 +28,6 @@ export interface ComponentConfig {
     selectRange?: SelectRangeConfig;
     fileUpload?: FileUploadConfig;
     options?: { label: string; value: string }[];
+    editableFields?: string[];
+    hidden?: boolean;
 }

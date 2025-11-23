@@ -168,14 +168,19 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
 
     // Render configuration based on component type
     const renderTypeSpecificConfig = () => {
+        // If editableFields is defined, check if specific config sections are allowed
+        const canEditPlaceholder = !component.editableFields || component.editableFields.includes('placeholder');
+        const canEditSelectRange = !component.editableFields || component.editableFields.includes('selectRange');
+        const canEditFileUpload = !component.editableFields || component.editableFields.includes('fileUpload');
+
         switch (component.type) {
             case 'input':
             case 'textarea':
-                return renderPlaceholderConfig();
+                return canEditPlaceholder ? renderPlaceholderConfig() : null;
             case 'select':
-                return renderSelectRangeConfig();
+                return canEditSelectRange ? renderSelectRangeConfig() : null;
             case 'file-upload':
-                return renderFileUploadConfig();
+                return canEditFileUpload ? renderFileUploadConfig() : null;
             default:
                 return null;
         }

@@ -20,6 +20,18 @@ const moduleTemplateSchema = z.object({
 
 type ModuleTemplateForm = z.infer<typeof moduleTemplateSchema>;
 
+const getComponentLabel = (type: string): string => {
+    switch (type) {
+        case 'textarea': return 'Long Text';
+        case 'input': return 'Short Text';
+        case 'select': return 'Select / Dropdown';
+        case 'checkbox': return 'Checkbox';
+        case 'radio': return 'Radio Buttons';
+        case 'file-upload': return 'File Upload';
+        default: return type.replace('-', ' ');
+    }
+};
+
 export const ModuleBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -171,54 +183,67 @@ export const ModuleBuilderPage = () => {
                                     </Button>
                                 </div>
                             ) : (
-                                components.map((component) => (
-                                    <div key={component.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                                        <div className="flex items-start gap-4">
-                                            <div className="mt-2 cursor-move text-gray-400">
-                                                <GripVertical className="h-5 w-5" />
-                                            </div>
-                                            <div className="flex-1 space-y-4">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <Input
-                                                        id={`label-${component.id}`}
-                                                        label="Label / Question"
-                                                        value={component.label}
-                                                        onChange={(e) => handleUpdateComponent(component.id, { label: e.target.value })}
-                                                    />
-                                                    <CustomSelect
-                                                        id={`type-${component.id}`}
-                                                        label="Component Type"
-                                                        value={component.type}
-                                                        onChange={(value) => handleUpdateComponent(component.id, { type: value as ComponentConfig['type'] })}
-                                                        options={[
-                                                            { value: 'input', label: 'Text Input' },
-                                                            { value: 'textarea', label: 'Text Area' },
-                                                            { value: 'select', label: 'Select / Dropdown' },
-                                                            { value: 'checkbox', label: 'Checkbox' },
-                                                            { value: 'radio', label: 'Radio Buttons' },
-                                                            { value: 'file-upload', label: 'File Upload' },
-                                                        ]}
-                                                        placeholder="Select Type"
+                                components
+                                    .filter(c => !c.hidden)
+                                    .map((component) => (
+                                        <div key={component.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                                            <div className="flex items-start gap-4">
+                                                <div className="mt-2 cursor-move text-gray-400">
+                                                    <GripVertical className="h-5 w-5" />
+                                                </div>
+                                                <div className="flex-1 space-y-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <Input
+                                                            id={`label-${component.id}`}
+                                                            label="Label / Question"
+                                                            value={component.label}
+                                                            onChange={(e) => handleUpdateComponent(component.id, { label: e.target.value })}
+                                                        />
+                                                        {(!component.editableFields || component.editableFields.includes('type')) ? (
+                                                            <CustomSelect
+                                                                id={`type-${component.id}`}
+                                                                label="Component Type"
+                                                                value={component.type}
+                                                                onChange={(value) => handleUpdateComponent(component.id, { type: value as ComponentConfig['type'] })}
+                                                                options={[
+                                                                    { value: 'input', label: 'Short Text' },
+                                                                    { value: 'textarea', label: 'Long Text' },
+                                                                    { value: 'select', label: 'Select / Dropdown' },
+                                                                    { value: 'checkbox', label: 'Checkbox' },
+                                                                    { value: 'radio', label: 'Radio Buttons' },
+                                                                    { value: 'file-upload', label: 'File Upload' },
+                                                                ]}
+                                                                placeholder="Select Type"
+                                                            />
+                                                        ) : (
+                                                            <div className="space-y-1">
+                                                                <label className="block text-sm font-medium text-gray-700">
+                                                                    Component Type
+                                                                </label>
+                                                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-500">
+                                                                    {getComponentLabel(component.type)}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Type-specific configuration panel */}
+                                                    <ComponentConfigPanel
+                                                        component={component}
+                                                        onUpdate={(updates) => handleUpdateComponent(component.id, updates)}
                                                     />
                                                 </div>
-
-                                                {/* Type-specific configuration panel */}
-                                                <ComponentConfigPanel
-                                                    component={component}
-                                                    onUpdate={(updates) => handleUpdateComponent(component.id, updates)}
-                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleDeleteComponent(component.id)}
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
                                             </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleDeleteComponent(component.id)}
-                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
                                         </div>
-                                    </div>
-                                ))
+                                    ))
                             )}
                         </div>
                     </div>

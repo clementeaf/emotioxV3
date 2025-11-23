@@ -1,5 +1,6 @@
 import { Modal } from '../ui/Modal';
 import { PreviewComponent } from './PreviewComponent';
+import { Pencil } from 'lucide-react';
 import type { ModuleTemplate } from '../../services/moduleTemplates.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 
@@ -7,14 +8,27 @@ interface ModulePreviewModalProps {
     module: ModuleTemplate | null;
     isOpen: boolean;
     onClose: () => void;
+    onEdit: () => void;
 }
 
-export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewModalProps) => {
+const getComponentLabel = (type: string): string => {
+    switch (type) {
+        case 'textarea': return 'Long Text';
+        case 'input': return 'Short Text';
+        case 'select': return 'Select / Dropdown';
+        case 'checkbox': return 'Checkbox';
+        case 'radio': return 'Radio Buttons';
+        case 'file-upload': return 'File Upload';
+        default: return type.replace('-', ' ');
+    }
+};
+
+export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePreviewModalProps) => {
     if (!module) return null;
 
     // Parse the structure to get components array
-    const structure = module.structure as { components?: ComponentConfig[] };
-    const components = structure?.components || [];
+    const components = (module.structure as any)?.components as ComponentConfig[] || [];
+    const visibleComponents = components.filter(c => !c.hidden);
 
     return (
         <Modal
@@ -24,6 +38,17 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
             size="lg"
         >
             <div className="space-y-6">
+                {/* Actions */}
+                <div className="flex justify-end">
+                    <button
+                        onClick={onEdit}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                        <Pencil className="w-4 h-4" />
+                        Edit Module
+                    </button>
+                </div>
+
                 {/* Module Description */}
                 {module.description && (
                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -34,7 +59,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                 {/* Preview Info */}
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <p className="text-xs text-gray-600">
-                        <strong>Preview Mode:</strong> This is how researchers will see this module.
+                        <strong>Preview Mode:</strong> This is how <strong>participants</strong> will see this module.
                         Components are fully interactive for testing.
                     </p>
                 </div>
@@ -56,7 +81,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                                 1
                                             </span>
                                             <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                {components[0].type.replace('-', ' ')}
+                                                {getComponentLabel(components[0].type)}
                                             </span>
                                         </div>
                                         <PreviewComponent component={components[0]} />
@@ -73,7 +98,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                                         2
                                                     </span>
                                                     <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {components[1].type.replace('-', ' ')}
+                                                        {getComponentLabel(components[1].type)}
                                                     </span>
                                                 </div>
                                                 <PreviewComponent component={components[1]} />
@@ -84,7 +109,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                                         4
                                                     </span>
                                                     <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {components[3].type.replace('-', ' ')}
+                                                        {getComponentLabel(components[3].type)}
                                                     </span>
                                                 </div>
                                                 <PreviewComponent component={components[3]} />
@@ -103,7 +128,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                                         3
                                                     </span>
                                                     <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {components[2].type.replace('-', ' ')}
+                                                        {getComponentLabel(components[2].type)}
                                                     </span>
                                                 </div>
                                                 <PreviewComponent component={components[2]} />
@@ -114,7 +139,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                                         5
                                                     </span>
                                                     <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {components[4].type.replace('-', ' ')}
+                                                        {getComponentLabel(components[4].type)}
                                                     </span>
                                                 </div>
                                                 <PreviewComponent component={components[4]} />
@@ -124,7 +149,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                 )}
                             </>
                         ) : (
-                            components.map((component, index) => (
+                            visibleComponents.map((component, index) => (
                                 <div
                                     key={component.id}
                                     className="p-4 bg-white border border-gray-200 rounded-lg"
@@ -134,7 +159,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                                             {index + 1}
                                         </span>
                                         <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                            {component.type.replace('-', ' ')}
+                                            {getComponentLabel(component.type)}
                                         </span>
                                     </div>
                                     <PreviewComponent component={component} />
