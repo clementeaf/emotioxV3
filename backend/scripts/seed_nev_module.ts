@@ -25,21 +25,29 @@ async function seedNEVModule() {
                 components: [
                     {
                         id: 'nev-question',
-                        type: 'text_input',
-                        label: 'Question',
-                        defaultValue: 'How do you feel about the experience offered by the [company]?',
-                        placeholder: 'Type your question here...',
+                        type: 'input',
+                        label: 'Pregunta',
+                        defaultValue: '¿Cómo te sentiste con la experiencia?',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Escribe la pregunta aquí...'
+                        },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'nev-rating',
+                        id: 'nev-range',
                         type: 'select',
-                        label: 'Rating',
+                        label: 'Rango',
                         selectRange: {
                             type: 'predefined',
                             predefined: '1-5'
                         },
+                        options: [
+                            { value: '1-5', label: '1-5' },
+                            { value: '1-7', label: '1-7' },
+                            { value: '1-10', label: '1-10' }
+                        ],
                         required: true,
                         order: 2
                     }

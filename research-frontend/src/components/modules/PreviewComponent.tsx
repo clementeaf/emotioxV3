@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
-import { Select } from '../ui/Select';
+import { CustomSelect } from '../ui/CustomSelect';
 import { Checkbox } from '../ui/Checkbox';
 import { FileUpload } from '../ui/FileUpload';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
@@ -10,6 +11,8 @@ interface PreviewComponentProps {
 }
 
 export const PreviewComponent = ({ component }: PreviewComponentProps) => {
+    const [selectValue, setSelectValue] = useState<string>('');
+
     // Generate range options for select components
     const generateRangeOptions = () => {
         if (!component.selectRange) return [];
@@ -44,7 +47,6 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                             ? component.placeholder.text || 'Enter your response...'
                             : undefined
                     }
-                    disabled
                 />
             );
 
@@ -58,18 +60,18 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                             ? 'Enter your detailed response...'
                             : undefined
                     }
-                    disabled
                 />
             );
 
         case 'select':
             return (
-                <Select
+                <CustomSelect
                     id={`preview-${component.id}`}
                     label={component.label}
-                    options={generateRangeOptions()}
+                    options={component.options || generateRangeOptions()}
                     placeholder="Select an option"
-                    disabled
+                    value={selectValue}
+                    onChange={setSelectValue}
                 />
             );
 
@@ -78,7 +80,6 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                 <Checkbox
                     id={`preview-${component.id}`}
                     label={component.label}
-                    disabled
                 />
             );
 
@@ -96,7 +97,6 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                                     id={`preview-${component.id}-${index}`}
                                     name={`preview-${component.id}`}
                                     className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                    disabled
                                 />
                                 <label
                                     htmlFor={`preview-${component.id}-${index}`}
@@ -117,7 +117,6 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                     label={component.label}
                     maxSizeMB={component.fileUpload?.maxSizeMB || 5}
                     acceptedFormats="Images, PDFs, Documents"
-                    disabled
                 />
             );
 

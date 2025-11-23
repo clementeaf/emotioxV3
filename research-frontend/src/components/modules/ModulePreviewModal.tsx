@@ -22,7 +22,6 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
             onClose={onClose}
             title={`Preview: ${module.name}`}
             size="lg"
-            className="h-full"
         >
             <div className="space-y-6">
                 {/* Module Description */}
@@ -36,7 +35,7 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <p className="text-xs text-gray-600">
                         <strong>Preview Mode:</strong> This is how researchers will see this module.
-                        Components are displayed in read-only mode.
+                        Components are fully interactive for testing.
                     </p>
                 </div>
 

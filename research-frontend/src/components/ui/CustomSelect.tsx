@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../ui/Button';
 
 interface SelectOption {
@@ -38,6 +39,7 @@ export const CustomSelect = ({
 }: CustomSelectProps) => {
     const [isOpen, setIsOpen] = useState<boolean>(false);
     const [selectedValue, setSelectedValue] = useState<string>(value || '');
+    const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
     const selectRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -56,6 +58,16 @@ export const CustomSelect = ({
 
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
+
+            // Calculate dropdown position
+            if (selectRef.current) {
+                const rect = selectRef.current.getBoundingClientRect();
+                setDropdownPosition({
+                    top: rect.bottom + window.scrollY + 4,
+                    left: rect.left + window.scrollX,
+                    width: rect.width
+                });
+            }
         }
 
         return () => {
@@ -107,8 +119,15 @@ export const CustomSelect = ({
                     </svg>
                 </button>
 
-                {isOpen && (
-                    <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto">
+                {isOpen && dropdownPosition && createPortal(
+                    <div
+                        className="fixed z-[9999] rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
+                        style={{
+                            top: `${dropdownPosition.top}px`,
+                            left: `${dropdownPosition.left}px`,
+                            width: `${dropdownPosition.width}px`
+                        }}
+                    >
                         {options.length === 0 ? (
                             <div className="px-3 py-2 text-sm text-gray-500">No options available</div>
                         ) : (
@@ -127,7 +146,8 @@ export const CustomSelect = ({
                                 </button>
                             ))
                         )}
-                    </div>
+                    </div>,
+                    document.body
                 )}
             </div>
             {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
