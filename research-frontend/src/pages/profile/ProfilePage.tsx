@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -5,6 +6,7 @@ import { useAuthStore } from '../../stores/auth.store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 const profileSchema = z.object({
     firstName: z.string().min(2, 'First name is required'),
@@ -16,6 +18,7 @@ type ProfileForm = z.infer<typeof profileSchema>;
 
 export const ProfilePage = () => {
     const { user, updateProfile, deleteAccount, isLoading, error } = useAuthStore();
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
     const { register, handleSubmit, formState: { errors, isDirty } } = useForm<ProfileForm>({
         resolver: zodResolver(profileSchema),
@@ -38,10 +41,12 @@ export const ProfilePage = () => {
         }
     };
 
-    const handleDelete = async () => {
-        if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-            await deleteAccount();
-        }
+    const handleDeleteClick = () => {
+        setDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        await deleteAccount();
     };
 
     return (
@@ -99,11 +104,23 @@ export const ProfilePage = () => {
                     <p className="text-sm text-gray-600 mb-4">
                         Once you delete your account, there is no going back. Please be certain.
                     </p>
-                    <Button variant="danger" onClick={handleDelete} isLoading={isLoading}>
+                    <Button variant="danger" onClick={handleDeleteClick} isLoading={isLoading}>
                         Delete Account
                     </Button>
                 </CardContent>
             </Card>
+
+            <ConfirmationModal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title="Delete Account"
+                message="Are you sure you want to delete your account? This action cannot be undone."
+                confirmText="Delete Account"
+                cancelText="Cancel"
+                variant="danger"
+                isLoading={isLoading}
+            />
         </div>
     );
 };

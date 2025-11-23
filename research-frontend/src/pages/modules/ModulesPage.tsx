@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Boxes, Plus, Pencil, Trash2, Eye, Grid3x3, List } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
@@ -17,6 +18,11 @@ export const ModulesPage = () => {
     const [selectedModule, setSelectedModule] = useState<ModuleTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [viewMode, setViewMode] = useState<ViewMode>('cards');
+
+    // Delete modal state
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [moduleToDelete, setModuleToDelete] = useState<ModuleTemplate | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         loadTemplates();
@@ -35,15 +41,27 @@ export const ModulesPage = () => {
         }
     };
 
-    const handleDelete = async (id: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card click
-        if (!window.confirm('Are you sure you want to delete this module template?')) return;
+    const handleDeleteClick = (template: ModuleTemplate, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setModuleToDelete(template);
+        setDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!moduleToDelete) return;
+
         try {
-            await moduleTemplatesService.delete(id);
+            setIsDeleting(true);
+            await moduleTemplatesService.delete(moduleToDelete.id);
             await loadTemplates();
+            toast.success('Module template deleted successfully');
+            setDeleteModalOpen(false);
+            setModuleToDelete(null);
         } catch (error) {
             console.error('Failed to delete template:', error);
             toast.error('Failed to delete module template');
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -144,7 +162,7 @@ export const ModulesPage = () => {
                                         <Pencil className="h-4 w-4" />
                                     </button>
                                     <button
-                                        onClick={(e) => handleDelete(template.id, e)}
+                                        onClick={(e) => handleDeleteClick(template, e)}
                                         className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                                         title="Delete"
                                     >
@@ -225,7 +243,7 @@ export const ModulesPage = () => {
                                                 <Pencil className="h-4 w-4" />
                                             </button>
                                             <button
-                                                onClick={(e) => handleDelete(template.id, e)}
+                                                onClick={(e) => handleDeleteClick(template, e)}
                                                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                                                 title="Delete"
                                             >
@@ -244,6 +262,18 @@ export const ModulesPage = () => {
                 module={selectedModule}
                 isOpen={showPreview}
                 onClose={() => setShowPreview(false)}
+            />
+
+            <ConfirmationModal
+                isOpen={deleteModalOpen}
+                onClose={() => setDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                title="Delete Module Template"
+                message={`Are you sure you want to delete "${moduleToDelete?.name}"? This action cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                isLoading={isDeleting}
             />
         </div>
     );
