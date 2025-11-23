@@ -24,12 +24,31 @@ async function seedCESModule() {
                 components: [
                     {
                         id: 'ces-question',
+                        type: 'input',
+                        label: 'Pregunta',
+                        defaultValue: '¿Qué tan fácil fue resolver tu problema?',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Escribe la pregunta aquí...'
+                        },
+                        required: true,
+                        order: 1
+                    },
+                    {
+                        id: 'ces-range',
                         type: 'select',
-                        label: 'To what extent do you agree with the following statement: The company made it easy for me to handle my issue.',
+                        label: 'Rango',
                         selectRange: {
                             type: 'predefined',
                             predefined: '1-7'
-                        }
+                        },
+                        options: [
+                            { value: '1-5', label: '1-5' },
+                            { value: '1-7', label: '1-7' },
+                            { value: '1-10', label: '1-10' }
+                        ],
+                        required: true,
+                        order: 2
                     }
                 ]
             }

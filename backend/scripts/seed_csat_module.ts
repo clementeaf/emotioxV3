@@ -31,7 +31,7 @@ const seedCSATModule = async () => {
         // Check if module already exists
         const checkModule = await client.query(
             'SELECT id FROM module_templates WHERE name = $1',
-            ['CSAT']
+            ['Customer Satisfaction Score (CSAT)']
         );
 
         if (checkModule.rows.length > 0) {
@@ -46,7 +46,7 @@ const seedCSATModule = async () => {
              VALUES ($1, $2, true, NOW(), NOW(), $3)
              RETURNING id`,
             [
-                'CSAT',
+                'Customer Satisfaction Score (CSAT)',
                 'Customer Satisfaction Score - Rate satisfaction level with stars or numbers (1-5)',
                 userId
             ]
