@@ -46,22 +46,101 @@ export const ModulePreviewModal = ({ module, isOpen, onClose }: ModulePreviewMod
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        {components.map((component, index) => (
-                            <div
-                                key={component.id}
-                                className="p-4 bg-white border border-gray-200 rounded-lg"
-                            >
-                                <div className="flex items-center gap-2 mb-3">
-                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                        {index + 1}
-                                    </span>
-                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                        {component.type.replace('-', ' ')}
-                                    </span>
+                        {module.name === 'Cognitive Value (CV)' ? (
+                            <>
+                                {/* Question input */}
+                                {components[0] && (
+                                    <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                1
+                                            </span>
+                                            <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                {components[0].type.replace('-', ' ')}
+                                            </span>
+                                        </div>
+                                        <PreviewComponent component={components[0]} />
+                                    </div>
+                                )}
+
+                                {/* Range min + start label (horizontal) */}
+                                {components[1] && components[3] && (
+                                    <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                        2
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                        {components[1].type.replace('-', ' ')}
+                                                    </span>
+                                                </div>
+                                                <PreviewComponent component={components[1]} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                        4
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                        {components[3].type.replace('-', ' ')}
+                                                    </span>
+                                                </div>
+                                                <PreviewComponent component={components[3]} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Range max + end label (horizontal) */}
+                                {components[2] && components[4] && (
+                                    <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                        3
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                        {components[2].type.replace('-', ' ')}
+                                                    </span>
+                                                </div>
+                                                <PreviewComponent component={components[2]} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                        5
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                        {components[4].type.replace('-', ' ')}
+                                                    </span>
+                                                </div>
+                                                <PreviewComponent component={components[4]} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            components.map((component, index) => (
+                                <div
+                                    key={component.id}
+                                    className="p-4 bg-white border border-gray-200 rounded-lg"
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                            {index + 1}
+                                        </span>
+                                        <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                            {component.type.replace('-', ' ')}
+                                        </span>
+                                    </div>
+                                    <PreviewComponent component={component} />
                                 </div>
-                                <PreviewComponent component={component} />
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 )}
             </div>
