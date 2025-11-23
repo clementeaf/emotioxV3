@@ -20,6 +20,8 @@
   },
   "homepage": "https://github.com/clementeaf/emotioxV3#readme",
   "devDependencies": {
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "ts-node": "^10.9.2",
+    "uuid": "^13.0.0"
   }
 }

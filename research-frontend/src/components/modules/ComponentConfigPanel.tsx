@@ -1,7 +1,7 @@
 import { Input } from '../ui/Input';
 import { Toggle } from '../ui/Toggle';
 import { CustomSelect } from '../ui/CustomSelect';
-import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import type { ComponentConfig, SelectRangeConfig } from '../../types/moduleBuilder.types';
 
 interface ComponentConfigPanelProps {
     component: ComponentConfig;
@@ -39,6 +39,19 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         const predefinedValue = component.selectRange?.predefined ?? '1-5';
         const customMin = component.selectRange?.custom?.min ?? 1;
         const customMax = component.selectRange?.custom?.max ?? 10;
+        const startLabel = component.selectRange?.startLabel ?? '';
+        const endLabel = component.selectRange?.endLabel ?? '';
+
+        // Helper to update selectRange while preserving required fields
+        const updateSelectRange = (updates: Partial<SelectRangeConfig>) => {
+            const base: SelectRangeConfig = {
+                type: rangeType,
+                ...(rangeType === 'custom'
+                    ? { custom: { min: customMin, max: customMax }, startLabel, endLabel }
+                    : { predefined: predefinedValue })
+            };
+            onUpdate({ selectRange: { ...base, ...updates } });
+        };
 
         return (
             <div className="space-y-3">
@@ -47,56 +60,47 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                     label="Range Type"
                     value={rangeType}
                     onChange={(value) => {
+                        const newType = value as 'predefined' | 'custom';
                         onUpdate({
                             selectRange: {
-                                type: value as 'predefined' | 'custom',
-                                predefined: value === 'predefined' ? '1-5' : undefined,
-                                custom: value === 'custom' ? { min: 1, max: 10 } : undefined,
-                            },
+                                type: newType,
+                                ...(newType === 'custom'
+                                    ? { custom: { min: customMin, max: customMax }, startLabel, endLabel }
+                                    : { predefined: predefinedValue })
+                            }
                         });
                     }}
                     options={[
-                        { value: 'predefined', label: 'Predefined Range' },
-                        { value: 'custom', label: 'Custom Range' },
+                        { value: 'predefined', label: 'Predefined' },
+                        { value: 'custom', label: 'Custom' },
                     ]}
                 />
-
-                {rangeType === 'predefined' && (
+                {rangeType === 'predefined' ? (
                     <CustomSelect
-                        id={`predefined-range-${component.id}`}
-                        label="Select Range"
+                        id={`predefined-${component.id}`}
+                        label="Predefined Range"
                         value={predefinedValue}
                         onChange={(value) => {
                             onUpdate({
-                                selectRange: {
-                                    type: 'predefined',
-                                    predefined: value as '1-5' | '1-7' | '1-10',
-                                },
+                                selectRange: { type: 'predefined', predefined: value as '1-5' | '1-7' | '1-10' },
                             });
                         }}
                         options={[
-                            { value: '1-5', label: '1 to 5' },
-                            { value: '1-7', label: '1 to 7' },
-                            { value: '1-10', label: '1 to 10' },
+                            { value: '1-5', label: '1-5' },
+                            { value: '1-7', label: '1-7' },
+                            { value: '1-10', label: '1-10' },
                         ]}
                     />
-                )}
-
-                {rangeType === 'custom' && (
-                    <div className="grid grid-cols-2 gap-3">
+                ) : (
+                    <>
                         <Input
                             id={`custom-min-${component.id}`}
                             label="Min Value"
                             type="number"
                             value={customMin.toString()}
                             onChange={(e) => {
-                                const min = parseInt(e.target.value) || 0;
-                                onUpdate({
-                                    selectRange: {
-                                        type: 'custom',
-                                        custom: { min, max: customMax },
-                                    },
-                                });
+                                const min = parseInt(e.target.value) || 1;
+                                updateSelectRange({ custom: { min, max: customMax } });
                             }}
                         />
                         <Input
@@ -106,15 +110,28 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                             value={customMax.toString()}
                             onChange={(e) => {
                                 const max = parseInt(e.target.value) || 10;
-                                onUpdate({
-                                    selectRange: {
-                                        type: 'custom',
-                                        custom: { min: customMin, max },
-                                    },
-                                });
+                                updateSelectRange({ custom: { min: customMin, max } });
                             }}
                         />
-                    </div>
+                        <Input
+                            id={`start-label-${component.id}`}
+                            label="Start Label"
+                            type="text"
+                            value={startLabel}
+                            onChange={(e) => {
+                                updateSelectRange({ startLabel: e.target.value });
+                            }}
+                        />
+                        <Input
+                            id={`end-label-${component.id}`}
+                            label="End Label"
+                            type="text"
+                            value={endLabel}
+                            onChange={(e) => {
+                                updateSelectRange({ endLabel: e.target.value });
+                            }}
+                        />
+                    </>
                 )}
             </div>
         );

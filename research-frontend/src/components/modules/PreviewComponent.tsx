@@ -41,7 +41,7 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                     label={component.label}
                     placeholder={
                         component.placeholder?.enabled
-                            ? 'Enter your response...'
+                            ? component.placeholder.text || 'Enter your response...'
                             : undefined
                     }
                     disabled
