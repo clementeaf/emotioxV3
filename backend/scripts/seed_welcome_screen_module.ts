@@ -61,9 +61,13 @@ const seedWelcomeScreenModule = async () => {
                 {
                     id: 'title',
                     name: 'Title',
-                    type: 'text_input',
+                    type: 'input',
                     label: 'Title',
-                    placeholder: 'Title of the screen',
+                    defaultValue: '',
+                    placeholder: {
+                        enabled: true,
+                        text: 'Title of the screen'
+                    },
                     required: false,
                     order: 1,
                     settings: {}
@@ -73,7 +77,11 @@ const seedWelcomeScreenModule = async () => {
                     name: 'Message',
                     type: 'textarea',
                     label: 'Message',
-                    placeholder: 'Message for the screen\' section. Autosize height based on content lines',
+                    defaultValue: '',
+                    placeholder: {
+                        enabled: true,
+                        text: 'Message for the screen'
+                    },
                     required: false,
                     order: 2,
                     settings: {
@@ -84,9 +92,13 @@ const seedWelcomeScreenModule = async () => {
                 {
                     id: 'start_button_text',
                     name: 'Start button text',
-                    type: 'text_input',
+                    type: 'input',
                     label: 'Start button text',
-                    placeholder: 'Name the button to start the test',
+                    defaultValue: '',
+                    placeholder: {
+                        enabled: true,
+                        text: 'Name the button to start the test'
+                    },
                     required: false,
                     order: 3,
                     settings: {}
