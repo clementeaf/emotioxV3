@@ -18,35 +18,35 @@ export const ModuleTemplateAssignationPage = () => {
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
+        const loadData = async (typeId: string) => {
+            try {
+                setIsLoading(true);
+
+                // Load research type details
+                const [typeRes, templatesRes] = await Promise.all([
+                    researchTypesService.getById(typeId),
+                    moduleTemplatesService.list()
+                ]);
+
+                setResearchTypeName(typeRes.researchType.name);
+                setModuleTemplates(templatesRes);
+
+                // Load currently assigned modules
+                const assignedModuleIds = await researchTypesService.getModuleAssignments(typeId);
+                setSelectedModules(assignedModuleIds);
+            } catch (error) {
+                console.error('Failed to load data:', error);
+                toast.error('Failed to load data');
+                navigate('/research-types');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
         if (id) {
             loadData(id);
         }
-    }, [id]);
-
-    const loadData = async (typeId: string) => {
-        try {
-            setIsLoading(true);
-
-            // Load research type details
-            const [typeRes, templatesRes] = await Promise.all([
-                researchTypesService.getById(typeId),
-                moduleTemplatesService.list()
-            ]);
-
-            setResearchTypeName(typeRes.researchType.name);
-            setModuleTemplates(templatesRes);
-
-            // Load currently assigned modules
-            const assignedModuleIds = await researchTypesService.getModuleAssignments(typeId);
-            setSelectedModules(assignedModuleIds);
-        } catch (error) {
-            console.error('Failed to load data:', error);
-            toast.error('Failed to load data');
-            navigate('/research-types');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [id, navigate, toast]);
 
     const handleModuleToggle = (moduleId: string) => {
         setSelectedModules(prev =>

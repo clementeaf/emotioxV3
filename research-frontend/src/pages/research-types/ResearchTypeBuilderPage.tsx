@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
@@ -8,86 +11,98 @@ import { researchTechniquesService, type ResearchTechnique } from '../../service
 import { useToast } from '../../contexts/ToastContext';
 
 
+const researchTypeSchema = z.object({
+    name: z.string().min(2, 'Research type name must be at least 2 characters'),
+    description: z.string().optional(),
+    techniqueIds: z.array(z.string()).optional(),
+});
+
+type ResearchTypeForm = z.infer<typeof researchTypeSchema>;
+
 export const ResearchTypeBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
     const toast = useToast();
     const isEditing = !!id;
 
-    const [name, setName] = useState('');
-    const [selectedTechniqueIds, setSelectedTechniqueIds] = useState<string[]>([]);
     const [techniques, setTechniques] = useState<ResearchTechnique[]>([]);
-
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ResearchTypeForm>({
+        resolver: zodResolver(researchTypeSchema),
+        defaultValues: {
+            name: '',
+            description: '',
+            techniqueIds: [],
+        },
+    });
+
+    const selectedTechniqueIds = watch('techniqueIds') || [];
+
     useEffect(() => {
+        const loadData = async () => {
+            try {
+                const techniquesRes = await researchTechniquesService.list();
+                setTechniques(techniquesRes.researchTechniques);
+            } catch (error) {
+                console.error('Failed to load data:', error);
+            }
+        };
         loadData();
     }, []);
 
     useEffect(() => {
+        const loadResearchType = async (typeId: string) => {
+            try {
+                setIsLoading(true);
+                const response = await researchTypesService.getById(typeId);
+                const type = response.researchType;
+                setValue('name', type.name);
+                setValue('description', type.description || '');
+
+                if (type.research_techniques) {
+                    setValue('techniqueIds', type.research_techniques.map(t => t.id));
+                }
+                // TODO: Load modules when backend supports it
+            } catch (error) {
+                console.error('Failed to load research type:', error);
+                toast.error('Failed to load research type');
+                navigate('/research-types');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
         if (isEditing && id) {
             loadResearchType(id);
         }
-    }, [isEditing, id]);
-
-    const loadData = async () => {
-        try {
-            const techniquesRes = await researchTechniquesService.list();
-            setTechniques(techniquesRes.researchTechniques);
-        } catch (error) {
-            console.error('Failed to load data:', error);
-        }
-    };
-
-    const loadResearchType = async (typeId: string) => {
-        try {
-            setIsLoading(true);
-            const response = await researchTypesService.getById(typeId);
-            const type = response.researchType;
-            setName(type.name);
-
-            if (type.research_techniques) {
-                setSelectedTechniqueIds(type.research_techniques.map(t => t.id));
-            }
-            // TODO: Load modules when backend supports it
-        } catch (error) {
-            console.error('Failed to load research type:', error);
-            toast.error('Failed to load research type');
-            navigate('/research-types');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [isEditing, id, navigate, setValue, toast]);
 
     const handleTechniqueToggle = (techniqueId: string) => {
-        setSelectedTechniqueIds(prev =>
-            prev.includes(techniqueId)
-                ? prev.filter(id => id !== techniqueId)
-                : [...prev, techniqueId]
-        );
+        const currentIds = selectedTechniqueIds;
+        const newIds = currentIds.includes(techniqueId)
+            ? currentIds.filter(id => id !== techniqueId)
+            : [...currentIds, techniqueId];
+        setValue('techniqueIds', newIds, { shouldDirty: true });
     };
 
-    const handleSave = async () => {
-        if (!name.trim()) {
-            toast.warning('Research type name is required');
-            return;
-        }
-
+    const onSubmit = async (data: ResearchTypeForm) => {
         try {
             setIsSaving(true);
-            const data = {
-                name,
-                research_technique_ids: selectedTechniqueIds,
+            const apiData = {
+                name: data.name,
+                description: data.description,
+                research_technique_ids: data.techniqueIds,
             };
 
             if (isEditing && id) {
-                await researchTypesService.update(id, data);
-                // TODO: Update modules when backend supports it
+                await researchTypesService.update(id, apiData);
             } else {
-                await researchTypesService.create(data);
-                // TODO: Assign modules when backend supports it
+                await researchTypesService.create(apiData);
             }
+
+            toast.success(`Research type ${isEditing ? 'updated' : 'created'} successfully`);
             navigate('/research-types');
         } catch (error) {
             console.error('Failed to save research type:', error);
@@ -116,7 +131,7 @@ export const ResearchTypeBuilderPage = () => {
                         </h1>
                     </div>
                 </div>
-                <Button onClick={handleSave} isLoading={isSaving} disabled={isSaving}>
+                <Button onClick={handleSubmit(onSubmit)} isLoading={isSaving} disabled={isSaving}>
                     <Save className="h-4 w-4 mr-2" />
                     Save Research Type
                 </Button>
@@ -131,10 +146,17 @@ export const ResearchTypeBuilderPage = () => {
                         <Input
                             id="name"
                             label="Research Type Name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            {...register('name')}
+                            error={errors.name?.message}
                             placeholder="e.g., User Experience Study, Market Research"
                             required
+                        />
+                        <Input
+                            id="description"
+                            label="Description"
+                            {...register('description')}
+                            error={errors.description?.message}
+                            placeholder="Optional description of this research type"
                         />
                     </div>
 

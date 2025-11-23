@@ -1,4 +1,4 @@
-import { Button } from './Button';
+import { Button, type ButtonProps } from './Button';
 import { Modal } from './Modal';
 import { AlertTriangle, Info, AlertCircle } from 'lucide-react';
 
@@ -36,7 +36,7 @@ export const ConfirmationModal = ({
         }
     };
 
-    const getButtonVariant = () => {
+    const getButtonVariant = (): ButtonProps['variant'] => {
         switch (variant) {
             case 'danger':
                 return 'danger';
@@ -59,7 +59,7 @@ export const ConfirmationModal = ({
                         {cancelText}
                     </Button>
                     <Button
-                        variant={getButtonVariant() as any}
+                        variant={getButtonVariant()}
                         onClick={onConfirm}
                         isLoading={isLoading}
                         disabled={isLoading}
@@ -71,7 +71,7 @@ export const ConfirmationModal = ({
         >
             <div className="flex items-start gap-4">
                 <div className={`flex-shrink-0 rounded-full p-2 ${variant === 'danger' ? 'bg-red-100' :
-                        variant === 'warning' ? 'bg-yellow-100' : 'bg-blue-100'
+                    variant === 'warning' ? 'bg-yellow-100' : 'bg-blue-100'
                     }`}>
                     {getIcon()}
                 </div>

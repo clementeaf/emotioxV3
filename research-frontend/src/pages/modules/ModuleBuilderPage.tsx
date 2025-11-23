@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Save, Trash2, GripVertical } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
@@ -10,25 +13,38 @@ import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { useToast } from '../../contexts/ToastContext';
 
+const moduleTemplateSchema = z.object({
+    name: z.string().min(2, 'Module name must be at least 2 characters'),
+    description: z.string().optional(),
+});
+
+type ModuleTemplateForm = z.infer<typeof moduleTemplateSchema>;
+
 export const ModuleBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
     const toast = useToast();
     const isEditing = !!id;
 
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
     const [components, setComponents] = useState<ComponentConfig[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
+    const { register, handleSubmit, setValue, formState: { errors } } = useForm<ModuleTemplateForm>({
+        resolver: zodResolver(moduleTemplateSchema),
+        defaultValues: {
+            name: '',
+            description: '',
+        },
+    });
 
     useEffect(() => {
         const loadTemplate = async (templateId: string) => {
             try {
                 setIsLoading(true);
                 const template = await moduleTemplatesService.getById(templateId);
-                setName(template.name);
-                setDescription(template.description || '');
+                setValue('name', template.name);
+                setValue('description', template.description || '');
                 // Parse the structure to get components array
                 const structure = template.structure as { components?: ComponentConfig[] };
                 setComponents(structure?.components || []);
@@ -44,7 +60,7 @@ export const ModuleBuilderPage = () => {
         if (isEditing && id) {
             void loadTemplate(id);
         }
-    }, [isEditing, id, navigate]);
+    }, [isEditing, id, navigate, setValue, toast]);
 
     const handleAddComponent = () => {
         const newComponent: ComponentConfig = {
@@ -63,25 +79,22 @@ export const ModuleBuilderPage = () => {
         setComponents(components.filter(c => c.id !== id));
     };
 
-    const handleSave = async () => {
-        if (!name.trim()) {
-            toast.warning('Module name is required');
-            return;
-        }
-
+    const onSubmit = async (data: ModuleTemplateForm) => {
         try {
             setIsSaving(true);
-            const data = {
-                name,
-                description,
+            const apiData = {
+                name: data.name,
+                description: data.description,
                 structure: { components } as unknown as Record<string, unknown>,
             };
 
             if (isEditing && id) {
-                await moduleTemplatesService.update(id, data);
+                await moduleTemplatesService.update(id, apiData);
             } else {
-                await moduleTemplatesService.create(data);
+                await moduleTemplatesService.create(apiData);
             }
+
+            toast.success(`Module template ${isEditing ? 'updated' : 'created'} successfully`);
             navigate('/modules');
         } catch (error) {
             console.error('Failed to save module template:', error);
@@ -110,7 +123,7 @@ export const ModuleBuilderPage = () => {
                         </h1>
                     </div>
                 </div>
-                <Button onClick={handleSave} isLoading={isSaving} disabled={isSaving}>
+                <Button onClick={handleSubmit(onSubmit)} isLoading={isSaving} disabled={isSaving}>
                     <Save className="h-4 w-4 mr-2" />
                     Save Module
                 </Button>
@@ -125,16 +138,16 @@ export const ModuleBuilderPage = () => {
                         <Input
                             id="name"
                             label="Module Name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            {...register('name')}
+                            error={errors.name?.message}
                             placeholder="e.g., Demographics, Satisfaction Survey"
                             required
                         />
                         <Textarea
                             id="description"
                             label="Description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
+                            {...register('description')}
+                            error={errors.description?.message}
                             placeholder="Describe the purpose of this module..."
                         />
                     </div>

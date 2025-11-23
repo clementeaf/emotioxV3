@@ -25,31 +25,31 @@ export const AssignTechniquesModal = ({
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
+        const loadData = async () => {
+            if (!researchType) return;
+
+            try {
+                setIsLoading(true);
+
+                // Load all techniques
+                const techniquesRes = await researchTechniquesService.list();
+                setAllTechniques(techniquesRes.researchTechniques);
+
+                // Load current type details to get assigned techniques
+                const typeRes = await researchTypesService.getById(researchType.id);
+                const assignedTechniques = typeRes.researchType.research_techniques || [];
+                setSelectedTechniqueIds(assignedTechniques.map(t => t.id));
+            } catch (error) {
+                console.error('Failed to load data:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
         if (isOpen && researchType) {
             loadData();
         }
     }, [isOpen, researchType]);
-
-    const loadData = async () => {
-        if (!researchType) return;
-
-        try {
-            setIsLoading(true);
-
-            // Load all techniques
-            const techniquesRes = await researchTechniquesService.list();
-            setAllTechniques(techniquesRes.researchTechniques);
-
-            // Load current type details to get assigned techniques
-            const typeRes = await researchTypesService.getById(researchType.id);
-            const assignedTechniques = typeRes.researchType.research_techniques || [];
-            setSelectedTechniqueIds(assignedTechniques.map(t => t.id));
-        } catch (error) {
-            console.error('Failed to load data:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleTechniqueToggle = (techniqueId: string) => {
         setSelectedTechniqueIds(prev =>
