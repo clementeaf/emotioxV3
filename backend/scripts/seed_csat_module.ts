@@ -59,30 +59,27 @@ const seedCSATModule = async () => {
         const structure = {
             components: [
                 {
-                    id: 'question',
-                    name: 'Question',
-                    type: 'text_input',
-                    label: 'Question',
-                    placeholder: 'How would you rate your overall satisfaction level with [company]?',
-                    required: false,
-                    order: 1,
-                    settings: {}
+                    id: 'csat-question',
+                    type: 'input',
+                    label: 'Pregunta',
+                    defaultValue: '¿Qué tan satisfecho estás con nuestro servicio?',
+                    placeholder: {
+                        enabled: true,
+                        text: 'Escribe la pregunta aquí...'
+                    },
+                    required: true,
+                    order: 1
                 },
                 {
-                    id: 'rating_type',
-                    name: 'Rating Type',
+                    id: 'csat-display-type',
                     type: 'select',
-                    label: 'Rating Type',
-                    placeholder: 'Select rating type',
-                    required: false,
-                    order: 2,
-                    settings: {
-                        options: [
-                            { value: 'csat', label: 'CSAT (1-5 Numbers)' },
-                            { value: 'stars', label: 'Stars (⭐⭐⭐⭐⭐)' }
-                        ],
-                        defaultValue: 'stars'
-                    }
+                    label: 'Tipo de visualización',
+                    options: [
+                        { value: 'numbers', label: 'Numbers (1-5)' },
+                        { value: 'stars', label: 'Stars (⭐⭐⭐⭐⭐)' }
+                    ],
+                    required: true,
+                    order: 2
                 }
             ]
         };
