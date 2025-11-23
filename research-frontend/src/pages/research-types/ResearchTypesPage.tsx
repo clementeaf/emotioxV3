@@ -134,8 +134,8 @@ export const ResearchTypesPage = () => {
     );
 
     return (
-        <div className="h-full p-6 space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="h-full flex flex-col p-6 gap-6">
+            <div className="flex-none flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Research Types & Techniques</h1>
                     <p className="mt-1 text-sm text-gray-500">
@@ -154,7 +154,7 @@ export const ResearchTypesPage = () => {
                 </div>
             </div>
 
-            <div className="w-full max-w-md">
+            <div className="flex-none w-full max-w-md">
                 <SearchInput
                     value={searchQuery}
                     onChange={setSearchQuery}
@@ -162,48 +162,48 @@ export const ResearchTypesPage = () => {
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Research Types Column */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                <div className="flex flex-col h-full min-h-0 bg-gray-50/50 rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="flex-none p-4 border-b border-gray-100 bg-white/50 backdrop-blur-sm">
                         <h2 className="text-lg font-semibold text-gray-900">Research Types</h2>
                     </div>
 
-                    {isLoadingTypes ? (
-                        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                            <p className="mt-4 text-gray-500">Loading...</p>
-                        </div>
-                    ) : typesError ? (
-                        <div className="text-center py-12 bg-white rounded-lg border border-gray-200 text-red-600">
-                            {typesError}
-                        </div>
-                    ) : filteredTypes.length === 0 ? (
-                        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-                                <FileText className="h-6 w-6 text-blue-600" />
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        {isLoadingTypes ? (
+                            <div className="text-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                <p className="mt-4 text-gray-500">Loading...</p>
                             </div>
-                            <h3 className="mt-4 text-lg font-semibold text-gray-900">No research types found</h3>
-                            <p className="mt-2 text-gray-500">
-                                {searchQuery ? 'Try adjusting your search.' : 'Create your first research type.'}
-                            </p>
-                            {!searchQuery && (
-                                <div className="mt-6">
-                                    <Button onClick={() => navigate('/research-types/new')}>
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Create Type
-                                    </Button>
+                        ) : typesError ? (
+                            <div className="text-center py-12 text-red-600">
+                                {typesError}
+                            </div>
+                        ) : filteredTypes.length === 0 ? (
+                            <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+                                    <FileText className="h-6 w-6 text-blue-600" />
                                 </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredTypes.map((type) => (
+                                <h3 className="mt-4 text-lg font-semibold text-gray-900">No research types found</h3>
+                                <p className="mt-2 text-gray-500">
+                                    {searchQuery ? 'Try adjusting your search.' : 'Create your first research type.'}
+                                </p>
+                                {!searchQuery && (
+                                    <div className="mt-6">
+                                        <Button onClick={() => navigate('/research-types/new')}>
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Create Type
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            filteredTypes.map((type) => (
                                 <div
                                     key={type.id}
-                                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow relative"
+                                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow relative group"
                                 >
-                                    <div className="absolute top-3 right-3 flex gap-2">
+                                    <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             onClick={() => navigate(`/research-types/${type.id}`)}
                                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
@@ -220,7 +220,7 @@ export const ResearchTypesPage = () => {
                                         </button>
                                     </div>
 
-                                    <div className="flex items-start gap-3 pr-20">
+                                    <div className="flex items-start gap-3 pr-16">
                                         <div className="flex-shrink-0">
                                             <div className="inline-flex p-2 bg-blue-50 rounded-lg">
                                                 <FileText className="h-5 w-5 text-blue-600" />
@@ -233,69 +233,71 @@ export const ResearchTypesPage = () => {
                                             <p className="text-xs text-gray-400 mt-1">
                                                 Updated {new Date(type.updated_at || type.created_at).toLocaleDateString()}
                                             </p>
-                                            <button
-                                                onClick={() => handleAssignTechniquesClick(type)}
-                                                className="mt-3 flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                            >
-                                                <Link className="h-4 w-4" />
-                                                Assign Techniques
-                                            </button>
-                                            <button
-                                                onClick={() => navigate(`/research-types/${type.id}/module-template-assignation`)}
-                                                className="mt-2 flex items-center gap-2 text-sm text-green-600 hover:text-green-700 font-medium"
-                                            >
-                                                <Link className="h-4 w-4" />
-                                                Assign Modules
-                                            </button>
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                <button
+                                                    onClick={() => handleAssignTechniquesClick(type)}
+                                                    className="flex items-center gap-1.5 text-xs bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-md hover:bg-blue-100 transition-colors font-medium"
+                                                >
+                                                    <Link className="h-3 w-3" />
+                                                    Techniques
+                                                </button>
+                                                <button
+                                                    onClick={() => navigate(`/research-types/${type.id}/module-template-assignation`)}
+                                                    className="flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-2.5 py-1.5 rounded-md hover:bg-green-100 transition-colors font-medium"
+                                                >
+                                                    <Link className="h-3 w-3" />
+                                                    Modules
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            ))
+                        )}
+                    </div>
                 </div>
 
                 {/* Research Techniques Column */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                <div className="flex flex-col h-full min-h-0 bg-gray-50/50 rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="flex-none p-4 border-b border-gray-100 bg-white/50 backdrop-blur-sm">
                         <h2 className="text-lg font-semibold text-gray-900">Research Techniques</h2>
                     </div>
 
-                    {isLoadingTechniques ? (
-                        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                            <p className="mt-4 text-gray-500">Loading...</p>
-                        </div>
-                    ) : techniquesError ? (
-                        <div className="text-center py-12 bg-white rounded-lg border border-gray-200 text-red-600">
-                            {techniquesError}
-                        </div>
-                    ) : filteredTechniques.length === 0 ? (
-                        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-                                <FileText className="h-6 w-6 text-blue-600" />
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        {isLoadingTechniques ? (
+                            <div className="text-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                <p className="mt-4 text-gray-500">Loading...</p>
                             </div>
-                            <h3 className="mt-4 text-lg font-semibold text-gray-900">No techniques found</h3>
-                            <p className="mt-2 text-gray-500">
-                                {searchQuery ? 'Try adjusting your search.' : 'Create your first research technique.'}
-                            </p>
-                            {!searchQuery && (
-                                <div className="mt-6">
-                                    <Button onClick={() => navigate('/research-techniques/new')}>
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Create Technique
-                                    </Button>
+                        ) : techniquesError ? (
+                            <div className="text-center py-12 text-red-600">
+                                {techniquesError}
+                            </div>
+                        ) : filteredTechniques.length === 0 ? (
+                            <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+                                    <FileText className="h-6 w-6 text-blue-600" />
                                 </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredTechniques.map((technique) => (
+                                <h3 className="mt-4 text-lg font-semibold text-gray-900">No techniques found</h3>
+                                <p className="mt-2 text-gray-500">
+                                    {searchQuery ? 'Try adjusting your search.' : 'Create your first research technique.'}
+                                </p>
+                                {!searchQuery && (
+                                    <div className="mt-6">
+                                        <Button onClick={() => navigate('/research-techniques/new')}>
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Create Technique
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            filteredTechniques.map((technique) => (
                                 <div
                                     key={technique.id}
-                                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow relative"
+                                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow relative group"
                                 >
-                                    <div className="absolute top-3 right-3 flex gap-2">
+                                    <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             onClick={() => navigate(`/research-techniques/${technique.id}`)}
                                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
@@ -312,7 +314,7 @@ export const ResearchTypesPage = () => {
                                         </button>
                                     </div>
 
-                                    <div className="flex items-start gap-3 pr-20">
+                                    <div className="flex items-start gap-3 pr-16">
                                         <div className="flex-shrink-0">
                                             <div className="inline-flex p-2 bg-green-50 rounded-lg">
                                                 <FileText className="h-5 w-5 text-green-600" />
@@ -331,9 +333,9 @@ export const ResearchTypesPage = () => {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            ))
+                        )}
+                    </div>
                 </div>
             </div>
 
