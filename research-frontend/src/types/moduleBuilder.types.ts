@@ -9,6 +9,7 @@ export interface SelectRangeConfig {
     custom?: { min: number; max: number };
     startLabel?: string;
     endLabel?: string;
+    variant?: 'dropdown' | 'scale';
 }
 
 export interface FileUploadConfig {

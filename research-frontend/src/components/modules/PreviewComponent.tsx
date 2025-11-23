@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { CustomSelect } from '../ui/CustomSelect';
+import { ScaleRating } from '../ui/ScaleRating';
 import { Checkbox } from '../ui/Checkbox';
 import { FileUpload } from '../ui/FileUpload';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
@@ -64,6 +65,21 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
             );
 
         case 'select':
+            if (component.selectRange?.variant === 'scale' && component.selectRange.custom) {
+                return (
+                    <ScaleRating
+                        id={`preview-${component.id}`}
+                        label={component.label}
+                        min={component.selectRange.custom.min}
+                        max={component.selectRange.custom.max}
+                        startLabel={component.selectRange.startLabel}
+                        endLabel={component.selectRange.endLabel}
+                        value={selectValue}
+                        onChange={setSelectValue}
+                    />
+                );
+            }
+
             return (
                 <CustomSelect
                     id={`preview-${component.id}`}
