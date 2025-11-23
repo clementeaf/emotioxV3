@@ -4,11 +4,13 @@ import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../contexts/ToastContext';
 
 type ViewMode = 'cards' | 'list';
 
 export const ModulesPage = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [templates, setTemplates] = useState<ModuleTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -39,9 +41,9 @@ export const ModulesPage = () => {
         try {
             await moduleTemplatesService.delete(id);
             await loadTemplates();
-        } catch (err) {
-            console.error('Failed to delete template:', err);
-            alert('Failed to delete module template');
+        } catch (error) {
+            console.error('Failed to delete template:', error);
+            toast.error('Failed to delete module template');
         }
     };
 
@@ -70,8 +72,8 @@ export const ModulesPage = () => {
                         <button
                             onClick={() => setViewMode('cards')}
                             className={`p-2 rounded-md transition-colors ${viewMode === 'cards'
-                                    ? 'bg-white text-blue-600 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
                                 }`}
                             title="Card view"
                         >
@@ -80,8 +82,8 @@ export const ModulesPage = () => {
                         <button
                             onClick={() => setViewMode('list')}
                             className={`p-2 rounded-md transition-colors ${viewMode === 'list'
-                                    ? 'bg-white text-blue-600 shadow-sm'
-                                    : 'text-gray-600 hover:text-gray-900'
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
                                 }`}
                             title="List view"
                         >

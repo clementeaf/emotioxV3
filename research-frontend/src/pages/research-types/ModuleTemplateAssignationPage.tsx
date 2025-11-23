@@ -4,10 +4,12 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { researchTypesService } from '../../services/researchTypes.service';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
+import { useToast } from '../../contexts/ToastContext';
 
 export const ModuleTemplateAssignationPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
+    const toast = useToast();
 
     const [researchTypeName, setResearchTypeName] = useState('');
     const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
@@ -26,18 +28,20 @@ export const ModuleTemplateAssignationPage = () => {
             setIsLoading(true);
 
             // Load research type details
-            const typeRes = await researchTypesService.getById(typeId);
+            const [typeRes, templatesRes] = await Promise.all([
+                researchTypesService.getById(typeId),
+                moduleTemplatesService.list()
+            ]);
+
             setResearchTypeName(typeRes.researchType.name);
+            setModuleTemplates(templatesRes);
 
-            // Load all module templates
-            const modulesRes = await moduleTemplatesService.list();
-            setModuleTemplates(modulesRes);
-
-            // TODO: Load currently assigned modules when backend supports it
-            // For now, selectedModules starts empty
+            // Load currently assigned modules
+            const assignedModuleIds = await researchTypesService.getModuleAssignments(typeId);
+            setSelectedModules(assignedModuleIds);
         } catch (error) {
             console.error('Failed to load data:', error);
-            alert('Failed to load data');
+            toast.error('Failed to load data');
             navigate('/research-types');
         } finally {
             setIsLoading(false);
@@ -57,14 +61,12 @@ export const ModuleTemplateAssignationPage = () => {
 
         try {
             setIsSaving(true);
-            // TODO: Call backend endpoint to update module assignments
-            // await researchTypesService.updateModules(id, selectedModules);
-            console.log('Saving modules:', selectedModules);
-            alert('Module assignment functionality will be implemented when backend endpoint is ready');
+            await researchTypesService.updateModuleAssignments(id, selectedModules);
+            toast.success('Module assignments saved successfully!');
             navigate('/research-types');
         } catch (error) {
             console.error('Failed to save module assignments:', error);
-            alert('Failed to save module assignments');
+            toast.error('Failed to save module assignments');
         } finally {
             setIsSaving(false);
         }

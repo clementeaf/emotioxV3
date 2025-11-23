@@ -5,11 +5,13 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { researchTypesService } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
+import { useToast } from '../../contexts/ToastContext';
 
 
 export const ResearchTypeBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
+    const toast = useToast();
     const isEditing = !!id;
 
     const [name, setName] = useState('');
@@ -51,7 +53,7 @@ export const ResearchTypeBuilderPage = () => {
             // TODO: Load modules when backend supports it
         } catch (error) {
             console.error('Failed to load research type:', error);
-            alert('Failed to load research type');
+            toast.error('Failed to load research type');
             navigate('/research-types');
         } finally {
             setIsLoading(false);
@@ -68,7 +70,7 @@ export const ResearchTypeBuilderPage = () => {
 
     const handleSave = async () => {
         if (!name.trim()) {
-            alert('Research type name is required');
+            toast.warning('Research type name is required');
             return;
         }
 
@@ -89,7 +91,7 @@ export const ResearchTypeBuilderPage = () => {
             navigate('/research-types');
         } catch (error) {
             console.error('Failed to save research type:', error);
-            alert('Failed to save research type');
+            toast.error('Failed to save research type');
         } finally {
             setIsSaving(false);
         }

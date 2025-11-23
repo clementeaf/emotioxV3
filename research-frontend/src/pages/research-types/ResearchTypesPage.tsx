@@ -6,9 +6,11 @@ import { AssignTechniquesModal } from '../../components/research-types/AssignTec
 import { researchTypesService, type ResearchType } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../contexts/ToastContext';
 
 export const ResearchTypesPage = () => {
     const navigate = useNavigate();
+    const toast = useToast();
 
     // Research Types state
     const [researchTypes, setResearchTypes] = useState<ResearchType[]>([]);
@@ -78,9 +80,10 @@ export const ResearchTypesPage = () => {
             await loadResearchTypes();
             setDeleteTypeModalOpen(false);
             setTypeToDelete(null);
-        } catch (err) {
-            console.error('Failed to delete research type:', err);
-            alert('Failed to delete research type');
+            toast.success('Research type deleted successfully!');
+        } catch (error) {
+            console.error('Failed to delete research type:', error);
+            toast.error('Failed to delete research type');
         } finally {
             setIsDeletingType(false);
         }
@@ -100,9 +103,10 @@ export const ResearchTypesPage = () => {
             await loadResearchTechniques();
             setDeleteTechniqueModalOpen(false);
             setTechniqueToDelete(null);
-        } catch (err) {
-            console.error('Failed to delete research technique:', err);
-            alert('Failed to delete research technique');
+            toast.success('Research technique deleted successfully!');
+        } catch (error) {
+            console.error('Failed to delete research technique:', error);
+            toast.error('Failed to delete research technique');
         } finally {
             setIsDeletingTechnique(false);
         }

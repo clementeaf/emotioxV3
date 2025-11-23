@@ -58,8 +58,8 @@ export const useResearchForm = () => {
         setLoadingTechniquesForType(true);
         setFormData((prev) => ({ ...prev, researchTechniqueId: '' }));
         try {
-            const response = await researchTypesService.getTechniquesByType(researchTypeId);
-            setAvailableTechniques(response.researchTechniques);
+            const techniques = await researchTypesService.getTechniquesByType(researchTypeId);
+            setAvailableTechniques(techniques);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to load research techniques';
             setSubmitError(errorMessage);

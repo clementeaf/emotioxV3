@@ -240,3 +240,67 @@ export const getTechniquesByType = async (researchTypeId: string) => {
     const result = await pool.query(query, [researchTypeId]);
     return result.rows;
 };
+
+/**
+ * Gets all module templates associated with a research type
+ * @param researchTypeId - ID of the research type
+ * @returns Array of module templates
+ */
+export const getModulesByType = async (researchTypeId: string) => {
+    const query = `
+    SELECT 
+        mt.id,
+        mt.name,
+        mt.description,
+        mt.structure,
+        mt.created_by,
+        mt.is_active,
+        mt.created_at,
+        mt.updated_at
+    FROM module_templates mt
+    INNER JOIN research_types_module_templates rtmt ON mt.id = rtmt.module_template_id
+    WHERE rtmt.research_type_id = $1 AND mt.is_active = true
+    ORDER BY mt.name
+  `;
+    const result = await pool.query(query, [researchTypeId]);
+    return result.rows;
+};
+
+/**
+ * Updates module template assignments for a research type
+ * @param researchTypeId - ID of the research type
+ * @param moduleTemplateIds - Array of module template IDs to assign
+ */
+export const updateModuleAssignments = async (researchTypeId: string, moduleTemplateIds: string[]) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // First delete existing associations
+        await client.query('DELETE FROM research_types_module_templates WHERE research_type_id = $1', [
+            researchTypeId,
+        ]);
+
+        // Then insert new associations
+        if (moduleTemplateIds && moduleTemplateIds.length > 0) {
+            const junctionQuery = `
+                INSERT INTO research_types_module_templates (research_type_id, module_template_id)
+                VALUES ($1, $2)
+                ON CONFLICT (research_type_id, module_template_id) DO NOTHING
+            `;
+
+            for (const moduleId of moduleTemplateIds) {
+                await client.query(junctionQuery, [researchTypeId, moduleId]);
+            }
+        }
+
+        await client.query('COMMIT');
+        return { success: true };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};

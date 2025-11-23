@@ -4,9 +4,11 @@ import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../contexts/ToastContext';
 
 export const ResearchTechniquesPage = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [techniques, setTechniques] = useState<ResearchTechnique[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -46,9 +48,9 @@ export const ResearchTechniquesPage = () => {
             await loadTechniques();
             setDeleteModalOpen(false);
             setTechniqueToDelete(null);
-        } catch (err) {
-            console.error('Failed to delete research technique:', err);
-            alert('Failed to delete research technique');
+        } catch (error) {
+            console.error('Failed to delete research technique:', error);
+            toast.error('Failed to delete research technique');
         } finally {
             setIsDeleting(false);
         }

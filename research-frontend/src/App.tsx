@@ -6,6 +6,7 @@ import { PageErrorBoundary } from './components/PageErrorBoundary';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ToastProvider } from './contexts/ToastContext';
 import { routesConfig, type RouteConfig } from './config/routes';
 
 /**
@@ -107,9 +108,11 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <BrowserRouter>
-                <Routes>{routes}</Routes>
-            </BrowserRouter>
+            <ToastProvider>
+                <BrowserRouter>
+                    <Routes>{routes}</Routes>
+                </BrowserRouter>
+            </ToastProvider>
         </ErrorBoundary>
     );
 }

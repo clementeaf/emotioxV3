@@ -8,10 +8,12 @@ import { CustomSelect } from '../../components/ui/CustomSelect';
 import { ComponentConfigPanel } from '../../components/modules/ComponentConfigPanel';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import { useToast } from '../../contexts/ToastContext';
 
 export const ModuleBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
+    const toast = useToast();
     const isEditing = !!id;
 
     const [name, setName] = useState('');
@@ -32,7 +34,7 @@ export const ModuleBuilderPage = () => {
                 setComponents(structure?.components || []);
             } catch (error) {
                 console.error('Failed to load template:', error);
-                alert('Failed to load module template');
+                toast.error('Failed to load module template');
                 navigate('/modules');
             } finally {
                 setIsLoading(false);
@@ -63,7 +65,7 @@ export const ModuleBuilderPage = () => {
 
     const handleSave = async () => {
         if (!name.trim()) {
-            alert('Module name is required');
+            toast.warning('Module name is required');
             return;
         }
 
@@ -82,8 +84,8 @@ export const ModuleBuilderPage = () => {
             }
             navigate('/modules');
         } catch (error) {
-            console.error('Failed to save template:', error);
-            alert('Failed to save module template');
+            console.error('Failed to save module template:', error);
+            toast.error('Failed to save module template');
         } finally {
             setIsSaving(false);
         }

@@ -76,6 +76,23 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
             return success({ researchTechniques: techniques });
         }
 
+        // GET /research-types/:id/module-assignments
+        const getModulesMatch = path.match(/^\/research-types\/([^\/]+)\/module-assignments$/);
+        if (getModulesMatch && httpMethod === 'GET') {
+            const id = getModulesMatch[1];
+            const modules = await researchTypesService.getModulesByType(id);
+            return success({ moduleTemplates: modules });
+        }
+
+        // PUT /research-types/:id/module-assignments
+        const putModulesMatch = path.match(/^\/research-types\/([^\/]+)\/module-assignments$/);
+        if (putModulesMatch && httpMethod === 'PUT') {
+            const id = putModulesMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const result = await researchTypesService.updateModuleAssignments(id, body.moduleTemplateIds);
+            return success(result);
+        }
+
         return error('Route not found', 404);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';

@@ -5,10 +5,12 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { researchTechniquesService } from '../../services/researchTechniques.service';
+import { useToast } from '../../contexts/ToastContext';
 
 export const ResearchTechniqueBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
+    const toast = useToast();
     const isEditing = !!id;
 
     const [name, setName] = useState('');
@@ -31,7 +33,7 @@ export const ResearchTechniqueBuilderPage = () => {
             setDescription(technique.description || '');
         } catch (error) {
             console.error('Failed to load research technique:', error);
-            alert('Failed to load research technique');
+            toast.error('Failed to load research technique');
             navigate('/research-techniques');
         } finally {
             setIsLoading(false);
@@ -40,11 +42,11 @@ export const ResearchTechniqueBuilderPage = () => {
 
     const handleSave = async () => {
         if (!name.trim()) {
-            alert('Technique name is required');
+            toast.warning('Technique name is required');
             return;
         }
         if (!description.trim()) {
-            alert('Description is required');
+            toast.warning('Description is required');
             return;
         }
 
@@ -63,7 +65,7 @@ export const ResearchTechniqueBuilderPage = () => {
             navigate('/research-techniques');
         } catch (error) {
             console.error('Failed to save research technique:', error);
-            alert('Failed to save research technique');
+            toast.error('Failed to save research technique');
         } finally {
             setIsSaving(false);
         }

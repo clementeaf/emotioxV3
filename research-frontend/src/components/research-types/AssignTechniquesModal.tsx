@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
-import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { researchTypesService, type ResearchType } from '../../services/researchTypes.service';
+import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
+import { useToast } from '../../contexts/ToastContext';
 
 interface AssignTechniquesModalProps {
     isOpen: boolean;
@@ -17,6 +18,7 @@ export const AssignTechniquesModal = ({
     researchType,
     onSuccess
 }: AssignTechniquesModalProps) => {
+    const toast = useToast();
     const [allTechniques, setAllTechniques] = useState<ResearchTechnique[]>([]);
     const [selectedTechniqueIds, setSelectedTechniqueIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +71,7 @@ export const AssignTechniquesModal = ({
             onClose();
         } catch (error) {
             console.error('Failed to assign techniques:', error);
-            alert('Failed to assign techniques');
+            toast.error('Failed to assign techniques');
         } finally {
             setIsSaving(false);
         }
@@ -79,7 +81,7 @@ export const AssignTechniquesModal = ({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={`Assign Techniques to ${researchType?.name || ''}`}
+            title={`Assign Techniques to ${researchType?.name || ''} `}
             footer={
                 <div className="flex justify-end gap-3">
                     <Button variant="ghost" onClick={onClose} disabled={isSaving}>

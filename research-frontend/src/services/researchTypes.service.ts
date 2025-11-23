@@ -135,14 +135,32 @@ class ResearchTypesService {
      * Obtiene las técnicas de investigación asociadas a un tipo de investigación
      * @param id - ID del tipo de investigación
      * @returns Lista de técnicas de investigación
-     * @throws ApiErrorResponse si falla la petición
      */
-    async getTechniquesByType(id: string): Promise<{ researchTechniques: ResearchTechnique[] }> {
-        try {
-            return await apiClient.get<{ researchTechniques: ResearchTechnique[] }>(`/research-types/${id}/techniques`);
-        } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to fetch research techniques for type');
-        }
+    async getTechniquesByType(id: string): Promise<ResearchTechnique[]> {
+        const response = await apiClient.get<{ researchTechniques: ResearchTechnique[] }>(
+            `/research-types/${id}/techniques`
+        );
+        return response.researchTechniques;
+    }
+
+    /**
+     * Obtiene los module templates asignados a un tipo de investigación
+     */
+    async getModuleAssignments(id: string): Promise<string[]> {
+        const response = await apiClient.get<{ moduleTemplates: { id: string }[] }>(
+            `/research-types/${id}/module-assignments`
+        );
+        return response.moduleTemplates.map(m => m.id);
+    }
+
+    /**
+     * Actualiza los module templates asignados a un tipo de investigación
+     */
+    async updateModuleAssignments(id: string, moduleTemplateIds: string[]): Promise<{ success: boolean }> {
+        return await apiClient.put<{ success: boolean }>(
+            `/research-types/${id}/module-assignments`,
+            { moduleTemplateIds }
+        );
     }
 
     private handleError(error: unknown, defaultMessage: string): Error {
