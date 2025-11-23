@@ -27,27 +27,62 @@ async function seedCVModule() {
                     {
                         id: 'cv-question',
                         type: 'input',
-                        label: '¿Qué te pareció el servicio?',
-                        defaultValue: '',
+                        label: 'Pregunta',
+                        defaultValue: '¿Qué valor le das a este producto?',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe tu respuesta aquí...'
+                            text: 'Escribe la pregunta aquí...'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'cv-rating',
-                        type: 'select',
-                        label: 'Respuesta',
-                        selectRange: {
-                            type: 'custom',
-                            custom: { min: 2, max: 5 },
-                            startLabel: 'Malo',
-                            endLabel: 'Muy bueno',
+                        id: 'cv-range-min',
+                        type: 'input',
+                        label: 'Número de inicio del rango',
+                        defaultValue: '1',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: 1'
                         },
                         required: true,
                         order: 2
+                    },
+                    {
+                        id: 'cv-range-max',
+                        type: 'input',
+                        label: 'Número final del rango',
+                        defaultValue: '5',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: 5'
+                        },
+                        required: true,
+                        order: 3
+                    },
+                    {
+                        id: 'cv-start-label',
+                        type: 'input',
+                        label: 'Label para inicio del rango',
+                        defaultValue: 'Worthless',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: Worthless, Malo'
+                        },
+                        required: true,
+                        order: 4
+                    },
+                    {
+                        id: 'cv-end-label',
+                        type: 'input',
+                        label: 'Label para final del rango',
+                        defaultValue: 'Worth',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: Worth, Excelente'
+                        },
+                        required: true,
+                        order: 5
                     }
                 ]
             }
