@@ -5,10 +5,12 @@ import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
+import { SearchInput } from '../../components/ui/SearchInput';
 
 export const ResearchTechniquesPage = () => {
     const navigate = useNavigate();
     const toast = useToast();
+    const [searchQuery, setSearchQuery] = useState('');
     const [techniques, setTechniques] = useState<ResearchTechnique[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -56,19 +58,32 @@ export const ResearchTechniquesPage = () => {
         }
     };
 
+    const filteredTechniques = techniques.filter(tech =>
+        tech.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tech.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     return (
         <div className="h-full p-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Research Techniques</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Manage research techniques and their descriptions
+                        Manage research techniques and their configurations
                     </p>
                 </div>
                 <Button onClick={() => navigate('/research-techniques/new')}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Technique
                 </Button>
+            </div>
+
+            <div className="w-full max-w-md">
+                <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search research techniques..."
+                />
             </div>
 
             {isLoading ? (
@@ -96,9 +111,13 @@ export const ResearchTechniquesPage = () => {
                         </Button>
                     </div>
                 </div>
+            ) : filteredTechniques.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                    {searchQuery ? 'No research techniques found matching your search.' : 'No research techniques found. Create one to get started.'}
+                </div>
             ) : (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {techniques.map((technique) => (
+                    {filteredTechniques.map((technique) => (
                         <div
                             key={technique.id}
                             className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow relative"

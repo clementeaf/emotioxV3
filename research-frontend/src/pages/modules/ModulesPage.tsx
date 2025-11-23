@@ -6,6 +6,7 @@ import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
+import { SearchInput } from '../../components/ui/SearchInput';
 
 type ViewMode = 'cards' | 'list';
 
@@ -18,6 +19,7 @@ export const ModulesPage = () => {
     const [selectedModule, setSelectedModule] = useState<ModuleTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [viewMode, setViewMode] = useState<ViewMode>('cards');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Delete modal state
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -75,6 +77,11 @@ export const ModulesPage = () => {
         navigate(`/modules/${id}`);
     };
 
+    const filteredTemplates = templates.filter(template =>
+        template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        template.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     return (
         <div className="h-full p-6 space-y-6">
             <div className="flex items-center justify-between">
@@ -115,6 +122,14 @@ export const ModulesPage = () => {
                 </div>
             </div>
 
+            <div className="w-full max-w-md">
+                <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search module templates..."
+                />
+            </div>
+
             {isLoading ? (
                 <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -124,26 +139,28 @@ export const ModulesPage = () => {
                 <div className="text-center py-12 text-red-600">
                     {error}
                 </div>
-            ) : templates.length === 0 ? (
+            ) : filteredTemplates.length === 0 ? (
                 <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
                         <Boxes className="h-6 w-6 text-blue-600" />
                     </div>
                     <h3 className="mt-4 text-lg font-semibold text-gray-900">No modules found</h3>
                     <p className="mt-2 text-gray-500">
-                        Get started by creating a new module template.
+                        {searchQuery ? 'Try adjusting your search.' : 'Get started by creating a new module template.'}
                     </p>
-                    <div className="mt-6">
-                        <Button onClick={() => navigate('/modules/new')}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Module
-                        </Button>
-                    </div>
+                    {!searchQuery && (
+                        <div className="mt-6">
+                            <Button onClick={() => navigate('/modules/new')}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Create Module
+                            </Button>
+                        </div>
+                    )}
                 </div>
             ) : viewMode === 'cards' ? (
                 /* Card View */
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {templates.map((template) => (
+                    {filteredTemplates.map((template) => (
                         <div
                             key={template.id}
                             onClick={() => handlePreview(template)}
@@ -209,7 +226,7 @@ export const ModulesPage = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {templates.map((template) => (
+                            {filteredTemplates.map((template) => (
                                 <tr
                                     key={template.id}
                                     onClick={() => handlePreview(template)}

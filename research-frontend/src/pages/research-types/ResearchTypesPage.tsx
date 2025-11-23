@@ -7,10 +7,12 @@ import { researchTypesService, type ResearchType } from '../../services/research
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
+import { SearchInput } from '../../components/ui/SearchInput';
 
 export const ResearchTypesPage = () => {
     const navigate = useNavigate();
     const toast = useToast();
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Research Types state
     const [researchTypes, setResearchTypes] = useState<ResearchType[]>([]);
@@ -121,15 +123,43 @@ export const ResearchTypesPage = () => {
         await loadResearchTypes();
     };
 
+    const filteredTypes = researchTypes.filter(type =>
+        type.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        type.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const filteredTechniques = researchTechniques.filter(tech =>
+        tech.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tech.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
     return (
         <div className="h-full p-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Research Type Builder</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">Research Types & Techniques</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        Manage research types and techniques
+                        Manage different types of research and their configurations
                     </p>
                 </div>
+                <div className="flex gap-2">
+                    <Button onClick={() => navigate('/research-types/new')}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Type
+                    </Button>
+                    <Button onClick={() => navigate('/research-techniques/new')} variant="outline">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Technique
+                    </Button>
+                </div>
+            </div>
+
+            <div className="w-full max-w-md">
+                <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search types and techniques..."
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -137,10 +167,6 @@ export const ResearchTypesPage = () => {
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-900">Research Types</h2>
-                        <Button size="sm" onClick={() => navigate('/research-types/new')}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Type
-                        </Button>
                     </div>
 
                     {isLoadingTypes ? (
@@ -152,23 +178,27 @@ export const ResearchTypesPage = () => {
                         <div className="text-center py-12 bg-white rounded-lg border border-gray-200 text-red-600">
                             {typesError}
                         </div>
-                    ) : researchTypes.length === 0 ? (
+                    ) : filteredTypes.length === 0 ? (
                         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
                             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
                                 <FileText className="h-6 w-6 text-blue-600" />
                             </div>
-                            <h3 className="mt-4 text-lg font-semibold text-gray-900">No research types</h3>
-                            <p className="mt-2 text-gray-500">Create your first research type.</p>
-                            <div className="mt-6">
-                                <Button onClick={() => navigate('/research-types/new')}>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Create Type
-                                </Button>
-                            </div>
+                            <h3 className="mt-4 text-lg font-semibold text-gray-900">No research types found</h3>
+                            <p className="mt-2 text-gray-500">
+                                {searchQuery ? 'Try adjusting your search.' : 'Create your first research type.'}
+                            </p>
+                            {!searchQuery && (
+                                <div className="mt-6">
+                                    <Button onClick={() => navigate('/research-types/new')}>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Create Type
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {researchTypes.map((type) => (
+                            {filteredTypes.map((type) => (
                                 <div
                                     key={type.id}
                                     className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow relative"
@@ -229,10 +259,6 @@ export const ResearchTypesPage = () => {
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-gray-900">Research Techniques</h2>
-                        <Button size="sm" onClick={() => navigate('/research-techniques/new')}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Technique
-                        </Button>
                     </div>
 
                     {isLoadingTechniques ? (
@@ -244,23 +270,27 @@ export const ResearchTypesPage = () => {
                         <div className="text-center py-12 bg-white rounded-lg border border-gray-200 text-red-600">
                             {techniquesError}
                         </div>
-                    ) : researchTechniques.length === 0 ? (
+                    ) : filteredTechniques.length === 0 ? (
                         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
                             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
                                 <FileText className="h-6 w-6 text-blue-600" />
                             </div>
-                            <h3 className="mt-4 text-lg font-semibold text-gray-900">No techniques</h3>
-                            <p className="mt-2 text-gray-500">Create your first research technique.</p>
-                            <div className="mt-6">
-                                <Button onClick={() => navigate('/research-techniques/new')}>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Create Technique
-                                </Button>
-                            </div>
+                            <h3 className="mt-4 text-lg font-semibold text-gray-900">No techniques found</h3>
+                            <p className="mt-2 text-gray-500">
+                                {searchQuery ? 'Try adjusting your search.' : 'Create your first research technique.'}
+                            </p>
+                            {!searchQuery && (
+                                <div className="mt-6">
+                                    <Button onClick={() => navigate('/research-techniques/new')}>
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Create Technique
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            {researchTechniques.map((technique) => (
+                            {filteredTechniques.map((technique) => (
                                 <div
                                     key={technique.id}
                                     className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow relative"
