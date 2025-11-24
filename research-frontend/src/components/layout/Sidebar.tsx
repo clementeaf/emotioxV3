@@ -4,7 +4,6 @@ import {
     BrainCircuit,
     LayoutDashboard,
     Settings,
-    FileText,
     Boxes,
     Wrench,
     ClipboardList,
@@ -28,7 +27,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
     { path: '/dashboard', label: 'Home', icon: LayoutDashboard },
-    { path: '/research', label: 'Research', icon: FileText },
+    { path: '/research', label: 'Research', icon: Boxes },
     { path: '/research-types', label: 'Research Type Builder', icon: Wrench },
     { path: '/modules', label: 'Modules', icon: Boxes },
     { path: '/research-in-progress', label: "Research's in Progress", icon: ClipboardList },
@@ -237,12 +236,6 @@ export const Sidebar = () => {
                         Back to List
                     </Link>
 
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <FileText className="h-5 w-5 text-blue-600" />
-                        </div>
-                    </div>
-
                     <h2 className="font-bold text-gray-900 truncate text-lg" title={activeResearch.name}>
                         {activeResearch.name}
                     </h2>
@@ -251,27 +244,36 @@ export const Sidebar = () => {
                 {/* Research Details */}
                 <div className="flex-1 p-4 space-y-6 overflow-y-auto">
                     <div>
-                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                            Research Title
+                        </h3>
+                        <p className="text-sm font-medium text-gray-900">
+                            {activeResearch.name}
+                        </p>
+                    </div>
+
+                    <div>
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
                             Research Type
-                        </label>
-                        <p className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded border border-gray-100">
+                        </h3>
+                        <p className="text-sm font-medium text-gray-900">
                             {activeResearch.research_type_name || 'Unknown Type'}
                         </p>
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
-                            Technique
-                        </label>
-                        <p className="text-sm font-medium text-gray-900 bg-gray-50 p-2 rounded border border-gray-100">
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                            Research Technique
+                        </h3>
+                        <p className="text-sm font-medium text-gray-900">
                             {activeResearch.research_technique_name || 'Unknown Technique'}
                         </p>
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
                             Status
-                        </label>
+                        </h3>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                             {activeResearch.status}
                         </span>
@@ -280,9 +282,9 @@ export const Sidebar = () => {
                     {/* Stages Section */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
                                 Stages
-                            </label>
+                            </h3>
                             <button
                                 onClick={() => setShowStageSelector(true)}
                                 className="text-xs text-blue-600 hover:text-blue-800 font-medium"
