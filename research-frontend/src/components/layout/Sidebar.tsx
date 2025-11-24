@@ -311,7 +311,7 @@ export const Sidebar = () => {
                                                             </div>
                                                         </Link>
                                                     ) : (
-                                                        // Stage single_module sin módulo aún - mostrar como botón no clickeable pero destacable
+                                                        // Stage single_module sin módulo aún - mostrar como div destacable
                                                         <div
                                                             className={cn(
                                                                 'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
@@ -325,7 +325,6 @@ export const Sidebar = () => {
                                                                 {stage.description && (
                                                                     <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
                                                                 )}
-                                                                <div className="text-xs text-gray-400 italic mt-1">No modules</div>
                                                             </div>
                                                         </div>
                                                     )
@@ -345,11 +344,6 @@ export const Sidebar = () => {
                                                                 <div className="font-medium">{stage.name}</div>
                                                                 {stage.description && (
                                                                     <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
-                                                                )}
-                                                                {modules.length > 0 && (
-                                                                    <div className="text-xs text-gray-400 mt-1">
-                                                                        {modules.length} module{modules.length !== 1 ? 's' : ''}
-                                                                    </div>
                                                                 )}
                                                             </div>
                                                             {modules.length > 0 && (
@@ -383,13 +377,6 @@ export const Sidebar = () => {
                                                                 })}
                                                             </div>
                                                         )}
-                                                    </div>
-                                                )}
-                                                
-                                                {/* Si no tiene módulos */}
-                                                {!isSingleModule && modules.length === 0 && (
-                                                    <div className="px-2 py-1.5 text-sm rounded text-gray-400">
-                                                        <div className="text-xs italic">No modules</div>
                                                     </div>
                                                 )}
                                             </div>
