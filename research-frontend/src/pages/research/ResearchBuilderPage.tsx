@@ -107,10 +107,21 @@ export const ResearchBuilderPage = () => {
                 let moduleComponents: ComponentConfig[] = [];
 
                 // 1. Si el módulo tiene config.structure.components, usarlo
-                if (activeModule.config && typeof activeModule.config === 'object' && 'structure' in activeModule.config) {
-                    const structure = activeModule.config.structure as { components?: ComponentConfig[] };
-                    if (structure?.components && Array.isArray(structure.components) && structure.components.length > 0) {
-                        moduleComponents = structure.components;
+                if (activeModule.config && typeof activeModule.config === 'object') {
+                    // Buscar en config.structure.components (formato nuevo)
+                    if ('structure' in activeModule.config) {
+                        const structure = activeModule.config.structure as { components?: ComponentConfig[] };
+                        if (structure?.components && Array.isArray(structure.components) && structure.components.length > 0) {
+                            moduleComponents = structure.components;
+                        }
+                    }
+                    
+                    // Si no se encontró, buscar en config.components directamente (formato antiguo o alternativo)
+                    if (moduleComponents.length === 0 && 'components' in activeModule.config) {
+                        const components = activeModule.config.components as ComponentConfig[];
+                        if (Array.isArray(components) && components.length > 0) {
+                            moduleComponents = components;
+                        }
                     }
                 }
 

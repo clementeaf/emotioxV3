@@ -290,14 +290,31 @@ export const createStage = async (researchId: string, userId: string, stageName:
         );
         const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
 
-        // Buscar el stage_template para obtener el stage_type
+        // Buscar el stage_template para obtener el stage_type y módulos asociados
         const templateResult = await client.query(
-            'SELECT stage_type FROM stage_templates WHERE name = $1 AND is_active = true',
+            'SELECT id, stage_type FROM stage_templates WHERE name = $1 AND is_active = true',
             [stageName]
         );
-        const stageType = templateResult.rows.length > 0 
-            ? templateResult.rows[0].stage_type || 'module_collection'
-            : 'module_collection';
+        
+        let stageType: 'single_module' | 'module_collection' = 'module_collection';
+        let stageTemplateId: string | null = null;
+        let modulesToClone: Array<{ id: string; name: string; description: string; structure: Record<string, unknown>; display_order: number }> = [];
+
+        if (templateResult.rows.length > 0) {
+            stageTemplateId = templateResult.rows[0].id;
+            stageType = templateResult.rows[0].stage_type || 'module_collection';
+
+            // Obtener módulos asociados al stage template
+            const modulesResult = await client.query(
+                `SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
+                 FROM stage_templates_module_templates stmt
+                 JOIN module_templates mt ON stmt.module_template_id = mt.id
+                 WHERE stmt.stage_template_id = $1 AND mt.is_active = true
+                 ORDER BY stmt.display_order`,
+                [stageTemplateId]
+            );
+            modulesToClone = modulesResult.rows;
+        }
 
         // Crear el stage con el stage_type del template
         const stageQuery = `
@@ -312,9 +329,44 @@ export const createStage = async (researchId: string, userId: string, stageName:
             nextOrder,
             stageType
         ]);
+        const newStage = stageResult.rows[0];
+
+        // Si hay módulos asociados, clonarlos
+        if (modulesToClone.length > 0) {
+            for (const templateModule of modulesToClone) {
+                // Parse structure si es string, o usar directamente si es objeto
+                const structure = typeof templateModule.structure === 'string' 
+                    ? JSON.parse(templateModule.structure) 
+                    : (templateModule.structure || {});
+                
+                // El config debe tener la estructura { structure: { components: [...] } }
+                // para que el frontend lo encuentre correctamente
+                const config = {
+                    structure: structure
+                };
+                
+                const moduleQuery = `
+                    INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
+                    VALUES ($1, $2, $3, $4, $5, true, $6)
+                    RETURNING id
+                `;
+                await client.query(moduleQuery, [
+                    researchId,
+                    newStage.id,
+                    templateModule.name,
+                    templateModule.description,
+                    templateModule.display_order,
+                    JSON.stringify(config),
+                ]);
+                
+                console.log(`✓ Created module "${templateModule.name}" for stage "${stageName}"`);
+            }
+        } else {
+            console.log(`⚠️  No modules found for stage template "${stageName}"`);
+        }
 
         await client.query('COMMIT');
-        return stageResult.rows[0];
+        return newStage;
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;

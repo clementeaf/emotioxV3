@@ -261,11 +261,39 @@ export const Sidebar = () => {
                                     return activeResearch.stages
                                         .filter((stage) => stage.description !== 'Automatically created during migration')
                                         .map((stage) => {
+                                            // Debug para todos los stages
+                                            if (stage.name === 'Thank You Screen' || stage.name === 'Welcome Screen') {
+                                                console.log(`${stage.name} stage debug:`, {
+                                                    stageId: stage.id,
+                                                    stageName: stage.name,
+                                                    stageType: stage.stage_type,
+                                                    modules: stage.modules?.map(m => ({ id: m.id, name: m.name })),
+                                                    modulesCount: stage.modules?.length || 0
+                                                });
+                                            }
+                                            
                                             const isSingleModule = isStageSingleModule(stage);
                                             const isExpanded = expandedStages.has(stage.id);
                                             
                                             // Para módulo único: obtener el módulo directo
-                                            const singleModule = isSingleModule && stage.modules?.[0];
+                                            let singleModule: (typeof stage.modules)[0] | null = isSingleModule && stage.modules?.[0] ? stage.modules[0] : null;
+                                            
+                                            // Si no se encuentra el módulo en stage.modules pero es single_module, buscar por nombre en todos los módulos
+                                            if (isSingleModule && !singleModule && activeResearch.stages) {
+                                                const allModules = activeResearch.stages.flatMap(s => s.modules || []);
+                                                singleModule = allModules.find(m => m.name.toLowerCase() === stage.name.toLowerCase()) || null;
+                                                
+                                                // Debug temporal para Thank You Screen
+                                                if (stage.name === 'Thank You Screen') {
+                                                    console.log('Thank You Screen - searching for module:', {
+                                                        isSingleModule,
+                                                        hasStageModules: !!stage.modules?.length,
+                                                        allModulesCount: allModules.length,
+                                                        allModules: allModules.map(m => ({ id: m.id, name: m.name })),
+                                                        foundModule: singleModule ? { id: singleModule.id, name: singleModule.name } : null
+                                                    });
+                                                }
+                                            }
                                             
                                             // Para conjunto: obtener todos los módulos
                                             const modules = !isSingleModule ? (stage.modules || []) : [];
@@ -294,12 +322,12 @@ export const Sidebar = () => {
                                                 {isSingleModule ? (
                                                     // Stage = Módulo único: Link directo (puede o no tener módulo)
                                                     singleModule ? (
-                                                        <Link
+                            <Link
                                                             to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
-                                                            className={cn(
+                                className={cn(
                                                                 'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
                                                                 isStageActive
-                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
                                                                     : 'text-gray-700 hover:bg-gray-50'
                                                             )}
                                                         >
@@ -309,9 +337,9 @@ export const Sidebar = () => {
                                                                     <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
                                                                 )}
                                                             </div>
-                                                        </Link>
+                            </Link>
                                                     ) : (
-                                                        // Stage single_module sin módulo aún - mostrar como div destacable
+                                                        // Stage single_module sin módulo aún - mostrar como div no clickeable
                                                         <div
                                                             className={cn(
                                                                 'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
@@ -325,6 +353,7 @@ export const Sidebar = () => {
                                                                 {stage.description && (
                                                                     <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
                                                                 )}
+                                                                <div className="text-xs text-gray-400 italic mt-1">Creating module...</div>
                                                             </div>
                                                         </div>
                                                     )
@@ -345,7 +374,7 @@ export const Sidebar = () => {
                                                                 {stage.description && (
                                                                     <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
                                                                 )}
-                                                            </div>
+                                        </div>
                                                             {modules.length > 0 && (
                                                                 isExpanded ? (
                                                                     <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -360,26 +389,26 @@ export const Sidebar = () => {
                                                             <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
                                                                 {modules.map((module) => {
                                                                     const isModuleActive = module.id === activeModuleId;
-                                                                    return (
-                                                                        <Link
-                                                                            key={module.id}
-                                                                            to={`/research/${activeResearch.id}/builder/module/${module.id}`}
-                                                                            className={cn(
+                                                return (
+                                                    <Link
+                                                        key={module.id}
+                                                        to={`/research/${activeResearch.id}/builder/module/${module.id}`}
+                                                        className={cn(
                                                                                 'block px-2 py-1.5 text-xs rounded transition-colors',
                                                                                 isModuleActive
                                                                                     ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                                            )}
-                                                                        >
+                                                                : 'text-gray-600 hover:bg-gray-50'
+                                                        )}
+                                                    >
                                                                             {module.name}
-                                                                        </Link>
-                                                                    );
+                                                    </Link>
+                                                );
                                                                 })}
                                                             </div>
                                                         )}
-                                                    </div>
-                                                )}
                                             </div>
+                                        )}
+                                    </div>
                                         );
                                     });
                                 })()
@@ -411,7 +440,7 @@ export const Sidebar = () => {
                                 )}
                             </button>
                         ))}
-                    </div>
+                </div>
                 </Modal>
             </div>
         );
