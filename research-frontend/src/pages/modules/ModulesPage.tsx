@@ -49,7 +49,13 @@ export const ModulesPage = () => {
             );
             const ungrouped = allModules.filter(m => !modulesInStages.has(m.id));
             setUngroupedModules(ungrouped);
-        } catch (err) {
+        } catch (err: any) {
+            // Handle 401 Unauthorized - redirect to login
+            if (err?.response?.status === 401) {
+                console.error('Unauthorized - redirecting to login');
+                navigate('/login');
+                return;
+            }
             setError('Failed to load data');
             console.error(err);
         } finally {
