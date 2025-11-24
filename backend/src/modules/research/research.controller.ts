@@ -81,6 +81,24 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ stage }, 201);
         }
 
+        // DELETE /research/:id/stages/:stageId
+        const deleteStageMatch = path.match(/^\/research\/([^\/]+)\/stages\/([^\/]+)$/);
+        if (deleteStageMatch && httpMethod === 'DELETE') {
+            const researchId = deleteStageMatch[1];
+            const stageId = deleteStageMatch[2];
+            const result = await researchService.deleteStage(researchId, user.id, stageId);
+            return success(result);
+        }
+
+        // DELETE /research/:id/modules/:moduleId
+        const deleteModuleMatch = path.match(/^\/research\/([^\/]+)\/modules\/([^\/]+)$/);
+        if (deleteModuleMatch && httpMethod === 'DELETE') {
+            const researchId = deleteModuleMatch[1];
+            const moduleId = deleteModuleMatch[2];
+            const result = await researchService.deleteModule(researchId, user.id, moduleId);
+            return success(result);
+        }
+
         return error('Route not found', 404);
     } catch (err: any) {
         console.error('Research controller error:', err);

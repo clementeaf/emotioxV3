@@ -180,7 +180,26 @@ export const getById = async (researchId: string, userId: string) => {
   `;
     const stagesResult = await pool.query(stagesQuery, [researchId]);
 
-    research.stages = stagesResult.rows;
+    // Parsear el config de cada módulo para asegurar que sea un objeto
+    research.stages = stagesResult.rows.map((row: any) => ({
+        ...row,
+        modules: (row.modules || []).map((module: any) => {
+            // Asegurar que config sea un objeto parseado
+            let config = module.config;
+            if (typeof config === 'string') {
+                try {
+                    config = JSON.parse(config);
+                } catch (e) {
+                    console.error('Error parsing module config:', e);
+                    config = {};
+                }
+            }
+            return {
+                ...module,
+                config: config || {}
+            };
+        })
+    }));
 
     return research;
 };
@@ -335,9 +354,22 @@ export const createStage = async (researchId: string, userId: string, stageName:
         if (modulesToClone.length > 0) {
             for (const templateModule of modulesToClone) {
                 // Parse structure si es string, o usar directamente si es objeto
-                const structure = typeof templateModule.structure === 'string' 
-                    ? JSON.parse(templateModule.structure) 
-                    : (templateModule.structure || {});
+                let structure = templateModule.structure;
+                
+                // Si es string, parsearlo
+                if (typeof structure === 'string') {
+                    try {
+                        structure = JSON.parse(structure);
+                    } catch (e) {
+                        console.error(`Error parsing structure for module "${templateModule.name}":`, e);
+                        structure = {};
+                    }
+                }
+                
+                // Si no es un objeto válido, usar objeto vacío
+                if (!structure || typeof structure !== 'object' || Array.isArray(structure)) {
+                    structure = {};
+                }
                 
                 // El config debe tener la estructura { structure: { components: [...] } }
                 // para que el frontend lo encuentre correctamente
@@ -367,6 +399,98 @@ export const createStage = async (researchId: string, userId: string, stageName:
 
         await client.query('COMMIT');
         return newStage;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Elimina un stage de un research
+ * @param researchId - ID del research
+ * @param userId - ID del usuario
+ * @param stageId - ID del stage a eliminar
+ * @returns Mensaje de confirmación
+ */
+export const deleteStage = async (researchId: string, userId: string, stageId: string) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Verificar que el research existe y pertenece al usuario
+        const researchCheck = await client.query(
+            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            [researchId, userId]
+        );
+
+        if (researchCheck.rows.length === 0) {
+            throw new Error('Research not found');
+        }
+
+        // Verificar que el stage existe y pertenece al research
+        const stageCheck = await client.query(
+            'SELECT id FROM stages WHERE id = $1 AND research_id = $2',
+            [stageId, researchId]
+        );
+
+        if (stageCheck.rows.length === 0) {
+            throw new Error('Stage not found');
+        }
+
+        // Eliminar el stage (CASCADE eliminará automáticamente los módulos asociados)
+        await client.query('DELETE FROM stages WHERE id = $1', [stageId]);
+
+        await client.query('COMMIT');
+        return { message: 'Stage deleted successfully' };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
+ * Elimina un módulo de un research
+ * @param researchId - ID del research
+ * @param userId - ID del usuario
+ * @param moduleId - ID del módulo a eliminar
+ * @returns Mensaje de confirmación
+ */
+export const deleteModule = async (researchId: string, userId: string, moduleId: string) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Verificar que el research existe y pertenece al usuario
+        const researchCheck = await client.query(
+            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            [researchId, userId]
+        );
+
+        if (researchCheck.rows.length === 0) {
+            throw new Error('Research not found');
+        }
+
+        // Verificar que el módulo existe y pertenece al research
+        const moduleCheck = await client.query(
+            'SELECT id FROM modules WHERE id = $1 AND research_id = $2',
+            [moduleId, researchId]
+        );
+
+        if (moduleCheck.rows.length === 0) {
+            throw new Error('Module not found');
+        }
+
+        // Eliminar el módulo (CASCADE eliminará automáticamente las questions asociadas)
+        await client.query('DELETE FROM modules WHERE id = $1', [moduleId]);
+
+        await client.query('COMMIT');
+        return { message: 'Module deleted successfully' };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;

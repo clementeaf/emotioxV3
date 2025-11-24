@@ -183,6 +183,36 @@ class ResearchService {
         }
     }
 
+    /**
+     * Elimina un stage de un research
+     * @param researchId - ID del research
+     * @param stageId - ID del stage a eliminar
+     * @returns Mensaje de confirmación
+     * @throws ApiErrorResponse si falla la eliminación
+     */
+    async deleteStage(researchId: string, stageId: string): Promise<DeleteResponse> {
+        try {
+            return await apiClient.delete<DeleteResponse>(`/research/${researchId}/stages/${stageId}`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to delete stage');
+        }
+    }
+
+    /**
+     * Elimina un módulo de un research
+     * @param researchId - ID del research
+     * @param moduleId - ID del módulo a eliminar
+     * @returns Mensaje de confirmación
+     * @throws ApiErrorResponse si falla la eliminación
+     */
+    async deleteModule(researchId: string, moduleId: string): Promise<DeleteResponse> {
+        try {
+            return await apiClient.delete<DeleteResponse>(`/research/${researchId}/modules/${moduleId}`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to delete module');
+        }
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;

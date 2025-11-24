@@ -11,11 +11,13 @@ import {
     ArrowLeft,
     Loader2,
     ChevronDown,
-    ChevronRight
+    ChevronRight,
+    Trash2
 } from 'lucide-react';
 import { cn } from '../ui/Button';
 import { researchService, type Research } from '../../services/research.service';
 import { Modal } from '../ui/Modal';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useToast } from '../../contexts/ToastContext';
 
 interface NavItem {
@@ -52,6 +54,11 @@ export const Sidebar = () => {
     const [showStageSelector, setShowStageSelector] = useState(false);
     const [isAddingStage, setIsAddingStage] = useState(false);
     const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+    const [deleteStageModalOpen, setDeleteStageModalOpen] = useState(false);
+    const [deleteModuleModalOpen, setDeleteModuleModalOpen] = useState(false);
+    const [stageToDelete, setStageToDelete] = useState<{ id: string; name: string } | null>(null);
+    const [moduleToDelete, setModuleToDelete] = useState<{ id: string; name: string; stageId: string } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const toast = useToast();
 
     useEffect(() => {
@@ -143,6 +150,76 @@ export const Sidebar = () => {
             }
         } finally {
             setIsAddingStage(false);
+        }
+    };
+
+    /**
+     * Maneja el clic en el botón de eliminar stage
+     */
+    const handleDeleteStageClick = (e: React.MouseEvent, stageId: string, stageName: string) => {
+        e.stopPropagation();
+        setStageToDelete({ id: stageId, name: stageName });
+        setDeleteStageModalOpen(true);
+    };
+
+    /**
+     * Maneja la confirmación de eliminación de stage
+     */
+    const handleConfirmDeleteStage = async () => {
+        if (!activeResearch || !stageToDelete) return;
+
+        try {
+            setIsDeleting(true);
+            await researchService.deleteStage(activeResearch.id, stageToDelete.id);
+            toast.success(`Stage "${stageToDelete.name}" deleted successfully`);
+            
+            // Recargar el research para actualizar la lista
+            const response = await researchService.getById(activeResearch.id);
+            setActiveResearch(response.research);
+            
+            setDeleteStageModalOpen(false);
+            setStageToDelete(null);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to delete stage';
+            console.error('Error deleting stage:', error);
+            toast.error(errorMessage);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    /**
+     * Maneja el clic en el botón de eliminar módulo
+     */
+    const handleDeleteModuleClick = (e: React.MouseEvent, moduleId: string, moduleName: string, stageId: string) => {
+        e.stopPropagation();
+        setModuleToDelete({ id: moduleId, name: moduleName, stageId });
+        setDeleteModuleModalOpen(true);
+    };
+
+    /**
+     * Maneja la confirmación de eliminación de módulo
+     */
+    const handleConfirmDeleteModule = async () => {
+        if (!activeResearch || !moduleToDelete) return;
+
+        try {
+            setIsDeleting(true);
+            await researchService.deleteModule(activeResearch.id, moduleToDelete.id);
+            toast.success(`Module "${moduleToDelete.name}" deleted successfully`);
+            
+            // Recargar el research para actualizar la lista
+            const response = await researchService.getById(activeResearch.id);
+            setActiveResearch(response.research);
+            
+            setDeleteModuleModalOpen(false);
+            setModuleToDelete(null);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to delete module';
+            console.error('Error deleting module:', error);
+            toast.error(errorMessage);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -261,17 +338,6 @@ export const Sidebar = () => {
                                     return activeResearch.stages
                                         .filter((stage) => stage.description !== 'Automatically created during migration')
                                         .map((stage) => {
-                                            // Debug para todos los stages
-                                            if (stage.name === 'Thank You Screen' || stage.name === 'Welcome Screen') {
-                                                console.log(`${stage.name} stage debug:`, {
-                                                    stageId: stage.id,
-                                                    stageName: stage.name,
-                                                    stageType: stage.stage_type,
-                                                    modules: stage.modules?.map(m => ({ id: m.id, name: m.name })),
-                                                    modulesCount: stage.modules?.length || 0
-                                                });
-                                            }
-                                            
                                             const isSingleModule = isStageSingleModule(stage);
                                             const isExpanded = expandedStages.has(stage.id);
                                             
@@ -282,17 +348,6 @@ export const Sidebar = () => {
                                             if (isSingleModule && !singleModule && activeResearch.stages) {
                                                 const allModules = activeResearch.stages.flatMap(s => s.modules || []);
                                                 singleModule = allModules.find(m => m.name.toLowerCase() === stage.name.toLowerCase()) || null;
-                                                
-                                                // Debug temporal para Thank You Screen
-                                                if (stage.name === 'Thank You Screen') {
-                                                    console.log('Thank You Screen - searching for module:', {
-                                                        isSingleModule,
-                                                        hasStageModules: !!stage.modules?.length,
-                                                        allModulesCount: allModules.length,
-                                                        allModules: allModules.map(m => ({ id: m.id, name: m.name })),
-                                                        foundModule: singleModule ? { id: singleModule.id, name: singleModule.name } : null
-                                                    });
-                                                }
                                             }
                                             
                                             // Para conjunto: obtener todos los módulos
@@ -322,22 +377,31 @@ export const Sidebar = () => {
                                                 {isSingleModule ? (
                                                     // Stage = Módulo único: Link directo (puede o no tener módulo)
                                                     singleModule ? (
-                            <Link
-                                                            to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
-                                className={cn(
-                                                                'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
-                                                                isStageActive
-                                        ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                    : 'text-gray-700 hover:bg-gray-50'
-                                                            )}
-                                                        >
-                                                            <div className="flex-1">
-                                                                <div className="font-medium">{stage.name}</div>
-                                                                {stage.description && (
-                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                        <div className="flex items-center group">
+                                                            <Link
+                                                                to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
+                                                                className={cn(
+                                                                    'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                                                    isStageActive
+                                                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                        : 'text-gray-700 hover:bg-gray-50'
                                                                 )}
-                                                            </div>
-                            </Link>
+                                                            >
+                                                                <div className="flex-1">
+                                                                    <div className="font-medium">{stage.name}</div>
+                                                                    {stage.description && (
+                                                                        <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                                    )}
+                                                                </div>
+                                                            </Link>
+                                                            <button
+                                                                onClick={(e) => handleDeleteStageClick(e, stage.id, stage.name)}
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
+                                                                title="Delete stage"
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
                                                     ) : (
                                                         // Stage single_module sin módulo aún - mostrar como div no clickeable
                                                         <div
@@ -360,49 +424,66 @@ export const Sidebar = () => {
                                                 ) : (
                                                     // Stage = Conjunto de módulos: Botón expandible
                                                     <div>
-                                                        <button
-                                                            onClick={() => toggleStageExpansion(stage.id)}
-                                                            className={cn(
-                                                                'w-full flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
-                                                                isStageActive
-                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                    : 'text-gray-700 hover:bg-gray-50'
-                                                            )}
-                                                        >
-                                                            <div className="flex-1 text-left">
-                                                                <div className="font-medium">{stage.name}</div>
-                                                                {stage.description && (
-                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                        <div className="flex items-center group">
+                                                            <button
+                                                                onClick={() => toggleStageExpansion(stage.id)}
+                                                                className={cn(
+                                                                    'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
+                                                                    isStageActive
+                                                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                        : 'text-gray-700 hover:bg-gray-50'
                                                                 )}
-                                        </div>
-                                                            {modules.length > 0 && (
-                                                                isExpanded ? (
-                                                                    <ChevronDown className="h-4 w-4 text-gray-400" />
-                                                                ) : (
-                                                                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                                                                )
-                                                            )}
-                                                        </button>
+                                                            >
+                                                                <div className="flex-1 text-left">
+                                                                    <div className="font-medium">{stage.name}</div>
+                                                                    {stage.description && (
+                                                                        <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                                    )}
+                                                                </div>
+                                                                {modules.length > 0 && (
+                                                                    isExpanded ? (
+                                                                        <ChevronDown className="h-4 w-4 text-gray-400" />
+                                                                    ) : (
+                                                                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                                                                    )
+                                                                )}
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => handleDeleteStageClick(e, stage.id, stage.name)}
+                                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
+                                                                title="Delete stage"
+                                                            >
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
                                                         
                                                         {/* Lista de módulos (expandible) */}
                                                         {isExpanded && modules.length > 0 && (
                                                             <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
                                                                 {modules.map((module) => {
                                                                     const isModuleActive = module.id === activeModuleId;
-                                                return (
-                                                    <Link
-                                                        key={module.id}
-                                                        to={`/research/${activeResearch.id}/builder/module/${module.id}`}
-                                                        className={cn(
-                                                                                'block px-2 py-1.5 text-xs rounded transition-colors',
-                                                                                isModuleActive
-                                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                : 'text-gray-600 hover:bg-gray-50'
-                                                        )}
-                                                    >
-                                                                            {module.name}
-                                                    </Link>
-                                                );
+                                                                    return (
+                                                                        <div key={module.id} className="flex items-center group">
+                                                                            <Link
+                                                                                to={`/research/${activeResearch.id}/builder/module/${module.id}`}
+                                                                                className={cn(
+                                                                                    'flex-1 block px-2 py-1.5 text-xs rounded transition-colors',
+                                                                                    isModuleActive
+                                                                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                                        : 'text-gray-600 hover:bg-gray-50'
+                                                                                )}
+                                                                            >
+                                                                                {module.name}
+                                                                            </Link>
+                                                                            <button
+                                                                                onClick={(e) => handleDeleteModuleClick(e, module.id, module.name, stage.id)}
+                                                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
+                                                                                title="Delete module"
+                                                                            >
+                                                                                <Trash2 className="h-3 w-3" />
+                                                                            </button>
+                                                                        </div>
+                                                                    );
                                                                 })}
                                                             </div>
                                                         )}
@@ -418,6 +499,32 @@ export const Sidebar = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Delete Stage Confirmation Modal */}
+                <ConfirmationModal
+                    isOpen={deleteStageModalOpen}
+                    onClose={() => setDeleteStageModalOpen(false)}
+                    onConfirm={handleConfirmDeleteStage}
+                    title="Delete Stage"
+                    message={`Are you sure you want to delete the stage "${stageToDelete?.name}"? This will also delete all modules in this stage. This action cannot be undone.`}
+                    confirmText="Delete"
+                    cancelText="Cancel"
+                    variant="danger"
+                    isLoading={isDeleting}
+                />
+
+                {/* Delete Module Confirmation Modal */}
+                <ConfirmationModal
+                    isOpen={deleteModuleModalOpen}
+                    onClose={() => setDeleteModuleModalOpen(false)}
+                    onConfirm={handleConfirmDeleteModule}
+                    title="Delete Module"
+                    message={`Are you sure you want to delete the module "${moduleToDelete?.name}"? This action cannot be undone.`}
+                    confirmText="Delete"
+                    cancelText="Cancel"
+                    variant="danger"
+                    isLoading={isDeleting}
+                />
 
                 {/* Stage Selector Modal */}
                 <Modal
