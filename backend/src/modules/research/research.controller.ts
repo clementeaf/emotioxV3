@@ -61,6 +61,11 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         return error('Route not found', 404);
     } catch (err: any) {
         console.error('Research controller error:', err);
+
+        if (err.message === 'Invalid or expired token' || err.message === 'No token provided' || err.message === 'No authorization header') {
+            return error(err.message, 401);
+        }
+
         return error(err.message || 'Internal server error', 500);
     }
 };

@@ -1,15 +1,38 @@
 import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
 
+export interface Question {
+    id: string;
+    type: string;
+    text: string;
+    order: number;
+    config: Record<string, unknown>;
+    validation: Record<string, unknown>;
+    required: boolean;
+}
+
+export interface Module {
+    id: string;
+    name: string;
+    description?: string;
+    order_index: number;
+    is_from_template: boolean;
+    config: Record<string, unknown>;
+    questions: Question[];
+}
+
 export interface Research {
     id: string;
-    title: string;
+    name: string;
     description?: string;
     status: string;
     research_type_id: string;
-    created_by: string;
+    research_type_name?: string;
+    research_technique_name?: string;
+    created_by?: string;
     created_at: string;
     updated_at: string;
+    modules?: Module[];
 }
 
 export interface CreateResearchData {

@@ -41,6 +41,7 @@ export const CustomSelect = ({
     const [selectedValue, setSelectedValue] = useState<string>(value || '');
     const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
     const selectRef = useRef<HTMLDivElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (value !== undefined) {
@@ -51,7 +52,11 @@ export const CustomSelect = ({
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent): void => {
-            if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            const clickedInsideSelect = selectRef.current && selectRef.current.contains(target);
+            const clickedInsideDropdown = dropdownRef.current && dropdownRef.current.contains(target);
+
+            if (!clickedInsideSelect && !clickedInsideDropdown) {
                 setIsOpen(false);
             }
         };
@@ -121,6 +126,7 @@ export const CustomSelect = ({
 
                 {isOpen && dropdownPosition && createPortal(
                     <div
+                        ref={dropdownRef}
                         className="fixed z-[9999] rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
                         style={{
                             top: `${dropdownPosition.top}px`,

@@ -129,10 +129,12 @@ const cloneTemplateModulesInternal = async (client: any, researchId: string, res
 
 export const getById = async (researchId: string, userId: string) => {
     const query = `
-    SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.settings, r.created_at, r.updated_at,
-           rt.name as research_type_name
+    SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.settings, r.created_at, r.updated_at,
+           rt.name as research_type_name,
+           rtech.name as research_technique_name
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
+    LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
     WHERE r.id = $1 AND r.user_id = $2 AND r.deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);

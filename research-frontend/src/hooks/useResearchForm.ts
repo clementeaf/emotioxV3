@@ -122,23 +122,23 @@ export const useResearchForm = () => {
         }
     };
 
-    const handleSubmit = async (enterpriseId?: string): Promise<boolean> => {
+    const handleSubmit = async (enterpriseId?: string): Promise<string | null> => {
         setSubmitError('');
         setSubmitSuccess(false);
 
         if (currentStep === 0) {
             handleNextStep();
-            return false;
+            return null;
         }
 
         if (!validateStep2()) {
-            return false;
+            return null;
         }
 
         setIsCreating(true);
 
         try {
-            await researchService.create({
+            const response = await researchService.create({
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
                 research_type_id: formData.researchTypeId,
@@ -146,12 +146,12 @@ export const useResearchForm = () => {
             });
 
             setSubmitSuccess(true);
-            resetForm();
-            return true;
+            // Don't reset form here - let the component handle navigation
+            return response.research.id;
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to create research';
             setSubmitError(errorMessage);
-            return false;
+            return null;
         } finally {
             setIsCreating(false);
         }

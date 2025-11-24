@@ -1,4 +1,5 @@
 import { type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Stepper } from '../ui/Stepper';
 import { Button } from '../ui/Button';
 import { ResearchFormStep1 } from './ResearchFormStep1';
@@ -8,6 +9,7 @@ import { useEnterprise } from '../../hooks/useEnterprise';
 import { type AutocompleteOption } from '../ui/Autocomplete';
 
 export const CreateResearchForm = () => {
+    const navigate = useNavigate();
     const {
         formData,
         currentStep,
@@ -22,6 +24,7 @@ export const CreateResearchForm = () => {
         setFormData,
         setCurrentStep,
         handleFieldChange,
+        handleNextStep,
         handlePreviousStep,
         handleSubmit,
         resetForm,
@@ -57,17 +60,28 @@ export const CreateResearchForm = () => {
         e.preventDefault();
 
         if (currentStep === 0) {
-            handleFieldChange('name', formData.name); // Trigger validation
+            handleNextStep();
             return;
         }
 
-        // If enterprise doesn't exist, create it first
+        // If enterprise doesn't exist, try to find it by name or create it
         let enterpriseId = formData.enterpriseId;
         if (!enterpriseId && formData.enterpriseName.trim()) {
             try {
-                const newEnterpriseId = await createEnterprise(formData.enterpriseName.trim());
-                if (newEnterpriseId) {
-                    enterpriseId = newEnterpriseId;
+                // First, check if an enterprise with this name already exists
+                const existingEnterprise = enterprises.find(
+                    (e) => e.name.toLowerCase() === formData.enterpriseName.trim().toLowerCase()
+                );
+
+                if (existingEnterprise) {
+                    // Use the existing enterprise
+                    enterpriseId = existingEnterprise.id;
+                } else {
+                    // Create a new enterprise
+                    const newEnterpriseId = await createEnterprise(formData.enterpriseName.trim());
+                    if (newEnterpriseId) {
+                        enterpriseId = newEnterpriseId;
+                    }
                 }
             } catch (error: unknown) {
                 console.error('Failed to create enterprise:', error);
@@ -75,7 +89,13 @@ export const CreateResearchForm = () => {
             }
         }
 
-        await handleSubmit(enterpriseId);
+        const researchId = await handleSubmit(enterpriseId);
+
+        if (researchId) {
+            // Reset form and navigate to builder page
+            resetForm();
+            navigate(`/research/${researchId}/builder`);
+        }
     };
 
     return (
