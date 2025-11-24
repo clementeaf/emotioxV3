@@ -13,13 +13,13 @@ const pool = new Pool({
 });
 
 /**
- * Crea el template de módulo "3.1" para Cognitive Tasks
- * Consta de un input tipo Short Text para la pregunta y opcionalmente cargar una imagen
+ * Crea el template de módulo "3.2" para Cognitive Tasks
+ * Consta de un textarea tipo Long Text para la pregunta y opcionalmente cargar una imagen
  */
-const seedCognitiveTask31 = async () => {
+const seedCognitiveTask32 = async () => {
     const client = await pool.connect();
     try {
-        console.log('Starting seed for Cognitive Task 3.1 module...');
+        console.log('Starting seed for Cognitive Task 3.2 module...');
         await client.query('BEGIN');
 
         // Get a user ID to use as created_by
@@ -35,11 +35,11 @@ const seedCognitiveTask31 = async () => {
         // Check if module already exists
         const checkModule = await client.query(
             'SELECT id FROM module_templates WHERE name = $1',
-            ['3.1']
+            ['3.2']
         );
 
         if (checkModule.rows.length > 0) {
-            console.log('Module 3.1 already exists. Skipping...');
+            console.log('Module 3.2 already exists. Skipping...');
             await client.query('ROLLBACK');
             return;
         }
@@ -58,20 +58,20 @@ const seedCognitiveTask31 = async () => {
 
         const stageTemplateId = stageTemplateRes.rows[0].id;
 
-        // Create the 3.1 module
+        // Create the 3.2 module
         const moduleRes = await client.query(
             `INSERT INTO module_templates (name, description, is_active, created_at, updated_at, created_by)
              VALUES ($1, $2, true, NOW(), NOW(), $3)
              RETURNING id`,
             [
-                '3.1',
-                'Cognitive task question with short text input and optional image upload',
+                '3.2',
+                'Cognitive task question with long text input and optional image upload',
                 userId
             ]
         );
 
         const moduleId = moduleRes.rows[0].id;
-        console.log(`✓ Created module: 3.1 (${moduleId})`);
+        console.log(`✓ Created module: 3.2 (${moduleId})`);
 
         // Define the module structure with components
         const structure = {
@@ -79,7 +79,7 @@ const seedCognitiveTask31 = async () => {
                 {
                     id: 'question',
                     name: 'Question',
-                    type: 'input',
+                    type: 'textarea',
                     label: 'Question',
                     defaultValue: '',
                     placeholder: {
@@ -88,7 +88,10 @@ const seedCognitiveTask31 = async () => {
                     },
                     required: true,
                     order: 1,
-                    settings: {}
+                    settings: {
+                        maxLength: 1000,
+                        autosize: true
+                    }
                 },
                 {
                     id: 'image-upload',
@@ -114,7 +117,7 @@ const seedCognitiveTask31 = async () => {
         );
 
         console.log('  ✓ Added 2 components:');
-        console.log('    - Question (input - Short Text)');
+        console.log('    - Question (textarea - Long Text)');
         console.log('    - Image Upload (file-upload - optional)');
 
         // Associate module with Cognitive Tasks stage template
@@ -137,7 +140,7 @@ const seedCognitiveTask31 = async () => {
         console.log(`  ✓ Associated with Cognitive Tasks stage (order: ${nextOrder})`);
 
         await client.query('COMMIT');
-        console.log('\n✅ Cognitive Task 3.1 module created successfully!');
+        console.log('\n✅ Cognitive Task 3.2 module created successfully!');
 
     } catch (error) {
         await client.query('ROLLBACK');
@@ -149,5 +152,5 @@ const seedCognitiveTask31 = async () => {
     }
 };
 
-seedCognitiveTask31();
+seedCognitiveTask32();
 
