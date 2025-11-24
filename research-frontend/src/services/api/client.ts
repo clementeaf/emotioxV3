@@ -30,6 +30,8 @@ class ApiClient {
                 const token = useAuthStore.getState().token;
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`;
+                } else {
+                    console.warn('No token available for request to:', config.url);
                 }
                 return config;
             },

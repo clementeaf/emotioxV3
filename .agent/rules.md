@@ -42,3 +42,9 @@
 - Always use proper TypeScript types
 - Import types from `moduleBuilder.types.ts` when needed
 - Use `SelectRangeConfig`, `PlaceholderConfig`, `ComponentConfig` types
+
+## Modules and Components Development
+- **SEE**: `.agent/rules-modules-components.md` for complete rules on module and component development
+- **KEY PRINCIPLE**: Module Builder configures STRUCTURE, Research Builder edits VALUES
+- **ALWAYS** follow the component loading priority order when working with modules
+- **NEVER** mix configuration UI with value editing UI

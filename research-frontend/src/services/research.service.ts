@@ -21,6 +21,15 @@ export interface Module {
     questions: Question[];
 }
 
+export interface Stage {
+    id: string;
+    name: string;
+    description?: string;
+    order_index: number;
+    stage_type?: 'single_module' | 'module_collection';
+    modules: Module[];
+}
+
 export interface Research {
     id: string;
     name: string;
@@ -32,7 +41,7 @@ export interface Research {
     created_by?: string;
     created_at: string;
     updated_at: string;
-    modules?: Module[];
+    stages?: Stage[];
 }
 
 export interface CreateResearchData {
@@ -152,6 +161,25 @@ class ResearchService {
             return await apiClient.delete<DeleteResponse>(`/research/${id}`);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete research');
+        }
+    }
+
+    /**
+     * Crea un nuevo stage en un research
+     * @param researchId - ID del research
+     * @param name - Nombre del stage
+     * @param description - Descripción opcional del stage
+     * @returns Stage creado
+     * @throws ApiErrorResponse si falla la creación
+     */
+    async addStage(researchId: string, name: string, description?: string): Promise<{ stage: Stage }> {
+        try {
+            return await apiClient.post<{ stage: Stage }>(`/research/${researchId}/stages`, {
+                name,
+                description,
+            });
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to add stage');
         }
     }
 

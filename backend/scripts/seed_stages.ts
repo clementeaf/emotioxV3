@@ -24,6 +24,7 @@ async function seedStages() {
             {
                 name: 'Smart VOC',
                 description: 'Voice of Customer analysis modules including satisfaction, effort, and qualitative feedback metrics.',
+                stage_type: 'module_collection' as const,
                 modules: [
                     'Voice of Costumer (VOC)',
                     'Net Promoter Score (NPS)',
@@ -36,7 +37,26 @@ async function seedStages() {
             {
                 name: 'Cognitive Tasks',
                 description: 'Cognitive assessment and task-based research modules.',
+                stage_type: 'module_collection' as const,
                 modules: []
+            },
+            {
+                name: 'Welcome Screen',
+                description: 'Introduction screen for participants',
+                stage_type: 'single_module' as const,
+                modules: ['Welcome Screen']
+            },
+            {
+                name: 'Thank You Screen',
+                description: 'Completion screen after research',
+                stage_type: 'single_module' as const,
+                modules: ['Thank You Screen']
+            },
+            {
+                name: 'Research Configuration',
+                description: 'Research settings and configuration',
+                stage_type: 'single_module' as const,
+                modules: ['Research Configuration']
             }
         ];
 
@@ -52,8 +72,8 @@ async function seedStages() {
             if ((checkRes.rowCount ?? 0) > 0) {
                 console.log(`⚠️  Stage "${stage.name}" already exists. Updating...`);
                 const updateRes = await client.query(
-                    'UPDATE stage_templates SET description = $1, updated_at = NOW() WHERE name = $2 RETURNING id',
-                    [stage.description, stage.name]
+                    'UPDATE stage_templates SET description = $1, stage_type = $2, updated_at = NOW() WHERE name = $3 RETURNING id',
+                    [stage.description, stage.stage_type, stage.name]
                 );
                 stageId = updateRes.rows[0].id;
 
@@ -65,8 +85,8 @@ async function seedStages() {
             } else {
                 console.log(`✨ Creating stage "${stage.name}"...`);
                 const insertRes = await client.query(
-                    'INSERT INTO stage_templates (name, description) VALUES ($1, $2) RETURNING id',
-                    [stage.name, stage.description]
+                    'INSERT INTO stage_templates (name, description, stage_type) VALUES ($1, $2, $3) RETURNING id',
+                    [stage.name, stage.description, stage.stage_type]
                 );
                 stageId = insertRes.rows[0].id;
             }

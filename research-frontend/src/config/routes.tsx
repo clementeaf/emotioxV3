@@ -76,6 +76,20 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'dashboard', pageName: 'Research Builder' },
     },
     {
+        path: '/research/:id/builder/settings',
+        element: <ResearchBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Settings' },
+    },
+    {
+        path: '/research/:id/builder/module/:moduleId',
+        element: <ResearchBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Module Builder' },
+    },
+    {
         path: '/research-in-progress',
         element: <ResearchInProgressPage />,
         layout: 'dashboard',

@@ -145,29 +145,42 @@ export const getById = async (researchId: string, userId: string) => {
 
     const research = result.rows[0];
 
-    // Get modules with questions
-    const modulesQuery = `
-    SELECT m.id, m.name, m.description, m.order_index, m.is_from_template, m.config,
-           json_agg(
+    // Get stages with modules and questions
+    const stagesQuery = `
+    SELECT s.id, s.name, s.description, s.order_index, s.stage_type,
+           COALESCE(json_agg(
              json_build_object(
-               'id', q.id,
-               'type', q.question_type,
-               'text', q.question_text,
-               'order', q.order_index,
-               'config', q.config,
-               'validation', q.validation,
-               'required', q.required
-             ) ORDER BY q.order_index
-           ) FILTER (WHERE q.id IS NOT NULL) as questions
-    FROM modules m
-    LEFT JOIN questions q ON m.id = q.module_id
-    WHERE m.research_id = $1
-    GROUP BY m.id
-    ORDER BY m.order_index
+               'id', m.id,
+               'name', m.name,
+               'description', m.description,
+               'order_index', m.order_index,
+               'is_from_template', m.is_from_template,
+               'config', m.config,
+               'questions', (
+                 SELECT COALESCE(json_agg(
+                   json_build_object(
+                     'id', q.id,
+                     'type', q.question_type,
+                     'text', q.question_text,
+                     'order', q.order_index,
+                     'config', q.config,
+                     'validation', q.validation,
+                     'required', q.required
+                   ) ORDER BY q.order_index
+                 ), '[]'::json)
+                 FROM questions q WHERE q.module_id = m.id
+               )
+             ) ORDER BY m.order_index
+           ) FILTER (WHERE m.id IS NOT NULL), '[]'::json) as modules
+    FROM stages s
+    LEFT JOIN modules m ON s.id = m.stage_id
+    WHERE s.research_id = $1
+    GROUP BY s.id
+    ORDER BY s.order_index
   `;
-    const modulesResult = await pool.query(modulesQuery, [researchId]);
+    const stagesResult = await pool.query(stagesQuery, [researchId]);
 
-    research.modules = modulesResult.rows;
+    research.stages = stagesResult.rows;
 
     return research;
 };
@@ -244,4 +257,68 @@ export const deleteResearch = async (researchId: string, userId: string) => {
     }
 
     return { message: 'Research deleted successfully' };
+};
+
+/**
+ * Crea un nuevo stage en un research
+ * @param researchId - ID del research
+ * @param userId - ID del usuario
+ * @param stageName - Nombre del stage
+ * @param description - Descripción opcional del stage
+ * @returns Stage creado
+ */
+export const createStage = async (researchId: string, userId: string, stageName: string, description?: string) => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Verificar que el research existe y pertenece al usuario
+        const researchCheck = await client.query(
+            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            [researchId, userId]
+        );
+
+        if (researchCheck.rows.length === 0) {
+            throw new Error('Research not found');
+        }
+
+        // Obtener el máximo order_index para este research
+        const maxOrderResult = await client.query(
+            'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+            [researchId]
+        );
+        const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
+
+        // Buscar el stage_template para obtener el stage_type
+        const templateResult = await client.query(
+            'SELECT stage_type FROM stage_templates WHERE name = $1 AND is_active = true',
+            [stageName]
+        );
+        const stageType = templateResult.rows.length > 0 
+            ? templateResult.rows[0].stage_type || 'module_collection'
+            : 'module_collection';
+
+        // Crear el stage con el stage_type del template
+        const stageQuery = `
+            INSERT INTO stages (research_id, name, description, order_index, stage_type)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, name, description, order_index, stage_type, created_at, updated_at
+        `;
+        const stageResult = await client.query(stageQuery, [
+            researchId, 
+            stageName, 
+            description || null, 
+            nextOrder,
+            stageType
+        ]);
+
+        await client.query('COMMIT');
+        return stageResult.rows[0];
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 };

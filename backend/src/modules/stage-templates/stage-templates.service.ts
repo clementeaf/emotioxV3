@@ -1,9 +1,12 @@
 import pool from '../../config/database';
 
+export type StageType = 'single_module' | 'module_collection';
+
 export interface StageTemplateData {
     name: string;
     description?: string;
     created_by?: string | null;
+    stage_type?: StageType;
 }
 
 export interface StageTemplateWithModules {
@@ -12,6 +15,7 @@ export interface StageTemplateWithModules {
     description: string | null;
     created_by: string | null;
     is_active: boolean;
+    stage_type: StageType;
     created_at: Date;
     updated_at: Date;
     modules: Array<{
@@ -30,6 +34,7 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
             st.description,
             st.created_by,
             st.is_active,
+            st.stage_type,
             st.created_at,
             st.updated_at,
             COALESCE(
@@ -55,15 +60,15 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
 };
 
 export const create = async (data: StageTemplateData) => {
-    const { name, description, created_by } = data;
+    const { name, description, created_by, stage_type = 'module_collection' } = data;
 
     const query = `
-        INSERT INTO stage_templates (name, description, created_by)
-        VALUES ($1, $2, $3)
-        RETURNING id, name, description, created_by, is_active, created_at
+        INSERT INTO stage_templates (name, description, created_by, stage_type)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, name, description, created_by, is_active, stage_type, created_at
     `;
 
-    const result = await pool.query(query, [name, description, created_by || null]);
+    const result = await pool.query(query, [name, description, created_by || null, stage_type]);
     return result.rows[0];
 };
 
@@ -75,6 +80,7 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
             st.description,
             st.created_by,
             st.is_active,
+            st.stage_type,
             st.created_at,
             st.updated_at,
             COALESCE(

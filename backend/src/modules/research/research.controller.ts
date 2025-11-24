@@ -8,7 +8,18 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
     const { httpMethod, path } = event;
 
     try {
-        const decoded = await requireAuth(event);
+        let decoded;
+        try {
+            decoded = await requireAuth(event);
+        } catch (authError: unknown) {
+            const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+            console.error('Auth error for', path, ':', authErrorMessage);
+            console.error('Headers:', JSON.stringify(event.headers, null, 2));
+            if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
+                return error(authErrorMessage, 401);
+            }
+            throw authError;
+        }
         const user = await authService.getMe(decoded.sub);
 
         // GET /research
@@ -56,6 +67,18 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const body = JSON.parse(event.body || '{}');
             const research = await researchService.updateStatus(id, user.id, body.status);
             return success({ research });
+        }
+
+        // POST /research/:id/stages
+        const createStageMatch = path.match(/^\/research\/([^\/]+)\/stages$/);
+        if (createStageMatch && httpMethod === 'POST') {
+            const id = createStageMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            if (!body.name) {
+                return error('Stage name is required', 400);
+            }
+            const stage = await researchService.createStage(id, user.id, body.name, body.description);
+            return success({ stage }, 201);
         }
 
         return error('Route not found', 404);
