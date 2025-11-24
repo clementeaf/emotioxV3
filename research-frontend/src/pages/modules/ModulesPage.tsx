@@ -87,17 +87,15 @@ export const ModulesPage = () => {
         }
     };
 
-    const handlePreview = (moduleId: string) => {
-        // Find the module in all modules
-        const allModules = [
-            ...stages.flatMap(s => s.modules),
-            ...ungroupedModules
-        ];
-        const module = allModules.find(m => m.id === moduleId);
-        if (module) {
-            // Convert to ModuleTemplate format for preview
-            setSelectedModule(module as any);
+    const handlePreview = async (moduleId: string) => {
+        try {
+            // Load the full module template with structure
+            const module = await moduleTemplatesService.getById(moduleId);
+            setSelectedModule(module);
             setShowPreview(true);
+        } catch (error) {
+            console.error('Failed to load module for preview:', error);
+            toast.error('Failed to load module template');
         }
     };
 
@@ -151,6 +149,16 @@ export const ModulesPage = () => {
     const filteredUngrouped = ungroupedModules.filter(m =>
         m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Agrupar stages single_module relacionados (Welcome Screen y Thank You Screen)
+    const screenStages = filteredStages.filter(s => 
+        s.stage_type === 'single_module' && 
+        (s.name === 'Welcome Screen' || s.name === 'Thank You Screen')
+    );
+    const otherStages = filteredStages.filter(s => 
+        !(s.stage_type === 'single_module' && 
+        (s.name === 'Welcome Screen' || s.name === 'Thank You Screen'))
     );
 
     const hasResults = filteredStages.some(s => s.modules.length > 0) || filteredUngrouped.length > 0;
@@ -231,8 +239,26 @@ export const ModulesPage = () => {
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {/* Stages with modules */}
-                    {filteredStages.map(stage => (
+                    {/* Screen Modules (Welcome Screen y Thank You Screen juntos) */}
+                    {screenStages.length > 0 && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3">
+                                <FolderOpen className="h-5 w-5 text-gray-600" />
+                                <h2 className="text-lg font-semibold text-gray-900">Screen Modules</h2>
+                                <span className="text-sm text-gray-500">
+                                    ({screenStages.reduce((sum, s) => sum + s.modules.length, 0)})
+                                </span>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {screenStages.flatMap(stage => 
+                                    stage.modules.map(module => renderModuleCard(module))
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Other Stages with modules */}
+                    {otherStages.map(stage => (
                         stage.modules.length > 0 && (
                             <div key={stage.id} className="space-y-4">
                                 <div className="flex items-center gap-3">

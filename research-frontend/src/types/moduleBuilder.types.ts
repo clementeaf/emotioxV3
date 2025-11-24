@@ -38,6 +38,7 @@ export interface StageTemplate {
     description: string | null;
     created_by: string | null;
     is_active: boolean;
+    stage_type?: 'single_module' | 'module_collection';
     created_at: string;
     updated_at: string;
 }
