@@ -9,10 +9,14 @@ import {
     Wrench,
     ClipboardList,
     ArrowLeft,
-    Loader2
+    Loader2,
+    ChevronDown,
+    ChevronRight
 } from 'lucide-react';
 import { cn } from '../ui/Button';
 import { researchService, type Research } from '../../services/research.service';
+import { Modal } from '../ui/Modal';
+import { useToast } from '../../contexts/ToastContext';
 
 interface NavItem {
     path: string;
@@ -33,13 +37,27 @@ const navItems: NavItem[] = [
  * Displays logo, navigation items and settings
  * Dynamically changes content when in Research Builder
  */
+const AVAILABLE_STAGES = [
+    { name: 'Welcome Screen', description: 'Introduction screen for participants' },
+    { name: 'Thank You Screen', description: 'Completion screen after research' },
+    { name: 'Research Configuration', description: 'Research settings and configuration' },
+    { name: 'Smart VOC', description: 'Voice of Customer module' },
+    { name: 'Cognitive Task', description: 'Cognitive performance assessment' },
+];
+
 export const Sidebar = () => {
     const location = useLocation();
     const [activeResearch, setActiveResearch] = useState<Research | null>(null);
     const [loadingResearch, setLoadingResearch] = useState(false);
+    const [showStageSelector, setShowStageSelector] = useState(false);
+    const [isAddingStage, setIsAddingStage] = useState(false);
+    const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+    const toast = useToast();
 
     useEffect(() => {
-        const match = matchPath('/research/:id/builder', location.pathname);
+        // Check if we're in a research builder route (supports /builder, /builder/settings, /builder/module/:moduleId)
+        const builderMatch = location.pathname.match(/^\/research\/([^\/]+)\/builder/);
+        const researchId = builderMatch ? builderMatch[1] : null;
 
         const fetchResearch = async (id: string) => {
             try {
@@ -54,10 +72,10 @@ export const Sidebar = () => {
             }
         };
 
-        if (match && match.params.id) {
+        if (researchId) {
             // Only fetch if we don't have it or it's a different ID
-            if (!activeResearch || activeResearch.id !== match.params.id) {
-                void fetchResearch(match.params.id);
+            if (!activeResearch || activeResearch.id !== researchId) {
+                void fetchResearch(researchId);
             }
         } else {
             // Reset if we leave the builder
@@ -66,6 +84,67 @@ export const Sidebar = () => {
             }
         }
     }, [location.pathname]);
+
+    /**
+     * Determina si un stage es un módulo único o un conjunto de módulos
+     * Usa el campo stage_type del stage, o fallback a lógica heurística si no está disponible
+     */
+    const isStageSingleModule = (stage: { name: string; stage_type?: string; modules?: Array<{ name: string }> }): boolean => {
+        // Si tiene stage_type explícito, usarlo
+        if (stage.stage_type === 'single_module') return true;
+        if (stage.stage_type === 'module_collection') return false;
+        
+        // Fallback a lógica heurística si no tiene stage_type
+        if (!stage.modules || stage.modules.length === 0) return false;
+        if (stage.modules.length > 1) return false;
+        // Si tiene exactamente 1 módulo, verificar si el nombre coincide
+        return stage.modules[0].name.toLowerCase() === stage.name.toLowerCase();
+    };
+
+    /**
+     * Maneja el toggle de expansión de un stage
+     */
+    const toggleStageExpansion = (stageId: string): void => {
+        setExpandedStages(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(stageId)) {
+                newSet.delete(stageId);
+            } else {
+                newSet.add(stageId);
+            }
+            return newSet;
+        });
+    };
+
+    /**
+     * Maneja la selección de un stage para agregar
+     * @param stageName - Nombre del stage seleccionado
+     */
+    const handleAddStage = async (stageName: string): Promise<void> => {
+        if (!activeResearch) return;
+
+        try {
+            setIsAddingStage(true);
+            await researchService.addStage(activeResearch.id, stageName);
+            toast.success(`Stage "${stageName}" added successfully`);
+            setShowStageSelector(false);
+
+            // Recargar el research para obtener los nuevos stages
+            const response = await researchService.getById(activeResearch.id);
+            setActiveResearch(response.research);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to add stage';
+            console.error('Error adding stage:', error);
+            toast.error(errorMessage);
+            
+            // Si es un error de autenticación, redirigir al login
+            if (errorMessage.includes('token') || errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+                window.location.href = '/login';
+            }
+        } finally {
+            setIsAddingStage(false);
+        }
+    };
 
     // Render Research Context Sidebar
     if (activeResearch) {
@@ -123,37 +202,153 @@ export const Sidebar = () => {
 
                     {/* Stages Section */}
                     <div>
-                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                            Stages
-                        </label>
-                        {activeResearch.modules && activeResearch.modules.length > 0 ? (
-                            <div className="space-y-1">
-                                {activeResearch.modules.map((module) => (
-                                    <div
-                                        key={module.id}
-                                        className="flex items-center px-2 py-1.5 text-sm text-gray-600 rounded hover:bg-gray-50 transition-colors cursor-default"
-                                    >
-                                        <Boxes className="h-4 w-4 mr-2 text-gray-400" />
-                                        <span className="truncate" title={module.name}>{module.name}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
-                        )}
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Stages
+                            </label>
+                            <button
+                                onClick={() => setShowStageSelector(true)}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                + Add Stage
+                            </button>
+                        </div>
+                        <div className="space-y-2 mt-2">
+                            {activeResearch.stages && activeResearch.stages.length > 0 ? (
+                                activeResearch.stages
+                                    .filter((stage) => stage.description !== 'Automatically created during migration')
+                                    .map((stage) => {
+                                        const isSingleModule = isStageSingleModule(stage);
+                                        const isExpanded = expandedStages.has(stage.id);
+                                        
+                                        // Para módulo único: obtener el módulo directo
+                                        const singleModule = isSingleModule && stage.modules?.[0];
+                                        
+                                        // Para conjunto: obtener todos los módulos
+                                        const modules = !isSingleModule ? (stage.modules || []) : [];
+                                        
+                                        // Verificar si algún módulo está activo
+                                        const activeModuleId = location.pathname.match(/\/module\/([^\/]+)/)?.[1];
+                                        const hasActiveModule = modules.some(m => m.id === activeModuleId) || (singleModule && singleModule.id === activeModuleId);
+                                        const isStageActive = hasActiveModule;
+
+                                        return (
+                                            <div key={stage.id} className="space-y-1">
+                                                {/* Stage Header */}
+                                                {isSingleModule && singleModule ? (
+                                                    // Stage = Módulo único: Link directo
+                                                    <Link
+                                                        to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
+                                                        className={cn(
+                                                            'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                                            isStageActive
+                                                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                : 'text-gray-700 hover:bg-gray-50'
+                                                        )}
+                                                    >
+                                                        <div className="flex-1">
+                                                            <div className="font-medium">{stage.name}</div>
+                                                            {stage.description && (
+                                                                <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                            )}
+                                                        </div>
+                                                    </Link>
+                                                ) : (
+                                                    // Stage = Conjunto de módulos: Botón expandible
+                                                    <div>
+                                                        <button
+                                                            onClick={() => toggleStageExpansion(stage.id)}
+                                                            className={cn(
+                                                                'w-full flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
+                                                                isStageActive
+                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                    : 'text-gray-700 hover:bg-gray-50'
+                                                            )}
+                                                        >
+                                                            <div className="flex-1 text-left">
+                                                                <div className="font-medium">{stage.name}</div>
+                                                                {stage.description && (
+                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                                )}
+                                                                {modules.length > 0 && (
+                                                                    <div className="text-xs text-gray-400 mt-1">
+                                                                        {modules.length} module{modules.length !== 1 ? 's' : ''}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {modules.length > 0 && (
+                                                                isExpanded ? (
+                                                                    <ChevronDown className="h-4 w-4 text-gray-400" />
+                                                                ) : (
+                                                                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                                                                )
+                                                            )}
+                                                        </button>
+                                                        
+                                                        {/* Lista de módulos (expandible) */}
+                                                        {isExpanded && modules.length > 0 && (
+                                                            <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
+                                                                {modules.map((module) => {
+                                                                    const isModuleActive = module.id === activeModuleId;
+                                                                    return (
+                                                                        <Link
+                                                                            key={module.id}
+                                                                            to={`/research/${activeResearch.id}/builder/module/${module.id}`}
+                                                                            className={cn(
+                                                                                'block px-2 py-1.5 text-xs rounded transition-colors',
+                                                                                isModuleActive
+                                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                                    : 'text-gray-600 hover:bg-gray-50'
+                                                                            )}
+                                                                        >
+                                                                            {module.name}
+                                                                        </Link>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Si no tiene módulos */}
+                                                {!isSingleModule && modules.length === 0 && (
+                                                    <div className="px-2 py-1.5 text-sm rounded text-gray-400">
+                                                        <div className="text-xs italic">No modules</div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                            ) : (
+                                <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Settings Link at bottom */}
-                <div className="p-4 border-t border-gray-100">
-                    <Link
-                        to="/settings"
-                        className="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                    >
-                        <Settings className="h-5 w-5 mr-3 text-gray-400" />
-                        Settings
-                    </Link>
-                </div>
+                {/* Stage Selector Modal */}
+                <Modal
+                    isOpen={showStageSelector}
+                    onClose={() => setShowStageSelector(false)}
+                    title="Select Stage to Add"
+                    size="md"
+                >
+                    <div className="space-y-2 py-4">
+                        {AVAILABLE_STAGES.map((stage) => (
+                            <button
+                                key={stage.name}
+                                onClick={() => void handleAddStage(stage.name)}
+                                disabled={isAddingStage}
+                                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <div className="font-medium text-gray-900">{stage.name}</div>
+                                {stage.description && (
+                                    <div className="text-sm text-gray-500 mt-1">{stage.description}</div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </Modal>
             </div>
         );
     }

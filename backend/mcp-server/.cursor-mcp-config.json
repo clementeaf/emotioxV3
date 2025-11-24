@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "emotiox-database": {
+      "command": "node",
+      "args": [
+        "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/mcp-server/dist/index.js"
+      ],
+      "env": {
+        "DB_HOST": "localhost",
+        "DB_PORT": "5432",
+        "DB_NAME": "emotioxv3",
+        "DB_USER": "postgres",
+        "DB_PASSWORD": "postgres"
+      }
+    }
+  }
+}
+
