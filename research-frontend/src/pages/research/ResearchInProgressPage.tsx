@@ -2,13 +2,19 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { researchService, type Research } from '../../services/research.service';
 import { Button } from '../../components/ui/Button';
-import { ClipboardList, ArrowRight, Calendar, Folder } from 'lucide-react';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { useToast } from '../../contexts/ToastContext';
+import { ClipboardList, ArrowRight, Calendar, Folder, Trash2 } from 'lucide-react';
 
 export const ResearchInProgressPage = () => {
     const navigate = useNavigate();
+    const toast = useToast();
     const [researches, setResearches] = useState<Research[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>('');
+    const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+    const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
     useEffect(() => {
         const fetchRecentResearches = async () => {
@@ -33,6 +39,38 @@ export const ResearchInProgressPage = () => {
 
     const handleResearchClick = (researchId: string) => {
         navigate(`/research/${researchId}/builder`);
+    };
+
+    const handleDeleteClick = (e: React.MouseEvent, research: Research) => {
+        e.stopPropagation();
+        setResearchToDelete(research);
+        setDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!researchToDelete) return;
+
+        try {
+            setIsDeleting(true);
+            await researchService.delete(researchToDelete.id);
+            toast.success('Research deleted successfully!');
+            
+            // Refresh the list
+            const response = await researchService.list();
+            const sortedResearches = response.researches
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .slice(0, 3);
+            setResearches(sortedResearches);
+            
+            setDeleteModalOpen(false);
+            setResearchToDelete(null);
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to delete research';
+            toast.error(errorMessage);
+            console.error('Failed to delete research:', err);
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     if (loading) {
@@ -135,7 +173,7 @@ export const ResearchInProgressPage = () => {
                                     </div>
                                 </div>
 
-                                <div className="ml-4">
+                                <div className="ml-4 flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         onClick={(e) => {
@@ -147,6 +185,13 @@ export const ResearchInProgressPage = () => {
                                             Open
                                             <ArrowRight className="h-4 w-4" />
                                         </span>
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={(e) => handleDeleteClick(e, research)}
+                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
@@ -167,6 +212,22 @@ export const ResearchInProgressPage = () => {
                     </button>
                 </div>
             )}
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteModalOpen}
+                onClose={() => {
+                    setDeleteModalOpen(false);
+                    setResearchToDelete(null);
+                }}
+                onConfirm={handleConfirmDelete}
+                title="Delete Research"
+                message={`Are you sure you want to delete "${researchToDelete?.name}"? This action cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+                isLoading={isDeleting}
+            />
         </div>
     );
 };

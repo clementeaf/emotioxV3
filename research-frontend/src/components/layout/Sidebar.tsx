@@ -215,44 +215,120 @@ export const Sidebar = () => {
                         </div>
                         <div className="space-y-2 mt-2">
                             {activeResearch.stages && activeResearch.stages.length > 0 ? (
-                                activeResearch.stages
-                                    .filter((stage) => stage.description !== 'Automatically created during migration')
-                                    .map((stage) => {
-                                        const isSingleModule = isStageSingleModule(stage);
-                                        const isExpanded = expandedStages.has(stage.id);
+                                (() => {
+                                    // Obtener el módulo activo una sola vez
+                                    const activeModuleId = location.pathname.match(/\/module\/([^\/]+)/)?.[1];
+                                    
+                                    // Buscar el módulo activo en todos los stages para obtener su información
+                                    let activeModule: { id: string; name: string; stageId: string } | null = null;
+                                    if (activeModuleId && activeResearch.stages) {
+                                        // Primero buscar por ID
+                                        for (const stage of activeResearch.stages) {
+                                            const stageModules = stage.modules || [];
+                                            const foundModule = stageModules.find(m => m.id === activeModuleId);
+                                            if (foundModule) {
+                                                activeModule = {
+                                                    id: foundModule.id,
+                                                    name: foundModule.name,
+                                                    stageId: stage.id
+                                                };
+                                                break;
+                                            }
+                                        }
                                         
-                                        // Para módulo único: obtener el módulo directo
-                                        const singleModule = isSingleModule && stage.modules?.[0];
-                                        
-                                        // Para conjunto: obtener todos los módulos
-                                        const modules = !isSingleModule ? (stage.modules || []) : [];
-                                        
-                                        // Verificar si algún módulo está activo
-                                        const activeModuleId = location.pathname.match(/\/module\/([^\/]+)/)?.[1];
-                                        const hasActiveModule = modules.some(m => m.id === activeModuleId) || (singleModule && singleModule.id === activeModuleId);
-                                        const isStageActive = hasActiveModule;
+                                        // Si no se encontró por ID, buscar en ResearchBuilderPage para obtener el nombre del módulo
+                                        // Esto es un fallback para casos donde el módulo no está en stage.modules
+                                        if (!activeModule) {
+                                            // Intentar obtener el módulo desde todos los stages (puede estar en cualquier stage)
+                                            const allModules = activeResearch.stages.flatMap(s => s.modules || []);
+                                            const foundModule = allModules.find(m => m.id === activeModuleId);
+                                            if (foundModule) {
+                                                // Encontrar en qué stage está
+                                                for (const stage of activeResearch.stages) {
+                                                    if (stage.modules?.some(m => m.id === activeModuleId)) {
+                                                        activeModule = {
+                                                            id: foundModule.id,
+                                                            name: foundModule.name,
+                                                            stageId: stage.id
+                                                        };
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    return activeResearch.stages
+                                        .filter((stage) => stage.description !== 'Automatically created during migration')
+                                        .map((stage) => {
+                                            const isSingleModule = isStageSingleModule(stage);
+                                            const isExpanded = expandedStages.has(stage.id);
+                                            
+                                            // Para módulo único: obtener el módulo directo
+                                            const singleModule = isSingleModule && stage.modules?.[0];
+                                            
+                                            // Para conjunto: obtener todos los módulos
+                                            const modules = !isSingleModule ? (stage.modules || []) : [];
+                                            
+                                            // Verificar si algún módulo está activo
+                                            const hasActiveModule = modules.some(m => m.id === activeModuleId) || (singleModule && singleModule.id === activeModuleId);
+                                            
+                                            // Determinar si el stage está activo:
+                                            // 1. Si tiene el módulo activo directamente
+                                            // 2. Si el módulo activo pertenece a este stage (por stageId) - ESTO ES LO MÁS IMPORTANTE
+                                            // 3. Si el módulo activo tiene el mismo nombre que el stage (para single_module stages)
+                                            let isStageActive = hasActiveModule || 
+                                                (activeModule && activeModule.stageId === stage.id);
+                                            
+                                            // Si aún no está activo, verificar por nombre del módulo (útil para single_module stages)
+                                            if (!isStageActive && activeModule && activeModuleId) {
+                                                // Si el módulo activo tiene el mismo nombre que el stage, destacarlo
+                                                if (activeModule.name.toLowerCase() === stage.name.toLowerCase()) {
+                                                    isStageActive = true;
+                                                }
+                                            }
 
                                         return (
                                             <div key={stage.id} className="space-y-1">
                                                 {/* Stage Header */}
-                                                {isSingleModule && singleModule ? (
-                                                    // Stage = Módulo único: Link directo
-                                                    <Link
-                                                        to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
-                                                        className={cn(
-                                                            'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
-                                                            isStageActive
-                                                                ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                : 'text-gray-700 hover:bg-gray-50'
-                                                        )}
-                                                    >
-                                                        <div className="flex-1">
-                                                            <div className="font-medium">{stage.name}</div>
-                                                            {stage.description && (
-                                                                <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                {isSingleModule ? (
+                                                    // Stage = Módulo único: Link directo (puede o no tener módulo)
+                                                    singleModule ? (
+                                                        <Link
+                                                            to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
+                                                            className={cn(
+                                                                'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                                                isStageActive
+                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                    : 'text-gray-700 hover:bg-gray-50'
                                                             )}
+                                                        >
+                                                            <div className="flex-1">
+                                                                <div className="font-medium">{stage.name}</div>
+                                                                {stage.description && (
+                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                                )}
+                                                            </div>
+                                                        </Link>
+                                                    ) : (
+                                                        // Stage single_module sin módulo aún - mostrar como botón no clickeable pero destacable
+                                                        <div
+                                                            className={cn(
+                                                                'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
+                                                                isStageActive
+                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                    : 'text-gray-700'
+                                                            )}
+                                                        >
+                                                            <div className="flex-1">
+                                                                <div className="font-medium">{stage.name}</div>
+                                                                {stage.description && (
+                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
+                                                                )}
+                                                                <div className="text-xs text-gray-400 italic mt-1">No modules</div>
+                                                            </div>
                                                         </div>
-                                                    </Link>
+                                                    )
                                                 ) : (
                                                     // Stage = Conjunto de módulos: Botón expandible
                                                     <div>
@@ -318,7 +394,8 @@ export const Sidebar = () => {
                                                 )}
                                             </div>
                                         );
-                                    })
+                                    });
+                                })()
                             ) : (
                                 <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
                             )}
