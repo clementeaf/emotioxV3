@@ -24,7 +24,14 @@ async function seedStages() {
             {
                 name: 'Smart VOC',
                 description: 'Voice of Customer analysis modules including satisfaction, effort, and qualitative feedback metrics.',
-                modules: ['Voice of Costumer (VOC)', 'NPS', 'CSAT', 'CES', 'CV', 'NEV']
+                modules: [
+                    'Voice of Costumer (VOC)',
+                    'Net Promoter Score (NPS)',
+                    'Customer Satisfaction Score (CSAT)',
+                    'Customer Effort Score (CES)',
+                    'Cognitive Value (CV)',
+                    'Net Emotional Value (NEV)'
+                ]
             },
             {
                 name: 'Cognitive Tasks',
