@@ -31,3 +31,25 @@ export interface ComponentConfig {
     editableFields?: string[];
     hidden?: boolean;
 }
+
+export interface StageTemplate {
+    id: string;
+    name: string;
+    description: string | null;
+    created_by: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ModuleTemplateBasic {
+    id: string;
+    name: string;
+    description: string | null;
+    display_order: number;
+}
+
+export interface StageTemplateWithModules extends StageTemplate {
+    modules: ModuleTemplateBasic[];
+}
+

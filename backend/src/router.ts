@@ -60,6 +60,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleModuleTemplatesRoutes(event);
         }
 
+        // Stage Templates routes
+        if (path.startsWith('/stage-templates')) {
+            const { handleStageTemplatesRoutes } = await import('./modules/stage-templates/stage-templates.controller');
+            return await handleStageTemplatesRoutes(event);
+        }
+
         // Questions routes
         if (path.startsWith('/questions')) {
             const { handleQuestionsRoutes } = await import('./modules/questions/questions.controller');
