@@ -23,7 +23,8 @@ export const ResearchBuilderPage = () => {
     const [isSaving, setIsSaving] = useState(false);
 
     // Determine active view
-    const isSettings = location.pathname.endsWith('/settings') || location.pathname.endsWith('/builder');
+    // Solo es "settings" si la ruta termina explícitamente en /settings
+    const isSettings = location.pathname.endsWith('/settings');
     const moduleMatch = location.pathname.match(/\/module\/([^\/]+)/);
     const activeModuleId = moduleMatch ? moduleMatch[1] : null;
 
@@ -51,10 +52,18 @@ export const ResearchBuilderPage = () => {
     }, [id]);
 
     /**
-     * Redirige automáticamente al módulo Welcome Screen si no hay módulo activo
+     * Redirige automáticamente al módulo Welcome Screen cuando se entra a /builder sin módulo específico
+     * Solo redirige si estamos en la ruta base /builder (no en /settings ni /module/:id)
      */
     useEffect(() => {
-        if (!research || loading || activeModuleId || isSettings) return;
+        // No redirigir si:
+        // - No hay research cargado o está cargando
+        // - Ya hay un módulo activo en la URL
+        // - Estamos explícitamente en settings
+        // - La ruta no es exactamente /research/:id/builder
+        const isBaseBuilderRoute = location.pathname === `/research/${id}/builder`;
+        
+        if (!research || loading || activeModuleId || isSettings || !isBaseBuilderRoute) return;
 
         let welcomeScreenModule = null;
 
@@ -79,7 +88,7 @@ export const ResearchBuilderPage = () => {
         if (welcomeScreenModule && id) {
             navigate(`/research/${id}/builder/module/${welcomeScreenModule.id}`, { replace: true });
         }
-    }, [research, loading, activeModuleId, isSettings, id, navigate]);
+    }, [research, loading, activeModuleId, isSettings, id, navigate, location.pathname]);
 
     // Calcular activeModule antes de los early returns (de forma segura)
     const activeModule = activeModuleId && research && research.stages

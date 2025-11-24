@@ -8,7 +8,11 @@ import { useResearchForm } from '../../hooks/useResearchForm';
 import { useEnterprise } from '../../hooks/useEnterprise';
 import { type AutocompleteOption } from '../ui/Autocomplete';
 
-export const CreateResearchForm = () => {
+interface CreateResearchFormProps {
+    onSuccess?: () => void;
+}
+
+export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) => {
     const navigate = useNavigate();
     const {
         formData,
@@ -92,9 +96,16 @@ export const CreateResearchForm = () => {
         const researchId = await handleSubmit(enterpriseId);
 
         if (researchId) {
-            // Reset form and navigate to builder page
+            // Reset form
             resetForm();
-            navigate(`/research/${researchId}/builder`);
+            
+            // If onSuccess callback is provided, call it instead of navigating
+            if (onSuccess) {
+                onSuccess();
+            } else {
+                // Default behavior: navigate to builder page
+                navigate(`/research/${researchId}/builder`);
+            }
         }
     };
 
