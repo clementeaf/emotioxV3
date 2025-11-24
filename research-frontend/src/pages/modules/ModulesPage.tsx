@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Boxes, Plus, Trash2, Eye, Grid3x3, List, FolderOpen } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Boxes, Plus, Trash2, Eye, FolderOpen } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
@@ -9,8 +9,7 @@ import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
 import { SearchInput } from '../../components/ui/SearchInput';
-
-type ViewMode = 'cards' | 'list';
+import { cn } from '../../components/ui/Button';
 
 export const ModulesPage = () => {
     const navigate = useNavigate();
@@ -21,8 +20,8 @@ export const ModulesPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedModule, setSelectedModule] = useState<ModuleTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
-    const [viewMode, setViewMode] = useState<ViewMode>('cards');
     const [searchQuery, setSearchQuery] = useState('');
+    const [activeTab, setActiveTab] = useState<string | null>(null);
 
     // Delete modal state
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -32,6 +31,72 @@ export const ModulesPage = () => {
     useEffect(() => {
         loadData();
     }, []);
+
+    // Recalculate tabs when data or search changes
+    const { allTabs, currentTab, hasResults } = useMemo(() => {
+        const filteredStages = stages.map(stage => ({
+            ...stage,
+            modules: stage.modules.filter(m =>
+                m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                m.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+        })).filter(stage => stage.modules.length > 0 || !searchQuery);
+
+        const filteredUngrouped = ungroupedModules.filter(m =>
+            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
+        const screenStages = filteredStages.filter(s => 
+            s.stage_type === 'single_module' && 
+            (s.name === 'Welcome Screen' || s.name === 'Thank You Screen')
+        );
+        const otherStages = filteredStages.filter(s => 
+            !(s.stage_type === 'single_module' && 
+            (s.name === 'Welcome Screen' || s.name === 'Thank You Screen'))
+        );
+
+        const tabs = [
+            ...(screenStages.length > 0 ? [{
+                id: 'screen-modules',
+                name: 'Screen Modules',
+                modules: screenStages.flatMap(s => s.modules),
+                description: 'Welcome and Thank You screens'
+            }] : []),
+            ...otherStages.map(s => ({
+                id: s.id,
+                name: s.name,
+                modules: s.modules,
+                description: s.description || null
+            })),
+            ...(filteredUngrouped.length > 0 ? [{
+                id: 'ungrouped',
+                name: 'Other Modules',
+                modules: filteredUngrouped,
+                description: null
+            }] : [])
+        ];
+
+        const results = filteredStages.some(s => s.modules.length > 0) || filteredUngrouped.length > 0;
+        const tab = tabs.find(t => t.id === activeTab) || tabs[0];
+
+        return { allTabs: tabs, currentTab: tab, hasResults: results };
+    }, [stages, ungroupedModules, searchQuery, activeTab]);
+
+    // Update active tab when search changes or tabs change
+    useEffect(() => {
+        if (allTabs.length > 0) {
+            const currentTabExists = allTabs.some(t => t.id === activeTab);
+            if (!currentTabExists || (currentTab && currentTab.modules.length === 0 && allTabs.some(t => t.modules.length > 0))) {
+                const firstTabWithModules = allTabs.find(t => t.modules.length > 0);
+                if (firstTabWithModules) {
+                    setActiveTab(firstTabWithModules.id);
+                } else if (allTabs.length > 0) {
+                    setActiveTab(allTabs[0].id);
+                }
+            }
+        }
+    }, [searchQuery, allTabs, activeTab, currentTab]);
 
     const loadData = async () => {
         try {
@@ -49,6 +114,18 @@ export const ModulesPage = () => {
             );
             const ungrouped = allModules.filter(m => !modulesInStages.has(m.id));
             setUngroupedModules(ungrouped);
+
+            // Set initial active tab to first stage with modules
+            if (stagesData.length > 0) {
+                const firstStageWithModules = stagesData.find(s => s.modules.length > 0);
+                if (firstStageWithModules) {
+                    setActiveTab(firstStageWithModules.id);
+                } else if (ungrouped.length > 0) {
+                    setActiveTab('ungrouped');
+                }
+            } else if (ungrouped.length > 0) {
+                setActiveTab('ungrouped');
+            }
         } catch (err: any) {
             // Handle 401 Unauthorized - redirect to login
             if (err?.response?.status === 401) {
@@ -138,30 +215,6 @@ export const ModulesPage = () => {
         </div>
     );
 
-    const filteredStages = stages.map(stage => ({
-        ...stage,
-        modules: stage.modules.filter(m =>
-            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            m.description?.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    })).filter(stage => stage.modules.length > 0 || !searchQuery);
-
-    const filteredUngrouped = ungroupedModules.filter(m =>
-        m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        m.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    // Agrupar stages single_module relacionados (Welcome Screen y Thank You Screen)
-    const screenStages = filteredStages.filter(s => 
-        s.stage_type === 'single_module' && 
-        (s.name === 'Welcome Screen' || s.name === 'Thank You Screen')
-    );
-    const otherStages = filteredStages.filter(s => 
-        !(s.stage_type === 'single_module' && 
-        (s.name === 'Welcome Screen' || s.name === 'Thank You Screen'))
-    );
-
-    const hasResults = filteredStages.some(s => s.modules.length > 0) || filteredUngrouped.length > 0;
 
     return (
         <div className="h-full p-6 space-y-6">
@@ -172,43 +225,55 @@ export const ModulesPage = () => {
                         Manage and configure reusable research modules organized by stages
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-                        <button
-                            onClick={() => setViewMode('cards')}
-                            className={`p-2 rounded-md transition-colors ${viewMode === 'cards'
-                                ? 'bg-white text-blue-600 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            title="Card view"
-                        >
-                            <Grid3x3 className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className={`p-2 rounded-md transition-colors ${viewMode === 'list'
-                                ? 'bg-white text-blue-600 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            title="List view"
-                        >
-                            <List className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <Button onClick={() => navigate('/modules/new')}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Module
-                    </Button>
+                <Button onClick={() => navigate('/modules/new')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Module
+                </Button>
+            </div>
+
+            <div className="flex items-center gap-4">
+                <div className="flex-1 max-w-md">
+                    <SearchInput
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Search module templates..."
+                    />
                 </div>
             </div>
 
-            <div className="w-full max-w-md">
-                <SearchInput
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search module templates..."
-                />
-            </div>
+            {/* Horizontal Tabs */}
+            {hasResults && allTabs.length > 0 && (
+                <div className="border-b border-gray-200">
+                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                        {allTabs.map((tab) => {
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={cn(
+                                        'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                                        isActive
+                                            ? 'border-blue-600 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    )}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <FolderOpen className={cn('h-4 w-4', isActive ? 'text-blue-600' : 'text-gray-400')} />
+                                        {tab.name}
+                                        <span className={cn(
+                                            'px-2 py-0.5 rounded-full text-xs',
+                                            isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                                        )}>
+                                            {tab.modules.length}
+                                        </span>
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {isLoading ? (
                 <div className="text-center py-12">
@@ -238,58 +303,32 @@ export const ModulesPage = () => {
                     )}
                 </div>
             ) : (
-                <div className="space-y-8">
-                    {/* Screen Modules (Welcome Screen y Thank You Screen juntos) */}
-                    {screenStages.length > 0 && (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <FolderOpen className="h-5 w-5 text-gray-600" />
-                                <h2 className="text-lg font-semibold text-gray-900">Screen Modules</h2>
-                                <span className="text-sm text-gray-500">
-                                    ({screenStages.reduce((sum, s) => sum + s.modules.length, 0)})
-                                </span>
-                            </div>
+                currentTab && (
+                    <div className="space-y-4">
+                        {currentTab.description && (
+                            <p className="text-sm text-gray-600">{currentTab.description}</p>
+                        )}
+                        {currentTab.modules.length > 0 ? (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {screenStages.flatMap(stage => 
-                                    stage.modules.map(module => renderModuleCard(module))
-                                )}
+                                {currentTab.modules.map(module => {
+                                    const fullModule = ungroupedModules.find(m => m.id === module.id) || 
+                                                     stages.flatMap(s => s.modules).find(m => m.id === module.id);
+                                    return renderModuleCard(module, fullModule as ModuleTemplate | undefined);
+                                })}
                             </div>
-                        </div>
-                    )}
-
-                    {/* Other Stages with modules */}
-                    {otherStages.map(stage => (
-                        stage.modules.length > 0 && (
-                            <div key={stage.id} className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <FolderOpen className="h-5 w-5 text-gray-600" />
-                                    <h2 className="text-lg font-semibold text-gray-900">{stage.name}</h2>
-                                    <span className="text-sm text-gray-500">({stage.modules.length})</span>
+                        ) : (
+                            <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-50">
+                                    <Boxes className="h-6 w-6 text-gray-400" />
                                 </div>
-                                {stage.description && (
-                                    <p className="text-sm text-gray-600 ml-8">{stage.description}</p>
-                                )}
-                                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                    {stage.modules.map(module => renderModuleCard(module))}
-                                </div>
+                                <h3 className="mt-4 text-lg font-semibold text-gray-900">No modules in this stage</h3>
+                                <p className="mt-2 text-gray-500">
+                                    {searchQuery ? 'Try adjusting your search.' : 'This stage has no modules yet.'}
+                                </p>
                             </div>
-                        )
-                    ))}
-
-                    {/* Ungrouped modules */}
-                    {filteredUngrouped.length > 0 && (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <Boxes className="h-5 w-5 text-gray-600" />
-                                <h2 className="text-lg font-semibold text-gray-900">Other Modules</h2>
-                                <span className="text-sm text-gray-500">({filteredUngrouped.length})</span>
-                            </div>
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {filteredUngrouped.map(module => renderModuleCard(module, module))}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )
             )}
 
             <ModulePreviewModal

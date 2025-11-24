@@ -302,6 +302,81 @@ class PostgresMCPServer {
                         required: ['tableName'],
                     },
                 },
+                {
+                    name: 'create_module_template',
+                    description: 'Crea un nuevo module template con su estructura de componentes. Valida la estructura y asegura que se guarde correctamente.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            name: {
+                                type: 'string',
+                                description: 'Nombre del módulo template (ej: "Welcome Screen", "Thank You Screen")',
+                            },
+                            description: {
+                                type: 'string',
+                                description: 'Descripción del módulo',
+                            },
+                            structure: {
+                                type: 'string',
+                                description: 'JSON string con la estructura del módulo. Debe tener formato: {"components": [{"id": "...", "type": "input|textarea|select|checkbox", "label": "...", ...}]}',
+                            },
+                            stageTemplateName: {
+                                type: 'string',
+                                description: 'Nombre del stage template al que asociar este módulo (opcional)',
+                            },
+                            displayOrder: {
+                                type: 'number',
+                                description: 'Orden de visualización en el stage template (opcional, default: 0)',
+                            },
+                        },
+                        required: ['name', 'description', 'structure'],
+                    },
+                },
+                {
+                    name: 'generate_module_seed_script',
+                    description: 'Genera un script de seed TypeScript para un module template. Útil para versionar y reproducir módulos.',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            moduleName: {
+                                type: 'string',
+                                description: 'Nombre del módulo template para el cual generar el script',
+                            },
+                            outputPath: {
+                                type: 'string',
+                                description: 'Ruta relativa donde guardar el script (ej: "backend/scripts/seed_my_module.ts")',
+                            },
+                        },
+                        required: ['moduleName'],
+                    },
+                },
+                {
+                    name: 'list_module_templates',
+                    description: 'Lista todos los module templates activos con su estructura',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            includeInactive: {
+                                type: 'boolean',
+                                description: 'Incluir módulos inactivos (default: false)',
+                            },
+                        },
+                    },
+                },
+                {
+                    name: 'get_module_template',
+                    description: 'Obtiene un module template por nombre con su estructura completa',
+                    inputSchema: {
+                        type: 'object',
+                        properties: {
+                            name: {
+                                type: 'string',
+                                description: 'Nombre del module template',
+                            },
+                        },
+                        required: ['name'],
+                    },
+                },
             ],
         }));
 
@@ -353,6 +428,23 @@ class PostgresMCPServer {
                         return await this.handleGenerateCrudQueries(args?.tableName as string);
                     case 'analyze_table_dependencies':
                         return await this.handleAnalyzeTableDependencies(args?.tableName as string);
+                    case 'create_module_template':
+                        return await this.handleCreateModuleTemplate(
+                            args?.name as string,
+                            args?.description as string,
+                            args?.structure as string,
+                            args?.stageTemplateName as string | undefined,
+                            args?.displayOrder as number | undefined
+                        );
+                    case 'generate_module_seed_script':
+                        return await this.handleGenerateModuleSeedScript(
+                            args?.moduleName as string,
+                            args?.outputPath as string | undefined
+                        );
+                    case 'list_module_templates':
+                        return await this.handleListModuleTemplates(args?.includeInactive as boolean | undefined);
+                    case 'get_module_template':
+                        return await this.handleGetModuleTemplate(args?.name as string);
                     default:
                         throw new Error(`Unknown tool: ${name}`);
                 }
@@ -1269,6 +1361,319 @@ class PostgresMCPServer {
                     text: JSON.stringify({
                         tableName,
                         dependencies: result.rows,
+                    }, null, 2),
+                },
+            ],
+        };
+    }
+
+    /**
+     * Crea un nuevo module template con validación de estructura
+     */
+    private async handleCreateModuleTemplate(
+        name: string,
+        description: string,
+        structureJson: string,
+        stageTemplateName?: string,
+        displayOrder?: number
+    ) {
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // Validar y parsear la estructura
+            let structure: { components?: Array<Record<string, unknown>> };
+            try {
+                structure = JSON.parse(structureJson);
+            } catch (e) {
+                throw new Error(`Invalid JSON structure: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            }
+
+            // Validar que tenga components
+            if (!structure.components || !Array.isArray(structure.components)) {
+                throw new Error('Structure must have a "components" array');
+            }
+
+            // Validar cada componente
+            for (const component of structure.components) {
+                if (!component.id || !component.type || !component.label) {
+                    throw new Error(`Component missing required fields: id, type, or label. Component: ${JSON.stringify(component)}`);
+                }
+                const validTypes = ['input', 'textarea', 'select', 'checkbox', 'radio', 'file-upload'];
+                if (!validTypes.includes(component.type as string)) {
+                    throw new Error(`Invalid component type: ${component.type}. Valid types: ${validTypes.join(', ')}`);
+                }
+            }
+
+            // Obtener un usuario para created_by
+            const userRes = await client.query('SELECT id FROM users LIMIT 1');
+            const userId = userRes.rows[0]?.id;
+
+            if (!userId) {
+                throw new Error('No users found. Cannot create module template without a creator.');
+            }
+
+            // Verificar si el módulo ya existe
+            const checkRes = await client.query(
+                'SELECT id FROM module_templates WHERE name = $1',
+                [name]
+            );
+
+            let moduleId: string;
+            if (checkRes.rows.length > 0) {
+                // Actualizar módulo existente
+                moduleId = checkRes.rows[0].id;
+                await client.query(
+                    `UPDATE module_templates 
+                     SET description = $1, structure = $2, updated_at = NOW(), is_active = true
+                     WHERE id = $3`,
+                    [description, JSON.stringify(structure), moduleId]
+                );
+            } else {
+                // Crear nuevo módulo
+                const insertRes = await client.query(
+                    `INSERT INTO module_templates (name, description, structure, is_active, created_by, created_at, updated_at)
+                     VALUES ($1, $2, $3, true, $4, NOW(), NOW())
+                     RETURNING id`,
+                    [name, description, JSON.stringify(structure), userId]
+                );
+                moduleId = insertRes.rows[0].id;
+            }
+
+            // Si se especificó un stage template, asociar el módulo
+            if (stageTemplateName) {
+                const stageRes = await client.query(
+                    'SELECT id FROM stage_templates WHERE name = $1 AND is_active = true',
+                    [stageTemplateName]
+                );
+
+                if (stageRes.rows.length > 0) {
+                    const stageTemplateId = stageRes.rows[0].id;
+                    const order = displayOrder ?? 0;
+
+                    await client.query(
+                        `INSERT INTO stage_templates_module_templates 
+                         (stage_template_id, module_template_id, display_order)
+                         VALUES ($1, $2, $3)
+                         ON CONFLICT (stage_template_id, module_template_id) 
+                         DO UPDATE SET display_order = $3`,
+                        [stageTemplateId, moduleId, order]
+                    );
+                } else {
+                    await client.query('ROLLBACK');
+                    throw new Error(`Stage template "${stageTemplateName}" not found`);
+                }
+            }
+
+            await client.query('COMMIT');
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify({
+                            success: true,
+                            message: checkRes.rows.length > 0 ? 'Module template updated' : 'Module template created',
+                            moduleId,
+                            name,
+                            description,
+                            componentsCount: structure.components.length,
+                            associatedToStage: stageTemplateName || null,
+                        }, null, 2),
+                    },
+                ],
+            };
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    /**
+     * Genera un script de seed TypeScript para un module template
+     */
+    private async handleGenerateModuleSeedScript(moduleName: string, outputPath?: string) {
+        try {
+            const result = await this.pool.query(
+                `SELECT id, name, description, structure, created_at
+                 FROM module_templates
+                 WHERE name = $1 AND is_active = true`,
+                [moduleName]
+            );
+
+            if (result.rows.length === 0) {
+                throw new Error(`Module template "${moduleName}" not found`);
+            }
+
+            const module = result.rows[0];
+            const structure = module.structure;
+
+            // Generar el script TypeScript
+            const safeName = moduleName.replace(/[^a-zA-Z0-9]/g, '');
+            const scriptContent = `import dotenv from 'dotenv';
+import path from 'path';
+import { Pool } from 'pg';
+
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
+const pool = new Pool({
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+});
+
+const seed${safeName}Module = async () => {
+    const client = await pool.connect();
+    try {
+        console.log('🌱 Seeding ${moduleName} Module Template...');
+        await client.query('BEGIN');
+
+        // Get a user ID to use as created_by
+        const userRes = await client.query('SELECT id FROM users LIMIT 1');
+        const userId = userRes.rows[0]?.id;
+
+        if (!userId) {
+            console.log('No users found. Cannot seed module without a creator.');
+            await client.query('ROLLBACK');
+            return;
+        }
+
+        // Check if module already exists
+        const checkModule = await client.query(
+            'SELECT id FROM module_templates WHERE name = $1',
+            ['${moduleName}']
+        );
+
+        if (checkModule.rows.length > 0) {
+            console.log('${moduleName} module already exists. Skipping...');
+            await client.query('ROLLBACK');
+            return;
+        }
+
+        // Create the module
+        const moduleRes = await client.query(
+            \`INSERT INTO module_templates (name, description, is_active, created_at, updated_at, created_by)
+             VALUES ($1, $2, true, NOW(), NOW(), $3)
+             RETURNING id\`,
+            [
+                '${moduleName}',
+                '${(module.description || '').replace(/'/g, "\\'")}',
+                userId
+            ]
+        );
+
+        const moduleId = moduleRes.rows[0].id;
+        console.log(\`✓ Created module: ${moduleName} (\${moduleId})\`);
+
+        // Define the module structure
+        const structure = ${JSON.stringify(structure, null, 16)};
+
+        // Update the module with the structure
+        await client.query(
+            \`UPDATE module_templates SET structure = $1 WHERE id = $2\`,
+            [JSON.stringify(structure), moduleId]
+        );
+
+        console.log(\`  ✓ Added \${structure.components?.length || 0} component(s)\`);
+
+        await client.query('COMMIT');
+        console.log('\\n✅ ${moduleName} module created successfully!');
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('❌ Seed failed:', error);
+    } finally {
+        client.release();
+        await pool.end();
+    }
+};
+
+seed${safeName}Module();
+`;
+
+            if (outputPath) {
+                const fs = await import('fs/promises');
+                await fs.writeFile(outputPath, scriptContent, 'utf-8');
+            }
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: outputPath
+                            ? `Script generated and saved to ${outputPath}`
+                            : `Generated script:\n\n\`\`\`typescript\n${scriptContent}\n\`\`\``,
+                    },
+                ],
+            };
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            throw new Error(`Failed to generate seed script: ${errorMessage}`);
+        }
+    }
+
+    /**
+     * Lista todos los module templates
+     */
+    private async handleListModuleTemplates(includeInactive?: boolean) {
+        const query = includeInactive
+            ? 'SELECT id, name, description, is_active, created_at FROM module_templates ORDER BY name'
+            : 'SELECT id, name, description, is_active, created_at FROM module_templates WHERE is_active = true ORDER BY name';
+
+        const result = await this.pool.query(query);
+
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: JSON.stringify({
+                        count: result.rows.length,
+                        modules: result.rows,
+                    }, null, 2),
+                },
+            ],
+        };
+    }
+
+    /**
+     * Obtiene un module template por nombre con su estructura completa
+     */
+    private async handleGetModuleTemplate(name: string) {
+        const result = await this.pool.query(
+            `SELECT id, name, description, structure, is_active, created_at, updated_at
+             FROM module_templates
+             WHERE name = $1 AND is_active = true`,
+            [name]
+        );
+
+        if (result.rows.length === 0) {
+            throw new Error(`Module template "${name}" not found`);
+        }
+
+        const module = result.rows[0];
+        
+        // Parse structure if it's a string
+        let structure = module.structure;
+        if (typeof structure === 'string') {
+            try {
+                structure = JSON.parse(structure);
+            } catch (e) {
+                structure = {};
+            }
+        }
+
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: JSON.stringify({
+                        ...module,
+                        structure,
+                        componentsCount: structure?.components?.length || 0,
                     }, null, 2),
                 },
             ],
