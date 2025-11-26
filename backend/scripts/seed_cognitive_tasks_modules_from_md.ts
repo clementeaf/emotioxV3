@@ -192,9 +192,9 @@ const cognitiveTasksModules: ModuleDefinition[] = [
             },
             {
                 id: 'choice-1',
-                name: 'Option 1',
+                name: 'Choice 1',
                 type: 'input',
-                label: 'Opción 1',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -202,13 +202,16 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 3,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             },
             {
                 id: 'choice-2',
-                name: 'Option 2',
+                name: 'Choice 2',
                 type: 'input',
-                label: 'Opción 2',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -216,13 +219,16 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 4,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             },
             {
                 id: 'choice-3',
-                name: 'Option 3',
+                name: 'Choice 3',
                 type: 'input',
-                label: 'Opción 3',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -230,7 +236,10 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 5,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             }
         ]
     },
@@ -268,9 +277,9 @@ const cognitiveTasksModules: ModuleDefinition[] = [
             },
             {
                 id: 'choice-1',
-                name: 'Option 1',
+                name: 'Choice 1',
                 type: 'input',
-                label: 'Opción 1',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -278,13 +287,16 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 3,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             },
             {
                 id: 'choice-2',
-                name: 'Option 2',
+                name: 'Choice 2',
                 type: 'input',
-                label: 'Opción 2',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -292,13 +304,16 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 4,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             },
             {
                 id: 'choice-3',
-                name: 'Option 3',
+                name: 'Choice 3',
                 type: 'input',
-                label: 'Opción 3',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -306,7 +321,10 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 5,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             }
         ]
     },
@@ -442,9 +460,9 @@ const cognitiveTasksModules: ModuleDefinition[] = [
             },
             {
                 id: 'choice-1',
-                name: 'Option 1',
+                name: 'Choice 1',
                 type: 'input',
-                label: 'Opción 1',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -452,13 +470,16 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 3,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             },
             {
                 id: 'choice-2',
-                name: 'Option 2',
+                name: 'Choice 2',
                 type: 'input',
-                label: 'Opción 2',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -466,13 +487,16 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 4,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             },
             {
                 id: 'choice-3',
-                name: 'Option 3',
+                name: 'Choice 3',
                 type: 'input',
-                label: 'Opción 3',
+                label: '',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
@@ -480,7 +504,10 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 },
                 required: false,
                 order: 5,
-                settings: {}
+                settings: {
+                    groupLabel: 'CHOICES',
+                    isChoice: true
+                }
             }
         ]
     },
