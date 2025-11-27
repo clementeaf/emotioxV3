@@ -28,6 +28,7 @@ const getComponentLabel = (type: string): string => {
         case 'checkbox': return 'Checkbox';
         case 'radio': return 'Radio Buttons';
         case 'file-upload': return 'File Upload';
+        case 'choices': return 'Choices';
         default: return type.replace('-', ' ');
     }
 };
@@ -84,6 +85,64 @@ export const ModuleBuilderPage = () => {
     };
 
     const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
+        // If changing type to 'choices', replace the component with 3 input components
+        if (updates.type === 'choices') {
+            const componentIndex = components.findIndex(c => c.id === id);
+            if (componentIndex !== -1) {
+                const baseOrder = components[componentIndex].order ?? componentIndex + 1;
+                const newComponents: ComponentConfig[] = [
+                    {
+                        id: crypto.randomUUID(),
+                        type: 'input',
+                        label: '',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Escribe la opción 1...'
+                        },
+                        order: baseOrder,
+                        settings: {
+                            groupLabel: 'CHOICES',
+                            isChoice: true
+                        }
+                    },
+                    {
+                        id: crypto.randomUUID(),
+                        type: 'input',
+                        label: '',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Escribe la opción 2...'
+                        },
+                        order: baseOrder + 1,
+                        settings: {
+                            groupLabel: 'CHOICES',
+                            isChoice: true
+                        }
+                    },
+                    {
+                        id: crypto.randomUUID(),
+                        type: 'input',
+                        label: '',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Escribe la opción 3...'
+                        },
+                        order: baseOrder + 2,
+                        settings: {
+                            groupLabel: 'CHOICES',
+                            isChoice: true
+                        }
+                    }
+                ];
+                
+                // Replace the current component with the 3 new input components
+                const updatedComponents = [...components];
+                updatedComponents.splice(componentIndex, 1, ...newComponents);
+                setComponents(updatedComponents);
+                return;
+            }
+        }
+        
         setComponents(components.map(c => c.id === id ? { ...c, ...updates } : c));
     };
 
@@ -209,9 +268,8 @@ export const ModuleBuilderPage = () => {
                                                                     { value: 'input', label: 'Short Text' },
                                                                     { value: 'textarea', label: 'Long Text' },
                                                                     { value: 'select', label: 'Select / Dropdown' },
-                                                                    { value: 'checkbox', label: 'Checkbox' },
-                                                                    { value: 'radio', label: 'Radio Buttons' },
                                                                     { value: 'file-upload', label: 'File Upload' },
+                                                                    { value: 'choices', label: 'Choices' },
                                                                 ]}
                                                                 placeholder="Select Type"
                                                             />

@@ -19,6 +19,7 @@ const getComponentLabel = (type: string): string => {
         case 'checkbox': return 'Checkbox';
         case 'radio': return 'Radio Buttons';
         case 'file-upload': return 'File Upload';
+        case 'choices': return 'Choices';
         default: return type.replace('-', ' ');
     }
 };
@@ -28,7 +29,13 @@ export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePr
 
     // Parse the structure to get components array
     const components = (module.structure as any)?.components as ComponentConfig[] || [];
-    const visibleComponents = components.filter(c => !c.hidden);
+    const visibleComponents = components
+        .filter(c => !c.hidden)
+        .sort((a, b) => {
+            const orderA = (a as any).order ?? 0;
+            const orderB = (b as any).order ?? 0;
+            return orderA - orderB;
+        });
 
     return (
         <Modal
@@ -69,105 +76,106 @@ export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePr
                     <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                         <p className="text-gray-500">This module has no components yet.</p>
                     </div>
-                ) : (
-                    <div className="space-y-6">
-                        {module.name === 'Cognitive Value (CV)' ? (
-                            <>
-                                {/* Question input */}
-                                {components[0] && (
-                                    <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                                1
-                                            </span>
-                                            <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                {getComponentLabel(components[0].type)}
-                                            </span>
-                                        </div>
-                                        <PreviewComponent component={components[0]} />
-                                    </div>
-                                )}
+                ) : (() => {
+                    // Group components that have groupLabel in settings, maintaining order
+                    const processedComponents: Array<{ type: 'group' | 'single'; groupLabel?: string; components?: typeof visibleComponents; component?: typeof visibleComponents[0]; index: number }> = [];
+                    let currentGroup: { groupLabel: string; components: typeof visibleComponents; startIndex: number } | null = null;
+                    let componentIndex = 0;
 
-                                {/* Range min + start label (horizontal) */}
-                                {components[1] && components[3] && (
-                                    <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                                        2
-                                                    </span>
-                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {getComponentLabel(components[1].type)}
-                                                    </span>
-                                                </div>
-                                                <PreviewComponent component={components[1]} />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                                        4
-                                                    </span>
-                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {getComponentLabel(components[3].type)}
-                                                    </span>
-                                                </div>
-                                                <PreviewComponent component={components[3]} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                    visibleComponents.forEach((component) => {
+                        const groupLabel = (component.settings as any)?.groupLabel;
+                        const isChoice = (component.settings as any)?.isChoice;
 
-                                {/* Range max + end label (horizontal) */}
-                                {components[2] && components[4] && (
-                                    <div className="p-4 bg-white border border-gray-200 rounded-lg">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                                        3
-                                                    </span>
-                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {getComponentLabel(components[2].type)}
-                                                    </span>
-                                                </div>
-                                                <PreviewComponent component={components[2]} />
+                        if (groupLabel && isChoice) {
+                            if (currentGroup && currentGroup.groupLabel === groupLabel) {
+                                currentGroup.components.push(component);
+                            } else {
+                                if (currentGroup) {
+                                    processedComponents.push({ 
+                                        type: 'group', 
+                                        groupLabel: currentGroup.groupLabel, 
+                                        components: currentGroup.components,
+                                        index: currentGroup.startIndex
+                                    });
+                                }
+                                currentGroup = { groupLabel, components: [component], startIndex: componentIndex };
+                            }
+                        } else {
+                            if (currentGroup) {
+                                processedComponents.push({ 
+                                    type: 'group', 
+                                    groupLabel: currentGroup.groupLabel, 
+                                    components: currentGroup.components,
+                                    index: currentGroup.startIndex
+                                });
+                                currentGroup = null;
+                            }
+                            processedComponents.push({ type: 'single', component, index: componentIndex });
+                        }
+                        componentIndex++;
+                    });
+
+                    if (currentGroup) {
+                        processedComponents.push({ 
+                            type: 'group', 
+                            groupLabel: currentGroup.groupLabel, 
+                            components: currentGroup.components,
+                            index: currentGroup.startIndex
+                        });
+                    }
+
+                    return (
+                        <div className="space-y-6">
+                            {processedComponents.map((item, itemIndex) => {
+                                if (item.type === 'group' && item.components) {
+                                    return (
+                                        <div
+                                            key={`group-${itemIndex}`}
+                                            className="p-4 bg-white border border-gray-200 rounded-lg"
+                                        >
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                    {item.index + 1}
+                                                </span>
+                                                <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                    {getComponentLabel(item.components[0].type)}
+                                                </span>
                                             </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                                        5
-                                                    </span>
-                                                    <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                                        {getComponentLabel(components[4].type)}
-                                                    </span>
+                                            <div className="space-y-2">
+                                                <label className="block text-sm font-medium text-gray-700 mb-3">
+                                                    {item.groupLabel}
+                                                </label>
+                                                <div className="space-y-3">
+                                                    {item.components.map((component) => (
+                                                        <PreviewComponent key={component.id} component={component} />
+                                                    ))}
                                                 </div>
-                                                <PreviewComponent component={components[4]} />
                                             </div>
                                         </div>
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            visibleComponents.map((component, index) => (
-                                <div
-                                    key={component.id}
-                                    className="p-4 bg-white border border-gray-200 rounded-lg"
-                                >
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
-                                            {index + 1}
-                                        </span>
-                                        <span className="text-xs text-gray-500 uppercase tracking-wide">
-                                            {getComponentLabel(component.type)}
-                                        </span>
-                                    </div>
-                                    <PreviewComponent component={component} />
-                                </div>
-                            ))
-                        )}
-                    </div>
-                )}
+                                    );
+                                } else if (item.type === 'single' && item.component) {
+                                    return (
+                                        <div
+                                            key={item.component.id}
+                                            className="p-4 bg-white border border-gray-200 rounded-lg"
+                                        >
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-semibold">
+                                                    {item.index + 1}
+                                                </span>
+                                                <span className="text-xs text-gray-500 uppercase tracking-wide">
+                                                    {getComponentLabel(item.component.type)}
+                                                </span>
+                                            </div>
+                                            <PreviewComponent component={item.component} />
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })}
+                        </div>
+                    );
+                })()}
             </div>
         </Modal>
     );
