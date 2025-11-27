@@ -1,0 +1,138 @@
+name: Deploy Frontend to AWS
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for git info
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      
+      - name: Set environment variables
+        id: set-env
+        run: |
+          STAGE="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'prod' || 'dev') }}"
+          echo "STAGE=${STAGE}" >> $GITHUB_ENV
+          echo "S3_BUCKET=emotioxv2-frontend-${STAGE}" >> $GITHUB_ENV
+          echo "CLOUDFRONT_DISTRIBUTION_ID=${{ secrets.CLOUDFRONT_DISTRIBUTION_ID_DEV }}" >> $GITHUB_ENV
+          
+          if [ "$STAGE" = "prod" ]; then
+            echo "CLOUDFRONT_DISTRIBUTION_ID=${{ secrets.CLOUDFRONT_DISTRIBUTION_ID_PROD }}" >> $GITHUB_ENV
+          fi
+      
+      - name: Download API endpoints (if available)
+        uses: actions/download-artifact@v3
+        with:
+          name: api-endpoints-${{ env.STAGE }}
+          path: api-endpoints
+        continue-on-error: true
+      
+      - name: Copy API endpoints configuration
+        run: |
+          if [ -f "api-endpoints/frontend/src/config/api-endpoints.js" ]; then
+            echo "Using API endpoints configuration from artifact"
+            mkdir -p frontend/src/config
+            cp api-endpoints/frontend/src/config/api-endpoints.* frontend/src/config/
+          else
+            echo "API endpoints artifact not found, continuing without it"
+          fi
+      
+      - name: Configure environment file
+        run: |
+          cat > frontend/.env << EOF
+          REACT_APP_STAGE=${{ env.STAGE }}
+          REACT_APP_API_BASE_URL=${{ secrets.API_BASE_URL }}
+          REACT_APP_AUTH_API_URL=${{ secrets.API_BASE_URL }}/auth
+          REACT_APP_RESEARCH_API_URL=${{ secrets.API_BASE_URL }}/research
+          REACT_APP_WELCOME_SCREEN_API_URL=${{ secrets.API_BASE_URL }}/welcome-screens
+          REACT_APP_WEBSOCKET_URL=${{ secrets.WEBSOCKET_URL }}
+          EOF
+      
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+        env:
+          CI: false  # Prevents treating warnings as errors
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+      
+      - name: Deploy to S3
+        run: |
+          echo "Deploying to S3 bucket: ${{ env.S3_BUCKET }}"
+          aws s3 sync frontend/build s3://${{ env.S3_BUCKET }} --delete
+      
+      - name: Invalidate CloudFront cache
+        run: |
+          echo "Invalidating CloudFront distribution: ${{ env.CLOUDFRONT_DISTRIBUTION_ID }}"
+          aws cloudfront create-invalidation --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+      
+      - name: Generate deployment URL
+        id: deployment-url
+        run: |
+          if [ "${{ env.STAGE }}" = "prod" ]; then
+            echo "DEPLOYMENT_URL=${{ secrets.PROD_FRONTEND_URL }}" >> $GITHUB_ENV
+          else
+            echo "DEPLOYMENT_URL=${{ secrets.DEV_FRONTEND_URL }}" >> $GITHUB_ENV
+          fi
+      
+      - name: Notify deployment success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_TITLE: "✅ Frontend Deployment Successful"
+          SLACK_MESSAGE: "EmotioXV2 Frontend has been deployed to ${{ env.STAGE }} environment. Available at: ${{ env.DEPLOYMENT_URL }}"
+          SLACK_COLOR: good
+          SLACK_FOOTER: "EmotioXV2 CI/CD Pipeline"
+      
+      - name: Notify deployment failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_TITLE: "❌ Frontend Deployment Failed"
+          SLACK_MESSAGE: "EmotioXV2 Frontend deployment to ${{ env.STAGE }} environment failed"
+          SLACK_COLOR: danger
+          SLACK_FOOTER: "EmotioXV2 CI/CD Pipeline" 

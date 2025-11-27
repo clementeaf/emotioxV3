@@ -1,0 +1,81 @@
+name: Deploy to S3 + CloudFront
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-s3.yml'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm install --legacy-peer-deps
+
+    - name: Build application
+      run: |
+        cd frontend
+        npm run build
+      env:
+        NODE_ENV: production
+
+    - name: Create S3 bucket and deploy
+      run: |
+        BUCKET_NAME="emotioxv2-frontend-app"
+        echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+        
+        # Create bucket if it doesn't exist
+        aws s3 mb s3://$BUCKET_NAME --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Bucket exists"
+        
+        # Upload files
+        cd frontend
+        aws s3 sync out/ s3://$BUCKET_NAME --delete
+        
+        # Configure for static website
+        aws s3 website s3://$BUCKET_NAME --index-document index.html --error-document index.html
+        
+        # Make bucket public
+        aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy '{
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "PublicReadGetObject",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::'$BUCKET_NAME'/*"
+            }
+          ]
+        }'
+
+    - name: Deployment success
+      run: |
+        echo "✅ Deployment completed successfully!"
+        echo "🌐 Your app is live at: http://$BUCKET_NAME.s3-website-${{ env.AWS_REGION }}.amazonaws.com"
+        echo "📝 S3 Bucket: $BUCKET_NAME"
+        echo "🚀 Direct access: https://$BUCKET_NAME.s3.amazonaws.com/index.html"

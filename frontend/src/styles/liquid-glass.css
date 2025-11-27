@@ -1,0 +1,18 @@
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.25);
+  --glass-blur: 16px;
+  --glass-saturate: 180%;
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-radius: 24px;
+  --glass-shadow: 0 4px 32px 0 rgba(31, 38, 135, 0.10);
+}
+
+.liquid-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: background 0.3s, backdrop-filter 0.3s;
+}

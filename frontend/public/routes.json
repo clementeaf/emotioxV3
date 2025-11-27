@@ -1,0 +1,21 @@
+{
+  "routes": [
+    {
+      "route": "/",
+      "redirect": "/login",
+      "statusCode": 302
+    },
+    {
+      "route": "/login",
+      "serve": "/login.html"
+    },
+    {
+      "route": "/research/*",
+      "serve": "/research/[id].html"
+    },
+    {
+      "route": "/*",
+      "serve": "/index.html"
+    }
+  ]
+} 
