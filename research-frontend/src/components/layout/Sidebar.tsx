@@ -42,8 +42,8 @@ const AVAILABLE_STAGES = [
     { name: 'Welcome Screen', description: 'Introduction screen for participants' },
     { name: 'Thank You Screen', description: 'Completion screen after research' },
     { name: 'Research Configuration', description: 'Research settings and configuration' },
-    { name: 'Smart VOC', description: 'Voice of Customer module' },
-    { name: 'Cognitive Task', description: 'Cognitive performance assessment' },
+    { name: 'Cognitive Tasks', description: 'Cognitive assessment and task-based research modules.' },
+    { name: 'Smart VOC', description: 'Voice of Customer analysis modules including satisfaction, effort, and qualitative feedback metrics.' },
 ];
 
 export const Sidebar = () => {
@@ -138,6 +138,12 @@ export const Sidebar = () => {
             // Recargar el research para obtener los nuevos stages
             const response = await researchService.getById(activeResearch.id);
             setActiveResearch(response.research);
+            
+            // Si el stage tiene módulos, expandirlo automáticamente
+            const newStage = response.research.stages?.find(s => s.name === stageName);
+            if (newStage && newStage.modules && newStage.modules.length > 0) {
+                setExpandedStages(prev => new Set([...prev, newStage.id]));
+            }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to add stage';
             console.error('Error adding stage:', error);
