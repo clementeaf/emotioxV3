@@ -262,6 +262,28 @@ export const updateStatus = async (researchId: string, userId: string, status: s
     return result.rows[0];
 };
 
+/**
+ * Activa una investigación cambiando su estado a 'active'
+ * @param researchId - ID de la investigación
+ * @param userId - ID del usuario propietario
+ * @returns Investigación actualizada
+ */
+export const activate = async (researchId: string, userId: string) => {
+    const query = `
+    UPDATE researches
+    SET status = 'active', updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+    RETURNING id, name, status, updated_at
+  `;
+    const result = await pool.query(query, [researchId, userId]);
+
+    if (result.rows.length === 0) {
+        throw new Error('Research not found');
+    }
+
+    return result.rows[0];
+};
+
 export const deleteResearch = async (researchId: string, userId: string) => {
     const query = `
     UPDATE researches

@@ -69,6 +69,14 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ research });
         }
 
+        // POST /research/:id/activate
+        const activateMatch = path.match(/^\/research\/([^\/]+)\/activate$/);
+        if (activateMatch && httpMethod === 'POST') {
+            const id = activateMatch[1];
+            const research = await researchService.activate(id, user.id);
+            return success({ research });
+        }
+
         // POST /research/:id/stages
         const createStageMatch = path.match(/^\/research\/([^\/]+)\/stages$/);
         if (createStageMatch && httpMethod === 'POST') {

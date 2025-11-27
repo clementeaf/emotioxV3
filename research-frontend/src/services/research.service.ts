@@ -151,6 +151,20 @@ class ResearchService {
     }
 
     /**
+     * Activa una investigación cambiando su estado a 'active'
+     * @param id - ID de la investigación
+     * @returns Investigación actualizada
+     * @throws ApiErrorResponse si falla la activación
+     */
+    async activate(id: string): Promise<ResearchResponse> {
+        try {
+            return await apiClient.post<ResearchResponse>(`/research/${id}/activate`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to activate research');
+        }
+    }
+
+    /**
      * Elimina una investigación
      * @param id - ID de la investigación
      * @returns Mensaje de confirmación
