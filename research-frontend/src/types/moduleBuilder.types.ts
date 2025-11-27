@@ -14,9 +14,10 @@ export interface SelectRangeConfig {
 
 export interface FileUploadConfig {
     maxSizeMB: number;
+    acceptedFormats?: string[];
 }
 
-export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload';
+export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices';
 
 export interface ComponentConfig {
     id: string;
@@ -30,6 +31,8 @@ export interface ComponentConfig {
     options?: { label: string; value: string }[];
     editableFields?: string[];
     hidden?: boolean;
+    settings?: Record<string, unknown>;
+    order?: number;
 }
 
 export interface StageTemplate {
