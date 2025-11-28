@@ -42,6 +42,13 @@ export const handleModuleTemplatesRoutes = async (event: APIGatewayProxyEvent): 
             return success(template, 201);
         }
 
+        // GET /module-templates/:id/usage
+        if (path.match(/^\/module-templates\/[a-zA-Z0-9-]+\/usage$/) && httpMethod === 'GET') {
+            const id = path.split('/')[2] || '';
+            const usage = await moduleTemplatesService.getUsage(id);
+            return success(usage);
+        }
+
         // GET /module-templates/:id
         if (path.match(/^\/module-templates\/[a-zA-Z0-9-]+$/) && httpMethod === 'GET') {
             const id = path.split('/').pop() || '';

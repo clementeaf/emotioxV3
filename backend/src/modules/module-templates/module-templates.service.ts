@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 
 export interface ModuleTemplateData {
     name: string;
@@ -8,14 +9,20 @@ export interface ModuleTemplateData {
 }
 
 export const list = async () => {
-    const query = `
-    SELECT id, name, description, structure, created_by, is_active, created_at, updated_at
-    FROM module_templates
-    WHERE is_active = true
-    ORDER BY created_at DESC
-  `;
-    const result = await pool.query(query);
-    return result.rows;
+    return cache.getOrSet(
+        CacheKeys.MODULE_TEMPLATES_LIST,
+        async () => {
+            const query = `
+            SELECT id, name, description, structure, created_by, is_active, created_at, updated_at
+            FROM module_templates
+            WHERE is_active = true
+            ORDER BY created_at DESC
+          `;
+            const result = await pool.query(query);
+            return result.rows;
+        },
+        CacheTTL.LONG // Cache for 15 minutes
+    );
 };
 
 export const create = async (data: ModuleTemplateData) => {
@@ -33,23 +40,34 @@ export const create = async (data: ModuleTemplateData) => {
         JSON.stringify(structure),
         created_by
     ]);
+    
+    // Invalidate cache
+    cache.delete(CacheKeys.MODULE_TEMPLATES_LIST);
 
     return result.rows[0];
 };
 
 export const getById = async (id: string) => {
-    const query = `
-    SELECT id, name, description, structure, created_by, is_active, created_at, updated_at
-    FROM module_templates
-    WHERE id = $1 AND is_active = true
-  `;
-    const result = await pool.query(query, [id]);
+    const cacheKey = `${CacheKeys.MODULE_TEMPLATE}:${id}`;
+    
+    return cache.getOrSet(
+        cacheKey,
+        async () => {
+            const query = `
+            SELECT id, name, description, structure, created_by, is_active, created_at, updated_at
+            FROM module_templates
+            WHERE id = $1 AND is_active = true
+          `;
+            const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
-        throw new Error('Module template not found');
-    }
+            if (result.rows.length === 0) {
+                throw new Error('Module template not found');
+            }
 
-    return result.rows[0];
+            return result.rows[0];
+        },
+        CacheTTL.LONG
+    );
 };
 
 export const update = async (id: string, data: Partial<ModuleTemplateData>) => {
@@ -90,6 +108,10 @@ export const update = async (id: string, data: Partial<ModuleTemplateData>) => {
     if (result.rows.length === 0) {
         throw new Error('Module template not found');
     }
+    
+    // Invalidate cache
+    cache.delete(CacheKeys.MODULE_TEMPLATES_LIST);
+    cache.delete(`${CacheKeys.MODULE_TEMPLATE}:${id}`);
 
     return result.rows[0];
 };
@@ -106,6 +128,51 @@ export const deleteTemplate = async (id: string) => {
     if (result.rows.length === 0) {
         throw new Error('Module template not found');
     }
+    
+    // Invalidate cache
+    cache.delete(CacheKeys.MODULE_TEMPLATES_LIST);
+    cache.delete(`${CacheKeys.MODULE_TEMPLATE}:${id}`);
 
     return { message: 'Module template deleted successfully' };
+};
+
+export const getUsage = async (id: string) => {
+    // First check if the template exists
+    const templateQuery = `
+        SELECT id FROM module_templates
+        WHERE id = $1 AND is_active = true
+    `;
+    const templateResult = await pool.query(templateQuery, [id]);
+    
+    if (templateResult.rows.length === 0) {
+        throw new Error('Module template not found');
+    }
+
+    // Find all researches that use this module template
+    // Since modules are cloned from templates (not referenced), we look for:
+    // 1. Modules in researches that have is_from_template = true
+    // 2. Modules whose name matches module templates linked to stages with matching names
+    const usageQuery = `
+        SELECT DISTINCT r.id, r.name
+        FROM researches r
+        INNER JOIN stages s ON r.id = s.research_id
+        INNER JOIN modules m ON s.id = m.stage_id
+        INNER JOIN stage_templates st ON s.name = st.name
+        INNER JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
+        INNER JOIN module_templates mt ON stmt.module_template_id = mt.id
+        WHERE mt.id = $1
+          AND m.is_from_template = true
+          AND r.deleted_at IS NULL
+        ORDER BY r.created_at DESC
+    `;
+    
+    const result = await pool.query(usageQuery, [id]);
+    
+    return {
+        count: result.rows.length,
+        researches: result.rows.map(row => ({
+            id: row.id,
+            name: row.name
+        }))
+    };
 };

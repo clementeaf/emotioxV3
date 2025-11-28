@@ -4,12 +4,28 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus, Save, Trash2, GripVertical } from 'lucide-react';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { ComponentConfigPanel } from '../../components/modules/ComponentConfigPanel';
-import { LivePreviewPanel } from '../../components/modules/LivePreviewPanel';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { useToast } from '../../contexts/ToastContext';
@@ -34,6 +50,112 @@ const getComponentLabel = (type: string): string => {
     }
 };
 
+/**
+ * Componente sortable para cada componente del módulo
+ */
+interface SortableItemProps {
+    component: ComponentConfig;
+    onUpdate: (id: string, updates: Partial<ComponentConfig>) => void;
+    onDelete: (id: string) => void;
+    validationErrors: string[];
+    onValidationErrorClear: () => void;
+}
+
+const SortableItem = ({ component, onUpdate, onDelete, validationErrors, onValidationErrorClear }: SortableItemProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: component.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`bg-white rounded-lg border border-gray-200 p-4 shadow-sm ${isDragging ? 'ring-2 ring-blue-500' : ''}`}
+        >
+            <div className="flex items-start gap-4">
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="mt-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Drag to reorder"
+                >
+                    <GripVertical className="h-5 w-5" />
+                </div>
+                <div className="flex-1 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input
+                            id={`label-${component.id}`}
+                            label="Label / Question"
+                            value={component.label}
+                            onChange={(e) => {
+                                onUpdate(component.id, { label: e.target.value });
+                                onValidationErrorClear();
+                            }}
+                            error={
+                                validationErrors.length > 0 && 
+                                (!component.label || component.label.trim().length === 0)
+                                    ? 'Label is required'
+                                    : undefined
+                            }
+                            required
+                        />
+                        {(!component.editableFields || component.editableFields.includes('type')) ? (
+                            <CustomSelect
+                                id={`type-${component.id}`}
+                                label="Component Type"
+                                value={component.type}
+                                onChange={(value) => onUpdate(component.id, { type: value as ComponentConfig['type'] })}
+                                options={[
+                                    { value: 'input', label: 'Short Text' },
+                                    { value: 'textarea', label: 'Long Text' },
+                                    { value: 'select', label: 'Select / Dropdown' },
+                                    { value: 'file-upload', label: 'File Upload' },
+                                    { value: 'choices', label: 'Choices' },
+                                ]}
+                                placeholder="Select Type"
+                            />
+                        ) : (
+                            <div className="space-y-1">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Component Type
+                                </label>
+                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-500">
+                                    {getComponentLabel(component.type)}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Type-specific configuration panel */}
+                    <ComponentConfigPanel
+                        component={component}
+                        onUpdate={(updates) => onUpdate(component.id, updates)}
+                    />
+                </div>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete(component.id)}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 export const ModuleBuilderPage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -44,8 +166,17 @@ export const ModuleBuilderPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-    const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ModuleTemplateForm>({
+    // Configurar sensores para drag and drop
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const { register, handleSubmit, setValue, formState: { errors } } = useForm<ModuleTemplateForm>({
         resolver: zodResolver(moduleTemplateSchema),
         defaultValues: {
             name: '',
@@ -63,9 +194,10 @@ export const ModuleBuilderPage = () => {
                 // Parse the structure to get components array
                 const structure = template.structure as { components?: ComponentConfig[] };
                 setComponents(structure?.components || []);
-            } catch (error) {
+            } catch (error: unknown) {
                 console.error('Failed to load template:', error);
-                toast.error('Failed to load module template');
+                const errorMessage = error instanceof Error ? error.message : 'Failed to load module template';
+                toast.error(errorMessage);
                 navigate('/modules');
             } finally {
                 setIsLoading(false);
@@ -84,6 +216,10 @@ export const ModuleBuilderPage = () => {
             label: 'New Question',
         };
         setComponents([...components, newComponent]);
+        // Limpiar errores de validación cuando se agrega un componente
+        if (validationErrors.length > 0) {
+            setValidationErrors([]);
+        }
     };
 
     const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
@@ -141,18 +277,122 @@ export const ModuleBuilderPage = () => {
                 const updatedComponents = [...components];
                 updatedComponents.splice(componentIndex, 1, ...newComponents);
                 setComponents(updatedComponents);
+                // Limpiar errores de validación cuando se cambia a choices
+                if (validationErrors.length > 0) {
+                    setValidationErrors([]);
+                }
                 return;
             }
         }
 
         setComponents(components.map(c => c.id === id ? { ...c, ...updates } : c));
+        // Limpiar errores de validación cuando se actualiza un componente (excepto cuando se cambia a choices)
+        if (validationErrors.length > 0 && updates.type !== 'choices') {
+            setValidationErrors([]);
+        }
     };
 
     const handleDeleteComponent = (id: string) => {
         setComponents(components.filter(c => c.id !== id));
+        // Limpiar errores de validación cuando se elimina un componente
+        if (validationErrors.length > 0) {
+            setValidationErrors([]);
+        }
+    };
+
+    /**
+     * Maneja el evento de finalización del drag and drop
+     * @param event - Evento de drag end
+     */
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            setComponents((items) => {
+                const oldIndex = items.findIndex((item) => item.id === active.id);
+                const newIndex = items.findIndex((item) => item.id === over.id);
+
+                // Actualizar el orden de los componentes
+                const reordered = arrayMove(items, oldIndex, newIndex);
+                
+                // Actualizar el campo order de cada componente
+                return reordered.map((component, index) => ({
+                    ...component,
+                    order: index + 1,
+                }));
+            });
+        }
+    };
+
+    /**
+     * Valida los componentes antes de guardar
+     * @returns Array de mensajes de error, vacío si no hay errores
+     */
+    const validateComponents = (): string[] => {
+        const errors: string[] = [];
+        const visibleComponents = components.filter(c => !c.hidden);
+
+        // Validar que haya al menos un componente
+        if (visibleComponents.length === 0) {
+            errors.push('The module must have at least one component');
+            return errors;
+        }
+
+        // Validar que todos los componentes tengan label válido (excepto los que son parte de un grupo choices)
+        const componentsWithoutLabel = visibleComponents.filter(
+            c => {
+                const isChoice = (c.settings as { groupLabel?: string; isChoice?: boolean })?.isChoice;
+                // No validar labels de componentes choices aquí, se validan en el grupo
+                if (isChoice) return false;
+                return !c.label || c.label.trim().length === 0;
+            }
+        );
+
+        if (componentsWithoutLabel.length > 0) {
+            errors.push(`Please add a label to all components. ${componentsWithoutLabel.length} component${componentsWithoutLabel.length > 1 ? 's' : ''} ${componentsWithoutLabel.length > 1 ? 'are' : 'is'} missing a label.`);
+        }
+
+        // Validar componentes de tipo 'choices' (agrupados por groupLabel)
+        const choiceGroups = new Map<string, ComponentConfig[]>();
+        visibleComponents.forEach(component => {
+            const groupLabel = (component.settings as { groupLabel?: string; isChoice?: boolean })?.groupLabel;
+            const isChoice = (component.settings as { groupLabel?: string; isChoice?: boolean })?.isChoice;
+            
+            if (groupLabel && isChoice) {
+                if (!choiceGroups.has(groupLabel)) {
+                    choiceGroups.set(groupLabel, []);
+                }
+                choiceGroups.get(groupLabel)!.push(component);
+            }
+        });
+
+        // Validar que cada grupo de choices tenga exactamente 3 componentes con labels válidos
+        choiceGroups.forEach((choiceComponents, groupLabel) => {
+            if (choiceComponents.length !== 3) {
+                errors.push(`Choices group "${groupLabel}" must have exactly 3 components, but found ${choiceComponents.length}`);
+            } else {
+                const invalidChoices = choiceComponents.filter(
+                    c => !c.label || c.label.trim().length === 0
+                );
+                if (invalidChoices.length > 0) {
+                    errors.push(`Choices group "${groupLabel}" has ${invalidChoices.length} component${invalidChoices.length > 1 ? 's' : ''} without label`);
+                }
+            }
+        });
+
+        return errors;
     };
 
     const onSubmit = async (data: ModuleTemplateForm) => {
+        // Validar componentes antes de guardar
+        const componentErrors = validateComponents();
+        if (componentErrors.length > 0) {
+            setValidationErrors(componentErrors);
+            toast.error('Please fix the validation errors before saving');
+            return;
+        }
+
+        setValidationErrors([]);
         try {
             setIsSaving(true);
             const apiData = {
@@ -169,9 +409,10 @@ export const ModuleBuilderPage = () => {
 
             toast.success(`Module template ${isEditing ? 'updated' : 'created'} successfully`);
             navigate('/modules');
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('Failed to save module template:', error);
-            toast.error('Failed to save module template');
+            const errorMessage = error instanceof Error ? error.message : 'Failed to save module template';
+            toast.error(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -182,9 +423,9 @@ export const ModuleBuilderPage = () => {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50">
+        <div className="flex flex-col">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="sm" onClick={() => navigate('/modules')}>
                         <ArrowLeft className="h-4 w-4 mr-2" />
@@ -247,6 +488,22 @@ export const ModuleBuilderPage = () => {
                                     </Button>
                                 </div>
 
+                                {/* Validation Errors */}
+                                {validationErrors.length > 0 && (
+                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                        <h3 className="text-sm font-semibold text-red-800 mb-2">
+                                            Validation Errors:
+                                        </h3>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            {validationErrors.map((error, index) => (
+                                                <li key={index} className="text-sm text-red-700">
+                                                    {error}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
                                 <div className="space-y-4">
                                     {components.length === 0 ? (
                                         <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
@@ -256,84 +513,53 @@ export const ModuleBuilderPage = () => {
                                             </Button>
                                         </div>
                                     ) : (
-                                        components
-                                            .filter(c => !c.hidden)
-                                            .map((component) => (
-                                                <div key={component.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="mt-2 cursor-move text-gray-400">
-                                                            <GripVertical className="h-5 w-5" />
-                                                        </div>
-                                                        <div className="flex-1 space-y-4">
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <Input
-                                                                    id={`label-${component.id}`}
-                                                                    label="Label / Question"
-                                                                    value={component.label}
-                                                                    onChange={(e) => handleUpdateComponent(component.id, { label: e.target.value })}
-                                                                />
-                                                                {(!component.editableFields || component.editableFields.includes('type')) ? (
-                                                                    <CustomSelect
-                                                                        id={`type-${component.id}`}
-                                                                        label="Component Type"
-                                                                        value={component.type}
-                                                                        onChange={(value) => handleUpdateComponent(component.id, { type: value as ComponentConfig['type'] })}
-                                                                        options={[
-                                                                            { value: 'input', label: 'Short Text' },
-                                                                            { value: 'textarea', label: 'Long Text' },
-                                                                            { value: 'select', label: 'Select / Dropdown' },
-                                                                            { value: 'file-upload', label: 'File Upload' },
-                                                                            { value: 'choices', label: 'Choices' },
-                                                                        ]}
-                                                                        placeholder="Select Type"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="space-y-1">
-                                                                        <label className="block text-sm font-medium text-gray-700">
-                                                                            Component Type
-                                                                        </label>
-                                                                        <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-500">
-                                                                            {getComponentLabel(component.type)}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Type-specific configuration panel */}
-                                                            <ComponentConfigPanel
+                                        <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
+                                            onDragEnd={handleDragEnd}
+                                        >
+                                            <SortableContext
+                                                items={components.filter(c => !c.hidden).map(c => c.id)}
+                                                strategy={verticalListSortingStrategy}
+                                            >
+                                                <div className="space-y-4">
+                                                    {components
+                                                        .filter(c => !c.hidden)
+                                                        .map((component) => (
+                                                            <SortableItem
+                                                                key={component.id}
                                                                 component={component}
-                                                                onUpdate={(updates) => handleUpdateComponent(component.id, updates)}
+                                                                onUpdate={handleUpdateComponent}
+                                                                onDelete={handleDeleteComponent}
+                                                                validationErrors={validationErrors}
+                                                                onValidationErrorClear={() => {
+                                                                    if (validationErrors.length > 0) {
+                                                                        setValidationErrors([]);
+                                                                    }
+                                                                }}
                                                             />
-                                                        </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteComponent(component.id)}
-                                                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
+                                                        ))}
                                                 </div>
-                                            ))
+                                            </SortableContext>
+                                        </DndContext>
                                     )}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Preview Panel (Right) */}
-            {showPreview && (
-                <div className="w-2/5 border-l bg-white overflow-hidden">
-                    <LivePreviewPanel
-                        moduleName={watch('name')}
-                        moduleDescription={watch('description')}
-                        components={components}
-                    />
-                </div>
-            )}
+                {/* Preview Panel (Right) */}
+                {/* {showPreview && (
+                    <div className="w-2/5 h-full border-l bg-white flex flex-col">
+                        <LivePreviewPanel
+                            moduleName={watch('name')}
+                            moduleDescription={watch('description')}
+                            components={components}
+                        />
+                    </div>
+                )} */}
+            </div>
         </div>
     );
 };
