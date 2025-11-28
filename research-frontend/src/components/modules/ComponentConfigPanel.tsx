@@ -1,6 +1,7 @@
 import { Input } from '../ui/Input';
 import { Toggle } from '../ui/Toggle';
 import { CustomSelect } from '../ui/CustomSelect';
+import { ValidationConfigPanel } from './ValidationConfigPanel';
 import type { ComponentConfig, SelectRangeConfig } from '../../types/moduleBuilder.types';
 
 interface ComponentConfigPanelProps {
@@ -140,6 +141,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
     // File Upload: Max size configuration
     const renderFileUploadConfig = () => {
         const maxSizeMB = component.fileUpload?.maxSizeMB ?? 5;
+        const allowHitZones = component.fileUpload?.allowHitZones ?? false;
 
         return (
             <div className="space-y-3">
@@ -150,6 +152,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                     onChange={(value) => {
                         onUpdate({
                             fileUpload: {
+                                ...component.fileUpload,
                                 maxSizeMB: parseInt(value),
                             },
                         });
@@ -161,6 +164,21 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                         { value: '20', label: '20 MB' },
                         { value: '50', label: '50 MB' },
                     ]}
+                />
+                <Toggle
+                    id={`allow-hitzones-${component.id}`}
+                    label="Enable HitZone Editing"
+                    description="Allow participants to mark areas on uploaded photos"
+                    checked={allowHitZones}
+                    onChange={(e) => {
+                        onUpdate({
+                            fileUpload: {
+                                ...component.fileUpload,
+                                maxSizeMB,
+                                allowHitZones: e.target.checked,
+                            },
+                        });
+                    }}
                 />
             </div>
         );
@@ -186,14 +204,20 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         }
     };
 
-    const config = renderTypeSpecificConfig();
+    const typeSpecificConfig = renderTypeSpecificConfig();
 
-    if (!config) return null;
+    if (!typeSpecificConfig) {
+        // If no type-specific config, only show validation
+        return <ValidationConfigPanel component={component} onUpdate={onUpdate} />;
+    }
 
     return (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Component Settings</h4>
-            {config}
+        <div className="space-y-4">
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Component Settings</h4>
+                {typeSpecificConfig}
+            </div>
+            <ValidationConfigPanel component={component} onUpdate={onUpdate} />
         </div>
     );
 };

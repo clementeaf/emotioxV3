@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import ReactDOM from 'react-dom';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
@@ -13,7 +13,7 @@ interface PreviewComponentProps {
     component: ComponentConfig;
 }
 
-export const PreviewComponent = ({ component }: PreviewComponentProps) => {
+export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
     const [selectValue, setSelectValue] = useState<string>('');
 
     // Generate range options for select components
@@ -185,9 +185,7 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                     setHitzoneFile(null);
                 };
 
-                const isNavigationFlow = (component as any).name === 'Image Upload' || 
-                                       component.id === 'image-upload' ||
-                                       (component.settings as any)?.moduleType === 'navigation_flow';
+                const isNavigationFlow = component.fileUpload?.allowHitZones ?? false;
 
                 return (
                     <>
@@ -243,4 +241,4 @@ export const PreviewComponent = ({ component }: PreviewComponentProps) => {
                 </div>
             );
     }
-};
+});

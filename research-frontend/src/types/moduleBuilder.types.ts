@@ -15,6 +15,17 @@ export interface SelectRangeConfig {
 export interface FileUploadConfig {
     maxSizeMB: number;
     acceptedFormats?: string[];
+    allowHitZones?: boolean;
+}
+
+export interface ValidationRule {
+    type: 'required' | 'minLength' | 'maxLength' | 'pattern' | 'minFiles' | 'maxFiles';
+    value?: string | number | boolean;
+    message?: string; // Custom error message
+}
+
+export interface ValidationConfig {
+    rules: ValidationRule[];
 }
 
 export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices';
@@ -33,6 +44,7 @@ export interface ComponentConfig {
     hidden?: boolean;
     settings?: Record<string, unknown>;
     order?: number;
+    validation?: ValidationConfig;
 }
 
 export interface StageTemplate {
