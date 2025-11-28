@@ -18,8 +18,6 @@ interface LocalHitzoneEditorProps {
   hitZones?: HitzoneArea[];
 }
 
-const CANVAS_SIZE = 575;
-
 export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
   imageUrl,
   initialAreas = [],
@@ -36,7 +34,6 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
   const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null);
   const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [showActiveModal, setShowActiveModal] = useState(false);
   const [activeTestIdx, setActiveTestIdx] = useState<number | null>(null);
 
   // Sincronizar con initialAreas y seleccionar automáticamente la primera zona

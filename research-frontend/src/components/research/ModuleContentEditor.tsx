@@ -33,8 +33,12 @@ export const ModuleContentEditor = ({
     }
 
     // Group components that have groupLabel in settings, maintaining order
-    const processedComponents: Array<{ type: 'group' | 'single'; groupLabel?: string; components?: typeof visibleComponents; component?: typeof visibleComponents[0] }> = [];
-    let currentGroup: { groupLabel: string; components: typeof visibleComponents } | null = null;
+    type ProcessedComponent = 
+        | { type: 'group'; groupLabel: string; components: ComponentConfig[] }
+        | { type: 'single'; component: ComponentConfig };
+    
+    const processedComponents: ProcessedComponent[] = [];
+    let currentGroup: { groupLabel: string; components: ComponentConfig[] } | null = null;
 
     visibleComponents.forEach((component) => {
         const groupLabel = (component.settings as any)?.groupLabel;
@@ -58,8 +62,9 @@ export const ModuleContentEditor = ({
         }
     });
 
-    if (currentGroup) {
-        processedComponents.push({ type: 'group', groupLabel: currentGroup.groupLabel, components: currentGroup.components });
+    if (currentGroup !== null) {
+        const groupToAdd: { groupLabel: string; components: ComponentConfig[] } = currentGroup;
+        processedComponents.push({ type: 'group', groupLabel: groupToAdd.groupLabel, components: groupToAdd.components });
     }
 
     return (

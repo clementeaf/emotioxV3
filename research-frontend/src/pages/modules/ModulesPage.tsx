@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../contexts/ToastContext';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { cn } from '../../components/ui/Button';
+import { flat } from '../../utils/radashi';
 
 export const ModulesPage = () => {
     const navigate = useNavigate();
@@ -34,27 +35,26 @@ export const ModulesPage = () => {
 
     // Recalculate tabs when data or search changes
     const { allTabs, currentTab, hasResults } = useMemo(() => {
+        // Filter modules by search query
+        const matchesSearch = (m: any) =>
+            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            m.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+        // Filter stages and their modules
         const filteredStages = stages.map(stage => ({
             ...stage,
-            modules: stage.modules.filter(m =>
-                m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                m.description?.toLowerCase().includes(searchQuery.toLowerCase())
-            )
+            modules: stage.modules.filter(matchesSearch)
         })).filter(stage => stage.modules.length > 0 || !searchQuery);
 
-        const filteredUngrouped = ungroupedModules.filter(m =>
-            m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            m.description?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        const filteredUngrouped = ungroupedModules.filter(matchesSearch);
 
-        const screenStages = filteredStages.filter(s => 
-            s.stage_type === 'single_module' && 
-            (s.name === 'Welcome Screen' || s.name === 'Thank You Screen')
-        );
-        const otherStages = filteredStages.filter(s => 
-            !(s.stage_type === 'single_module' && 
-            (s.name === 'Welcome Screen' || s.name === 'Thank You Screen'))
-        );
+        // Separate screen stages from other stages
+        const isScreenStage = (s: StageTemplateWithModules) =>
+            s.stage_type === 'single_module' &&
+            (s.name === 'Welcome Screen' || s.name === 'Thank You Screen');
+
+        const screenStages = filteredStages.filter(isScreenStage);
+        const otherStages = filteredStages.filter(s => !isScreenStage(s));
 
         const tabs = [
             ...(screenStages.length > 0 ? [{
@@ -101,30 +101,24 @@ export const ModulesPage = () => {
     const loadData = async () => {
         try {
             setIsLoading(true);
-            const [stagesData, allModules] = await Promise.all([
-                stageTemplatesService.getAll(),
-                moduleTemplatesService.list()
-            ]);
+            const allModules = await moduleTemplatesService.list();
+            const stagesData = await stageTemplatesService.getAll();
 
             setStages(stagesData);
 
-            // Find modules that aren't in any stage
+            // Get all module IDs that are in stages
             const modulesInStages = new Set(
-                stagesData.flatMap(stage => stage.modules.map(m => m.id))
+                flat(stagesData.map(stage => stage.modules.map(m => m.id)))
             );
+
+            // Filter out modules that are already in stages
             const ungrouped = allModules.filter(m => !modulesInStages.has(m.id));
             setUngroupedModules(ungrouped);
 
             // Set initial active tab to first stage with modules
-            if (stagesData.length > 0) {
+            if (ungrouped.length > 0 || stagesData.length > 0) {
                 const firstStageWithModules = stagesData.find(s => s.modules.length > 0);
-                if (firstStageWithModules) {
-                    setActiveTab(firstStageWithModules.id);
-                } else if (ungrouped.length > 0) {
-                    setActiveTab('ungrouped');
-                }
-            } else if (ungrouped.length > 0) {
-                setActiveTab('ungrouped');
+                setActiveTab(firstStageWithModules?.id || 'ungrouped');
             }
         } catch (err: any) {
             // Handle 401 Unauthorized - redirect to login
@@ -311,8 +305,8 @@ export const ModulesPage = () => {
                         {currentTab.modules.length > 0 ? (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {currentTab.modules.map(module => {
-                                    const fullModule = ungroupedModules.find(m => m.id === module.id) || 
-                                                     stages.flatMap(s => s.modules).find(m => m.id === module.id);
+                                    const fullModule = ungroupedModules.find(m => m.id === module.id) ||
+                                        stages.flatMap(s => s.modules).find(m => m.id === module.id);
                                     return renderModuleCard(module, fullModule as ModuleTemplate | undefined);
                                 })}
                             </div>

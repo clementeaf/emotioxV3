@@ -78,8 +78,12 @@ export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePr
                     </div>
                 ) : (() => {
                     // Group components that have groupLabel in settings, maintaining order
-                    const processedComponents: Array<{ type: 'group' | 'single'; groupLabel?: string; components?: typeof visibleComponents; component?: typeof visibleComponents[0]; index: number }> = [];
-                    let currentGroup: { groupLabel: string; components: typeof visibleComponents; startIndex: number } | null = null;
+                    type ProcessedComponent = 
+                        | { type: 'group'; groupLabel: string; components: ComponentConfig[]; index: number }
+                        | { type: 'single'; component: ComponentConfig; index: number };
+                    
+                    const processedComponents: ProcessedComponent[] = [];
+                    let currentGroup: { groupLabel: string; components: ComponentConfig[]; startIndex: number } | null = null;
                     let componentIndex = 0;
 
                     visibleComponents.forEach((component) => {
@@ -115,12 +119,13 @@ export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePr
                         componentIndex++;
                     });
 
-                    if (currentGroup) {
+                    if (currentGroup !== null) {
+                        const groupToAdd: { groupLabel: string; components: ComponentConfig[]; startIndex: number } = currentGroup;
                         processedComponents.push({ 
                             type: 'group', 
-                            groupLabel: currentGroup.groupLabel, 
-                            components: currentGroup.components,
-                            index: currentGroup.startIndex
+                            groupLabel: groupToAdd.groupLabel, 
+                            components: groupToAdd.components,
+                            index: groupToAdd.startIndex
                         });
                     }
 

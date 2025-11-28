@@ -78,7 +78,7 @@ export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () =
   };
 
   // Finalizar dibujo
-  const handleMouseUp = () => {
+  const finalizeDrawing = () => {
     if (drawing && currentRect && currentRect.width > 10 && currentRect.height > 10) {
       setLocalAreas([...localAreas, currentRect]);
       setLocalSelectedIdx(localAreas.length);
@@ -101,12 +101,6 @@ export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () =
     setLocalSelectedIdx(null);
   };
 
-  // Mover área seleccionada (drag)
-  const handleRectDrag = (idx: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (localSelectedIdx !== idx) {return;}
-    // Implementar lógica de drag si se requiere (puede agregarse luego)
-  };
 
   // Iniciar drag
   const handleRectMouseDown = (idx: number, e: React.MouseEvent) => {
@@ -223,7 +217,7 @@ export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () =
         style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'auto', width: '100%', height: '100%' }}
         onMouseDown={handleMouseDown}
         onMouseMove={(e) => { handleMouseMove(e); handleSvgMouseMove(e); }}
-        onMouseUp={handleSvgMouseUp}
+        onMouseUp={() => { finalizeDrawing(); handleSvgMouseUp(); }}
       >
         {localAreas.map((area, idx) => (
           <g key={area.id}>
