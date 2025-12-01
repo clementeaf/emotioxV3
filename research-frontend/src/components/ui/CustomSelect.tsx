@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../ui/Button';
 
@@ -26,7 +26,7 @@ interface CustomSelectProps {
  * @param props - Select props including label, error, options, and placeholder
  */
 export const CustomSelect = ({
-    id,
+    id: propId,
     label,
     error,
     options,
@@ -37,6 +37,8 @@ export const CustomSelect = ({
     // required = false,
     className,
 }: CustomSelectProps) => {
+    const generatedId = useId();
+    const id = propId || generatedId;
     const [isOpen, setIsOpen] = useState<boolean>(false);
     const [selectedValue, setSelectedValue] = useState<string>(value || '');
     const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -101,6 +103,7 @@ export const CustomSelect = ({
                 <button
                     type="button"
                     id={id}
+                    name={id}
                     onClick={() => !disabled && setIsOpen(!isOpen)}
                     disabled={disabled}
                     className={cn(

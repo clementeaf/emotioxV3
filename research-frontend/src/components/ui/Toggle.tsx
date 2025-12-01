@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, forwardRef, useRef } from 'react';
+import { type InputHTMLAttributes, forwardRef, useRef, useId } from 'react';
 import { cn } from './Button';
 
 interface ToggleProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -8,7 +8,9 @@ interface ToggleProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'
 }
 
 const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
-    ({ className, label, error, description, id, checked, onChange, disabled, ...props }, ref) => {
+    ({ className, label, error, description, id: propId, checked, onChange, disabled, ...props }, ref) => {
+        const generatedId = useId();
+        const id = propId || generatedId;
         const inputRef = useRef<HTMLInputElement>(null);
         const combinedRef = (ref || inputRef) as React.RefObject<HTMLInputElement>;
 
@@ -40,6 +42,7 @@ const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
                     <div className="relative inline-block">
                         <input
                             id={id}
+                            name={id}
                             ref={combinedRef}
                             type="checkbox"
                             checked={checked}

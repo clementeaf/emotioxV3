@@ -1,4 +1,4 @@
-import { type TextareaHTMLAttributes, forwardRef } from 'react';
+import { type TextareaHTMLAttributes, forwardRef, useId } from 'react';
 import { cn } from './Button';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -7,7 +7,9 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 }
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-    ({ className, label, error, id, ...props }, ref) => {
+    ({ className, label, error, id: propId, ...props }, ref) => {
+        const generatedId = useId();
+        const id = propId || generatedId;
         return (
             <div className="w-full">
                 {label && (
@@ -17,6 +19,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                 )}
                 <textarea
                     id={id}
+                    name={id}
                     ref={ref}
                     className={cn(
                         'flex min-h-[100px] w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-y',

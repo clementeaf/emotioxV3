@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Boxes, Plus, Trash2, Eye, FolderOpen, Copy, CheckSquare, Square, Download, Upload, X, SortAsc } from 'lucide-react';
+import { Boxes, Plus, Trash2, Eye, FolderOpen, Copy, CheckSquare, Square, Download, X, SortAsc } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
@@ -36,10 +36,6 @@ export const ModulesPage = () => {
     // Sort and filter state
     const [sortBy, setSortBy] = useState<'name' | 'date' | 'usage'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-
-    // Import state
-    const [isImporting, setIsImporting] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Module usage state
     const [moduleUsage, setModuleUsage] = useState<Map<string, { count: number; researches: Array<{ id: string; name: string }> }>>(new Map());
@@ -329,50 +325,6 @@ export const ModulesPage = () => {
         toast.success(`${selectedModules.size} module(s) exported`);
     };
 
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        try {
-            setIsImporting(true);
-            const text = await file.text();
-            const modules = JSON.parse(text);
-
-            if (!Array.isArray(modules)) {
-                toast.error('Invalid file format. Expected an array of modules.');
-                return;
-            }
-
-            const result = await moduleTemplatesService.importFromJson(modules);
-            
-            if (result.imported > 0) {
-                await loadData();
-                toast.success(`Successfully imported ${result.imported} module(s)`);
-            }
-
-            if (result.errors.length > 0) {
-                console.warn('Import errors:', result.errors);
-                toast.error(`${result.errors.length} module(s) failed to import. Check console for details.`);
-            }
-
-            if (result.imported === 0 && result.errors.length === 0) {
-                toast.error('No valid modules found in file');
-            }
-        } catch (error) {
-            console.error('Failed to import modules:', error);
-            toast.error('Failed to import modules. Please check the file format.');
-        } finally {
-            setIsImporting(false);
-            // Reset input
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-        }
-    };
 
     const renderModuleCard = (module: { id: string; name: string; description?: string | null }, fullModule?: ModuleTemplate) => {
         const isSelected = selectedModules.has(module.id);
@@ -467,15 +419,6 @@ export const ModulesPage = () => {
                 <div className="flex items-center gap-2">
                     {!isMultiSelectMode ? (
                         <>
-                            <Button 
-                                variant="outline" 
-                                onClick={handleImportClick}
-                                isLoading={isImporting}
-                                disabled={isImporting}
-                            >
-                                <Upload className="h-4 w-4 mr-2" />
-                                Import Modules
-                            </Button>
                             <Button 
                                 variant="outline" 
                                 onClick={() => {
@@ -703,14 +646,6 @@ export const ModulesPage = () => {
                 isLoading={isDeleting}
             />
 
-            {/* Hidden file input for import */}
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json,application/json"
-                onChange={handleFileImport}
-                className="hidden"
-            />
         </div>
     );
 };

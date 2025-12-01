@@ -37,4 +37,31 @@
     .scrollbar-hide::-webkit-scrollbar {
         display: none;
     }
+
+    /* Horizontal Slider Styles */
+    .horizontal-slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #2563eb;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .horizontal-slider::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #2563eb;
+        cursor: pointer;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .horizontal-slider:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 }

@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, forwardRef } from 'react';
+import { type InputHTMLAttributes, forwardRef, useId } from 'react';
 import { cn } from './Button';
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -8,13 +8,16 @@ interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'typ
 }
 
 const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-    ({ className, label, error, description, id, ...props }, ref) => {
+    ({ className, label, error, description, id: propId, ...props }, ref) => {
+        const generatedId = useId();
+        const id = propId || generatedId;
         return (
             <div className="w-full">
                 <div className="flex items-start">
                     <div className="flex items-center h-5">
                         <input
                             id={id}
+                            name={id}
                             ref={ref}
                             type="checkbox"
                             className={cn(

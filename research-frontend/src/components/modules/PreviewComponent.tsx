@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { CustomSelect } from '../ui/CustomSelect';
 import { ScaleRating } from '../ui/ScaleRating';
+import { HorizontalSlider } from '../ui/HorizontalSlider';
 import { Checkbox } from '../ui/Checkbox';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { LocalHitzoneEditor, type HitzoneArea } from '../ui/LocalHitzoneEditor';
@@ -79,6 +80,35 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
             );
 
         case 'select':
+            // Horizontal slider for ranking (predefined ranges with slider variant)
+            if (component.selectRange?.variant === 'slider') {
+                let min = 1;
+                let max = 5;
+                
+                if (component.selectRange.type === 'predefined' && component.selectRange.predefined) {
+                    const [minStr, maxStr] = component.selectRange.predefined.split('-');
+                    min = parseInt(minStr);
+                    max = parseInt(maxStr);
+                } else if (component.selectRange.custom) {
+                    min = component.selectRange.custom.min;
+                    max = component.selectRange.custom.max;
+                }
+                
+                return (
+                    <HorizontalSlider
+                        id={`preview-${component.id}`}
+                        label={component.label}
+                        min={min}
+                        max={max}
+                        startLabel={component.selectRange.startLabel}
+                        endLabel={component.selectRange.endLabel}
+                        value={selectValue}
+                        onChange={setSelectValue}
+                    />
+                );
+            }
+            
+            // Scale rating for linear scale (custom ranges with scale variant)
             if (component.selectRange?.variant === 'scale' && component.selectRange.custom) {
                 return (
                     <ScaleRating

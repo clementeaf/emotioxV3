@@ -1,6 +1,8 @@
+import { useId } from 'react';
 import { Search, X } from 'lucide-react';
 
 interface SearchInputProps {
+    id?: string;
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
@@ -8,11 +10,15 @@ interface SearchInputProps {
 }
 
 export const SearchInput = ({
+    id: propId,
     value,
     onChange,
     placeholder = 'Search...',
     className = ''
 }: SearchInputProps) => {
+    const generatedId = useId();
+    const id = propId || generatedId;
+    
     return (
         <div className={`relative ${className}`}>
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -20,6 +26,8 @@ export const SearchInput = ({
             </div>
             <input
                 type="text"
+                id={id}
+                name={id}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 sm:text-sm transition duration-150 ease-in-out"

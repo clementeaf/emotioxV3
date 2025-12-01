@@ -43,11 +43,13 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         const customMax = component.selectRange?.custom?.max ?? 10;
         const startLabel = component.selectRange?.startLabel ?? '';
         const endLabel = component.selectRange?.endLabel ?? '';
+        const variant = component.selectRange?.variant ?? 'dropdown';
 
         // Helper to update selectRange while preserving required fields
         const updateSelectRange = (updates: Partial<SelectRangeConfig>) => {
             const base: SelectRangeConfig = {
                 type: rangeType,
+                variant,
                 ...(rangeType === 'custom'
                     ? { custom: { min: customMin, max: customMax }, startLabel, endLabel }
                     : { predefined: predefinedValue })
@@ -58,6 +60,19 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         return (
             <div className="space-y-3">
                 <CustomSelect
+                    id={`variant-${component.id}`}
+                    label="Display Type"
+                    value={variant}
+                    onChange={(value) => {
+                        updateSelectRange({ variant: value as 'dropdown' | 'scale' | 'slider' });
+                    }}
+                    options={[
+                        { value: 'dropdown', label: 'Dropdown' },
+                        { value: 'scale', label: 'Scale (Buttons)' },
+                        { value: 'slider', label: 'Slider (Horizontal)' },
+                    ]}
+                />
+                <CustomSelect
                     id={`range-type-${component.id}`}
                     label="Range Type"
                     value={rangeType}
@@ -66,6 +81,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                         onUpdate({
                             selectRange: {
                                 type: newType,
+                                variant,
                                 ...(newType === 'custom'
                                     ? { custom: { min: customMin, max: customMax }, startLabel, endLabel }
                                     : { predefined: predefinedValue })
@@ -84,7 +100,11 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                         value={predefinedValue}
                         onChange={(value) => {
                             onUpdate({
-                                selectRange: { type: 'predefined', predefined: value as '1-5' | '1-7' | '1-10' },
+                                selectRange: { 
+                                    type: 'predefined', 
+                                    predefined: value as '1-5' | '1-7' | '1-10',
+                                    variant 
+                                },
                             });
                         }}
                         options={[

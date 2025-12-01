@@ -459,54 +459,18 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 settings: {}
             },
             {
-                id: 'choice-1',
-                name: 'Choice 1',
-                type: 'input',
+                id: 'ranking-slider',
+                name: 'Ranking Slider',
+                type: 'select',
                 label: '',
                 defaultValue: '',
-                placeholder: {
-                    enabled: true,
-                    text: 'Escribe la opción 1...'
-                },
-                required: false,
+                required: true,
                 order: 3,
-                settings: {
-                    groupLabel: 'CHOICES',
-                    isChoice: true
-                }
-            },
-            {
-                id: 'choice-2',
-                name: 'Choice 2',
-                type: 'input',
-                label: '',
-                defaultValue: '',
-                placeholder: {
-                    enabled: true,
-                    text: 'Escribe la opción 2...'
-                },
-                required: false,
-                order: 4,
-                settings: {
-                    groupLabel: 'CHOICES',
-                    isChoice: true
-                }
-            },
-            {
-                id: 'choice-3',
-                name: 'Choice 3',
-                type: 'input',
-                label: '',
-                defaultValue: '',
-                placeholder: {
-                    enabled: true,
-                    text: 'Escribe la opción 3...'
-                },
-                required: false,
-                order: 5,
-                settings: {
-                    groupLabel: 'CHOICES',
-                    isChoice: true
+                settings: {},
+                selectRange: {
+                    type: 'predefined',
+                    predefined: '1-5',
+                    variant: 'slider'
                 }
             }
         ]

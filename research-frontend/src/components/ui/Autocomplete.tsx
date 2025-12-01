@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, useId, type KeyboardEvent } from 'react';
 import { cn } from '../ui/Button';
 
 interface AutocompleteOption {
@@ -28,7 +28,7 @@ interface AutocompleteProps {
  * @param props - Autocomplete props
  */
 export const Autocomplete = ({
-    id,
+    id: propId,
     label,
     error,
     options,
@@ -42,6 +42,8 @@ export const Autocomplete = ({
     className,
     createNewLabel = 'Create new',
 }: AutocompleteProps) => {
+    const generatedId = useId();
+    const id = propId || generatedId;
     const [inputValue, setInputValue] = useState<string>('');
     const [isOpen, setIsOpen] = useState<boolean>(false);
     const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
@@ -179,6 +181,7 @@ export const Autocomplete = ({
                 <input
                     ref={inputRef}
                     id={id}
+                    name={id}
                     type="text"
                     value={inputValue}
                     onChange={(e) => handleInputChange(e.target.value)}
