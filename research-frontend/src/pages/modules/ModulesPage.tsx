@@ -43,6 +43,7 @@ export const ModulesPage = () => {
 
     // Module usage state
     const [moduleUsage, setModuleUsage] = useState<Map<string, { count: number; researches: Array<{ id: string; name: string }> }>>(new Map());
+    const usageLoadingRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         loadData();
@@ -113,6 +114,15 @@ export const ModulesPage = () => {
         }
     }, [searchQuery, allTabs, activeTab, currentTab]);
 
+    // Load usage data only for modules in the current visible tab (lazy loading)
+    useEffect(() => {
+        if (currentTab && currentTab.modules.length > 0) {
+            const moduleIds = currentTab.modules.map(m => m.id);
+            loadModuleUsage(moduleIds);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]); // Only reload when active tab changes
+
     const loadData = async () => {
         try {
             setIsLoading(true);
@@ -136,8 +146,7 @@ export const ModulesPage = () => {
                 setActiveTab(firstStageWithModules?.id || 'ungrouped');
             }
 
-            // Load usage data for all modules (non-blocking)
-            loadModuleUsage(allModules.map(m => m.id));
+            // Don't load usage data here - will be loaded lazily when needed
         } catch (err: any) {
             // Handle 401 Unauthorized - redirect to login
             if (err?.response?.status === 401) {
@@ -153,20 +162,52 @@ export const ModulesPage = () => {
     };
 
     const loadModuleUsage = async (moduleIds: string[]) => {
-        // Load usage data in background - don't block UI
-        const usageMap = new Map<string, { count: number; researches: Array<{ id: string; name: string }> }>();
+        // Filter out modules that are already being loaded or already have usage data
+        const idsToLoad = moduleIds.filter(id => 
+            !usageLoadingRef.current.has(id) && !moduleUsage.has(id)
+        );
         
-        for (const id of moduleIds) {
-            try {
-                const usage = await moduleTemplatesService.getUsage(id);
-                usageMap.set(id, usage);
-            } catch (error) {
-                // Silently fail - backend endpoint might not be ready yet
-                // console.debug(`Usage data not available for module ${id}`);
-            }
+        if (idsToLoad.length === 0) {
+            return; // Nothing to load
         }
         
-        setModuleUsage(usageMap);
+        // Mark as loading
+        idsToLoad.forEach(id => usageLoadingRef.current.add(id));
+        
+        // Load usage data in parallel - don't block UI
+        const usageMap = new Map<string, { count: number; researches: Array<{ id: string; name: string }> }>();
+        
+        // Use Promise.allSettled to load all in parallel and handle failures gracefully
+        const results = await Promise.allSettled(
+            idsToLoad.map(async (id) => {
+                try {
+                    const usage = await moduleTemplatesService.getUsage(id);
+                    return { id, usage };
+                } catch (error) {
+                    // Silently fail - backend endpoint might not be ready yet
+                    return { id, usage: null };
+                }
+            })
+        );
+        
+        // Process results
+        results.forEach((result) => {
+            if (result.status === 'fulfilled' && result.value.usage) {
+                usageMap.set(result.value.id, result.value.usage);
+            }
+        });
+        
+        // Remove from loading set
+        idsToLoad.forEach(id => usageLoadingRef.current.delete(id));
+        
+        // Update state with new usage data
+        if (usageMap.size > 0) {
+            setModuleUsage(prev => {
+                const updated = new Map(prev);
+                usageMap.forEach((value, key) => updated.set(key, value));
+                return updated;
+            });
+        }
     };
 
     const handleDeleteClick = (template: ModuleTemplate, e: React.MouseEvent) => {
