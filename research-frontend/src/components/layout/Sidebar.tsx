@@ -405,8 +405,10 @@ export const Sidebar = () => {
                                                 singleModule = allModules.find(m => m.name.toLowerCase() === stage.name.toLowerCase()) || null;
                                             }
 
-                                            // Para conjunto: obtener todos los módulos
-                                            const modules = !isSingleModule ? (stage.modules || []) : [];
+                                            // Para conjunto: obtener todos los módulos ordenados por order_index
+                                            const modules = !isSingleModule 
+                                                ? (stage.modules || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
+                                                : [];
 
                                             // Verificar si algún módulo está activo
                                             const hasActiveModule = modules.some(m => m.id === activeModuleId) || (singleModule && singleModule.id === activeModuleId);

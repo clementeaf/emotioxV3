@@ -27,61 +27,64 @@ async function seedCVModule() {
                     {
                         id: 'cv-question',
                         type: 'input',
-                        label: 'Pregunta',
-                        defaultValue: '¿Qué valor le das a este producto?',
+                        label: 'Título de pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe la pregunta aquí...'
+                            text: 'Escribe el título de la pregunta aquí...'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'cv-range-min',
-                        type: 'input',
-                        label: 'Número de inicio del rango',
-                        defaultValue: '1',
-                        placeholder: {
-                            enabled: true,
-                            text: 'Ej: 1'
+                        id: 'cv-start-value',
+                        type: 'select',
+                        label: 'Start Value',
+                        selectRange: {
+                            type: 'custom',
+                            custom: { min: 0, max: 10 }
                         },
-                        required: true,
+                        options: Array.from({ length: 11 }, (_, i) => ({
+                            value: i.toString(),
+                            label: i.toString()
+                        })),
+                        required: false,
                         order: 2
-                    },
-                    {
-                        id: 'cv-range-max',
-                        type: 'input',
-                        label: 'Número final del rango',
-                        defaultValue: '5',
-                        placeholder: {
-                            enabled: true,
-                            text: 'Ej: 5'
-                        },
-                        required: true,
-                        order: 3
                     },
                     {
                         id: 'cv-start-label',
                         type: 'input',
-                        label: 'Label para inicio del rango',
-                        defaultValue: 'Worthless',
+                        label: 'Start Label',
                         placeholder: {
                             enabled: true,
                             text: 'Ej: Worthless, Malo'
                         },
-                        required: true,
+                        required: false,
+                        order: 3
+                    },
+                    {
+                        id: 'cv-end-value',
+                        type: 'select',
+                        label: 'End Value',
+                        selectRange: {
+                            type: 'custom',
+                            custom: { min: 0, max: 10 }
+                        },
+                        options: Array.from({ length: 11 }, (_, i) => ({
+                            value: i.toString(),
+                            label: i.toString()
+                        })),
+                        required: false,
                         order: 4
                     },
                     {
                         id: 'cv-end-label',
                         type: 'input',
-                        label: 'Label para final del rango',
-                        defaultValue: 'Worth',
+                        label: 'End Label',
                         placeholder: {
                             enabled: true,
                             text: 'Ej: Worth, Excelente'
                         },
-                        required: true,
+                        required: false,
                         order: 5
                     }
                 ]

@@ -26,23 +26,14 @@ async function seedVOCModule() {
                 components: [
                     {
                         id: 'voc-question',
-                        type: 'textarea',
-                        label: 'Question title',
-                        defaultValue: '¿Qué opinas sobre nuestra marca?',
+                        type: 'input',
+                        label: 'Título de pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe la pregunta aquí...'
+                            text: 'Escribe el título de la pregunta aquí...'
                         },
                         required: true,
                         order: 1
-                    },
-                    {
-                        id: 'voc-response',
-                        type: 'textarea',
-                        label: 'Respuesta del Participante',
-                        hidden: true,
-                        required: true,
-                        order: 2
                     }
                 ]
             }

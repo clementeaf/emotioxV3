@@ -25,11 +25,10 @@ async function seedCESModule() {
                     {
                         id: 'ces-question',
                         type: 'input',
-                        label: 'Pregunta',
-                        defaultValue: '¿Qué tan fácil fue resolver tu problema?',
+                        label: 'Título de pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe la pregunta aquí...'
+                            text: 'Escribe el título de la pregunta aquí...'
                         },
                         required: true,
                         order: 1

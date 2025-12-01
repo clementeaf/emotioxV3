@@ -26,28 +26,26 @@ async function seedNEVModule() {
                     {
                         id: 'nev-question',
                         type: 'input',
-                        label: 'Pregunta',
-                        defaultValue: '¿Cómo te sentiste con la experiencia?',
+                        label: 'Título de pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe la pregunta aquí...'
+                            text: 'Escribe el título de la pregunta aquí...'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'nev-range',
+                        id: 'nev-emotions-range',
                         type: 'select',
-                        label: 'Rango',
+                        label: 'Rango de emociones',
                         selectRange: {
-                            type: 'predefined',
-                            predefined: '1-5'
+                            type: 'custom',
+                            custom: { min: 1, max: 20 }
                         },
-                        options: [
-                            { value: '1-5', label: '1-5' },
-                            { value: '1-7', label: '1-7' },
-                            { value: '1-10', label: '1-10' }
-                        ],
+                        options: Array.from({ length: 20 }, (_, i) => ({
+                            value: (i + 1).toString(),
+                            label: `${i + 1}`
+                        })),
                         required: true,
                         order: 2
                     }

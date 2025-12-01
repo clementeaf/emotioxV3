@@ -8,6 +8,8 @@ interface ResearchBuilderHeaderProps {
     isSettings: boolean;
     isSaving: boolean;
     onSave: () => void;
+    isSmartVOCStage?: boolean;
+    smartVOCStageName?: string;
 }
 
 /**
@@ -20,6 +22,8 @@ export const ResearchBuilderHeader = ({
     isSettings,
     isSaving,
     onSave,
+    isSmartVOCStage = false,
+    smartVOCStageName,
 }: ResearchBuilderHeaderProps) => {
     return (
         <div className="mb-8 border-b border-gray-200 pb-4">
@@ -30,6 +34,11 @@ export const ResearchBuilderHeader = ({
                             <>
                                 <Settings className="h-6 w-6 text-gray-400" />
                                 Research Configuration
+                            </>
+                        ) : isSmartVOCStage ? (
+                            <>
+                                <Boxes className="h-6 w-6 text-gray-400" />
+                                {smartVOCStageName || 'Smart VOC'}
                             </>
                         ) : activeModule ? (
                             <>
@@ -43,13 +52,15 @@ export const ResearchBuilderHeader = ({
                     <p className="mt-1 text-sm text-gray-500">
                         {isSettings
                             ? 'Manage general settings and information'
-                            : activeModule
-                                ? activeModule.description || 'Configure this module'
-                                : 'Research Builder'}
+                            : isSmartVOCStage
+                                ? 'Configure all Smart VOC questions in a unified view'
+                                : activeModule
+                                    ? activeModule.description || 'Configure this module'
+                                    : 'Research Builder'}
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    {activeModule && (
+                    {(activeModule || isSmartVOCStage) && (
                         <Button onClick={onSave} isLoading={isSaving} disabled={isSaving}>
                             <Save className="h-4 w-4 mr-2" />
                             Save Changes

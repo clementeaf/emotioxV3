@@ -34,26 +34,37 @@ const seedCSATModule = async () => {
             ['Customer Satisfaction Score (CSAT)']
         );
 
+        let moduleId: string;
+
         if (checkModule.rows.length > 0) {
-            console.log('CSAT module already exists. Skipping...');
-            await client.query('ROLLBACK');
-            return;
+            console.log('CSAT module already exists. Updating...');
+            moduleId = checkModule.rows[0].id;
+            await client.query(
+                `UPDATE module_templates 
+                 SET description = $1, updated_at = NOW() 
+                 WHERE id = $2`,
+                [
+                    'Customer Satisfaction Score - Rate satisfaction level with stars or numbers (1-5)',
+                    moduleId
+                ]
+            );
+            console.log(`✓ Updated module: CSAT (${moduleId})`);
+        } else {
+            // Create the CSAT module
+            const moduleRes = await client.query(
+                `INSERT INTO module_templates (name, description, is_active, created_at, updated_at, created_by)
+                 VALUES ($1, $2, true, NOW(), NOW(), $3)
+                 RETURNING id`,
+                [
+                    'Customer Satisfaction Score (CSAT)',
+                    'Customer Satisfaction Score - Rate satisfaction level with stars or numbers (1-5)',
+                    userId
+                ]
+            );
+
+            moduleId = moduleRes.rows[0].id;
+            console.log(`✓ Created module: CSAT (${moduleId})`);
         }
-
-        // Create the CSAT module
-        const moduleRes = await client.query(
-            `INSERT INTO module_templates (name, description, is_active, created_at, updated_at, created_by)
-             VALUES ($1, $2, true, NOW(), NOW(), $3)
-             RETURNING id`,
-            [
-                'Customer Satisfaction Score (CSAT)',
-                'Customer Satisfaction Score - Rate satisfaction level with stars or numbers (1-5)',
-                userId
-            ]
-        );
-
-        const moduleId = moduleRes.rows[0].id;
-        console.log(`✓ Created module: CSAT (${moduleId})`);
 
         // Define the module structure with components
         const structure = {
@@ -62,7 +73,6 @@ const seedCSATModule = async () => {
                     id: 'csat-question',
                     type: 'input',
                     label: 'Pregunta',
-                    defaultValue: '¿Qué tan satisfecho estás con nuestro servicio?',
                     placeholder: {
                         enabled: true,
                         text: 'Escribe la pregunta aquí...'
@@ -75,11 +85,15 @@ const seedCSATModule = async () => {
                     type: 'select',
                     label: 'Tipo de visualización',
                     options: [
-                        { value: 'numbers', label: 'Numbers (1-5)' },
-                        { value: 'stars', label: 'Stars (⭐⭐⭐⭐⭐)' }
+                        { value: 'numbers', label: 'Number (1-5)' },
+                        { value: 'stars', label: 'Stars (1-5)' }
                     ],
                     required: true,
-                    order: 2
+                    order: 2,
+                    selectRange: {
+                        type: 'predefined',
+                        predefined: '1-5'
+                    }
                 }
             ]
         };
