@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useId } from 'react';
 import { Boxes, Plus, Trash2, Eye, FolderOpen, Copy, CheckSquare, Square, Download, X, SortAsc } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
@@ -15,6 +15,7 @@ import { flat } from '../../utils/radashi';
 export const ModulesPage = () => {
     const navigate = useNavigate();
     const toast = useToast();
+    const sortSelectId = useId();
     const [stages, setStages] = useState<StageTemplateWithModules[]>([]);
     const [ungroupedModules, setUngroupedModules] = useState<ModuleTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -460,6 +461,8 @@ export const ModulesPage = () => {
                 {!isMultiSelectMode && (
                     <div className="flex items-center gap-2">
                         <select
+                            id={sortSelectId}
+                            name={sortSelectId}
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as 'name' | 'date' | 'usage')}
                             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

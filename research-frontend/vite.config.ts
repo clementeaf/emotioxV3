@@ -7,9 +7,22 @@ export default defineConfig({
   server: {
     port: 12500,
     strictPort: true,
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+    },
   },
   preview: {
     port: 12500,
     strictPort: true,
+  },
+  css: {
+    devSourcemap: false,
+  },
+  build: {
+    sourcemap: false,
+  },
+  esbuild: {
+    sourcemap: false,
   },
 })
