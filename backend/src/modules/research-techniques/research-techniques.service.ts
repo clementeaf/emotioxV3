@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 
 export interface ResearchTechniqueData {
     name: string;
@@ -6,29 +7,43 @@ export interface ResearchTechniqueData {
 }
 
 export const list = async () => {
-    const query = `
-    SELECT id, name, description, created_by, is_active, created_at, updated_at
-    FROM research_techniques
-    WHERE is_active = true
-    ORDER BY name
-  `;
-    const result = await pool.query(query);
-    return result.rows;
+    return cache.getOrSet(
+        CacheKeys.RESEARCH_TECHNIQUES_LIST,
+        async () => {
+            const query = `
+            SELECT id, name, description, created_by, is_active, created_at, updated_at
+            FROM research_techniques
+            WHERE is_active = true
+            ORDER BY name
+          `;
+            const result = await pool.query(query);
+            return result.rows;
+        },
+        CacheTTL.LONG // Cache for 15 minutes
+    );
 };
 
 export const getById = async (id: string) => {
-    const query = `
-    SELECT id, name, description, created_by, is_active, created_at, updated_at
-    FROM research_techniques
-    WHERE id = $1
-  `;
-    const result = await pool.query(query, [id]);
+    const cacheKey = `${CacheKeys.RESEARCH_TECHNIQUE}:${id}`;
+    
+    return cache.getOrSet(
+        cacheKey,
+        async () => {
+            const query = `
+            SELECT id, name, description, created_by, is_active, created_at, updated_at
+            FROM research_techniques
+            WHERE id = $1
+          `;
+            const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
-        throw new Error('Research technique not found');
-    }
+            if (result.rows.length === 0) {
+                throw new Error('Research technique not found');
+            }
 
-    return result.rows[0];
+            return result.rows[0];
+        },
+        CacheTTL.LONG
+    );
 };
 
 export const create = async (data: ResearchTechniqueData, createdBy: string) => {
@@ -40,6 +55,10 @@ export const create = async (data: ResearchTechniqueData, createdBy: string) => 
     RETURNING id, name, description, created_by, is_active, created_at, updated_at
   `;
     const result = await pool.query(query, [name, description, createdBy]);
+    
+    // Invalidate cache
+    cache.delete(CacheKeys.RESEARCH_TECHNIQUES_LIST);
+    
     return result.rows[0];
 };
 

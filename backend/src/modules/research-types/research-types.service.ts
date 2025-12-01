@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 
 export interface ResearchTypeData {
     name: string;
@@ -9,23 +10,30 @@ export interface ResearchTypeData {
 }
 
 export const list = async () => {
-    // Return all research types
-    const query = `
-    SELECT 
-        rt.id, 
-        rt.name, 
-        rt.description, 
-        rt.default_modules, 
-        rt.settings, 
-        rt.is_active, 
-        rt.created_at,
-        rt.updated_at
-    FROM research_types rt
-    WHERE rt.is_active = true
-    ORDER BY rt.name
-  `;
-    const result = await pool.query(query);
-    return result.rows;
+    // Try to get from cache first
+    return cache.getOrSet(
+        CacheKeys.RESEARCH_TYPES_LIST,
+        async () => {
+            // Return all research types
+            const query = `
+            SELECT 
+                rt.id, 
+                rt.name, 
+                rt.description, 
+                rt.default_modules, 
+                rt.settings, 
+                rt.is_active, 
+                rt.created_at,
+                rt.updated_at
+            FROM research_types rt
+            WHERE rt.is_active = true
+            ORDER BY rt.name
+          `;
+            const result = await pool.query(query);
+            return result.rows;
+        },
+        CacheTTL.LONG // Cache for 15 minutes
+    );
 };
 
 export const create = async (data: ResearchTypeData, createdBy: string | null) => {
@@ -50,6 +58,9 @@ export const create = async (data: ResearchTypeData, createdBy: string | null) =
         ]);
 
         const researchType = result.rows[0];
+        
+        // Invalidate cache
+        cache.delete(CacheKeys.RESEARCH_TYPES_LIST);
 
         // Associate techniques in the junction table
         if (research_technique_ids && research_technique_ids.length > 0) {
@@ -65,6 +76,10 @@ export const create = async (data: ResearchTypeData, createdBy: string | null) =
         }
 
         await client.query('COMMIT');
+        
+        // Invalidate cache
+        cache.delete(CacheKeys.RESEARCH_TYPES_LIST);
+        
         return researchType;
     } catch (error) {
         await client.query('ROLLBACK');
@@ -75,40 +90,48 @@ export const create = async (data: ResearchTypeData, createdBy: string | null) =
 };
 
 export const getById = async (id: string) => {
-    const query = `
-    SELECT 
-        rt.id, 
-        rt.name, 
-        rt.description, 
-        rt.default_modules, 
-        rt.settings, 
-        rt.is_active, 
-        rt.created_at, 
-        rt.updated_at
-    FROM research_types rt
-    WHERE rt.id = $1
-  `;
-    const result = await pool.query(query, [id]);
+    const cacheKey = `${CacheKeys.RESEARCH_TYPE}:${id}`;
+    
+    return cache.getOrSet(
+        cacheKey,
+        async () => {
+            const query = `
+            SELECT 
+                rt.id, 
+                rt.name, 
+                rt.description, 
+                rt.default_modules, 
+                rt.settings, 
+                rt.is_active, 
+                rt.created_at, 
+                rt.updated_at
+            FROM research_types rt
+            WHERE rt.id = $1
+          `;
+            const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
-        throw new Error('Research type not found');
-    }
+            if (result.rows.length === 0) {
+                throw new Error('Research type not found');
+            }
 
-    const researchType = result.rows[0];
+            const researchType = result.rows[0];
 
-    // Get associated techniques
-    const techniquesQuery = `
-        SELECT rt.id, rt.name, rt.description
-        FROM research_techniques rt
-        INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_technique_id
-        WHERE rtt.research_type_id = $1 AND rt.is_active = true
-    `;
-    const techniquesResult = await pool.query(techniquesQuery, [id]);
+            // Get associated techniques
+            const techniquesQuery = `
+                SELECT rt.id, rt.name, rt.description
+                FROM research_techniques rt
+                INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_technique_id
+                WHERE rtt.research_type_id = $1 AND rt.is_active = true
+            `;
+            const techniquesResult = await pool.query(techniquesQuery, [id]);
 
-    return {
-        ...researchType,
-        research_techniques: techniquesResult.rows
-    };
+            return {
+                ...researchType,
+                research_techniques: techniquesResult.rows
+            };
+        },
+        CacheTTL.LONG
+    );
 };
 
 export const update = async (id: string, data: Partial<ResearchTypeData>) => {
@@ -174,6 +197,10 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
         }
 
         await client.query('COMMIT');
+        
+        // Invalidate cache
+        cache.delete(CacheKeys.RESEARCH_TYPES_LIST);
+        cache.delete(`${CacheKeys.RESEARCH_TYPE}:${id}`);
 
         // Return updated object with techniques
         return await getById(id);
@@ -197,6 +224,10 @@ export const deleteResearchType = async (id: string) => {
     if (result.rows.length === 0) {
         throw new Error('Research type not found');
     }
+    
+    // Invalidate cache
+    cache.delete(CacheKeys.RESEARCH_TYPES_LIST);
+    cache.delete(`${CacheKeys.RESEARCH_TYPE}:${id}`);
 
     return { message: 'Research type deleted successfully' };
 };

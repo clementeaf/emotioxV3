@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import cache, { CacheKeys } from '../../config/cache';
 
 export interface ResearchData {
     name: string;
@@ -280,6 +281,9 @@ export const activate = async (researchId: string, userId: string) => {
     if (result.rows.length === 0) {
         throw new Error('Research not found');
     }
+    
+    // Invalidate public cache for this research
+    cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
 
     return result.rows[0];
 };
@@ -296,6 +300,9 @@ export const deleteResearch = async (researchId: string, userId: string) => {
     if (result.rows.length === 0) {
         throw new Error('Research not found');
     }
+    
+    // Invalidate public cache for this research
+    cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
 
     return { message: 'Research deleted successfully' };
 };

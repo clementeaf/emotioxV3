@@ -1,44 +1,53 @@
 import pool from '../../config/database';
+import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 
 export const getResearch = async (researchId: string) => {
-  // Check if research is active
-  const researchQuery = `
-    SELECT id, name, description, status
-    FROM researches
-    WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
-  `;
-  const researchResult = await pool.query(researchQuery, [researchId]);
+  const cacheKey = `${CacheKeys.PUBLIC_RESEARCH}:${researchId}`;
+  
+  return cache.getOrSet(
+    cacheKey,
+    async () => {
+      // Check if research is active
+      const researchQuery = `
+        SELECT id, name, description, status
+        FROM researches
+        WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
+      `;
+      const researchResult = await pool.query(researchQuery, [researchId]);
 
-  if (researchResult.rows.length === 0) {
-    throw new Error('Research not found or not active');
-  }
+      if (researchResult.rows.length === 0) {
+        throw new Error('Research not found or not active');
+      }
 
-  const research = researchResult.rows[0];
+      const research = researchResult.rows[0];
 
-  // Get modules with questions
-  const modulesQuery = `
-    SELECT m.id, m.name, m.description, m.order_index,
-           json_agg(
-             json_build_object(
-               'id', q.id,
-               'type', q.question_type,
-               'text', q.question_text,
-               'order', q.order_index,
-               'config', q.config,
-               'required', q.required
-             ) ORDER BY q.order_index
-           ) FILTER (WHERE q.id IS NOT NULL) as questions
-    FROM modules m
-    LEFT JOIN questions q ON m.id = q.module_id
-    WHERE m.research_id = $1
-    GROUP BY m.id
-    ORDER BY m.order_index
-  `;
-  const modulesResult = await pool.query(modulesQuery, [researchId]);
+      // Get modules with questions
+      const modulesQuery = `
+        SELECT m.id, m.name, m.description, m.order_index,
+               json_agg(
+                 json_build_object(
+                   'id', q.id,
+                   'type', q.question_type,
+                   'text', q.question_text,
+                   'order', q.order_index,
+                   'config', q.config,
+                   'required', q.required
+                 ) ORDER BY q.order_index
+               ) FILTER (WHERE q.id IS NOT NULL) as questions
+        FROM modules m
+        LEFT JOIN questions q ON m.id = q.module_id
+        WHERE m.research_id = $1
+        GROUP BY m.id
+        ORDER BY m.order_index
+      `;
+      const modulesResult = await pool.query(modulesQuery, [researchId]);
 
-  research.modules = modulesResult.rows;
+      research.modules = modulesResult.rows;
 
-  return research;
+      return research;
+    },
+    CacheTTL.SHORT // Cache for 1 minute (frequently changing)
+  );
 };
 
 export const saveResponse = async (data: Record<string, unknown>) => {
