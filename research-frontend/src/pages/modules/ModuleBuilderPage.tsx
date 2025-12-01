@@ -28,7 +28,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect';
 import { ComponentConfigPanel } from '../../components/modules/ComponentConfigPanel';
 import { LivePreviewPanel } from '../../components/modules/LivePreviewPanel';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
-import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import type { ComponentConfig, FileUploadConfig } from '../../types/moduleBuilder.types';
 import { useToast } from '../../contexts/ToastContext';
 
 const moduleTemplateSchema = z.object({
@@ -213,12 +213,12 @@ export const ModuleBuilderPage = () => {
                     structure = template.structure as { components?: ComponentConfig[] };
                 }
                 // Ensure components have proper structure, especially for fileUpload config
-                const loadedComponents = (structure?.components || []).map((comp: any): ComponentConfig => {
+                const loadedComponents = (structure?.components || []).map((comp: Partial<ComponentConfig>): ComponentConfig => {
                     // Clean component to match ComponentConfig interface
                     const cleaned: ComponentConfig = {
-                        id: comp.id,
-                        type: comp.type,
-                        label: comp.label,
+                        id: comp.id ?? '',
+                        type: comp.type ?? 'input',
+                        label: comp.label ?? '',
                         placeholder: comp.placeholder,
                         selectRange: comp.selectRange,
                         choicesConfig: comp.choicesConfig,
@@ -233,12 +233,13 @@ export const ModuleBuilderPage = () => {
                     // Ensure fileUpload config is properly structured
                     if (comp.type === 'file-upload' && comp.fileUpload) {
                         // Normalize fileUpload config, preserving boolean values explicitly
+                        const fileUploadData = comp.fileUpload as Partial<FileUploadConfig>;
                         cleaned.fileUpload = {
-                            maxSizeMB: comp.fileUpload.maxSizeMB ?? 5,
-                            acceptedFormats: comp.fileUpload.acceptedFormats || ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
+                            maxSizeMB: fileUploadData.maxSizeMB ?? 5,
+                            acceptedFormats: fileUploadData.acceptedFormats || ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
                             // Explicitly convert to boolean - handle both true/false and string "true"/"false"
-                            allowHitZones: comp.fileUpload.allowHitZones === true || comp.fileUpload.allowHitZones === 'true',
-                            allowParticipantSelection: comp.fileUpload.allowParticipantSelection === true || comp.fileUpload.allowParticipantSelection === 'true',
+                            allowHitZones: fileUploadData.allowHitZones === true || (typeof fileUploadData.allowHitZones === 'string' && fileUploadData.allowHitZones === 'true'),
+                            allowParticipantSelection: fileUploadData.allowParticipantSelection === true || (typeof fileUploadData.allowParticipantSelection === 'string' && fileUploadData.allowParticipantSelection === 'true'),
                         };
                     }
                     return cleaned;

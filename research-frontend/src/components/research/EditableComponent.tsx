@@ -15,12 +15,19 @@ interface RadioChoicesEditorProps {
     onChange: (value: string) => void;
 }
 
+type ChoiceItem = {
+    id: string;
+    label: string;
+    value?: string;
+    eligibility?: 'Qualify' | 'Disqualify';
+};
+
 /**
  * Editor especial para componentes radio con choices array
  */
 const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorProps) => {
-    const initialChoices = (component as any).choices || [];
-    const [localChoices, setLocalChoices] = useState(initialChoices);
+    const initialChoices: ChoiceItem[] = component.settings?.choices ?? [];
+    const [localChoices, setLocalChoices] = useState<ChoiceItem[]>(initialChoices);
 
     // Sync with external value changes
     useEffect(() => {
@@ -28,7 +35,7 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
             try {
                 const parsed = JSON.parse(value);
                 if (Array.isArray(parsed)) {
-                    setLocalChoices(parsed);
+                    setLocalChoices(parsed as ChoiceItem[]);
                 }
             } catch {
                 // Invalid JSON, keep current state
@@ -39,7 +46,7 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
     }, [value, initialChoices]);
 
     const handleChoiceChange = (choiceId: string, field: 'label' | 'eligibility', newValue: string) => {
-        const updated = localChoices.map((choice: { id: string; label: string; eligibility: string }) =>
+        const updated = localChoices.map((choice) =>
             choice.id === choiceId ? { ...choice, [field]: newValue } : choice
         );
         setLocalChoices(updated);
@@ -47,7 +54,7 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
     };
 
     const handleAddChoice = () => {
-        const newChoice = {
+        const newChoice: ChoiceItem = {
             id: `choice-${Date.now()}`,
             label: `Option ${localChoices.length + 1}`,
             value: `option-${localChoices.length + 1}`,
@@ -59,7 +66,7 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
     };
 
     const handleDeleteChoice = (choiceId: string) => {
-        const updated = localChoices.filter((choice: { id: string }) => choice.id !== choiceId);
+        const updated = localChoices.filter((choice) => choice.id !== choiceId);
         setLocalChoices(updated);
         onChange(JSON.stringify(updated));
     };
@@ -70,7 +77,7 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                 {component.label}
             </label>
             <div className="space-y-3">
-                {localChoices.map((choice: { id: string; label: string; eligibility: string }) => (
+                {localChoices.map((choice) => (
                     <div key={choice.id} className="flex items-start gap-3">
                         <div className="flex-1">
                             <Input
@@ -85,7 +92,7 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                             <CustomSelect
                                 id={`choice-${choice.id}-eligibility`}
                                 label="Elegibility"
-                                value={choice.eligibility}
+                                value={choice.eligibility ?? 'Qualify'}
                                 onChange={(val) => handleChoiceChange(choice.id, 'eligibility', val)}
                                 options={[
                                     { value: 'Qualify', label: 'Qualify' },
@@ -260,13 +267,13 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
                     setHitzoneFile(null);
                 };
 
-                const isNavigationFlow = (component as any).name === 'Image Upload' || component.id === 'image-upload';
+                const isNavigationFlow = component.settings?.name === 'Image Upload' || component.id === 'image-upload';
 
                 return (
                     <>
                         <FileUploadAdvanced
                             label={component.label}
-                            description={(component as any).description}
+                            description={component.settings?.description}
                             acceptedFormats={component.fileUpload?.acceptedFormats || ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']}
                             maxSizeMB={component.fileUpload?.maxSizeMB || 5}
                             multiple={true}

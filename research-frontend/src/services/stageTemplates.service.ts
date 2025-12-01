@@ -37,8 +37,8 @@ export const stageTemplatesService = {
         return await apiClient.delete<{ message: string }>(`/stage-templates/${id}`);
     },
 
-    async addModule(stageId: string, data: AddModuleToStageData): Promise<any> {
-        return await apiClient.post(`/stage-templates/${stageId}/modules`, data);
+    async addModule(stageId: string, data: AddModuleToStageData): Promise<{ message: string }> {
+        return await apiClient.post<{ message: string }>(`/stage-templates/${stageId}/modules`, data);
     },
 
     async removeModule(stageId: string, moduleId: string): Promise<{ message: string }> {

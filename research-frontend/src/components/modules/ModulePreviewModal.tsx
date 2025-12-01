@@ -28,12 +28,13 @@ export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePr
     if (!module) return null;
 
     // Parse the structure to get components array
-    const components = (module.structure as any)?.components as ComponentConfig[] || [];
+    const structure = module.structure as { components?: ComponentConfig[] } | undefined;
+    const components = structure?.components ?? [];
     const visibleComponents = components
         .filter(c => !c.hidden)
         .sort((a, b) => {
-            const orderA = (a as any).order ?? 0;
-            const orderB = (b as any).order ?? 0;
+            const orderA = a.order ?? 0;
+            const orderB = b.order ?? 0;
             return orderA - orderB;
         });
 
@@ -87,8 +88,8 @@ export const ModulePreviewModal = ({ module, isOpen, onClose, onEdit }: ModulePr
                     let componentIndex = 0;
 
                     visibleComponents.forEach((component) => {
-                        const groupLabel = (component.settings as any)?.groupLabel;
-                        const isChoice = (component.settings as any)?.isChoice;
+                        const groupLabel = component.settings?.groupLabel;
+                        const isChoice = component.settings?.isChoice;
 
                         if (groupLabel && isChoice) {
                             if (currentGroup && currentGroup.groupLabel === groupLabel) {

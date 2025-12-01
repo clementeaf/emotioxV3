@@ -19,8 +19,8 @@ export const ModuleContentEditor = ({
     const visibleComponents = components
         .filter(c => !c.hidden)
         .sort((a, b) => {
-            const orderA = (a as any).order ?? 0;
-            const orderB = (b as any).order ?? 0;
+            const orderA = a.order ?? 0;
+            const orderB = b.order ?? 0;
             return orderA - orderB;
         });
 
@@ -41,8 +41,8 @@ export const ModuleContentEditor = ({
     let currentGroup: { groupLabel: string; components: ComponentConfig[] } | null = null;
 
     visibleComponents.forEach((component) => {
-        const groupLabel = (component.settings as any)?.groupLabel;
-        const isChoice = (component.settings as any)?.isChoice;
+        const groupLabel = component.settings?.groupLabel;
+        const isChoice = component.settings?.isChoice;
 
         if (groupLabel && isChoice) {
             if (currentGroup && currentGroup.groupLabel === groupLabel) {

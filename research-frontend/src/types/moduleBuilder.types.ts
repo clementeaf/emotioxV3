@@ -44,6 +44,23 @@ export interface ValidationConfig {
 
 export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices';
 
+/**
+ * Configuración adicional del componente almacenada en settings
+ */
+export interface ComponentSettings {
+    groupLabel?: string;
+    isChoice?: boolean;
+    description?: string;
+    name?: string;
+    choices?: Array<{
+        id: string;
+        label: string;
+        value?: string;
+        eligibility?: 'Qualify' | 'Disqualify';
+    }>;
+    [key: string]: unknown;
+}
+
 export interface ComponentConfig {
     id: string;
     type: ComponentType;
@@ -57,7 +74,7 @@ export interface ComponentConfig {
     options?: { label: string; value: string }[];
     editableFields?: string[];
     hidden?: boolean;
-    settings?: Record<string, unknown>;
+    settings?: ComponentSettings;
     order?: number;
     validation?: ValidationConfig;
 }

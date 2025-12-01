@@ -49,7 +49,7 @@ export const ModulesPage = () => {
     // Recalculate tabs when data or search changes
     const { allTabs, currentTab, hasResults } = useMemo(() => {
         // Filter modules by search query
-        const matchesSearch = (m: any) =>
+        const matchesSearch = (m: { name: string; description?: string | null }) =>
             m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             m.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -144,12 +144,15 @@ export const ModulesPage = () => {
             }
 
             // Don't load usage data here - will be loaded lazily when needed
-        } catch (err: any) {
+        } catch (err: unknown) {
             // Handle 401 Unauthorized - redirect to login
-            if (err?.response?.status === 401) {
-                console.error('Unauthorized - redirecting to login');
-                navigate('/login');
-                return;
+            if (err && typeof err === 'object' && 'response' in err) {
+                const axiosError = err as { response?: { status?: number } };
+                if (axiosError.response?.status === 401) {
+                    console.error('Unauthorized - redirecting to login');
+                    navigate('/login');
+                    return;
+                }
             }
             setError('Failed to load data');
             console.error(err);
