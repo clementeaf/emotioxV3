@@ -95,6 +95,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             const { handleAnalysisRoutes } = await import('./modules/analysis/analysis.controller');
             return await handleAnalysisRoutes(event);
         }
+        
+        // Cache routes (admin only - add auth check as needed)
+        if (path.startsWith('/cache')) {
+            const { handleCacheRoutes } = await import('./modules/cache/cache.controller');
+            return await handleCacheRoutes(event);
+        }
 
         // 404 Not Found
         return error('Route not found', 404);

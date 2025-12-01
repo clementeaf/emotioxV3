@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { route } from './router';
+import cache from './config/cache';
 
 dotenv.config({ path: '../.env' });
 
@@ -52,7 +53,8 @@ app.use(async (req, res) => {
 app.listen(PORT, () => {
     console.log(`\n✓ Server running on http://localhost:${PORT}`);
     console.log(`✓ Database: ${process.env.DB_NAME}`);
-    console.log(`✓ Region: ${process.env.AWS_REGION}\n`);
+    console.log(`✓ Region: ${process.env.AWS_REGION}`);
+    console.log(`✓ Cache: Enabled (in-memory)\n`);
     console.log('Available endpoints:');
     console.log('  GET  /health');
     console.log('  POST /auth/register');
@@ -61,6 +63,13 @@ app.listen(PORT, () => {
     console.log('  GET  /research-types (admin)');
     console.log('  GET  /research-techniques');
     console.log('  GET  /research');
-    console.log('  GET  /public/research/:id\n');
+    console.log('  GET  /public/research/:id');
+    console.log('  GET  /cache/stats');
+    console.log('  DELETE /cache/clear (admin)\n');
+    
+    // Log cache stats every 5 minutes
+    setInterval(() => {
+        console.log(`📊 Cache stats: ${cache.size()} entries`);
+    }, 300000);
 });
 
