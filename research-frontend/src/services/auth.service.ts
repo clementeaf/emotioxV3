@@ -11,6 +11,14 @@ export interface LoginResponse {
     };
 }
 
+export interface RefreshTokenResponse {
+    tokens: {
+        accessToken: string;
+        idToken: string;
+        expiresIn: number;
+    };
+}
+
 export interface RegisterResponse {
     user: User;
 }
@@ -64,6 +72,20 @@ class AuthService {
             return await apiClient.post<LoginResponse>('/auth/login', credentials);
         } catch (error: unknown) {
             throw this.handleError(error, 'Login failed');
+        }
+    }
+
+    /**
+     * Refreshes access token using refresh token
+     * @param refreshToken - Refresh token
+     * @returns New authentication tokens
+     * @throws ApiErrorResponse if refresh fails
+     */
+    async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
+        try {
+            return await apiClient.post<RefreshTokenResponse>('/auth/refresh', { refreshToken });
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to refresh token');
         }
     }
 

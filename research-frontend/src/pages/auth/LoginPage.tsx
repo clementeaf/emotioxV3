@@ -5,10 +5,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Checkbox } from '../../components/ui/Checkbox';
 
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
+    rememberMe: z.boolean().optional(),
 });
 
 type LoginForm = z.infer<typeof loginSchema>;
@@ -19,11 +21,20 @@ export const LoginPage = () => {
 
     const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
         resolver: zodResolver(loginSchema),
+        defaultValues: {
+            rememberMe: false,
+        },
     });
 
     const onSubmit = async (data: LoginForm) => {
         try {
-            await login(data);
+            await login(
+                {
+                    email: data.email,
+                    password: data.password,
+                },
+                data.rememberMe ?? false
+            );
             navigate('/dashboard');
         } catch {
             // Error is handled by store
@@ -60,6 +71,13 @@ export const LoginPage = () => {
                     autoComplete="current-password"
                     {...register('password')}
                     error={errors.password?.message}
+                />
+
+                <Checkbox
+                    id="rememberMe"
+                    label="Remember me"
+                    description="Keep me signed in for 30 days"
+                    {...register('rememberMe')}
                 />
 
                 <Button type="submit" className="w-full" isLoading={isLoading}>

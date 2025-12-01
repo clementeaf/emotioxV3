@@ -3,6 +3,7 @@ import {
     SignUpCommand,
     InitiateAuthCommand,
     AdminSetUserPasswordCommand,
+    InitiateAuthCommandInput,
 } from '@aws-sdk/client-cognito-identity-provider';
 import pool from '../../config/database';
 import { cognitoConfig } from '../../config/cognito';
@@ -22,6 +23,10 @@ export interface RegisterData {
 export interface LoginData {
     email: string;
     password: string;
+}
+
+export interface RefreshTokenData {
+    refreshToken: string;
 }
 
 export const register = async (data: RegisterData) => {
@@ -160,6 +165,36 @@ export const updateUser = async (cognitoSub: string, data: UpdateUserData) => {
         throw new Error(message);
     }
 };
+export const refreshToken = async (data: RefreshTokenData) => {
+    const { refreshToken } = data;
+
+    try {
+        const authCommand = new InitiateAuthCommand({
+            AuthFlow: 'REFRESH_TOKEN_AUTH',
+            ClientId: cognitoConfig.clientId,
+            AuthParameters: {
+                REFRESH_TOKEN: refreshToken,
+            },
+        } as InitiateAuthCommandInput);
+
+        const authResult = await cognitoClient.send(authCommand);
+
+        if (!authResult.AuthenticationResult) {
+            throw new Error('Token refresh failed');
+        }
+
+        return {
+            accessToken: authResult.AuthenticationResult.AccessToken,
+            idToken: authResult.AuthenticationResult.IdToken,
+            expiresIn: authResult.AuthenticationResult.ExpiresIn,
+        };
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to refresh token';
+        console.error('Refresh token error:', error);
+        throw new Error(errorMessage);
+    }
+};
+
 export const deleteAccount = async (cognitoSub: string) => {
     try {
         const query = `

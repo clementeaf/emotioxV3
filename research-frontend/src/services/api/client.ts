@@ -1,6 +1,27 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios';
+import axios, { type AxiosInstance, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../../stores/auth.store';
 import type { ApiErrorResponse } from './types';
+
+/**
+ * Verifica si un token JWT está expirado
+ * @param token - Token JWT a verificar
+ * @returns true si el token está expirado o no es válido
+ */
+const isTokenExpired = (token: string | null): boolean => {
+    if (!token) return true;
+
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const exp = payload.exp;
+        if (!exp) return true;
+
+        // Verificar si el token expira en menos de 5 minutos (300 segundos)
+        const now = Math.floor(Date.now() / 1000);
+        return exp - now < 300;
+    } catch {
+        return true;
+    }
+};
 
 /**
  * Cliente base para todas las peticiones API
@@ -8,6 +29,11 @@ import type { ApiErrorResponse } from './types';
  */
 class ApiClient {
     private client: AxiosInstance;
+    private isRefreshing = false;
+    private failedQueue: Array<{
+        resolve: (value?: unknown) => void;
+        reject: (error?: unknown) => void;
+    }> = [];
 
     constructor(baseURL: string) {
         this.client = axios.create({
@@ -21,18 +47,70 @@ class ApiClient {
     }
 
     /**
+     * Procesa la cola de peticiones fallidas después de refrescar el token
+     */
+    private processQueue(error: unknown | null, token: string | null = null): void {
+        this.failedQueue.forEach((prom) => {
+            if (error) {
+                prom.reject(error);
+            } else {
+                prom.resolve(token);
+            }
+        });
+
+        this.failedQueue = [];
+    }
+
+    /**
      * Configura interceptores para requests y responses
      */
     private setupInterceptors(): void {
-        // Request interceptor: agrega token de autenticación
+        // Request interceptor: agrega token de autenticación y renueva si es necesario
         this.client.interceptors.request.use(
-            (config) => {
-                const token = useAuthStore.getState().token;
+            async (config: InternalAxiosRequestConfig) => {
+                const state = useAuthStore.getState();
+                let token = state.token;
+
+                // Si el token está expirado o por expirar, intentar renovarlo
+                if (token && isTokenExpired(token) && state.refreshToken && state.rememberMe) {
+                    if (this.isRefreshing) {
+                        // Si ya se está refrescando, esperar en la cola
+                        return new Promise<InternalAxiosRequestConfig>((resolve, reject) => {
+                            this.failedQueue.push({
+                                resolve: () => {
+                                    const newState = useAuthStore.getState();
+                                    if (newState.token && config.headers) {
+                                        config.headers.Authorization = `Bearer ${newState.token}`;
+                                    }
+                                    resolve(config);
+                                },
+                                reject,
+                            });
+                        });
+                    }
+
+                    this.isRefreshing = true;
+
+                    try {
+                        await state.refreshAccessToken();
+                        const newState = useAuthStore.getState();
+                        token = newState.token;
+                        this.processQueue(null, token);
+                    } catch (error) {
+                        this.processQueue(error, null);
+                        useAuthStore.getState().logout();
+                        return Promise.reject(error);
+                    } finally {
+                        this.isRefreshing = false;
+                    }
+                }
+
                 if (token) {
                     config.headers.Authorization = `Bearer ${token}`;
                 } else {
                     console.warn('No token available for request to:', config.url);
                 }
+
                 return config;
             },
             (error) => Promise.reject(error)
@@ -41,10 +119,56 @@ class ApiClient {
         // Response interceptor: maneja errores 401 (no autorizado)
         this.client.interceptors.response.use(
             (response) => response,
-            (error: ApiErrorResponse) => {
-                if (error.response?.status === 401) {
-                    useAuthStore.getState().logout();
+            async (error: ApiErrorResponse) => {
+                const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+                // Si es un error 401 y no hemos intentado refrescar
+                if (error.response?.status === 401 && !originalRequest._retry) {
+                    const state = useAuthStore.getState();
+
+                    // Si tenemos refresh token y rememberMe está activado, intentar renovar
+                    if (state.refreshToken && state.rememberMe) {
+                        originalRequest._retry = true;
+
+                        if (this.isRefreshing) {
+                            // Si ya se está refrescando, esperar en la cola
+                            return new Promise((resolve, reject) => {
+                                this.failedQueue.push({
+                                    resolve: () => {
+                                        const newState = useAuthStore.getState();
+                                        if (newState.token && originalRequest.headers) {
+                                            originalRequest.headers.Authorization = `Bearer ${newState.token}`;
+                                        }
+                                        resolve(this.client(originalRequest));
+                                    },
+                                    reject,
+                                });
+                            });
+                        }
+
+                        this.isRefreshing = true;
+
+                        try {
+                            await state.refreshAccessToken();
+                            const newState = useAuthStore.getState();
+                            if (newState.token && originalRequest.headers) {
+                                originalRequest.headers.Authorization = `Bearer ${newState.token}`;
+                            }
+                            this.processQueue(null, newState.token);
+                            return this.client(originalRequest);
+                        } catch (refreshError) {
+                            this.processQueue(refreshError, null);
+                            useAuthStore.getState().logout();
+                            return Promise.reject(refreshError);
+                        } finally {
+                            this.isRefreshing = false;
+                        }
+                    } else {
+                        // No hay refresh token, hacer logout
+                        useAuthStore.getState().logout();
+                    }
                 }
+
                 return Promise.reject(error);
             }
         );

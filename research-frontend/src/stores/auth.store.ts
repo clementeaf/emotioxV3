@@ -6,13 +6,16 @@ import { authService } from '../services/auth.service';
 interface AuthState {
     user: User | null;
     token: string | null;
+    refreshToken: string | null;
+    rememberMe: boolean;
     isLoading: boolean;
     error: string | null;
 
-    login: (credentials: LoginCredentials) => Promise<void>;
+    login: (credentials: LoginCredentials, rememberMe?: boolean) => Promise<void>;
     register: (credentials: RegisterCredentials) => Promise<void>;
     updateProfile: (data: Partial<User>) => Promise<void>;
     deleteAccount: () => Promise<void>;
+    refreshAccessToken: () => Promise<void>;
     logout: () => void;
     clearError: () => void;
 }
@@ -55,6 +58,8 @@ const asyncOperation = async <T>(
 const initialState = {
     user: null,
     token: null,
+    refreshToken: null,
+    rememberMe: false,
     isLoading: false,
     error: null,
 };
@@ -64,7 +69,7 @@ export const useAuthStore = create<AuthState>()(
         (set) => ({
             ...initialState,
 
-            login: async (credentials) => {
+            login: async (credentials, rememberMe = false) => {
                 set({ isLoading: true, error: null });
                 try {
                     const loginResponse = await authService.login(credentials);
@@ -72,6 +77,8 @@ export const useAuthStore = create<AuthState>()(
 
                     set({
                         token: tokens.accessToken,
+                        refreshToken: rememberMe ? tokens.refreshToken : null,
+                        rememberMe,
                     });
 
                     // Fetch user profile
@@ -86,6 +93,8 @@ export const useAuthStore = create<AuthState>()(
                         set({
                             user: null,
                             token: null,
+                            refreshToken: null,
+                            rememberMe: false,
                             isLoading: false,
                         });
                         throw new Error('Failed to fetch user profile');
@@ -97,6 +106,33 @@ export const useAuthStore = create<AuthState>()(
                         isLoading: false,
                         user: null,
                         token: null,
+                        refreshToken: null,
+                        rememberMe: false,
+                    });
+                    throw error;
+                }
+            },
+
+            refreshAccessToken: async () => {
+                const state = useAuthStore.getState();
+                if (!state.refreshToken) {
+                    throw new Error('No refresh token available');
+                }
+
+                try {
+                    const refreshResponse = await authService.refreshToken(state.refreshToken);
+                    const { tokens } = refreshResponse;
+
+                    set({
+                        token: tokens.accessToken,
+                    });
+                } catch (error: unknown) {
+                    // Si falla el refresh, limpiar todo el estado
+                    set({
+                        user: null,
+                        token: null,
+                        refreshToken: null,
+                        rememberMe: false,
                     });
                     throw error;
                 }
@@ -132,6 +168,8 @@ export const useAuthStore = create<AuthState>()(
                     () => ({
                         user: null,
                         token: null,
+                        refreshToken: null,
+                        rememberMe: false,
                     }),
                     'Failed to delete account'
                 );
@@ -150,6 +188,8 @@ export const useAuthStore = create<AuthState>()(
             partialize: (state) => ({
                 token: state.token,
                 user: state.user,
+                refreshToken: state.rememberMe ? state.refreshToken : null,
+                rememberMe: state.rememberMe,
             }),
         }
     )

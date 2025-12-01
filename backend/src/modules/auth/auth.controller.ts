@@ -21,6 +21,13 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             return success({ tokens });
         }
 
+        // POST /auth/refresh
+        if (path === '/auth/refresh' && httpMethod === 'POST') {
+            const body = JSON.parse(event.body || '{}');
+            const tokens = await authService.refreshToken(body);
+            return success({ tokens });
+        }
+
         // GET /auth/me
         if (path === '/auth/me' && httpMethod === 'GET') {
             const decoded = await requireAuth(event);
