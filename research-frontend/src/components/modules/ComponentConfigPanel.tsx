@@ -236,42 +236,54 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                     <h4 className="text-sm font-medium text-gray-700">
                         Choices (Press ENTER for new line or paste a list)
                     </h4>
-                    {choicesConfig.choices.map((choice, index) => (
-                        <div key={choice.id} className="flex items-end gap-3">
-                            <div className="flex-1 min-w-0">
-                                <Input
-                                    id={`choice-${choice.id}-label`}
-                                    label=""
-                                    value={choice.label}
-                                    onChange={(e) => handleChoiceLabelChange(choice.id, e.target.value)}
-                                    placeholder={`Option ${index + 1}`}
-                                />
+                    {choicesConfig.choices.map((choice, index) => {
+                        const canDelete = choicesConfig.choices.length > 2;
+                        return (
+                            <div key={choice.id} className="flex items-end gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <Input
+                                        id={`choice-${choice.id}-label`}
+                                        label=""
+                                        value={choice.label}
+                                        onChange={(e) => handleChoiceLabelChange(choice.id, e.target.value)}
+                                        placeholder={`Option ${index + 1}`}
+                                    />
+                                </div>
+                                <div className="w-40 min-w-0">
+                                    <CustomSelect
+                                        id={`choice-${choice.id}-eligibility`}
+                                        label="Eligibility"
+                                        value={choice.eligibility}
+                                        onChange={(value) => handleChoiceEligibilityChange(choice.id, value as 'Qualify' | 'Disqualify')}
+                                        options={[
+                                            { value: 'Qualify', label: 'Qualify' },
+                                            { value: 'Disqualify', label: 'Disqualify' },
+                                        ]}
+                                    />
+                                </div>
+                                <div className="mb-2.5 flex-shrink-0">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteChoice(choice.id)}
+                                        disabled={!canDelete}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                                        title={!canDelete ? 'Choices requires a minimum of 2 alternatives' : 'Delete option'}
+                                    >
+                                        <Trash2 className="h-4 w-4 mr-1" />
+                                        Delete
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="w-40 min-w-0">
-                                <CustomSelect
-                                    id={`choice-${choice.id}-eligibility`}
-                                    label="Eligibility"
-                                    value={choice.eligibility}
-                                    onChange={(value) => handleChoiceEligibilityChange(choice.id, value as 'Qualify' | 'Disqualify')}
-                                    options={[
-                                        { value: 'Qualify', label: 'Qualify' },
-                                        { value: 'Disqualify', label: 'Disqualify' },
-                                    ]}
-                                />
-                            </div>
-                            <div className="mb-2.5 flex-shrink-0">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteChoice(choice.id)}
-                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Delete
-                                </Button>
-                            </div>
+                        );
+                    })}
+                    {choicesConfig.choices.length === 2 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm text-blue-700">
+                                Choices requires a minimum of 2 alternatives. You cannot delete more options.
+                            </p>
                         </div>
-                    ))}
+                    )}
                     {hasDisqualifyOption && (
                         <div className="pt-2">
                             <Input

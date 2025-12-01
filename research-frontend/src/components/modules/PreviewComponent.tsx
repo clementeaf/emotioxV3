@@ -147,6 +147,60 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
                 </div>
             );
 
+        case 'choices': {
+            const choicesConfig = component.choicesConfig;
+            const [selectedValues, setSelectedValues] = useState<string[]>([]);
+
+            if (!choicesConfig || !choicesConfig.choices || choicesConfig.choices.length === 0) {
+                return (
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm text-gray-500">No choices configured</p>
+                    </div>
+                );
+            }
+
+            const handleChoiceClick = (choiceId: string): void => {
+                if (choicesConfig.choiceType === 'single') {
+                    setSelectedValues([choiceId]);
+                } else {
+                    setSelectedValues((prev) =>
+                        prev.includes(choiceId)
+                            ? prev.filter((id) => id !== choiceId)
+                            : [...prev, choiceId]
+                    );
+                }
+            };
+
+            return (
+                <div className="space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                        {component.label}
+                    </label>
+                    <div className="space-y-2">
+                        {choicesConfig.choices.map((choice, index) => {
+                            const isSelected = selectedValues.includes(choice.id);
+                            return (
+                                <button
+                                    key={choice.id}
+                                    type="button"
+                                    onClick={() => handleChoiceClick(choice.id)}
+                                    className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                                        isSelected
+                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                >
+                                    <span className="text-sm font-medium">
+                                        {choice.label || `Option ${index + 1}`}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
         case 'file-upload': {
             const FileUploadPreview = () => {
                 const [files, setFiles] = useState<UploadedFile[]>([]);
