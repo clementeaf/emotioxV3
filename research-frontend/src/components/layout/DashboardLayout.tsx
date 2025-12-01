@@ -11,14 +11,10 @@ export const DashboardLayout = () => {
             {/* Sidebar */}
             <Sidebar />
 
-            {/* Main Content Area */}
-            <div className="flex flex-col gap-4 w-full">
-
                 {/* Main Content */}
                 <main className="rounded-lg bg-white w-full h-full">
                         <Outlet />
                 </main>
-            </div>
         </div>
     );
 };

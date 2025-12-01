@@ -34,9 +34,8 @@ export const LivePreviewPanel = ({
             <div className="flex-1 p-6 space-y-6 bg-gray-50 overflow-y-auto">
                 {visibleComponents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                        <div className="text-6xl mb-4">📝</div>
-                        <p className="text-lg font-medium">No components yet</p>
-                        <p className="text-sm">Add components to see the preview</p>
+                        <div className="text-4xl mb-4 font-light">No components yet</div>
+                        <p className="text-sm mt-2">Add components to see the preview</p>
                     </div>
                 ) : (
                     visibleComponents.map((component, index) => (

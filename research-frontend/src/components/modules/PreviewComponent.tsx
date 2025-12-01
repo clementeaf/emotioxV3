@@ -13,6 +13,15 @@ interface PreviewComponentProps {
     component: ComponentConfig;
 }
 
+interface ChoiceSettings {
+    groupLabel?: string;
+    isChoice?: boolean;
+}
+
+interface RadioComponentConfig extends ComponentConfig {
+    choices?: Array<{ label?: string; value?: string }>;
+}
+
 export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
     const [selectValue, setSelectValue] = useState<string>('');
 
@@ -42,7 +51,8 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
     switch (component.type) {
         case 'input':
             // If it's a choice input (grouped), don't show individual label
-            const isChoice = (component.settings as any)?.isChoice;
+            const settings = component.settings as ChoiceSettings | undefined;
+            const isChoice = settings?.isChoice ?? false;
             return (
                 <Input
                     id={`preview-${component.id}`}
@@ -105,7 +115,8 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
 
         case 'radio':
             // Support both 'options' and 'choices' for radio components
-            const radioOptions = (component as any).choices || component.options || [];
+            const radioComponent = component as RadioComponentConfig;
+            const radioOptions = radioComponent.choices || radioComponent.options || [];
             return (
                 <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">

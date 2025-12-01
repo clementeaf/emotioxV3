@@ -212,12 +212,16 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
     }
 
     return (
-        <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="space-y-4 min-w-0 overflow-hidden">
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 min-w-0 overflow-hidden">
                 <h4 className="text-sm font-medium text-gray-700 mb-3">Component Settings</h4>
-                {typeSpecificConfig}
+                <div className="min-w-0 overflow-hidden">
+                    {typeSpecificConfig}
+                </div>
             </div>
-            <ValidationConfigPanel component={component} onUpdate={onUpdate} />
+            <div className="min-w-0 overflow-hidden">
+                <ValidationConfigPanel component={component} onUpdate={onUpdate} />
+            </div>
         </div>
     );
 };

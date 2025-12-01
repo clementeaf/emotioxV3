@@ -26,6 +26,7 @@ import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { ComponentConfigPanel } from '../../components/modules/ComponentConfigPanel';
+import { LivePreviewPanel } from '../../components/modules/LivePreviewPanel';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { useToast } from '../../contexts/ToastContext';
@@ -81,73 +82,79 @@ const SortableItem = ({ component, onUpdate, onDelete, validationErrors, onValid
         <div
             ref={setNodeRef}
             style={style}
-            className={`bg-white rounded-lg border border-gray-200 p-4 shadow-sm ${isDragging ? 'ring-2 ring-blue-500' : ''}`}
+            className={`bg-white rounded-lg border border-gray-200 p-4 shadow-sm overflow-hidden min-w-0 ${isDragging ? 'ring-2 ring-blue-500' : ''}`}
         >
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-4 min-w-0">
                 <div
                     {...attributes}
                     {...listeners}
-                    className="mt-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors"
+                    className="mt-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                     title="Drag to reorder"
                 >
                     <GripVertical className="h-5 w-5" />
                 </div>
-                <div className="flex-1 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                            id={`label-${component.id}`}
-                            label="Label / Question"
-                            value={component.label}
-                            onChange={(e) => {
-                                onUpdate(component.id, { label: e.target.value });
-                                onValidationErrorClear();
-                            }}
-                            error={
-                                validationErrors.length > 0 && 
-                                (!component.label || component.label.trim().length === 0)
-                                    ? 'Label is required'
-                                    : undefined
-                            }
-                            required
-                        />
-                        {(!component.editableFields || component.editableFields.includes('type')) ? (
-                            <CustomSelect
-                                id={`type-${component.id}`}
-                                label="Component Type"
-                                value={component.type}
-                                onChange={(value) => onUpdate(component.id, { type: value as ComponentConfig['type'] })}
-                                options={[
-                                    { value: 'input', label: 'Short Text' },
-                                    { value: 'textarea', label: 'Long Text' },
-                                    { value: 'select', label: 'Select / Dropdown' },
-                                    { value: 'file-upload', label: 'File Upload' },
-                                    { value: 'choices', label: 'Choices' },
-                                ]}
-                                placeholder="Select Type"
+                <div className="flex-1 space-y-4 min-w-0 overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                        <div className="min-w-0 overflow-hidden">
+                            <Input
+                                id={`label-${component.id}`}
+                                label="Label / Question"
+                                value={component.label}
+                                onChange={(e) => {
+                                    onUpdate(component.id, { label: e.target.value });
+                                    onValidationErrorClear();
+                                }}
+                                error={
+                                    validationErrors.length > 0 && 
+                                    (!component.label || component.label.trim().length === 0)
+                                        ? 'Label is required'
+                                        : undefined
+                                }
+                                required
                             />
-                        ) : (
-                            <div className="space-y-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Component Type
-                                </label>
-                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-500">
-                                    {getComponentLabel(component.type)}
+                        </div>
+                        <div className="min-w-0 overflow-hidden">
+                            {(!component.editableFields || component.editableFields.includes('type')) ? (
+                                <CustomSelect
+                                    id={`type-${component.id}`}
+                                    label="Component Type"
+                                    value={component.type}
+                                    onChange={(value) => onUpdate(component.id, { type: value as ComponentConfig['type'] })}
+                                    options={[
+                                        { value: 'input', label: 'Short Text' },
+                                        { value: 'textarea', label: 'Long Text' },
+                                        { value: 'select', label: 'Select / Dropdown' },
+                                        { value: 'file-upload', label: 'File Upload' },
+                                        { value: 'choices', label: 'Choices' },
+                                    ]}
+                                    placeholder="Select Type"
+                                />
+                            ) : (
+                                <div className="space-y-1 min-w-0 overflow-hidden">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Component Type
+                                    </label>
+                                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-500 min-w-0 overflow-hidden">
+                                        {getComponentLabel(component.type)}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
 
                     {/* Type-specific configuration panel */}
-                    <ComponentConfigPanel
-                        component={component}
-                        onUpdate={(updates) => onUpdate(component.id, updates)}
-                    />
+                    <div className="min-w-0 overflow-hidden">
+                        <ComponentConfigPanel
+                            component={component}
+                            onUpdate={(updates) => onUpdate(component.id, updates)}
+                        />
+                    </div>
                 </div>
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onDelete(component.id)}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
                 >
                     <Trash2 className="h-4 w-4" />
                 </Button>
@@ -176,7 +183,7 @@ export const ModuleBuilderPage = () => {
         })
     );
 
-    const { register, handleSubmit, setValue, formState: { errors } } = useForm<ModuleTemplateForm>({
+    const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<ModuleTemplateForm>({
         resolver: zodResolver(moduleTemplateSchema),
         defaultValues: {
             name: '',
@@ -423,7 +430,7 @@ export const ModuleBuilderPage = () => {
     }
 
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col h-full w-full overflow-hidden">
             {/* Header */}
             <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-4">
@@ -453,13 +460,13 @@ export const ModuleBuilderPage = () => {
             </div>
 
             {/* Split View Content */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden min-w-0">
                 {/* Editor Panel (Left) */}
-                <div className={`${showPreview ? 'w-3/5' : 'w-full'} overflow-y-auto transition-all duration-300`}>
-                    <div className="p-6">
-                        <div className="max-w-4xl mx-auto space-y-8">
+                <div className={`${showPreview ? 'w-3/5' : 'w-full'} overflow-y-auto overflow-x-hidden transition-all duration-300 min-w-0`}>
+                    <div className="p-6 min-w-0">
+                        <div className="space-y-8 min-w-0 max-w-full">
                             {/* Basic Info */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4 min-w-0 overflow-hidden">
                                 <h2 className="text-lg font-semibold text-gray-900">Basic Information</h2>
                                 <Input
                                     id="name"
@@ -479,10 +486,10 @@ export const ModuleBuilderPage = () => {
                             </div>
 
                             {/* Components Builder */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
+                            <div className="space-y-4 min-w-0 overflow-hidden">
+                                <div className="flex items-center justify-between min-w-0">
                                     <h2 className="text-lg font-semibold text-gray-900">Components</h2>
-                                    <Button onClick={handleAddComponent} variant="outline" size="sm">
+                                    <Button onClick={handleAddComponent} variant="outline" size="sm" className="flex-shrink-0">
                                         <Plus className="h-4 w-4 mr-2" />
                                         Add Component
                                     </Button>
@@ -490,7 +497,7 @@ export const ModuleBuilderPage = () => {
 
                                 {/* Validation Errors */}
                                 {validationErrors.length > 0 && (
-                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 w-full min-w-0 overflow-hidden">
                                         <h3 className="text-sm font-semibold text-red-800 mb-2">
                                             Validation Errors:
                                         </h3>
@@ -504,7 +511,7 @@ export const ModuleBuilderPage = () => {
                                     </div>
                                 )}
 
-                                <div className="space-y-4">
+                                <div className="space-y-4 min-w-0 overflow-hidden">
                                     {components.length === 0 ? (
                                         <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                                             <p className="text-gray-500">No components added yet.</p>
@@ -522,7 +529,7 @@ export const ModuleBuilderPage = () => {
                                                 items={components.filter(c => !c.hidden).map(c => c.id)}
                                                 strategy={verticalListSortingStrategy}
                                             >
-                                                <div className="space-y-4">
+                                                <div className="space-y-4 min-w-0 overflow-hidden">
                                                     {components
                                                         .filter(c => !c.hidden)
                                                         .map((component) => (
@@ -550,7 +557,7 @@ export const ModuleBuilderPage = () => {
                 </div>
 
                 {/* Preview Panel (Right) */}
-                {/* {showPreview && (
+                {showPreview && (
                     <div className="w-2/5 h-full border-l bg-white flex flex-col">
                         <LivePreviewPanel
                             moduleName={watch('name')}
@@ -558,7 +565,7 @@ export const ModuleBuilderPage = () => {
                             components={components}
                         />
                     </div>
-                )} */}
+                )}
             </div>
         </div>
     );
