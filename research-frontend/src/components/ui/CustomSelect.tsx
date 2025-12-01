@@ -104,7 +104,7 @@ export const CustomSelect = ({
                     onClick={() => !disabled && setIsOpen(!isOpen)}
                     disabled={disabled}
                     className={cn(
-                        'flex h-10 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:cursor-not-allowed disabled:opacity-50 transition-colors min-w-0',
+                        'flex h-10 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors min-w-0',
                         error && 'border-red-300 focus:ring-red-400 focus:border-red-400',
                         className
                     )}

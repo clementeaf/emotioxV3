@@ -19,6 +19,19 @@ export interface FileUploadConfig {
     allowParticipantSelection?: boolean;
 }
 
+export interface ChoiceOption {
+    id: string;
+    label: string;
+    eligibility: 'Qualify' | 'Disqualify';
+}
+
+export interface ChoicesConfig {
+    choiceType: 'single' | 'multiple';
+    required: boolean;
+    choices: ChoiceOption[];
+    disqualifyRedirectUrl?: string;
+}
+
 export interface ValidationRule {
     type: 'required' | 'minLength' | 'maxLength' | 'pattern' | 'minFiles' | 'maxFiles';
     value?: string | number | boolean;
@@ -40,6 +53,7 @@ export interface ComponentConfig {
     placeholder?: PlaceholderConfig;
     selectRange?: SelectRangeConfig;
     fileUpload?: FileUploadConfig;
+    choicesConfig?: ChoicesConfig;
     options?: { label: string; value: string }[];
     editableFields?: string[];
     hidden?: boolean;

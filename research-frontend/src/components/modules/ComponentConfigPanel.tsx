@@ -1,7 +1,9 @@
 import { Input } from '../ui/Input';
 import { Toggle } from '../ui/Toggle';
 import { CustomSelect } from '../ui/CustomSelect';
-import type { ComponentConfig, SelectRangeConfig } from '../../types/moduleBuilder.types';
+import { Button } from '../ui/Button';
+import { Trash2, Plus } from 'lucide-react';
+import type { ComponentConfig, SelectRangeConfig, ChoiceOption } from '../../types/moduleBuilder.types';
 
 interface ComponentConfigPanelProps {
     component: ComponentConfig;
@@ -137,6 +139,164 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         );
     };
 
+    // Choices: Configuration for choices component
+    const renderChoicesConfig = () => {
+        const choicesConfig = component.choicesConfig || {
+            choiceType: 'single' as const,
+            required: false,
+            choices: [
+                { id: crypto.randomUUID(), label: 'Option 1', eligibility: 'Qualify' as const },
+                { id: crypto.randomUUID(), label: 'Option 2', eligibility: 'Disqualify' as const },
+                { id: crypto.randomUUID(), label: 'Option 3', eligibility: 'Disqualify' as const },
+            ],
+            disqualifyRedirectUrl: '',
+        };
+
+        const hasDisqualifyOption = choicesConfig.choices.some(choice => choice.eligibility === 'Disqualify');
+
+        const handleChoiceTypeChange = (value: string): void => {
+            onUpdate({
+                choicesConfig: {
+                    ...choicesConfig,
+                    choiceType: value as 'single' | 'multiple',
+                },
+            });
+        };
+
+        const handleChoiceLabelChange = (choiceId: string, label: string): void => {
+            const updatedChoices = choicesConfig.choices.map((choice) =>
+                choice.id === choiceId ? { ...choice, label } : choice
+            );
+            onUpdate({
+                choicesConfig: {
+                    ...choicesConfig,
+                    choices: updatedChoices,
+                },
+            });
+        };
+
+        const handleChoiceEligibilityChange = (choiceId: string, eligibility: 'Qualify' | 'Disqualify'): void => {
+            const updatedChoices = choicesConfig.choices.map((choice) =>
+                choice.id === choiceId ? { ...choice, eligibility } : choice
+            );
+            onUpdate({
+                choicesConfig: {
+                    ...choicesConfig,
+                    choices: updatedChoices,
+                },
+            });
+        };
+
+        const handleAddChoice = (): void => {
+            const newChoice: ChoiceOption = {
+                id: crypto.randomUUID(),
+                label: `Option ${choicesConfig.choices.length + 1}`,
+                eligibility: 'Qualify',
+            };
+            onUpdate({
+                choicesConfig: {
+                    ...choicesConfig,
+                    choices: [...choicesConfig.choices, newChoice],
+                },
+            });
+        };
+
+        const handleDeleteChoice = (choiceId: string): void => {
+            const updatedChoices = choicesConfig.choices.filter((choice) => choice.id !== choiceId);
+            onUpdate({
+                choicesConfig: {
+                    ...choicesConfig,
+                    choices: updatedChoices,
+                },
+            });
+        };
+
+        const handleDisqualifyUrlChange = (url: string): void => {
+            onUpdate({
+                choicesConfig: {
+                    ...choicesConfig,
+                    disqualifyRedirectUrl: url,
+                },
+            });
+        };
+
+        return (
+            <div className="space-y-4">
+                <CustomSelect
+                    id={`choice-type-${component.id}`}
+                    label=""
+                    value={choicesConfig.choiceType}
+                    onChange={handleChoiceTypeChange}
+                    options={[
+                        { value: 'single', label: 'Single choice' },
+                        { value: 'multiple', label: 'Multiple choice' },
+                    ]}
+                />
+                <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700">
+                        Choices (Press ENTER for new line or paste a list)
+                    </h4>
+                    {choicesConfig.choices.map((choice, index) => (
+                        <div key={choice.id} className="flex items-end gap-3">
+                            <div className="flex-1 min-w-0">
+                                <Input
+                                    id={`choice-${choice.id}-label`}
+                                    label=""
+                                    value={choice.label}
+                                    onChange={(e) => handleChoiceLabelChange(choice.id, e.target.value)}
+                                    placeholder={`Option ${index + 1}`}
+                                />
+                            </div>
+                            <div className="w-40 min-w-0">
+                                <CustomSelect
+                                    id={`choice-${choice.id}-eligibility`}
+                                    label="Eligibility"
+                                    value={choice.eligibility}
+                                    onChange={(value) => handleChoiceEligibilityChange(choice.id, value as 'Qualify' | 'Disqualify')}
+                                    options={[
+                                        { value: 'Qualify', label: 'Qualify' },
+                                        { value: 'Disqualify', label: 'Disqualify' },
+                                    ]}
+                                />
+                            </div>
+                            <div className="mb-2.5 flex-shrink-0">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteChoice(choice.id)}
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Delete
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                    {hasDisqualifyOption && (
+                        <div className="pt-2">
+                            <Input
+                                id={`disqualify-url-${component.id}`}
+                                label="Disqualify Redirect URL"
+                                value={choicesConfig.disqualifyRedirectUrl || ''}
+                                onChange={(e) => handleDisqualifyUrlChange(e.target.value)}
+                                placeholder="https://example.com/disqualified"
+                                type="url"
+                            />
+                        </div>
+                    )}
+                    <Button
+                        onClick={handleAddChoice}
+                        variant="outline"
+                        className="w-full"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add another choice
+                    </Button>
+                </div>
+            </div>
+        );
+    };
+
     // File Upload: Max size configuration
     const renderFileUploadConfig = () => {
         const maxSizeMB = component.fileUpload?.maxSizeMB ?? 5;
@@ -207,6 +367,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         const canEditPlaceholder = !component.editableFields || component.editableFields.includes('placeholder');
         const canEditSelectRange = !component.editableFields || component.editableFields.includes('selectRange');
         const canEditFileUpload = !component.editableFields || component.editableFields.includes('fileUpload');
+        const canEditChoices = !component.editableFields || component.editableFields.includes('choicesConfig');
 
         switch (component.type) {
             case 'input':
@@ -216,6 +377,8 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                 return canEditSelectRange ? renderSelectRangeConfig() : null;
             case 'file-upload':
                 return canEditFileUpload ? renderFileUploadConfig() : null;
+            case 'choices':
+                return canEditChoices ? renderChoicesConfig() : null;
             default:
                 return null;
         }

@@ -51,7 +51,7 @@ const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
                         <div
                             onClick={handleToggleClick}
                             className={cn(
-                                'w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-400 peer-checked:bg-blue-600 transition-colors cursor-pointer',
+                                'w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-colors cursor-pointer',
                                 'after:content-[""] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5',
                                 error && 'peer-focus:ring-red-400',
                                 disabled && 'opacity-50 cursor-not-allowed',

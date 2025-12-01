@@ -104,6 +104,7 @@ const SortableItem = ({ component, onUpdate, onDelete, validationErrors, onValid
                                     onUpdate(component.id, { label: e.target.value });
                                     onValidationErrorClear();
                                 }}
+                                placeholder={component.type === 'choices' ? 'Ask something' : undefined}
                                 error={
                                     validationErrors.length > 0 && 
                                     (!component.label || component.label.trim().length === 0)
@@ -230,71 +231,25 @@ export const ModuleBuilderPage = () => {
     };
 
     const handleUpdateComponent = (id: string, updates: Partial<ComponentConfig>) => {
-        // If changing type to 'choices', replace the component with 3 input components
+        // If changing type to 'choices', initialize choicesConfig
         if (updates.type === 'choices') {
-            const componentIndex = components.findIndex(c => c.id === id);
-            if (componentIndex !== -1) {
-                const baseOrder = components[componentIndex].order ?? componentIndex + 1;
-                const newComponents: ComponentConfig[] = [
-                    {
-                        id: crypto.randomUUID(),
-                        type: 'input',
-                        label: '',
-                        placeholder: {
-                            enabled: true,
-                            text: 'Escribe la opción 1...'
-                        },
-                        order: baseOrder,
-                        settings: {
-                            groupLabel: 'CHOICES',
-                            isChoice: true
-                        }
-                    },
-                    {
-                        id: crypto.randomUUID(),
-                        type: 'input',
-                        label: '',
-                        placeholder: {
-                            enabled: true,
-                            text: 'Escribe la opción 2...'
-                        },
-                        order: baseOrder + 1,
-                        settings: {
-                            groupLabel: 'CHOICES',
-                            isChoice: true
-                        }
-                    },
-                    {
-                        id: crypto.randomUUID(),
-                        type: 'input',
-                        label: '',
-                        placeholder: {
-                            enabled: true,
-                            text: 'Escribe la opción 3...'
-                        },
-                        order: baseOrder + 2,
-                        settings: {
-                            groupLabel: 'CHOICES',
-                            isChoice: true
-                        }
-                    }
-                ];
-
-                // Replace the current component with the 3 new input components
-                const updatedComponents = [...components];
-                updatedComponents.splice(componentIndex, 1, ...newComponents);
-                setComponents(updatedComponents);
-                // Limpiar errores de validación cuando se cambia a choices
-                if (validationErrors.length > 0) {
-                    setValidationErrors([]);
-                }
-                return;
+            const component = components.find(c => c.id === id);
+            if (component && component.type !== 'choices') {
+                updates.choicesConfig = {
+                    choiceType: 'single',
+                    required: false,
+                    choices: [
+                        { id: crypto.randomUUID(), label: 'Option 1', eligibility: 'Qualify' },
+                        { id: crypto.randomUUID(), label: 'Option 2', eligibility: 'Disqualify' },
+                        { id: crypto.randomUUID(), label: 'Option 3', eligibility: 'Disqualify' },
+                    ],
+                };
             }
         }
 
         setComponents(components.map(c => c.id === id ? { ...c, ...updates } : c));
-        // Limpiar errores de validación cuando se actualiza un componente (excepto cuando se cambia a choices)
-        if (validationErrors.length > 0 && updates.type !== 'choices') {
+        // Limpiar errores de validación cuando se actualiza un componente
+        if (validationErrors.length > 0) {
             setValidationErrors([]);
         }
     };
@@ -345,12 +300,16 @@ export const ModuleBuilderPage = () => {
             return errors;
         }
 
-        // Validar que todos los componentes tengan label válido (excepto los que son parte de un grupo choices)
+        // Validar que todos los componentes tengan label válido (excepto los que son parte de un grupo choices antiguo)
         const componentsWithoutLabel = visibleComponents.filter(
             c => {
                 const isChoice = (c.settings as { groupLabel?: string; isChoice?: boolean })?.isChoice;
-                // No validar labels de componentes choices aquí, se validan en el grupo
+                // No validar labels de componentes choices antiguos aquí
                 if (isChoice) return false;
+                // Validar label para componentes choices nuevos
+                if (c.type === 'choices') {
+                    return !c.label || c.label.trim().length === 0;
+                }
                 return !c.label || c.label.trim().length === 0;
             }
         );
@@ -359,13 +318,29 @@ export const ModuleBuilderPage = () => {
             errors.push(`Please add a label to all components. ${componentsWithoutLabel.length} component${componentsWithoutLabel.length > 1 ? 's' : ''} ${componentsWithoutLabel.length > 1 ? 'are' : 'is'} missing a label.`);
         }
 
-        // Validar componentes de tipo 'choices' (agrupados por groupLabel)
+        // Validar componentes de tipo 'choices' nuevos
+        const choicesComponents = visibleComponents.filter(c => c.type === 'choices');
+        choicesComponents.forEach(component => {
+            const choicesConfig = component.choicesConfig;
+            if (!choicesConfig || !choicesConfig.choices || choicesConfig.choices.length === 0) {
+                errors.push(`Choices component "${component.label || component.id}" must have at least one choice option`);
+            } else {
+                const invalidChoices = choicesConfig.choices.filter(
+                    c => !c.label || c.label.trim().length === 0
+                );
+                if (invalidChoices.length > 0) {
+                    errors.push(`Choices component "${component.label || component.id}" has ${invalidChoices.length} choice${invalidChoices.length > 1 ? 's' : ''} without label`);
+                }
+            }
+        });
+
+        // Validar componentes de tipo 'choices' antiguos (agrupados por groupLabel) - mantener compatibilidad
         const choiceGroups = new Map<string, ComponentConfig[]>();
         visibleComponents.forEach(component => {
             const groupLabel = (component.settings as { groupLabel?: string; isChoice?: boolean })?.groupLabel;
             const isChoice = (component.settings as { groupLabel?: string; isChoice?: boolean })?.isChoice;
             
-            if (groupLabel && isChoice) {
+            if (groupLabel && isChoice && component.type !== 'choices') {
                 if (!choiceGroups.has(groupLabel)) {
                     choiceGroups.set(groupLabel, []);
                 }
@@ -373,7 +348,7 @@ export const ModuleBuilderPage = () => {
             }
         });
 
-        // Validar que cada grupo de choices tenga exactamente 3 componentes con labels válidos
+        // Validar que cada grupo de choices antiguo tenga exactamente 3 componentes con labels válidos
         choiceGroups.forEach((choiceComponents, groupLabel) => {
             if (choiceComponents.length !== 3) {
                 errors.push(`Choices group "${groupLabel}" must have exactly 3 components, but found ${choiceComponents.length}`);
