@@ -142,6 +142,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
     const renderFileUploadConfig = () => {
         const maxSizeMB = component.fileUpload?.maxSizeMB ?? 5;
         const allowHitZones = component.fileUpload?.allowHitZones ?? false;
+        const allowParticipantSelection = component.fileUpload?.allowParticipantSelection ?? false;
 
         return (
             <div className="space-y-3">
@@ -168,7 +169,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                 <Toggle
                     id={`allow-hitzones-${component.id}`}
                     label="Enable HitZone Editing"
-                    description="Allow participants to mark areas on uploaded photos"
+                    description="Allow researchers to assign hitzones on uploaded photos"
                     checked={allowHitZones}
                     onChange={(e) => {
                         onUpdate({
@@ -176,6 +177,23 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                                 ...component.fileUpload,
                                 maxSizeMB,
                                 allowHitZones: e.target.checked,
+                                allowParticipantSelection,
+                            },
+                        });
+                    }}
+                />
+                <Toggle
+                    id={`allow-participant-selection-${component.id}`}
+                    label="Enable Participant Image Selection"
+                    description="Allow participants to choose their preferred image from uploaded images"
+                    checked={allowParticipantSelection}
+                    onChange={(e) => {
+                        onUpdate({
+                            fileUpload: {
+                                ...component.fileUpload,
+                                maxSizeMB,
+                                allowHitZones,
+                                allowParticipantSelection: e.target.checked,
                             },
                         });
                     }}

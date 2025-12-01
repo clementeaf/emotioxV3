@@ -16,6 +16,7 @@ export interface FileUploadConfig {
     maxSizeMB: number;
     acceptedFormats?: string[];
     allowHitZones?: boolean;
+    allowParticipantSelection?: boolean;
 }
 
 export interface ValidationRule {
