@@ -8,6 +8,8 @@ interface LivePreviewPanelProps {
 }
 
 export const LivePreviewPanel = ({
+    moduleName,
+    moduleDescription,
     components
 }: LivePreviewPanelProps) => {
     const visibleComponents = components.filter(c => !c.hidden);
@@ -16,7 +18,12 @@ export const LivePreviewPanel = ({
         <div className="h-full max-h-[800px] flex flex-col overflow-hidden">
             {/* Preview Header */}
             <div className="sticky top-0 bg-blue-600 text-white p-4 z-10 rounded-t-lg">
-                Module Preview
+                <h2 className="text-lg font-semibold">
+                    {moduleName || 'Untitled Module'}
+                </h2>
+                {moduleDescription && (
+                    <p className="text-sm text-blue-100 mt-1">{moduleDescription}</p>
+                )}
             </div>
 
             {/* Preview Content */}
