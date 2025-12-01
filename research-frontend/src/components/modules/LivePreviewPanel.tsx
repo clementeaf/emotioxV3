@@ -27,24 +27,26 @@ export const LivePreviewPanel = ({
             </div>
 
             {/* Preview Content */}
-            <div className="h-full p-6">
+            <div className="h-full p-6 overflow-y-auto">
                 {visibleComponents.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
                         <div className="text-4xl mb-4 font-light">No components yet</div>
                         <p className="text-sm mt-2">Add components to see the preview</p>
                     </div>
                 ) : (
-                    visibleComponents.map((component, index) => (
-                        <div
-                            key={component.id}
-                            className="bg-white rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md"
-                        >
-                            <div className="text-xs text-gray-400 mb-2 font-medium">
-                                Component {index + 1}
+                    <div className="space-y-4">
+                        {visibleComponents.map((component, index) => (
+                            <div
+                                key={component.id}
+                                className="bg-white rounded-lg p-4 border border-gray-200 transition-all hover:shadow-md"
+                            >
+                                <div className="text-xs text-gray-400 mb-2 font-medium">
+                                    Component {index + 1}
+                                </div>
+                                <PreviewComponent component={component} />
                             </div>
-                            <PreviewComponent component={component} />
-                        </div>
-                    ))
+                        ))}
+                    </div>
                 )}
             </div>
         </div>
