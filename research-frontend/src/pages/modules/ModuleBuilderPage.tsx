@@ -533,7 +533,7 @@ export const ModuleBuilderPage = () => {
 
                 {/* Preview Panel (Right) */}
                 {showPreview && (
-                    <div className="w-2/5 h-full border-l bg-white flex flex-col">
+                    <div className="w-2/5 h-full border-l flex flex-col">
                         <LivePreviewPanel
                             moduleName={watch('name')}
                             moduleDescription={watch('description')}
