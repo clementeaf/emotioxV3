@@ -1,7 +1,6 @@
 import { Input } from '../ui/Input';
 import { Toggle } from '../ui/Toggle';
 import { CustomSelect } from '../ui/CustomSelect';
-import { ValidationConfigPanel } from './ValidationConfigPanel';
 import type { ComponentConfig, SelectRangeConfig } from '../../types/moduleBuilder.types';
 
 interface ComponentConfigPanelProps {
@@ -177,7 +176,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                                 ...component.fileUpload,
                                 maxSizeMB,
                                 allowHitZones: e.target.checked,
-                                allowParticipantSelection,
+                                allowParticipantSelection: e.target.checked ? false : allowParticipantSelection,
                             },
                         });
                     }}
@@ -192,7 +191,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                             fileUpload: {
                                 ...component.fileUpload,
                                 maxSizeMB,
-                                allowHitZones,
+                                allowHitZones: e.target.checked ? false : allowHitZones,
                                 allowParticipantSelection: e.target.checked,
                             },
                         });
@@ -225,8 +224,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
     const typeSpecificConfig = renderTypeSpecificConfig();
 
     if (!typeSpecificConfig) {
-        // If no type-specific config, only show validation
-        return <ValidationConfigPanel component={component} onUpdate={onUpdate} />;
+        return null;
     }
 
     return (
@@ -236,9 +234,6 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                 <div className="min-w-0 overflow-hidden">
                     {typeSpecificConfig}
                 </div>
-            </div>
-            <div className="min-w-0 overflow-hidden">
-                <ValidationConfigPanel component={component} onUpdate={onUpdate} />
             </div>
         </div>
     );
