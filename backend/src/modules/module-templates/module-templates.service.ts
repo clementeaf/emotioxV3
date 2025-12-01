@@ -154,7 +154,7 @@ export const getUsage = async (id: string) => {
         // Modules in researches that have is_from_template = true and match the template
         // Simplified query to avoid complex JOINs that might fail
         const usageQuery = `
-            SELECT DISTINCT r.id, r.name
+            SELECT DISTINCT r.id, r.name, r.created_at
             FROM researches r
             INNER JOIN stages s ON r.id = s.research_id AND r.deleted_at IS NULL
             INNER JOIN modules m ON s.id = m.stage_id AND m.is_from_template = true
