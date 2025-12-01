@@ -200,8 +200,50 @@ export const ModuleBuilderPage = () => {
                 setValue('name', template.name);
                 setValue('description', template.description || '');
                 // Parse the structure to get components array
-                const structure = template.structure as { components?: ComponentConfig[] };
-                setComponents(structure?.components || []);
+                // Handle both string and object formats
+                let structure: { components?: ComponentConfig[] };
+                if (typeof template.structure === 'string') {
+                    try {
+                        structure = JSON.parse(template.structure) as { components?: ComponentConfig[] };
+                    } catch (parseError) {
+                        console.error('Failed to parse structure:', parseError);
+                        structure = {};
+                    }
+                } else {
+                    structure = template.structure as { components?: ComponentConfig[] };
+                }
+                // Ensure components have proper structure, especially for fileUpload config
+                const loadedComponents = (structure?.components || []).map((comp: any): ComponentConfig => {
+                    // Clean component to match ComponentConfig interface
+                    const cleaned: ComponentConfig = {
+                        id: comp.id,
+                        type: comp.type,
+                        label: comp.label,
+                        placeholder: comp.placeholder,
+                        selectRange: comp.selectRange,
+                        choicesConfig: comp.choicesConfig,
+                        options: comp.options,
+                        editableFields: comp.editableFields,
+                        hidden: comp.hidden,
+                        settings: comp.settings,
+                        order: comp.order,
+                        validation: comp.validation,
+                    };
+
+                    // Ensure fileUpload config is properly structured
+                    if (comp.type === 'file-upload' && comp.fileUpload) {
+                        // Normalize fileUpload config, preserving boolean values explicitly
+                        cleaned.fileUpload = {
+                            maxSizeMB: comp.fileUpload.maxSizeMB ?? 5,
+                            acceptedFormats: comp.fileUpload.acceptedFormats || ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
+                            // Explicitly convert to boolean - handle both true/false and string "true"/"false"
+                            allowHitZones: comp.fileUpload.allowHitZones === true || comp.fileUpload.allowHitZones === 'true',
+                            allowParticipantSelection: comp.fileUpload.allowParticipantSelection === true || comp.fileUpload.allowParticipantSelection === 'true',
+                        };
+                    }
+                    return cleaned;
+                });
+                setComponents(loadedComponents);
             } catch (error: unknown) {
                 console.error('Failed to load template:', error);
                 const errorMessage = error instanceof Error ? error.message : 'Failed to load module template';

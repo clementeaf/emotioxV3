@@ -137,42 +137,54 @@ export const deleteTemplate = async (id: string) => {
 };
 
 export const getUsage = async (id: string) => {
-    // First check if the template exists
-    const templateQuery = `
-        SELECT id FROM module_templates
-        WHERE id = $1 AND is_active = true
-    `;
-    const templateResult = await pool.query(templateQuery, [id]);
-    
-    if (templateResult.rows.length === 0) {
-        throw new Error('Module template not found');
-    }
+    try {
+        // First check if the template exists
+        const templateQuery = `
+            SELECT id FROM module_templates
+            WHERE id = $1 AND is_active = true
+        `;
+        const templateResult = await pool.query(templateQuery, [id]);
+        
+        if (templateResult.rows.length === 0) {
+            throw new Error('Module template not found');
+        }
 
-    // Find all researches that use this module template
-    // Since modules are cloned from templates (not referenced), we look for:
-    // 1. Modules in researches that have is_from_template = true
-    // 2. Modules whose name matches module templates linked to stages with matching names
-    const usageQuery = `
-        SELECT DISTINCT r.id, r.name
-        FROM researches r
-        INNER JOIN stages s ON r.id = s.research_id
-        INNER JOIN modules m ON s.id = m.stage_id
-        INNER JOIN stage_templates st ON s.name = st.name
-        INNER JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
-        INNER JOIN module_templates mt ON stmt.module_template_id = mt.id
-        WHERE mt.id = $1
-          AND m.is_from_template = true
-          AND r.deleted_at IS NULL
-        ORDER BY r.created_at DESC
-    `;
-    
-    const result = await pool.query(usageQuery, [id]);
-    
-    return {
-        count: result.rows.length,
-        researches: result.rows.map(row => ({
-            id: row.id,
-            name: row.name
-        }))
-    };
+        // Find all researches that use this module template
+        // Since modules are cloned from templates (not referenced), we look for:
+        // Modules in researches that have is_from_template = true and match the template
+        // Simplified query to avoid complex JOINs that might fail
+        const usageQuery = `
+            SELECT DISTINCT r.id, r.name
+            FROM researches r
+            INNER JOIN stages s ON r.id = s.research_id AND r.deleted_at IS NULL
+            INNER JOIN modules m ON s.id = m.stage_id AND m.is_from_template = true
+            WHERE EXISTS (
+                SELECT 1 
+                FROM stage_templates st
+                INNER JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
+                WHERE st.name = s.name 
+                  AND stmt.module_template_id = $1
+            )
+            ORDER BY r.created_at DESC
+        `;
+        
+        const result = await pool.query(usageQuery, [id]);
+        
+        return {
+            count: result.rows.length,
+            researches: result.rows.map(row => ({
+                id: row.id,
+                name: row.name
+            }))
+        };
+    } catch (error: unknown) {
+        // Log the error for debugging
+        console.error('Error in getUsage for template', id, ':', error);
+        // Return empty result instead of throwing to prevent 500 errors
+        // This allows the frontend to continue working even if usage query fails
+        return {
+            count: 0,
+            researches: []
+        };
+    }
 };

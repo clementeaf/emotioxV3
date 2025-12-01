@@ -554,7 +554,9 @@ const cognitiveTasksModules: ModuleDefinition[] = [
                 fileUpload: {
                     maxSizeMB: 5,
                     acceptedFormats: ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
-                    recommendedResolution: '1000x1000px'
+                    recommendedResolution: '1000x1000px',
+                    allowHitZones: true,
+                    allowParticipantSelection: false
                 }
             }
         ]
