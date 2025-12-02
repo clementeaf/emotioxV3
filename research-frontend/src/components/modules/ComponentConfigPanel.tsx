@@ -395,6 +395,11 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
 
     // Render configuration based on component type
     const renderTypeSpecificConfig = () => {
+        // Special handling for NPS scale range - should not have any configuration
+        if (component.id?.includes('nps-scale-range')) {
+            return null;
+        }
+        
         // If editableFields is defined, check if specific config sections are allowed
         const canEditPlaceholder = !component.editableFields || component.editableFields.includes('placeholder');
         const canEditSelectRange = !component.editableFields || component.editableFields.includes('selectRange');

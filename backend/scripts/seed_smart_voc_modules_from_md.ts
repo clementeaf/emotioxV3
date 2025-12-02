@@ -51,6 +51,9 @@ interface ModuleDefinition {
             endLabel?: string;
             variant?: string;
         };
+        settings?: {
+            [key: string]: unknown;
+        };
     }>;
 }
 
@@ -62,11 +65,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'csat-title',
                 type: 'input',
-                label: 'Título de la pregunta',
+                label: 'Question',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe el título de la pregunta...'
+                    text: 'Type your question here...'
                 },
                 required: true,
                 order: 1
@@ -74,11 +77,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'csat-description',
                 type: 'textarea',
-                label: 'Descripción',
+                label: 'Description',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe una descripción opcional...'
+                    text: 'Enter an optional description...'
                 },
                 required: false,
                 order: 2
@@ -86,11 +89,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'csat-instructions',
                 type: 'textarea',
-                label: 'Instrucciones',
+                label: 'Instructions',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe instrucciones opcionales...'
+                    text: 'Enter optional instructions...'
                 },
                 required: false,
                 order: 3
@@ -98,10 +101,10 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'csat-display-type',
                 type: 'select',
-                label: 'Tipo de visualización',
+                label: 'Display Type',
                 options: [
-                    { value: 'stars', label: 'Estrellas (⭐⭐⭐⭐⭐)' },
-                    { value: 'numbers', label: 'Números (1-5)' }
+                    { value: 'stars', label: 'Stars (⭐⭐⭐⭐⭐)' },
+                    { value: 'numbers', label: 'Numbers (1-5)' }
                 ],
                 required: true,
                 order: 4
@@ -115,11 +118,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'ces-title',
                 type: 'input',
-                label: 'Título',
+                label: 'Question',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe el título de la pregunta...'
+                    text: 'Type your question here...'
                 },
                 required: true,
                 order: 1
@@ -127,11 +130,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'ces-description',
                 type: 'textarea',
-                label: 'Descripción',
+                label: 'Description',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe una descripción opcional...'
+                    text: 'Enter an optional description...'
                 },
                 required: false,
                 order: 2
@@ -139,11 +142,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'ces-instructions',
                 type: 'textarea',
-                label: 'Instrucciones',
+                label: 'Instructions',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe instrucciones opcionales...'
+                    text: 'Enter optional instructions...'
                 },
                 required: false,
                 order: 3
@@ -151,7 +154,7 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'ces-scale',
                 type: 'select',
-                label: 'Escala',
+                label: 'Scale',
                 options: [
                     { value: '1-5', label: '1-5' },
                     { value: '1-7', label: '1-7' },
@@ -167,11 +170,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'ces-start-label',
                 type: 'input',
-                label: 'Etiqueta inicial',
+                label: 'Start Label',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Ej: Muy difícil'
+                    text: 'Ex: Very Difficult'
                 },
                 required: false,
                 order: 5
@@ -179,11 +182,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'ces-end-label',
                 type: 'input',
-                label: 'Etiqueta final',
+                label: 'End Label',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Ej: Muy fácil'
+                    text: 'Ex: Very Easy'
                 },
                 required: false,
                 order: 6
@@ -197,11 +200,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'cv-title',
                 type: 'input',
-                label: 'Título',
+                label: 'Question',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe el título de la pregunta...'
+                    text: 'Type your question here...'
                 },
                 required: true,
                 order: 1
@@ -209,11 +212,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'cv-description',
                 type: 'textarea',
-                label: 'Descripción',
+                label: 'Description',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe una descripción opcional...'
+                    text: 'Enter an optional description...'
                 },
                 required: false,
                 order: 2
@@ -221,11 +224,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'cv-instructions',
                 type: 'textarea',
-                label: 'Instrucciones',
+                label: 'Instructions',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe instrucciones opcionales...'
+                    text: 'Enter optional instructions...'
                 },
                 required: false,
                 order: 3
@@ -233,7 +236,7 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'cv-scale',
                 type: 'select',
-                label: 'Escala',
+                label: 'Scale',
                 options: [
                     { value: '1-5', label: '1-5' },
                     { value: '1-7', label: '1-7' },
@@ -245,11 +248,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'cv-start-label',
                 type: 'input',
-                label: 'Etiqueta inicial',
+                label: 'Start Label',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Ej: Worthless, Malo'
+                    text: 'Ex: Worthless, Bad'
                 },
                 required: false,
                 order: 5
@@ -257,11 +260,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'cv-end-label',
                 type: 'input',
-                label: 'Etiqueta final',
+                label: 'End Label',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Ej: Worth, Excelente'
+                    text: 'Ex: Worth, Excellent'
                 },
                 required: false,
                 order: 6
@@ -275,11 +278,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'nps-title',
                 type: 'input',
-                label: 'Título',
+                label: 'Question',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe el título de la pregunta...'
+                    text: 'Type your question here...'
                 },
                 required: true,
                 order: 1
@@ -287,11 +290,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'nps-description',
                 type: 'textarea',
-                label: 'Descripción',
+                label: 'Description',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe una descripción opcional...'
+                    text: 'Enter an optional description...'
                 },
                 required: false,
                 order: 2
@@ -299,35 +302,32 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'nps-instructions',
                 type: 'textarea',
-                label: 'Instrucciones',
+                label: 'Instructions',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe instrucciones opcionales...'
+                    text: 'Enter optional instructions...'
                 },
                 required: false,
                 order: 3
             },
             {
-                id: 'nps-scale',
-                type: 'select',
-                label: 'Escala',
-                options: [
-                    { value: '0-10', label: '0-10 (Estándar NPS)' },
-                    { value: '1-10', label: '1-10' }
-                ],
-                selectRange: {
-                    type: 'custom',
-                    custom: {
-                        min: 0,
-                        max: 10
-                    },
-                    startLabel: 'Nada probable',
-                    endLabel: 'Muy probable',
-                    variant: 'scale'
+                id: 'nps-scale-range',
+                type: 'input',
+                label: 'Range',
+                defaultValue: '0-10',
+                placeholder: {
+                    enabled: false,
+                    text: ''
                 },
                 required: true,
-                order: 4
+                order: 4,
+                settings: {
+                    readonly: true,
+                    defaultValue: '0-10'
+                },
+                // Explicitly ensure no options are added to this component
+                options: undefined
             }
         ]
     },
@@ -338,11 +338,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'nev-title',
                 type: 'input',
-                label: 'Título',
+                label: 'Question',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe el título de la pregunta...'
+                    text: 'Type your question here...'
                 },
                 required: true,
                 order: 1
@@ -350,11 +350,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'nev-description',
                 type: 'textarea',
-                label: 'Descripción',
+                label: 'Description',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe una descripción opcional...'
+                    text: 'Enter an optional description...'
                 },
                 required: false,
                 order: 2
@@ -362,11 +362,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'nev-instructions',
                 type: 'textarea',
-                label: 'Instrucciones',
+                label: 'Instructions',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe instrucciones opcionales...'
+                    text: 'Enter optional instructions...'
                 },
                 required: false,
                 order: 3
@@ -380,11 +380,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'voc-title',
                 type: 'input',
-                label: 'Título',
+                label: 'Question',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe el título de la pregunta...'
+                    text: 'Type your question here...'
                 },
                 required: true,
                 order: 1
@@ -392,11 +392,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'voc-description',
                 type: 'textarea',
-                label: 'Descripción',
+                label: 'Description',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe una descripción opcional...'
+                    text: 'Enter an optional description...'
                 },
                 required: false,
                 order: 2
@@ -404,11 +404,11 @@ const smartVOCModules: ModuleDefinition[] = [
             {
                 id: 'voc-instructions',
                 type: 'textarea',
-                label: 'Instrucciones',
+                label: 'Instructions',
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe instrucciones opcionales...'
+                    text: 'Enter optional instructions...'
                 },
                 required: false,
                 order: 3

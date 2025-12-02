@@ -138,9 +138,29 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
 
     switch (component.type) {
         case 'input':
-            const isReadonly = component.settings?.readonly === true;
-            const defaultValue = isReadonly && component.settings?.defaultValue 
-                ? String(component.settings.defaultValue) 
+            // Special handling for NPS scale range - should always be readonly
+            if (component.id?.includes('nps-scale-range')) {
+                // Force readonly input with fixed "0-10" value for NPS scale range
+                return (
+                    <Input
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        value="0-10"
+                        onChange={() => {}} // No-op since it's readonly
+                        placeholder=""
+                        disabled={true}
+                        readOnly={true}
+                    />
+                );
+            }
+            
+            // Check if this should be a readonly input based on component ID or existing settings
+            // Special handling for other scale ranges to ensure they're readonly when appropriate
+            const isScaleRange = component.id?.includes('scale-range');
+            const isReadonly = (component.settings?.readonly === true) || 
+                              (isScaleRange && component.settings?.defaultValue);
+            const defaultValue = isReadonly && component.settings?.defaultValue
+                ? String(component.settings.defaultValue)
                 : '';
             return (
                 <Input
@@ -149,8 +169,56 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
                     value={value || defaultValue}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
-                    disabled={isReadonly}
-                    readOnly={isReadonly}
+                    disabled={!!isReadonly}
+                    readOnly={!!isReadonly}
+                />
+            );
+
+        case 'select':
+            // Special handling for NPS scale range - should never be a select
+            if (component.id?.includes('nps-scale-range')) {
+                // Force readonly input with fixed "0-10" value for NPS scale range
+                return (
+                    <Input
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        value="0-10"
+                        onChange={() => {}} // No-op since it's readonly
+                        placeholder=""
+                        disabled={true}
+                        readOnly={true}
+                    />
+                );
+            }
+            
+            // Special handling for other scale ranges - should never be a select
+            if (component.id?.includes('scale-range')) {
+                // Treat as readonly input instead
+                const defaultValue = component.settings?.defaultValue
+                    ? String(component.settings.defaultValue)
+                    : (component.options && component.options.length > 0 
+                       ? component.options[0].value 
+                       : '');
+                return (
+                    <Input
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        value={value || defaultValue}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder=""
+                        disabled={true}
+                        readOnly={true}
+                    />
+                );
+            }
+            return (
+                <CustomSelect
+                    id={`module-${component.id}`}
+                    label={component.label}
+                    value={value}
+                    onChange={onChange}
+                    options={component.options || []}
+                    placeholder="Select an option"
                 />
             );
 
@@ -163,18 +231,6 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
                     rows={4}
-                />
-            );
-
-        case 'select':
-            return (
-                <CustomSelect
-                    id={`module-${component.id}`}
-                    label={component.label}
-                    value={value}
-                    onChange={onChange}
-                    options={component.options || []}
-                    placeholder="Select an option"
                 />
             );
 

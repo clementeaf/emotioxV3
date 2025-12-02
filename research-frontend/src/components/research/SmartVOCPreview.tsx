@@ -21,17 +21,17 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
     // Detectar el tipo de módulo Smart VOC por nombre y componentes
     const getModuleType = (name: string, comps: ComponentConfig[]): 'CSAT' | 'CES' | 'CV' | 'NEV' | 'NPS' | 'VOC' | null => {
         const lowerName = name.toLowerCase();
-        
+
         // Detectar por IDs de componentes (más preciso)
         const componentIds = comps.map(c => c.id?.toLowerCase() || '').join(' ');
-        
+
         if (componentIds.includes('csat') || lowerName.includes('csat') || lowerName.includes('customer satisfaction')) return 'CSAT';
         if (componentIds.includes('ces') || lowerName.includes('ces') || lowerName.includes('customer effort')) return 'CES';
         if (componentIds.includes('cv') || lowerName.includes('cv') || lowerName.includes('cognitive value')) return 'CV';
         if (componentIds.includes('nev') || lowerName.includes('nev') || lowerName.includes('net emotional')) return 'NEV';
         if (componentIds.includes('nps') || lowerName.includes('nps') || lowerName.includes('net promoter')) return 'NPS';
         if (componentIds.includes('voc') || lowerName.includes('voc') || lowerName.includes('voice of customer')) return 'VOC';
-        
+
         return null;
     };
 
@@ -42,7 +42,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
 
     // Obtener título de la pregunta
     const getTitle = (): string => {
-        const titleComponent = components.find(c => 
+        const titleComponent = components.find(c =>
             c.id?.includes('title') || c.id?.includes('question')
         );
         return titleComponent ? getComponentValue(titleComponent.id) : moduleName;
@@ -50,7 +50,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
 
     // Obtener descripción
     const getDescription = (): string | undefined => {
-        const descComponent = components.find(c => 
+        const descComponent = components.find(c =>
             c.id?.includes('description')
         );
         return descComponent ? getComponentValue(descComponent.id) : undefined;
@@ -58,7 +58,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
 
     // Obtener instrucciones
     const getInstructions = (): string | undefined => {
-        const instructionsComponent = components.find(c => 
+        const instructionsComponent = components.find(c =>
             c.id?.includes('instructions')
         );
         return instructionsComponent ? getComponentValue(instructionsComponent.id) : undefined;
@@ -70,7 +70,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
 
         // Para CSAT: obtener tipo de visualización
         if (type === 'CSAT') {
-            const displayTypeComponent = components.find(c => 
+            const displayTypeComponent = components.find(c =>
                 c.id?.includes('display-type') || c.id?.includes('type')
             );
             if (displayTypeComponent) {
@@ -80,25 +80,26 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
 
         // Para CES, CV, NPS: obtener escala
         if (['CES', 'CV', 'NPS'].includes(type)) {
-            const scaleComponent = components.find(c => 
+            const scaleComponent = components.find(c =>
                 c.id?.includes('scale') || c.id?.includes('range')
             );
             if (scaleComponent) {
                 let scaleValue = getComponentValue(scaleComponent.id);
-                
+
                 // Si no hay valor y el componente es readonly con defaultValue, usar defaultValue
                 if (!scaleValue && scaleComponent.settings?.readonly === true && scaleComponent.settings?.defaultValue) {
                     scaleValue = scaleComponent.settings.defaultValue as string;
                 }
-                
+
                 if (scaleValue) {
                     // El valor puede venir como "1-5", "1-7", "0-10", etc.
                     const [start, end] = scaleValue.split('-').map(Number);
                     if (!isNaN(start) && !isNaN(end)) {
                         config.scaleRange = { start, end };
                     }
-                } else if (scaleComponent.options && scaleComponent.options.length > 0) {
+                } else if (scaleComponent.options && scaleComponent.options.length > 0 && !scaleComponent.id?.includes('nps-scale-range')) {
                     // Si no hay valor pero hay opciones, usar la primera opción por defecto
+                    // BUT NEVER do this for NPS scale range - it should always be fixed at 0-10
                     const firstOption = scaleComponent.options[0];
                     if (firstOption?.value) {
                         const [start, end] = firstOption.value.split('-').map(Number);
@@ -115,10 +116,10 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
 
         // Para CV: obtener etiquetas
         if (type === 'CV') {
-            const startLabelComponent = components.find(c => 
+            const startLabelComponent = components.find(c =>
                 c.id?.includes('start-label')
             );
-            const endLabelComponent = components.find(c => 
+            const endLabelComponent = components.find(c =>
                 c.id?.includes('end-label')
             );
             if (startLabelComponent) {
@@ -222,7 +223,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
             case 'NEV':
                 return (
                     <div className="text-center text-xs text-gray-500 italic">
-                        Los participantes seleccionarán valores emocionales
+                        Participants will select emotional values
                     </div>
                 );
 
@@ -231,14 +232,14 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                     <textarea
                         disabled
                         className="w-full h-24 p-3 rounded-lg bg-neutral-100 border border-gray-300 text-gray-400 cursor-not-allowed resize-none"
-                        placeholder="Espacio para comentarios del participante..."
+                        placeholder="Space for participant comments..."
                     />
                 );
 
             default:
                 return (
                     <div className="text-center text-xs text-gray-500 italic">
-                        Vista previa no disponible para este tipo
+                        Preview not available for this type
                     </div>
                 );
         }
@@ -247,10 +248,10 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
     return (
         <div className={`mt-5 bg-neutral-50 p-3 border border-gray-300 rounded-md ${className}`}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-                Vista previa - Así verán esta pregunta los participantes
-                <span className="ml-2 text-xs font-normal text-red-500">(NO EDITABLE)</span>
+                Preview - This is how participants will see this question
+                <span className="ml-2 text-xs font-normal text-red-500">(NOT EDITABLE)</span>
             </label>
-            <div className="mt-2 text-sm text-gray-700 font-medium">{title || 'Título de la pregunta'}</div>
+            <div className="mt-2 text-sm text-gray-700 font-medium">{title || 'Question Title'}</div>
             {description && <div className="mt-1 text-sm text-gray-600">{description}</div>}
             {instructions && <div className="mt-1 text-xs text-gray-500">{instructions}</div>}
 

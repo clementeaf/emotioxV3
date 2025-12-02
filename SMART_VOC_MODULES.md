@@ -14,11 +14,11 @@ En la configuración de Smart VOC del frontend existen **6 módulos disponibles*
 **Descripción:** Customer Satisfaction - Satisfacción del cliente
 
 #### Componentes de Configuración:
-- **FormInput**: Título de la pregunta (requerido)
-- **FormTextarea**: Descripción (opcional)
-- **FormTextarea**: Instrucciones (opcional)
-- **CustomSelect**: Tipo de visualización
-  - Opciones: `'stars'` (Estrellas) | `'numbers'` (Números)
+- **FormInput**: Question (required)
+- **FormTextarea**: Description (optional)
+- **FormTextarea**: Instructions (optional)
+- **CustomSelect**: Display Type
+  - Options: `'stars'` (Stars) | `'numbers'` (Numbers)
 
 #### Configuración por Defecto:
 ```typescript
@@ -42,14 +42,14 @@ En la configuración de Smart VOC del frontend existen **6 módulos disponibles*
 **Descripción:** Customer Effort Score - Esfuerzo del cliente
 
 #### Componentes de Configuración:
-- **FormInput**: Título (requerido)
-- **FormTextarea**: Descripción (opcional)
-- **FormTextarea**: Instrucciones (opcional)
-- **CustomSelect**: Escala
-  - Opciones: `'1-5'` | `'1-7'` | `'1-10'`
+- **FormInput**: Question (required)
+- **FormTextarea**: Description (optional)
+- **FormTextarea**: Instructions (optional)
+- **CustomSelect**: Scale
+  - Options: `'1-5'` | `'1-7'` | `'1-10'`
   - Convierte string a objeto: `{ start: number, end: number }`
-- **FormInput**: Etiqueta inicial (opcional, ej: "Muy difícil")
-- **FormInput**: Etiqueta final (opcional, ej: "Muy fácil")
+- **FormInput**: Start Label (optional, ex: "Very Difficult")
+- **FormInput**: End Label (optional, ex: "Very Easy")
 
 #### Configuración por Defecto:
 ```typescript
@@ -77,13 +77,13 @@ En la configuración de Smart VOC del frontend existen **6 módulos disponibles*
 **Descripción:** Customer Value - Valor del cliente
 
 #### Componentes de Configuración:
-- **FormInput**: Título (requerido)
-- **FormTextarea**: Descripción (opcional)
-- **FormTextarea**: Instrucciones (opcional)
-- **CustomSelect**: Escala
-  - Opciones: `'1-5'` | `'1-7'` | `'1-10'`
-- **FormInput**: Etiqueta inicial (opcional)
-- **FormInput**: Etiqueta final (opcional)
+- **FormInput**: Question (required)
+- **FormTextarea**: Description (optional)
+- **FormTextarea**: Instructions (optional)
+- **CustomSelect**: Scale
+  - Options: `'1-5'` | `'1-7'` | `'1-10'`
+- **FormInput**: Start Label (optional)
+- **FormInput**: End Label (optional)
 
 #### Configuración por Defecto:
 ```typescript
@@ -113,11 +113,11 @@ En la configuración de Smart VOC del frontend existen **6 módulos disponibles*
 **Descripción:** Net Promoter Score - Puntuación de promotor neto
 
 #### Componentes de Configuración:
-- **FormInput**: Título (requerido)
-- **FormTextarea**: Descripción (opcional)
-- **FormTextarea**: Instrucciones (opcional)
-- **CustomSelect**: Escala
-  - Opciones: `'0-10'` (Estándar NPS) | `'1-10'`
+- **FormInput**: Question (required)
+- **FormTextarea**: Description (optional)
+- **FormTextarea**: Instructions (optional)
+- **CustomSelect**: Scale
+  - Options: `'0-10'` (Estándar NPS) | `'1-10'`
 
 #### Configuración por Defecto:
 ```typescript
@@ -145,9 +145,9 @@ En la configuración de Smart VOC del frontend existen **6 módulos disponibles*
 **Descripción:** Net Emotional Value - Valor emocional neto
 
 #### Componentes de Configuración:
-- **FormInput**: Título (requerido)
-- **FormTextarea**: Descripción (opcional)
-- **FormTextarea**: Instrucciones (opcional)
+- **FormInput**: Question (required)
+- **FormTextarea**: Description (optional)
+- **FormTextarea**: Instructions (optional)
 - **Info adicional**: "Jerarquía de Valor Emocional"
 
 #### Configuración por Defecto:
@@ -174,9 +174,9 @@ En la configuración de Smart VOC del frontend existen **6 módulos disponibles*
 **Descripción:** Voice of Customer - Voz del cliente
 
 #### Componentes de Configuración:
-- **FormInput**: Título (requerido)
-- **FormTextarea**: Descripción (opcional)
-- **FormTextarea**: Instrucciones (opcional)
+- **FormInput**: Question (required)
+- **FormTextarea**: Description (optional)
+- **FormTextarea**: Instructions (optional)
 - **Tipo**: Texto abierto (maxLength: 500)
 
 #### Configuración por Defecto:

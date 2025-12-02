@@ -46,13 +46,21 @@ export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleC
         setComponentValues(updated);
     };
 
+    // Filter components for the editor: Hide scale/range components if they have no options
+    const editorComponents = components.filter(component => {
+        if ((component.id?.includes('scale') || component.id?.includes('range')) &&
+            (!component.options || component.options.length === 0)) {
+            return false;
+        }
+        return true;
+    });
+
     return (
-        <div 
+        <div
             ref={cardRef}
             id={`module-${module.id}`}
-            className={`rounded-lg shadow-sm border bg-white transition-all ${
-                isActive ? 'border-blue-400 shadow-md' : 'border-gray-200'
-            }`}
+            className={`rounded-lg shadow-sm border bg-white transition-all ${isActive ? 'border-blue-400 shadow-md' : 'border-gray-200'
+                }`}
         >
             <div className="px-6 py-4 border-b border-gray-200 ">
                 <h3 className="text-base font-semibold text-gray-900">{module.name}</h3>
@@ -62,7 +70,7 @@ export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleC
             </div>
             <div className="p-6">
                 <ModuleContentEditor
-                    components={components}
+                    components={editorComponents}
                     componentValues={localValues}
                     onValueChange={handleComponentValueChange}
                 />

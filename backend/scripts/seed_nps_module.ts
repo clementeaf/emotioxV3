@@ -27,10 +27,10 @@ async function seedNPSModule() {
                     {
                         id: 'nps-title',
                         type: 'input',
-                        label: 'Título de la pregunta',
+                        label: 'Question',
                         placeholder: {
                             enabled: true,
-                            text: 'Introduzca el título de la pregunta'
+                            text: 'Type your question here...'
                         },
                         required: true,
                         order: 1
@@ -38,10 +38,10 @@ async function seedNPSModule() {
                     {
                         id: 'nps-description',
                         type: 'textarea',
-                        label: 'Descripción (opcional)',
+                        label: 'Description (optional)',
                         placeholder: {
                             enabled: true,
-                            text: 'Introduzca una descripción opcional para la pregunta'
+                            text: 'Enter an optional description...'
                         },
                         required: false,
                         order: 2
@@ -49,10 +49,10 @@ async function seedNPSModule() {
                     {
                         id: 'nps-instructions',
                         type: 'textarea',
-                        label: 'Instrucciones (opcional)',
+                        label: 'Instructions (optional)',
                         placeholder: {
                             enabled: true,
-                            text: 'Añada instrucciones o información adicional para los participantes'
+                            text: 'Add instructions...'
                         },
                         required: false,
                         order: 3
@@ -60,7 +60,7 @@ async function seedNPSModule() {
                     {
                         id: 'nps-scale-range',
                         type: 'input',
-                        label: 'Rango',
+                        label: 'Range',
                         placeholder: {
                             enabled: false
                         },
