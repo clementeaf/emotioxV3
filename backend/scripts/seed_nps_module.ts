@@ -25,33 +25,51 @@ async function seedNPSModule() {
             structure: {
                 components: [
                     {
-                        id: 'nps-question',
+                        id: 'nps-title',
                         type: 'input',
-                        label: 'Pregunta',
-                        defaultValue: '¿Qué tan probable es que recomiendes nuestro producto/servicio a un amigo o colega?',
+                        label: 'Título de la pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe la pregunta aquí...'
+                            text: 'Introduzca el título de la pregunta'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'nps-range',
-                        type: 'select',
-                        label: 'Rango',
-                        selectRange: {
-                            type: 'custom',
-                            custom: {
-                                min: 0,
-                                max: 10
-                            },
-                            startLabel: 'Nada probable',
-                            endLabel: 'Muy probable',
-                            variant: 'scale'
+                        id: 'nps-description',
+                        type: 'textarea',
+                        label: 'Descripción (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Introduzca una descripción opcional para la pregunta'
                         },
-                        required: true,
+                        required: false,
                         order: 2
+                    },
+                    {
+                        id: 'nps-instructions',
+                        type: 'textarea',
+                        label: 'Instrucciones (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Añada instrucciones o información adicional para los participantes'
+                        },
+                        required: false,
+                        order: 3
+                    },
+                    {
+                        id: 'nps-scale-range',
+                        type: 'input',
+                        label: 'Rango',
+                        placeholder: {
+                            enabled: false
+                        },
+                        required: false,
+                        order: 4,
+                        settings: {
+                            readonly: true,
+                            defaultValue: '0-10'
+                        }
                     }
                 ]
             }

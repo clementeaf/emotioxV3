@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
+import { SmartVOCPreview } from './SmartVOCPreview';
 import type { Module } from '../../services/research.service';
 
 interface SmartVOCModuleCardProps {
@@ -64,6 +65,12 @@ export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleC
                     components={components}
                     componentValues={localValues}
                     onValueChange={handleComponentValueChange}
+                />
+                {/* Preview especializado para Smart VOC */}
+                <SmartVOCPreview
+                    moduleName={module.name}
+                    components={components}
+                    componentValues={localValues}
                 />
             </div>
         </div>

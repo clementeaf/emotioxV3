@@ -138,13 +138,19 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
 
     switch (component.type) {
         case 'input':
+            const isReadonly = component.settings?.readonly === true;
+            const defaultValue = isReadonly && component.settings?.defaultValue 
+                ? String(component.settings.defaultValue) 
+                : '';
             return (
                 <Input
                     id={`module-${component.id}`}
                     label={component.label}
-                    value={value}
+                    value={value || defaultValue}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
+                    disabled={isReadonly}
+                    readOnly={isReadonly}
                 />
             );
 

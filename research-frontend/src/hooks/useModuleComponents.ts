@@ -75,12 +75,17 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
 
                 setComponents(moduleComponents);
                 
-                // Inicializar valores de componentes vacíos (no usar defaultValue del template)
-                // Los valores deben venir del módulo guardado, no del template
+                // Inicializar valores de componentes
+                // Para componentes readonly, usar defaultValue de settings
                 const initialValues: Record<string, string> = {};
                 moduleComponents.forEach((comp) => {
-                    // Dejar vacío para que el usuario ingrese sus propios valores
-                    initialValues[comp.id] = '';
+                    if (comp.settings?.readonly === true && comp.settings?.defaultValue) {
+                        // Si es readonly y tiene defaultValue, usar ese valor
+                        initialValues[comp.id] = comp.settings.defaultValue as string;
+                    } else {
+                        // Dejar vacío para que el usuario ingrese sus propios valores
+                        initialValues[comp.id] = '';
+                    }
                 });
                 setComponentValues(initialValues);
             } catch (err) {
