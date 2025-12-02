@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
 import { SmartVOCPreview } from './SmartVOCPreview';
@@ -17,13 +17,7 @@ interface SmartVOCModuleCardProps {
  */
 export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleCardProps) => {
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
-    const [localValues, setLocalValues] = useState<Record<string, string>>(componentValues);
     const cardRef = useRef<HTMLDivElement>(null);
-
-    // Sync local values with componentValues when they change
-    useEffect(() => {
-        setLocalValues(componentValues);
-    }, [componentValues]);
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -38,18 +32,24 @@ export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleC
     }, [isActive]);
 
     const handleComponentValueChange = (componentId: string, value: string): void => {
-        const updated = {
-            ...localValues,
+        setComponentValues(prev => ({
+            ...prev,
             [componentId]: value,
-        };
-        setLocalValues(updated);
-        setComponentValues(updated);
+        }));
     };
 
-    // Filter components for the editor: Hide scale/range components if they have no options
+    // Filter components for the editor: 
+    // 1. Hide scale/range components if they have no options
+    // 2. Explicitly hide scale/range components for NEV module (as it uses fixed 20 emotions)
     const editorComponents = components.filter(component => {
-        if ((component.id?.includes('scale') || component.id?.includes('range')) &&
-            (!component.options || component.options.length === 0)) {
+        const isScaleOrRange = component.id?.includes('scale') || component.id?.includes('range');
+        const isNEV = module.name.includes('Net Emotional Value') || module.name.includes('NEV');
+
+        if (isNEV && isScaleOrRange) {
+            return false;
+        }
+
+        if (isScaleOrRange && (!component.options || component.options.length === 0)) {
             return false;
         }
         return true;
@@ -71,14 +71,14 @@ export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleC
             <div className="p-6">
                 <ModuleContentEditor
                     components={editorComponents}
-                    componentValues={localValues}
+                    componentValues={componentValues}
                     onValueChange={handleComponentValueChange}
                 />
                 {/* Preview especializado para Smart VOC */}
                 <SmartVOCPreview
                     moduleName={module.name}
                     components={components}
-                    componentValues={localValues}
+                    componentValues={componentValues}
                 />
             </div>
         </div>
