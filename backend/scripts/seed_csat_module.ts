@@ -67,33 +67,52 @@ const seedCSATModule = async () => {
         }
 
         // Define the module structure with components
+        // Based on frontend/src/components/research/SmartVOC/config.ts
         const structure = {
             components: [
                 {
-                    id: 'csat-question',
+                    id: 'csat-title',
                     type: 'input',
-                    label: 'Pregunta',
+                    label: 'Título de la pregunta',
                     placeholder: {
                         enabled: true,
-                        text: 'Escribe la pregunta aquí...'
+                        text: 'Introduzca el título de la pregunta'
                     },
                     required: true,
                     order: 1
+                },
+                {
+                    id: 'csat-description',
+                    type: 'textarea',
+                    label: 'Descripción (opcional)',
+                    placeholder: {
+                        enabled: true,
+                        text: 'Introduzca una descripción opcional para la pregunta'
+                    },
+                    required: false,
+                    order: 2
+                },
+                {
+                    id: 'csat-instructions',
+                    type: 'textarea',
+                    label: 'Instrucciones (opcional)',
+                    placeholder: {
+                        enabled: true,
+                        text: 'Añada instrucciones o información adicional para los participantes'
+                    },
+                    required: false,
+                    order: 3
                 },
                 {
                     id: 'csat-display-type',
                     type: 'select',
                     label: 'Tipo de visualización',
                     options: [
-                        { value: 'numbers', label: 'Number (1-5)' },
-                        { value: 'stars', label: 'Stars (1-5)' }
+                        { value: 'stars', label: 'Estrellas' },
+                        { value: 'numbers', label: 'Números' }
                     ],
                     required: true,
-                    order: 2,
-                    selectRange: {
-                        type: 'predefined',
-                        predefined: '1-5'
-                    }
+                    order: 4
                 }
             ]
         };
@@ -104,9 +123,11 @@ const seedCSATModule = async () => {
             [JSON.stringify(structure), moduleId]
         );
 
-        console.log('  ✓ Added 2 components:');
-        console.log('    - Question (text_input)');
-        console.log('    - Rating Type (select: CSAT or Stars)');
+        console.log('  ✓ Added 4 components:');
+        console.log('    - Título de la pregunta (input)');
+        console.log('    - Descripción (textarea, opcional)');
+        console.log('    - Instrucciones (textarea, opcional)');
+        console.log('    - Tipo de visualización (select: Estrellas/Números)');
 
         await client.query('COMMIT');
         console.log('\n✅ CSAT module created successfully!');

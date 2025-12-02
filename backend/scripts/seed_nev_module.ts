@@ -24,30 +24,37 @@ async function seedNEVModule() {
             structure: {
                 components: [
                     {
-                        id: 'nev-question',
+                        id: 'nev-title',
                         type: 'input',
-                        label: 'Título de pregunta',
+                        label: 'Título de la pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe el título de la pregunta aquí...'
+                            text: 'Introduzca el título de la pregunta'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'nev-emotions-range',
-                        type: 'select',
-                        label: 'Rango de emociones',
-                        selectRange: {
-                            type: 'custom',
-                            custom: { min: 1, max: 20 }
+                        id: 'nev-description',
+                        type: 'textarea',
+                        label: 'Descripción (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Introduzca una descripción opcional para la pregunta'
                         },
-                        options: Array.from({ length: 20 }, (_, i) => ({
-                            value: (i + 1).toString(),
-                            label: `${i + 1}`
-                        })),
-                        required: true,
+                        required: false,
                         order: 2
+                    },
+                    {
+                        id: 'nev-instructions',
+                        type: 'textarea',
+                        label: 'Instrucciones (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Añada instrucciones o información adicional para los participantes'
+                        },
+                        required: false,
+                        order: 3
                     }
                 ]
             }

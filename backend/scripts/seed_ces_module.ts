@@ -23,31 +23,71 @@ async function seedCESModule() {
             structure: {
                 components: [
                     {
-                        id: 'ces-question',
+                        id: 'ces-title',
                         type: 'input',
-                        label: 'Título de pregunta',
+                        label: 'Título de la pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe el título de la pregunta aquí...'
+                            text: 'Introduzca el título de la pregunta'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'ces-range',
-                        type: 'select',
-                        label: 'Rango',
-                        selectRange: {
-                            type: 'predefined',
-                            predefined: '1-7'
+                        id: 'ces-description',
+                        type: 'textarea',
+                        label: 'Descripción (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Introduzca una descripción opcional para la pregunta'
                         },
+                        required: false,
+                        order: 2
+                    },
+                    {
+                        id: 'ces-instructions',
+                        type: 'textarea',
+                        label: 'Instrucciones (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Añada instrucciones o información adicional para los participantes'
+                        },
+                        required: false,
+                        order: 3
+                    },
+                    {
+                        id: 'ces-scale-range',
+                        type: 'select',
+                        label: 'Escala',
                         options: [
                             { value: '1-5', label: '1-5' },
                             { value: '1-7', label: '1-7' },
                             { value: '1-10', label: '1-10' }
                         ],
                         required: true,
-                        order: 2
+                        order: 4
+                    },
+                    {
+                        id: 'ces-start-label',
+                        type: 'input',
+                        label: 'Etiqueta inicial (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: Muy difícil'
+                        },
+                        required: false,
+                        order: 5
+                    },
+                    {
+                        id: 'ces-end-label',
+                        type: 'input',
+                        label: 'Etiqueta final (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: Muy fácil'
+                        },
+                        required: false,
+                        order: 6
                     }
                 ]
             }

@@ -25,15 +25,37 @@ async function seedVOCModule() {
             structure: {
                 components: [
                     {
-                        id: 'voc-question',
+                        id: 'voc-title',
                         type: 'input',
-                        label: 'Título de pregunta',
+                        label: 'Título de la pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe el título de la pregunta aquí...'
+                            text: 'Introduzca el título de la pregunta'
                         },
                         required: true,
                         order: 1
+                    },
+                    {
+                        id: 'voc-description',
+                        type: 'textarea',
+                        label: 'Descripción (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Introduzca una descripción opcional para la pregunta'
+                        },
+                        required: false,
+                        order: 2
+                    },
+                    {
+                        id: 'voc-instructions',
+                        type: 'textarea',
+                        label: 'Instrucciones (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Añada instrucciones o información adicional para los participantes'
+                        },
+                        required: false,
+                        order: 3
                     }
                 ]
             }

@@ -25,67 +25,71 @@ async function seedCVModule() {
             structure: {
                 components: [
                     {
-                        id: 'cv-question',
+                        id: 'cv-title',
                         type: 'input',
-                        label: 'Título de pregunta',
+                        label: 'Título de la pregunta',
                         placeholder: {
                             enabled: true,
-                            text: 'Escribe el título de la pregunta aquí...'
+                            text: 'Introduzca el título de la pregunta'
                         },
                         required: true,
                         order: 1
                     },
                     {
-                        id: 'cv-start-value',
-                        type: 'select',
-                        label: 'Start Value',
-                        selectRange: {
-                            type: 'custom',
-                            custom: { min: 0, max: 10 }
+                        id: 'cv-description',
+                        type: 'textarea',
+                        label: 'Descripción (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Introduzca una descripción opcional para la pregunta'
                         },
-                        options: Array.from({ length: 11 }, (_, i) => ({
-                            value: i.toString(),
-                            label: i.toString()
-                        })),
                         required: false,
                         order: 2
                     },
                     {
-                        id: 'cv-start-label',
-                        type: 'input',
-                        label: 'Start Label',
+                        id: 'cv-instructions',
+                        type: 'textarea',
+                        label: 'Instrucciones (opcional)',
                         placeholder: {
                             enabled: true,
-                            text: 'Ej: Worthless, Malo'
+                            text: 'Añada instrucciones o información adicional para los participantes'
                         },
                         required: false,
                         order: 3
                     },
                     {
-                        id: 'cv-end-value',
+                        id: 'cv-scale-range',
                         type: 'select',
-                        label: 'End Value',
-                        selectRange: {
-                            type: 'custom',
-                            custom: { min: 0, max: 10 }
-                        },
-                        options: Array.from({ length: 11 }, (_, i) => ({
-                            value: i.toString(),
-                            label: i.toString()
-                        })),
-                        required: false,
+                        label: 'Escala',
+                        options: [
+                            { value: '1-5', label: '1-5' },
+                            { value: '1-7', label: '1-7' },
+                            { value: '1-10', label: '1-10' }
+                        ],
+                        required: true,
                         order: 4
+                    },
+                    {
+                        id: 'cv-start-label',
+                        type: 'input',
+                        label: 'Etiqueta inicial (opcional)',
+                        placeholder: {
+                            enabled: true,
+                            text: 'Ej: No en absoluto'
+                        },
+                        required: false,
+                        order: 5
                     },
                     {
                         id: 'cv-end-label',
                         type: 'input',
-                        label: 'End Label',
+                        label: 'Etiqueta final (opcional)',
                         placeholder: {
                             enabled: true,
-                            text: 'Ej: Worth, Excelente'
+                            text: 'Ej: Totalmente'
                         },
                         required: false,
-                        order: 5
+                        order: 6
                     }
                 ]
             }
