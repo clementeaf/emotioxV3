@@ -22,6 +22,12 @@ async function seedStages() {
         // Define the stage templates
         const stages = [
             {
+                name: 'Welcome Screen',
+                description: 'Introduction screen for participants',
+                stage_type: 'single_module' as const,
+                modules: ['Welcome Screen']
+            },
+            {
                 name: 'Smart VOC',
                 description: 'Voice of Customer analysis modules including satisfaction, effort, and qualitative feedback metrics.',
                 stage_type: 'module_collection' as const,
@@ -41,12 +47,6 @@ async function seedStages() {
                 modules: []
             },
             {
-                name: 'Welcome Screen',
-                description: 'Introduction screen for participants',
-                stage_type: 'single_module' as const,
-                modules: ['Welcome Screen']
-            },
-            {
                 name: 'Thank You Screen',
                 description: 'Completion screen after research',
                 stage_type: 'single_module' as const,
@@ -60,7 +60,8 @@ async function seedStages() {
             }
         ];
 
-        for (const stage of stages) {
+        for (let i = 0; i < stages.length; i++) {
+            const stage = stages[i];
             // Check if stage already exists
             const checkRes = await client.query(
                 'SELECT id FROM stage_templates WHERE name = $1',
@@ -69,11 +70,19 @@ async function seedStages() {
 
             let stageId: string;
 
+            // Calculate created_at to enforce order (Welcome Screen newest -> Thank You Screen oldest)
+            // Since the list is sorted by created_at DESC, we want Welcome Screen to have the latest timestamp
+            const baseDate = new Date();
+            // i=0 (Welcome Screen) -> delay 0 (Newest)
+            // i=1 (Smart VOC) -> delay 1000
+            // ...
+            const createdAt = new Date(baseDate.getTime() - i * 1000);
+
             if ((checkRes.rowCount ?? 0) > 0) {
                 console.log(`⚠️  Stage "${stage.name}" already exists. Updating...`);
                 const updateRes = await client.query(
-                    'UPDATE stage_templates SET description = $1, stage_type = $2, updated_at = NOW() WHERE name = $3 RETURNING id',
-                    [stage.description, stage.stage_type, stage.name]
+                    'UPDATE stage_templates SET description = $1, stage_type = $2, updated_at = NOW(), created_at = $3 WHERE name = $4 RETURNING id',
+                    [stage.description, stage.stage_type, createdAt, stage.name]
                 );
                 stageId = updateRes.rows[0].id;
 
@@ -85,8 +94,8 @@ async function seedStages() {
             } else {
                 console.log(`✨ Creating stage "${stage.name}"...`);
                 const insertRes = await client.query(
-                    'INSERT INTO stage_templates (name, description, stage_type) VALUES ($1, $2, $3) RETURNING id',
-                    [stage.name, stage.description, stage.stage_type]
+                    'INSERT INTO stage_templates (name, description, stage_type, created_at) VALUES ($1, $2, $3, $4) RETURNING id',
+                    [stage.name, stage.description, stage.stage_type, createdAt]
                 );
                 stageId = insertRes.rows[0].id;
             }

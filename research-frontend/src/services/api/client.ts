@@ -72,7 +72,7 @@ class ApiClient {
                 let token = state.token;
 
                 // Si el token está expirado o por expirar, intentar renovarlo
-                if (token && isTokenExpired(token) && state.refreshToken && state.rememberMe) {
+                if (token && isTokenExpired(token) && state.refreshToken) {
                     if (this.isRefreshing) {
                         // Si ya se está refrescando, esperar en la cola
                         return new Promise<InternalAxiosRequestConfig>((resolve, reject) => {
@@ -126,8 +126,8 @@ class ApiClient {
                 if (error.response?.status === 401 && !originalRequest._retry) {
                     const state = useAuthStore.getState();
 
-                    // Si tenemos refresh token y rememberMe está activado, intentar renovar
-                    if (state.refreshToken && state.rememberMe) {
+                    // Si tenemos refresh token, intentar renovar
+                    if (state.refreshToken) {
                         originalRequest._retry = true;
 
                         if (this.isRefreshing) {

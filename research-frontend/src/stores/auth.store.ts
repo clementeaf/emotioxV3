@@ -77,7 +77,7 @@ export const useAuthStore = create<AuthState>()(
 
                     set({
                         token: tokens.accessToken,
-                        refreshToken: rememberMe ? tokens.refreshToken : null,
+                        refreshToken: tokens.refreshToken,
                         rememberMe,
                     });
 
