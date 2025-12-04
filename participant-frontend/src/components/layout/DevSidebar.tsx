@@ -1,4 +1,5 @@
 import React from 'react';
+import { useStepNavigation } from '../../stores/useStepNavigation';
 
 interface DevSidebarProps {
     isOpen: boolean;
@@ -6,6 +7,8 @@ interface DevSidebarProps {
 }
 
 export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
+    const { currentStep, setCurrentStep } = useStepNavigation();
+
     return (
         <>
             {/* Toggle Button */}
@@ -55,13 +58,44 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
                         </p>
                     </div>
 
-                    {/* Content Area (Empty for now) */}
+                    {/* Content Area */}
                     <div className="flex-1 overflow-y-auto p-4">
-                        <div className="text-sm text-gray-400 text-center py-8">
-                            Module list will appear here
-                        </div>
-                    </div>
+                        <nav className="space-y-1">
+                            <button
+                                onClick={() => {
+                                    setCurrentStep('welcome');
+                                    onToggle();
+                                }}
+                                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${currentStep === 'welcome'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                                    }`}
+                            >
+                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${currentStep === 'welcome' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
+                                    }`}>
+                                    1
+                                </span>
+                                <span>Welcome</span>
+                            </button>
 
+                            <button
+                                onClick={() => {
+                                    setCurrentStep('thank-you');
+                                    onToggle();
+                                }}
+                                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${currentStep === 'thank-you'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                                    }`}
+                            >
+                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${currentStep === 'thank-you' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
+                                    }`}>
+                                    2
+                                </span>
+                                <span>Thank You</span>
+                            </button>
+                        </nav>
+                    </div>
                     {/* Footer */}
                     <div className="p-4 border-t border-gray-200">
                         <div className="text-xs text-gray-400 text-center">
