@@ -4,7 +4,7 @@ import { Button } from './components/ui/Button';
 import { DevSidebar } from './components/layout/DevSidebar';
 import { DynamicStep } from './components/steps/DynamicStep';
 import { useSessionStore } from './stores/useSessionStore';
-import { useParticipantStore } from './stores/useParticipantStore';
+import { useNavigation } from './hooks/useNavigation';
 import { useDeviceCollector } from './hooks/useDeviceCollector';
 import { useLocationCollector } from './hooks/useLocationCollector';
 import { useSessionTimer } from './hooks/useSessionTimer';
@@ -12,7 +12,7 @@ import { MOCK_MODULES } from './data/mockModules';
 
 function App() {
   const { setConfig } = useSessionStore();
-  const { currentStep } = useParticipantStore();
+  const { currentStep, goNext, isLastStep } = useNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Initialize hooks - they will internally check the config
@@ -50,8 +50,11 @@ function App() {
 
       <MainLayout
         footer={
-          <Button onClick={() => console.log('Guardar y continuar')}>
-            Guardar y continuar
+          <Button
+            onClick={goNext}
+            disabled={isLastStep}
+          >
+            {isLastStep ? 'Finalizar' : 'Guardar y continuar'}
           </Button>
         }
       >
