@@ -1,6 +1,8 @@
+```javascript
 import React from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
+import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
 import { useState } from 'react';
 
@@ -27,9 +29,23 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
         module.name.includes('NEV') ||
         module.name.includes('VOC');
 
+    // Check if this is a Cognitive Task module
+    const isCognitiveTask =
+        module.name === 'Short Text' ||
+        module.name === 'Long Text' ||
+        module.name === 'Single Choice' ||
+        module.name === 'Multiple Choice' ||
+        module.name === 'Linear Scale' ||
+        module.name === 'Ranking';
+
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
         return <SmartVOCRenderer module={module} />;
+    }
+
+    // If Cognitive Task, use specialized renderer
+    if (isCognitiveTask) {
+        return <CognitiveTaskRenderer module={module} />;
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)
