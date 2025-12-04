@@ -107,6 +107,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     onChange={setScaleValue}
                     startLabel={startLabelComp?.defaultValue}
                     endLabel={endLabelComp?.defaultValue}
+                    variant={isLinearScale ? 'slider' : 'buttons'}
                 />
             );
         }
