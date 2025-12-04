@@ -1,7 +1,31 @@
+import { useEffect } from 'react';
 import { MainLayout } from './components/layout/MainLayout';
 import { Button } from './components/ui/Button';
+import { useSessionStore } from './stores/useSessionStore';
+import { useDeviceCollector } from './hooks/useDeviceCollector';
+import { useLocationCollector } from './hooks/useLocationCollector';
+import { useSessionTimer } from './hooks/useSessionTimer';
 
 function App() {
+  const { setConfig, config } = useSessionStore();
+
+  // Initialize hooks - they will internally check the config
+  useDeviceCollector();
+  useLocationCollector();
+  useSessionTimer();
+
+  // Mock configuration loading (Replace with actual API call later)
+  useEffect(() => {
+    setConfig({
+      id: 'mock-research-id',
+      settings: {
+        enableLocationCapture: true, // Change to false to test conditional logic
+        enableDeviceCapture: true,
+        enableSessionRecording: true,
+      },
+    });
+  }, [setConfig]);
+
   return (
     <MainLayout
       footer={
@@ -17,8 +41,10 @@ function App() {
         <p className="text-gray-500">
           Aquí se renderizará el contenido dinámico del módulo.
         </p>
-        <div className="w-full h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-          <span className="text-sm text-gray-400">Area de contenido</span>
+
+        {/* Debug Info Display */}
+        <div className="text-xs text-left w-full bg-gray-50 p-4 rounded mt-4 border border-gray-200">
+          <pre>{JSON.stringify(config, null, 2)}</pre>
         </div>
       </div>
     </MainLayout>
