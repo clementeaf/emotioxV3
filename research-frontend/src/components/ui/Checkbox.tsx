@@ -1,5 +1,5 @@
 import { type InputHTMLAttributes, forwardRef, useId } from 'react';
-import { cn } from './Button';
+import { cn } from '../../lib/utils';
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
     label?: string;

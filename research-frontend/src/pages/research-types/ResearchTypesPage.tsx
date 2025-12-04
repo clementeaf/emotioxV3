@@ -6,7 +6,7 @@ import { AssignTechniquesModal } from '../../components/research-types/AssignTec
 import { researchTypesService, type ResearchType } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { SearchInput } from '../../components/ui/SearchInput';
 
 export const ResearchTypesPage = () => {

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { cn } from '../ui/Button';
+import { useState } from 'react';
+import { cn } from '../../lib/utils';
 
 interface ScaleRatingProps {
     id?: string;
@@ -27,17 +27,16 @@ export const ScaleRating = ({
     disabled = false,
     className,
 }: ScaleRatingProps) => {
-    const [selectedValue, setSelectedValue] = useState<string>(value || '');
-
-    useEffect(() => {
-        if (value !== undefined) {
-            setSelectedValue(value);
-        }
-    }, [value]);
+    // Use controlled value if provided, otherwise use internal state
+    const isControlled = value !== undefined;
+    const [internalValue, setInternalValue] = useState<string>(value || '');
+    const selectedValue = isControlled ? value : internalValue;
 
     const handleSelect = (val: string) => {
         if (disabled) return;
-        setSelectedValue(val);
+        if (!isControlled) {
+            setInternalValue(val);
+        }
         if (onChange) {
             onChange(val);
         }

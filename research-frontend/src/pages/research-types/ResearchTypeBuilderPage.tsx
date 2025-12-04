@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { researchTypesService } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 
 const researchTypeSchema = z.object({

@@ -7,9 +7,9 @@ import { moduleTemplatesService, type ModuleTemplate } from '../../services/modu
 import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { SearchInput } from '../../components/ui/SearchInput';
-import { cn } from '../../components/ui/Button';
+import { cn } from '../../lib/utils';
 import { flat } from '../../utils/radashi';
 
 export const ModulesPage = () => {

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { SearchInput } from '../../components/ui/SearchInput';
 
 export const ResearchTechniquesPage = () => {

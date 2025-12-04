@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 interface Area {
   id: string;
@@ -28,18 +28,9 @@ export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () =
   onClose,
   onSave
 }) => {
-  // Estado local para las áreas, inicializado solo una vez
-  const didInit = useRef(false);
-  const [localAreas, setLocalAreas] = useState<Area[]>(areas);
-  const [localSelectedIdx, setLocalSelectedIdx] = useState<number | null>(selectedAreaIdx);
-
-  useEffect(() => {
-    if (!didInit.current) {
-      setLocalAreas(areas);
-      setLocalSelectedIdx(selectedAreaIdx);
-      didInit.current = true;
-    }
-  }, []); // Solo al montar
+  // Initialize local state from props on mount
+  const [localAreas, setLocalAreas] = useState<Area[]>(() => areas);
+  const [localSelectedIdx, setLocalSelectedIdx] = useState<number | null>(() => selectedAreaIdx);
 
   const [drawing, setDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);

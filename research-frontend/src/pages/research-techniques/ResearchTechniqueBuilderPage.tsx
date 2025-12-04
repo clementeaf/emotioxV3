@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { researchTechniquesService } from '../../services/researchTechniques.service';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 const researchTechniqueSchema = z.object({
     name: z.string().min(2, 'Technique name must be at least 2 characters'),

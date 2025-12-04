@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useId, type KeyboardEvent } from 'react';
-import { cn } from '../ui/Button';
+import { cn } from '../../lib/utils';
 
 interface AutocompleteOption {
     value: string;

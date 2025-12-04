@@ -4,7 +4,7 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { researchTypesService } from '../../services/researchTypes.service';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 export const ModuleTemplateAssignationPage = () => {
     const navigate = useNavigate();

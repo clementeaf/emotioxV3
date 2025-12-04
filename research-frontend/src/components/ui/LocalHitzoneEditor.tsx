@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 /**
  * Interfaz para áreas de hitzone
@@ -27,19 +27,8 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
     onSave,
     onClose,
 }) => {
-    const [areas, setAreas] = useState<HitzoneArea[]>([]);
-    const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-    const [drawing, setDrawing] = useState(false);
-    const [start, setStart] = useState<{ x: number; y: number } | null>(null);
-    const [currentRect, setCurrentRect] = useState<HitzoneArea | null>(null);
-    const svgRef = useRef<SVGSVGElement>(null);
-    const [testMode, setTestMode] = useState(false);
-    const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null);
-    const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [activeTestIdx, setActiveTestIdx] = useState<number | null>(null);
-
-    useEffect(() => {
+    // Initialize areas from initialAreas on mount
+    const [areas, setAreas] = useState<HitzoneArea[]>(() => {
         if (initialAreas && initialAreas.length > 0) {
             const validAreas = initialAreas.filter(
                 (area) =>
@@ -51,19 +40,23 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
                     area.width > 0 &&
                     area.height > 0
             );
-
-            if (validAreas.length > 0) {
-                setAreas(JSON.parse(JSON.stringify(validAreas)));
-                setSelectedIdx(0);
-            } else {
-                setAreas([]);
-                setSelectedIdx(null);
-            }
-        } else {
-            setAreas([]);
-            setSelectedIdx(null);
+            return validAreas.length > 0 ? JSON.parse(JSON.stringify(validAreas)) : [];
         }
-    }, [initialAreas]);
+        return [];
+    });
+    
+    const [selectedIdx, setSelectedIdx] = useState<number | null>(() => {
+        return (initialAreas && initialAreas.length > 0) ? 0 : null;
+    });
+    const [drawing, setDrawing] = useState(false);
+    const [start, setStart] = useState<{ x: number; y: number } | null>(null);
+    const [currentRect, setCurrentRect] = useState<HitzoneArea | null>(null);
+    const svgRef = useRef<SVGSVGElement>(null);
+    const [testMode, setTestMode] = useState(false);
+    const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null);
+    const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [activeTestIdx, setActiveTestIdx] = useState<number | null>(null);
 
     const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>): void => {
         const { naturalWidth, naturalHeight, width, height } = e.currentTarget;

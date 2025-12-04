@@ -6,7 +6,7 @@ import { CreateEnterpriseModal } from '../../components/research/CreateEnterpris
 import { researchService, type Research } from '../../services/research.service';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { ArrowRight, Calendar, Folder, Plus, Trash2 } from 'lucide-react';
 
 /**

@@ -3,7 +3,7 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { researchTypesService, type ResearchType } from '../../services/researchTypes.service';
 import { researchTechniquesService, type ResearchTechnique } from '../../services/researchTechniques.service';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 interface AssignTechniquesModalProps {
     isOpen: boolean;

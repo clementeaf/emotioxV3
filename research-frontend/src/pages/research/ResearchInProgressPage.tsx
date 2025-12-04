@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { researchService, type Research } from '../../services/research.service';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { ClipboardList, ArrowRight, Calendar, Folder, Trash2 } from 'lucide-react';
 
 export const ResearchInProgressPage = () => {

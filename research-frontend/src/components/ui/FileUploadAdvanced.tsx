@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, Trash2 } from 'lucide-react';
 import { Button } from './Button';
-import { cn } from './Button';
+import { cn } from '../../lib/utils';
 
 /**
  * Interfaz para archivos subidos

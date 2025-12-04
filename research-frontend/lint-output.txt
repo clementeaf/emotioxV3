@@ -1,0 +1,175 @@
+
+> research-frontend@0.0.0 lint
+> eslint .
+
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ErrorBoundary.tsx
+  114:7  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file  react-refresh/only-export-components
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/PageErrorBoundary.tsx
+   91:7  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file  react-refresh/only-export-components
+  103:7  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file  react-refresh/only-export-components
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/RouteErrorBoundary.tsx
+   91:7  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file  react-refresh/only-export-components
+  106:7  warning  Fast refresh only works when a file only exports components. Move your component(s) to a separate file  react-refresh/only-export-components
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/hitzone/LocalHitzoneEditor.tsx
+  58:9  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/hitzone/LocalHitzoneEditor.tsx:58:9
+  56 |       
+  57 |       if (validAreas.length > 0) {
+> 58 |         setAreas(JSON.parse(JSON.stringify(validAreas)));
+     |         ^^^^^^^^ Avoid calling setState() directly within an effect
+  59 |         setSelectedIdx(0);
+  60 |         console.log('LocalHitzoneEditor - Set areas and selectedIdx to 0');
+  61 |       } else {  react-hooks/set-state-in-effect
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/hitzone/SvgHitzoneEditor.tsx
+  25:13  warning  '_setAreas' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  27:23  warning  '_setSelectedAreaIdx' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  38:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/hitzone/SvgHitzoneEditor.tsx:38:7
+  36 |   useEffect(() => {
+  37 |     if (!didInit.current) {
+> 38 |       setLocalAreas(areas);
+     |       ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  39 |       setLocalSelectedIdx(selectedAreaIdx);
+  40 |       didInit.current = true;
+  41 |     }  react-hooks/set-state-in-effect
+  42:6   warning  React Hook useEffect has missing dependencies: 'areas' and 'selectedAreaIdx'. Either include them or remove the dependency array. If 'setLocalAreas' needs the current value of 'areas', you can also switch to useReducer instead of useState and read 'areas' in the reducer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/exhaustive-deps
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/layout/Sidebar.tsx
+   64:71  warning  Unnecessary escape character: \/                                                                                   no-useless-escape
+   91:8   warning  React Hook useEffect has a missing dependency: 'activeResearch'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  108:8   warning  React Hook useEffect has a missing dependency: 'toast'. Either include it or remove the dependency array           react-hooks/exhaustive-deps
+  352:98  warning  Unnecessary escape character: \/                                                                                   no-useless-escape
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/modules/PreviewComponent.tsx
+   55:13  warning  Unexpected lexical declaration in case block  no-case-declarations
+   56:13  warning  Unexpected lexical declaration in case block  no-case-declarations
+  148:13  warning  Unexpected lexical declaration in case block  no-case-declarations
+  149:13  warning  Unexpected lexical declaration in case block  no-case-declarations
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/research/EditableComponent.tsx
+   29:11  warning  The 'initialChoices' logical expression could make the dependencies of useEffect Hook (at line 46) change on every render. To fix this, wrap the initialization of 'initialChoices' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/exhaustive-deps
+   38:21  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/research/EditableComponent.tsx:38:21
+  36 |                 const parsed = JSON.parse(value);
+  37 |                 if (Array.isArray(parsed)) {
+> 38 |                     setLocalChoices(parsed as ChoiceItem[]);
+     |                     ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  39 |                 }
+  40 |             } catch {
+  41 |                 // Invalid JSON, keep current state  react-hooks/set-state-in-effect
+  159:13  warning  Unexpected lexical declaration in case block                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                no-case-declarations
+  160:13  warning  Unexpected lexical declaration in case block                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                no-case-declarations
+  162:13  warning  Unexpected lexical declaration in case block                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                no-case-declarations
+  283:20  warning  React Hook useEffect has an unnecessary dependency: 'value'. Either exclude it or remove the dependency array. Outer scope values like 'value' aren't valid dependencies because mutating them doesn't re-render the component                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/research/SmartVOCPreview.tsx
+  170:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  171:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  172:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  185:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  186:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  187:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  188:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  189:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  208:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  209:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+  210:17  warning  Unexpected lexical declaration in case block  no-case-declarations
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/Button.tsx
+  61:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/HorizontalSlider.tsx
+  40:17  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/HorizontalSlider.tsx:40:17
+  38 |             const numValue = parseInt(value);
+  39 |             if (!isNaN(numValue) && numValue >= min && numValue <= max) {
+> 40 |                 setSelectedValue(numValue);
+     |                 ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  41 |             }
+  42 |         }
+  43 |     }, [value, min, max]);  react-hooks/set-state-in-effect
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/LocalHitzoneEditor.tsx
+  56:17  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/LocalHitzoneEditor.tsx:56:17
+  54 |
+  55 |             if (validAreas.length > 0) {
+> 56 |                 setAreas(JSON.parse(JSON.stringify(validAreas)));
+     |                 ^^^^^^^^ Avoid calling setState() directly within an effect
+  57 |                 setSelectedIdx(0);
+  58 |             } else {
+  59 |                 setAreas([]);  react-hooks/set-state-in-effect
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/ScaleRating.tsx
+  34:13  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/components/ui/ScaleRating.tsx:34:13
+  32 |     useEffect(() => {
+  33 |         if (value !== undefined) {
+> 34 |             setSelectedValue(value);
+     |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  35 |         }
+  36 |     }, [value]);
+  37 |  react-hooks/set-state-in-effect
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/contexts/ToastContext.tsx
+  21:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/hooks/useAuthContext.example.tsx
+  128:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/hooks/useResearch.ts
+  42:8  warning  React Hook useEffect has a missing dependency: 'fetchResearch'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/clementefalcone/Desktop/personal/emotioxV3/research-frontend/src/pages/modules/ModulesPage.tsx
+   47:8   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  186:26  warning  'error' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+
+✖ 44 problems (0 errors, 44 warnings)
+

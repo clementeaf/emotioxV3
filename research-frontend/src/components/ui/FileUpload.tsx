@@ -1,5 +1,5 @@
 import { type InputHTMLAttributes, forwardRef, useState } from 'react';
-import { cn } from './Button';
+import { cn } from '../../lib/utils';
 
 interface FileUploadProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
     label?: string;

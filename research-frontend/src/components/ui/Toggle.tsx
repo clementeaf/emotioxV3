@@ -1,5 +1,5 @@
 import { type InputHTMLAttributes, forwardRef, useRef, useId } from 'react';
-import { cn } from './Button';
+import { cn } from '../../lib/utils';
 
 interface ToggleProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
     label?: string;

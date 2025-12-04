@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { cn } from '../ui/Button';
+import { cn } from '../../lib/utils';
 
 interface StepperProps {
     currentStep: number;

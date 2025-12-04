@@ -13,14 +13,14 @@ import {
     ChevronRight,
     Trash2
 } from 'lucide-react';
-import { cn } from '../ui/Button';
+import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { researchService, type Research } from '../../services/research.service';
 import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { Modal } from '../ui/Modal';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 interface NavItem {
     path: string;

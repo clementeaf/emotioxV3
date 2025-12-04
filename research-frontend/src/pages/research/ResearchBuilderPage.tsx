@@ -8,7 +8,7 @@ import { ResearchBuilderHeader } from '../../components/research/ResearchBuilder
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
 import { SmartVOCModuleCard } from '../../components/research/SmartVOCModuleCard';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import type { Stage, Module } from '../../services/research.service';
 

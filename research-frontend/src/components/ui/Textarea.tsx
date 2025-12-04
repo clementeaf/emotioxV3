@@ -1,5 +1,5 @@
 import { type TextareaHTMLAttributes, forwardRef, useId } from 'react';
-import { cn } from './Button';
+import { cn } from '../../lib/utils';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
     label?: string;

@@ -29,7 +29,7 @@ import { ComponentConfigPanel } from '../../components/modules/ComponentConfigPa
 import { LivePreviewPanel } from '../../components/modules/LivePreviewPanel';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import type { ComponentConfig, FileUploadConfig } from '../../types/moduleBuilder.types';
-import { useToast } from '../../contexts/ToastContext';
+import { useToast } from '../../hooks/useToast';
 
 const moduleTemplateSchema = z.object({
     name: z.string().min(2, 'Module name must be at least 2 characters'),

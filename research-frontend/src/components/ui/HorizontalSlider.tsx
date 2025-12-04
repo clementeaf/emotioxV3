@@ -1,5 +1,5 @@
-import { useState, useEffect, useId } from 'react';
-import { cn } from '../ui/Button';
+import { useState, useId } from 'react';
+import { cn } from '../../lib/utils';
 
 interface HorizontalSliderProps {
     id?: string;
@@ -29,23 +29,20 @@ export const HorizontalSlider = ({
 }: HorizontalSliderProps) => {
     const generatedId = useId();
     const id = propId || generatedId;
-    const [selectedValue, setSelectedValue] = useState<number>(
+    
+    // Use controlled value if provided, otherwise use internal state
+    const isControlled = value !== undefined;
+    const [internalValue, setInternalValue] = useState<number>(
         value ? parseInt(value) : min
     );
-
-    useEffect(() => {
-        if (value !== undefined) {
-            const numValue = parseInt(value);
-            if (!isNaN(numValue) && numValue >= min && numValue <= max) {
-                setSelectedValue(numValue);
-            }
-        }
-    }, [value, min, max]);
+    const selectedValue = isControlled ? parseInt(value || String(min)) : internalValue;
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (disabled) return;
         const newValue = parseInt(e.target.value);
-        setSelectedValue(newValue);
+        if (!isControlled) {
+            setInternalValue(newValue);
+        }
         if (onChange) {
             onChange(String(newValue));
         }

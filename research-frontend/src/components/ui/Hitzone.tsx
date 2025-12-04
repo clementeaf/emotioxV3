@@ -1,5 +1,5 @@
 import { type HTMLAttributes, forwardRef } from 'react';
-import { cn } from './Button';
+import { cn } from '../../lib/utils';
 
 interface HitzoneProps extends HTMLAttributes<HTMLDivElement> {
     /**
