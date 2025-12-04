@@ -23,7 +23,13 @@ function getModuleDisplayName(moduleKey: string, moduleName: string): string {
         ces: 'CES',
         cv: 'CV',
         nev: 'NEV',
-        voc: 'VOC'
+        voc: 'VOC',
+        'short-text': 'Short Text',
+        'long-text': 'Long Text',
+        'single-choice': 'Single Choice',
+        'multiple-choice': 'Multiple Choice',
+        'linear-scale': 'Linear Scale',
+        'ranking': 'Ranking'
     };
 
     return displayNames[moduleKey] || moduleName;
@@ -35,7 +41,12 @@ function getModuleDisplayName(moduleKey: string, moduleName: string): string {
  * @returns Array de tuplas [key, module] ordenadas
  */
 function getOrderedModules(modules: Record<string, ModuleConfig>): Array<[string, ModuleConfig]> {
-    const order: string[] = ['welcome', 'csat', 'nps', 'ces', 'cv', 'nev', 'voc', 'thank-you'];
+    const order: string[] = [
+        'welcome',
+        'csat', 'nps', 'ces', 'cv', 'nev', 'voc',
+        'short-text', 'long-text', 'single-choice', 'multiple-choice', 'linear-scale', 'ranking',
+        'thank-you'
+    ];
     const ordered: Array<[string, ModuleConfig]> = [];
     const remaining = new Set(Object.keys(modules));
 
@@ -124,18 +135,16 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
                                             setCurrentStep(moduleKey);
                                             onToggle();
                                         }}
-                                        className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${
-                                            isActive
+                                        className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${isActive
                                                 ? 'bg-blue-100 text-blue-700'
                                                 : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                                        }`}
+                                            }`}
                                     >
                                         <span
-                                            className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                                                isActive
+                                            className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${isActive
                                                     ? 'bg-blue-600 text-white'
                                                     : 'bg-blue-100 text-blue-600'
-                                            }`}
+                                                }`}
                                         >
                                             {index + 1}
                                         </span>

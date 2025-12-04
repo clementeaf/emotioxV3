@@ -1,4 +1,3 @@
-```javascript
 import React from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
