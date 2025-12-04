@@ -3,6 +3,7 @@ import type { ModuleConfig } from '../../types/module';
 import { ScaleSelector } from '../ui/ScaleSelector';
 import { ChoiceSelector } from '../ui/ChoiceSelector';
 import { InputRenderer, TextareaRenderer } from '../renderers';
+import { RankingSelector } from '../ui/RankingSelector';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
@@ -12,6 +13,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     const [textValue, setTextValue] = useState<string>('');
     const [choiceValue, setChoiceValue] = useState<string | string[]>([]);
     const [scaleValue, setScaleValue] = useState<number | null>(null);
+    const [rankingItems, setRankingItems] = useState<string[]>([]);
 
     // Extract common components
     const titleComponent = module.structure.components.find(c => c.id.includes('title'));
@@ -88,14 +90,14 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             );
         }
 
-        if (isLinearScale || isRanking) {
+        if (isLinearScale) {
             // Extract scale config
             const startValueComp = module.structure.components.find(c => c.id.includes('start-value'));
             const endValueComp = module.structure.components.find(c => c.id.includes('end-value'));
             const startLabelComp = module.structure.components.find(c => c.id.includes('start-label'));
             const endLabelComp = module.structure.components.find(c => c.id.includes('end-label'));
 
-            // Default 1-5 if not found (Ranking usually 1-5)
+            // Default 1-5 if not found
             const min = startValueComp?.defaultValue ? parseInt(startValueComp.defaultValue) : 1;
             const max = endValueComp?.defaultValue ? parseInt(endValueComp.defaultValue) : 5;
 
@@ -107,7 +109,26 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     onChange={setScaleValue}
                     startLabel={startLabelComp?.defaultValue}
                     endLabel={endLabelComp?.defaultValue}
-                    variant={isLinearScale ? 'slider' : 'buttons'}
+                    variant="slider"
+                />
+            );
+        }
+
+        if (isRanking) {
+            // Extract ranking items from components
+            const items = module.structure.components
+                .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
+                .map(c => c.defaultValue || '');
+
+            // Initialize ranking items if empty
+            if (rankingItems.length === 0 && items.length > 0) {
+                setRankingItems(items);
+            }
+
+            return (
+                <RankingSelector
+                    items={rankingItems.length > 0 ? rankingItems : items}
+                    onChange={setRankingItems}
                 />
             );
         }

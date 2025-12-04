@@ -255,19 +255,34 @@ export const MOCK_COGNITIVE_MODULES: Record<string, ModuleConfig> = {
                     settings: {}
                 },
                 {
-                    id: 'rk-slider',
-                    name: 'Ranking Slider',
-                    type: 'select',
+                    id: 'rk-choice-1',
+                    name: 'Choice 1',
+                    type: 'input',
                     label: '',
-                    defaultValue: '3',
-                    required: true,
+                    defaultValue: 'Opción A',
+                    required: false,
                     order: 3,
-                    settings: {},
-                    selectRange: {
-                        type: 'predefined',
-                        predefined: '1-5',
-                        variant: 'slider'
-                    }
+                    settings: { isChoice: true }
+                },
+                {
+                    id: 'rk-choice-2',
+                    name: 'Choice 2',
+                    type: 'input',
+                    label: '',
+                    defaultValue: 'Opción B',
+                    required: false,
+                    order: 4,
+                    settings: { isChoice: true }
+                },
+                {
+                    id: 'rk-choice-3',
+                    name: 'Choice 3',
+                    type: 'input',
+                    label: '',
+                    defaultValue: 'Opción C',
+                    required: false,
+                    order: 5,
+                    settings: { isChoice: true }
                 }
             ]
         }
