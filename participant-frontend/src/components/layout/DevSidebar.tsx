@@ -1,13 +1,62 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useStepNavigation } from '../../stores/useStepNavigation';
+import { MOCK_MODULES } from '../../data/mockModules';
+import type { ModuleConfig } from '../../types/module';
 
 interface DevSidebarProps {
     isOpen: boolean;
     onToggle: () => void;
 }
 
+/**
+ * Obtiene el nombre corto para mostrar en el sidebar
+ * @param moduleKey - Clave del módulo
+ * @param moduleName - Nombre completo del módulo
+ * @returns Nombre corto para mostrar
+ */
+function getModuleDisplayName(moduleKey: string, moduleName: string): string {
+    const displayNames: Record<string, string> = {
+        welcome: 'Welcome',
+        'thank-you': 'Thank You',
+        csat: 'CSAT',
+        nps: 'NPS',
+        ces: 'CES',
+        cv: 'CV',
+        nev: 'NEV',
+        voc: 'VOC'
+    };
+
+    return displayNames[moduleKey] || moduleName;
+}
+
+/**
+ * Ordena los módulos para mostrarlos en el sidebar
+ * @param modules - Objeto con todos los módulos
+ * @returns Array de tuplas [key, module] ordenadas
+ */
+function getOrderedModules(modules: Record<string, ModuleConfig>): Array<[string, ModuleConfig]> {
+    const order: string[] = ['welcome', 'csat', 'nps', 'ces', 'cv', 'nev', 'voc', 'thank-you'];
+    const ordered: Array<[string, ModuleConfig]> = [];
+    const remaining = new Set(Object.keys(modules));
+
+    for (const key of order) {
+        if (remaining.has(key)) {
+            ordered.push([key, modules[key]]);
+            remaining.delete(key);
+        }
+    }
+
+    for (const key of remaining) {
+        ordered.push([key, modules[key]]);
+    }
+
+    return ordered;
+}
+
 export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
     const { currentStep, setCurrentStep } = useStepNavigation();
+
+    const orderedModules = useMemo(() => getOrderedModules(MOCK_MODULES), []);
 
     return (
         <>
@@ -61,39 +110,39 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
                     {/* Content Area */}
                     <div className="flex-1 overflow-y-auto p-4">
                         <nav className="space-y-1">
-                            <button
-                                onClick={() => {
-                                    setCurrentStep('welcome');
-                                    onToggle();
-                                }}
-                                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${currentStep === 'welcome'
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                                    }`}
-                            >
-                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${currentStep === 'welcome' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
-                                    }`}>
-                                    1
-                                </span>
-                                <span>Welcome</span>
-                            </button>
+                            {orderedModules.map(([moduleKey, module], index) => {
+                                const isActive = currentStep === moduleKey;
+                                const displayName = getModuleDisplayName(
+                                    moduleKey,
+                                    module.name
+                                );
 
-                            <button
-                                onClick={() => {
-                                    setCurrentStep('thank-you');
-                                    onToggle();
-                                }}
-                                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${currentStep === 'thank-you'
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
-                                    }`}
-                            >
-                                <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${currentStep === 'thank-you' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'
-                                    }`}>
-                                    2
-                                </span>
-                                <span>Thank You</span>
-                            </button>
+                                return (
+                                    <button
+                                        key={moduleKey}
+                                        onClick={() => {
+                                            setCurrentStep(moduleKey);
+                                            onToggle();
+                                        }}
+                                        className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-150 flex items-center gap-3 ${
+                                            isActive
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'text-gray-700 hover:bg-blue-50 hover:text-blue-600'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                                                isActive
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-blue-100 text-blue-600'
+                                            }`}
+                                        >
+                                            {index + 1}
+                                        </span>
+                                        <span>{displayName}</span>
+                                    </button>
+                                );
+                            })}
                         </nav>
                     </div>
                     {/* Footer */}

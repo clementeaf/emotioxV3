@@ -363,4 +363,3 @@ export const MOCK_SMARTVOC_MODULES: Record<string, ModuleConfig> = {
         }
     }
 };
-```
