@@ -35,7 +35,9 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
         module.name === 'Single Choice' ||
         module.name === 'Multiple Choice' ||
         module.name === 'Linear Scale' ||
-        module.name === 'Ranking';
+        module.name === 'Ranking' ||
+        module.name === 'Navigation Flow' ||
+        module.name === 'Preference Test';
 
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
