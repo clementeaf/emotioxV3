@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { ScaleSelector } from '../ui/ScaleSelector';
 import { ChoiceSelector } from '../ui/ChoiceSelector';
@@ -6,16 +6,40 @@ import { InputRenderer, TextareaRenderer } from '../renderers';
 import { RankingSelector } from '../ui/RankingSelector';
 import { NavigationFlow } from '../ui/NavigationFlow';
 import { PreferenceTest } from '../ui/PreferenceTest';
+import { useParticipantStore } from '../../stores/useParticipantStore';
+import type { ResponseValue } from '../../types/responses';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
 }
 
 export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ module }) => {
-    const [textValue, setTextValue] = useState<string>('');
-    const [choiceValue, setChoiceValue] = useState<string | string[]>([]);
-    const [scaleValue, setScaleValue] = useState<number | null>(null);
-    const [rankingItems, setRankingItems] = useState<string[]>([]);
+    const { getResponse, saveResponse } = useParticipantStore();
+
+    /**
+     * Obtiene el valor guardado de un componente
+     * @param componentId - ID del componente
+     * @returns Valor guardado o null
+     */
+    const getSavedValue = (componentId: string): ResponseValue => {
+        const response = getResponse(module.id, componentId);
+        return response?.value ?? null;
+    };
+
+    /**
+     * Guarda el valor de un componente
+     * @param componentId - ID del componente
+     * @param value - Valor a guardar
+     */
+    const saveComponentValue = (componentId: string, value: ResponseValue): void => {
+        saveResponse(module.id, componentId, value);
+    };
+
+    // Obtener valores guardados
+    const textValue = (getSavedValue('answer') as string) || '';
+    const choiceValue = (getSavedValue('choice') as string | string[]) || [];
+    const scaleValue = (getSavedValue('scale') as number) || null;
+    const rankingItems = (getSavedValue('ranking') as string[]) || [];
 
     // Extract common components
     const titleComponent = module.structure.components.find(c => c.id.includes('title'));
@@ -49,7 +73,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         settings: {}
                     }}
                     value={textValue}
-                    onChange={setTextValue}
+                    onChange={(val) => saveComponentValue('answer', val)}
                 />
             );
         }
@@ -71,7 +95,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         settings: { maxLength: 1000 }
                     }}
                     value={textValue}
-                    onChange={setTextValue}
+                    onChange={(val) => saveComponentValue('answer', val)}
                 />
             );
         }
@@ -91,7 +115,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     type={isSingleChoice ? 'single' : 'multiple'}
                     options={choices}
                     value={choiceValue}
-                    onChange={(val) => setChoiceValue(val)}
+                    onChange={(val) => saveComponentValue('choice', val)}
                 />
             );
         }
@@ -112,7 +136,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     min={min}
                     max={max}
                     value={scaleValue}
-                    onChange={setScaleValue}
+                    onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel={startLabelComp?.defaultValue}
                     endLabel={endLabelComp?.defaultValue}
                     variant="slider"
@@ -126,15 +150,13 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => c.defaultValue || '');
 
-            // Initialize ranking items if empty
-            if (rankingItems.length === 0 && items.length > 0) {
-                setRankingItems(items);
-            }
+            // Use saved ranking or default items
+            const currentRanking = rankingItems.length > 0 ? rankingItems : items;
 
             return (
                 <RankingSelector
-                    items={rankingItems.length > 0 ? rankingItems : items}
-                    onChange={setRankingItems}
+                    items={currentRanking}
+                    onChange={(val) => saveComponentValue('ranking', val)}
                 />
             );
         }

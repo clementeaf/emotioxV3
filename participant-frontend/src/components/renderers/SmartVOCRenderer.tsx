@@ -1,18 +1,42 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { ScaleSelector } from '../ui/ScaleSelector';
 import { StarSelector } from '../ui/StarSelector';
 import { EmotionSelector } from '../ui/EmotionSelector';
 import { TextareaRenderer } from './TextareaRenderer';
+import { useParticipantStore } from '../../stores/useParticipantStore';
+import type { ResponseValue } from '../../types/responses';
 
 interface SmartVOCRendererProps {
     module: ModuleConfig;
 }
 
 export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) => {
-    const [scaleValue, setScaleValue] = useState<number | null>(null);
-    const [emotionValues, setEmotionValues] = useState<string[]>([]);
-    const [textValue, setTextValue] = useState<string>('');
+    const { getResponse, saveResponse } = useParticipantStore();
+
+    /**
+     * Obtiene el valor guardado de un componente
+     * @param componentId - ID del componente
+     * @returns Valor guardado o null
+     */
+    const getSavedValue = (componentId: string): ResponseValue => {
+        const response = getResponse(module.id, componentId);
+        return response?.value ?? null;
+    };
+
+    /**
+     * Guarda el valor de un componente
+     * @param componentId - ID del componente
+     * @param value - Valor a guardar
+     */
+    const saveComponentValue = (componentId: string, value: ResponseValue): void => {
+        saveResponse(module.id, componentId, value);
+    };
+
+    // Obtener valores guardados
+    const scaleValue = (getSavedValue('scale') as number) || null;
+    const emotionValues = (getSavedValue('emotions') as string[]) || [];
+    const textValue = (getSavedValue('text') as string) || '';
 
     // Extract display-only components
     const titleComponent = module.structure.components.find(c => c.id.includes('-title'));
@@ -34,14 +58,14 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
             const displayType = displayTypeComponent?.defaultValue || 'stars';
 
             if (displayType === 'stars') {
-                return <StarSelector max={5} value={scaleValue} onChange={setScaleValue} />;
+                return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} />;
             } else {
                 return (
                     <ScaleSelector
                         min={1}
                         max={5}
                         value={scaleValue}
-                        onChange={setScaleValue}
+                        onChange={(val) => saveComponentValue('scale', val ?? null)}
                     />
                 );
             }
@@ -53,7 +77,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                     min={0}
                     max={10}
                     value={scaleValue}
-                    onChange={setScaleValue}
+                    onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel="No lo recomendaría"
                     endLabel="Lo recomendaría"
                 />
@@ -86,7 +110,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                     min={min}
                     max={max}
                     value={scaleValue}
-                    onChange={setScaleValue}
+                    onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel={startLabelComponent?.defaultValue || ''}
                     endLabel={endLabelComponent?.defaultValue || ''}
                 />
@@ -94,7 +118,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
         }
 
         if (isNEV) {
-            return <EmotionSelector value={emotionValues} onChange={setEmotionValues} />;
+            return <EmotionSelector value={emotionValues} onChange={(val) => saveComponentValue('emotions', val)} />;
         }
 
         if (isVOC) {
@@ -119,7 +143,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                 <TextareaRenderer
                     component={vocComponent}
                     value={textValue}
-                    onChange={setTextValue}
+                    onChange={(val) => saveComponentValue('text', val)}
                 />
             );
         }

@@ -1,22 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
-import { useState } from 'react';
+import { useParticipantStore } from '../../stores/useParticipantStore';
 
 interface DynamicStepProps {
     module: ModuleConfig;
 }
 
 export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
-    const [formData, setFormData] = useState<Record<string, string>>({});
+    const { getResponse, saveResponse } = useParticipantStore();
 
-    const handleChange = (componentId: string, value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            [componentId]: value
-        }));
+    /**
+     * Obtiene el valor de una respuesta previa o el valor por defecto
+     * @param componentId - ID del componente
+     * @returns Valor de la respuesta o valor por defecto
+     */
+    const getComponentValue = (componentId: string): string => {
+        const response = getResponse(module.id, componentId);
+        if (response && typeof response.value === 'string') {
+            return response.value;
+        }
+        return '';
+    };
+
+    /**
+     * Maneja el cambio de valor de un componente
+     * @param componentId - ID del componente
+     * @param value - Nuevo valor
+     */
+    const handleChange = (componentId: string, value: string): void => {
+        saveResponse(module.id, componentId, value);
     };
 
     // Check if this is a SmartVOC module
@@ -57,7 +72,8 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-2xl space-y-6">
                 {sortedComponents.map((component) => {
-                    const value = formData[component.id] || component.defaultValue || '';
+                    const savedValue = getComponentValue(component.id);
+                    const value = savedValue || component.defaultValue || '';
 
                     // Render display-only components
                     if (displayOnlyIds.includes(component.id)) {

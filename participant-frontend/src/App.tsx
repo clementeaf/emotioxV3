@@ -4,7 +4,7 @@ import { Button } from './components/ui/Button';
 import { DevSidebar } from './components/layout/DevSidebar';
 import { DynamicStep } from './components/steps/DynamicStep';
 import { useSessionStore } from './stores/useSessionStore';
-import { useStepNavigation } from './stores/useStepNavigation';
+import { useParticipantStore } from './stores/useParticipantStore';
 import { useDeviceCollector } from './hooks/useDeviceCollector';
 import { useLocationCollector } from './hooks/useLocationCollector';
 import { useSessionTimer } from './hooks/useSessionTimer';
@@ -12,7 +12,7 @@ import { MOCK_MODULES } from './data/mockModules';
 
 function App() {
   const { setConfig } = useSessionStore();
-  const { currentStep } = useStepNavigation();
+  const { currentStep } = useParticipantStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Initialize hooks - they will internally check the config

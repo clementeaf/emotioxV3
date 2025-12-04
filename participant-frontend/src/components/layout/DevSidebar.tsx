@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useStepNavigation } from '../../stores/useStepNavigation';
+import { useParticipantStore } from '../../stores/useParticipantStore';
 import { MOCK_MODULES } from '../../data/mockModules';
 import type { ModuleConfig } from '../../types/module';
 
@@ -71,7 +71,7 @@ function getGroupedModules(modules: Record<string, ModuleConfig>): { title: stri
 }
 
 export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
-    const { currentStep, setCurrentStep } = useStepNavigation();
+    const { currentStep, setCurrentStep } = useParticipantStore();
 
     const groupedModules = useMemo(() => getGroupedModules(MOCK_MODULES), []);
 
