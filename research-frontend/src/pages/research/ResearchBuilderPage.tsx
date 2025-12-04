@@ -9,6 +9,7 @@ import { ResearchSettingsView } from '../../components/research/ResearchSettings
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
 import { SmartVOCModuleCard } from '../../components/research/SmartVOCModuleCard';
 import { useToast } from '../../contexts/ToastContext';
+import { modulesService } from '../../services/modules.service';
 import type { Stage, Module } from '../../services/research.service';
 
 export const ResearchBuilderPage = () => {
@@ -19,7 +20,7 @@ export const ResearchBuilderPage = () => {
 
     const { research, loading, error } = useResearch(id);    
     const isSettings = location.pathname.endsWith('/settings');
-    const moduleMatch = location.pathname.match(/\/module\/([^\/]+)/);
+    const moduleMatch = location.pathname.match(/\/module\/([^/]+)/);
     const activeModuleId = moduleMatch ? moduleMatch[1] : null;
     
     const activeModule = activeModuleId && research && research.stages
@@ -70,11 +71,23 @@ export const ResearchBuilderPage = () => {
             
             if (isSmartVOCStage && smartVOCModules.length > 0) {
                 // Save all Smart VOC modules
-                // TODO: Implementar guardado de todos los módulos de Smart VOC
+                const updatePromises = smartVOCModules.map(module => 
+                    modulesService.update(module.id, {
+                        config: module.config,
+                        order: module.order_index
+                    })
+                );
+                await Promise.all(updatePromises);
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
             } else if (activeModule) {
-                // Save single module
-                // TODO: Implementar guardado del módulo con los componentes actualizados
+                // Save single module with updated components
+                await modulesService.update(activeModule.id, {
+                    config: {
+                        ...activeModule.config,
+                        components: componentValues
+                    },
+                    order: activeModule.order_index
+                });
                 toast.success('Module saved successfully');
             }
         } catch (error: unknown) {
