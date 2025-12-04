@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useParticipantStore } from '../../stores/useParticipantStore';
+import { useSessionStore } from '../../stores/useSessionStore';
 import { MOCK_MODULES } from '../../data/mockModules';
 import type { ModuleConfig } from '../../types/module';
 
@@ -72,11 +73,23 @@ function getGroupedModules(modules: Record<string, ModuleConfig>): { title: stri
 
 export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
+    const { getSessionSummary } = useSessionStore();
 
     const groupedModules = useMemo(() => getGroupedModules(MOCK_MODULES), []);
+    const sessionSummary = getSessionSummary();
 
     // Calculate global index for numbering
     let globalIndex = 0;
+
+    // Format duration
+    const formatDuration = (ms: number) => {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        if (hours > 0) return `${hours}h ${minutes % 60}m`;
+        if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+        return `${seconds}s`;
+    };
 
     return (
         <>
@@ -192,8 +205,49 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
                 </div>
                 {/* Footer */}
                 {isOpen && (
-                    <div className="p-4 border-t border-gray-200">
-                        <div className="text-xs text-gray-400 text-center">
+                    <div className="p-4 border-t border-gray-200 space-y-3">
+                        <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                            Session Metrics
+                        </div>
+                        <div className="space-y-2 text-xs text-gray-600">
+                            <div className="flex justify-between">
+                                <span>Device:</span>
+                                <span className="font-medium text-gray-900">
+                                    {sessionSummary.device?.deviceType || 'Unknown'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Browser:</span>
+                                <span className="font-medium text-gray-900">
+                                    {sessionSummary.device?.browserName || 'Unknown'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Duration:</span>
+                                <span className="font-medium text-gray-900">
+                                    {formatDuration(sessionSummary.metrics.duration)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Focus time:</span>
+                                <span className="font-medium text-gray-900">
+                                    {formatDuration(sessionSummary.metrics.focusTime)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Interactions:</span>
+                                <span className="font-medium text-gray-900">
+                                    {sessionSummary.metrics.interactionCount}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Steps:</span>
+                                <span className="font-medium text-gray-900">
+                                    {sessionSummary.metrics.stepChanges}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="text-xs text-gray-400 text-center pt-2 border-t border-gray-200">
                             DEV MODE
                         </div>
                     </div>

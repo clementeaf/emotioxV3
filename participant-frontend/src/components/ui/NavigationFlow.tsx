@@ -12,7 +12,7 @@ interface NavigationFlowProps {
     description?: string;
 }
 
-export const NavigationFlow: React.FC<NavigationFlowProps> = ({ title, description }) => {
+export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
     const [isComplete, setIsComplete] = useState(false);

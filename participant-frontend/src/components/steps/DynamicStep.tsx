@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';

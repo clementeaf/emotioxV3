@@ -1,30 +1,104 @@
 import { create } from 'zustand';
-import type { ResearchConfig, DeviceInfo, LocationInfo } from '../types/research-config';
+import type { ResearchConfig, DeviceInfo, LocationInfo, SessionMetrics, UserInteraction } from '../types/research-config';
 
 interface SessionState {
     config: ResearchConfig | null;
-    startTime: number | null;
-    endTime: number | null;
     deviceInfo: DeviceInfo | null;
     location: LocationInfo | null;
+    metrics: SessionMetrics;
+    interactions: UserInteraction[];
 
     setConfig: (config: ResearchConfig) => void;
-    startSession: () => void;
-    endSession: () => void;
     setDeviceInfo: (info: DeviceInfo) => void;
     setLocation: (location: LocationInfo) => void;
+    startSession: () => void;
+    endSession: () => void;
+    trackInteraction: (interaction: Omit<UserInteraction, 'timestamp'>) => void;
+    updateMetrics: (updates: Partial<SessionMetrics>) => void;
+    getSessionSummary: () => {
+        config: ResearchConfig | null;
+        device: DeviceInfo | null;
+        location: LocationInfo | null;
+        metrics: SessionMetrics;
+        interactionCount: number;
+    };
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
-    config: null,
-    startTime: null,
+const initialMetrics: SessionMetrics = {
+    startTime: 0,
     endTime: null,
+    duration: 0,
+    stepChanges: 0,
+    interactionCount: 0,
+    focusTime: 0,
+    idleTime: 0,
+};
+
+export const useSessionStore = create<SessionState>((set, get) => ({
+    config: null,
     deviceInfo: null,
     location: null,
+    metrics: initialMetrics,
+    interactions: [],
 
     setConfig: (config) => set({ config }),
-    startSession: () => set({ startTime: Date.now() }),
-    endSession: () => set({ endTime: Date.now() }),
+    
     setDeviceInfo: (deviceInfo) => set({ deviceInfo }),
+    
     setLocation: (location) => set({ location }),
+    
+    startSession: () => {
+        const startTime = Date.now();
+        set({ 
+            metrics: { ...initialMetrics, startTime } 
+        });
+    },
+    
+    endSession: () => {
+        const endTime = Date.now();
+        const { metrics } = get();
+        const duration = endTime - metrics.startTime;
+        set({ 
+            metrics: { ...metrics, endTime, duration } 
+        });
+    },
+    
+    trackInteraction: (interaction) => {
+        const { config, interactions, metrics } = get();
+        
+        // Solo trackear si está habilitado
+        if (!config?.settings.enableInteractionTracking) return;
+        
+        const newInteraction: UserInteraction = {
+            ...interaction,
+            timestamp: Date.now(),
+        };
+        
+        // Limitar a las últimas 100 interacciones para no saturar memoria
+        const updatedInteractions = [...interactions, newInteraction].slice(-100);
+        
+        set({ 
+            interactions: updatedInteractions,
+            metrics: { 
+                ...metrics, 
+                interactionCount: metrics.interactionCount + 1 
+            }
+        });
+    },
+    
+    updateMetrics: (updates) => {
+        const { metrics } = get();
+        set({ metrics: { ...metrics, ...updates } });
+    },
+    
+    getSessionSummary: () => {
+        const { config, deviceInfo, location, metrics, interactions } = get();
+        return {
+            config,
+            device: deviceInfo,
+            location,
+            metrics,
+            interactionCount: interactions.length,
+        };
+    },
 }));

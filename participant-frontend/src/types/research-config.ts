@@ -4,6 +4,7 @@ export interface ResearchConfig {
         enableLocationCapture: boolean;
         enableDeviceCapture: boolean;
         enableSessionRecording: boolean;
+        enableInteractionTracking?: boolean;
     };
 }
 
@@ -12,7 +13,10 @@ export interface DeviceInfo {
     platform: string;
     language: string;
     screenResolution: string;
+    viewportSize: string;
     deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown';
+    browserName?: string;
+    osName?: string;
 }
 
 export interface LocationInfo {
@@ -20,4 +24,22 @@ export interface LocationInfo {
     longitude: number;
     accuracy: number;
     timestamp: number;
+    source: 'gps' | 'ip' | 'denied';
+}
+
+export interface SessionMetrics {
+    startTime: number;
+    endTime: number | null;
+    duration: number;
+    stepChanges: number;
+    interactionCount: number;
+    focusTime: number;
+    idleTime: number;
+}
+
+export interface UserInteraction {
+    type: 'click' | 'input' | 'focus' | 'blur' | 'step_change';
+    target: string;
+    timestamp: number;
+    metadata?: Record<string, unknown>;
 }

@@ -15,9 +15,13 @@ function App() {
   const { currentStep, goNext, isLastStep } = useNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Initialize hooks - they will internally check the config
+  // Initialize device collector
   useDeviceCollector();
+  
+  // Initialize location collector (will be called manually when needed)
   useLocationCollector();
+  
+  // Initialize session timer
   useSessionTimer();
 
   // Mock configuration loading (Replace with actual API call later)
@@ -28,6 +32,7 @@ function App() {
         enableLocationCapture: true,
         enableDeviceCapture: true,
         enableSessionRecording: true,
+        enableInteractionTracking: true, // Habilitado para trackear interacciones
       },
     });
   }, [setConfig]);
@@ -37,6 +42,15 @@ function App() {
 
   // Get current module
   const currentModule = MOCK_MODULES[currentStep];
+
+  const handleNext = () => {
+    const result = goNext();
+    if (!result.success && result.errors) {
+      // TODO: Replace with a proper toast/notification system
+      const errorMessage = result.errors.map(e => e.message).join('\n');
+      alert(errorMessage);
+    }
+  };
 
   return (
     <>
@@ -51,7 +65,7 @@ function App() {
       <MainLayout
         footer={
           <Button
-            onClick={goNext}
+            onClick={handleNext}
             disabled={isLastStep}
           >
             {isLastStep ? 'Finalizar' : 'Guardar y continuar'}

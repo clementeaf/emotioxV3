@@ -9,13 +9,13 @@ import type { Response, ResponseId, ResponseValue, ResponseMetadata, ResponsesMa
 interface ParticipantState {
   // Navegación
   currentStep: string;
-  
+
   // Respuestas
   responses: ResponsesMap;
-  
+
   // Actions - Navegación
   setCurrentStep: (step: string) => void;
-  
+
   // Actions - Respuestas
   saveResponse: (moduleId: string, componentId: string, value: ResponseValue, metadata?: ResponseMetadata) => void;
   getResponse: (moduleId: string, componentId: string) => Response | null;
@@ -31,9 +31,9 @@ interface ParticipantState {
  * @param componentId - ID del componente
  * @returns ID único de la respuesta
  */
-function createResponseId(moduleId: string, componentId: string): ResponseId {
-  return `${moduleId}-${componentId}`;
-}
+export const createResponseId = (moduleId: string, componentId: string): ResponseId => {
+  return `${moduleId}_${componentId}`;
+};
 
 /**
  * Convierte ResponsesMap a objeto para persistencia

@@ -122,10 +122,10 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
         }
 
         if (isVOC) {
-            const vocComponent: any = {
+            const vocComponent = {
                 id: 'voc-response',
                 name: 'Response',
-                type: 'textarea',
+                type: 'textarea' as const,
                 label: '',
                 defaultValue: '',
                 placeholder: {
