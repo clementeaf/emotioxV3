@@ -39,6 +39,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 <InputRenderer
                     component={placeholderComponent || {
                         id: 'answer',
+                        name: 'answer',
                         type: 'input',
                         label: '',
                         defaultValue: '',
@@ -60,6 +61,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 <TextareaRenderer
                     component={placeholderComponent || {
                         id: 'answer',
+                        name: 'answer',
                         type: 'textarea',
                         label: '',
                         defaultValue: '',
