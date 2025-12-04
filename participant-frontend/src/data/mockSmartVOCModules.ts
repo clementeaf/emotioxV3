@@ -197,5 +197,170 @@ export const MOCK_SMARTVOC_MODULES: Record<string, ModuleConfig> = {
                 }
             ]
         }
+    },
+
+    ces: {
+        id: 'ces-module-id',
+        name: 'Customer Effort Score (CES)',
+        description: 'Customer Effort Score - Esfuerzo del cliente',
+        structure: {
+            components: [
+                {
+                    id: 'ces-title',
+                    name: 'Title',
+                    type: 'input',
+                    label: 'Question',
+                    defaultValue: '¿Qué tan fácil fue resolver tu problema?',
+                    placeholder: { enabled: true, text: 'Type your question here...' },
+                    required: true,
+                    order: 1,
+                    settings: {}
+                },
+                {
+                    id: 'ces-description',
+                    name: 'Description',
+                    type: 'textarea',
+                    label: 'Description',
+                    defaultValue: '',
+                    placeholder: { enabled: true, text: 'Enter an optional description...' },
+                    required: false,
+                    order: 2,
+                    settings: {}
+                },
+                {
+                    id: 'ces-instructions',
+                    name: 'Instructions',
+                    type: 'textarea',
+                    label: 'Instructions',
+                    defaultValue: 'Califica el esfuerzo requerido',
+                    placeholder: { enabled: true, text: 'Enter optional instructions...' },
+                    required: false,
+                    order: 3,
+                    settings: {}
+                },
+                {
+                    id: 'ces-scale',
+                    name: 'Scale',
+                    type: 'select',
+                    label: 'Scale',
+                    defaultValue: '1-7',
+                    selectRange: {
+                        type: 'predefined',
+                        predefined: '1-7'
+                    },
+                    options: [
+                        { value: '1-5', label: '1-5' },
+                        { value: '1-7', label: '1-7' },
+                        { value: '1-10', label: '1-10' }
+                    ],
+                    required: true,
+                    order: 4,
+                    settings: {}
+                },
+                {
+                    id: 'ces-start-label',
+                    name: 'Start Label',
+                    type: 'input',
+                    label: 'Start Label',
+                    defaultValue: 'Muy difícil',
+                    placeholder: { enabled: true, text: 'Ex: Very Difficult' },
+                    required: false,
+                    order: 5,
+                    settings: {}
+                },
+                {
+                    id: 'ces-end-label',
+                    name: 'End Label',
+                    type: 'input',
+                    label: 'End Label',
+                    defaultValue: 'Muy fácil',
+                    placeholder: { enabled: true, text: 'Ex: Very Easy' },
+                    required: false,
+                    order: 6,
+                    settings: {}
+                }
+            ]
+        }
+    },
+
+    cv: {
+        id: 'cv-module-id',
+        name: 'Cognitive Value (CV)',
+        description: 'Customer Value - Valor del cliente',
+        structure: {
+            components: [
+                {
+                    id: 'cv-title',
+                    name: 'Title',
+                    type: 'input',
+                    label: 'Question',
+                    defaultValue: '¿Qué tan valioso consideras nuestro producto?',
+                    placeholder: { enabled: true, text: 'Type your question here...' },
+                    required: true,
+                    order: 1,
+                    settings: {}
+                },
+                {
+                    id: 'cv-description',
+                    name: 'Description',
+                    type: 'textarea',
+                    label: 'Description',
+                    defaultValue: '',
+                    placeholder: { enabled: true, text: 'Enter an optional description...' },
+                    required: false,
+                    order: 2,
+                    settings: {}
+                },
+                {
+                    id: 'cv-instructions',
+                    name: 'Instructions',
+                    type: 'textarea',
+                    label: 'Instructions',
+                    defaultValue: 'Califica el valor percibido',
+                    placeholder: { enabled: true, text: 'Enter optional instructions...' },
+                    required: false,
+                    order: 3,
+                    settings: {}
+                },
+                {
+                    id: 'cv-scale',
+                    name: 'Scale',
+                    type: 'select',
+                    label: 'Scale',
+                    defaultValue: '1-5',
+                    options: [
+                        { value: '1-5', label: '1-5' },
+                        { value: '1-7', label: '1-7' },
+                        { value: '1-10', label: '1-10' }
+                    ],
+                    required: true,
+                    order: 4,
+                    settings: {}
+                },
+                {
+                    id: 'cv-start-label',
+                    name: 'Start Label',
+                    type: 'input',
+                    label: 'Start Label',
+                    defaultValue: 'Sin valor',
+                    placeholder: { enabled: true, text: 'Ex: Worthless, Bad' },
+                    required: false,
+                    order: 5,
+                    settings: {}
+                },
+                {
+                    id: 'cv-end-label',
+                    name: 'End Label',
+                    type: 'input',
+                    label: 'End Label',
+                    defaultValue: 'Muy valioso',
+                    placeholder: { enabled: true, text: 'Ex: Worth, Excellent' },
+                    required: false,
+                    order: 6,
+                    settings: {}
+                }
+            ]
+        }
     }
 };
+```
