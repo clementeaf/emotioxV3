@@ -78,17 +78,17 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({ title, descripti
     };
 
     return (
-        <div className="w-full space-y-6">
+        <div className="w-full space-y-3">
             {/* Progress indicator */}
-            <div className="flex items-center justify-between text-sm text-gray-600">
+            <div className="flex items-center justify-between text-xs text-gray-600">
                 <span>Imagen {currentImageIndex + 1} de {mockImages.length}</span>
                 <span className="text-xs text-gray-400">{currentImage.name}</span>
             </div>
 
             {/* Progress bar */}
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 rounded-full h-1.5">
                 <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${((currentImageIndex + 1) / mockImages.length) * 100}%` }}
                 />
             </div>
@@ -170,22 +170,18 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({ title, descripti
             </div>
 
             {/* Instructions */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800">
-                    <span className="font-semibold">Instrucción:</span> Haz clic en las áreas interactivas para avanzar por el flujo de navegación.
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-800">
+                    <span className="font-semibold">Instrucción:</span> Haz clic en las áreas interactivas para avanzar.
                     {clickPoints.length > 0 && !isComplete && (
-                        <span className="block mt-2 text-blue-600">
+                        <span className="block mt-1 text-blue-600">
                             {clickPoints.filter(p => !p.isCorrect).length > 0
-                                ? '❌ Intenta hacer clic en otra área'
+                                ? '❌ Intenta en otra área'
                                 : '✓ ¡Bien! Avanzando...'}
                         </span>
                     )}
                 </p>
             </div>
-
-            <p className="text-sm text-gray-500 text-center italic">
-                En producción, aquí se mostrarían las imágenes reales con hitzones configurables por el investigador
-            </p>
         </div>
     );
 };

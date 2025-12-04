@@ -159,24 +159,24 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
-            <div className="w-full max-w-2xl space-y-6">
+        <div className="flex flex-col items-center justify-center px-4 py-6">
+            <div className="w-full max-w-2xl space-y-4">
                 {/* Title */}
                 {titleComponent?.defaultValue && (
-                    <h1 className="text-3xl font-bold text-gray-900 text-center">
+                    <h1 className="text-2xl font-bold text-gray-900 text-center">
                         {titleComponent.defaultValue}
                     </h1>
                 )}
 
                 {/* Description */}
                 {descriptionComponent?.defaultValue && (
-                    <p className="text-lg text-gray-600 text-center">
+                    <p className="text-base text-gray-600 text-center">
                         {descriptionComponent.defaultValue}
                     </p>
                 )}
 
                 {/* Interactive Component */}
-                <div className="mt-8 w-full">
+                <div className="w-full">
                     {renderInteractiveComponent()}
                 </div>
             </div>

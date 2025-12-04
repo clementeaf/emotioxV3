@@ -76,8 +76,8 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
     const currentZoomImage = mockImages.find(img => img.id === zoomImage);
 
     return (
-        <div className="w-full space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="w-full space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {mockImages.map((image) => (
                     <div key={image.id} className="space-y-2">
                         <button
@@ -88,7 +88,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
                                 }`}
                         >
                             <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${image.color} rounded-lg`}>
-                                <svg className="w-16 h-16 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                                 <p className="text-sm font-medium text-white">{image.label}</p>
@@ -96,8 +96,8 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
 
                             {/* Selection indicator */}
                             {selectedImage === image.id && (
-                                <div className="absolute top-3 right-3 bg-blue-600 text-white rounded-full p-2 shadow-lg">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1.5 shadow-lg">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                     </svg>
                                 </div>
@@ -107,20 +107,20 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
                         {/* Zoom button */}
                         <button
                             onClick={() => handleZoomOpen(image.id)}
-                            className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
                             </svg>
-                            Ver en detalle
+                            Ver detalle
                         </button>
                     </div>
                 ))}
             </div>
 
             {selectedImage && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="text-sm text-green-800">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-xs text-green-800">
                         <span className="font-semibold">Seleccionado:</span> {mockImages.find(img => img.id === selectedImage)?.label}
                     </p>
                 </div>
