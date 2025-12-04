@@ -233,41 +233,39 @@ export const MOCK_COGNITIVE_MODULES: Record<string, ModuleConfig> = {
                 }
             ]
         }
+    },
+    'ranking': {
+        id: 'ranking-id',
+        name: 'Ranking',
+        description: 'Ordenar opciones por preferencia',
+        structure: {
+            components: [
+                {
+                    id: 'rk-title',
+                    name: 'Title',
+                    type: 'input',
+                    label: 'Question',
+                    defaultValue: 'Ordena por preferencia',
+                    required: true,
+                    order: 1,
+                    settings: {}
+                },
+                {
+                    id: 'rk-slider',
+                    name: 'Ranking Slider',
+                    type: 'select',
+                    label: '',
+                    defaultValue: '3',
+                    required: true,
+                    order: 3,
+                    settings: {},
+                    selectRange: {
+                        type: 'predefined',
+                        predefined: '1-5',
+                        variant: 'slider'
+                    }
+                }
             ]
         }
-    },
-'ranking': {
-    id: 'ranking-id',
-        name: 'Ranking',
-            description: 'Ordenar opciones por preferencia',
-                structure: {
-        components: [
-            {
-                id: 'rk-title',
-                name: 'Title',
-                type: 'input',
-                label: 'Question',
-                defaultValue: 'Ordena por preferencia',
-                required: true,
-                order: 1,
-                settings: {}
-            },
-            {
-                id: 'rk-slider',
-                name: 'Ranking Slider',
-                type: 'select',
-                label: '',
-                defaultValue: '3',
-                required: true,
-                order: 3,
-                settings: {},
-                selectRange: {
-                    type: 'predefined',
-                    predefined: '1-5',
-                    variant: 'slider'
-                }
-            }
-        ]
     }
-}
 };
