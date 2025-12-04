@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { ModuleConfig } from '../../types/module';
+import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
+import { useState } from 'react';
 
 interface DynamicStepProps {
     module: ModuleConfig;
@@ -16,10 +18,22 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
         }));
     };
 
-    // Sort components by order
-    const sortedComponents = [...module.structure.components].sort((a, b) => a.order - b.order);
+    // Check if this is a SmartVOC module
+    const isSmartVOC =
+        module.name.includes('CSAT') ||
+        module.name.includes('NPS') ||
+        module.name.includes('CES') ||
+        module.name.includes('CV') ||
+        module.name.includes('NEV') ||
+        module.name.includes('VOC');
 
-    // Separate display-only components from interactive ones
+    // If SmartVOC, use specialized renderer
+    if (isSmartVOC) {
+        return <SmartVOCRenderer module={module} />;
+    }
+
+    // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)
+    const sortedComponents = [...module.structure.components].sort((a, b) => a.order - b.order);
     const displayOnlyIds = ['title', 'message', 'instructions'];
 
     return (
@@ -28,7 +42,7 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
                 {sortedComponents.map((component) => {
                     const value = formData[component.id] || component.defaultValue || '';
 
-                    // Render display-only components (title, message, instructions)
+                    // Render display-only components
                     if (displayOnlyIds.includes(component.id)) {
                         if (component.id === 'title') {
                             return (

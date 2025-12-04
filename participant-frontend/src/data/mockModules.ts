@@ -1,4 +1,5 @@
 import type { ModuleConfig } from '../types/module';
+import { MOCK_SMARTVOC_MODULES } from './mockSmartVOCModules';
 
 export const MOCK_MODULES: Record<string, ModuleConfig> = {
     welcome: {
@@ -80,5 +81,7 @@ export const MOCK_MODULES: Record<string, ModuleConfig> = {
                 }
             ]
         }
-    }
+    },
+    // SmartVOC modules
+    ...MOCK_SMARTVOC_MODULES
 };
