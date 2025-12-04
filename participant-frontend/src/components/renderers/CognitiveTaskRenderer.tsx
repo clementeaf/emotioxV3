@@ -4,6 +4,8 @@ import { ScaleSelector } from '../ui/ScaleSelector';
 import { ChoiceSelector } from '../ui/ChoiceSelector';
 import { InputRenderer, TextareaRenderer } from '../renderers';
 import { RankingSelector } from '../ui/RankingSelector';
+import { NavigationFlow } from '../ui/NavigationFlow';
+import { PreferenceTest } from '../ui/PreferenceTest';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
@@ -26,6 +28,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     const isMultipleChoice = module.name === 'Multiple Choice';
     const isLinearScale = module.name === 'Linear Scale';
     const isRanking = module.name === 'Ranking';
+    const isNavigationFlow = module.name === 'Navigation Flow';
+    const isPreferenceTest = module.name === 'Preference Test';
 
     const renderInteractiveComponent = () => {
         if (isShortText) {
@@ -129,6 +133,24 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 <RankingSelector
                     items={rankingItems.length > 0 ? rankingItems : items}
                     onChange={setRankingItems}
+                />
+            );
+        }
+
+        if (isNavigationFlow) {
+            return (
+                <NavigationFlow
+                    title={titleComponent?.defaultValue}
+                    description={descriptionComponent?.defaultValue}
+                />
+            );
+        }
+
+        if (isPreferenceTest) {
+            return (
+                <PreferenceTest
+                    title={titleComponent?.defaultValue}
+                    description={descriptionComponent?.defaultValue}
                 />
             );
         }

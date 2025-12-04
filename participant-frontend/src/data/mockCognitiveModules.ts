@@ -286,5 +286,89 @@ export const MOCK_COGNITIVE_MODULES: Record<string, ModuleConfig> = {
                 }
             ]
         }
+    },
+    'navigation-flow': {
+        id: 'navigation-flow-id',
+        name: 'Navigation Flow',
+        description: 'Prueba de flujo de navegación',
+        structure: {
+            components: [
+                {
+                    id: 'nf-title',
+                    name: 'Title',
+                    type: 'input',
+                    label: 'Question',
+                    defaultValue: '¿Dónde harías clic para comprar?',
+                    required: true,
+                    order: 1,
+                    settings: {}
+                },
+                {
+                    id: 'nf-description',
+                    name: 'Description',
+                    type: 'textarea',
+                    label: 'Description',
+                    defaultValue: 'Haz clic en el área donde buscarías el botón de compra',
+                    required: false,
+                    order: 2,
+                    settings: {}
+                },
+                {
+                    id: 'nf-images',
+                    name: 'Images',
+                    type: 'file-upload',
+                    label: 'Images',
+                    defaultValue: '',
+                    required: false,
+                    order: 3,
+                    settings: {
+                        isImageUpload: true,
+                        allowHitZones: true
+                    }
+                }
+            ]
+        }
+    },
+    'preference-test': {
+        id: 'preference-test-id',
+        name: 'Preference Test',
+        description: 'Prueba A/B de preferencia',
+        structure: {
+            components: [
+                {
+                    id: 'pt-title',
+                    name: 'Title',
+                    type: 'input',
+                    label: 'Question',
+                    defaultValue: '¿Cuál diseño prefieres?',
+                    required: true,
+                    order: 1,
+                    settings: {}
+                },
+                {
+                    id: 'pt-description',
+                    name: 'Description',
+                    type: 'textarea',
+                    label: 'Description',
+                    defaultValue: 'Selecciona el diseño que más te guste',
+                    required: false,
+                    order: 2,
+                    settings: {}
+                },
+                {
+                    id: 'pt-images',
+                    name: 'Images',
+                    type: 'file-upload',
+                    label: 'Images',
+                    defaultValue: '',
+                    required: false,
+                    order: 3,
+                    settings: {
+                        isImageUpload: true,
+                        allowMultiple: true
+                    }
+                }
+            ]
+        }
     }
 };

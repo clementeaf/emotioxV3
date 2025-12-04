@@ -29,7 +29,9 @@ function getModuleDisplayName(moduleKey: string, moduleName: string): string {
         'single-choice': 'Single Choice',
         'multiple-choice': 'Multiple Choice',
         'linear-scale': 'Linear Scale',
-        'ranking': 'Ranking'
+        'ranking': 'Ranking',
+        'navigation-flow': 'Navigation Flow',
+        'preference-test': 'Preference Test'
     };
 
     return displayNames[moduleKey] || moduleName;
@@ -52,7 +54,7 @@ function getGroupedModules(modules: Record<string, ModuleConfig>): { title: stri
         },
         {
             title: 'Cognitive Tasks',
-            keys: ['short-text', 'long-text', 'single-choice', 'multiple-choice', 'linear-scale', 'ranking']
+            keys: ['short-text', 'long-text', 'single-choice', 'multiple-choice', 'linear-scale', 'ranking', 'navigation-flow', 'preference-test']
         },
         {
             title: 'Conclusion',
