@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MainLayout } from './components/layout/MainLayout';
 import { Button } from './components/ui/Button';
+import { DevSidebar } from './components/layout/DevSidebar';
 import { useSessionStore } from './stores/useSessionStore';
 import { useDeviceCollector } from './hooks/useDeviceCollector';
 import { useLocationCollector } from './hooks/useLocationCollector';
@@ -8,6 +9,7 @@ import { useSessionTimer } from './hooks/useSessionTimer';
 
 function App() {
   const { setConfig, config } = useSessionStore();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Initialize hooks - they will internally check the config
   useDeviceCollector();
@@ -26,28 +28,41 @@ function App() {
     });
   }, [setConfig]);
 
-  return (
-    <MainLayout
-      footer={
-        <Button onClick={() => console.log('Guardar y continuar')}>
-          Guardar y continuar
-        </Button>
-      }
-    >
-      <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Contenedor del Paso
-        </h1>
-        <p className="text-gray-500">
-          Aquí se renderizará el contenido dinámico del módulo.
-        </p>
+  // Check if we're in development mode
+  const isDev = import.meta.env.DEV;
 
-        {/* Debug Info Display */}
-        <div className="text-xs text-left w-full bg-gray-50 p-4 rounded mt-4 border border-gray-200">
-          <pre>{JSON.stringify(config, null, 2)}</pre>
+  return (
+    <>
+      {/* Development Sidebar */}
+      {isDev && (
+        <DevSidebar
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+        />
+      )}
+
+      <MainLayout
+        footer={
+          <Button onClick={() => console.log('Guardar y continuar')}>
+            Guardar y continuar
+          </Button>
+        }
+      >
+        <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Contenedor del Paso
+          </h1>
+          <p className="text-gray-500">
+            Aquí se renderizará el contenido dinámico del módulo.
+          </p>
+
+          {/* Debug Info Display */}
+          <div className="text-xs text-left w-full bg-gray-50 p-4 rounded mt-4 border border-gray-200">
+            <pre>{JSON.stringify(config, null, 2)}</pre>
+          </div>
         </div>
-      </div>
-    </MainLayout>
+      </MainLayout>
+    </>
   );
 }
 

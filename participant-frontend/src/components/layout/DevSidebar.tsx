@@ -1,0 +1,83 @@
+import React from 'react';
+
+interface DevSidebarProps {
+    isOpen: boolean;
+    onToggle: () => void;
+}
+
+export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
+    return (
+        <>
+            {/* Toggle Button */}
+            <button
+                onClick={onToggle}
+                className="fixed top-4 left-4 z-50 bg-blue-600 text-white p-2 rounded-lg shadow-lg hover:bg-blue-700 transition-all"
+                aria-label="Toggle sidebar"
+            >
+                <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    {isOpen ? (
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                        />
+                    ) : (
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 6h16M4 12h16M4 18h16"
+                        />
+                    )}
+                </svg>
+            </button>
+
+            {/* Sidebar */}
+            <div
+                className={`fixed top-0 left-0 h-full bg-white shadow-[0_4px_12px_rgba(0,0,0,0.1)] border-r border-gray-200 transition-transform duration-300 z-40 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+                    }`}
+                style={{ width: '280px' }}
+            >
+                <div className="flex flex-col h-full">
+                    {/* Header */}
+                    <div className="p-6 border-b border-gray-200">
+                        <h2 className="text-lg font-semibold text-gray-900">
+                            Dev Navigation
+                        </h2>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Development mode only
+                        </p>
+                    </div>
+
+                    {/* Content Area (Empty for now) */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                        <div className="text-sm text-gray-400 text-center py-8">
+                            Module list will appear here
+                        </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-200">
+                        <div className="text-xs text-gray-400 text-center">
+                            DEV MODE
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Overlay */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-20 z-30 transition-opacity"
+                    onClick={onToggle}
+                />
+            )}
+        </>
+    );
+};
