@@ -54,7 +54,7 @@ async function seedStages() {
             },
             {
                 name: 'Research Configuration',
-                description: 'Research settings and configuration',
+                description: 'Research settings and recruitment configuration',
                 stage_type: 'single_module' as const,
                 modules: ['Research Configuration']
             }

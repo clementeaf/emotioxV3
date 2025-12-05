@@ -65,6 +65,9 @@ export const create = async (userId: string, data: ResearchData) => {
             await cloneTemplateModulesInternal(client, research.id, research_type_id, use_default_modules);
         }
 
+        // Automatically add "Research Configuration" stage to all new researches
+        await addDefaultStage(client, research.id, userId);
+
         await client.query('COMMIT');
         return research;
     } catch (error) {
@@ -125,6 +128,108 @@ const cloneTemplateModulesInternal = async (client: any, researchId: string, res
                 ]);
             }
         }
+    }
+};
+
+/**
+ * Adds default "Research Configuration" stage to a new research
+ * @param client - Database client (transaction)
+ * @param researchId - ID of the research
+ * @param userId - ID of the user (for createStage)
+ */
+const addDefaultStage = async (client: any, researchId: string, userId: string) => {
+    try {
+        // Check if "Research Configuration" stage template exists
+        const stageTemplateQuery = `
+            SELECT id, stage_type FROM stage_templates 
+            WHERE name = 'Research Configuration' AND is_active = true
+        `;
+        const stageTemplateResult = await client.query(stageTemplateQuery);
+
+        if (stageTemplateResult.rows.length === 0) {
+            console.log('⚠️  Research Configuration stage template not found, skipping...');
+            return;
+        }
+
+        const stageTemplateId = stageTemplateResult.rows[0].id;
+        const stageType = stageTemplateResult.rows[0].stage_type || 'single_module';
+
+        // Get the maximum order_index for this research
+        const maxOrderResult = await client.query(
+            'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+            [researchId]
+        );
+        const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
+
+        // Create the stage
+        const stageQuery = `
+            INSERT INTO stages (research_id, name, description, order_index, stage_type)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, name, description, order_index, stage_type
+        `;
+        const stageResult = await client.query(stageQuery, [
+            researchId,
+            'Research Configuration',
+            'Research settings and recruitment configuration',
+            nextOrder,
+            stageType
+        ]);
+        const newStage = stageResult.rows[0];
+
+        // Get modules associated with this stage template
+        const modulesQuery = `
+            SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
+            FROM stage_templates_module_templates stmt
+            JOIN module_templates mt ON stmt.module_template_id = mt.id
+            WHERE stmt.stage_template_id = $1 AND mt.is_active = true
+            ORDER BY stmt.display_order
+        `;
+        const modulesResult = await client.query(modulesQuery, [stageTemplateId]);
+
+        // Create modules for this stage
+        for (const templateModule of modulesResult.rows) {
+            let structure = templateModule.structure;
+
+            // Ensure structure is an object
+            if (typeof structure === 'string') {
+                try {
+                    structure = JSON.parse(structure);
+                } catch (e) {
+                    console.error('Error parsing module structure:', e);
+                    structure = {};
+                }
+            }
+
+            if (!structure || typeof structure !== 'object' || Array.isArray(structure)) {
+                structure = {};
+            }
+
+            // Config must have the structure { structure: { components: [...] } }
+            const config = {
+                structure: structure
+            };
+
+            const moduleQuery = `
+                INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
+                VALUES ($1, $2, $3, $4, $5, true, $6)
+                RETURNING id
+            `;
+            await client.query(moduleQuery, [
+                researchId,
+                newStage.id,
+                templateModule.name,
+                templateModule.description,
+                templateModule.display_order,
+                JSON.stringify(config),
+            ]);
+
+            console.log(`✓ Created default module "${templateModule.name}" for Research Configuration stage`);
+        }
+
+        console.log(`✓ Added default stage "Research Configuration" to research ${researchId}`);
+    } catch (error) {
+        console.error('Error adding default Research Configuration stage:', error);
+        // Don't throw - we don't want to fail research creation if default stage fails
     }
 };
 

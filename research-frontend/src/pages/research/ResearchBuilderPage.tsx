@@ -8,6 +8,7 @@ import { ResearchBuilderHeader } from '../../components/research/ResearchBuilder
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
 import { SmartVOCModuleCard } from '../../components/research/SmartVOCModuleCard';
+import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import type { Stage, Module } from '../../services/research.service';
@@ -56,6 +57,9 @@ export const ResearchBuilderPage = () => {
         !activeModuleId || 
         smartVOCModules.some(m => m.id === activeModuleId)
     );
+    
+    // Check if current module is Research Configuration
+    const isResearchConfigModule = activeModule?.name === 'Research Configuration';
     
     const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
     
@@ -169,13 +173,29 @@ export const ResearchBuilderPage = () => {
             )}
 
             {/* Regular module view: Show single module */}
-            {!isSmartVOCStage && activeModule && (
+            {!isSmartVOCStage && !isResearchConfigModule && activeModule && (
                 <div className="space-y-6">
                     <div className="rounded-lg shadow-sm border border-gray-100 p-6">
                         <ModuleContentEditor
                             components={components}
                             componentValues={componentValues}
                             onValueChange={handleComponentValueChange}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Research Configuration module: Show custom component */}
+            {!isSmartVOCStage && isResearchConfigModule && activeModule && (
+                <div className="space-y-6">
+                    <div className="rounded-lg shadow-sm border border-gray-100 p-6">
+                        <ResearchConfigurationModule
+                            config={componentValues}
+                            onChange={(newConfig) => {
+                                Object.keys(newConfig).forEach(key => {
+                                    handleComponentValueChange(key, String(newConfig[key]));
+                                });
+                            }}
                         />
                     </div>
                 </div>
