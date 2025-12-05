@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BarChart3, Brain } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
+import { CognitiveTaskResults } from '../../components/results/cognitive-task/CognitiveTaskResults';
 
 /**
  * Research Results Page
@@ -52,15 +53,7 @@ export const ResearchResultsPage = () => {
                 {activeTab === 'smart-voc' ? (
                     <SmartVOCResults />
                 ) : (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center">
-                        <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            Cognitive Task Results
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                            Coming soon - Cognitive task analytics will be available here.
-                        </p>
-                    </div>
+                    <CognitiveTaskResults />
                 )}
             </div>
         </div>
