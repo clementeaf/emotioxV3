@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { QRCodeModal } from '../ui/QRCodeModal';
 import { ExternalLink, QrCode } from 'lucide-react';
 
 interface ResearchConfigurationProps {
@@ -16,6 +17,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const [demographicEnabled, setDemographicEnabled] = useState(true);
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
     const [participantLimitEnabled, setParticipantLimitEnabled] = useState(true);
+    const [showQRModal, setShowQRModal] = useState(false);
 
     const demographics = (config.demographics || {}) as Record<string, boolean>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
@@ -272,7 +274,11 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Link Preview
                             </Button>
-                            <Button variant="primary" size="sm">
+                            <Button 
+                                variant="primary" 
+                                size="sm"
+                                onClick={() => setShowQRModal(true)}
+                            >
                                 <QrCode className="h-4 w-4 mr-2" />
                                 Generate QR
                             </Button>
@@ -302,6 +308,16 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                     </div>
                 </div>
             </div>
+
+            {/* QR Code Modal */}
+            <QRCodeModal
+                isOpen={showQRModal}
+                onClose={() => setShowQRModal(false)}
+                url={researchUrl ? `https://${researchUrl}` : 'https://www.useremotion.com/research/example'}
+                title="Research link QR Code"
+                description="This is your Public QR Code"
+                downloadFileName="research-qr-code.png"
+            />
         </div>
     );
 };

@@ -14,6 +14,7 @@ export { Hitzone } from './Hitzone';
 export { Autocomplete } from './Autocomplete';
 export { CustomSelect } from './CustomSelect';
 export { Modal } from './Modal';
+export { QRCodeModal } from './QRCodeModal';
 export { Stepper } from './Stepper';
 
 // Re-export types
