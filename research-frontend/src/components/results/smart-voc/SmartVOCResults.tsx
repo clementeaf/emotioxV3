@@ -4,12 +4,13 @@ import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { SmartVOCResultsSkeleton } from './components/SmartVOCResultsSkeleton';
 import { CPVCard } from './components/CPVCard';
 import { TrustFlowChart } from './components/TrustFlowChart';
+import { MetricCard } from './components/MetricCard';
 import { QuestionCard } from './components/QuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
 import { EmotionalStates } from './components/EmotionalStates';
 import { VOCComments } from './components/VOCComments';
 import { Filters } from './components/Filters';
-import { safeCalculateAverage, safeCalculatePercentage } from '../shared/utils/calculations';
+import { safeCalculateAverage, safeCalculatePercentage, hasScores } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
 
 interface SmartVOCResultsProps {
@@ -79,7 +80,32 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           </div>
         </div>
 
-        {/* Question Cards: CSAT, CES, CV */}
+        {/* Metrics Cards: CSAT, CES, CV - Small charts */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <MetricCard
+            title="Customer Satisfaction"
+            abbreviation="CSAT"
+            score={safeCalculateAverage(data?.metrics.csatScores)}
+            question="How satisfied are you with our service?"
+            hasData={hasScores(data?.metrics.csatScores)}
+          />
+          <MetricCard
+            title="Customer Effort Score"
+            abbreviation="CES"
+            score={safeCalculateAverage(data?.metrics.cesScores)}
+            question="How easy was it to use our service?"
+            hasData={hasScores(data?.metrics.cesScores)}
+          />
+          <MetricCard
+            title="Cognitive Value"
+            abbreviation="CV"
+            score={safeCalculateAverage(data?.metrics.cvScores)}
+            question="How valuable do you find our service?"
+            hasData={hasScores(data?.metrics.cvScores)}
+          />
+        </div>
+
+        {/* Question Cards: CSAT, CES, CV - Detailed breakdown */}
         <div className="space-y-6 mb-6">
           <QuestionCard
             questionNumber="2.1"
