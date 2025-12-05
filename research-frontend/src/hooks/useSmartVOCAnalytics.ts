@@ -102,14 +102,26 @@ export const useSmartVOCAnalytics = (researchId: string | null): UseSmartVOCAnal
                     { month: 'Dec', promoters: 60, neutrals: 25, detractors: 15, npsRatio: 45, date: '2024-12-01' }
                 ],
                 emotionalStates: {
-                    joy: 145,
-                    trust: 98,
-                    anticipation: 76,
-                    surprise: 54,
-                    sadness: 32,
-                    fear: 28,
-                    anger: 15,
-                    disgust: 12
+                    Feliz: 29,
+                    Satisfecho: 42,
+                    Confiado: 38,
+                    Valorado: 18,
+                    Cuidado: 16,
+                    Seguro: 40,
+                    Enfocado: 38,
+                    Indulgente: 12,
+                    Estimulado: 14,
+                    Exploratorio: 30,
+                    Interesado: 34,
+                    Enérgico: 32,
+                    Descontento: 42,
+                    Frustrado: 48,
+                    Irritado: 14,
+                    Decepción: 12,
+                    Estresado: 8,
+                    Infeliz: 10,
+                    Desatendido: 32,
+                    Apresurado: 30
                 }
             };
             

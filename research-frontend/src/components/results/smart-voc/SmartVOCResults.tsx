@@ -197,11 +197,14 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               negativePercentage={Math.round(Object.entries(data?.emotionalStates || {}).filter(([emotion]) => 
                 ['sadness', 'fear', 'anger', 'disgust', 'descontento', 'frustrado', 'irritado', 'decepción'].includes(emotion.toLowerCase())
               ).reduce((sum, [, count]) => sum + count, 0) / Math.max(Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0), 1) * 100) || 0}
-              emotionalStates={Object.entries(data?.emotionalStates || {}).map(([name, value]) => ({
-                name,
-                value,
-                isPositive: ['joy', 'anticipation', 'trust', 'surprise', 'feliz', 'satisfecho', 'confiado', 'valorado', 'cuidado', 'seguro', 'enfocado', 'indulgente', 'estimulado', 'exploratorio', 'interesado', 'enérgico'].includes(name.toLowerCase())
-              }))}
+              emotionalStates={(() => {
+                const totalEmotions = Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0);
+                return Object.entries(data?.emotionalStates || {}).map(([name, count]) => ({
+                  name,
+                  value: totalEmotions > 0 ? Math.round((count / totalEmotions) * 100) : 0,
+                  isPositive: ['joy', 'anticipation', 'trust', 'surprise', 'feliz', 'satisfecho', 'confiado', 'valorado', 'cuidado', 'seguro', 'enfocado', 'indulgente', 'estimulado', 'exploratorio', 'interesado', 'enérgico'].includes(name.toLowerCase())
+                }));
+              })()}
               longTermClusters={[
                 { name: 'Advocacy', value: 70.95, trend: 'up' as const },
                 { name: 'Recommendation', value: 50.0, trend: 'down' as const },
