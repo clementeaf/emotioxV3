@@ -117,7 +117,26 @@ export const CPVCard = ({
   }
 
   return (
-    <Card className={cn('relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-700 text-white h-96', className)}>
+    <Card className={cn('relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 text-white h-96', className)}>
+      {/* Decorative wave pattern in background */}
+      <svg className="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none" viewBox="0 0 100 100">
+        <path
+          d="M0,50 Q25,30 50,50 T100,50 L100,100 L0,100 Z"
+          fill="white"
+          opacity="0.1"
+        />
+        <path
+          d="M0,60 Q25,40 50,60 T100,60 L100,100 L0,100 Z"
+          fill="white"
+          opacity="0.1"
+        />
+        <path
+          d="M0,70 Q25,50 50,70 T100,70 L100,100 L0,100 Z"
+          fill="white"
+          opacity="0.1"
+        />
+      </svg>
+      
       <div className="absolute top-4 right-4 z-20">
         <TimeRangeSelector timeRange={timeRange} onChange={onTimeRangeChange} />
       </div>
