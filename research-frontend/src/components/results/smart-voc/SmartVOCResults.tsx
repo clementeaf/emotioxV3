@@ -6,6 +6,7 @@ import { CPVCard } from './components/CPVCard';
 import { TrustFlowChart } from './components/TrustFlowChart';
 import { MetricCard } from './components/MetricCard';
 import { QuestionCard } from './components/QuestionCard';
+import { NEVQuestionCard } from './components/NEVQuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
 import { EmotionalStates } from './components/EmotionalStates';
 import { VOCComments } from './components/VOCComments';
@@ -179,6 +180,32 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
                   percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score <= 2),
                   color: 'bg-red-500'
                 }
+              ]}
+            />
+            
+            {/* NEV Question Card */}
+            <NEVQuestionCard
+              questionNumber="2.4"
+              title="Net Emotional Value (NEV)"
+              questionText="How do you feel about the experience offered by the [company]? Please select up to 3 emotions from these 20 emotional moods"
+              score={Math.round((data?.metrics.csatScores?.length || 0) * 0.56)}
+              responses={data?.metrics.csatScores?.length || 0}
+              positivePercentage={Math.round(Object.entries(data?.emotionalStates || {}).filter(([emotion]) => 
+                ['joy', 'anticipation', 'trust', 'surprise'].includes(emotion.toLowerCase())
+              ).reduce((sum, [, count]) => sum + count, 0) / Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0) * 100)}
+              negativePercentage={Math.round(Object.entries(data?.emotionalStates || {}).filter(([emotion]) => 
+                ['sadness', 'fear', 'anger', 'disgust'].includes(emotion.toLowerCase())
+              ).reduce((sum, [, count]) => sum + count, 0) / Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0) * 100)}
+              emotionalStates={data?.emotionalStates || {}}
+              longTermClusters={[
+                { name: 'Advocacy', percentage: 70.95 },
+                { name: 'Recommendation', percentage: 50.0 },
+                { name: 'Attention', percentage: 20.95 },
+                { name: 'Desirability', percentage: 35.5 }
+              ]}
+              shortTermClusters={[
+                { name: 'Attention', percentage: 93.5 },
+                { name: 'Destroying', percentage: 36.5 }
               ]}
             />
             
