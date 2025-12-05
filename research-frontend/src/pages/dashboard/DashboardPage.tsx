@@ -20,7 +20,6 @@ export const DashboardPage = () => {
     const [researches, setResearches] = useState<Research[]>([]);
     const [researchTypes, setResearchTypes] = useState<ResearchType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isLoadingTypes, setIsLoadingTypes] = useState(true);
     const [activeFilter, setActiveFilter] = useState<string>('all');
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
@@ -47,13 +46,10 @@ export const DashboardPage = () => {
 
     const loadResearchTypes = async () => {
         try {
-            setIsLoadingTypes(true);
             const response = await researchTypesService.list();
             setResearchTypes(response.researchTypes);
         } catch (error) {
             console.error('Failed to load research types:', error);
-        } finally {
-            setIsLoadingTypes(false);
         }
     };
 
@@ -134,36 +130,30 @@ export const DashboardPage = () => {
 
     return (
         <div className="h-full p-6 space-y-6">
-            {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-                <p className="mt-1 text-sm text-gray-500">Manage and monitor your research projects</p>
-            </div>
-
             {/* Main Content - Table and Sidebar */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="flex gap-6">
                 {/* Left Section - Research Table */}
-                <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border border-gray-100">
+                <div className="w-full rounded-lg shadow-sm border border-gray-100 overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Name
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Status
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Date
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Progress
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Researcher
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Actions
                                     </th>
                                 </tr>
@@ -171,7 +161,7 @@ export const DashboardPage = () => {
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {isLoading ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
                                             <div className="flex justify-center">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                                             </div>
@@ -180,7 +170,7 @@ export const DashboardPage = () => {
                                     </tr>
                                 ) : filteredResearches.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
                                             <p>No researches found</p>
                                             {activeFilter !== 'all' && (
                                                 <button
@@ -201,12 +191,12 @@ export const DashboardPage = () => {
                                                 onClick={() => handleRowClick(research.id)}
                                                 className="hover:bg-gray-50 cursor-pointer transition-colors"
                                             >
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                <td className="px-4 py-4 whitespace-nowrap">
                                                     <div className="text-sm font-medium text-gray-900">
                                                         {research.name}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                <td className="px-4 py-4 whitespace-nowrap">
                                                     <span
                                                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusVariant(
                                                             research.status
@@ -215,16 +205,16 @@ export const DashboardPage = () => {
                                                         {research.status}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {new Date(research.created_at).toLocaleDateString('en-US', {
                                                         month: '2-digit',
                                                         day: '2-digit',
                                                         year: 'numeric',
                                                     })}
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                <td className="px-4 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                                                        <div className="w-20 bg-gray-200 rounded-full h-2">
                                                             <div
                                                                 className="bg-blue-600 h-2 rounded-full transition-all"
                                                                 style={{ width: `${progress}%` }}
@@ -235,11 +225,11 @@ export const DashboardPage = () => {
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     Researcher
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <div className="flex items-center gap-2">
+                                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                                    <div className="flex items-center gap-1">
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -279,74 +269,41 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Right Sidebar - Research Types Filter */}
-                <div className="space-y-6">
-                    {/* Research Types Cards */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-4">Research&apos;s types</h3>
-                        
-                        {/* Filter Tabs */}
-                        <div className="space-y-2 mb-4">
-                            <button
-                                onClick={() => setActiveFilter('all')}
-                                className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                    activeFilter === 'all'
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                All
-                            </button>
-                            {isLoadingTypes ? (
-                                <div className="text-center py-4 text-gray-500 text-sm">Loading types...</div>
-                            ) : (
-                                researchTypes.map((type) => (
-                                    <button
-                                        key={type.id}
-                                        onClick={() => setActiveFilter(type.id)}
-                                        className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                            activeFilter === type.id
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                    >
-                                        {type.name}
-                                    </button>
-                                ))
-                            )}
-                        </div>
-                    </div>
+                <div className="w-80 space-y-4">
 
-                    {/* Sample Research Type Cards (from image) */}
-                    <div className="space-y-4">
-                        {researchTypes.slice(0, 4).map((type) => (
-                            <div
-                                key={type.id}
-                                className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                                onClick={() => toast.info(`View details for ${type.name}`)}
-                            >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center">
-                                                <span className="text-white text-xs font-bold">
-                                                    {type.name.substring(0, 2).toUpperCase()}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-semibold text-gray-900">
-                                                    {type.name}
-                                                </h4>
-                                                <p className="text-xs text-gray-500">By UserEmotion</p>
-                                            </div>
-                                        </div>
+                    {/* Research Type Cards */}
+                    {researchTypes.slice(0, 4).map((type) => (
+                        <div
+                            key={type.id}
+                            className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow"
+                        >
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <span className="text-white text-sm font-bold">
+                                            {type.name.substring(0, 2).toUpperCase()}
+                                        </span>
                                     </div>
-                                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800">
-                                        View
-                                    </Button>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-gray-900">
+                                            {type.name}
+                                        </h4>
+                                        <p className="text-xs text-gray-500">By UserEmotion</p>
+                                    </div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                            <div className="text-right">
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-blue-600 hover:text-blue-800"
+                                    onClick={() => toast.info(`View details for ${type.name}`)}
+                                >
+                                    View
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
