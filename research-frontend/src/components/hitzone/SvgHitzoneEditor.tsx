@@ -22,9 +22,7 @@ const CANVAS_HEIGHT = 575;
 export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () => void; onSave?: (areas: Area[]) => void; }> = ({
   imageUrl,
   areas,
-  setAreas: _setAreas,
   selectedAreaIdx,
-  setSelectedAreaIdx: _setSelectedAreaIdx,
   onClose,
   onSave
 }) => {

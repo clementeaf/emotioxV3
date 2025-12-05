@@ -8,6 +8,7 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ResearchPage } from '../pages/research/ResearchPage';
 import { ResearchBuilderPage } from '../pages/research/ResearchBuilderPage';
 import { ResearchInProgressPage } from '../pages/research/ResearchInProgressPage';
+import { ResearchResultsPage } from '../pages/research/ResearchResultsPage';
 import { ModulesPage } from '../pages/modules/ModulesPage';
 import { ModuleBuilderPage } from '../pages/modules/ModuleBuilderPage';
 import { ResearchTypesPage } from '../pages/research-types/ResearchTypesPage';
@@ -88,6 +89,13 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Module Builder' },
+    },
+    {
+        path: '/research/:id/builder/results',
+        element: <ResearchResultsPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Results' },
     },
     {
         path: '/research-in-progress',

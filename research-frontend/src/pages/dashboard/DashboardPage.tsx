@@ -26,6 +26,7 @@ export const DashboardPage = () => {
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Load data on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         void loadResearches();
         void loadResearchTypes();

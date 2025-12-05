@@ -11,7 +11,8 @@ import {
     Loader2,
     ChevronDown,
     ChevronRight,
-    Trash2
+    Trash2,
+    BarChart3
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -61,7 +62,7 @@ export const Sidebar = () => {
 
     useEffect(() => {
         // Check if we're in a research builder route (supports /builder, /builder/settings, /builder/module/:moduleId)
-        const builderMatch = location.pathname.match(/^\/research\/([^\/]+)\/builder/);
+        const builderMatch = location.pathname.match(/^\/research\/([^/]+)\/builder/);
         const researchId = builderMatch ? builderMatch[1] : null;
 
         const fetchResearch = async (id: string) => {
@@ -88,7 +89,7 @@ export const Sidebar = () => {
                 setActiveResearch(null);
             }
         }
-    }, [location.pathname]);
+    }, [location.pathname, activeResearch]);
 
     // Load available stage templates
     useEffect(() => {
@@ -105,7 +106,7 @@ export const Sidebar = () => {
             }
         };
         void loadStages();
-    }, []);
+    }, [toast]);
 
     /**
      * Determina si un stage es un módulo único o un conjunto de módulos
@@ -333,7 +334,7 @@ export const Sidebar = () => {
                     </div>
 
                     {/* Stages Section */}
-                    <div>
+                    <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
                                 Stages
@@ -349,7 +350,7 @@ export const Sidebar = () => {
                             {activeResearch.stages && activeResearch.stages.length > 0 ? (
                                 (() => {
                                     // Obtener el módulo activo una sola vez
-                                    const activeModuleId = location.pathname.match(/\/module\/([^\/]+)/)?.[1];
+                                    const activeModuleId = location.pathname.match(/\/module\/([^/]+)/)?.[1];
 
                                     // Buscar el módulo activo en todos los stages para obtener su información
                                     let activeModule: { id: string; name: string; stageId: string } | null = null;
@@ -553,6 +554,29 @@ export const Sidebar = () => {
                             ) : (
                                 <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Results Section */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Results
+                            </h3>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/results`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    location.pathname.includes('/builder/results')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                View Results
+                            </Link>
                         </div>
                     </div>
                 </div>

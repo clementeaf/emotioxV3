@@ -42,6 +42,7 @@ export const ModulesPage = () => {
     const [moduleUsage, setModuleUsage] = useState<Map<string, { count: number; researches: Array<{ id: string; name: string }> }>>(new Map());
     const usageLoadingRef = useRef<Set<string>>(new Set());
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         loadData();
     }, []);
@@ -183,7 +184,7 @@ export const ModulesPage = () => {
                 try {
                     const usage = await moduleTemplatesService.getUsage(id);
                     return { id, usage };
-                } catch (error) {
+                } catch {
                     // Silently fail - backend endpoint might not be ready yet
                     return { id, usage: null };
                 }
