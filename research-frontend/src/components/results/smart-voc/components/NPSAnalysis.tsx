@@ -1,6 +1,7 @@
 import { ChevronDown, Target } from 'lucide-react';
 import { useMemo } from 'react';
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -279,8 +280,8 @@ export const NPSAnalysis = ({
             <ComposedChart data={filteredMonthlyData} margin={{ top: 10, right: 10, bottom: 20, left: 40 }} barGap={0}>
               <defs>
                 <linearGradient id="npsGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4338CA" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#4338CA" stopOpacity={0.1} />
+                  <stop offset="5%" stopColor="#4338CA" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#4338CA" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -313,21 +314,30 @@ export const NPSAnalysis = ({
                 name="Promoters"
                 fill="#10B981"
                 stackId="nps"
-                radius={[4, 4, 0, 0]}
+                radius={[0, 0, 0, 0]}
               />
               <Bar
                 dataKey="neutrals"
                 name="Neutrals"
-                fill="#9CA3AF"
+                fill="#D1D5DB"
                 stackId="nps"
                 radius={[0, 0, 0, 0]}
               />
               <Bar
                 dataKey="detractors"
                 name="Detractors"
-                fill="#EF4444"
+                fill="#F87171"
                 stackId="nps"
-                radius={[0, 0, 4, 4]}
+                radius={[0, 0, 0, 0]}
+              />
+              <Area
+                type="natural"
+                dataKey="npsRatio"
+                name="NPS Ratio"
+                stroke="#4338CA"
+                strokeWidth={3}
+                fill="url(#npsGradient)"
+                fillOpacity={1}
               />
             </ComposedChart>
           </ResponsiveContainer>
