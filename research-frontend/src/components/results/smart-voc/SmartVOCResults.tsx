@@ -8,8 +8,6 @@ import { MetricCard } from './components/MetricCard';
 import { QuestionCard } from './components/QuestionCard';
 import { NEVQuestionCard } from './components/NEVQuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
-import { EmotionalStates } from './components/EmotionalStates';
-import { VOCComments } from './components/VOCComments';
 import { Filters } from './components/Filters';
 import { safeCalculateAverage, safeCalculatePercentage, hasScores } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
@@ -31,24 +29,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       timestamp: item.date
     }));
   }, [data?.timeSeriesData]);
-
-  const emotionalData = useMemo(() => {
-    if (!data?.emotionalStates) return [];
-    return Object.entries(data.emotionalStates).map(([emotion, count]) => ({
-      emotion,
-      count,
-      percentage: 0 // Will be calculated in component
-    }));
-  }, [data?.emotionalStates]);
-
-  const vocCommentsData = useMemo(() => {
-    return (data?.vocResponses || []).map((voc, index) => ({
-      id: `voc-${index}`,
-      text: voc.text,
-      timestamp: new Date().toISOString(), // Placeholder timestamp
-      sentiment: voc.sentiment
-    }));
-  }, [data?.vocResponses]);
 
   return (
     <ResultsStateHandler
@@ -230,10 +210,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
             />
-            
-            <EmotionalStates data={emotionalData} />
-            
-            <VOCComments comments={vocCommentsData} />
           </div>
 
           <div className="w-80 shrink-0">
