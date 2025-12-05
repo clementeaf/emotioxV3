@@ -10,6 +10,7 @@ import { EmotionalStates } from './components/EmotionalStates';
 import { VOCComments } from './components/VOCComments';
 import { Filters } from './components/Filters';
 import { safeCalculateAverage, hasScores } from '../shared/utils/calculations';
+import { cn } from '../../../lib/utils';
 
 interface SmartVOCResultsProps {
   researchId: string;
@@ -38,6 +39,15 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     }));
   }, [data?.emotionalStates]);
 
+  const vocCommentsData = useMemo(() => {
+    return (data?.vocResponses || []).map((voc, index) => ({
+      id: `voc-${index}`,
+      text: voc.text,
+      timestamp: new Date().toISOString(), // Placeholder timestamp
+      sentiment: voc.sentiment
+    }));
+  }, [data?.vocResponses]);
+
   return (
     <ResultsStateHandler
       isLoading={isLoading}
@@ -45,7 +55,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       onRetry={refetch}
       loadingSkeleton={<SmartVOCResultsSkeleton />}
     >
-      <div className={className}>
+      <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
         {/* Top Section: CPV + Trust Flow */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="md:col-span-1">
@@ -98,18 +108,15 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         <div className="flex gap-6">
           <div className="flex-1 space-y-6">
             <NPSAnalysis
-              npsScore={data?.metrics.npsScore || 0}
+              score={data?.metrics.npsScore || 0}
               promoters={data?.metrics.promoters || 0}
               neutrals={data?.metrics.neutrals || 0}
               detractors={data?.metrics.detractors || 0}
-              monthlyData={data?.monthlyNPSData || []}
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
             />
             
             <EmotionalStates data={emotionalData} />
             
-            <VOCComments comments={data?.vocResponses || []} />
+            <VOCComments comments={vocCommentsData} />
           </div>
 
           <div className="w-80 shrink-0">
