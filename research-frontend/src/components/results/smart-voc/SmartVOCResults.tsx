@@ -4,12 +4,12 @@ import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { SmartVOCResultsSkeleton } from './components/SmartVOCResultsSkeleton';
 import { CPVCard } from './components/CPVCard';
 import { TrustFlowChart } from './components/TrustFlowChart';
-import { MetricCard } from './components/MetricCard';
+import { QuestionCard } from './components/QuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
 import { EmotionalStates } from './components/EmotionalStates';
 import { VOCComments } from './components/VOCComments';
 import { Filters } from './components/Filters';
-import { safeCalculateAverage, hasScores } from '../shared/utils/calculations';
+import { safeCalculateAverage, safeCalculatePercentage } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
 
 interface SmartVOCResultsProps {
@@ -79,28 +79,79 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           </div>
         </div>
 
-        {/* Metrics Cards: CSAT, CES, CV */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <MetricCard
-            title="Customer Satisfaction"
-            abbreviation="CSAT"
-            score={safeCalculateAverage(data?.metrics.csatScores)}
-            question="How satisfied are you with our service?"
-            hasData={hasScores(data?.metrics.csatScores)}
+        {/* Question Cards: CSAT, CES, CV */}
+        <div className="space-y-6 mb-6">
+          <QuestionCard
+            questionNumber="2.1"
+            title="Customer Satisfaction Score (CSAT)"
+            questionText="How satisfied are you with our service?"
+            score={Math.round(safeCalculateAverage(data?.metrics.csatScores))}
+            responses={data?.metrics.csatScores?.length || 0}
+            breakdown={[
+              {
+                label: 'Promoters',
+                percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score >= 4),
+                color: 'bg-green-500'
+              },
+              {
+                label: 'Neutrals',
+                percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score === 3),
+                color: 'bg-gray-400'
+              },
+              {
+                label: 'Detractors',
+                percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score <= 2),
+                color: 'bg-red-500'
+              }
+            ]}
           />
-          <MetricCard
-            title="Customer Effort Score"
-            abbreviation="CES"
-            score={safeCalculateAverage(data?.metrics.cesScores)}
-            question="How easy was it to use our service?"
-            hasData={hasScores(data?.metrics.cesScores)}
+          <QuestionCard
+            questionNumber="2.2"
+            title="Customer Effort Score (CES)"
+            questionText="How easy was it to use our service?"
+            score={Math.round(safeCalculateAverage(data?.metrics.cesScores))}
+            responses={data?.metrics.cesScores?.length || 0}
+            breakdown={[
+              {
+                label: 'Little effort',
+                percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score <= 2),
+                color: 'bg-green-500'
+              },
+              {
+                label: 'Neutrals',
+                percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score === 3),
+                color: 'bg-gray-400'
+              },
+              {
+                label: 'Much effort',
+                percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score >= 4),
+                color: 'bg-red-500'
+              }
+            ]}
           />
-          <MetricCard
-            title="Cognitive Value"
-            abbreviation="CV"
-            score={safeCalculateAverage(data?.metrics.cvScores)}
-            question="How valuable do you find our service?"
-            hasData={hasScores(data?.metrics.cvScores)}
+          <QuestionCard
+            questionNumber="2.3"
+            title="Cognitive Value (CV)"
+            questionText="How valuable do you find our service?"
+            score={Math.round(safeCalculateAverage(data?.metrics.cvScores))}
+            responses={data?.metrics.cvScores?.length || 0}
+            breakdown={[
+              {
+                label: 'Worth',
+                percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score >= 4),
+                color: 'bg-green-500'
+              },
+              {
+                label: 'Neutrals',
+                percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score === 3),
+                color: 'bg-gray-400'
+              },
+              {
+                label: 'Worthless',
+                percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score <= 2),
+                color: 'bg-red-500'
+              }
+            ]}
           />
         </div>
 
