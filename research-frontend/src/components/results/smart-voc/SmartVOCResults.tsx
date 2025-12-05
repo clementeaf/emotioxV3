@@ -187,25 +187,30 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
             <NEVQuestionCard
               questionNumber="2.4"
               title="Net Emotional Value (NEV)"
-              questionText="How do you feel about the experience offered by the [company]? Please select up to 3 emotions from these 20 emotional moods"
+              questionText="How do you feel about the experience offered by the [company]?"
+              instructionsText="Please select up to 3 emotions from these 20 emotional moods"
               score={Math.round((data?.metrics.csatScores?.length || 0) * 0.56)}
               responses={data?.metrics.csatScores?.length || 0}
               positivePercentage={Math.round(Object.entries(data?.emotionalStates || {}).filter(([emotion]) => 
-                ['joy', 'anticipation', 'trust', 'surprise'].includes(emotion.toLowerCase())
-              ).reduce((sum, [, count]) => sum + count, 0) / Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0) * 100)}
+                ['joy', 'anticipation', 'trust', 'surprise', 'feliz', 'satisfecho', 'confiado', 'valorado'].includes(emotion.toLowerCase())
+              ).reduce((sum, [, count]) => sum + count, 0) / Math.max(Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0), 1) * 100) || 0}
               negativePercentage={Math.round(Object.entries(data?.emotionalStates || {}).filter(([emotion]) => 
-                ['sadness', 'fear', 'anger', 'disgust'].includes(emotion.toLowerCase())
-              ).reduce((sum, [, count]) => sum + count, 0) / Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0) * 100)}
-              emotionalStates={data?.emotionalStates || {}}
+                ['sadness', 'fear', 'anger', 'disgust', 'descontento', 'frustrado', 'irritado', 'decepción'].includes(emotion.toLowerCase())
+              ).reduce((sum, [, count]) => sum + count, 0) / Math.max(Object.values(data?.emotionalStates || {}).reduce((sum, count) => sum + count, 0), 1) * 100) || 0}
+              emotionalStates={Object.entries(data?.emotionalStates || {}).map(([name, value]) => ({
+                name,
+                value,
+                isPositive: ['joy', 'anticipation', 'trust', 'surprise', 'feliz', 'satisfecho', 'confiado', 'valorado', 'cuidado', 'seguro', 'enfocado', 'indulgente', 'estimulado', 'exploratorio', 'interesado', 'enérgico'].includes(name.toLowerCase())
+              }))}
               longTermClusters={[
-                { name: 'Advocacy', percentage: 70.95 },
-                { name: 'Recommendation', percentage: 50.0 },
-                { name: 'Attention', percentage: 20.95 },
-                { name: 'Desirability', percentage: 35.5 }
+                { name: 'Advocacy', value: 70.95, trend: 'up' as const },
+                { name: 'Recommendation', value: 50.0, trend: 'down' as const },
+                { name: 'Attention', value: 20.95, trend: 'up' as const },
+                { name: 'Desirability', value: 35.5, trend: 'down' as const }
               ]}
               shortTermClusters={[
-                { name: 'Attention', percentage: 93.5 },
-                { name: 'Destroying', percentage: 36.5 }
+                { name: 'Attention', value: 93.5, trend: 'up' as const },
+                { name: 'Destroying', value: 36.5, trend: 'down' as const }
               ]}
             />
             
