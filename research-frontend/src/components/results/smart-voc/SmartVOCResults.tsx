@@ -121,7 +121,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               questionText="How easy was it to use our service?"
               score={Math.round(safeCalculateAverage(data?.metrics.cesScores))}
               responses={data?.metrics.cesScores?.length || 0}
-              showEquation={true}
               breakdown={[
                 {
                   label: 'Little effort',
@@ -146,7 +145,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               questionText="How valuable do you find our service?"
               score={Math.round(safeCalculateAverage(data?.metrics.cvScores))}
               responses={data?.metrics.cvScores?.length || 0}
-              showEquation={true}
               breakdown={[
                 {
                   label: 'Worth',
