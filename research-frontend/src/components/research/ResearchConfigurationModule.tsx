@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
@@ -14,6 +15,7 @@ interface ResearchConfigurationProps {
  * Renders the recruitment and configuration settings for a research
  */
 export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfigurationProps) => {
+    const { id: researchId } = useParams<{ id: string }>();
     const [demographicEnabled, setDemographicEnabled] = useState(true);
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
     const [participantLimitEnabled, setParticipantLimitEnabled] = useState(true);
@@ -24,6 +26,18 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const backlinks = (config.backlinks || {}) as Record<string, string>;
     const researchUrl = (config.researchUrl || '') as string;
     const participantLimit = (config.participantLimit || 50) as number;
+
+    // Generate participant-frontend URL
+    const getParticipantUrl = () => {
+        if (!researchId) return '';
+        
+        const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const baseUrl = isDevelopment 
+            ? 'http://localhost:5173' 
+            : import.meta.env.VITE_PARTICIPANT_FRONTEND_URL || 'https://participant.useremotion.com';
+        
+        return `${baseUrl}/research/${researchId}`;
+    };
 
     const handleDemographicChange = (key: string, value: boolean) => {
         onChange({
@@ -312,7 +326,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             <QRCodeModal
                 isOpen={showQRModal}
                 onClose={() => setShowQRModal(false)}
-                url={researchUrl ? `https://${researchUrl}` : 'https://www.useremotion.com/research/example'}
+                url={getParticipantUrl()}
                 title="Research link QR Code"
                 description="This is your Public QR Code"
                 downloadFileName="research-qr-code.png"
