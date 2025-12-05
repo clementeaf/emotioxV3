@@ -94,15 +94,41 @@ export const useSmartVOCAnalytics = (researchId: string | null): UseSmartVOCAnal
                         trend: 'Increasing'
                     };
                 })(),
-                timeSeriesData: [
-                    { date: '2024-11-25', score: 7.2, nps: 40, nev: 6.8, count: 12 },
-                    { date: '2024-11-26', score: 7.4, nps: 42, nev: 7.0, count: 15 },
-                    { date: '2024-11-27', score: 7.6, nps: 43, nev: 7.2, count: 18 },
-                    { date: '2024-11-28', score: 7.5, nps: 41, nev: 7.1, count: 14 },
-                    { date: '2024-11-29', score: 7.8, nps: 45, nev: 7.4, count: 20 },
-                    { date: '2024-11-30', score: 7.9, nps: 46, nev: 7.5, count: 22 },
-                    { date: '2024-12-01', score: 8.0, nps: 47, nev: 7.6, count: 25 }
-                ],
+                timeSeriesData: (() => {
+                    // Simulate time series data with proper NPS and NEV calculations
+                    const dates = [
+                        '2024-11-25', '2024-11-26', '2024-11-27', '2024-11-28', 
+                        '2024-11-29', '2024-11-30', '2024-12-01'
+                    ];
+                    
+                    return dates.map((date, index) => {
+                        // Simulate NPS scores (0-10)
+                        const npsScores = Array.from({ length: 10 + index * 2 }, () => 
+                            Math.floor(Math.random() * 11)
+                        );
+                        
+                        // NPS = % Promotores (9-10) - % Detractores (0-6)
+                        const promoters = npsScores.filter(s => s >= 9).length;
+                        const detractors = npsScores.filter(s => s <= 6).length;
+                        const nps = ((promoters - detractors) / npsScores.length) * 100;
+                        
+                        // Simulate emotional states
+                        const positiveEmotions = Math.floor(Math.random() * 50) + 100; // 100-150
+                        const negativeEmotions = Math.floor(Math.random() * 40) + 60;  // 60-100
+                        const totalEmotions = positiveEmotions + negativeEmotions;
+                        
+                        // NEV = % Emociones positivas - % Emociones negativas
+                        const nev = ((positiveEmotions - negativeEmotions) / totalEmotions) * 100;
+                        
+                        return {
+                            date,
+                            score: 7.2 + index * 0.2,
+                            nps: Math.round(nps * 100) / 100,
+                            nev: Math.round(nev * 100) / 100,
+                            count: 12 + index * 3
+                        };
+                    });
+                })(),
                 vocResponses: [
                     { text: 'Great service, very satisfied!', sentiment: 'positive' },
                     { text: 'The product quality exceeded my expectations', sentiment: 'positive' },

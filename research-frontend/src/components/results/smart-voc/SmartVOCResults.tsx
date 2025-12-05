@@ -10,7 +10,7 @@ import { NEVQuestionCard } from './components/NEVQuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
 import { VOCComments } from './components/VOCComments';
 import { Filters } from './components/Filters';
-import { safeCalculateAverage, safeCalculatePercentage, hasScores } from '../shared/utils/calculations';
+import { safeCalculatePercentage, calculateCSAT, calculateCES, calculateCV, hasScores } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
 
 interface SmartVOCResultsProps {
@@ -63,21 +63,21 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           <MetricCard
             title="Customer Satisfaction"
             abbreviation="CSAT"
-            score={safeCalculateAverage(data?.metrics.csatScores)}
+            score={calculateCSAT(data?.metrics.csatScores)}
             question="How satisfied are you with our service?"
             hasData={hasScores(data?.metrics.csatScores)}
           />
           <MetricCard
             title="Customer Effort Score"
             abbreviation="CES"
-            score={safeCalculateAverage(data?.metrics.cesScores)}
+            score={calculateCES(data?.metrics.cesScores)}
             question="How easy was it to use our service?"
             hasData={hasScores(data?.metrics.cesScores)}
           />
           <MetricCard
             title="Cognitive Value"
             abbreviation="CV"
-            score={safeCalculateAverage(data?.metrics.cvScores)}
+            score={calculateCV(data?.metrics.cvScores)}
             question="How valuable do you find our service?"
             hasData={hasScores(data?.metrics.cvScores)}
           />
@@ -91,7 +91,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               questionNumber="2.1"
               title="Customer Satisfaction Score (CSAT)"
               questionText="How satisfied are you with our service?"
-              score={Math.round(safeCalculateAverage(data?.metrics.csatScores))}
+              score={Math.round(calculateCSAT(data?.metrics.csatScores))}
               responses={data?.metrics.csatScores?.length || 0}
               breakdown={[
                 {
@@ -115,7 +115,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               questionNumber="2.2"
               title="Customer Effort Score (CES)"
               questionText="How easy was it to use our service?"
-              score={Math.round(safeCalculateAverage(data?.metrics.cesScores))}
+              score={Math.round(calculateCES(data?.metrics.cesScores))}
               responses={data?.metrics.cesScores?.length || 0}
               breakdown={[
                 {
@@ -139,7 +139,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               questionNumber="2.3"
               title="Cognitive Value (CV)"
               questionText="How valuable do you find our service?"
-              score={Math.round(safeCalculateAverage(data?.metrics.cvScores))}
+              score={Math.round(calculateCV(data?.metrics.cvScores))}
               responses={data?.metrics.cvScores?.length || 0}
               breakdown={[
                 {
