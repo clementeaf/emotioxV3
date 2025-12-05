@@ -4,6 +4,7 @@ import { VOCComments } from '../smart-voc/components/VOCComments';
 import { ChoiceQuestionCard } from './components/ChoiceQuestionCard';
 import { LinearScaleQuestionCard } from './components/LinearScaleQuestionCard';
 import { RankingQuestionCard } from './components/RankingQuestionCard';
+import { NavigationTestCard } from './components/NavigationTestCard';
 import { cn } from '../../../lib/utils';
 
 interface CognitiveTaskResultsProps {
@@ -191,6 +192,47 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
                   { position: 5, percentage: 25, color: '#4338CA' },
                   { position: 6, percentage: 30, color: '#3730A3' }
                 ]
+              }
+            ]}
+          />
+
+          {/* Question 3.7 - Navigation Test */}
+          <NavigationTestCard
+            questionNumber="3.7"
+            questionText="Navigation Test"
+            questionType="Navigation Test"
+            conditionalityDisabled={true}
+            required={true}
+            steps={[
+              {
+                stepNumber: 1,
+                title: 'Step 1 and task description',
+                duration: '2s',
+                completionRate: 100,
+                participantCount: 3,
+                hasHeatmap: true,
+                aois: [
+                  { id: '1', label: 'Area of Interest (AOI)', percentage: 14 },
+                  { id: '2', label: 'Area of Interest (AOI)', percentage: 14 },
+                  { id: '3', label: 'Area of Interest (AOI)', percentage: 14 },
+                  { id: '4', label: 'Area of Interest (AOI)', percentage: 14 }
+                ]
+              },
+              {
+                stepNumber: 2,
+                title: 'Step 2 and task description',
+                duration: '55s',
+                completionRate: 100,
+                participantCount: 3,
+                hasHeatmap: false
+              },
+              {
+                stepNumber: 3,
+                title: 'Step 3 and task description',
+                duration: '70s',
+                completionRate: 100,
+                participantCount: 4,
+                hasHeatmap: false
               }
             ]}
           />
