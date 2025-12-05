@@ -280,8 +280,8 @@ export const NPSAnalysis = ({
             <ComposedChart data={filteredMonthlyData} margin={{ top: 10, right: 10, bottom: 20, left: 40 }} barGap={0}>
               <defs>
                 <linearGradient id="npsGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4338CA" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#4338CA" stopOpacity={0.05} />
+                  <stop offset="5%" stopColor="#6366F1" stopOpacity={0.5} />
+                  <stop offset="95%" stopColor="#6366F1" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
               <CartesianGrid
@@ -314,7 +314,7 @@ export const NPSAnalysis = ({
                 name="Promoters"
                 fill="#10B981"
                 stackId="nps"
-                radius={[0, 0, 0, 0]}
+                radius={[12, 12, 0, 0]}
               />
               <Bar
                 dataKey="neutrals"
@@ -328,13 +328,13 @@ export const NPSAnalysis = ({
                 name="Detractors"
                 fill="#F87171"
                 stackId="nps"
-                radius={[0, 0, 0, 0]}
+                radius={[0, 0, 12, 12]}
               />
               <Area
                 type="natural"
                 dataKey="npsRatio"
                 name="NPS Ratio"
-                stroke="#4338CA"
+                stroke="#4F46E5"
                 strokeWidth={3}
                 fill="url(#npsGradient)"
                 fillOpacity={1}
