@@ -25,6 +25,7 @@ export interface CognitiveTaskAnalytics {
     processedData: ProcessedQuestionData[];
     totalParticipants: number;
     completionRate: number;
+    totalResponses: number;
 }
 
 /**

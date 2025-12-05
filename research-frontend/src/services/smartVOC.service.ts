@@ -46,6 +46,7 @@ export interface SmartVOCAnalytics {
         neutrals: number;
         detractors: number;
         npsRatio: number;
+        date?: string;
     }>;
     emotionalStates: Record<string, number>;
 }
