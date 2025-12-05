@@ -3,6 +3,7 @@ import { Filters } from '../smart-voc/components/Filters';
 import { VOCComments } from '../smart-voc/components/VOCComments';
 import { ChoiceQuestionCard } from './components/ChoiceQuestionCard';
 import { LinearScaleQuestionCard } from './components/LinearScaleQuestionCard';
+import { RankingQuestionCard } from './components/RankingQuestionCard';
 import { cn } from '../../../lib/utils';
 
 interface CognitiveTaskResultsProps {
@@ -101,6 +102,96 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               { value: 3, percentage: 20, color: '#9CA3AF' },
               { value: 4, percentage: 20, color: '#10B981' },
               { value: 5, percentage: 20, color: '#10B981' }
+            ]}
+          />
+
+          {/* Question 3.6 - Ranking */}
+          <RankingQuestionCard
+            questionNumber="3.6"
+            questionText="Question"
+            questionType="Ranking question"
+            conditionalityDisabled={true}
+            required={true}
+            totalResponses={28635}
+            options={[
+              {
+                id: '1',
+                label: 'Option 2',
+                mean: 2.4,
+                segments: [
+                  { position: 1, percentage: 20, color: '#A5B4FC' },
+                  { position: 2, percentage: 35, color: '#818CF8' },
+                  { position: 3, percentage: 15, color: '#6366F1' },
+                  { position: 4, percentage: 10, color: '#4F46E5' },
+                  { position: 5, percentage: 12, color: '#4338CA' },
+                  { position: 6, percentage: 8, color: '#3730A3' }
+                ]
+              },
+              {
+                id: '2',
+                label: 'Option 5',
+                mean: 2.8,
+                segments: [
+                  { position: 1, percentage: 18, color: '#A5B4FC' },
+                  { position: 2, percentage: 25, color: '#818CF8' },
+                  { position: 3, percentage: 22, color: '#6366F1' },
+                  { position: 4, percentage: 15, color: '#4F46E5' },
+                  { position: 5, percentage: 12, color: '#4338CA' },
+                  { position: 6, percentage: 8, color: '#3730A3' }
+                ]
+              },
+              {
+                id: '3',
+                label: 'Option 3',
+                mean: 3.1,
+                segments: [
+                  { position: 1, percentage: 15, color: '#A5B4FC' },
+                  { position: 2, percentage: 20, color: '#818CF8' },
+                  { position: 3, percentage: 25, color: '#6366F1' },
+                  { position: 4, percentage: 18, color: '#4F46E5' },
+                  { position: 5, percentage: 14, color: '#4338CA' },
+                  { position: 6, percentage: 8, color: '#3730A3' }
+                ]
+              },
+              {
+                id: '4',
+                label: 'Option 4',
+                mean: 3.4,
+                segments: [
+                  { position: 1, percentage: 12, color: '#A5B4FC' },
+                  { position: 2, percentage: 18, color: '#818CF8' },
+                  { position: 3, percentage: 15, color: '#6366F1' },
+                  { position: 4, percentage: 25, color: '#4F46E5' },
+                  { position: 5, percentage: 20, color: '#4338CA' },
+                  { position: 6, percentage: 10, color: '#3730A3' }
+                ]
+              },
+              {
+                id: '5',
+                label: 'Option 6',
+                mean: 3.7,
+                segments: [
+                  { position: 1, percentage: 10, color: '#A5B4FC' },
+                  { position: 2, percentage: 12, color: '#818CF8' },
+                  { position: 3, percentage: 15, color: '#6366F1' },
+                  { position: 4, percentage: 18, color: '#4F46E5' },
+                  { position: 5, percentage: 28, color: '#4338CA' },
+                  { position: 6, percentage: 17, color: '#3730A3' }
+                ]
+              },
+              {
+                id: '6',
+                label: 'Option 1',
+                mean: 3.8,
+                segments: [
+                  { position: 1, percentage: 8, color: '#A5B4FC' },
+                  { position: 2, percentage: 10, color: '#818CF8' },
+                  { position: 3, percentage: 12, color: '#6366F1' },
+                  { position: 4, percentage: 15, color: '#4F46E5' },
+                  { position: 5, percentage: 25, color: '#4338CA' },
+                  { position: 6, percentage: 30, color: '#3730A3' }
+                ]
+              }
             ]}
           />
         </div>
