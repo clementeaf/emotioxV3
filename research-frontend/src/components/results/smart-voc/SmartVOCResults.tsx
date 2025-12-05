@@ -105,85 +105,83 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           />
         </div>
 
-        {/* Question Cards: CSAT, CES, CV - Detailed breakdown */}
-        <div className="space-y-6 mb-6">
-          <QuestionCard
-            questionNumber="2.1"
-            title="Customer Satisfaction Score (CSAT)"
-            questionText="How satisfied are you with our service?"
-            score={Math.round(safeCalculateAverage(data?.metrics.csatScores))}
-            responses={data?.metrics.csatScores?.length || 0}
-            breakdown={[
-              {
-                label: 'Promoters',
-                percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score >= 4),
-                color: 'bg-green-500'
-              },
-              {
-                label: 'Neutrals',
-                percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score === 3),
-                color: 'bg-gray-400'
-              },
-              {
-                label: 'Detractors',
-                percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score <= 2),
-                color: 'bg-red-500'
-              }
-            ]}
-          />
-          <QuestionCard
-            questionNumber="2.2"
-            title="Customer Effort Score (CES)"
-            questionText="How easy was it to use our service?"
-            score={Math.round(safeCalculateAverage(data?.metrics.cesScores))}
-            responses={data?.metrics.cesScores?.length || 0}
-            breakdown={[
-              {
-                label: 'Little effort',
-                percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score <= 2),
-                color: 'bg-green-500'
-              },
-              {
-                label: 'Neutrals',
-                percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score === 3),
-                color: 'bg-gray-400'
-              },
-              {
-                label: 'Much effort',
-                percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score >= 4),
-                color: 'bg-red-500'
-              }
-            ]}
-          />
-          <QuestionCard
-            questionNumber="2.3"
-            title="Cognitive Value (CV)"
-            questionText="How valuable do you find our service?"
-            score={Math.round(safeCalculateAverage(data?.metrics.cvScores))}
-            responses={data?.metrics.cvScores?.length || 0}
-            breakdown={[
-              {
-                label: 'Worth',
-                percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score >= 4),
-                color: 'bg-green-500'
-              },
-              {
-                label: 'Neutrals',
-                percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score === 3),
-                color: 'bg-gray-400'
-              },
-              {
-                label: 'Worthless',
-                percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score <= 2),
-                color: 'bg-red-500'
-              }
-            ]}
-          />
-        </div>
-
         {/* Main Content + Sidebar */}
         <div className="flex gap-6">
           <div className="flex-1 space-y-6">
+            {/* Question Cards: CSAT, CES, CV - Detailed breakdown */}
+            <QuestionCard
+              questionNumber="2.1"
+              title="Customer Satisfaction Score (CSAT)"
+              questionText="How satisfied are you with our service?"
+              score={Math.round(safeCalculateAverage(data?.metrics.csatScores))}
+              responses={data?.metrics.csatScores?.length || 0}
+              breakdown={[
+                {
+                  label: 'Promoters',
+                  percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score >= 4),
+                  color: 'bg-green-500'
+                },
+                {
+                  label: 'Neutrals',
+                  percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score === 3),
+                  color: 'bg-gray-400'
+                },
+                {
+                  label: 'Detractors',
+                  percentage: safeCalculatePercentage(data?.metrics.csatScores, (score) => score <= 2),
+                  color: 'bg-red-500'
+                }
+              ]}
+            />
+            <QuestionCard
+              questionNumber="2.2"
+              title="Customer Effort Score (CES)"
+              questionText="How easy was it to use our service?"
+              score={Math.round(safeCalculateAverage(data?.metrics.cesScores))}
+              responses={data?.metrics.cesScores?.length || 0}
+              breakdown={[
+                {
+                  label: 'Little effort',
+                  percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score <= 2),
+                  color: 'bg-green-500'
+                },
+                {
+                  label: 'Neutrals',
+                  percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score === 3),
+                  color: 'bg-gray-400'
+                },
+                {
+                  label: 'Much effort',
+                  percentage: safeCalculatePercentage(data?.metrics.cesScores, (score) => score >= 4),
+                  color: 'bg-red-500'
+                }
+              ]}
+            />
+            <QuestionCard
+              questionNumber="2.3"
+              title="Cognitive Value (CV)"
+              questionText="How valuable do you find our service?"
+              score={Math.round(safeCalculateAverage(data?.metrics.cvScores))}
+              responses={data?.metrics.cvScores?.length || 0}
+              breakdown={[
+                {
+                  label: 'Worth',
+                  percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score >= 4),
+                  color: 'bg-green-500'
+                },
+                {
+                  label: 'Neutrals',
+                  percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score === 3),
+                  color: 'bg-gray-400'
+                },
+                {
+                  label: 'Worthless',
+                  percentage: safeCalculatePercentage(data?.metrics.cvScores, (score) => score <= 2),
+                  color: 'bg-red-500'
+                }
+              ]}
+            />
+            
             <NPSAnalysis
               score={data?.metrics.npsScore || 0}
               promoters={data?.metrics.promoters || 0}
