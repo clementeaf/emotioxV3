@@ -1,75 +1,67 @@
-import { BarChart3, Users, Clock, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { BarChart3, Brain } from 'lucide-react';
+import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
 
 /**
  * Research Results Page
- * Displays results and analytics for a research project
+ * Hub for all results - SmartVOC and Cognitive Tasks
  */
 export const ResearchResultsPage = () => {
+    const { id: _id } = useParams<{ id: string }>();
+    const [activeTab, setActiveTab] = useState<'smart-voc' | 'cognitive-task'>('smart-voc');
+
     return (
         <div className="p-6 space-y-6">
-            {/* Page Header */}
-            <div className="border-b border-gray-200 pb-4">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <BarChart3 className="h-6 w-6 text-blue-600" />
-                    Research Results
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">
-                    View and analyze research data and participant responses
-                </p>
+            {/* Tabs */}
+            <div className="border-b border-gray-200">
+                <nav className="flex gap-4">
+                    <button
+                        onClick={() => setActiveTab('smart-voc')}
+                        className={`
+                            flex items-center gap-2 px-4 py-2 border-b-2 transition-colors
+                            ${
+                                activeTab === 'smart-voc'
+                                    ? 'border-blue-600 text-blue-600 font-medium'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <BarChart3 className="h-5 w-5" />
+                        SmartVOC Results
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('cognitive-task')}
+                        className={`
+                            flex items-center gap-2 px-4 py-2 border-b-2 transition-colors
+                            ${
+                                activeTab === 'cognitive-task'
+                                    ? 'border-blue-600 text-blue-600 font-medium'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <Brain className="h-5 w-5" />
+                        Cognitive Task Results
+                    </button>
+                </nav>
             </div>
 
-            {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium">Total Participants</p>
-                            <p className="text-3xl font-bold text-gray-900 mt-2">0</p>
-                        </div>
-                        <div className="bg-blue-50 rounded-full p-3">
-                            <Users className="h-6 w-6 text-blue-600" />
-                        </div>
+            {/* Content */}
+            <div className="min-h-0 flex-1">
+                {activeTab === 'smart-voc' ? (
+                    <SmartVOCResults />
+                ) : (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center">
+                        <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            Cognitive Task Results
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                            Coming soon - Cognitive task analytics will be available here.
+                        </p>
                     </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium">Completion Rate</p>
-                            <p className="text-3xl font-bold text-gray-900 mt-2">0%</p>
-                        </div>
-                        <div className="bg-green-50 rounded-full p-3">
-                            <TrendingUp className="h-6 w-6 text-green-600" />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-500 font-medium">Avg. Duration</p>
-                            <p className="text-3xl font-bold text-gray-900 mt-2">--</p>
-                        </div>
-                        <div className="bg-purple-50 rounded-full p-3">
-                            <Clock className="h-6 w-6 text-purple-600" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Results Content */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-8">
-                <div className="text-center py-12">
-                    <div className="bg-gray-50 rounded-full p-4 w-16 h-16 mx-auto mb-4">
-                        <BarChart3 className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        No Results Available Yet
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                        Results will appear here once participants start completing your research.
-                    </p>
-                </div>
+                )}
             </div>
         </div>
     );
