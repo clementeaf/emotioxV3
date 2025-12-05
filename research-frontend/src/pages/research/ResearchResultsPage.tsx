@@ -9,8 +9,19 @@ import { CognitiveTaskResults } from '../../components/results/cognitive-task/Co
  * Hub for all results - SmartVOC and Cognitive Tasks
  */
 export const ResearchResultsPage = () => {
-    const { id: _id } = useParams<{ id: string }>();
+    const { id } = useParams<{ id: string }>();
     const [activeTab, setActiveTab] = useState<'smart-voc' | 'cognitive-task'>('smart-voc');
+
+    if (!id) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <div className="text-center">
+                    <p className="text-lg font-medium text-gray-900 mb-2">Research ID not found</p>
+                    <p className="text-sm text-gray-500">Unable to load results without a research ID.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 space-y-6">
@@ -51,9 +62,9 @@ export const ResearchResultsPage = () => {
             {/* Content */}
             <div className="min-h-0 flex-1">
                 {activeTab === 'smart-voc' ? (
-                    <SmartVOCResults />
+                    <SmartVOCResults researchId={id} />
                 ) : (
-                    <CognitiveTaskResults />
+                    <CognitiveTaskResults researchId={id} />
                 )}
             </div>
         </div>

@@ -1,0 +1,1 @@
+export { SmartVOCResults } from './SmartVOCResults';
