@@ -13,8 +13,6 @@ interface CPVCardProps {
   impact?: string;
   trend?: string;
   hasData?: boolean;
-  csatPositivePercentage?: number;
-  csatNegativePercentage?: number;
 }
 
 const UITooltip = ({ content, children }: { content: React.ReactNode; children: React.ReactNode }) => {
@@ -81,9 +79,7 @@ export const CPVCard = ({
   retention = 92,
   impact = 'Alto',
   trend = 'Positiva',
-  hasData = true,
-  csatPositivePercentage = 65,
-  csatNegativePercentage = 35
+  hasData = true
 }: CPVCardProps) => {
   const percentChange = 2.5;
 
@@ -121,7 +117,7 @@ export const CPVCard = ({
   }
 
   return (
-    <Card className={cn('relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 text-white h-[32rem]', className)}>
+    <Card className={cn('relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 text-white h-96', className)}>
       {/* Decorative wave pattern in background */}
       <svg className="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none" viewBox="0 0 100 100">
         <path
@@ -176,31 +172,6 @@ export const CPVCard = ({
             <div className="text-xs text-white/60">Retention</div>
           </div>
         </div>
-
-        {/* Customer Value Equation */}
-        <div className="mt-6 pt-4 border-t border-white/20">
-          <div className="bg-red-500/90 rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-center gap-3 text-sm font-medium">
-              <span>Customer Value</span>
-              <span className="text-lg">=</span>
-              <span>Perceived Value</span>
-              <span className="text-lg">−</span>
-              <span>Price Paid</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-black/20 rounded px-3 py-2 text-center">
-                <div className="font-semibold mb-1">CSAT % (&gt; negative)</div>
-                <div className="text-lg font-bold">{csatPositivePercentage}%</div>
-              </div>
-              <div className="bg-black/20 rounded px-3 py-2 text-center">
-                <div className="font-semibold mb-1">CSAT % (&lt; negative)</div>
-                <div className="text-lg font-bold">{csatNegativePercentage}%</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
         <div className="mt-6 flex items-center justify-between text-sm">
           <div className="flex items-center gap-2">
             <span className="text-white/60">Impact:</span>
