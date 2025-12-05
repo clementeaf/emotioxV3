@@ -81,23 +81,22 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         />
                     </div>
 
-                    {demographicEnabled && (
-                        <div className="grid grid-cols-2 gap-3 px-4">
-                            {['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].map((key) => (
-                                <label key={key} className="flex items-center gap-2 text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={demographics[key] || false}
-                                        onChange={(e) => handleDemographicChange(key, e.target.checked)}
-                                        className="rounded border-gray-300"
-                                    />
-                                    <span className="capitalize">
-                                        {key.replace(/([A-Z])/g, ' $1').trim()}
-                                    </span>
-                                </label>
-                            ))}
-                        </div>
-                    )}
+                    <div className="grid grid-cols-2 gap-3 px-4">
+                        {['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].map((key) => (
+                            <label key={key} className={`flex items-center gap-2 text-sm ${!demographicEnabled ? 'opacity-50' : ''}`}>
+                                <input
+                                    type="checkbox"
+                                    checked={demographics[key] || false}
+                                    onChange={(e) => handleDemographicChange(key, e.target.checked)}
+                                    disabled={!demographicEnabled}
+                                    className="rounded border-gray-300"
+                                />
+                                <span className="capitalize">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Link Configuration */}
@@ -115,37 +114,38 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         />
                     </div>
 
-                    {linkConfigEnabled && (
-                        <div className="space-y-3 px-4">
-                            <label className="flex items-center gap-2 text-sm">
-                                <input
-                                    type="checkbox"
-                                    checked={linkConfig.allowMobile || false}
-                                    onChange={(e) => handleLinkConfigChange('allowMobile', e.target.checked)}
-                                    className="rounded border-gray-300"
-                                />
-                                <span>Allow respondents to take survey via mobile devices</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-sm">
-                                <input
-                                    type="checkbox"
-                                    checked={linkConfig.trackLocation || false}
-                                    onChange={(e) => handleLinkConfigChange('trackLocation', e.target.checked)}
-                                    className="rounded border-gray-300"
-                                />
-                                <span>Track respondents location</span>
-                            </label>
-                            <label className="flex items-center gap-2 text-sm">
-                                <input
-                                    type="checkbox"
-                                    checked={linkConfig.allowMultiple || false}
-                                    onChange={(e) => handleLinkConfigChange('allowMultiple', e.target.checked)}
-                                    className="rounded border-gray-300"
-                                />
-                                <span>It can be taken multiple times within a single session</span>
-                            </label>
-                        </div>
-                    )}
+                    <div className="space-y-3 px-4">
+                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={linkConfig.allowMobile || false}
+                                onChange={(e) => handleLinkConfigChange('allowMobile', e.target.checked)}
+                                disabled={!linkConfigEnabled}
+                                className="rounded border-gray-300"
+                            />
+                            <span>Allow respondents to take survey via mobile devices</span>
+                        </label>
+                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={linkConfig.trackLocation || false}
+                                onChange={(e) => handleLinkConfigChange('trackLocation', e.target.checked)}
+                                disabled={!linkConfigEnabled}
+                                className="rounded border-gray-300"
+                            />
+                            <span>Track respondents location</span>
+                        </label>
+                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={linkConfig.allowMultiple || false}
+                                onChange={(e) => handleLinkConfigChange('allowMultiple', e.target.checked)}
+                                disabled={!linkConfigEnabled}
+                                className="rounded border-gray-300"
+                            />
+                            <span>It can be taken multiple times within a single session</span>
+                        </label>
+                    </div>
                 </div>
 
                 {/* Participant Limit */}
@@ -163,25 +163,24 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         />
                     </div>
 
-                    {participantLimitEnabled && (
-                        <div className="px-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                Stop accepting responses after this number of participants.
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    type="number"
-                                    value={participantLimit}
-                                    onChange={(e) => handleParticipantLimitChange(parseInt(e.target.value) || 50)}
-                                    className="w-24"
-                                    min={1}
-                                />
-                                <span className="text-sm text-gray-500">
-                                    You will receive 0 more responses.
-                                </span>
-                            </div>
+                    <div className={`px-4 ${!participantLimitEnabled ? 'opacity-50' : ''}`}>
+                        <p className="text-sm text-gray-600 mb-2">
+                            Stop accepting responses after this number of participants.
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Input
+                                type="number"
+                                value={participantLimit}
+                                onChange={(e) => handleParticipantLimitChange(parseInt(e.target.value) || 50)}
+                                className="w-24"
+                                min={1}
+                                disabled={!participantLimitEnabled}
+                            />
+                            <span className="text-sm text-gray-500">
+                                You will receive 0 more responses.
+                            </span>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
 
