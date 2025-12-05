@@ -8,6 +8,7 @@ import { MetricCard } from './components/MetricCard';
 import { QuestionCard } from './components/QuestionCard';
 import { NEVQuestionCard } from './components/NEVQuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
+import { VOCComments } from './components/VOCComments';
 import { Filters } from './components/Filters';
 import { safeCalculateAverage, safeCalculatePercentage, hasScores } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
@@ -209,6 +210,23 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               title="Net Promoter Score (NPS)"
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
+            />
+            
+            <VOCComments
+              questionNumber="2.6"
+              questionText="Voice of Customer (VOC)"
+              comments={[
+                { text: 'Camera lens working memory in...', mood: 'Positive' },
+                { text: 'Laptop, Camera lens memory in...', mood: 'Positive' },
+                { text: 'Mobile', mood: 'Positive' },
+                { text: 'Camera lens', mood: 'Positive' },
+                { text: 'Computer accessories', mood: 'Positive' },
+                { text: 'TV, Camera lens working memory in...', mood: 'Positive' },
+                { text: 'Mobile, lens working memory in...', mood: 'Positive' },
+                { text: 'Laptop', mood: 'green' },
+                { text: 'Camera lens working memory in...', mood: 'green' },
+                { text: 'Camera lens working memory in...', mood: 'green' }
+              ]}
             />
           </div>
 
