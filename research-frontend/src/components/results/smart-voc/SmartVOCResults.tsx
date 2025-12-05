@@ -44,10 +44,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           <div className="md:col-span-1">
             <CPVCard
               value={data?.metrics.cpvValue || 0}
-              satisfaction={data?.metrics.satisfaction || 0}
-              retention={data?.metrics.retention || 0}
-              impact={data?.metrics.impact || 'Low'}
-              trend={data?.metrics.trend || 'Neutral'}
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
               hasData={!!data}

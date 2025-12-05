@@ -63,20 +63,37 @@ export const useSmartVOCAnalytics = (researchId: string | null): UseSmartVOCAnal
                         created_at: '2024-12-03T12:00:00Z'
                     }
                 ],
-                metrics: {
-                    cpvValue: 7.8,
-                    satisfaction: 85,
-                    retention: 92,
-                    npsScore: 45,
-                    promoters: 60,
-                    neutrals: 25,
-                    detractors: 15,
-                    csatScores: [78, 82, 85, 88, 84, 86],
-                    cesScores: [65, 70, 72, 75, 73, 76],
-                    cvScores: [80, 82, 78, 85, 83, 84],
-                    impact: 'High',
-                    trend: 'Increasing'
-                },
+                metrics: (() => {
+                    const csatScores = [4, 5, 4, 5, 4, 5, 3, 4, 5, 4];
+                    const cesScores = [1, 2, 1, 2, 3, 1, 2, 1, 2, 1];
+                    
+                    // CPV = CSAT / CES
+                    // CSAT = % de registros 4 y 5
+                    const csatPercentage = (csatScores.filter(s => s >= 4).length / csatScores.length) * 100;
+                    // CES = % de registros 1 y 2
+                    const cesPercentage = (cesScores.filter(s => s <= 2).length / cesScores.length) * 100;
+                    
+                    const cpvValue = cesPercentage > 0 ? csatPercentage / cesPercentage : 0;
+                    
+                    const promoters = 60;
+                    const neutrals = 25;
+                    const detractors = 15;
+                    
+                    return {
+                        cpvValue: Math.round(cpvValue * 100) / 100,
+                        satisfaction: Math.round(csatPercentage),
+                        retention: 92,
+                        npsScore: 45,
+                        promoters,
+                        neutrals,
+                        detractors,
+                        csatScores,
+                        cesScores,
+                        cvScores: [4, 5, 4, 5, 3, 4, 5, 4],
+                        impact: 'High',
+                        trend: 'Increasing'
+                    };
+                })(),
                 timeSeriesData: [
                     { date: '2024-11-25', score: 7.2, nps: 40, nev: 6.8, count: 12 },
                     { date: '2024-11-26', score: 7.4, nps: 42, nev: 7.0, count: 15 },

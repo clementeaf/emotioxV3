@@ -1,5 +1,3 @@
-import { ArrowUp, Info } from 'lucide-react';
-import { useState } from 'react';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 
@@ -8,34 +6,8 @@ interface CPVCardProps {
   timeRange: 'today' | 'week' | 'month';
   onTimeRangeChange: (range: 'today' | 'week' | 'month') => void;
   className?: string;
-  satisfaction?: number;
-  retention?: number;
-  impact?: string;
-  trend?: string;
   hasData?: boolean;
 }
-
-const UITooltip = ({ content, children }: { content: React.ReactNode; children: React.ReactNode }) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  return (
-    <div className="relative inline-block">
-      <div
-        onMouseEnter={() => setIsVisible(true)}
-        onMouseLeave={() => setIsVisible(false)}
-        className="inline-flex"
-      >
-        {children}
-      </div>
-      {isVisible && (
-        <div className="absolute z-50 p-2 text-sm bg-white text-gray-800 rounded-md shadow-lg w-64 top-6 right-0">
-          {content}
-          <div className="absolute -top-1 right-2 w-2 h-2 rotate-45 bg-white"></div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const TimeRangeSelector = ({ 
   timeRange, 
@@ -45,22 +17,22 @@ const TimeRangeSelector = ({
   onChange: (range: 'today' | 'week' | 'month') => void 
 }) => {
   const periods = [
-    { key: 'today' as const, label: 'Hoy' },
-    { key: 'week' as const, label: 'Semana' },
-    { key: 'month' as const, label: 'Mes' }
+    { key: 'today' as const, label: 'Today' },
+    { key: 'week' as const, label: 'Week' },
+    { key: 'month' as const, label: 'Month' }
   ];
 
   return (
-    <div className="flex bg-white/20 rounded-lg p-1">
+    <div className="flex gap-8">
       {periods.map((period) => (
         <button
           key={period.key}
           onClick={() => onChange(period.key)}
           className={cn(
-            'px-3 py-1 text-xs rounded-md transition-colors',
+            'text-base transition-colors pb-2',
             timeRange === period.key
-              ? 'bg-white text-blue-600'
-              : 'text-white/60 hover:text-white'
+              ? 'text-white border-b-2 border-white font-medium'
+              : 'text-white/50 hover:text-white/80'
           )}
         >
           {period.label}
@@ -75,13 +47,8 @@ export const CPVCard = ({
   timeRange,
   onTimeRangeChange,
   className,
-  satisfaction = 8.4,
-  retention = 92,
-  impact = 'Alto',
-  trend = 'Positiva',
   hasData = true
 }: CPVCardProps) => {
-  const percentChange = 2.5;
 
   if (!hasData) {
     return (
@@ -90,14 +57,6 @@ export const CPVCard = ({
           <TimeRangeSelector timeRange={timeRange} onChange={onTimeRangeChange} />
         </div>
         <div className="relative z-10 p-6 pt-16">
-          <div className="w-full mb-6">
-            <div className="flex items-center gap-5">
-              <h3 className="text-lg font-medium leading-tight">Valor percibido por el cliente</h3>
-              <UITooltip content="Medida que indica cuánto valor perciben los clientes en relación al precio pagado">
-                <Info className="w-4 h-4 mt-1 text-white/60 hover:text-white cursor-help transition-colors" />
-              </UITooltip>
-            </div>
-          </div>
           <div className="flex items-center justify-center h-48">
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 bg-white/20 rounded-full flex items-center justify-center">
@@ -117,7 +76,7 @@ export const CPVCard = ({
   }
 
   return (
-    <Card className={cn('relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 text-white h-96', className)}>
+    <Card className={cn('relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-700 text-white h-96', className)}>
       {/* Decorative wave pattern in background */}
       <svg className="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none" viewBox="0 0 100 100">
         <path
@@ -137,61 +96,59 @@ export const CPVCard = ({
         />
       </svg>
       
-      <div className="absolute top-4 right-4 z-20">
+      <div className="absolute top-4 left-6 z-20">
         <TimeRangeSelector timeRange={timeRange} onChange={onTimeRangeChange} />
       </div>
       <div className="relative z-10 p-6 pt-16">
-        <div className="w-full mb-6">
-          <div className="flex items-center gap-5">
-            <h3 className="text-lg font-medium leading-tight">Valor percibido por el cliente</h3>
-            <UITooltip content="Medida que indica cuánto valor perciben los clientes en relación al precio pagado">
-              <Info className="w-4 h-4 mt-1 text-white/60 hover:text-white cursor-help transition-colors" />
-            </UITooltip>
+        {/* CPV Value */}
+        <div className="mb-2">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-4xl font-bold">{value.toFixed(2).replace('.', ',')}</span>
+            <svg className="w-4 h-4 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
           </div>
+          <div className="text-sm font-semibold text-white mb-0.5">CPV Estimation</div>
+          <div className="text-xs text-white/80">Customer Perceived Value</div>
         </div>
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold">{value.toFixed(2)}</span>
-            <div className="flex items-center gap-1 text-green-400">
-              <ArrowUp className="w-4 h-4" />
-              <span className="text-sm">+{percentChange}%</span>
+
+        {/* Chart Area with curve */}
+        <div className="relative w-full h-48 mt-2">
+          {/* Area gradient fill */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 300" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#60A5FA" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#60A5FA" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* Filled area under curve */}
+            <path
+              d="M 0,220 Q 80,180 150,200 Q 220,220 280,140 Q 340,100 400,160 Q 460,200 520,220 L 600,240 L 600,300 L 0,300 Z"
+              fill="url(#areaGradient)"
+            />
+          </svg>
+          
+          {/* Curved line chart */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 300" preserveAspectRatio="none">
+            <path
+              d="M 0,220 Q 80,180 150,200 Q 220,220 280,140 Q 340,100 400,160 Q 460,200 520,220 L 600,240"
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              opacity="0.95"
+            />
+          </svg>
+          
+          {/* Peak value label with pointer */}
+          <div className="absolute top-8 right-16">
+            <div className="relative">
+              <div className="bg-white text-indigo-600 px-3 py-1.5 rounded-lg font-bold text-sm shadow-xl">
+                83,62
+              </div>
+              {/* Small triangle pointer */}
+              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
             </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-white/60">CPV Estimation</div>
-            <div className="text-xs text-white/40">Customer Perceived Value</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold">{satisfaction.toFixed(1)}</div>
-            <div className="text-xs text-white/60">Satisfaction</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold">{retention}%</div>
-            <div className="text-xs text-white/60">Retention</div>
-          </div>
-        </div>
-        <div className="mt-6 flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-white/60">Impact:</span>
-            <span className={`px-2 py-1 rounded-full text-xs ${
-              impact === 'Alto' ? 'bg-green-500/20 text-green-300' :
-              impact === 'Medio' ? 'bg-yellow-500/20 text-yellow-300' :
-              'bg-red-500/20 text-red-300'
-            }`}>
-              {impact}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-white/60">Trend:</span>
-            <span className={`px-2 py-1 rounded-full text-xs ${
-              trend === 'Positiva' ? 'bg-green-500/20 text-green-300' :
-              trend === 'Neutral' ? 'bg-yellow-500/20 text-yellow-300' :
-              'bg-red-500/20 text-red-300'
-            }`}>
-              {trend}
-            </span>
           </div>
         </div>
       </div>
