@@ -218,10 +218,17 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
             />
             
             <NPSAnalysis
+              monthlyData={data?.monthlyNPSData || []}
               score={data?.metrics.npsScore || 0}
               promoters={data?.metrics.promoters || 0}
               neutrals={data?.metrics.neutrals || 0}
               detractors={data?.metrics.detractors || 0}
+              totalResponses={data?.metrics.csatScores?.length || 0}
+              questionText="On a scale from 0-10, how likely are you to recommend [company] to a friend or colleague?"
+              questionNumber="2.5"
+              title="Net Promoter Score (NPS)"
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
             />
             
             <EmotionalStates data={emotionalData} />
