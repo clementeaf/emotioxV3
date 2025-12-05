@@ -14,6 +14,7 @@ interface QuestionCardProps {
     percentage: number;
     color: string;
   }>;
+  showEquation?: boolean; // Para CES y CV
   className?: string;
 }
 
@@ -29,8 +30,22 @@ export const QuestionCard = ({
     { label: 'Required', color: 'text-red-600 bg-red-50' }
   ],
   breakdown,
+  showEquation = false,
   className
 }: QuestionCardProps) => {
+  // Calcular porcentajes positivos y negativos para la ecuación
+  const positivePercentage = breakdown.find(b => 
+    b.label.toLowerCase().includes('promoter') || 
+    b.label.toLowerCase().includes('little') || 
+    b.label.toLowerCase().includes('worth')
+  )?.percentage || 0;
+  
+  const negativePercentage = breakdown.find(b => 
+    b.label.toLowerCase().includes('detractor') || 
+    b.label.toLowerCase().includes('much') || 
+    b.label.toLowerCase().includes('worthless')
+  )?.percentage || 0;
+
   return (
     <Card className={cn('p-6', className)}>
       {/* Header with title and badges */}
@@ -73,6 +88,36 @@ export const QuestionCard = ({
               </div>
             </div>
           ))}
+          
+          {/* Equation for CES and CV */}
+          {showEquation && (
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-semibold text-gray-900">{title.split(' ')[0]} =</span>
+                <div className="flex items-center gap-2">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 mb-1">%</div>
+                    <div className="px-3 py-1 bg-green-100 text-green-700 rounded font-medium">
+                      POSITIVE RESULTS
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">({positivePercentage}% for negative)</div>
+                    <div className="text-xs font-semibold text-gray-700 mt-1">{positivePercentage}% IN AVERAGE</div>
+                  </div>
+                  
+                  <span className="text-xl font-bold text-gray-600">−</span>
+                  
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 mb-1">%</div>
+                    <div className="px-3 py-1 bg-red-100 text-red-700 rounded font-medium">
+                      NEGATIVE RESULTS
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">({negativePercentage}% for negative)</div>
+                    <div className="text-xs font-semibold text-gray-700 mt-1">{negativePercentage}% IN AVERAGE</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right side: Score circle and responses */}
