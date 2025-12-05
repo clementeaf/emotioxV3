@@ -53,6 +53,12 @@ export const getResearch = async (researchId: string) => {
 export const saveResponse = async (data: Record<string, unknown>) => {
   const { research_id, participant_id, module_id, question_id, answer, metadata = {} } = data;
 
+  // Validate that participantId is present and not empty
+  // This prevents preview mode responses from being saved
+  if (!participant_id || typeof participant_id !== 'string' || participant_id.trim() === '') {
+    throw new Error('participant_id is required. Preview mode responses are not saved.');
+  }
+
   const query = `
     INSERT INTO responses (research_id, participant_id, module_id, question_id, answer, metadata)
     VALUES ($1, $2, $3, $4, $5, $6)
