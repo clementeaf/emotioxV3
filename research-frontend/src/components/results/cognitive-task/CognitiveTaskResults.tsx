@@ -5,6 +5,7 @@ import { ChoiceQuestionCard } from './components/ChoiceQuestionCard';
 import { LinearScaleQuestionCard } from './components/LinearScaleQuestionCard';
 import { RankingQuestionCard } from './components/RankingQuestionCard';
 import { NavigationTestCard } from './components/NavigationTestCard';
+import { PreferenceTestCard } from './components/PreferenceTestCard';
 import { cn } from '../../../lib/utils';
 
 interface CognitiveTaskResultsProps {
@@ -233,6 +234,41 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
                 completionRate: 100,
                 participantCount: 4,
                 hasHeatmap: false
+              }
+            ]}
+          />
+
+          {/* Question 3.8 - Preference Test */}
+          <PreferenceTestCard
+            questionNumber="3.8"
+            questionText="Preference Test"
+            questionType="Preference Test"
+            conditionalityDisabled={true}
+            required={true}
+            steps={[
+              {
+                stepNumber: 1,
+                duration: '10s',
+                completionRate: 100,
+                participantCount: 5,
+                selectionCount: 17,
+                progressColor: '#9333EA'
+              },
+              {
+                stepNumber: 2,
+                duration: '54s',
+                completionRate: 100,
+                participantCount: 5,
+                selectionCount: 0,
+                progressColor: '#9333EA'
+              },
+              {
+                stepNumber: 3,
+                duration: '70s',
+                completionRate: 100,
+                participantCount: 9,
+                selectionCount: 0,
+                progressColor: '#6366F1'
               }
             ]}
           />
