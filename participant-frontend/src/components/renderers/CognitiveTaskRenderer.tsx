@@ -1,45 +1,14 @@
 import React from 'react';
 import type { ModuleConfig } from '../../types/module';
-import { ScaleSelector } from '../ui/ScaleSelector';
-import { ChoiceSelector } from '../ui/ChoiceSelector';
-import { InputRenderer, TextareaRenderer } from '../renderers';
-import { RankingSelector } from '../ui/RankingSelector';
 import { NavigationFlow } from '../ui/NavigationFlow';
 import { PreferenceTest } from '../ui/PreferenceTest';
-import { useParticipantStore } from '../../stores/useParticipantStore';
-import type { ResponseValue } from '../../types/responses';
+import { TextQuestion, ChoiceQuestion, LinearScaleQuestion, RankingQuestion } from '../questions';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
 }
 
 export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ module }) => {
-    const { getResponse, saveResponse } = useParticipantStore();
-
-    /**
-     * Obtiene el valor guardado de un componente
-     * @param componentId - ID del componente
-     * @returns Valor guardado o null
-     */
-    const getSavedValue = (componentId: string): ResponseValue => {
-        const response = getResponse(module.id, componentId);
-        return response?.value ?? null;
-    };
-
-    /**
-     * Guarda el valor de un componente
-     * @param componentId - ID del componente
-     * @param value - Valor a guardar
-     */
-    const saveComponentValue = (componentId: string, value: ResponseValue): void => {
-        saveResponse(module.id, componentId, value);
-    };
-
-    // Obtener valores guardados
-    const textValue = (getSavedValue('answer') as string) || '';
-    const choiceValue = (getSavedValue('choice') as string | string[]) || [];
-    const scaleValue = (getSavedValue('scale') as number) || null;
-    const rankingItems = (getSavedValue('ranking') as string[]) || [];
 
     // Extract common components
     const titleComponent = module.structure.components.find(c => c.id.includes('title'));
@@ -56,107 +25,82 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     const isPreferenceTest = module.name === 'Preference Test';
 
     const renderInteractiveComponent = () => {
-        if (isShortText) {
-            const placeholderComponent = module.structure.components.find(c => c.id.includes('placeholder')) ||
-                module.structure.components.find(c => c.id.includes('answer'));
+        // Text Questions
+        if (isShortText || isLongText) {
+            const placeholderComp = module.structure.components.find(c => c.id.includes('placeholder'));
             return (
-                <InputRenderer
-                    component={placeholderComponent || {
-                        id: 'answer',
-                        name: 'answer',
-                        type: 'input',
-                        label: '',
-                        defaultValue: '',
-                        placeholder: { enabled: true, text: 'Type your answer...' },
-                        required: true,
-                        order: 3,
-                        settings: {}
-                    }}
-                    value={textValue}
-                    onChange={(val) => saveComponentValue('answer', val)}
+                <TextQuestion
+                    moduleId={module.id}
+                    componentId="answer"
+                    title={titleComponent?.defaultValue}
+                    description={descriptionComponent?.defaultValue}
+                    placeholder={placeholderComp?.defaultValue || 'Escribe tu respuesta...'}
+                    isLongText={isLongText}
                 />
             );
         }
 
-        if (isLongText) {
-            const placeholderComponent = module.structure.components.find(c => c.id.includes('placeholder')) ||
-                module.structure.components.find(c => c.id.includes('answer'));
-            return (
-                <TextareaRenderer
-                    component={placeholderComponent || {
-                        id: 'answer',
-                        name: 'answer',
-                        type: 'textarea',
-                        label: '',
-                        defaultValue: '',
-                        placeholder: { enabled: true, text: 'Type your answer...' },
-                        required: true,
-                        order: 3,
-                        settings: { maxLength: 1000 }
-                    }}
-                    value={textValue}
-                    onChange={(val) => saveComponentValue('answer', val)}
-                />
-            );
-        }
-
+        // Choice Questions
         if (isSingleChoice || isMultipleChoice) {
-            // Extract choices from components with isChoice: true or id starting with 'choice-'
             const choices = module.structure.components
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
-                    label: c.defaultValue || '',
-                    value: c.defaultValue || ''
+                    label: c.defaultValue || ''
                 }));
 
             return (
-                <ChoiceSelector
-                    type={isSingleChoice ? 'single' : 'multiple'}
+                <ChoiceQuestion
+                    moduleId={module.id}
+                    componentId="choice"
+                    title={titleComponent?.defaultValue}
+                    description={descriptionComponent?.defaultValue}
                     options={choices}
-                    value={choiceValue}
-                    onChange={(val) => saveComponentValue('choice', val)}
+                    isMultiple={isMultipleChoice}
                 />
             );
         }
 
+        // Linear Scale
         if (isLinearScale) {
-            // Extract scale config
             const startValueComp = module.structure.components.find(c => c.id.includes('start-value'));
             const endValueComp = module.structure.components.find(c => c.id.includes('end-value'));
             const startLabelComp = module.structure.components.find(c => c.id.includes('start-label'));
             const endLabelComp = module.structure.components.find(c => c.id.includes('end-label'));
 
-            // Default 1-5 if not found
             const min = startValueComp?.defaultValue ? parseInt(startValueComp.defaultValue) : 1;
             const max = endValueComp?.defaultValue ? parseInt(endValueComp.defaultValue) : 5;
 
             return (
-                <ScaleSelector
-                    min={min}
-                    max={max}
-                    value={scaleValue}
-                    onChange={(val) => saveComponentValue('scale', val ?? null)}
-                    startLabel={startLabelComp?.defaultValue}
-                    endLabel={endLabelComp?.defaultValue}
-                    variant="slider"
+                <LinearScaleQuestion
+                    moduleId={module.id}
+                    componentId="scale"
+                    title={titleComponent?.defaultValue}
+                    description={descriptionComponent?.defaultValue}
+                    minValue={min}
+                    maxValue={max}
+                    minLabel={startLabelComp?.defaultValue}
+                    maxLabel={endLabelComp?.defaultValue}
                 />
             );
         }
 
+        // Ranking
         if (isRanking) {
-            // Extract ranking items from components
             const items = module.structure.components
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
-                .map(c => c.defaultValue || '');
-
-            // Use saved ranking or default items
-            const currentRanking = rankingItems.length > 0 ? rankingItems : items;
+                .map(c => ({
+                    id: c.id,
+                    label: c.defaultValue || ''
+                }));
 
             return (
-                <RankingSelector
-                    items={currentRanking}
-                    onChange={(val) => saveComponentValue('ranking', val)}
+                <RankingQuestion
+                    moduleId={module.id}
+                    componentId="ranking"
+                    title={titleComponent?.defaultValue}
+                    description={descriptionComponent?.defaultValue}
+                    items={items}
                 />
             );
         }
@@ -237,25 +181,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
     return (
         <div className="flex flex-col items-center justify-center px-4 py-6">
-            <div className="w-full max-w-2xl space-y-4">
-                {/* Title */}
-                {titleComponent?.defaultValue && (
-                    <h1 className="text-2xl font-bold text-gray-900 text-center">
-                        {titleComponent.defaultValue}
-                    </h1>
-                )}
-
-                {/* Description */}
-                {descriptionComponent?.defaultValue && (
-                    <p className="text-base text-gray-600 text-center">
-                        {descriptionComponent.defaultValue}
-                    </p>
-                )}
-
-                {/* Interactive Component */}
-                <div className="w-full">
-                    {renderInteractiveComponent()}
-                </div>
+            <div className="w-full max-w-2xl">
+                {renderInteractiveComponent()}
             </div>
         </div>
     );
