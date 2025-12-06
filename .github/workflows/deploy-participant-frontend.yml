@@ -7,6 +7,7 @@ on:
     paths:
       - 'participant-frontend/**'
       - '.github/workflows/deploy-participant-frontend.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
