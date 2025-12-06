@@ -33,7 +33,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         
         const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const baseUrl = isDevelopment 
-            ? 'http://localhost:5173' 
+            ? 'http://localhost:12600' 
             : import.meta.env.VITE_PARTICIPANT_FRONTEND_URL || 'https://participant.useremotion.com';
         
         return `${baseUrl}/research/${researchId}`;
