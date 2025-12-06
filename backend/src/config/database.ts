@@ -8,7 +8,10 @@ const pool = new Pool({
     password: process.env.DB_PASSWORD,
     max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000,
+    query_timeout: 30000,
+    statement_timeout: 30000,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
 // Test connection on initialization
