@@ -1,51 +1,19 @@
-import { useState, useEffect } from 'react';
-import { researchService, type Research } from '../services/research.service';
-
-interface UseResearchResult {
-    research: Research | null;
-    loading: boolean;
-    error: string;
-    refetch: () => Promise<void>;
-}
+import { useResearch as useResearchQuery } from './useResearchQuery';
 
 /**
  * Hook personalizado para cargar y gestionar datos de un research
+ * Ahora usa React Query para caché y optimización
+ * @deprecated Use useResearchQuery directly from useResearchQuery
  */
-export const useResearch = (researchId: string | undefined): UseResearchResult => {
-    const [research, setResearch] = useState<Research | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string>('');
-
-    const fetchResearch = async (): Promise<void> => {
-        if (!researchId) {
-            setError('No research ID provided');
-            setLoading(false);
-            return;
-        }
-
-        try {
-            setLoading(true);
-            setError('');
-            const response = await researchService.getById(researchId);
-            setResearch(response.research);
-        } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to load research';
-            setError(errorMessage);
-            setResearch(null);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        void fetchResearch();
-    }, [researchId]);
+export const useResearch = (researchId: string | undefined) => {
+    const { data: research, isLoading: loading, error, refetch } = useResearchQuery(researchId || null);
 
     return {
-        research,
+        research: research || null,
         loading,
-        error,
-        refetch: fetchResearch,
+        error: error ? (error instanceof Error ? error.message : 'Failed to load research') : '',
+        refetch: async () => {
+            await refetch();
+        },
     };
 };
-

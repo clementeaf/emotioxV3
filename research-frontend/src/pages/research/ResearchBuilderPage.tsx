@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { useResearch } from '../../hooks/useResearch';
+import { useResearch } from '../../hooks/useResearchQuery';
+import type { Research, Stage, Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
@@ -11,7 +12,6 @@ import { SmartVOCModuleCard } from '../../components/research/SmartVOCModuleCard
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
-import type { Stage, Module } from '../../services/research.service';
 
 export const ResearchBuilderPage = () => {
     const { id } = useParams<{ id: string }>();
@@ -19,32 +19,35 @@ export const ResearchBuilderPage = () => {
     const location = useLocation();
     const toast = useToast();
 
-    const { research, loading, error } = useResearch(id);    
+    const { data: research, isLoading: loading, error } = useResearch(id || null);
+    
+    // Type assertion para TypeScript
+    const typedResearch = research as Research | null;    
     const isSettings = location.pathname.endsWith('/settings');
     const moduleMatch = location.pathname.match(/\/module\/([^/]+)/);
     const activeModuleId = moduleMatch ? moduleMatch[1] : null;
     
-    const activeModule = activeModuleId && research && research.stages
-        ? research.stages.flatMap(s => s.modules || []).find(m => m.id === activeModuleId) || null
+    const activeModule = activeModuleId && typedResearch && typedResearch.stages
+        ? typedResearch.stages.flatMap((s: Stage) => s.modules || []).find((m: Module) => m.id === activeModuleId) || null
         : null;
     
     const smartVOCStage = useMemo((): Stage | null => {
-        if (!research?.stages) return null;
+        if (!typedResearch?.stages) return null;
         
-        let stage = research.stages.find(s => 
+        let stage = typedResearch.stages.find((s: Stage) => 
             s.name.toLowerCase().includes('smart voc') || 
             s.name.toLowerCase() === 'smart voc'
         );
         
-        if (!stage && activeModule && research.stages) {
-            stage = research.stages.find(s => 
-                s.modules?.some(m => m.id === activeModule.id) &&
+        if (!stage && activeModule && typedResearch.stages) {
+            stage = typedResearch.stages.find((s: Stage) => 
+                s.modules?.some((m: Module) => m.id === activeModule.id) &&
                 (s.name.toLowerCase().includes('smart voc') || s.name.toLowerCase() === 'smart voc')
             );
         }
         
         return stage || null;
-    }, [research, activeModule]);
+    }, [typedResearch, activeModule]);
     
     const smartVOCModules = useMemo((): Module[] => {
         if (!smartVOCStage || !smartVOCStage.modules) return [];
@@ -63,7 +66,7 @@ export const ResearchBuilderPage = () => {
     
     const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
     
-    useWelcomeScreenRedirect(research, loading, activeModuleId, isSettings, id);
+    useWelcomeScreenRedirect(typedResearch, loading, activeModuleId, isSettings, id);
     
     const [isSaving, setIsSaving] = useState(false);
 
@@ -102,12 +105,12 @@ export const ResearchBuilderPage = () => {
         }
     };
 
-    const handleComponentValueChange = (componentId: string, value: string): void => {
+    const handleComponentValueChange = useCallback((componentId: string, value: string): void => {
         setComponentValues((prev) => ({
             ...prev,
             [componentId]: value,
         }));
-    };
+    }, [setComponentValues]);
 
     // Loading state
     if (loading) {
@@ -122,12 +125,13 @@ export const ResearchBuilderPage = () => {
     }
 
     // Error state
-    if (error || !research) {
+    if (error || !typedResearch) {
+        const errorMessage = error instanceof Error ? error.message : error ? String(error) : 'Research not found';
         return (
             <div className="max-w-2xl mx-auto mt-8">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                     <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Research</h2>
-                    <p className="text-red-600 mb-4">{error || 'Research not found'}</p>
+                    <p className="text-red-600 mb-4">{errorMessage}</p>
                     <Button onClick={() => navigate('/research')} variant="outline">
                         Back to Research List
                     </Button>
@@ -139,7 +143,7 @@ export const ResearchBuilderPage = () => {
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <ResearchBuilderHeader
-                research={research}
+                research={typedResearch}
                 activeModule={isSmartVOCStage ? null : activeModule}
                 isSettings={isSettings}
                 isSaving={isSaving}
@@ -149,7 +153,7 @@ export const ResearchBuilderPage = () => {
             />
 
             {/* Content Area */}
-            {isSettings && <ResearchSettingsView research={research} />}
+            {isSettings && <ResearchSettingsView research={typedResearch} />}
 
             {/* Smart VOC Stage: Show all modules in the same view */}
             {isSmartVOCStage && smartVOCModules.length > 0 && (

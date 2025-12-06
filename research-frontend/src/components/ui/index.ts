@@ -17,6 +17,10 @@ export { Modal } from './Modal';
 export { QRCodeModal } from './QRCodeModal';
 export { Stepper } from './Stepper';
 
+// Performance Components
+export { VirtualizedList } from './VirtualizedList';
+export { LazyImage } from './LazyImage';
+
 // Re-export types
 export type { SelectOption } from './Select';
 export type { AutocompleteOption } from './Autocomplete';

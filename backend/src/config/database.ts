@@ -1,5 +1,35 @@
 import { Pool } from 'pg';
 
+/**
+ * Determina si se debe usar SSL basado en el host de la base de datos
+ * - RDS (AWS) requiere SSL
+ * - Localhost no soporta SSL
+ */
+const shouldUseSSL = (): boolean | { rejectUnauthorized: boolean } => {
+    const host = process.env.DB_HOST || '';
+    const dbSSL = process.env.DB_SSL;
+    
+    // Si DB_SSL está explícitamente configurado, usar ese valor
+    if (dbSSL !== undefined) {
+        return dbSSL === 'true' || dbSSL === '1';
+    }
+    
+    // Si el host es localhost o 127.0.0.1, no usar SSL
+    if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('localhost')) {
+        return false;
+    }
+    
+    // Para RDS (AWS) o hosts remotos, usar SSL
+    if (host.includes('.rds.amazonaws.com') || host.includes('.amazonaws.com')) {
+        return {
+            rejectUnauthorized: false
+        };
+    }
+    
+    // Por defecto, no usar SSL para desarrollo local
+    return false;
+};
+
 const pool = new Pool({
     host: process.env.DB_HOST,
     port: parseInt(process.env.DB_PORT || '5432'),
@@ -11,9 +41,7 @@ const pool = new Pool({
     connectionTimeoutMillis: 10000,
     query_timeout: 30000,
     statement_timeout: 30000,
-    ssl: {
-        rejectUnauthorized: false
-    },
+    ssl: shouldUseSSL(),
 });
 
 // Test connection on initialization

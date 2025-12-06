@@ -1,70 +1,36 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { researchService, type Research } from '../../services/research.service';
-import { researchTypesService } from '../../services/researchTypes.service';
+import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
+import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
 import { useToast } from '../../hooks/useToast';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { Copy, RefreshCw, Trash2 } from 'lucide-react';
-import type { ResearchType } from '../../services/researchTypes.service';
+import { Copy, Trash2 } from 'lucide-react';
+import type { Research } from '../../services/research.service';
 
 /**
- * Main Dashboard page
- * Shows a table of researches with filters by type
+ * Componente memoizado para fila de tabla
+ * Evita re-renders innecesarios cuando solo cambian otros elementos
  */
-export const DashboardPage = () => {
-    const navigate = useNavigate();
-    const toast = useToast();
-    
-    // State
-    const [researches, setResearches] = useState<Research[]>([]);
-    const [researchTypes, setResearchTypes] = useState<ResearchType[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [activeFilter, setActiveFilter] = useState<string>('all');
-    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-    const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
+const ResearchTableRow = memo(({ 
+    research, 
+    onRowClick, 
+    onCopy, 
+    onDelete 
+}: { 
+    research: Research; 
+    onRowClick: (id: string) => void;
+    onCopy: (research: Research) => void;
+    onDelete: (research: Research, e: React.MouseEvent) => void;
+}) => {
+    const progress = useMemo(() => {
+        const stages = research.stages?.length || 0;
+        if (stages === 0) return 0;
+        return Math.min(100, stages * 15);
+    }, [research.stages?.length]);
 
-    // Load data on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        void loadResearches();
-        void loadResearchTypes();
-    }, []);
-
-    const loadResearches = async () => {
-        try {
-            setIsLoading(true);
-            const response = await researchService.list();
-            setResearches(response.researches);
-        } catch (error) {
-            console.error('Failed to load researches:', error);
-            toast.error('Failed to load researches');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const loadResearchTypes = async () => {
-        try {
-            const response = await researchTypesService.list();
-            setResearchTypes(response.researchTypes);
-        } catch (error) {
-            console.error('Failed to load research types:', error);
-        }
-    };
-
-    // Filter researches by type
-    const filteredResearches = useMemo(() => {
-        if (activeFilter === 'all') {
-            return researches;
-        }
-        return researches.filter(r => r.research_type_id === activeFilter);
-    }, [researches, activeFilter]);
-
-    // Get status badge variant
-    const getStatusVariant = (status: string) => {
-        switch (status.toLowerCase()) {
+    const statusVariant = useMemo(() => {
+        switch (research.status.toLowerCase()) {
             case 'rejected':
                 return 'bg-red-100 text-red-800';
             case 'pending':
@@ -75,23 +41,151 @@ export const DashboardPage = () => {
             default:
                 return 'bg-gray-100 text-gray-800';
         }
-    };
+    }, [research.status]);
 
-    // Calculate progress (dummy for now)
-    const getProgress = (research: Research) => {
-        // TODO: Calculate actual progress based on completed modules
-        const stages = research.stages?.length || 0;
-        if (stages === 0) return 0;
-        return Math.min(100, stages * 15); // Dummy calculation
-    };
+    const formattedDate = useMemo(() => {
+        return new Date(research.created_at).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+        });
+    }, [research.created_at]);
 
-    // Handle actions
-    const handleRefresh = async () => {
-        await loadResearches();
-        toast.success('Researches refreshed');
-    };
+    return (
+        <tr
+            onClick={() => onRowClick(research.id)}
+            className="hover:bg-gray-50 cursor-pointer transition-colors"
+        >
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="text-sm font-medium text-gray-900">
+                    {research.name}
+                </div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusVariant}`}>
+                    {research.status}
+                </span>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                {formattedDate}
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                    <div className="w-20 bg-gray-200 rounded-full h-2">
+                        <div
+                            className="bg-blue-600 h-2 rounded-full transition-all"
+                            style={{ width: `${progress}%` }}
+                        ></div>
+                    </div>
+                    <span className="text-xs text-gray-600 font-medium">
+                        {progress}%
+                    </span>
+                </div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                Researcher
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onCopy(research);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-green-50"
+                        title="Copy ID"
+                    >
+                        <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={(e) => onDelete(research, e)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
+                        title="Delete"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                </div>
+            </td>
+        </tr>
+    );
+});
 
-    const handleCopy = async (research: Research) => {
+ResearchTableRow.displayName = 'ResearchTableRow';
+
+/**
+ * Componente memoizado para tarjeta de tipo de investigación
+ */
+const ResearchTypeCard = memo(({ 
+    type, 
+    onView 
+}: { 
+    type: { id: string; name: string }; 
+    onView: (name: string) => void;
+}) => {
+    const initials = useMemo(() => type.name.substring(0, 2).toUpperCase(), [type.name]);
+
+    return (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-bold">{initials}</span>
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-semibold text-gray-900">{type.name}</h4>
+                        <p className="text-xs text-gray-500">By UserEmotion</p>
+                    </div>
+                </div>
+            </div>
+            <div className="text-right">
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-blue-600 hover:text-blue-800"
+                    onClick={() => onView(type.name)}
+                >
+                    View
+                </Button>
+            </div>
+        </div>
+    );
+});
+
+ResearchTypeCard.displayName = 'ResearchTypeCard';
+
+/**
+ * Main Dashboard page - Optimizado con React Query y memoización
+ * Shows a table of researches with filters by type
+ */
+export const DashboardPage = () => {
+    const navigate = useNavigate();
+    const toast = useToast();
+    
+    // Usar React Query para datos optimizados con caché
+    const { data: researches = [], isLoading } = useResearches();
+    const { data: researchTypes = [] } = useResearchTypes();
+    const deleteResearch = useDeleteResearch();
+
+    // Type assertions para TypeScript
+    const typedResearches = researches as Research[];
+    const typedResearchTypes = researchTypes as Array<{ id: string; name: string }>;
+    
+    // State local solo para UI
+    const [activeFilter, setActiveFilter] = useState<string>('all');
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
+
+    // Filtrar investigaciones - memoizado para evitar recálculos
+    const filteredResearches = useMemo(() => {
+        if (activeFilter === 'all') {
+            return typedResearches;
+        }
+        return typedResearches.filter((r: Research) => r.research_type_id === activeFilter);
+    }, [typedResearches, activeFilter]);
+
+    // Handlers memoizados con useCallback
+
+    const handleCopy = useCallback(async (research: Research) => {
         try {
             await navigator.clipboard.writeText(research.id);
             toast.success('Research ID copied to clipboard');
@@ -99,35 +193,33 @@ export const DashboardPage = () => {
             console.error('Failed to copy:', error);
             toast.error('Failed to copy ID');
         }
-    };
+    }, [toast]);
 
-    const handleDeleteClick = (research: Research, e: React.MouseEvent) => {
+    const handleDeleteClick = useCallback((research: Research, e: React.MouseEvent) => {
         e.stopPropagation();
         setResearchToDelete(research);
         setDeleteModalOpen(true);
-    };
+    }, []);
 
-    const handleConfirmDelete = async () => {
+    const handleConfirmDelete = useCallback(async () => {
         if (!researchToDelete) return;
-
+        
         try {
-            setIsDeleting(true);
-            await researchService.delete(researchToDelete.id);
-            toast.success('Research deleted successfully');
-            await loadResearches();
+            await deleteResearch.mutateAsync(researchToDelete.id);
             setDeleteModalOpen(false);
             setResearchToDelete(null);
         } catch (error) {
             console.error('Failed to delete research:', error);
-            toast.error('Failed to delete research');
-        } finally {
-            setIsDeleting(false);
         }
-    };
+    }, [researchToDelete, deleteResearch]);
 
-    const handleRowClick = (researchId: string) => {
+    const handleRowClick = useCallback((researchId: string) => {
         navigate(`/research/${researchId}/builder`);
-    };
+    }, [navigate]);
+
+    const handleViewType = useCallback((name: string) => {
+        toast.info(`View details for ${name}`);
+    }, [toast]);
 
     return (
         <div className="h-full p-6 space-y-6">
@@ -184,85 +276,15 @@ export const DashboardPage = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredResearches.map((research) => {
-                                        const progress = getProgress(research);
-                                        return (
-                                            <tr
-                                                key={research.id}
-                                                onClick={() => handleRowClick(research.id)}
-                                                className="hover:bg-gray-50 cursor-pointer transition-colors"
-                                            >
-                                                <td className="px-4 py-4 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        {research.name}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap">
-                                                    <span
-                                                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusVariant(
-                                                            research.status
-                                                        )}`}
-                                                    >
-                                                        {research.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {new Date(research.created_at).toLocaleDateString('en-US', {
-                                                        month: '2-digit',
-                                                        day: '2-digit',
-                                                        year: 'numeric',
-                                                    })}
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-20 bg-gray-200 rounded-full h-2">
-                                                            <div
-                                                                className="bg-blue-600 h-2 rounded-full transition-all"
-                                                                style={{ width: `${progress}%` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-xs text-gray-600 font-medium">
-                                                            {progress}%
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                    Researcher
-                                                </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                void handleRefresh();
-                                                            }}
-                                                            className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
-                                                            title="Refresh"
-                                                        >
-                                                            <RefreshCw className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                void handleCopy(research);
-                                                            }}
-                                                            className="p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-green-50"
-                                                            title="Copy ID"
-                                                        >
-                                                            <Copy className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => handleDeleteClick(research, e)}
-                                                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
-                                                            title="Delete"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
+                                    filteredResearches.map((research) => (
+                                        <ResearchTableRow
+                                            key={research.id}
+                                            research={research}
+                                            onRowClick={handleRowClick}
+                                            onCopy={handleCopy}
+                                            onDelete={handleDeleteClick}
+                                        />
+                                    ))
                                 )}
                             </tbody>
                         </table>
@@ -271,39 +293,12 @@ export const DashboardPage = () => {
 
                 {/* Right Sidebar - Research Types Filter */}
                 <div className="w-80 space-y-4">
-
-                    {/* Research Type Cards */}
-                    {researchTypes.slice(0, 4).map((type) => (
-                        <div
+                    {typedResearchTypes.slice(0, 4).map((type) => (
+                        <ResearchTypeCard
                             key={type.id}
-                            className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow"
-                        >
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <span className="text-white text-sm font-bold">
-                                            {type.name.substring(0, 2).toUpperCase()}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-semibold text-gray-900">
-                                            {type.name}
-                                        </h4>
-                                        <p className="text-xs text-gray-500">By UserEmotion</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="text-blue-600 hover:text-blue-800"
-                                    onClick={() => toast.info(`View details for ${type.name}`)}
-                                >
-                                    View
-                                </Button>
-                            </div>
-                        </div>
+                            type={type}
+                            onView={handleViewType}
+                        />
                     ))}
                 </div>
             </div>
@@ -321,7 +316,7 @@ export const DashboardPage = () => {
                     >
                         All
                     </button>
-                    {researchTypes.map((type) => (
+                    {typedResearchTypes.map((type) => (
                         <button
                             key={type.id}
                             onClick={() => setActiveFilter(type.id)}
@@ -338,7 +333,7 @@ export const DashboardPage = () => {
 
                 {/* Research Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {filteredResearches.slice(0, 4).map((research) => (
+                    {filteredResearches.slice(0, 4).map((research: Research) => (
                         <div
                             key={research.id}
                             onClick={() => handleRowClick(research.id)}
@@ -347,9 +342,7 @@ export const DashboardPage = () => {
                             <h4 className="text-sm font-semibold text-gray-900 mb-2">
                                 {research.name}
                             </h4>
-                            <p className="text-xs text-gray-500 mb-3">
-                                By User
-                            </p>
+                            <p className="text-xs text-gray-500 mb-3">By User</p>
                             <p className="text-xs text-gray-400 mb-3">
                                 Last modified:{' '}
                                 {new Date(research.updated_at || research.created_at).toLocaleDateString('en-US', {
@@ -376,9 +369,8 @@ export const DashboardPage = () => {
                 confirmText="Delete"
                 cancelText="Cancel"
                 variant="danger"
-                isLoading={isDeleting}
+                isLoading={deleteResearch.isPending}
             />
         </div>
     );
 };
-

@@ -3,6 +3,7 @@ import {
     SignUpCommand,
     InitiateAuthCommand,
     AdminSetUserPasswordCommand,
+    AdminGetUserCommand,
     InitiateAuthCommandInput,
 } from '@aws-sdk/client-cognito-identity-provider';
 import pool from '../../config/database';
@@ -45,25 +46,76 @@ export const register = async (data: RegisterData) => {
             ],
         });
 
-        const signUpResult = await cognitoClient.send(signUpCommand);
-        const cognitoSub = signUpResult.UserSub!;
+        let signUpResult;
+        let cognitoSub: string;
 
-        // 2. Auto-confirm user (for development)
-        const setPasswordCommand = new AdminSetUserPasswordCommand({
-            UserPoolId: cognitoConfig.userPoolId,
-            Username: email,
-            Password: password,
-            Permanent: true,
-        });
-        await cognitoClient.send(setPasswordCommand);
+        try {
+            signUpResult = await cognitoClient.send(signUpCommand);
+            cognitoSub = signUpResult.UserSub!;
+        } catch (cognitoError: unknown) {
+            // Si el usuario ya existe en Cognito, intentar obtenerlo
+            if (cognitoError && typeof cognitoError === 'object' && 'name' in cognitoError) {
+                const errorName = (cognitoError as { name?: string }).name;
+                if (errorName === 'UsernameExistsException' || errorName === 'AliasExistsException') {
+                    // Usuario ya existe, obtener su información
+                    const getUserCommand = new AdminGetUserCommand({
+                        UserPoolId: cognitoConfig.userPoolId,
+                        Username: email,
+                    });
+                    const getUserResult = await cognitoClient.send(getUserCommand);
+                    cognitoSub = getUserResult.Username || email;
+                    
+                    // Verificar si el usuario ya existe en la base de datos
+                    const existingUserQuery = `
+                        SELECT id, email, role, first_name, last_name, created_at
+                        FROM users
+                        WHERE email = $1 OR cognito_sub = $2
+                        LIMIT 1
+                    `;
+                    const existingUser = await pool.query(existingUserQuery, [email, cognitoSub]);
+                    
+                    if (existingUser.rows.length > 0) {
+                        // Usuario ya existe, retornar información existente
+                        return existingUser.rows[0];
+                    }
+                } else {
+                    throw cognitoError;
+                }
+            } else {
+                throw cognitoError;
+            }
+        }
 
-        // 3. Create user in database
-        const query = `
-      INSERT INTO users (email, cognito_sub, role, first_name, last_name)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, email, role, first_name, last_name, created_at
-    `;
-        const result = await pool.query(query, [email, cognitoSub, role, firstName, lastName]);
+        // 2. Auto-confirm user (for development) - solo si es un usuario nuevo
+        if (signUpResult) {
+            const setPasswordCommand = new AdminSetUserPasswordCommand({
+                UserPoolId: cognitoConfig.userPoolId,
+                Username: email,
+                Password: password,
+                Permanent: true,
+            });
+            await cognitoClient.send(setPasswordCommand);
+        }
+
+        // 3. Create user in database (solo si no existe)
+        const checkUserQuery = `
+            SELECT id, email, role, first_name, last_name, created_at
+            FROM users
+            WHERE email = $1 OR cognito_sub = $2
+            LIMIT 1
+        `;
+        const existingUser = await pool.query(checkUserQuery, [email, cognitoSub]);
+        
+        if (existingUser.rows.length > 0) {
+            return existingUser.rows[0];
+        }
+
+        const insertQuery = `
+            INSERT INTO users (email, cognito_sub, role, first_name, last_name)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, email, role, first_name, last_name, created_at
+        `;
+        const result = await pool.query(insertQuery, [email, cognitoSub, role, firstName, lastName]);
 
         return result.rows[0];
     } catch (error: unknown) {

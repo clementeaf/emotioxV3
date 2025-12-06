@@ -1,13 +1,28 @@
-import { type ReactElement, type ReactNode } from 'react';
+import { type ReactElement, type ReactNode, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { PageErrorBoundary } from './components/PageErrorBoundary';
-import { AuthLayout } from './components/layout/AuthLayout';
-import { DashboardLayout } from './components/layout/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastProvider } from './contexts/ToastContext';
+import { QueryProvider } from './providers/QueryProvider';
 import { routesConfig, type RouteConfig } from './config/routes';
+
+// Lazy load layouts para code splitting
+const AuthLayout = lazy(() => 
+    import('./components/layout/AuthLayout').then(m => ({ default: m.AuthLayout }))
+) as React.LazyExoticComponent<() => ReactElement>;
+
+const DashboardLayout = lazy(() => 
+    import('./components/layout/DashboardLayout').then(m => ({ default: m.DashboardLayout }))
+) as React.LazyExoticComponent<() => ReactElement>;
+
+// Loading fallback component
+const LayoutLoader = () => (
+    <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+);
 
 /**
  * Renders an element with its ErrorBoundaries if configured
@@ -23,7 +38,7 @@ const renderWithErrorBoundaries = (route: RouteConfig): ReactNode => {
 };
 
 interface LayoutConfig {
-    component: () => ReactElement;
+    component: (() => ReactElement) | React.LazyExoticComponent<() => ReactElement>;
     context?: 'auth' | 'dashboard' | 'general';
     isProtected?: boolean;
     renderRoutes: (routes: RouteConfig[]) => ReactElement[];
@@ -41,7 +56,9 @@ const layoutsConfig: Record<string, LayoutConfig> = {
                 key="auth-layout"
                 element={
                     <RouteErrorBoundary context="auth">
-                        <AuthLayout />
+                        <Suspense fallback={<LayoutLoader />}>
+                            <AuthLayout />
+                        </Suspense>
                     </RouteErrorBoundary>
                 }
             >
@@ -61,7 +78,9 @@ const layoutsConfig: Record<string, LayoutConfig> = {
                 element={
                     <RouteErrorBoundary context="dashboard">
                         <ProtectedRoute>
-                            <DashboardLayout />
+                            <Suspense fallback={<LayoutLoader />}>
+                                <DashboardLayout />
+                            </Suspense>
                         </ProtectedRoute>
                     </RouteErrorBoundary>
                 }
@@ -108,11 +127,13 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <ToastProvider>
-                <BrowserRouter>
-                    <Routes>{routes}</Routes>
-                </BrowserRouter>
-            </ToastProvider>
+            <QueryProvider>
+                <ToastProvider>
+                    <BrowserRouter>
+                        <Routes>{routes}</Routes>
+                    </BrowserRouter>
+                </ToastProvider>
+            </QueryProvider>
         </ErrorBoundary>
     );
 }
