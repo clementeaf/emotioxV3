@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
+    "type-check": "tsc --noEmit",
     "dev": "tsx watch src/server.ts",
     "dev:nodemon": "nodemon",
     "dev:serverless": "serverless offline",

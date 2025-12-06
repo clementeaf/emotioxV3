@@ -170,12 +170,12 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 try {
                     const parsed = JSON.parse(imageComponent.defaultValue);
                     if (Array.isArray(parsed)) {
-                        images = parsed.map((img: any) => ({
+                        images = parsed.map((img: { id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ region?: { x?: number; y?: number; width?: number; height?: number }; x?: number; y?: number; width?: number; height?: number; name?: string; label?: string }> }) => ({
                             id: img.id || img.mediaId || String(Math.random()),
                             name: img.name,
                             s3Key: img.s3Key,
                             url: img.url,
-                            hitZones: img.hitZones?.map((hz: any) => ({
+                            hitZones: img.hitZones?.map((hz) => ({
                                 x: hz.region?.x || hz.x || 0,
                                 y: hz.region?.y || hz.y || 0,
                                 width: hz.region?.width || hz.width || 0,
@@ -209,7 +209,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 try {
                     const parsed = JSON.parse(imageComponent.defaultValue);
                     if (Array.isArray(parsed)) {
-                        images = parsed.map((img: any) => ({
+                        images = parsed.map((img: { id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string }) => ({
                             id: img.id || img.mediaId || String(Math.random()),
                             name: img.name,
                             s3Key: img.s3Key,

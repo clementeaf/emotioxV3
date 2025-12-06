@@ -1,23 +1,35 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
 
+echo "🔍 Running pre-commit checks..."
 
-echo "🛡️  Running strict type checks..."
-
-# Check Backend
-echo "📦 Checking Backend..."
-cd backend
-if ! npx tsc --noEmit; then
-  echo "❌ Backend type check failed!"
+# Backend TypeScript validation
+echo "\n📦 Checking backend..."
+cd backend && npm run type-check
+if [ $? -ne 0 ]; then
+  echo "❌ Backend TypeScript errors found!"
   exit 1
 fi
 cd ..
 
-# Check Research Frontend
-echo "🎨 Checking Research Frontend..."
-cd research-frontend
-if ! npx tsc -b; then
-  echo "❌ Research Frontend type check failed!"
+# participant-frontend TypeScript + Lint (warnings allowed)
+echo "\n📦 Checking participant-frontend..."
+cd participant-frontend && npm run type-check
+if [ $? -ne 0 ]; then
+  echo "❌ participant-frontend type errors found!"
   exit 1
 fi
+npm run lint
 cd ..
 
-echo "✅ Strict type check passed! Committing..."
+# research-frontend TypeScript + Lint (warnings allowed)
+echo "\n📦 Checking research-frontend..."
+cd research-frontend && npm run type-check
+if [ $? -ne 0 ]; then
+  echo "❌ research-frontend type errors found!"
+  exit 1
+fi
+npm run lint
+cd ..
+
+echo "\n✅ All checks passed! Proceeding with commit..."

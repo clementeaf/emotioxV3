@@ -101,6 +101,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             const { handleAnalysisRoutes } = await import('./modules/analysis/analysis.controller');
             return await handleAnalysisRoutes(event);
         }
+
+        // Analytics routes
+        if (path.startsWith('/analytics')) {
+            const { handleAnalyticsRoutes } = await import('./modules/analytics/analytics.controller');
+            return await handleAnalyticsRoutes(event);
+        }
         
         // Cache routes (admin only - add auth check as needed)
         if (path.startsWith('/cache')) {

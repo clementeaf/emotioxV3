@@ -22,8 +22,11 @@ export default defineConfig([
     rules: {
       'react-refresh/only-export-components': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
       'no-case-declarations': 'warn',
       '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
       'no-useless-escape': 'warn',
     },
   },

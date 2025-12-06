@@ -43,9 +43,17 @@ CREATE INDEX IF NOT EXISTS idx_responses_component_id ON responses(component_id)
 CREATE INDEX IF NOT EXISTS idx_responses_updated_at ON responses(updated_at DESC);
 
 -- Add trigger for updated_at
-CREATE TRIGGER IF NOT EXISTS update_responses_updated_at 
-BEFORE UPDATE ON responses
-FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_responses_updated_at'
+    ) THEN
+        CREATE TRIGGER update_responses_updated_at 
+        BEFORE UPDATE ON responses
+        FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$;
 
 -- Rename old 'answer' column to 'value' for consistency
 -- (only if it doesn't exist yet)

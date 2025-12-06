@@ -1,12 +1,14 @@
 import { Card } from '../../ui/Card';
 import { Filters } from '../smart-voc/components/Filters';
 import { VOCComments } from '../smart-voc/components/VOCComments';
-import { ChoiceQuestionCard } from './components/ChoiceQuestionCard';
-import { LinearScaleQuestionCard } from './components/LinearScaleQuestionCard';
-import { RankingQuestionCard } from './components/RankingQuestionCard';
-import { NavigationTestCard } from './components/NavigationTestCard';
-import { PreferenceTestCard } from './components/PreferenceTestCard';
 import { cn } from '../../../lib/utils';
+import { useCognitiveTaskResults } from '../../../hooks/useCognitiveTaskResults';
+import { ResultsStateHandler } from '../shared/ResultsStateHandler';
+import { NavigationFlowResultsWrapper } from './NavigationFlowResultsWrapper';
+import { PreferenceTestResultsWrapper } from './PreferenceTestResultsWrapper';
+import { ChoiceResultsWrapper } from './ChoiceResultsWrapper';
+import { ScaleResultsWrapper } from './ScaleResultsWrapper';
+import { RankingResultsWrapper } from './RankingResultsWrapper';
 
 interface CognitiveTaskResultsProps {
   researchId: string;
@@ -14,264 +16,169 @@ interface CognitiveTaskResultsProps {
 }
 
 export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskResultsProps) => {
+  const { data, isLoading, error, refetch } = useCognitiveTaskResults(researchId);
+
+  console.log('Cognitive Task Results Data:', data);
+
+  // Helper to detect module type
+  const detectModuleType = (moduleName: string): string => {
+    const normalized = moduleName.toLowerCase();
+    if (normalized.includes('navigation flow') || normalized.includes('navigation_flow')) return 'navigation_flow';
+    if (normalized.includes('preference test') || normalized.includes('preference_test')) return 'preference_test';
+    if (normalized.includes('short text') || normalized.includes('short_text')) return 'short_text';
+    if (normalized.includes('long text') || normalized.includes('long_text')) return 'long_text';
+    if (normalized.includes('single choice') || normalized.includes('single_choice')) return 'single_choice';
+    if (normalized.includes('multiple choice') || normalized.includes('multiple_choice')) return 'multiple_choice';
+    if (normalized.includes('linear scale') || normalized.includes('linear_scale')) return 'linear_scale';
+    if (normalized.includes('ranking')) return 'ranking';
+    return 'unknown';
+  };
+
+  // Renderizar cada módulo según su tipo
+  const renderModuleResults = (module: any, index: number) => {
+    const moduleType = detectModuleType(module.moduleName);
+    const questionNumber = `3.${index + 1}`;
+
+    switch (moduleType) {
+      case 'navigation_flow':
+        return (
+          <NavigationFlowResultsWrapper
+            key={module.moduleId}
+            researchId={researchId}
+            moduleId={module.moduleId}
+            moduleName={module.moduleName}
+            questionNumber={questionNumber}
+          />
+        );
+
+      case 'preference_test':
+        return (
+          <PreferenceTestResultsWrapper
+            key={module.moduleId}
+            researchId={researchId}
+            moduleId={module.moduleId}
+            moduleName={module.moduleName}
+            questionNumber={questionNumber}
+          />
+        );
+
+      case 'short_text':
+      case 'long_text':
+        // Usamos VOCComments para mostrar respuestas de texto
+        const textResponses = module.responses
+          .map((r: any) => {
+            try {
+              const value = typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
+              return { text: value, mood: 'Positive' };
+            } catch {
+              return null;
+            }
+          })
+          .filter((r: any) => r !== null);
+
+        return (
+          <VOCComments
+            key={module.moduleId}
+            questionNumber={questionNumber}
+            questionText={module.moduleName}
+            comments={textResponses.length > 0 ? textResponses : [{ text: 'No responses yet', mood: 'gray' }]}
+          />
+        );
+
+      case 'single_choice':
+        return (
+          <ChoiceResultsWrapper
+            key={module.moduleId}
+            researchId={researchId}
+            moduleId={module.moduleId}
+            moduleName={module.moduleName}
+            questionNumber={questionNumber}
+            isSingleChoice={true}
+          />
+        );
+
+      case 'multiple_choice':
+        return (
+          <ChoiceResultsWrapper
+            key={module.moduleId}
+            researchId={researchId}
+            moduleId={module.moduleId}
+            moduleName={module.moduleName}
+            questionNumber={questionNumber}
+            isSingleChoice={false}
+          />
+        );
+
+      case 'linear_scale':
+        return (
+          <ScaleResultsWrapper
+            key={module.moduleId}
+            researchId={researchId}
+            moduleId={module.moduleId}
+            moduleName={module.moduleName}
+            questionNumber={questionNumber}
+          />
+        );
+
+      case 'ranking':
+        return (
+          <RankingResultsWrapper
+            key={module.moduleId}
+            researchId={researchId}
+            moduleId={module.moduleId}
+            moduleName={module.moduleName}
+            questionNumber={questionNumber}
+          />
+        );
+
+      // Otros tipos se mostrarán en la siguiente fase
+      default:
+        return (
+          <Card key={module.moduleId} className="p-6">
+            <h3 className="text-lg font-semibold">{questionNumber}- {module.moduleName}</h3>
+            <p className="text-sm text-gray-500 mt-2">Type: {moduleType}</p>
+            <p className="text-sm text-gray-600 mt-1">{module.totalResponses} responses</p>
+          </Card>
+        );
+    }
+  };
+  
   return (
-    <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
+    <ResultsStateHandler
+      isLoading={isLoading}
+      error={error}
+      onRetry={refetch}
+      loadingSkeleton={
+        <div className="p-6 space-y-6 animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3" />
+          <div className="h-64 bg-gray-200 rounded" />
+          <div className="h-64 bg-gray-200 rounded" />
+        </div>
+      }
+    >
+      <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
       {/* Main Content + Sidebar */}
       <div className="flex gap-6">
         {/* Left: Main Content */}
         <div className="flex-1 space-y-6">
           {/* Cognitive Task Header */}
           <Card className="p-4 bg-gray-50">
-            <h2 className="text-xl font-semibold text-gray-900">2.0.- Cognitive task</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Cognitive Tasks Results</h2>
+            {data && (
+              <p className="text-sm text-gray-600 mt-1">
+                {data.modules.length} modules • {data.modules.reduce((sum, m) => sum + m.totalResponses, 0)} total responses
+              </p>
+            )}
           </Card>
 
-          {/* Question 3.1 - Short Text (VOC style) */}
-          <VOCComments
-            questionNumber="3.1"
-            questionText="Question"
-            comments={[
-              { text: 'Camera lens working memory in...', mood: 'Positive' },
-              { text: 'Laptop, Camera lens memory in...', mood: 'Positive' },
-              { text: 'Mobile', mood: 'Positive' },
-              { text: 'Camera lens', mood: 'Positive' },
-              { text: 'Computer accessories', mood: 'Positive' },
-              { text: 'TV, Camera lens working memory in...', mood: 'Positive' },
-              { text: 'Mobile, lens working memory in...', mood: 'Positive' },
-              { text: 'Laptop', mood: 'green' },
-              { text: 'Camera lens working memory in...', mood: 'green' },
-              { text: 'Camera lens working memory in...', mood: 'green' }
-            ]}
-          />
-
-          {/* Question 3.2 - Another Short Text */}
-          <VOCComments
-            questionNumber="3.2"
-            questionText="Question"
-            comments={[
-              { text: 'Camera lens working memory in...', mood: 'Positive' },
-              { text: 'Laptop, Camera lens memory in...', mood: 'Positive' },
-              { text: 'Mobile', mood: 'Positive' },
-              { text: 'Camera lens', mood: 'Positive' },
-              { text: 'Computer accessories', mood: 'Positive' },
-              { text: 'TV, Camera lens working memory in...', mood: 'Positive' },
-              { text: 'Mobile, lens working memory in...', mood: 'Positive' },
-              { text: 'Laptop', mood: 'green' },
-              { text: 'Camera lens working memory in...', mood: 'green' },
-              { text: 'Camera lens working memory in...', mood: 'green' }
-            ]}
-          />
-
-          {/* Question 3.3 - Single Choice */}
-          <ChoiceQuestionCard
-            questionNumber="3.3"
-            questionText="Question"
-            questionType="Single Choice question"
-            conditionalityDisabled={true}
-            totalResponses={28635}
-            options={[
-              { id: '1', text: 'Answer 01', percentage: 70, color: '#6366F1' },
-              { id: '2', text: 'Answer 02', percentage: 10, color: '#6366F1' },
-              { id: '3', text: 'Answer 03', percentage: 20, color: '#6366F1' }
-            ]}
-          />
-
-          {/* Question 3.4 - Multiple Choice */}
-          <ChoiceQuestionCard
-            questionNumber="3.4"
-            questionText="Question"
-            questionType="Multiple Choice question"
-            conditionalityDisabled={true}
-            required={true}
-            totalResponses={28635}
-            options={[
-              { id: '1', text: 'Answer 01', percentage: 70, color: '#6366F1' },
-              { id: '2', text: 'Answer 02', percentage: 10, color: '#6366F1' },
-              { id: '3', text: 'Answer 03', percentage: 20, color: '#6366F1' }
-            ]}
-          />
-
-          {/* Question 3.5 - Linear Scale */}
-          <LinearScaleQuestionCard
-            questionNumber="3.5"
-            questionText="Question"
-            questionType="Linear Scale question"
-            conditionalityDisabled={true}
-            required={true}
-            totalResponses={28635}
-            options={[
-              { value: 1, percentage: 70, color: '#EF4444' },
-              { value: 2, percentage: 10, color: '#9CA3AF' },
-              { value: 3, percentage: 20, color: '#9CA3AF' },
-              { value: 4, percentage: 20, color: '#10B981' },
-              { value: 5, percentage: 20, color: '#10B981' }
-            ]}
-          />
-
-          {/* Question 3.6 - Ranking */}
-          <RankingQuestionCard
-            questionNumber="3.6"
-            questionText="Question"
-            questionType="Ranking question"
-            conditionalityDisabled={true}
-            required={true}
-            totalResponses={28635}
-            options={[
-              {
-                id: '1',
-                label: 'Option 2',
-                mean: 2.4,
-                segments: [
-                  { position: 1, percentage: 20, color: '#A5B4FC' },
-                  { position: 2, percentage: 35, color: '#818CF8' },
-                  { position: 3, percentage: 15, color: '#6366F1' },
-                  { position: 4, percentage: 10, color: '#4F46E5' },
-                  { position: 5, percentage: 12, color: '#4338CA' },
-                  { position: 6, percentage: 8, color: '#3730A3' }
-                ]
-              },
-              {
-                id: '2',
-                label: 'Option 5',
-                mean: 2.8,
-                segments: [
-                  { position: 1, percentage: 18, color: '#A5B4FC' },
-                  { position: 2, percentage: 25, color: '#818CF8' },
-                  { position: 3, percentage: 22, color: '#6366F1' },
-                  { position: 4, percentage: 15, color: '#4F46E5' },
-                  { position: 5, percentage: 12, color: '#4338CA' },
-                  { position: 6, percentage: 8, color: '#3730A3' }
-                ]
-              },
-              {
-                id: '3',
-                label: 'Option 3',
-                mean: 3.1,
-                segments: [
-                  { position: 1, percentage: 15, color: '#A5B4FC' },
-                  { position: 2, percentage: 20, color: '#818CF8' },
-                  { position: 3, percentage: 25, color: '#6366F1' },
-                  { position: 4, percentage: 18, color: '#4F46E5' },
-                  { position: 5, percentage: 14, color: '#4338CA' },
-                  { position: 6, percentage: 8, color: '#3730A3' }
-                ]
-              },
-              {
-                id: '4',
-                label: 'Option 4',
-                mean: 3.4,
-                segments: [
-                  { position: 1, percentage: 12, color: '#A5B4FC' },
-                  { position: 2, percentage: 18, color: '#818CF8' },
-                  { position: 3, percentage: 15, color: '#6366F1' },
-                  { position: 4, percentage: 25, color: '#4F46E5' },
-                  { position: 5, percentage: 20, color: '#4338CA' },
-                  { position: 6, percentage: 10, color: '#3730A3' }
-                ]
-              },
-              {
-                id: '5',
-                label: 'Option 6',
-                mean: 3.7,
-                segments: [
-                  { position: 1, percentage: 10, color: '#A5B4FC' },
-                  { position: 2, percentage: 12, color: '#818CF8' },
-                  { position: 3, percentage: 15, color: '#6366F1' },
-                  { position: 4, percentage: 18, color: '#4F46E5' },
-                  { position: 5, percentage: 28, color: '#4338CA' },
-                  { position: 6, percentage: 17, color: '#3730A3' }
-                ]
-              },
-              {
-                id: '6',
-                label: 'Option 1',
-                mean: 3.8,
-                segments: [
-                  { position: 1, percentage: 8, color: '#A5B4FC' },
-                  { position: 2, percentage: 10, color: '#818CF8' },
-                  { position: 3, percentage: 12, color: '#6366F1' },
-                  { position: 4, percentage: 15, color: '#4F46E5' },
-                  { position: 5, percentage: 25, color: '#4338CA' },
-                  { position: 6, percentage: 30, color: '#3730A3' }
-                ]
-              }
-            ]}
-          />
-
-          {/* Question 3.7 - Navigation Test */}
-          <NavigationTestCard
-            questionNumber="3.7"
-            questionText="Navigation Test"
-            questionType="Navigation Test"
-            conditionalityDisabled={true}
-            required={true}
-            steps={[
-              {
-                stepNumber: 1,
-                title: 'Step 1 and task description',
-                duration: '2s',
-                completionRate: 100,
-                participantCount: 3,
-                hasHeatmap: true,
-                aois: [
-                  { id: '1', label: 'Area of Interest (AOI)', percentage: 14 },
-                  { id: '2', label: 'Area of Interest (AOI)', percentage: 14 },
-                  { id: '3', label: 'Area of Interest (AOI)', percentage: 14 },
-                  { id: '4', label: 'Area of Interest (AOI)', percentage: 14 }
-                ]
-              },
-              {
-                stepNumber: 2,
-                title: 'Step 2 and task description',
-                duration: '55s',
-                completionRate: 100,
-                participantCount: 3,
-                hasHeatmap: false
-              },
-              {
-                stepNumber: 3,
-                title: 'Step 3 and task description',
-                duration: '70s',
-                completionRate: 100,
-                participantCount: 4,
-                hasHeatmap: false
-              }
-            ]}
-          />
-
-          {/* Question 3.8 - Preference Test */}
-          <PreferenceTestCard
-            questionNumber="3.8"
-            questionText="Preference Test"
-            questionType="Preference Test"
-            conditionalityDisabled={true}
-            required={true}
-            steps={[
-              {
-                stepNumber: 1,
-                duration: '10s',
-                completionRate: 100,
-                participantCount: 5,
-                selectionCount: 17,
-                progressColor: '#9333EA'
-              },
-              {
-                stepNumber: 2,
-                duration: '54s',
-                completionRate: 100,
-                participantCount: 5,
-                selectionCount: 0,
-                progressColor: '#9333EA'
-              },
-              {
-                stepNumber: 3,
-                duration: '70s',
-                completionRate: 100,
-                participantCount: 9,
-                selectionCount: 0,
-                progressColor: '#6366F1'
-              }
-            ]}
-          />
+          {/* Dynamic Module Rendering */}
+          {data?.modules && data.modules.length > 0 ? (
+            data.modules.map((module, index) => renderModuleResults(module, index))
+          ) : (
+            <Card className="p-8 text-center">
+              <p className="text-gray-500">No cognitive task modules found for this research.</p>
+            </Card>
+          )}
         </div>
 
         {/* Right: Filters Sidebar */}
@@ -280,5 +187,6 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
         </div>
       </div>
     </div>
+    </ResultsStateHandler>
   );
 };
