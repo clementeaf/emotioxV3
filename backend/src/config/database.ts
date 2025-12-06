@@ -11,7 +11,9 @@ const pool = new Pool({
     connectionTimeoutMillis: 10000,
     query_timeout: 30000,
     statement_timeout: 30000,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    ssl: {
+        rejectUnauthorized: false
+    },
 });
 
 // Test connection on initialization
