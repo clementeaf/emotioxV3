@@ -1,4 +1,5 @@
 import apiClient from './api/client';
+import { configService } from './api/config.service';
 import type { ApiErrorResponse } from './api/types';
 import type { ResearchTechnique } from './researchTechniques.service';
 
@@ -53,7 +54,8 @@ class ResearchTypesService {
      */
     async list(): Promise<ResearchTypeListResponse> {
         try {
-            return await apiClient.get<ResearchTypeListResponse>('/research-types');
+            const endpoint = configService.getEndpoint('researchTypes', 'list');
+            return await apiClient.get<ResearchTypeListResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch research types');
         }
@@ -67,7 +69,8 @@ class ResearchTypesService {
      */
     async getById(id: string): Promise<ResearchTypeResponse> {
         try {
-            return await apiClient.get<ResearchTypeResponse>(`/research-types/${id}`);
+            const endpoint = configService.getEndpoint('researchTypes', 'getById', { id });
+            return await apiClient.get<ResearchTypeResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch research type');
         }
@@ -81,7 +84,8 @@ class ResearchTypesService {
      */
     async create(data: CreateResearchTypeData): Promise<ResearchTypeResponse> {
         try {
-            return await apiClient.post<ResearchTypeResponse>('/research-types', data);
+            const endpoint = configService.getEndpoint('researchTypes', 'create');
+            return await apiClient.post<ResearchTypeResponse>(endpoint, data);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to create research type');
         }
@@ -96,7 +100,8 @@ class ResearchTypesService {
      */
     async update(id: string, data: UpdateResearchTypeData): Promise<ResearchTypeResponse> {
         try {
-            return await apiClient.put<ResearchTypeResponse>(`/research-types/${id}`, data);
+            const endpoint = configService.getEndpoint('researchTypes', 'update', { id });
+            return await apiClient.put<ResearchTypeResponse>(endpoint, data);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to update research type');
         }
@@ -125,7 +130,8 @@ class ResearchTypesService {
      */
     async delete(id: string): Promise<DeleteResponse> {
         try {
-            return await apiClient.delete<DeleteResponse>(`/research-types/${id}`);
+            const endpoint = configService.getEndpoint('researchTypes', 'delete', { id });
+            return await apiClient.delete<DeleteResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete research type');
         }

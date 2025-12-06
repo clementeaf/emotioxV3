@@ -53,7 +53,7 @@ app.use(async (req, res) => {
 app.listen(PORT, () => {
     console.log(`\n✓ Server running on http://localhost:${PORT}`);
     console.log(`✓ Database: ${process.env.DB_NAME}`);
-    console.log(`✓ Region: ${process.env.AWS_REGION}`);
+    console.log(`✓ Region: ${process.env.APP_AWS_REGION}`);
     console.log(`✓ Cache: Enabled (in-memory)\n`);
     console.log('Available endpoints:');
     console.log('  GET  /health');

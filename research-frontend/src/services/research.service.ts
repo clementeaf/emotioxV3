@@ -1,4 +1,5 @@
 import apiClient from './api/client';
+import { configService } from './api/config.service';
 import type { ApiErrorResponse } from './api/types';
 
 export interface Question {
@@ -86,7 +87,8 @@ class ResearchService {
      */
     async list(): Promise<ResearchListResponse> {
         try {
-            return await apiClient.get<ResearchListResponse>('/research');
+            const endpoint = configService.getEndpoint('research', 'list');
+            return await apiClient.get<ResearchListResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch researches');
         }
@@ -100,7 +102,8 @@ class ResearchService {
      */
     async getById(id: string): Promise<ResearchResponse> {
         try {
-            return await apiClient.get<ResearchResponse>(`/research/${id}`);
+            const endpoint = configService.getEndpoint('research', 'getById', { id });
+            return await apiClient.get<ResearchResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch research');
         }
@@ -114,7 +117,8 @@ class ResearchService {
      */
     async create(data: CreateResearchData): Promise<ResearchResponse> {
         try {
-            return await apiClient.post<ResearchResponse>('/research', data);
+            const endpoint = configService.getEndpoint('research', 'create');
+            return await apiClient.post<ResearchResponse>(endpoint, data);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to create research');
         }
@@ -129,7 +133,8 @@ class ResearchService {
      */
     async update(id: string, data: UpdateResearchData): Promise<ResearchResponse> {
         try {
-            return await apiClient.put<ResearchResponse>(`/research/${id}`, data);
+            const endpoint = configService.getEndpoint('research', 'update', { id });
+            return await apiClient.put<ResearchResponse>(endpoint, data);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to update research');
         }
@@ -144,7 +149,8 @@ class ResearchService {
      */
     async updateStatus(id: string, status: string): Promise<ResearchResponse> {
         try {
-            return await apiClient.patch<ResearchResponse>(`/research/${id}/status`, { status });
+            const endpoint = `/research/${id}/status`;
+            return await apiClient.patch<ResearchResponse>(endpoint, { status });
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to update research status');
         }
@@ -158,7 +164,8 @@ class ResearchService {
      */
     async activate(id: string): Promise<ResearchResponse> {
         try {
-            return await apiClient.post<ResearchResponse>(`/research/${id}/activate`);
+            const endpoint = configService.getEndpoint('research', 'activate', { id });
+            return await apiClient.post<ResearchResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to activate research');
         }
@@ -172,7 +179,8 @@ class ResearchService {
      */
     async delete(id: string): Promise<DeleteResponse> {
         try {
-            return await apiClient.delete<DeleteResponse>(`/research/${id}`);
+            const endpoint = configService.getEndpoint('research', 'delete', { id });
+            return await apiClient.delete<DeleteResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete research');
         }
@@ -188,7 +196,8 @@ class ResearchService {
      */
     async addStage(researchId: string, name: string, description?: string): Promise<{ stage: Stage }> {
         try {
-            return await apiClient.post<{ stage: Stage }>(`/research/${researchId}/stages`, {
+            const endpoint = configService.getEndpoint('research', 'stages', { id: researchId });
+            return await apiClient.post<{ stage: Stage }>(endpoint, {
                 name,
                 description,
             });

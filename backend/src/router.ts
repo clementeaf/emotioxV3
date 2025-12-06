@@ -16,6 +16,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         return success({ status: 'healthy', timestamp: new Date().toISOString() });
     }
 
+    // Config endpoint (public - no auth required)
+    if (path === '/config' && httpMethod === 'GET') {
+        const { handleConfigRoutes } = await import('./modules/config/config.controller');
+        return await handleConfigRoutes(event);
+    }
+
     // Route to modules (will be implemented)
     try {
         // Auth routes

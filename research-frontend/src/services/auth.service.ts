@@ -1,4 +1,5 @@
 import apiClient from './api/client';
+import { configService } from './api/config.service';
 import type { User, LoginCredentials, RegisterCredentials } from '../types/auth';
 import type { ApiErrorResponse } from './api/types';
 
@@ -50,7 +51,8 @@ class AuthService {
      */
     async register(credentials: RegisterCredentials): Promise<RegisterResponse> {
         try {
-            return await apiClient.post<RegisterResponse>('/auth/register', {
+            const endpoint = configService.getEndpoint('auth', 'register');
+            return await apiClient.post<RegisterResponse>(endpoint, {
                 email: credentials.email,
                 password: credentials.password,
                 firstName: credentials.firstName,
@@ -69,7 +71,8 @@ class AuthService {
      */
     async login(credentials: LoginCredentials): Promise<LoginResponse> {
         try {
-            return await apiClient.post<LoginResponse>('/auth/login', credentials);
+            const endpoint = configService.getEndpoint('auth', 'login');
+            return await apiClient.post<LoginResponse>(endpoint, credentials);
         } catch (error: unknown) {
             throw this.handleError(error, 'Login failed');
         }
@@ -83,7 +86,8 @@ class AuthService {
      */
     async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
         try {
-            return await apiClient.post<RefreshTokenResponse>('/auth/refresh', { refreshToken });
+            const endpoint = configService.getEndpoint('auth', 'refresh');
+            return await apiClient.post<RefreshTokenResponse>(endpoint, { refreshToken });
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to refresh token');
         }
@@ -96,7 +100,8 @@ class AuthService {
      */
     async getMe(): Promise<UserResponse> {
         try {
-            return await apiClient.get<UserResponse>('/auth/me');
+            const endpoint = configService.getEndpoint('auth', 'me');
+            return await apiClient.get<UserResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch user profile');
         }
@@ -125,7 +130,7 @@ class AuthService {
                 throw new Error('No fields to update');
             }
 
-            return await apiClient.put<UserResponse>('/auth/me', updateData);
+            return await apiClient.put<UserResponse>(configService.getEndpoint('auth', 'me'), updateData);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to update profile');
         }
@@ -138,7 +143,7 @@ class AuthService {
      */
     async deleteAccount(): Promise<DeleteAccountResponse> {
         try {
-            return await apiClient.delete<DeleteAccountResponse>('/auth/me');
+            return await apiClient.delete<DeleteAccountResponse>(configService.getEndpoint('auth', 'me'));
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete account');
         }

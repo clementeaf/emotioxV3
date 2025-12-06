@@ -13,10 +13,10 @@ provider:
     DB_NAME: ${env:DB_NAME}
     DB_USER: ${env:DB_USER}
     DB_PASSWORD: ${env:DB_PASSWORD}
-    AWS_REGION: ${env:AWS_REGION}
+    APP_AWS_REGION: ${env:AWS_REGION}
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
-    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID}
-    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID}
+    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
+    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
   iam:
     role:
       statements:
@@ -31,7 +31,7 @@ provider:
             - cognito-idp:AdminGetUser
             - cognito-idp:AdminSetUserPassword
             - cognito-idp:AdminUpdateUserAttributes
-          Resource: "arn:aws:cognito-idp:${env:AWS_REGION}:*:userpool/${env:COGNITO_USER_POOL_ID}"
+          Resource: "arn:aws:cognito-idp:${env:AWS_REGION}:*:userpool/*"
 
 functions:
   api:

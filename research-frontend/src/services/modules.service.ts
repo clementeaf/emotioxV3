@@ -1,4 +1,5 @@
 import apiClient from './api/client';
+import { configService } from './api/config.service';
 import type { ApiErrorResponse } from './api/types';
 
 export interface Module {
@@ -49,7 +50,8 @@ class ModulesService {
      */
     async create(data: CreateModuleData): Promise<ModuleResponse> {
         try {
-            return await apiClient.post<ModuleResponse>('/modules', data);
+            const endpoint = configService.getEndpoint('modules', 'create');
+            return await apiClient.post<ModuleResponse>(endpoint, data);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to create module');
         }
@@ -64,7 +66,8 @@ class ModulesService {
      */
     async update(id: string, data: UpdateModuleData): Promise<ModuleResponse> {
         try {
-            return await apiClient.put<ModuleResponse>(`/modules/${id}`, data);
+            const endpoint = configService.getEndpoint('modules', 'update', { id });
+            return await apiClient.put<ModuleResponse>(endpoint, data);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to update module');
         }
@@ -79,7 +82,8 @@ class ModulesService {
      */
     async reorder(researchId: string, modules: string[]): Promise<{ message: string }> {
         try {
-            return await apiClient.post<{ message: string }>(`/modules/${researchId}/reorder`, { modules });
+            const endpoint = `/modules/${researchId}/reorder`;
+            return await apiClient.post<{ message: string }>(endpoint, { modules });
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to reorder modules');
         }
@@ -93,7 +97,8 @@ class ModulesService {
      */
     async delete(id: string): Promise<DeleteResponse> {
         try {
-            return await apiClient.delete<DeleteResponse>(`/modules/${id}`);
+            const endpoint = configService.getEndpoint('modules', 'delete', { id });
+            return await apiClient.delete<DeleteResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete module');
         }
