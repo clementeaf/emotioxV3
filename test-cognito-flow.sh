@@ -42,8 +42,8 @@ if [ "$HTTP_CODE" -eq 201 ]; then
     echo ""
     
     # Extraer información del usuario
-    USER_ID=$(echo "$REGISTER_BODY" | jq -r '.data.user.id' 2>/dev/null || echo "N/A")
-    USER_EMAIL=$(echo "$REGISTER_BODY" | jq -r '.data.user.email' 2>/dev/null || echo "N/A")
+    USER_ID=$(echo "$REGISTER_BODY" | jq -r '.data.user.id // .user.id // "N/A"' 2>/dev/null || echo "N/A")
+    USER_EMAIL=$(echo "$REGISTER_BODY" | jq -r '.data.user.email // .user.email // "N/A"' 2>/dev/null || echo "N/A")
     
     echo "📋 Usuario creado:"
     echo "   ID: $USER_ID"
@@ -79,9 +79,9 @@ if [ "$HTTP_CODE" -eq 200 ]; then
     echo ""
     
     # Extraer tokens
-    ACCESS_TOKEN=$(echo "$LOGIN_BODY" | jq -r '.data.tokens.accessToken' 2>/dev/null || echo "")
-    ID_TOKEN=$(echo "$LOGIN_BODY" | jq -r '.data.tokens.idToken' 2>/dev/null || echo "")
-    REFRESH_TOKEN=$(echo "$LOGIN_BODY" | jq -r '.data.tokens.refreshToken' 2>/dev/null || echo "")
+    ACCESS_TOKEN=$(echo "$LOGIN_BODY" | jq -r '.data.tokens.accessToken // .tokens.accessToken // ""' 2>/dev/null || echo "")
+    ID_TOKEN=$(echo "$LOGIN_BODY" | jq -r '.data.tokens.idToken // .tokens.idToken // ""' 2>/dev/null || echo "")
+    REFRESH_TOKEN=$(echo "$LOGIN_BODY" | jq -r '.data.tokens.refreshToken // .tokens.refreshToken // ""' 2>/dev/null || echo "")
     
     if [ -n "$ACCESS_TOKEN" ] && [ "$ACCESS_TOKEN" != "null" ]; then
         echo "📋 Tokens obtenidos:"
