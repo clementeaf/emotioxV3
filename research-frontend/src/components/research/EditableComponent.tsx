@@ -43,7 +43,8 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
         } else if (initialChoices.length > 0) {
             setLocalChoices(initialChoices);
         }
-    }, [value, initialChoices]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value]);
 
     const handleChoiceChange = (choiceId: string, field: 'label' | 'eligibility', newValue: string) => {
         const updated = localChoices.map((choice) =>
@@ -137,7 +138,7 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
         : undefined;
 
     switch (component.type) {
-        case 'input':
+        case 'input': {
             // Special handling for NPS scale range - should always be readonly
             if (component.id?.includes('nps-scale-range')) {
                 // Force readonly input with fixed "0-10" value for NPS scale range
@@ -173,6 +174,7 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
                     readOnly={!!isReadonly}
                 />
             );
+        }
 
         case 'select':
             // Special handling for NPS scale range - should never be a select

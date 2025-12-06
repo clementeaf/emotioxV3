@@ -166,7 +166,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                     </div>
                 );
 
-            case 'CES':
+            case 'CES': {
                 const cesScale = config.scaleRange as { start?: number; end?: number } | undefined;
                 const cesStart = cesScale?.start || 1;
                 const cesEnd = cesScale?.end || 5;
@@ -180,8 +180,9 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                         ))}
                     </div>
                 );
+            }
 
-            case 'CV':
+            case 'CV': {
                 const cvScale = config.scaleRange as { start?: number; end?: number } | undefined;
                 const cvStart = cvScale?.start || 1;
                 const cvEnd = cvScale?.end || 7;
@@ -203,8 +204,9 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                         </div>
                     </div>
                 );
+            }
 
-            case 'NPS':
+            case 'NPS': {
                 const npsScale = config.scaleRange as { start?: number; end?: number } | undefined;
                 const npsStart = npsScale?.start || 0;
                 const npsEnd = npsScale?.end || 10;
@@ -219,6 +221,7 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                         ))}
                     </div>
                 );
+            }
 
             case 'NEV':
                 return (

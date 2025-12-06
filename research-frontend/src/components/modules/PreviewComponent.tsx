@@ -50,7 +50,7 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
 
     // Render component based on type
     switch (component.type) {
-        case 'input':
+        case 'input': {
             // If it's a choice input (grouped), don't show individual label
             const settings = component.settings as ChoiceSettings | undefined;
             const isChoice = settings?.isChoice ?? false;
@@ -65,6 +65,7 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
                     }
                 />
             );
+        }
 
         case 'textarea':
             return (
@@ -143,7 +144,7 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
                 />
             );
 
-        case 'radio':
+        case 'radio': {
             // Support both 'options' and 'choices' for radio components
             const radioComponent = component as RadioComponentConfig;
             const radioOptions = radioComponent.choices || radioComponent.options || [];
@@ -176,6 +177,7 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
                     </div>
                 </div>
             );
+        }
 
         case 'choices': {
             const ChoicesPreview = () => {
