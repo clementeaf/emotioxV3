@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
@@ -17,34 +17,36 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
      * @param componentId - ID del componente
      * @returns Valor de la respuesta o valor por defecto
      */
-    const getComponentValue = (componentId: string): string => {
+    const getComponentValue = useCallback((componentId: string): string => {
         const response = getResponse(module.id, componentId);
         if (response && typeof response.value === 'string') {
             return response.value;
         }
         return '';
-    };
+    }, [module.id, getResponse]);
 
     /**
      * Maneja el cambio de valor de un componente
      * @param componentId - ID del componente
      * @param value - Nuevo valor
      */
-    const handleChange = (componentId: string, value: string): void => {
+    const handleChange = useCallback((componentId: string, value: string): void => {
         saveResponse(module.id, componentId, value);
-    };
+    }, [module.id, saveResponse]);
 
     // Check if this is a SmartVOC module
-    const isSmartVOC =
+    const isSmartVOC = useMemo(() =>
         module.name.includes('CSAT') ||
         module.name.includes('NPS') ||
         module.name.includes('CES') ||
         module.name.includes('CV') ||
         module.name.includes('NEV') ||
-        module.name.includes('VOC');
+        module.name.includes('VOC'),
+        [module.name]
+    );
 
     // Check if this is a Cognitive Task module
-    const isCognitiveTask =
+    const isCognitiveTask = useMemo(() =>
         module.name === 'Short Text' ||
         module.name === 'Long Text' ||
         module.name === 'Single Choice' ||
@@ -52,7 +54,17 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
         module.name === 'Linear Scale' ||
         module.name === 'Ranking' ||
         module.name === 'Navigation Flow' ||
-        module.name === 'Preference Test';
+        module.name === 'Preference Test',
+        [module.name]
+    );
+
+    // Memoize sorted components
+    const sortedComponents = useMemo(() => {
+        return [...module.structure.components].sort((a, b) => a.order - b.order);
+    }, [module.structure.components]);
+
+    // Memoize display only IDs
+    const displayOnlyIds = useMemo(() => ['title', 'message', 'instructions'], []);
 
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
@@ -65,8 +77,6 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)
-    const sortedComponents = [...module.structure.components].sort((a, b) => a.order - b.order);
-    const displayOnlyIds = ['title', 'message', 'instructions'];
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">

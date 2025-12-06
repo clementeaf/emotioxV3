@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { cn } from '../../utils/cn';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     fullWidth?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({
+export const Button: React.FC<ButtonProps> = memo(({
     className,
     fullWidth = false,
     children,
@@ -27,4 +27,6 @@ export const Button: React.FC<ButtonProps> = ({
             {children}
         </button>
     );
-};
+});
+
+Button.displayName = 'Button';

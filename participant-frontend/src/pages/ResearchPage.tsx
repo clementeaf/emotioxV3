@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Button } from '../components/ui/Button';
@@ -47,12 +47,12 @@ export const ResearchPage = () => {
   }, [researchId, setConfig]);
 
   // Check if we're in development mode
-  const isDev = import.meta.env.DEV;
+  const isDev = useMemo(() => import.meta.env.DEV, []);
 
   // Get current module
-  const currentModule = MOCK_MODULES[currentStep];
+  const currentModule = useMemo(() => MOCK_MODULES[currentStep], [currentStep]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     // In preview mode, don't send data to backend
     if (isPreviewMode) {
       console.log('[Preview Mode] Skipping data submission');
@@ -76,7 +76,7 @@ export const ResearchPage = () => {
       const errorMessage = result.errors.map(e => e.message).join('\n');
       alert(errorMessage);
     }
-  };
+  }, [isPreviewMode, participantId, goNext]);
 
   if (!researchId) {
     return (
