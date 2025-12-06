@@ -127,12 +127,13 @@ interface EditableComponentProps {
     component: ComponentConfig;
     value: string;
     onChange: (value: string) => void;
+    researchId?: string; // For S3 upload in file-upload components
 }
 
 /**
  * Componente que renderiza un componente editable según su tipo
  */
-export const EditableComponent = ({ component, value, onChange }: EditableComponentProps) => {
+export const EditableComponent = ({ component, value, onChange, researchId }: EditableComponentProps) => {
     const placeholder = component.placeholder?.enabled
         ? component.placeholder.text || ''
         : undefined;
@@ -331,7 +332,8 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
                     setHitzoneFile(null);
                 };
 
-                const isNavigationFlow = component.settings?.name === 'Image Upload' || component.id === 'image-upload';
+                // Check if hitzone editor should be enabled based on fileUpload config
+                const showHitzoneEditor = component.fileUpload?.allowHitZones ?? false;
 
                 return (
                     <>
@@ -344,8 +346,9 @@ export const EditableComponent = ({ component, value, onChange }: EditableCompon
                             files={files}
                             onFilesChange={handleFilesChange}
                             onFileDelete={handleFileDelete}
-                            onHitzoneEdit={isNavigationFlow ? handleHitzoneEdit : undefined}
-                            showHitzoneEditor={isNavigationFlow}
+                            onHitzoneEdit={showHitzoneEditor ? handleHitzoneEdit : undefined}
+                            showHitzoneEditor={showHitzoneEditor}
+                            researchId={researchId}
                         />
                         {hitzoneModalOpen && hitzoneFile && typeof window !== 'undefined' && ReactDOM.createPortal(
                             <div className="fixed inset-0 w-screen h-screen top-0 left-0 flex items-center justify-center bg-black bg-opacity-40 m-0 p-0" style={{ zIndex: 10000 }}>

@@ -87,12 +87,27 @@ export const ResearchBuilderPage = () => {
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
             } else if (activeModule) {
-                // Save single module with updated components
+                // Update components with new values while preserving structure
+                const updatedComponents = components.map(comp => ({
+                    ...comp,
+                    // Update default value or value from componentValues
+                    ...(comp.settings?.readonly 
+                        ? { settings: { ...comp.settings, defaultValue: componentValues[comp.id] || comp.settings.defaultValue } }
+                        : { value: componentValues[comp.id] }
+                    )
+                }));
+
+                // Preserve the correct backend structure: { structure: { components: [...] } }
+                const config = {
+                    ...activeModule.config,
+                    structure: {
+                        ...(activeModule.config.structure || {}),
+                        components: updatedComponents
+                    }
+                };
+
                 await modulesService.update(activeModule.id, {
-                    config: {
-                        ...activeModule.config,
-                        components: componentValues
-                    },
+                    config,
                     order: activeModule.order_index
                 });
                 toast.success('Module saved successfully');
@@ -100,6 +115,7 @@ export const ResearchBuilderPage = () => {
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to save module';
             toast.error(errorMessage);
+            console.error('Save module error:', error);
         } finally {
             setIsSaving(false);
         }
@@ -184,6 +200,7 @@ export const ResearchBuilderPage = () => {
                             components={components}
                             componentValues={componentValues}
                             onValueChange={handleComponentValueChange}
+                            researchId={id}
                         />
                     </div>
                 </div>

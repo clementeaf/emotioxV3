@@ -162,19 +162,72 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
         }
 
         if (isNavigationFlow) {
+            // Extract images from file-upload component
+            const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
+            let images: Array<{ id: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ x: number; y: number; width: number; height: number; label?: string; }> }> = [];
+            
+            if (imageComponent?.defaultValue) {
+                try {
+                    const parsed = JSON.parse(imageComponent.defaultValue);
+                    if (Array.isArray(parsed)) {
+                        images = parsed.map((img: any) => ({
+                            id: img.id || img.mediaId || String(Math.random()),
+                            name: img.name,
+                            s3Key: img.s3Key,
+                            url: img.url,
+                            hitZones: img.hitZones?.map((hz: any) => ({
+                                x: hz.region?.x || hz.x || 0,
+                                y: hz.region?.y || hz.y || 0,
+                                width: hz.region?.width || hz.width || 0,
+                                height: hz.region?.height || hz.height || 0,
+                                label: hz.name || hz.label,
+                            })),
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Failed to parse navigation flow images:', error);
+                }
+            }
+
             return (
                 <NavigationFlow
+                    moduleId={module.id}
+                    componentId="navigation-flow"
                     title={titleComponent?.defaultValue}
                     description={descriptionComponent?.defaultValue}
+                    images={images}
                 />
             );
         }
 
         if (isPreferenceTest) {
+            // Extract images from file-upload component
+            const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
+            let images: Array<{ id: string; name?: string; s3Key?: string; url?: string }> = [];
+            
+            if (imageComponent?.defaultValue) {
+                try {
+                    const parsed = JSON.parse(imageComponent.defaultValue);
+                    if (Array.isArray(parsed)) {
+                        images = parsed.map((img: any) => ({
+                            id: img.id || img.mediaId || String(Math.random()),
+                            name: img.name,
+                            s3Key: img.s3Key,
+                            url: img.url,
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Failed to parse preference test images:', error);
+                }
+            }
+
             return (
                 <PreferenceTest
+                    moduleId={module.id}
+                    componentId="preference-test"
                     title={titleComponent?.defaultValue}
                     description={descriptionComponent?.defaultValue}
+                    images={images}
                 />
             );
         }

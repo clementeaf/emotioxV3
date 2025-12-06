@@ -1,17 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { mediaService } from '../../services/media.service';
+import { LazyImage } from './LazyImage';
+import { useResponse } from '../../hooks/useResponse';
 
 interface PreferenceTestProps {
+    moduleId?: string;
+    componentId?: string;
     title?: string;
     description?: string;
+    images?: Array<{
+        id: string;
+        name?: string;
+        s3Key?: string;
+        url?: string;
+    }>;
 }
 
-export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
+export const PreferenceTest: React.FC<PreferenceTestProps> = ({ 
+    moduleId = 'preference-test',
+    componentId = 'preference-test-component',
+    images: propImages 
+}) => {
     const [selectedImage, setSelectedImage] = useState<number | null>(null);
     const [zoomImage, setZoomImage] = useState<number | null>(null);
     const [zoom, setZoom] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [dragging, setDragging] = useState(false);
     const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+    const [imageUrls, setImageUrls] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [viewHistory, setViewHistory] = useState<Array<{ imageId: number; timestamp: number; duration: number }>>([]);
+    const [currentViewStart, setCurrentViewStart] = useState<number | null>(null);
+
+    // Response hook for saving data
+    const response = useResponse({ moduleId, componentId });
 
     // Mock images (in production, these would come from uploaded files)
     const mockImages = [
@@ -20,20 +42,71 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
         { id: 3, label: 'Diseño C', color: 'from-pink-400 to-pink-600' }
     ];
 
+    // Load images from S3
+    useEffect(() => {
+        const loadImages = async () => {
+            if (!propImages || propImages.length === 0) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const urls = await Promise.all(
+                    propImages.map(async (img) => {
+                        if (img.url) return img.url;
+                        if (img.s3Key) return await mediaService.getMediaUrl(img.s3Key);
+                        return '';
+                    })
+                );
+                setImageUrls(urls.filter(url => url !== ''));
+            } catch (error) {
+                console.error('Failed to load images:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadImages();
+    }, [propImages]);
+
+    // Use prop images or fallback to mock
+    const images = propImages && propImages.length > 0 
+        ? propImages.map((img, idx) => ({
+            id: idx + 1,
+            label: img.name || `Opción ${idx + 1}`,
+            color: mockImages[idx % mockImages.length].color,
+            s3Key: img.s3Key,
+            url: imageUrls[idx] as string | undefined
+        }))
+        : mockImages.map(m => ({ ...m, url: undefined as string | undefined }));
+
     const handleImageSelect = (imageId: number) => {
         setSelectedImage(imageId);
+        // Save selection immediately
+        savePreferenceResponse(imageId);
     };
 
     const handleZoomOpen = (imageId: number) => {
         setZoomImage(imageId);
         setZoom(1);
         setOffset({ x: 0, y: 0 });
+        setCurrentViewStart(Date.now());
     };
 
     const handleZoomClose = () => {
+        // Track view duration before closing
+        if (zoomImage !== null && currentViewStart !== null) {
+            const duration = Date.now() - currentViewStart;
+            setViewHistory(prev => [...prev, { 
+                imageId: zoomImage, 
+                timestamp: currentViewStart, 
+                duration 
+            }]);
+        }
         setZoomImage(null);
         setZoom(1);
         setOffset({ x: 0, y: 0 });
+        setCurrentViewStart(null);
     };
 
     const handleWheel = (e: React.WheelEvent) => {
@@ -61,38 +134,97 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
 
     const handleZoomNav = (direction: 'prev' | 'next') => {
         if (zoomImage === null) return;
-        const currentIdx = mockImages.findIndex(img => img.id === zoomImage);
+        
+        // Track current image view duration
+        if (currentViewStart !== null) {
+            const duration = Date.now() - currentViewStart;
+            setViewHistory(prev => [...prev, { 
+                imageId: zoomImage, 
+                timestamp: currentViewStart, 
+                duration 
+            }]);
+        }
+
+        const currentIdx = images.findIndex(img => img.id === zoomImage);
         if (direction === 'prev' && currentIdx > 0) {
-            setZoomImage(mockImages[currentIdx - 1].id);
+            setZoomImage(images[currentIdx - 1].id);
             setZoom(1);
             setOffset({ x: 0, y: 0 });
-        } else if (direction === 'next' && currentIdx < mockImages.length - 1) {
-            setZoomImage(mockImages[currentIdx + 1].id);
+            setCurrentViewStart(Date.now());
+        } else if (direction === 'next' && currentIdx < images.length - 1) {
+            setZoomImage(images[currentIdx + 1].id);
             setZoom(1);
             setOffset({ x: 0, y: 0 });
+            setCurrentViewStart(Date.now());
         }
     };
 
-    const currentZoomImage = mockImages.find(img => img.id === zoomImage);
+    const currentZoomImage = images.find(img => img.id === zoomImage);
+
+    // Save preference response
+    const savePreferenceResponse = (imageId: number) => {
+        const responseData = {
+            selectedImageId: imageId,
+            selectedImageLabel: images.find(img => img.id === imageId)?.label || '',
+            totalImages: images.length,
+            viewHistory,
+        };
+
+        response.save(
+            JSON.stringify(responseData),
+            {
+                imageViews: viewHistory.length,
+                totalViewDuration: viewHistory.reduce((sum, v) => sum + v.duration, 0),
+            }
+        );
+    };
+
+    // Auto-save on unmount if selection exists
+    useEffect(() => {
+        return () => {
+            if (selectedImage !== null) {
+                savePreferenceResponse(selectedImage);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div className="w-full space-y-4">
+            {loading && (
+                <div className="flex items-center justify-center py-8">
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                    <p className="ml-3 text-gray-600">Cargando imágenes...</p>
+                </div>
+            )}
+            
+            {!loading && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {mockImages.map((image) => (
+                {images.map((image) => (
                     <div key={image.id} className="space-y-2">
                         <button
                             onClick={() => handleImageSelect(image.id)}
-                            className={`relative aspect-square rounded-lg border-2 transition-all w-full ${selectedImage === image.id
+                            className={`relative aspect-square rounded-lg border-2 transition-all w-full overflow-hidden ${
+                                selectedImage === image.id
                                     ? 'border-blue-600 ring-4 ring-blue-100 shadow-lg scale-105'
                                     : 'border-gray-300 hover:border-blue-400 hover:shadow-md'
-                                }`}
+                            }`}
                         >
-                            <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${image.color} rounded-lg`}>
-                                <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <p className="text-sm font-medium text-white">{image.label}</p>
-                            </div>
+                            {/* Render real image or mock */}
+                            {image.url ? (
+                                <LazyImage
+                                    src={image.url}
+                                    alt={image.label}
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${image.color} rounded-lg`}>
+                                    <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-sm font-medium text-white">{image.label}</p>
+                                </div>
+                            )}
 
                             {/* Selection indicator */}
                             {selectedImage === image.id && (
@@ -117,11 +249,12 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
                     </div>
                 ))}
             </div>
+            )}
 
-            {selectedImage && (
+            {!loading && selectedImage && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                     <p className="text-xs text-green-800">
-                        <span className="font-semibold">Seleccionado:</span> {mockImages.find(img => img.id === selectedImage)?.label}
+                        <span className="font-semibold">Seleccionado:</span> {images.find(img => img.id === selectedImage)?.label}
                     </p>
                 </div>
             )}
@@ -155,26 +288,38 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
                         >
-                            <div
-                                className={`bg-gradient-to-br ${currentZoomImage.color} rounded-lg shadow-2xl flex items-center justify-center`}
-                                style={{
-                                    width: '600px',
-                                    height: '400px',
-                                    transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
-                                    transition: dragging ? 'none' : 'transform 0.1s'
-                                }}
-                            >
-                                <div className="text-white text-center">
-                                    <svg className="w-32 h-32 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <p className="text-2xl font-bold">{currentZoomImage.label}</p>
+                            {currentZoomImage.url ? (
+                                <img
+                                    src={currentZoomImage.url}
+                                    alt={currentZoomImage.label}
+                                    className="max-w-full max-h-full object-contain"
+                                    style={{
+                                        transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
+                                        transition: dragging ? 'none' : 'transform 0.1s'
+                                    }}
+                                />
+                            ) : (
+                                <div
+                                    className={`bg-gradient-to-br ${currentZoomImage.color} rounded-lg shadow-2xl flex items-center justify-center`}
+                                    style={{
+                                        width: '600px',
+                                        height: '400px',
+                                        transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
+                                        transition: dragging ? 'none' : 'transform 0.1s'
+                                    }}
+                                >
+                                    <div className="text-white text-center">
+                                        <svg className="w-32 h-32 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <p className="text-2xl font-bold">{currentZoomImage.label}</p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         {/* Navigation arrows */}
-                        {mockImages.findIndex(img => img.id === zoomImage) > 0 && (
+                        {images.findIndex(img => img.id === zoomImage) > 0 && (
                             <button
                                 onClick={() => handleZoomNav('prev')}
                                 className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-full transition-all"
@@ -184,7 +329,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = () => {
                                 </svg>
                             </button>
                         )}
-                        {mockImages.findIndex(img => img.id === zoomImage) < mockImages.length - 1 && (
+                        {images.findIndex(img => img.id === zoomImage) < images.length - 1 && (
                             <button
                                 onClick={() => handleZoomNav('next')}
                                 className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-full transition-all"

@@ -5,6 +5,7 @@ interface ModuleContentEditorProps {
     components: ComponentConfig[];
     componentValues: Record<string, string>;
     onValueChange: (componentId: string, value: string) => void;
+    researchId?: string; // For S3 upload in file-upload components
 }
 
 /**
@@ -15,6 +16,7 @@ export const ModuleContentEditor = ({
     components,
     componentValues,
     onValueChange,
+    researchId,
 }: ModuleContentEditorProps) => {
     const visibleComponents = components
         .filter(c => !c.hidden)
@@ -85,6 +87,7 @@ export const ModuleContentEditor = ({
                                             component={component}
                                             value={componentValue}
                                             onChange={(value) => onValueChange(component.id, value)}
+                                            researchId={researchId}
                                         />
                                     );
                                 })}
@@ -99,6 +102,7 @@ export const ModuleContentEditor = ({
                                 component={item.component}
                                 value={componentValue}
                                 onChange={(value) => onValueChange(item.component!.id, value)}
+                                researchId={researchId}
                             />
                         </div>
                     );

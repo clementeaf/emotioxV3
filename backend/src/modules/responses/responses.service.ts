@@ -2,7 +2,7 @@ import pool from '../../config/database';
 
 export const save = async (researchId: string, participantId: string, moduleId: string, questionId: string, answer: unknown, metadata: Record<string, unknown> = {}) => {
   const query = `
-    INSERT INTO responses (research_id, participant_id, module_id, question_id, answer, metadata)
+    INSERT INTO responses (research_id, participant_id, module_id, question_id, value, metadata)
     VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *
   `;
@@ -19,10 +19,14 @@ export const save = async (researchId: string, participantId: string, moduleId: 
 
 export const getByResearch = async (researchId: string) => {
   const query = `
-    SELECT r.*, q.question_type, q.question_text, m.name as module_name
+    SELECT 
+      r.*,
+      q.question_type,
+      q.question_text,
+      m.name as module_name
     FROM responses r
-    JOIN questions q ON r.question_id = q.id
-    JOIN modules m ON r.module_id = m.id
+    LEFT JOIN questions q ON r.question_id = q.id
+    LEFT JOIN modules m ON r.module_id = m.id
     WHERE r.research_id = $1
     ORDER BY r.created_at DESC
   `;
@@ -32,10 +36,14 @@ export const getByResearch = async (researchId: string) => {
 
 export const getByParticipant = async (researchId: string, participantId: string) => {
   const query = `
-    SELECT r.*, q.question_type, q.question_text, m.name as module_name
+    SELECT 
+      r.*,
+      q.question_type,
+      q.question_text,
+      m.name as module_name
     FROM responses r
-    JOIN questions q ON r.question_id = q.id
-    JOIN modules m ON r.module_id = m.id
+    LEFT JOIN questions q ON r.question_id = q.id
+    LEFT JOIN modules m ON r.module_id = m.id
     WHERE r.research_id = $1 AND r.participant_id = $2
     ORDER BY r.created_at ASC
   `;

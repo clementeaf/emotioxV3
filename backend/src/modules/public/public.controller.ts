@@ -7,13 +7,24 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
     try {
         // No auth required for public routes
 
-        const match = path.match(/^\/public\/research\/([^\/]+)$/);
-        if (match && httpMethod === 'GET') {
-            const researchId = match[1];
+        // GET /public/research/:id
+        const researchMatch = path.match(/^\/public\/research\/([^\/]+)$/);
+        if (researchMatch && httpMethod === 'GET') {
+            const researchId = researchMatch[1];
             const research = await publicService.getResearch(researchId);
             return success({ research });
         }
 
+        // POST /public/research/:id/responses
+        const responsesMatch = path.match(/^\/public\/research\/([^\/]+)\/responses$/);
+        if (responsesMatch && httpMethod === 'POST') {
+            const researchId = responsesMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const result = await publicService.saveParticipantResponses(researchId, body);
+            return success(result, 201);
+        }
+
+        // Legacy endpoint (deprecated)
         if (path === '/public/responses' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
             const response = await publicService.saveResponse(body);

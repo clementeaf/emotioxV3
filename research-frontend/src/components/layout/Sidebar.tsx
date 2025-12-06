@@ -91,22 +91,27 @@ export const Sidebar = () => {
         }
     }, [location.pathname, activeResearch]);
 
-    // Load available stage templates
-    useEffect(() => {
-        const loadStages = async () => {
-            try {
-                setLoadingStages(true);
-                const stages = await stageTemplatesService.getAll();
-                setAvailableStages(stages);
-            } catch (error) {
-                console.error('Failed to load stage templates', error);
+    // Load available stage templates only when modal opens
+    const loadStageTemplates = async () => {
+        if (availableStages.length > 0) return; // Already loaded
+        
+        try {
+            setLoadingStages(true);
+            const stages = await stageTemplatesService.getAll();
+            setAvailableStages(stages);
+        } catch (error: any) {
+            console.error('Failed to load stage templates', error);
+            
+            // Check if it's a connection error
+            if (error.code === 'ERR_NETWORK' || error.message?.includes('ERR_CONNECTION_REFUSED')) {
+                toast.error('Cannot connect to backend. Please ensure the server is running.');
+            } else {
                 toast.error('Failed to load available stages');
-            } finally {
-                setLoadingStages(false);
             }
-        };
-        void loadStages();
-    }, [toast]);
+        } finally {
+            setLoadingStages(false);
+        }
+    };
 
     /**
      * Determina si un stage es un módulo único o un conjunto de módulos
@@ -340,7 +345,10 @@ export const Sidebar = () => {
                                 Stages
                             </h3>
                             <button
-                                onClick={() => setShowStageSelector(true)}
+                                onClick={() => {
+                                    setShowStageSelector(true);
+                                    void loadStageTemplates();
+                                }}
                                 className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                             >
                                 + Add Stage

@@ -188,7 +188,9 @@ export const useAuthStore = create<AuthState>()(
             partialize: (state) => ({
                 token: state.token,
                 user: state.user,
-                refreshToken: state.rememberMe ? state.refreshToken : null,
+                // ALWAYS persist refreshToken - it's needed for token renewal
+                // Without refreshToken, user will be logged out when accessToken expires (1 hour)
+                refreshToken: state.refreshToken,
                 rememberMe: state.rememberMe,
             }),
         }

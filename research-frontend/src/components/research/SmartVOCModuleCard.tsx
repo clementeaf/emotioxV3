@@ -15,7 +15,7 @@ interface SmartVOCModuleCardProps {
  * Card component para mostrar un módulo de Smart VOC
  * Muestra el módulo con su editor de contenido
  */
-export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleCardProps) => {
+export const SmartVOCModuleCard = ({ module, researchId, isActive = false }: SmartVOCModuleCardProps) => {
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -73,6 +73,7 @@ export const SmartVOCModuleCard = ({ module, isActive = false }: SmartVOCModuleC
                     components={editorComponents}
                     componentValues={componentValues}
                     onValueChange={handleComponentValueChange}
+                    researchId={researchId}
                 />
                 {/* Preview especializado para Smart VOC */}
                 <SmartVOCPreview

@@ -1,4 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { mediaService } from '../../services/media.service';
+import { LazyImage } from './LazyImage';
+import { useResponse } from '../../hooks/useResponse';
 
 interface ClickPoint {
     x: number;
@@ -8,15 +11,41 @@ interface ClickPoint {
 }
 
 interface NavigationFlowProps {
+    moduleId?: string;
+    componentId?: string;
     title?: string;
     description?: string;
+    images?: Array<{
+        id: string;
+        name?: string;
+        s3Key?: string;
+        url?: string;
+        hitZones?: Array<{
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            label?: string;
+        }>;
+    }>;
 }
 
-export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
+export const NavigationFlow: React.FC<NavigationFlowProps> = ({ 
+    moduleId = 'navigation-flow',
+    componentId = 'navigation-flow-component',
+    images: propImages 
+}) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
     const [isComplete, setIsComplete] = useState(false);
+    const [imageUrls, setImageUrls] = useState<string[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [startTime] = useState(Date.now());
+    const [allClicks, setAllClicks] = useState<ClickPoint[]>([]);
     const imageRef = useRef<HTMLDivElement>(null);
+
+    // Response hook for saving data
+    const response = useResponse({ moduleId, componentId });
 
     // Mock images sequence (in production, these would come from uploaded files with hitzones)
     const mockImages = [
@@ -37,8 +66,43 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
         }
     ];
 
-    const currentImage = mockImages[currentImageIndex];
-    const isLastImage = currentImageIndex === mockImages.length - 1;
+    // Load images from S3
+    useEffect(() => {
+        const loadImages = async () => {
+            if (!propImages || propImages.length === 0) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const urls = await Promise.all(
+                    propImages.map(async (img) => {
+                        if (img.url) return img.url;
+                        if (img.s3Key) return await mediaService.getMediaUrl(img.s3Key);
+                        return '';
+                    })
+                );
+                setImageUrls(urls.filter(url => url !== ''));
+            } catch (error) {
+                console.error('Failed to load images:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadImages();
+    }, [propImages]);
+
+    // Use prop images or fallback to mock
+    const images = propImages && propImages.length > 0 ? propImages : mockImages.map(m => ({
+        id: String(m.id),
+        name: m.name,
+        hitZones: [m.hitzone]
+    }));
+
+    const currentImage = images[currentImageIndex];
+    const currentImageUrl = imageUrls[currentImageIndex];
+    const isLastImage = currentImageIndex === images.length - 1;
 
     const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!imageRef.current || isComplete) return;
@@ -47,8 +111,12 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
         const x = ((e.clientX - rect.left) / rect.width) * 100;
         const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-        // Check if click is within hitzone
-        const hitzone = currentImage.hitzone;
+        // Check if click is within any hitzone
+        const hitZones = currentImage.hitZones || [];
+        const hitzone = hitZones[0]; // Use first hitzone for now
+        
+        if (!hitzone) return;
+
         const isInHitzone =
             x >= hitzone.x &&
             x <= hitzone.x + hitzone.width &&
@@ -63,12 +131,15 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
         };
 
         setClickPoints(prev => [...prev, clickPoint]);
+        setAllClicks(prev => [...prev, { ...clickPoint, imageId: currentImage.id }]);
 
         if (isInHitzone) {
             // Correct click - advance to next image or complete
             setTimeout(() => {
                 if (isLastImage) {
                     setIsComplete(true);
+                    // Save final response
+                    saveNavigationResponse(true);
                 } else {
                     setCurrentImageIndex(prev => prev + 1);
                     setClickPoints([]); // Clear points for new image
@@ -76,6 +147,57 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
             }, 500);
         }
     };
+
+    // Save navigation response to store
+    const saveNavigationResponse = (completed: boolean) => {
+        const totalDuration = Date.now() - startTime;
+        const correctClicks = allClicks.filter(c => c.isCorrect).length;
+        const incorrectClicks = allClicks.filter(c => !c.isCorrect).length;
+
+        const responseData = {
+            completed,
+            totalClicks: allClicks.length,
+            correctClicks,
+            incorrectClicks,
+            totalDuration,
+            imagesNavigated: currentImageIndex + 1,
+            totalImages: images.length,
+            clickSequence: allClicks.map(c => ({
+                x: c.x,
+                y: c.y,
+                timestamp: c.timestamp,
+                isCorrect: c.isCorrect,
+                imageId: (c as ClickPoint & { imageId?: string }).imageId,
+            })),
+        };
+
+        response.save(
+            JSON.stringify(responseData),
+            {
+                duration: totalDuration,
+                interactions: allClicks.length,
+                completionRate: ((currentImageIndex + 1) / images.length) * 100,
+            }
+        );
+    };
+
+    // Auto-save on unmount or when user navigates away
+    useEffect(() => {
+        return () => {
+            if (allClicks.length > 0 && !isComplete) {
+                saveNavigationResponse(false);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Save when completed
+    useEffect(() => {
+        if (isComplete) {
+            saveNavigationResponse(true);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isComplete]);
 
     return (
         <div className="w-full space-y-3">
@@ -97,29 +219,43 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = () => {
             <div
                 ref={imageRef}
                 onClick={handleImageClick}
-                className={`relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg border-2 ${isComplete ? 'border-green-500' : 'border-gray-300'
-                    } ${!isComplete ? 'cursor-crosshair hover:border-blue-400' : ''} transition-colors overflow-hidden`}
+                className={`relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg border-2 ${
+                    isComplete ? 'border-green-500' : 'border-gray-300'
+                } ${!isComplete ? 'cursor-crosshair hover:border-blue-400' : ''} transition-colors overflow-hidden`}
             >
-                {/* Mock interface representation */}
-                <div className="absolute inset-0 flex items-center justify-center p-8">
-                    <div className="text-center">
-                        <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        <p className="text-gray-600 font-medium">{currentImage.name}</p>
-                        <p className="text-xs text-gray-400 mt-2">Haz clic en el área correcta para continuar</p>
+                {/* Render real image or mock */}
+                {loading ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
                     </div>
-                </div>
+                ) : currentImageUrl ? (
+                    <LazyImage
+                        src={currentImageUrl}
+                        alt={currentImage.name || `Image ${currentImageIndex + 1}`}
+                        className="absolute inset-0 w-full h-full object-contain"
+                    />
+                ) : (
+                    /* Mock interface representation */
+                    <div className="absolute inset-0 flex items-center justify-center p-8">
+                        <div className="text-center">
+                            <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <p className="text-gray-600 font-medium">{currentImage.name}</p>
+                            <p className="text-xs text-gray-400 mt-2">Haz clic en el área correcta para continuar</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Invisible hitzone (only visible on hover for demo) */}
-                {!isComplete && (
+                {!isComplete && currentImage.hitZones && currentImage.hitZones[0] && (
                     <div
                         className="absolute bg-blue-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 border-2 border-dashed border-transparent hover:border-blue-400"
                         style={{
-                            left: `${currentImage.hitzone.x}%`,
-                            top: `${currentImage.hitzone.y}%`,
-                            width: `${currentImage.hitzone.width}%`,
-                            height: `${currentImage.hitzone.height}%`,
+                            left: `${currentImage.hitZones[0].x}%`,
+                            top: `${currentImage.hitZones[0].y}%`,
+                            width: `${currentImage.hitZones[0].width}%`,
+                            height: `${currentImage.hitZones[0].height}%`,
                             pointerEvents: 'none'
                         }}
                     />
