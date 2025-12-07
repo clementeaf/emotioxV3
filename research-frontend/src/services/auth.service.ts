@@ -87,7 +87,13 @@ class AuthService {
     async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
         try {
             const endpoint = configService.getEndpoint('auth', 'refresh');
-            return await apiClient.post<RefreshTokenResponse>(endpoint, { refreshToken });
+            // Add timeout to prevent hanging
+            const refreshPromise = apiClient.post<RefreshTokenResponse>(endpoint, { refreshToken });
+            const timeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Refresh token request timeout')), 10000)
+            );
+            
+            return await Promise.race([refreshPromise, timeoutPromise]);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to refresh token');
         }

@@ -127,6 +127,7 @@ export const useAuthStore = create<AuthState>()(
                         token: tokens.accessToken,
                     });
                 } catch (error: unknown) {
+                    console.error('Refresh token failed:', error);
                     // Si falla el refresh, limpiar todo el estado
                     set({
                         user: null,

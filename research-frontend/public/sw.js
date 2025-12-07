@@ -10,7 +10,7 @@ const STATIC_ASSETS = [
 ];
 
 // Instalar Service Worker
-self.addEventListener('install', (event: ExtendableEvent) => {
+self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             return cache.addAll(STATIC_ASSETS);
@@ -20,7 +20,7 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 });
 
 // Activar Service Worker
-self.addEventListener('activate', (event: ExtendableEvent) => {
+self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
@@ -34,7 +34,7 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 });
 
 // Estrategia: Network First, luego Cache
-self.addEventListener('fetch', (event: FetchEvent) => {
+self.addEventListener('fetch', (event) => {
     // Ignorar requests que no son GET
     if (event.request.method !== 'GET') {
         return;

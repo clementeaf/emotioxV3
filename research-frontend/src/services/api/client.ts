@@ -50,6 +50,7 @@ class ApiClient {
      * Procesa la cola de peticiones fallidas después de refrescar el token
      */
     private processQueue(error: unknown | null, token: string | null = null): void {
+        // Process all queued requests
         this.failedQueue.forEach((prom) => {
             if (error) {
                 prom.reject(error);
@@ -58,6 +59,7 @@ class ApiClient {
             }
         });
 
+        // Clear the queue
         this.failedQueue = [];
     }
 
@@ -92,11 +94,19 @@ class ApiClient {
                     this.isRefreshing = true;
 
                     try {
-                        await state.refreshAccessToken();
+                        // Add timeout to prevent hanging
+                        const refreshPromise = state.refreshAccessToken();
+                        const timeoutPromise = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
+                        );
+                        
+                        await Promise.race([refreshPromise, timeoutPromise]);
+                        
                         const newState = useAuthStore.getState();
                         token = newState.token;
                         this.processQueue(null, token);
                     } catch (error) {
+                        console.error('Token refresh failed:', error);
                         this.processQueue(error, null);
                         useAuthStore.getState().logout();
                         return Promise.reject(error);
@@ -149,7 +159,14 @@ class ApiClient {
                         this.isRefreshing = true;
 
                         try {
-                            await state.refreshAccessToken();
+                            // Add timeout to prevent hanging
+                            const refreshPromise = state.refreshAccessToken();
+                            const timeoutPromise = new Promise((_, reject) => 
+                                setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
+                            );
+                            
+                            await Promise.race([refreshPromise, timeoutPromise]);
+                            
                             const newState = useAuthStore.getState();
                             if (newState.token && originalRequest.headers) {
                                 originalRequest.headers.Authorization = `Bearer ${newState.token}`;
@@ -157,6 +174,7 @@ class ApiClient {
                             this.processQueue(null, newState.token);
                             return this.client(originalRequest);
                         } catch (refreshError) {
+                            console.error('Token refresh failed:', refreshError);
                             this.processQueue(refreshError, null);
                             useAuthStore.getState().logout();
                             return Promise.reject(refreshError);
