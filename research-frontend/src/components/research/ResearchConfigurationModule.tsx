@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
 import { ExternalLink, QrCode } from 'lucide-react';
 
+
 interface ResearchConfigurationProps {
     config: Record<string, unknown>;
     onChange: (config: Record<string, unknown>) => void;
@@ -20,6 +21,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
     const [participantLimitEnabled, setParticipantLimitEnabled] = useState(true);
     const [showQRModal, setShowQRModal] = useState(false);
+    
 
     const demographics = (config.demographics || {}) as Record<string, boolean>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
@@ -73,6 +75,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             participantLimit: value
         });
     };
+
+    
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

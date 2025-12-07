@@ -99,11 +99,11 @@ export const Sidebar = () => {
             setLoadingStages(true);
             const stages = await stageTemplatesService.getAll();
             setAvailableStages(stages);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to load stage templates', error);
             
             // Check if it's a connection error
-            if (error.code === 'ERR_NETWORK' || error.message?.includes('ERR_CONNECTION_REFUSED')) {
+            if (error instanceof Error && ('code' in error && error.code === 'ERR_NETWORK' || error.message?.includes('ERR_CONNECTION_REFUSED'))) {
                 toast.error('Cannot connect to backend. Please ensure the server is running.');
             } else {
                 toast.error('Failed to load available stages');
