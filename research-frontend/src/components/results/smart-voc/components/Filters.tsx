@@ -2,7 +2,7 @@
 // Will be expanded when filters are implemented
 interface FiltersProps {
   // Add props here when implementing filters
-  [key: string]: never;
+  researchId?: string;
 }
 
 export const Filters = (_props: FiltersProps) => (
