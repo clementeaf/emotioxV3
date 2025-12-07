@@ -23,6 +23,7 @@ interface ResearchData {
     description: string;
     status: string;
     stages: Stage[];
+    modules?: Module[]; // Legacy: backend may return modules directly
 }
 
 interface PublicResearchResponse {

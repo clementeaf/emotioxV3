@@ -53,8 +53,12 @@ export const ResearchPage = () => {
         const modulesMap: Record<string, Module> = {};
         let index = 0;
 
-        research.stages.forEach(stage => {
-          stage.modules.forEach(module => {
+        // Backend returns modules directly, wrap them in a stage if needed
+        const stages = research.stages || [{ modules: research.modules || [] }];
+        
+        stages.forEach(stage => {
+          const modules = stage.modules || [];
+          modules.forEach(module => {
             const key = `module-${index}`;
             modulesMap[key] = module;
             index++;
