@@ -1,6 +1,49 @@
 import pool from '../../config/database';
 import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 
+// Function to get the participant count for a research
+export const getParticipantCount = async (researchId: string): Promise<number> => {
+  const query = `
+    SELECT COUNT(DISTINCT participant_id) as participant_count
+    FROM responses
+    WHERE research_id = $1
+  `;
+  const result = await pool.query(query, [researchId]);
+  return parseInt(result.rows[0].participant_count) || 0;
+};
+
+// Function to get research configuration including participant limit
+export const getResearchConfiguration = async (researchId: string) => {
+  // Get research modules with their configurations
+  const modulesQuery = `
+    SELECT m.id, m.name, m.config
+    FROM modules m
+    WHERE m.research_id = $1
+    ORDER BY m.order_index
+  `;
+  const modulesResult = await pool.query(modulesQuery, [researchId]);
+  
+  // Look for Research Configuration module
+  const researchConfigModule = modulesResult.rows.find((module: any) => 
+    module.name === 'Research Configuration'
+  );
+  
+  if (researchConfigModule && researchConfigModule.config) {
+    let config = researchConfigModule.config;
+    if (typeof config === 'string') {
+      try {
+        config = JSON.parse(config);
+      } catch (e) {
+        console.error('Error parsing module config:', e);
+        config = {};
+      }
+    }
+    return config;
+  }
+  
+  return {};
+};
+
 export const getResearch = async (researchId: string) => {
   const cacheKey = `${CacheKeys.PUBLIC_RESEARCH}:${researchId}`;
   
@@ -111,6 +154,19 @@ export const saveParticipantResponses = async (
   const researchResult = await pool.query(researchQuery, [researchId]);
   if (researchResult.rows.length === 0) {
     throw new Error('Research not found or not active');
+  }
+
+  // Check participant limit if configured
+  const researchConfig = await getResearchConfiguration(researchId);
+  if (researchConfig && researchConfig.participantLimit) {
+    const participantLimit = researchConfig.participantLimit as { enabled: boolean; value: number };
+    
+    if (participantLimit.enabled) {
+      const currentCount = await getParticipantCount(researchId);
+      if (currentCount >= participantLimit.value) {
+        throw new Error('Participant limit reached. No more responses are being accepted for this research.');
+      }
+    }
   }
 
   // Begin transaction

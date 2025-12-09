@@ -12,6 +12,11 @@ interface ParticipantState {
 
   // Respuestas
   responses: ResponsesMap;
+  
+  // Sesión
+  sessionId: string;
+  sessionStartTime: number;
+  sessionCount: number;
 
   // Actions - Navegación
   setCurrentStep: (step: string) => void;
@@ -23,6 +28,10 @@ interface ParticipantState {
   updateResponse: (moduleId: string, componentId: string, value: ResponseValue, metadata?: ResponseMetadata) => void;
   clearResponse: (moduleId: string, componentId: string) => void;
   clearAllResponses: () => void;
+  
+  // Actions - Sesión
+  startNewSession: () => void;
+  getSessionId: () => string;
 }
 
 /**
@@ -63,6 +72,9 @@ export const useParticipantStore = create<ParticipantState>()(
       // Estado inicial
       currentStep: 'welcome',
       responses: new Map<ResponseId, Response>(),
+      sessionId: crypto.randomUUID(),
+      sessionStartTime: Date.now(),
+      sessionCount: 1,
 
       /**
        * Establece el step actual
@@ -94,6 +106,7 @@ export const useParticipantStore = create<ParticipantState>()(
             ...existingResponse?.metadata,
             ...metadata,
             timestamp: Date.now(),
+            sessionId: get().sessionId,
           },
         };
 
@@ -156,22 +169,53 @@ export const useParticipantStore = create<ParticipantState>()(
       clearAllResponses: () => {
         set({ responses: new Map<ResponseId, Response>() });
       },
+      
+      /**
+       * Inicia una nueva sesión
+       */
+      startNewSession: () => {
+        const newState = {
+          sessionId: crypto.randomUUID(),
+          sessionStartTime: Date.now(),
+          sessionCount: get().sessionCount + 1
+        };
+        set(newState);
+        return newState;
+      },
+      
+      /**
+       * Obtiene el ID de la sesión actual
+       */
+      getSessionId: () => {
+        return get().sessionId;
+      },
     }),
     {
       name: 'participant-store',
       partialize: (state) => ({
         currentStep: state.currentStep,
         responses: mapToArray(state.responses),
+        sessionId: state.sessionId,
+        sessionStartTime: state.sessionStartTime,
+        sessionCount: state.sessionCount,
       }),
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as { currentStep?: string; responses?: Response[] };
+        const persisted = persistedState as { 
+          currentStep?: string; 
+          responses?: Response[];
+          sessionId?: string;
+          sessionStartTime?: number;
+          sessionCount?: number;
+        };
         return {
           ...currentState,
           currentStep: persisted.currentStep ?? currentState.currentStep,
           responses: persisted.responses ? arrayToMap(persisted.responses) : currentState.responses,
+          sessionId: persisted.sessionId ?? currentState.sessionId,
+          sessionStartTime: persisted.sessionStartTime ?? currentState.sessionStartTime,
+          sessionCount: persisted.sessionCount ?? currentState.sessionCount,
         };
       },
     }
   )
 );
-

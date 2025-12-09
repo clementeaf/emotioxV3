@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import express from 'express';
+import cors from 'cors';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { route } from './router';
 import cache from './config/cache';
@@ -8,6 +9,14 @@ dotenv.config({ path: '../.env' });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// CORS configuration - allow all origins in development
+app.use(cors({
+    origin: '*',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],
+}));
 
 app.use(express.json());
 

@@ -16,17 +16,43 @@ import { publicService, type Module } from '../services/public.service';
 import { responseService } from '../services/response.service';
 import { MOCK_MODULES } from '../data/mockModules';
 
+// Define interfaces for the research data structure
+interface ResearchModuleConfig {
+  linkConfig?: Record<string, boolean>;
+  [key: string]: any;
+}
+
+interface ResearchModule {
+  name: string;
+  config?: ResearchModuleConfig;
+  [key: string]: any;
+}
+
+interface ResearchStage {
+  modules?: ResearchModule[];
+  [key: string]: any;
+}
+
+interface ResearchData {
+  modules?: ResearchStage[];
+  stages?: ResearchStage[];
+  title: string;
+  [key: string]: any;
+}
+
 export const ResearchPage = () => {
   const { researchId } = useParams<{ researchId: string }>();
   const { isPreviewMode, participantId } = usePreviewMode();
   const { setConfig } = useSessionStore();
-  const { getResponsesByModule } = useParticipantStore();
+  const { getResponsesByModule, startNewSession, clearAllResponses } = useParticipantStore();
   const { currentStep, goNext, isLastStep } = useNavigation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modules, setModules] = useState<Record<string, Module>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mobileRestriction, setMobileRestriction] = useState<string | null>(null);
+  const [showRestartOption, setShowRestartOption] = useState(false);
 
   // Initialize device collector
   useDeviceCollector();
@@ -45,9 +71,29 @@ export const ResearchPage = () => {
       try {
         setLoading(true);
         setError(null);
+        setMobileRestriction(null);
+        setShowRestartOption(false);
 
         // Fetch research data from backend
-        const research = await publicService.getResearch(researchId);
+        const research = await publicService.getResearch(researchId) as ResearchData;
+
+        // Check mobile device restriction
+        const linkConfig = research.modules?.flatMap((stage: ResearchStage) => 
+          stage.modules || []
+        ).find((module: ResearchModule) => 
+          module.name === 'Research Configuration'
+        )?.config?.linkConfig || {};
+
+        // Get device info from session store
+        const deviceType = useSessionStore.getState().deviceInfo?.deviceType;
+        
+        // If mobile devices are not allowed and user is on mobile/tablet
+        if (linkConfig.allowMobile === false && deviceType && (deviceType === 'mobile' || deviceType === 'tablet')) {
+          setMobileRestriction('This research is not available on mobile devices. Please access it from a desktop computer.');
+          setModules({});
+          setLoading(false);
+          return;
+        }
 
         // Transform stages and modules into flat structure for navigation
         const modulesMap: Record<string, Module> = {};
@@ -60,7 +106,7 @@ export const ResearchPage = () => {
           const modules = stage.modules || [];
           modules.forEach(module => {
             const key = `module-${index}`;
-            modulesMap[key] = module;
+            modulesMap[key] = module as Module;
             index++;
           });
         });
@@ -76,6 +122,7 @@ export const ResearchPage = () => {
             enableSessionRecording: true,
             enableInteractionTracking: true,
           },
+          linkConfig: linkConfig,
         });
 
         console.log('✓ Research loaded:', research.title, `(${Object.keys(modulesMap).length} modules)`);
@@ -93,7 +140,7 @@ export const ResearchPage = () => {
       }
     };
 
-    loadResearch();
+    void loadResearch();
   }, [researchId, setConfig]);
 
   // Check if we're in development mode
@@ -103,6 +150,17 @@ export const ResearchPage = () => {
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
 
   const handleNext = useCallback(async () => {
+    // Handle restart option for multiple sessions
+    if (showRestartOption && currentStep === 'thank-you') {
+      // Start a new session
+      startNewSession();
+      clearAllResponses();
+      // Reset to first step
+      useParticipantStore.getState().setCurrentStep('welcome');
+      setShowRestartOption(false);
+      return;
+    }
+
     // In preview mode, don't send data to backend
     if (isPreviewMode) {
       console.log('[Preview Mode] Skipping data submission');
@@ -111,6 +169,15 @@ export const ResearchPage = () => {
         const errorMessage = result.errors.map(e => e.message).join('\n');
         alert(errorMessage);
       }
+      
+      // Check if we've reached the thank-you page and multiple sessions are allowed
+      if (result.success && currentStep === 'thank-you') {
+        const linkConfig = useSessionStore.getState().config?.linkConfig;
+        if (linkConfig?.allowMultiple === true) {
+          setShowRestartOption(true);
+        }
+      }
+      
       return;
     }
 
@@ -163,7 +230,15 @@ export const ResearchPage = () => {
       const errorMessage = result.errors.map(e => e.message).join('\n');
       alert(errorMessage);
     }
-  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext]);
+    
+    // Check if we've reached the thank-you page and multiple sessions are allowed
+    if (result.success && currentStep === 'thank-you') {
+      const linkConfig = useSessionStore.getState().config?.linkConfig;
+      if (linkConfig?.allowMultiple === true) {
+        setShowRestartOption(true);
+      }
+    }
+  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep]);
 
   if (!researchId) {
     return (
@@ -175,6 +250,30 @@ export const ResearchPage = () => {
           <p className="text-gray-600">
             No research ID provided
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show mobile restriction message
+  if (mobileRestriction) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center max-w-md p-6">
+          <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Access Restricted
+          </h1>
+          <p className="text-gray-600 mb-6">
+            {mobileRestriction}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Reload Page
+          </Button>
         </div>
       </div>
     );
@@ -224,14 +323,28 @@ export const ResearchPage = () => {
         footer={
           <Button
             onClick={handleNext}
-            disabled={isLastStep || submitting}
+            disabled={submitting}
           >
-            {submitting ? 'Guardando...' : isLastStep ? 'Finalizar' : 'Guardar y continuar'}
+            {submitting ? 'Guardando...' : showRestartOption ? 'Comenzar de nuevo' : isLastStep ? 'Finalizar' : 'Guardar y continuar'}
           </Button>
         }
       >
         {currentModule ? (
           <DynamicStep module={currentModule} />
+        ) : showRestartOption ? (
+          <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
+            <div className="bg-green-100 rounded-full p-3 mb-4">
+              <svg className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              ¡Gracias por completar la encuesta!
+            </h1>
+            <p className="text-gray-600 max-w-md">
+              Esta investigación permite múltiples respuestas. Puedes comenzar de nuevo si lo deseas.
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
             <h1 className="text-2xl font-bold text-gray-900">

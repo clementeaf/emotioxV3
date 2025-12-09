@@ -87,30 +87,48 @@ export const ResearchBuilderPage = () => {
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
             } else if (activeModule) {
-                // Update components with new values while preserving structure
-                const updatedComponents = components.map(comp => ({
-                    ...comp,
-                    // Update default value or value from componentValues
-                    ...(comp.settings?.readonly 
-                        ? { settings: { ...comp.settings, defaultValue: componentValues[comp.id] || comp.settings.defaultValue } }
-                        : { value: componentValues[comp.id] }
-                    )
-                }));
+                // Special handling for Research Configuration module
+                if (isResearchConfigModule) {
+                    // Transform componentValues into structured config
+                    const structuredConfig = transformResearchConfigComponentValues(componentValues);
+                    
+                    // Preserve the correct backend structure: { structure: { components: [...] } }
+                    const config = {
+                        ...activeModule.config,
+                        ...structuredConfig
+                    };
 
-                // Preserve the correct backend structure: { structure: { components: [...] } }
-                const config = {
-                    ...activeModule.config,
-                    structure: {
-                        ...(activeModule.config.structure || {}),
-                        components: updatedComponents
-                    }
-                };
+                    await modulesService.update(activeModule.id, {
+                        config,
+                        order: activeModule.order_index
+                    });
+                    toast.success('Research Configuration saved successfully');
+                } else {
+                    // Update components with new values while preserving structure
+                    const updatedComponents = components.map(comp => ({
+                        ...comp,
+                        // Update default value or value from componentValues
+                        ...(comp.settings?.readonly 
+                          ? { settings: { ...comp.settings, defaultValue: componentValues[comp.id] || comp.settings.defaultValue } }
+                          : { value: componentValues[comp.id] }
+                        )
+                    }));
 
-                await modulesService.update(activeModule.id, {
-                    config,
-                    order: activeModule.order_index
-                });
-                toast.success('Module saved successfully');
+                    // Preserve the correct backend structure: { structure: { components: [...] } }
+                    const config = {
+                        ...activeModule.config,
+                        structure: {
+                          ...(activeModule.config.structure || {}),
+                          components: updatedComponents
+                        }
+                    };
+
+                    await modulesService.update(activeModule.id, {
+                        config,
+                        order: activeModule.order_index
+                    });
+                    toast.success('Module saved successfully');
+                }
             }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to save module';
@@ -224,3 +242,40 @@ export const ResearchBuilderPage = () => {
         </div>
     );
 };
+
+// Helper function to transform componentValues into structured config for Research Configuration
+const transformResearchConfigComponentValues = (values: Record<string, string>): Record<string, unknown> => {
+    // Initialize structured config
+    const config: Record<string, unknown> = {
+      demographics: {},
+      linkConfig: {},
+      backlinks: {},
+      participantLimit: 50
+    };
+
+    // Process each component value
+    Object.entries(values).forEach(([key, value]) => {
+      // Handle demographics
+      if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key)) {
+        (config.demographics as Record<string, boolean>)[key] = value === 'true';
+      }
+      // Handle link configuration
+      else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
+        (config.linkConfig as Record<string, boolean>)[key] = value === 'true';
+      }
+      // Handle backlinks
+      else if (['complete', 'disqualified', 'overquota'].includes(key)) {
+        (config.backlinks as Record<string, string>)[key] = value;
+      }
+      // Handle research URL
+      else if (key === 'researchUrl') {
+        config.researchUrl = value;
+      }
+      // Handle participant limit
+      else if (key === 'participantLimit') {
+        config.participantLimit = parseInt(value) || 50;
+      }
+    });
+
+    return config;
+  };

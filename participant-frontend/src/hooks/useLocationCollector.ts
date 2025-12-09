@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSessionStore } from '../stores/useSessionStore';
-import type { LocationInfo } from '../types/research-config';
+
+interface LocationInfo {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    timestamp: number;
+    source: 'gps' | 'ip' | 'denied';
+}
 
 interface UseLocationCollectorReturn {
+    location: LocationInfo | null;
     error: string | null;
     isLoading: boolean;
     hasConsent: boolean;
@@ -23,94 +31,99 @@ export const useLocationCollector = (): UseLocationCollectorReturn => {
     /**
      * Solicita ubicación GPS del usuario
      */
-    const requestLocation = async () => {
+    const requestLocation = useCallback(async () => {
         if (!config?.settings.enableLocationCapture) return;
-        if (!('geolocation' in navigator)) {
-            setError('Geolocalización no soportada');
-            return;
-        }
-
-        setIsLoading(true);
-        setError(null);
 
         try {
+            setIsLoading(true);
+            setError(null);
+            
+            // Check if Geolocation is supported
+            if (!navigator.geolocation) {
+                throw new Error('Geolocation is not supported by this browser');
+            }
+
+            // Get current position
             const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    resolve,
-                    reject,
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0,
-                    }
-                );
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 300000 // 5 minutes
+                });
             });
 
-            const locationData: LocationInfo = {
+            const locationInfo: LocationInfo = {
                 latitude: position.coords.latitude,
                 longitude: position.coords.longitude,
                 accuracy: position.coords.accuracy,
-                timestamp: position.timestamp,
-                source: 'gps',
+                timestamp: Date.now(),
+                source: 'gps'
             };
 
-            setLocation(locationData);
+            setLocation(locationInfo);
             setHasConsent(true);
+            console.log('✓ Location captured:', locationInfo);
         } catch (err) {
-            const errorMessage = err instanceof GeolocationPositionError
-                ? getGeolocationErrorMessage(err.code)
-                : 'Error al obtener ubicación';
-            
+            console.error('Location error:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Failed to get location';
             setError(errorMessage);
             
-            // Registrar ubicación denegada
-            setLocation({
-                latitude: 0,
-                longitude: 0,
-                accuracy: 0,
-                timestamp: Date.now(),
-                source: 'denied',
-            });
+            // Try IP-based location as fallback
+            try {
+                // In a real implementation, this would call a service to get IP-based location
+                console.log('📍 Trying IP-based location fallback...');
+                // For now, we'll just mark as denied
+                setLocation({
+                    latitude: 0,
+                    longitude: 0,
+                    accuracy: 0,
+                    timestamp: Date.now(),
+                    source: 'denied'
+                });
+            } catch (fallbackErr) {
+                console.error('IP location fallback failed:', fallbackErr);
+            }
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [config?.settings.enableLocationCapture, setLocation]);
+
+    // Automatically request location if tracking is enabled in config
+    useEffect(() => {
+        if (config?.linkConfig?.trackLocation === true && config?.settings.enableLocationCapture) {
+            // Only auto-request if we haven't already requested or denied
+            if (!hasConsent && !error) {
+                // Small delay to allow user to see the page first
+                const timer = setTimeout(() => {
+                    void requestLocation();
+                }, 1000);
+                
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [config, hasConsent, error, requestLocation]);
 
     /**
-     * Usuario rechaza compartir ubicación
+     * Deny location tracking
      */
-    const denyLocation = () => {
+    const denyLocation = useCallback(() => {
         setHasConsent(false);
+        setError('Location tracking denied by user');
         setLocation({
             latitude: 0,
             longitude: 0,
             accuracy: 0,
             timestamp: Date.now(),
-            source: 'denied',
+            source: 'denied'
         });
-    };
+    }, [setLocation]);
 
     return {
+        location: useSessionStore.getState().location,
         error,
         isLoading,
         hasConsent,
         requestLocation,
-        denyLocation,
+        denyLocation
     };
 };
-
-/**
- * Convierte código de error de geolocalización a mensaje legible
- */
-function getGeolocationErrorMessage(code: number): string {
-    switch (code) {
-        case GeolocationPositionError.PERMISSION_DENIED:
-            return 'Permiso de ubicación denegado';
-        case GeolocationPositionError.POSITION_UNAVAILABLE:
-            return 'Ubicación no disponible';
-        case GeolocationPositionError.TIMEOUT:
-            return 'Tiempo de espera agotado';
-        default:
-            return 'Error desconocido al obtener ubicación';
-    }
-}

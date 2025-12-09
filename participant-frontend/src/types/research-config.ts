@@ -6,6 +6,17 @@ export interface ResearchConfig {
         enableSessionRecording: boolean;
         enableInteractionTracking?: boolean;
     };
+    // Link configuration from research-frontend
+    linkConfig?: {
+        allowMobile?: boolean;
+        trackLocation?: boolean;
+        allowMultiple?: boolean;
+    };
+    // Participant limit configuration
+    participantLimit?: {
+        enabled: boolean;
+        value: number;
+    };
 }
 
 export interface DeviceInfo {
