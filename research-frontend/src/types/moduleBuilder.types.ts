@@ -65,6 +65,7 @@ export interface ComponentConfig {
     id: string;
     type: ComponentType;
     label: string;
+    value?: string;  // User-entered or saved value
 
     // Type-specific configurations
     placeholder?: PlaceholderConfig;

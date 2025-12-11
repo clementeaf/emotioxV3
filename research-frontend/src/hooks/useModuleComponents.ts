@@ -76,10 +76,13 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
                 setComponents(moduleComponents);
                 
                 // Inicializar valores de componentes
-                // Para componentes readonly, usar defaultValue de settings
+                // Prioridad: 1) valor guardado, 2) defaultValue si es readonly, 3) string vacío
                 const initialValues: Record<string, string> = {};
                 moduleComponents.forEach((comp) => {
-                    if (comp.settings?.readonly === true && comp.settings?.defaultValue) {
+                    if (comp.value !== undefined && comp.value !== null) {
+                        // Si el componente tiene un valor guardado, usarlo
+                        initialValues[comp.id] = comp.value as string;
+                    } else if (comp.settings?.readonly === true && comp.settings?.defaultValue) {
                         // Si es readonly y tiene defaultValue, usar ese valor
                         initialValues[comp.id] = comp.settings.defaultValue as string;
                     } else {

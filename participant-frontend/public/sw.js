@@ -16,6 +16,11 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only cache HTTP/HTTPS requests, skip chrome-extension:// and other schemes
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -24,6 +29,10 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
         return fetch(event.request);
+      })
+      .catch(() => {
+        // If fetch fails, return a fallback if available
+        return caches.match('/index.html');
       })
   );
 });
