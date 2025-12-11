@@ -10,6 +10,8 @@ interface ResearchBuilderHeaderProps {
     onSave: () => void;
     isSmartVOCStage?: boolean;
     smartVOCStageName?: string;
+    isCognitiveTasksStage?: boolean;
+    cognitiveTasksStageName?: string;
 }
 
 /**
@@ -24,6 +26,8 @@ export const ResearchBuilderHeader = ({
     onSave,
     isSmartVOCStage = false,
     smartVOCStageName,
+    isCognitiveTasksStage = false,
+    cognitiveTasksStageName,
 }: ResearchBuilderHeaderProps) => {
     return (
         <div className="mb-8 border-b border-gray-200 pb-4">
@@ -40,6 +44,11 @@ export const ResearchBuilderHeader = ({
                                 <Boxes className="h-6 w-6 text-gray-400" />
                                 {smartVOCStageName || 'Smart VOC'}
                             </>
+                        ) : isCognitiveTasksStage ? (
+                            <>
+                                <Boxes className="h-6 w-6 text-gray-400" />
+                                {cognitiveTasksStageName || 'Cognitive Tasks'}
+                            </>
                         ) : activeModule ? (
                             <>
                                 <Boxes className="h-6 w-6 text-gray-400" />
@@ -54,13 +63,15 @@ export const ResearchBuilderHeader = ({
                             ? 'Manage general settings and information'
                             : isSmartVOCStage
                                 ? 'Configure all Smart VOC questions in a unified view'
-                                : activeModule
-                                    ? activeModule.description || 'Configure this module'
-                                    : 'Research Builder'}
+                                : isCognitiveTasksStage
+                                    ? 'Configure all Cognitive Task modules in a unified view'
+                                    : activeModule
+                                        ? activeModule.description || 'Configure this module'
+                                        : 'Research Builder'}
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    {(activeModule || isSmartVOCStage) && (
+                    {(activeModule || isSmartVOCStage || isCognitiveTasksStage) && (
                         <Button onClick={onSave} isLoading={isSaving} disabled={isSaving}>
                             <Save className="h-4 w-4 mr-2" />
                             Save Changes
