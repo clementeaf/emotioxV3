@@ -83,6 +83,9 @@ export const FileUploadAdvanced = ({
 
     /**
      * Upload a single file to S3 and save metadata
+     * @param file - Archivo a subir
+     * @param fileId - ID único del archivo
+     * @returns Archivo subido con información de S3
      */
     const uploadFileToS3 = async (file: File, fileId: string): Promise<UploadedFile> => {
         if (!researchId) {
@@ -99,24 +102,56 @@ export const FileUploadAdvanced = ({
         }
 
         try {
+            // Validar que el archivo tenga un tipo MIME válido
+            // Si no tiene tipo, usar 'application/octet-stream' como fallback
+            const contentType = file.type || 'application/octet-stream';
+            
             // 1. Request presigned URL from backend
             const { upload_url, s3_key } = await mediaService.generateUploadUrl({
                 research_id: researchId,
                 file_name: file.name,
-                content_type: file.type,
+                content_type: contentType,
             });
 
             // 2. Upload file to S3 using presigned URL
-            const uploadResponse = await fetch(upload_url, {
-                method: 'PUT',
-                body: file,
-                headers: {
-                    'Content-Type': file.type,
-                },
-            });
+            // IMPORTANT: El Content-Type debe coincidir exactamente con el usado en la generación del presignedUrl
+            // No incluir headers adicionales que no estén en la firma del presignedUrl
+            // No usar credentials: 'include' ya que puede causar problemas de CORS con presignedUrls
+            let uploadResponse: Response;
+            try {
+                uploadResponse = await fetch(upload_url, {
+                    method: 'PUT',
+                    body: file,
+                    headers: {
+                        // Usar el mismo contentType que se usó para generar el presignedUrl
+                        'Content-Type': contentType,
+                    },
+                });
+            } catch (fetchError) {
+                // Error de red o CORS
+                if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
+                    throw new Error(`Network error or CORS issue: ${fetchError.message}. Please check S3 bucket CORS configuration.`);
+                }
+                throw fetchError;
+            }
 
-            if (!uploadResponse.ok) {
-                throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
+            // Verificar que el status code sea 200 (S3 devuelve 200 en éxito)
+            if (uploadResponse.status !== 200) {
+                let errorText: string;
+                try {
+                    errorText = await uploadResponse.text();
+                } catch {
+                    errorText = uploadResponse.statusText || 'Unknown error';
+                }
+                
+                // Proporcionar mensaje de error más descriptivo
+                if (uploadResponse.status === 403) {
+                    throw new Error(`S3 upload forbidden (403). The presigned URL may have expired or the bucket policy is incorrect. Details: ${errorText}`);
+                } else if (uploadResponse.status === 400) {
+                    throw new Error(`S3 upload bad request (400). Content-Type mismatch or invalid request. Details: ${errorText}`);
+                } else {
+                    throw new Error(`S3 upload failed with status ${uploadResponse.status}: ${errorText}`);
+                }
             }
 
             // 3. Save metadata to backend
@@ -130,12 +165,22 @@ export const FileUploadAdvanced = ({
                 },
             });
 
-            // 4. Return uploaded file with S3 info
+            // 4. Obtener URL de descarga para mostrar la imagen
+            let imageUrl: string | undefined;
+            try {
+                const { url } = await mediaService.getMediaUrl(media.id);
+                imageUrl = url;
+            } catch (urlError) {
+                console.warn('Failed to get media URL, will use s3Key only:', urlError);
+            }
+
+            // 5. Return uploaded file with S3 info
             return {
                 id: fileId,
                 name: file.name,
                 size: file.size,
                 type: file.type,
+                url: imageUrl,
                 s3Key: s3_key,
                 mediaId: media.id,
                 status: 'uploaded',
@@ -143,7 +188,11 @@ export const FileUploadAdvanced = ({
             };
         } catch (error) {
             console.error('File upload error:', error);
-            throw error;
+            // Proporcionar más información sobre el error
+            if (error instanceof Error) {
+                throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+            }
+            throw new Error(`Failed to upload ${file.name}: Unknown error`);
         }
     };
 
@@ -197,7 +246,10 @@ export const FileUploadAdvanced = ({
                     return uploadedFile;
                 } catch (error) {
                     console.error(`Failed to upload ${file.name}:`, error);
-                    onUploadError?.(error instanceof Error ? error : new Error('Upload failed'));
+                    const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+                    onUploadError?.(error instanceof Error ? error : new Error(errorMessage));
+                    
+                    // Actualizar el archivo con estado de error
                     return {
                         ...newFiles[index],
                         status: 'error' as const,
@@ -207,14 +259,35 @@ export const FileUploadAdvanced = ({
 
             const uploadedFiles = (await Promise.all(uploadPromises)).filter((f): f is UploadedFile => f !== null);
             
-            // Update with completed uploads
-            const finalFiles = multiple ? [...localFiles, ...uploadedFiles] : uploadedFiles;
+            // Separar archivos exitosos y con error
+            const successfulFiles = uploadedFiles.filter(f => f.status !== 'error');
+            const failedFiles = uploadedFiles.filter(f => f.status === 'error');
+            
+            // Si hay archivos con error, mantenerlos en la lista pero marcados
+            const finalFiles = multiple 
+                ? [...localFiles.filter(f => !newFiles.some(nf => nf.id === f.id)), ...uploadedFiles]
+                : uploadedFiles;
+            
             setLocalFiles(finalFiles);
             onFilesChange?.(finalFiles);
-            onUploadComplete?.();
+            
+            // Solo llamar onUploadComplete si todos los archivos se subieron exitosamente
+            if (failedFiles.length === 0) {
+                onUploadComplete?.();
+            } else if (successfulFiles.length > 0) {
+                // Algunos archivos se subieron exitosamente
+                console.warn(`${failedFiles.length} file(s) failed to upload, ${successfulFiles.length} succeeded`);
+            }
         } catch (error) {
             console.error('Upload error:', error);
-            onUploadError?.(error instanceof Error ? error : new Error('Upload failed'));
+            const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+            onUploadError?.(error instanceof Error ? error : new Error(errorMessage));
+            
+            // Marcar todos los archivos como error
+            const errorFiles = newFiles.map(f => ({ ...f, status: 'error' as const }));
+            const finalFiles = multiple ? [...localFiles, ...errorFiles] : errorFiles;
+            setLocalFiles(finalFiles);
+            onFilesChange?.(finalFiles);
         }
     };
 
@@ -293,7 +366,8 @@ export const FileUploadAdvanced = ({
                         <div className="grid gap-3">
                             {localFiles.map((file) => {
                                 const isImage = file.type?.startsWith('image/');
-                                const imageUrl = file.url || (file.s3Key ? `https://placeholder.com/${file.id}` : '');
+                                // Solo mostrar imagen si hay URL disponible (no usar placeholder)
+                                const imageUrl = file.url || undefined;
                                 const isUploading = file.status === 'uploading';
                                 const hasError = file.status === 'error';
 
@@ -446,7 +520,7 @@ export const FileUploadAdvanced = ({
                         {localFiles
                             .filter((f) => f.type?.startsWith('image/'))
                             .map((file) => {
-                                const imageUrl = file.url || (file.s3Key ? `https://placeholder.com/${file.id}` : '');
+                                const imageUrl = file.url;
                                 return (
                                     <div key={file.id} className="relative">
                                         {imageUrl ? (
@@ -460,7 +534,9 @@ export const FileUploadAdvanced = ({
                                             />
                                         ) : (
                                             <div className="w-full h-48 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                                                <span className="text-xs text-gray-400">Loading...</span>
+                                                <span className="text-xs text-gray-400">
+                                                    {file.status === 'uploading' ? 'Uploading...' : file.s3Key ? 'Loading image...' : 'No image available'}
+                                                </span>
                                             </div>
                                         )}
                                     </div>
