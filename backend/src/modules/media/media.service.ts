@@ -14,9 +14,11 @@ export const generateUploadUrl = async (researchId: string, fileName: string, co
         ContentType: contentType,
     });
 
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    const url = await getSignedUrl(s3Client, command, { 
+        expiresIn: 3600,
+    });
 
-    return { uploadUrl: url, key, bucket: BUCKET_NAME };
+    return { upload_url: url, s3_key: key, expires_in: 3600 };
 };
 
 export const saveMetadata = async (researchId: string, questionId: string | null, s3Key: string, metadata: Record<string, unknown>) => {
@@ -38,21 +40,72 @@ export const saveMetadata = async (researchId: string, questionId: string | null
     return result.rows[0];
 };
 
+/**
+ * Determina el Content-Type basado en la extensión del archivo si no está en la BD
+ */
+const getContentTypeFromKey = (key: string, fileType?: string | null): string => {
+    if (fileType && fileType !== 'application/octet-stream') {
+        return fileType;
+    }
+
+    const extension = key.toLowerCase().split('.').pop();
+    const contentTypes: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        svg: 'image/svg+xml',
+        pdf: 'application/pdf',
+        txt: 'text/plain',
+        json: 'application/json',
+    };
+
+    return contentTypes[extension || ''] || 'application/octet-stream';
+};
+
 export const getMediaUrl = async (mediaId: string) => {
-    const query = `SELECT s3_key, s3_bucket FROM media WHERE id = $1`;
+    const query = `SELECT s3_key, s3_bucket, file_type FROM media WHERE id = $1`;
     const result = await pool.query(query, [mediaId]);
 
     if (result.rows.length === 0) throw new Error('Media not found');
 
-    const { s3_key, s3_bucket } = result.rows[0];
+    const { s3_key, s3_bucket, file_type } = result.rows[0];
+
+    const contentType = getContentTypeFromKey(s3_key, file_type);
 
     const command = new GetObjectCommand({
         Bucket: s3_bucket,
         Key: s3_key,
+        ResponseContentType: contentType,
+        // Forzar que el navegador trate la respuesta como el tipo correcto
+        ResponseContentDisposition: `inline; filename="${s3_key.split('/').pop() || 'file'}"`,
     });
 
     const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-    return { url };
+    return { url, expires_in: 3600 };
+};
+
+export const getMediaUrlByS3Key = async (s3Key: string) => {
+    const query = `SELECT id, s3_key, s3_bucket, file_type FROM media WHERE s3_key = $1`;
+    const result = await pool.query(query, [s3Key]);
+
+    if (result.rows.length === 0) throw new Error('Media not found');
+
+    const { id, s3_key, s3_bucket, file_type } = result.rows[0];
+
+    const contentType = getContentTypeFromKey(s3_key, file_type);
+
+    const command = new GetObjectCommand({
+        Bucket: s3_bucket,
+        Key: s3_key,
+        ResponseContentType: contentType,
+        // Forzar que el navegador trate la respuesta como el tipo correcto
+        ResponseContentDisposition: `inline; filename="${s3_key.split('/').pop() || 'file'}"`,
+    });
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    return { id, url, expires_in: 3600 };
 };
 
 export const deleteMedia = async (mediaId: string) => {

@@ -35,8 +35,10 @@ export const useAuth = () => {
         setError(null);
         try {
             const response = await authService.login(credentials);
-            setToken(response.tokens.accessToken);
-            localStorage.setItem('token', response.tokens.accessToken);
+            if (response.token) {
+                setToken(response.token);
+                localStorage.setItem('token', response.token);
+            }
             
             const userResponse = await authService.getMe();
             setUser(userResponse.user);

@@ -128,6 +128,11 @@ export const register = async (data: RegisterData) => {
 export const login = async (data: LoginData) => {
     const { email, password } = data;
 
+    // Validar que Cognito esté configurado
+    if (!cognitoConfig.clientId || !cognitoConfig.userPoolId) {
+        throw new Error('Cognito no está configurado. Por favor, configure COGNITO_CLIENT_ID y COGNITO_USER_POOL_ID en las variables de entorno.');
+    }
+
     try {
         const authCommand = new InitiateAuthCommand({
             AuthFlow: 'USER_PASSWORD_AUTH',
@@ -159,21 +164,33 @@ export const login = async (data: LoginData) => {
 
 export const getMe = async (cognitoSub: string) => {
     try {
+        if (!cognitoSub) {
+            throw new Error('cognitoSub is required');
+        }
+
         const query = `
-      SELECT id, email, role, first_name, last_name, created_at, updated_at
-      FROM users
-      WHERE cognito_sub = $1 AND deleted_at IS NULL
-    `;
+            SELECT id, email, role, first_name, last_name, created_at, updated_at
+            FROM users
+            WHERE cognito_sub = $1 AND deleted_at IS NULL
+        `;
         const result = await pool.query(query, [cognitoSub]);
 
         if (result.rows.length === 0) {
-            throw new Error('User not found');
+            console.error('GetMe: User not found in database', {
+                cognitoSub,
+                query: 'SELECT * FROM users WHERE cognito_sub = $1',
+            });
+            throw new Error(`User not found for cognito_sub: ${cognitoSub}`);
         }
 
         return result.rows[0];
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to get user';
-        console.error('GetMe error:', error);
+        console.error('GetMe error:', {
+            error: errorMessage,
+            cognitoSub,
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
+        });
         throw new Error(errorMessage);
     }
 };

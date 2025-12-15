@@ -40,6 +40,7 @@ export interface MediaResponse {
 export interface MediaUrlResponse {
     url: string;
     expires_in: number;
+    id?: string;
 }
 
 export interface DeleteResponse {
@@ -90,6 +91,20 @@ class MediaService {
             return await apiClient.get<MediaUrlResponse>(`/media/${id}`);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to get media URL');
+        }
+    }
+
+    /**
+     * Obtiene la URL de descarga de un archivo por su s3Key
+     * @param s3Key - Clave S3 del archivo
+     * @returns URL de descarga y ID del media
+     * @throws ApiErrorResponse si falla la petición
+     */
+    async getMediaUrlByS3Key(s3Key: string): Promise<MediaUrlResponse> {
+        try {
+            return await apiClient.get<MediaUrlResponse>(`/media/by-key?s3_key=${encodeURIComponent(s3Key)}`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to get media URL by s3Key');
         }
     }
 

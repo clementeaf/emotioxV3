@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { useResearch } from '../../hooks/useResearchQuery';
@@ -8,7 +8,8 @@ import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
-import { SmartVOCModuleCard } from '../../components/research/SmartVOCModuleCard';
+import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
+import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
@@ -61,10 +62,45 @@ export const ResearchBuilderPage = () => {
         smartVOCModules.some(m => m.id === activeModuleId)
     );
     
+    // Cognitive Tasks stage logic (same structure as Smart VOC)
+    const cognitiveTasksStage = useMemo((): Stage | null => {
+        if (!typedResearch?.stages) return null;
+        
+        let stage = typedResearch.stages.find((s: Stage) => 
+            s.name.toLowerCase().includes('cognitive task') || 
+            s.name.toLowerCase() === 'cognitive tasks'
+        );
+        
+        if (!stage && activeModule && typedResearch.stages) {
+            stage = typedResearch.stages.find((s: Stage) => 
+                s.modules?.some((m: Module) => m.id === activeModule.id) &&
+                (s.name.toLowerCase().includes('cognitive task') || s.name.toLowerCase() === 'cognitive tasks')
+            );
+        }
+        
+        return stage || null;
+    }, [typedResearch, activeModule]);
+    
+    const cognitiveTaskModules = useMemo((): Module[] => {
+        if (!cognitiveTasksStage || !cognitiveTasksStage.modules) return [];
+        return [...cognitiveTasksStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    }, [cognitiveTasksStage]);
+    
+    const isCognitiveTasksStage = cognitiveTasksStage !== null && (
+        !activeModuleId || 
+        cognitiveTaskModules.some(m => m.id === activeModuleId)
+    );
+    
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
     
     const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
+    
+    // Refs for SmartVOC module cards to access their component values
+    const smartVOCModuleRefs = useRef<Map<string, SmartVOCModuleCardRef>>(new Map());
+    
+    // Refs for Cognitive Task module cards to access their component values
+    const cognitiveTaskModuleRefs = useRef<Map<string, CognitiveTaskModuleCardRef>>(new Map());
     
     useWelcomeScreenRedirect(typedResearch, loading, activeModuleId, isSettings, id);
     
@@ -77,15 +113,93 @@ export const ResearchBuilderPage = () => {
             setIsSaving(true);
             
             if (isSmartVOCStage && smartVOCModules.length > 0) {
-                // Save all Smart VOC modules
-                const updatePromises = smartVOCModules.map(module => 
-                    modulesService.update(module.id, {
-                        config: module.config,
+                // Save all Smart VOC modules with their current component values
+                const updatePromises = smartVOCModules.map(module => {
+                    const moduleRef = smartVOCModuleRefs.current.get(module.id);
+                    if (!moduleRef) {
+                        console.warn(`⚠️ No ref found for module ${module.id}`);
+                        // Fallback: use existing config if ref not available
+                        return modulesService.update(module.id, {
+                            config: module.config,
+                            order: module.order_index
+                        });
+                    }
+                    
+                    // Get current component values from the ref
+                    const currentComponentValues = moduleRef.getComponentValues();
+                    const currentComponents = moduleRef.getComponents();
+                    
+                    console.log(`💾 Saving ${module.name}:`, {
+                        componentValues: currentComponentValues,
+                        components: currentComponents
+                    });
+                    
+                    // Update components with new values
+                    const updatedComponents = currentComponents.map(comp => ({
+                        ...comp,
+                        value: currentComponentValues[comp.id] || comp.value
+                    }));
+                    
+                    console.log(`✅ Updated components:`, updatedComponents);
+                    
+                    // Preserve the correct backend structure
+                    const config = {
+                        ...module.config,
+                        structure: {
+                            ...(module.config.structure || {}),
+                            components: updatedComponents
+                        }
+                    };
+                    
+                    return modulesService.update(module.id, {
+                        config,
                         order: module.order_index
-                    })
-                );
+                    });
+                });
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
+            } else if (isCognitiveTasksStage && cognitiveTaskModules.length > 0) {
+                // Save all Cognitive Task modules with their current component values (same structure as Smart VOC)
+                const updatePromises = cognitiveTaskModules.map(module => {
+                    const moduleRef = cognitiveTaskModuleRefs.current.get(module.id);
+                    if (!moduleRef) {
+                        console.warn(`⚠️ No ref found for module ${module.id}`);
+                        return modulesService.update(module.id, {
+                            config: module.config,
+                            order: module.order_index
+                        });
+                    }
+                    
+                    const currentComponentValues = moduleRef.getComponentValues();
+                    const currentComponents = moduleRef.getComponents();
+                    
+                    console.log(`💾 Saving ${module.name}:`, {
+                        componentValues: currentComponentValues,
+                        components: currentComponents
+                    });
+                    
+                    const updatedComponents = currentComponents.map(comp => ({
+                        ...comp,
+                        value: currentComponentValues[comp.id] || comp.value
+                    }));
+                    
+                    console.log(`✅ Updated components:`, updatedComponents);
+                    
+                    const config = {
+                        ...module.config,
+                        structure: {
+                            ...(module.config.structure || {}),
+                            components: updatedComponents
+                        }
+                    };
+                    
+                    return modulesService.update(module.id, {
+                        config,
+                        order: module.order_index
+                    });
+                });
+                await Promise.all(updatePromises);
+                toast.success(`Saved ${cognitiveTaskModules.length} Cognitive Task module(s) successfully`);
             } else if (activeModule) {
                 // Special handling for Research Configuration module
                 if (isResearchConfigModule) {
@@ -178,12 +292,14 @@ export const ResearchBuilderPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <ResearchBuilderHeader
                 research={typedResearch}
-                activeModule={isSmartVOCStage ? null : activeModule}
+                activeModule={isSmartVOCStage || isCognitiveTasksStage ? null : activeModule}
                 isSettings={isSettings}
                 isSaving={isSaving}
                 onSave={handleSaveModule}
                 isSmartVOCStage={isSmartVOCStage}
                 smartVOCStageName={smartVOCStage?.name}
+                isCognitiveTasksStage={isCognitiveTasksStage}
+                cognitiveTasksStageName={cognitiveTasksStage?.name}
             />
 
             {/* Content Area */}
@@ -201,6 +317,41 @@ export const ResearchBuilderPage = () => {
                     {smartVOCModules.map((module) => (
                         <SmartVOCModuleCard
                             key={module.id}
+                            ref={(ref) => {
+                                if (ref) {
+                                    smartVOCModuleRefs.current.set(module.id, ref);
+                                } else {
+                                    smartVOCModuleRefs.current.delete(module.id);
+                                }
+                            }}
+                            module={module}
+                            researchId={id!}
+                            onSave={handleSaveModule}
+                            isActive={activeModuleId === module.id}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
+            {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
+                <div className="space-y-6 h-full max-h-[720px] overflow-y-auto">
+                    <div className="mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900">Cognitive Tasks - All Tasks</h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Configure all Cognitive Task modules in this unified view
+                        </p>
+                    </div>
+                    {cognitiveTaskModules.map((module) => (
+                        <CognitiveTaskModuleCard
+                            key={module.id}
+                            ref={(ref) => {
+                                if (ref) {
+                                    cognitiveTaskModuleRefs.current.set(module.id, ref);
+                                } else {
+                                    cognitiveTaskModuleRefs.current.delete(module.id);
+                                }
+                            }}
                             module={module}
                             researchId={id!}
                             onSave={handleSaveModule}
@@ -211,7 +362,7 @@ export const ResearchBuilderPage = () => {
             )}
 
             {/* Regular module view: Show single module */}
-            {!isSmartVOCStage && !isResearchConfigModule && activeModule && (
+            {!isSmartVOCStage && !isCognitiveTasksStage && !isResearchConfigModule && activeModule && (
                 <div className="space-y-6">
                     <div className="rounded-lg shadow-sm border border-gray-100 p-6">
                         <ModuleContentEditor
@@ -225,7 +376,7 @@ export const ResearchBuilderPage = () => {
             )}
 
             {/* Research Configuration module: Show custom component */}
-            {!isSmartVOCStage && isResearchConfigModule && activeModule && (
+            {!isSmartVOCStage && !isCognitiveTasksStage && isResearchConfigModule && activeModule && (
                 <div className="space-y-6">
                     <div className="rounded-lg shadow-sm border border-gray-100 p-6">
                         <ResearchConfigurationModule

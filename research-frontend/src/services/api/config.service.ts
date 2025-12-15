@@ -71,7 +71,14 @@ class ConfigService {
      */
     private async fetchConfig(): Promise<ApiConfig> {
         try {
-            const response = await fetch(`${this.baseUrl}/config`);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
+            const response = await fetch(`${this.baseUrl}/config`, {
+                signal: controller.signal,
+            });
+            
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 throw new Error(`Failed to fetch config: ${response.statusText}`);
@@ -82,6 +89,7 @@ class ConfigService {
             return config;
         } catch (error) {
             console.error('Failed to load API configuration:', error);
+            console.warn('⚠️  Using fallback configuration');
             
             // Fallback to default configuration
             return this.getDefaultConfig();
@@ -101,6 +109,7 @@ class ConfigService {
                     register: '/auth/register',
                     me: '/auth/me',
                     refresh: '/auth/refresh',
+                    logout: '/auth/logout',
                 },
                 research: {
                     list: '/research',

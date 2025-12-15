@@ -2,26 +2,8 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type InternalAxiosR
 import { useAuthStore } from '../../stores/auth.store';
 import type { ApiErrorResponse } from './types';
 
-/**
- * Verifica si un token JWT está expirado
- * @param token - Token JWT a verificar
- * @returns true si el token está expirado o no es válido
- */
-const isTokenExpired = (token: string | null): boolean => {
-    if (!token) return true;
-
-    try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        const exp = payload.exp;
-        if (!exp) return true;
-
-        // Verificar si el token expira en menos de 5 minutos (300 segundos)
-        const now = Math.floor(Date.now() / 1000);
-        return exp - now < 300;
-    } catch {
-        return true;
-    }
-};
+// Ya no necesitamos verificar expiración de tokens en el frontend
+// El backend maneja esto automáticamente y devuelve 401 si el token expiró
 
 /**
  * Cliente base para todas las peticiones API
@@ -41,6 +23,8 @@ class ApiClient {
             headers: {
                 'Content-Type': 'application/json',
             },
+            withCredentials: true, // Importante: enviar cookies automáticamente
+            timeout: 30000, // 30 segundos timeout global
         });
 
         this.setupInterceptors();
@@ -49,13 +33,13 @@ class ApiClient {
     /**
      * Procesa la cola de peticiones fallidas después de refrescar el token
      */
-    private processQueue(error: unknown | null, token: string | null = null): void {
+    private processQueue(error: unknown | null, _token: string | null = null): void {
         // Process all queued requests
         this.failedQueue.forEach((prom) => {
             if (error) {
                 prom.reject(error);
             } else {
-                prom.resolve(token);
+                prom.resolve();
             }
         });
 
@@ -67,60 +51,15 @@ class ApiClient {
      * Configura interceptores para requests y responses
      */
     private setupInterceptors(): void {
-        // Request interceptor: agrega token de autenticación y renueva si es necesario
+        // Request interceptor: agregar token en Authorization header
+        // TEMPORAL: API Gateway no está pasando cookies, así que usamos header
         this.client.interceptors.request.use(
             async (config: InternalAxiosRequestConfig) => {
                 const state = useAuthStore.getState();
-                let token = state.token;
-
-                // Si el token está expirado o por expirar, intentar renovarlo
-                if (token && isTokenExpired(token) && state.refreshToken) {
-                    if (this.isRefreshing) {
-                        // Si ya se está refrescando, esperar en la cola
-                        return new Promise<InternalAxiosRequestConfig>((resolve, reject) => {
-                            this.failedQueue.push({
-                                resolve: () => {
-                                    const newState = useAuthStore.getState();
-                                    if (newState.token && config.headers) {
-                                        config.headers.Authorization = `Bearer ${newState.token}`;
-                                    }
-                                    resolve(config);
-                                },
-                                reject,
-                            });
-                        });
-                    }
-
-                    this.isRefreshing = true;
-
-                    try {
-                        // Add timeout to prevent hanging
-                        const refreshPromise = state.refreshAccessToken();
-                        const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
-                        );
-                        
-                        await Promise.race([refreshPromise, timeoutPromise]);
-                        
-                        const newState = useAuthStore.getState();
-                        token = newState.token;
-                        this.processQueue(null, token);
-                    } catch (error) {
-                        console.error('Token refresh failed:', error);
-                        this.processQueue(error, null);
-                        useAuthStore.getState().logout();
-                        return Promise.reject(error);
-                    } finally {
-                        this.isRefreshing = false;
-                    }
+                if (state.token && config.headers) {
+                    config.headers.Authorization = `Bearer ${state.token}`;
                 }
-
-                if (token) {
-                    config.headers.Authorization = `Bearer ${token}`;
-                } else {
-                    console.warn('No token available for request to:', config.url);
-                }
-
+                // También intentar enviar cookies (withCredentials: true)
                 return config;
             },
             (error) => Promise.reject(error)
@@ -134,56 +73,45 @@ class ApiClient {
 
                 // Si es un error 401 y no hemos intentado refrescar
                 if (error.response?.status === 401 && !originalRequest._retry) {
-                    const state = useAuthStore.getState();
+                    originalRequest._retry = true;
 
-                    // Si tenemos refresh token, intentar renovar
-                    if (state.refreshToken) {
-                        originalRequest._retry = true;
-
-                        if (this.isRefreshing) {
-                            // Si ya se está refrescando, esperar en la cola
-                            return new Promise((resolve, reject) => {
-                                this.failedQueue.push({
-                                    resolve: () => {
-                                        const newState = useAuthStore.getState();
-                                        if (newState.token && originalRequest.headers) {
-                                            originalRequest.headers.Authorization = `Bearer ${newState.token}`;
-                                        }
-                                        resolve(this.client(originalRequest));
-                                    },
-                                    reject,
-                                });
+                    if (this.isRefreshing) {
+                        // Si ya se está refrescando, esperar en la cola
+                        return new Promise((resolve, reject) => {
+                            this.failedQueue.push({
+                                resolve: () => {
+                                    // Reintentar la petición original (las cookies se envían automáticamente)
+                                    resolve(this.client(originalRequest));
+                                },
+                                reject,
                             });
-                        }
+                        });
+                    }
 
-                        this.isRefreshing = true;
+                    this.isRefreshing = true;
 
-                        try {
-                            // Add timeout to prevent hanging
-                            const refreshPromise = state.refreshAccessToken();
-                            const timeoutPromise = new Promise((_, reject) => 
-                                setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
-                            );
-                            
-                            await Promise.race([refreshPromise, timeoutPromise]);
-                            
-                            const newState = useAuthStore.getState();
-                            if (newState.token && originalRequest.headers) {
-                                originalRequest.headers.Authorization = `Bearer ${newState.token}`;
-                            }
-                            this.processQueue(null, newState.token);
-                            return this.client(originalRequest);
-                        } catch (refreshError) {
-                            console.error('Token refresh failed:', refreshError);
-                            this.processQueue(refreshError, null);
-                            useAuthStore.getState().logout();
-                            return Promise.reject(refreshError);
-                        } finally {
-                            this.isRefreshing = false;
-                        }
-                    } else {
-                        // No hay refresh token, hacer logout
+                    try {
+                        // Intentar refrescar el token (el refreshToken viene de la cookie)
+                        const state = useAuthStore.getState();
+                        const refreshPromise = state.refreshAccessToken();
+                        const timeoutPromise = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
+                        );
+                        
+                        await Promise.race([refreshPromise, timeoutPromise]);
+                        
+                        // Procesar cola de peticiones pendientes
+                        this.processQueue(null, null);
+                        
+                        // Reintentar la petición original (las cookies actualizadas se envían automáticamente)
+                        return this.client(originalRequest);
+                    } catch (refreshError) {
+                        console.error('Token refresh failed:', refreshError);
+                        this.processQueue(refreshError, null);
                         useAuthStore.getState().logout();
+                        return Promise.reject(refreshError);
+                    } finally {
+                        this.isRefreshing = false;
                     }
                 }
 

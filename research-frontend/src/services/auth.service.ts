@@ -4,20 +4,16 @@ import type { User, LoginCredentials, RegisterCredentials } from '../types/auth'
 import type { ApiErrorResponse } from './api/types';
 
 export interface LoginResponse {
-    tokens: {
-        accessToken: string;
-        idToken: string;
-        refreshToken: string;
-        expiresIn: number;
-    };
+    message: string;
+    token?: string; // TEMPORAL: token en response hasta que cookies funcionen
 }
 
 export interface RefreshTokenResponse {
-    tokens: {
-        accessToken: string;
-        idToken: string;
-        expiresIn: number;
-    };
+    message: string;
+}
+
+export interface LogoutResponse {
+    message: string;
 }
 
 export interface RegisterResponse {
@@ -65,8 +61,9 @@ class AuthService {
 
     /**
      * Logs in with email and password
+     * Los tokens se guardan automáticamente en cookies httpOnly
      * @param credentials - Login credentials
-     * @returns Authentication tokens
+     * @returns Success message
      * @throws ApiErrorResponse if login fails
      */
     async login(credentials: LoginCredentials): Promise<LoginResponse> {
@@ -79,16 +76,17 @@ class AuthService {
     }
 
     /**
-     * Refreshes access token using refresh token
-     * @param refreshToken - Refresh token
-     * @returns New authentication tokens
+     * Refreshes access token using refresh token from cookie
+     * El refresh token se lee automáticamente de la cookie
+     * @returns Success message
      * @throws ApiErrorResponse if refresh fails
      */
-    async refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
+    async refreshToken(): Promise<RefreshTokenResponse> {
         try {
             const endpoint = configService.getEndpoint('auth', 'refresh');
             // Add timeout to prevent hanging
-            const refreshPromise = apiClient.post<RefreshTokenResponse>(endpoint, { refreshToken });
+            // No enviamos refreshToken en el body, viene de la cookie
+            const refreshPromise = apiClient.post<RefreshTokenResponse>(endpoint, {});
             const timeoutPromise = new Promise<never>((_, reject) => 
                 setTimeout(() => reject(new Error('Refresh token request timeout')), 10000)
             );
@@ -96,6 +94,20 @@ class AuthService {
             return await Promise.race([refreshPromise, timeoutPromise]);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to refresh token');
+        }
+    }
+
+    /**
+     * Logs out the user and clears cookies
+     * @returns Success message
+     * @throws ApiErrorResponse if logout fails
+     */
+    async logout(): Promise<LogoutResponse> {
+        try {
+            const endpoint = configService.getEndpoint('auth', 'logout') || '/auth/logout';
+            return await apiClient.post<LogoutResponse>(endpoint, {});
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to logout');
         }
     }
 

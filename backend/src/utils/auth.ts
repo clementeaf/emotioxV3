@@ -3,14 +3,28 @@ import jwksClient from 'jwks-rsa';
 import { cognitoConfig } from '../config/cognito';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 
-const client = jwksClient({
-    jwksUri: `${cognitoConfig.issuer}/.well-known/jwks.json`,
-});
+// Inicializar jwksClient solo si Cognito está configurado
+let client: ReturnType<typeof jwksClient> | null = null;
+
+try {
+    if (cognitoConfig.userPoolId) {
+        client = jwksClient({
+            jwksUri: `${cognitoConfig.issuer}/.well-known/jwks.json`,
+        });
+    }
+} catch (error) {
+    console.error('Error inicializando jwksClient:', error);
+}
 
 function getKey(
     header: { kid?: string; alg?: string },
     callback: (err: Error | null, key?: string) => void
 ): void {
+    if (!client) {
+        callback(new Error('Cognito no está configurado. jwksClient no inicializado.'));
+        return;
+    }
+    
     client.getSigningKey(header.kid, (err, key) => {
         if (err) {
             callback(err);
@@ -30,21 +44,35 @@ export interface DecodedToken {
 
 export const verifyToken = (token: string): Promise<DecodedToken> => {
     return new Promise((resolve, reject) => {
-        jwt.verify(
-            token,
-            getKey,
-            {
-                issuer: cognitoConfig.issuer,
-                algorithms: ['RS256'],
-            },
-            (err, decoded) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    resolve(decoded as DecodedToken);
+        if (!cognitoConfig.userPoolId) {
+            reject(new Error('Cognito no está configurado. COGNITO_USER_POOL_ID es requerido.'));
+            return;
+        }
+        
+        if (!client) {
+            reject(new Error('jwksClient no está inicializado. Cognito no está configurado correctamente.'));
+            return;
+        }
+        
+        try {
+            jwt.verify(
+                token,
+                getKey,
+                {
+                    issuer: cognitoConfig.issuer,
+                    algorithms: ['RS256'],
+                },
+                (err, decoded) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve(decoded as DecodedToken);
+                    }
                 }
-            }
-        );
+            );
+        } catch (error) {
+            reject(error instanceof Error ? error : new Error('Error verificando token'));
+        }
     });
 };
 
@@ -53,22 +81,101 @@ export const getUserFromToken = async (token: string): Promise<DecodedToken> => 
         const decoded = await verifyToken(token);
         return decoded;
     } catch (error) {
-        throw new Error('Invalid or expired token');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('getUserFromToken error:', {
+            error: errorMessage,
+            tokenLength: token.length,
+            tokenPreview: token.substring(0, 20) + '...',
+        });
+        throw new Error(`Invalid or expired token: ${errorMessage}`);
     }
 };
 
-export const requireAuth = async (event: APIGatewayProxyEvent): Promise<DecodedToken> => {
-    const authHeader = event.headers.Authorization || event.headers.authorization;
+/**
+ * Extrae el token de las cookies o del header Authorization
+ */
+const extractToken = (event: APIGatewayProxyEvent): string | null => {
+    // API Gateway puede enviar cookies en diferentes formatos
+    // Intentar todos los posibles nombres de headers
+    const cookieHeaders = [
+        event.headers.Cookie,
+        event.headers.cookie,
+        event.headers['Cookie'],
+        event.headers['cookie'],
+        // API Gateway también puede usar multiValueHeaders
+        event.multiValueHeaders?.Cookie?.[0],
+        event.multiValueHeaders?.cookie?.[0],
+    ].filter(Boolean) as string[];
 
-    if (!authHeader) {
-        throw new Error('No authorization header');
+    // Log para debugging
+    console.log('Extracting token - Available headers:', {
+        hasCookie: !!event.headers.Cookie || !!event.headers.cookie,
+        hasMultiValueCookie: !!event.multiValueHeaders?.Cookie || !!event.multiValueHeaders?.cookie,
+        cookieHeaders: cookieHeaders.length,
+        allHeaders: Object.keys(event.headers),
+    });
+
+    // Buscar en todos los headers de cookies
+    for (const cookies of cookieHeaders) {
+        if (!cookies) continue;
+        
+        // Dividir por punto y coma y buscar accessToken
+        const cookieParts = cookies.split(';');
+        for (const cookie of cookieParts) {
+            const trimmed = cookie.trim();
+            if (trimmed.startsWith('accessToken=')) {
+                const token = trimmed.substring('accessToken='.length).trim();
+                if (token) {
+                    console.log('Token found in cookies, length:', token.length);
+                    return token;
+                }
+            }
+        }
     }
+    
+    // Fallback a Authorization header (para compatibilidad)
+    const authHeaders = [
+        event.headers.Authorization,
+        event.headers.authorization,
+        event.headers['Authorization'],
+        event.headers['authorization'],
+    ].filter(Boolean) as string[];
 
-    const token = authHeader.replace('Bearer ', '');
+    for (const authHeader of authHeaders) {
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring('Bearer '.length).trim();
+            if (token) {
+                console.log('Token found in Authorization header, length:', token.length);
+                return token;
+            }
+        }
+    }
+    
+    console.log('No token found in cookies or Authorization header');
+    return null;
+};
+
+export const requireAuth = async (event: APIGatewayProxyEvent): Promise<DecodedToken> => {
+    if (!cognitoConfig.userPoolId || !cognitoConfig.clientId) {
+        throw new Error('Cognito no está configurado. Configure COGNITO_USER_POOL_ID y COGNITO_CLIENT_ID.');
+    }
+    
+    const token = extractToken(event);
 
     if (!token) {
-        throw new Error('No token provided');
+        throw new Error('No token provided. Verifique que las cookies estén configuradas o que el header Authorization esté presente.');
     }
 
-    return await getUserFromToken(token);
+    try {
+        return await getUserFromToken(token);
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido al verificar token';
+        console.error('requireAuth error:', {
+            error: errorMessage,
+            hasToken: !!token,
+            tokenLength: token.length,
+            cognitoConfigured: !!cognitoConfig.userPoolId,
+        });
+        throw error;
+    }
 };

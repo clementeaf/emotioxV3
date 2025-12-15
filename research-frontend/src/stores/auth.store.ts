@@ -1,12 +1,10 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { User, LoginCredentials, RegisterCredentials } from '../types/auth';
 import { authService } from '../services/auth.service';
 
 interface AuthState {
     user: User | null;
-    token: string | null;
-    refreshToken: string | null;
+    token: string | null; // TEMPORAL: guardar token en memoria hasta que cookies funcionen
     rememberMe: boolean;
     isLoading: boolean;
     error: string | null;
@@ -16,7 +14,7 @@ interface AuthState {
     updateProfile: (data: Partial<User>) => Promise<void>;
     deleteAccount: () => Promise<void>;
     refreshAccessToken: () => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
     clearError: () => void;
 }
 
@@ -57,87 +55,71 @@ const asyncOperation = async <T>(
  */
 const initialState = {
     user: null,
-    token: null,
-    refreshToken: null,
+    token: null, // TEMPORAL
     rememberMe: false,
     isLoading: false,
     error: null,
 };
 
-export const useAuthStore = create<AuthState>()(
-    persist(
-        (set) => ({
-            ...initialState,
+export const useAuthStore = create<AuthState>()((set) => ({
+    ...initialState,
 
-            login: async (credentials, rememberMe = false) => {
-                set({ isLoading: true, error: null });
-                try {
-                    const loginResponse = await authService.login(credentials);
-                    const { tokens } = loginResponse;
+    login: async (credentials, rememberMe = false) => {
+        set({ isLoading: true, error: null });
+        try {
+            // El login guarda tokens en cookies, pero también retorna el token temporalmente
+            const loginResponse = await authService.login(credentials);
+            
+            // TEMPORAL: Guardar token en memoria porque API Gateway no está pasando cookies
+            const token = loginResponse.token || null;
+            set({ token });
 
-                    set({
-                        token: tokens.accessToken,
-                        refreshToken: tokens.refreshToken,
-                        rememberMe,
-                    });
+            // Fetch user profile
+            try {
+                const userResponse = await authService.getMe();
+                set({
+                    user: userResponse.user,
+                    rememberMe,
+                    isLoading: false,
+                });
+            } catch {
+                // Si falla getMe, limpiar todo el estado para evitar inconsistencia
+                set({
+                    user: null,
+                    token: null,
+                    rememberMe: false,
+                    isLoading: false,
+                });
+                throw new Error('Failed to fetch user profile');
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Login failed';
+            set({
+                error: message,
+                isLoading: false,
+                user: null,
+                token: null,
+                rememberMe: false,
+            });
+            throw error;
+        }
+    },
 
-                    // Fetch user profile
-                    try {
-                        const userResponse = await authService.getMe();
-                        set({
-                            user: userResponse.user,
-                            isLoading: false,
-                        });
-                    } catch {
-                        // Si falla getMe, limpiar todo el estado para evitar inconsistencia
-                        set({
-                            user: null,
-                            token: null,
-                            refreshToken: null,
-                            rememberMe: false,
-                            isLoading: false,
-                        });
-                        throw new Error('Failed to fetch user profile');
-                    }
-                } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : 'Login failed';
-                    set({
-                        error: message,
-                        isLoading: false,
-                        user: null,
-                        token: null,
-                        refreshToken: null,
-                        rememberMe: false,
-                    });
-                    throw error;
-                }
-            },
-
-            refreshAccessToken: async () => {
-                const state = useAuthStore.getState();
-                if (!state.refreshToken) {
-                    throw new Error('No refresh token available');
-                }
-
-                try {
-                    const refreshResponse = await authService.refreshToken(state.refreshToken);
-                    const { tokens } = refreshResponse;
-
-                    set({
-                        token: tokens.accessToken,
-                    });
-                } catch (error: unknown) {
-                    console.error('Refresh token failed:', error);
-                    // Si falla el refresh, limpiar todo el estado
-                    set({
-                        user: null,
-                        token: null,
-                        refreshToken: null,
-                        rememberMe: false,
-                    });
-                    throw error;
-                }
-            },
+    refreshAccessToken: async () => {
+        try {
+            // El refresh token ahora viene de la cookie automáticamente
+            await authService.refreshToken();
+            // No necesitamos actualizar el estado, las cookies se actualizan automáticamente
+        } catch (error: unknown) {
+            console.error('Refresh token failed:', error);
+            // Si falla el refresh, limpiar todo el estado
+            set({
+                user: null,
+                rememberMe: false,
+            });
+            throw error;
+        }
+    },
 
             register: async (credentials) => {
                 await asyncOperation(
@@ -168,41 +150,36 @@ export const useAuthStore = create<AuthState>()(
                     () => authService.deleteAccount(),
                     () => ({
                         user: null,
-                        token: null,
-                        refreshToken: null,
                         rememberMe: false,
                     }),
                     'Failed to delete account'
                 );
             },
 
-            logout: () => {
-                set({
-                    ...initialState,
-                });
+            logout: async () => {
+                try {
+                    // Llamar al endpoint de logout para limpiar cookies en el servidor
+                    await authService.logout();
+                } catch (error) {
+                    console.error('Logout error:', error);
+                } finally {
+                    // Limpiar estado local
+                    set({
+                        ...initialState,
+                        token: null, // TEMPORAL
+                    });
+                }
             },
 
             clearError: () => set({ error: null }),
-        }),
-        {
-            name: 'auth-storage',
-            partialize: (state) => ({
-                token: state.token,
-                user: state.user,
-                // ALWAYS persist refreshToken - it's needed for token renewal
-                // Without refreshToken, user will be logged out when accessToken expires (1 hour)
-                refreshToken: state.refreshToken,
-                rememberMe: state.rememberMe,
-            }),
-        }
-    )
+        })
 );
 
 /**
  * Selector para obtener si el usuario está autenticado
- * Calculado en lugar de almacenado para evitar inconsistencias
+ * Basado en si hay un usuario en el estado (los tokens están en cookies)
  */
 export const useIsAuthenticated = (): boolean => {
-    const token = useAuthStore((state) => state.token);
-    return !!token;
+    const user = useAuthStore((state) => state.user);
+    return !!user;
 };

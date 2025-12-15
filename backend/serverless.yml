@@ -17,6 +17,8 @@ provider:
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
     COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
     COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
+    JWT_SECRET: ${env:JWT_SECRET}
+    JWT_REFRESH_SECRET: ${env:JWT_REFRESH_SECRET}
   iam:
     role:
       statements:
@@ -40,24 +42,19 @@ functions:
       - http:
           path: /{proxy+}
           method: ANY
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-              - X-Amz-Date
-              - X-Api-Key
-              - X-Amz-Security-Token
-            allowCredentials: true
+          cors: false  # Deshabilitar CORS automático, se maneja en el código
       - http:
           path: /
           method: ANY
-          cors:
-            origin: '*'
-            headers:
-              - Content-Type
-              - Authorization
-            allowCredentials: true
+          cors: false  # Deshabilitar CORS automático, se maneja en el código
 
 plugins:
+  - serverless-dotenv-plugin
   - serverless-offline
+
+custom:
+  dotenv:
+    exclude:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_REGION

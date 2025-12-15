@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Upload, Trash2 } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../../lib/utils';
@@ -13,6 +13,7 @@ export interface UploadedFile {
     size: number;
     type: string;
     url?: string;
+    urlExpiresAt?: number; // Timestamp de cuando expira la URL presigned
     s3Key?: string;
     mediaId?: string; // ID del registro en la tabla media (backend)
     hitZones?: Array<{
@@ -76,10 +77,167 @@ export const FileUploadAdvanced = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [localFiles, setLocalFiles] = useState<UploadedFile[]>(files);
+    const loadingUrlsRef = useRef<Set<string>>(new Set()); // Rastrear URLs que se están cargando
+    const onFilesChangeRef = useRef(onFilesChange);
+    const lastFilesRef = useRef<string>(''); // Para evitar actualizaciones innecesarias
+    const loadUrlsTimeoutRef = useRef<number | null>(null); // Para debounce
+
+    // Mantener la referencia actualizada sin causar re-renders
+    useEffect(() => {
+        onFilesChangeRef.current = onFilesChange;
+    }, [onFilesChange]);
 
     useEffect(() => {
-        setLocalFiles(files);
+        // Solo actualizar si los files realmente cambiaron (comparar por JSON para evitar loops)
+        const filesKey = JSON.stringify(files.map(f => ({ id: f.id, url: f.url, s3Key: f.s3Key })));
+        if (filesKey !== lastFilesRef.current) {
+            lastFilesRef.current = filesKey;
+            setLocalFiles(files);
+        }
     }, [files]);
+
+    /**
+     * Identifica archivos que necesitan URL presigned o que necesitan refrescar su URL
+     */
+    const filesNeedingUrl = useMemo(() => {
+        const now = Date.now();
+        const refreshBuffer = 5 * 60 * 1000; // Refrescar 5 minutos antes de que expire
+        
+        return files.filter((file) => {
+            if (!file.s3Key || file.status) return false;
+            
+            // Necesita URL si no tiene una
+            if (!file.url) return true;
+            
+            // Necesita refrescar si la URL está por expirar o ya expiró
+            if (file.urlExpiresAt) {
+                return now >= (file.urlExpiresAt - refreshBuffer);
+            }
+            
+            // Si no tiene urlExpiresAt, asumir que necesita refrescar (URL antigua)
+            return true;
+        });
+    }, [files.map(f => `${f.id}-${f.s3Key}-${f.url}-${f.urlExpiresAt}`).join(',')]);
+
+    /**
+     * Efecto para obtener URLs presigned de archivos existentes que tienen s3Key pero no url
+     */
+    useEffect(() => {
+        // Limpiar timeout anterior si existe
+        if (loadUrlsTimeoutRef.current) {
+            clearTimeout(loadUrlsTimeoutRef.current);
+        }
+
+        // Debounce: esperar 300ms antes de cargar URLs para evitar llamadas múltiples
+        loadUrlsTimeoutRef.current = setTimeout(async () => {
+            if (filesNeedingUrl.length === 0) {
+                return;
+            }
+
+            // Filtrar archivos que ya se están cargando
+            const filesToLoad = filesNeedingUrl.filter(
+                (file) => file.s3Key && !loadingUrlsRef.current.has(file.s3Key)
+            );
+
+            if (filesToLoad.length === 0) {
+                return;
+            }
+
+            // Marcar como cargando
+            filesToLoad.forEach((file) => {
+                if (file.s3Key) {
+                    loadingUrlsRef.current.add(file.s3Key);
+                }
+            });
+
+            const updatedFiles = [...files];
+
+            await Promise.all(
+                filesToLoad.map(async (file) => {
+                    if (!file.s3Key) return;
+
+                    try {
+                        const result = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                        const fileIndex = updatedFiles.findIndex((f) => f.id === file.id);
+                        if (fileIndex !== -1) {
+                            // Calcular cuándo expira la URL (expires_in está en segundos)
+                            const expiresIn = result.expires_in || 3600;
+                            const urlExpiresAt = Date.now() + (expiresIn * 1000);
+                            
+                            updatedFiles[fileIndex] = {
+                                ...updatedFiles[fileIndex],
+                                url: result.url,
+                                urlExpiresAt,
+                                mediaId: result.id || updatedFiles[fileIndex].mediaId,
+                            };
+                        }
+                    } catch (error) {
+                        console.warn(`Failed to get presigned URL for file ${file.name} with s3Key ${file.s3Key}:`, error);
+                    } finally {
+                        // Remover de la lista de cargando
+                        loadingUrlsRef.current.delete(file.s3Key);
+                    }
+                })
+            );
+
+            // Solo actualizar si hay cambios
+            const hasChanges = updatedFiles.some((f, index) => {
+                const oldFile = files[index];
+                return !oldFile || f.url !== oldFile.url || f.urlExpiresAt !== oldFile.urlExpiresAt;
+            });
+            
+            if (hasChanges) {
+                setLocalFiles(updatedFiles);
+                onFilesChangeRef.current?.(updatedFiles);
+            }
+        }, 300); // Debounce de 300ms
+
+        return () => {
+            if (loadUrlsTimeoutRef.current) {
+                clearTimeout(loadUrlsTimeoutRef.current);
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filesNeedingUrl.length, JSON.stringify(filesNeedingUrl.map(f => f.s3Key))]);
+
+    /**
+     * Efecto para refrescar URLs automáticamente antes de que expiren
+     */
+    useEffect(() => {
+        const refreshInterval = setInterval(() => {
+            setLocalFiles(currentFiles => {
+                const now = Date.now();
+                const refreshBuffer = 5 * 60 * 1000; // Refrescar 5 minutos antes de que expire
+                
+                const filesToRefresh = currentFiles.filter(
+                    (file) => file.s3Key && 
+                             file.url && 
+                             file.urlExpiresAt && 
+                             now >= (file.urlExpiresAt - refreshBuffer)
+                );
+
+                if (filesToRefresh.length > 0) {
+                    // Forzar actualización de filesNeedingUrl
+                    const updatedFiles = [...currentFiles];
+                    filesToRefresh.forEach((file) => {
+                        const fileIndex = updatedFiles.findIndex((f) => f.id === file.id);
+                        if (fileIndex !== -1) {
+                            // Marcar como que necesita refrescar removiendo urlExpiresAt
+                            updatedFiles[fileIndex] = {
+                                ...updatedFiles[fileIndex],
+                                urlExpiresAt: undefined,
+                            };
+                        }
+                    });
+                    return updatedFiles;
+                }
+                
+                return currentFiles;
+            });
+        }, 60 * 1000); // Verificar cada minuto
+
+        return () => clearInterval(refreshInterval);
+    }, []); // Sin dependencias - el intervalo usa el estado actual
 
     /**
      * Upload a single file to S3 and save metadata
@@ -167,9 +325,13 @@ export const FileUploadAdvanced = ({
 
             // 4. Obtener URL de descarga para mostrar la imagen
             let imageUrl: string | undefined;
+            let urlExpiresAt: number | undefined;
             try {
-                const { url } = await mediaService.getMediaUrl(media.id);
-                imageUrl = url;
+                const result = await mediaService.getMediaUrl(media.id);
+                imageUrl = result.url;
+                // Calcular cuándo expira la URL (expires_in está en segundos)
+                const expiresIn = result.expires_in || 3600;
+                urlExpiresAt = Date.now() + (expiresIn * 1000);
             } catch (urlError) {
                 console.warn('Failed to get media URL, will use s3Key only:', urlError);
             }
@@ -181,6 +343,7 @@ export const FileUploadAdvanced = ({
                 size: file.size,
                 type: file.type,
                 url: imageUrl,
+                urlExpiresAt,
                 s3Key: s3_key,
                 mediaId: media.id,
                 status: 'uploaded',
@@ -232,7 +395,7 @@ export const FileUploadAdvanced = ({
         // Update UI with uploading files immediately
         const updatedFiles = multiple ? [...localFiles, ...newFiles] : newFiles;
         setLocalFiles(updatedFiles);
-        onFilesChange?.(updatedFiles);
+        onFilesChangeRef.current?.(updatedFiles);
         onUploadStart?.();
 
         // Upload files to S3 in parallel
@@ -269,7 +432,7 @@ export const FileUploadAdvanced = ({
                 : uploadedFiles;
             
             setLocalFiles(finalFiles);
-            onFilesChange?.(finalFiles);
+            onFilesChangeRef.current?.(finalFiles);
             
             // Solo llamar onUploadComplete si todos los archivos se subieron exitosamente
             if (failedFiles.length === 0) {
@@ -287,7 +450,7 @@ export const FileUploadAdvanced = ({
             const errorFiles = newFiles.map(f => ({ ...f, status: 'error' as const }));
             const finalFiles = multiple ? [...localFiles, ...errorFiles] : errorFiles;
             setLocalFiles(finalFiles);
-            onFilesChange?.(finalFiles);
+            onFilesChangeRef.current?.(finalFiles);
         }
     };
 
@@ -316,7 +479,7 @@ export const FileUploadAdvanced = ({
     const handleDelete = (fileId: string): void => {
         const updatedFiles = localFiles.filter((f) => f.id !== fileId);
         setLocalFiles(updatedFiles);
-        onFilesChange?.(updatedFiles);
+        onFilesChangeRef.current?.(updatedFiles);
         onFileDelete?.(fileId);
     };
 
@@ -387,7 +550,57 @@ export const FileUploadAdvanced = ({
                                                         src={imageUrl}
                                                         alt={file.name}
                                                         className="w-16 h-16 object-cover rounded border border-gray-200"
-                                                        onError={(e) => {
+                                                        crossOrigin="anonymous"
+                                                        onError={async (e) => {
+                                                            // Evitar múltiples intentos de refresco
+                                                            if (e.currentTarget.dataset.refreshing === 'true') {
+                                                                return;
+                                                            }
+                                                            
+                                                            console.error('Error loading image:', imageUrl, e);
+                                                            
+                                                            // Si la URL expiró, intentar refrescarla
+                                                            if (file.s3Key && (!file.urlExpiresAt || Date.now() >= file.urlExpiresAt)) {
+                                                                // Marcar como refrescando para evitar múltiples intentos
+                                                                e.currentTarget.dataset.refreshing = 'true';
+                                                                
+                                                                // Evitar múltiples requests simultáneos
+                                                                if (loadingUrlsRef.current.has(file.s3Key)) {
+                                                                    return;
+                                                                }
+                                                                
+                                                                loadingUrlsRef.current.add(file.s3Key);
+                                                                
+                                                                try {
+                                                                    const result = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                                                                    const expiresIn = result.expires_in || 3600;
+                                                                    const newUrlExpiresAt = Date.now() + (expiresIn * 1000);
+                                                                    
+                                                                    const fileIndex = localFiles.findIndex((f) => f.id === file.id);
+                                                                    if (fileIndex !== -1) {
+                                                                        const updatedFiles = [...localFiles];
+                                                                        updatedFiles[fileIndex] = {
+                                                                            ...updatedFiles[fileIndex],
+                                                                            url: result.url,
+                                                                            urlExpiresAt: newUrlExpiresAt,
+                                                                        };
+                                                                        setLocalFiles(updatedFiles);
+                                                                        onFilesChangeRef.current?.(updatedFiles);
+                                                                        // Recargar la imagen con la nueva URL
+                                                                        e.currentTarget.dataset.refreshing = 'false';
+                                                                        e.currentTarget.src = result.url;
+                                                                        return;
+                                                                    }
+                                                                } catch (refreshError) {
+                                                                    console.error('Failed to refresh expired URL:', refreshError);
+                                                                    e.currentTarget.dataset.refreshing = 'false';
+                                                                } finally {
+                                                                    loadingUrlsRef.current.delete(file.s3Key);
+                                                                }
+                                                            }
+                                                            
+                                                            // Si no se pudo refrescar, mostrar placeholder de error
+                                                            e.currentTarget.dataset.refreshing = 'false';
                                                             e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="%23f0f0f0"/><text x="32" y="32" font-family="Arial" font-size="8" text-anchor="middle" dominant-baseline="middle" fill="%23999">Error</text></svg>';
                                                         }}
                                                     />
@@ -528,7 +741,57 @@ export const FileUploadAdvanced = ({
                                                 src={imageUrl}
                                                 alt={file.name}
                                                 className="w-full h-48 object-cover rounded border border-gray-200"
-                                                onError={(e) => {
+                                                crossOrigin="anonymous"
+                                                onError={async (e) => {
+                                                    // Evitar múltiples intentos de refresco
+                                                    if (e.currentTarget.dataset.refreshing === 'true') {
+                                                        return;
+                                                    }
+                                                    
+                                                    console.error('Error loading preview image:', imageUrl, e);
+                                                    
+                                                    // Si la URL expiró, intentar refrescarla
+                                                    if (file.s3Key && (!file.urlExpiresAt || Date.now() >= file.urlExpiresAt)) {
+                                                        // Marcar como refrescando para evitar múltiples intentos
+                                                        e.currentTarget.dataset.refreshing = 'true';
+                                                        
+                                                        // Evitar múltiples requests simultáneos
+                                                        if (loadingUrlsRef.current.has(file.s3Key)) {
+                                                            return;
+                                                        }
+                                                        
+                                                        loadingUrlsRef.current.add(file.s3Key);
+                                                        
+                                                        try {
+                                                            const result = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                                                            const expiresIn = result.expires_in || 3600;
+                                                            const newUrlExpiresAt = Date.now() + (expiresIn * 1000);
+                                                            
+                                                            const fileIndex = localFiles.findIndex((f) => f.id === file.id);
+                                                            if (fileIndex !== -1) {
+                                                                const updatedFiles = [...localFiles];
+                                                                updatedFiles[fileIndex] = {
+                                                                    ...updatedFiles[fileIndex],
+                                                                    url: result.url,
+                                                                    urlExpiresAt: newUrlExpiresAt,
+                                                                };
+                                                                setLocalFiles(updatedFiles);
+                                                                onFilesChangeRef.current?.(updatedFiles);
+                                                                // Recargar la imagen con la nueva URL
+                                                                e.currentTarget.dataset.refreshing = 'false';
+                                                                e.currentTarget.src = result.url;
+                                                                return;
+                                                            }
+                                                        } catch (refreshError) {
+                                                            console.error('Failed to refresh expired URL:', refreshError);
+                                                            e.currentTarget.dataset.refreshing = 'false';
+                                                        } finally {
+                                                            loadingUrlsRef.current.delete(file.s3Key);
+                                                        }
+                                                    }
+                                                    
+                                                    // Si no se pudo refrescar, mostrar placeholder de error
+                                                    e.currentTarget.dataset.refreshing = 'false';
                                                     e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="%23f0f0f0"/><text x="100" y="100" font-family="Arial" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">Image not available</text></svg>';
                                                 }}
                                             />

@@ -10,9 +10,32 @@ dotenv.config({ path: '../.env' });
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS configuration - allow all origins in development
+// CORS configuration - Dynamic origin validation for development
 app.use(cors({
-    origin: '*',
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:12500',  // research-frontend
+            'http://localhost:12600',  // participant-frontend
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://localhost:5174',
+            // Production origins (for testing)
+            'https://research.useremotion.com',
+            'https://participant.useremotion.com',
+        ];
+        
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) {
+            return callback(null, true);
+        }
+        
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`⚠️  CORS: Origin not allowed: ${origin}`);
+            callback(null, true); // Allow anyway in development
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],

@@ -40,6 +40,18 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Validar esquema del request antes de procesarlo
+    try {
+        const requestUrl = new URL(event.request.url);
+        // Ignorar requests con esquemas no soportados (chrome-extension://, etc.)
+        if (requestUrl.protocol !== 'http:' && requestUrl.protocol !== 'https:') {
+            return;
+        }
+    } catch (error) {
+        // Si no se puede parsear la URL, ignorar el request
+        return;
+    }
+
     // Ignorar requests a APIs externas (dejar que pasen directamente)
     if (event.request.url.includes('/api/') || event.request.url.startsWith('http')) {
         return;
@@ -48,6 +60,16 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
         fetch(event.request)
             .then((response) => {
+                // Validar que el request tenga un esquema válido (http/https)
+                // Ignorar requests de extensiones de Chrome (chrome-extension://)
+                const requestUrl = new URL(event.request.url);
+                const isValidScheme = requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:';
+                
+                if (!isValidScheme) {
+                    // No intentar cachear requests con esquemas no soportados
+                    return response;
+                }
+
                 // Clonar la respuesta
                 const responseToCache = response.clone();
 
@@ -56,7 +78,16 @@ self.addEventListener('fetch', (event) => {
                     event.request.destination === 'style' ||
                     event.request.destination === 'image') {
                     caches.open(RUNTIME_CACHE).then((cache) => {
-                        cache.put(event.request, responseToCache);
+                        // Verificar nuevamente antes de cachear
+                        try {
+                            cache.put(event.request, responseToCache).catch((error) => {
+                                // Silenciar errores de cacheo (pueden ocurrir con requests especiales)
+                                console.debug('Cache put failed (non-critical):', error);
+                            });
+                        } catch (error) {
+                            // Silenciar errores de cacheo
+                            console.debug('Cache put error (non-critical):', error);
+                        }
                     });
                 }
 

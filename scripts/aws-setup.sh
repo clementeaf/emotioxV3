@@ -90,23 +90,39 @@ fi
 # Configurar CORS en S3
 print_step "Configurando CORS en S3..."
 
-cat > /tmp/s3-cors.json <<EOF
+# Usar el archivo cors.json del backend que incluye Content-Type y Content-Length en ExposeHeaders
+if [ -f "backend/cors.json" ]; then
+    aws s3api put-bucket-cors \
+        --bucket "$S3_BUCKET_NAME" \
+        --cors-configuration file://backend/cors.json
+else
+    # Fallback a configuración inline si no existe el archivo
+    cat > /tmp/s3-cors.json <<EOF
 {
   "CORSRules": [
     {
       "AllowedOrigins": ["http://localhost:5173", "http://localhost:5174", "https://*.emotioxv3.com"],
       "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
       "AllowedHeaders": ["*"],
-      "ExposeHeaders": ["ETag", "x-amz-request-id"],
+      "ExposeHeaders": [
+        "ETag",
+        "Content-Type",
+        "Content-Length",
+        "x-amz-server-side-encryption",
+        "x-amz-request-id",
+        "x-amz-id-2",
+        "x-amz-checksum-crc32",
+        "x-amz-sdk-checksum-algorithm"
+      ],
       "MaxAgeSeconds": 3000
     }
   ]
 }
 EOF
-
-aws s3api put-bucket-cors \
-    --bucket "$S3_BUCKET_NAME" \
-    --cors-configuration file:///tmp/s3-cors.json
+    aws s3api put-bucket-cors \
+        --bucket "$S3_BUCKET_NAME" \
+        --cors-configuration file:///tmp/s3-cors.json
+fi
 
 print_success "CORS configurado en S3"
 

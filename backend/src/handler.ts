@@ -13,6 +13,7 @@ export const handler = async (
         return await route(event);
     } catch (err: any) {
         console.error('Handler error:', err);
-        return error(err.message || 'Internal server error', 500);
+        const origin = event.headers.Origin || event.headers.origin || null;
+        return error(err.message || 'Internal server error', 500, undefined, origin);
     }
 };

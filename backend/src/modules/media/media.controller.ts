@@ -21,6 +21,15 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
             return success({ media }, 201);
         }
 
+        if (path === '/media/by-key' && httpMethod === 'GET') {
+            const s3Key = event.queryStringParameters?.s3_key;
+            if (!s3Key) {
+                return error('s3_key query parameter is required', 400);
+            }
+            const result = await mediaService.getMediaUrlByS3Key(s3Key);
+            return success(result);
+        }
+
         const getMatch = path.match(/^\/media\/([^\/]+)$/);
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];

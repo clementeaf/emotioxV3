@@ -1,19 +1,27 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { success, error } from './utils/response';
+import { success, error, getCorsHeaders } from './utils/response';
 
 export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
 
     console.log(`${httpMethod} ${path}`);
 
+    const origin = event.headers.Origin || event.headers.origin || null;
+
     // Handle OPTIONS for CORS preflight
+    // IMPORTANTE: API Gateway puede interceptar OPTIONS, pero debemos responder con headers correctos
     if (httpMethod === 'OPTIONS') {
-        return success({ message: 'OK' }, 200);
+        const corsHeaders = getCorsHeaders(origin);
+        return {
+            statusCode: 200,
+            headers: corsHeaders,
+            body: JSON.stringify({ message: 'OK' }),
+        };
     }
 
     // Health check
     if (path === '/health' && httpMethod === 'GET') {
-        return success({ status: 'healthy', timestamp: new Date().toISOString() });
+        return success({ status: 'healthy', timestamp: new Date().toISOString() }, 200, undefined, origin);
     }
 
     // Config endpoint (public - no auth required)
@@ -115,10 +123,10 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         }
 
         // 404 Not Found
-        return error('Route not found', 404);
+        return error('Route not found', 404, undefined, origin);
 
     } catch (err: any) {
         console.error('Router error:', err);
-        return error(err.message || 'Internal server error', 500);
+        return error(err.message || 'Internal server error', 500, undefined, origin);
     }
 };

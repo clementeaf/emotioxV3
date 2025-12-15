@@ -1,16 +1,15 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
-import { SmartVOCPreview } from './SmartVOCPreview';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 
-export interface SmartVOCModuleCardRef {
+export interface CognitiveTaskModuleCardRef {
     getComponentValues: () => Record<string, string>;
     getComponents: () => ComponentConfig[];
 }
 
-interface SmartVOCModuleCardProps {
+interface CognitiveTaskModuleCardProps {
     module: Module;
     researchId?: string;
     onSave?: () => void;
@@ -18,10 +17,10 @@ interface SmartVOCModuleCardProps {
 }
 
 /**
- * Card component para mostrar un módulo de Smart VOC
- * Muestra el módulo con su editor de contenido
+ * Card component para mostrar un módulo de Cognitive Task
+ * Estructura idéntica a SmartVOCModuleCard para consistencia
  */
-export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModuleCardProps>(
+export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
     ({ module, researchId, isActive = false }, ref) => {
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
@@ -51,23 +50,6 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         }));
     };
 
-    // Filter components for the editor: 
-    // 1. Hide scale/range components if they have no options
-    // 2. Explicitly hide scale/range components for NEV module (as it uses fixed 20 emotions)
-    const editorComponents = components.filter(component => {
-        const isScaleOrRange = component.id?.includes('scale') || component.id?.includes('range');
-        const isNEV = module.name.includes('Net Emotional Value') || module.name.includes('NEV');
-
-        if (isNEV && isScaleOrRange) {
-            return false;
-        }
-
-        if (isScaleOrRange && (!component.options || component.options.length === 0)) {
-            return false;
-        }
-        return true;
-    });
-
     return (
         <div
             ref={cardRef}
@@ -83,19 +65,12 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
             </div>
             <div className="p-6">
                 <ModuleContentEditor
-                    components={editorComponents}
+                    components={components}
                     componentValues={componentValues}
                     onValueChange={handleComponentValueChange}
                     researchId={researchId}
-                />
-                {/* Preview especializado para Smart VOC */}
-                <SmartVOCPreview
-                    moduleName={module.name}
-                    components={components}
-                    componentValues={componentValues}
                 />
             </div>
         </div>
     );
 });
-
