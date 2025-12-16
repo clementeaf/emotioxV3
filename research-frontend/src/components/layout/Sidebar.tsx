@@ -1,5 +1,6 @@
 import { Link, useLocation, matchPath } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     BrainCircuit,
     LayoutDashboard,
@@ -16,12 +17,13 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
-import { researchService, type Research } from '../../services/research.service';
+import { researchService } from '../../services/research.service';
 import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { Modal } from '../ui/Modal';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useToast } from '../../hooks/useToast';
+import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
 
 interface NavItem {
     path: string;
@@ -44,8 +46,8 @@ const navItems: NavItem[] = [
  */
 export const Sidebar = () => {
     const location = useLocation();
-    const [activeResearch, setActiveResearch] = useState<Research | null>(null);
-    const [loadingResearch, setLoadingResearch] = useState(false);
+    const queryClient = useQueryClient();
+    const toast = useToast();
     const [showStageSelector, setShowStageSelector] = useState(false);
     const [isAddingStage, setIsAddingStage] = useState(false);
     const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
@@ -58,38 +60,34 @@ export const Sidebar = () => {
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
-    const toast = useToast();
+    const [pendingStageNameToExpand, setPendingStageNameToExpand] = useState<string | null>(null);
 
-    useEffect(() => {
-        // Check if we're in a research builder route (supports /builder, /builder/settings, /builder/module/:moduleId)
+    const researchId = useMemo((): string | null => {
+        // Supports /builder, /builder/settings, /builder/module/:moduleId
         const builderMatch = location.pathname.match(/^\/research\/([^/]+)\/builder/);
-        const researchId = builderMatch ? builderMatch[1] : null;
+        return builderMatch ? builderMatch[1] : null;
+    }, [location.pathname]);
 
-        const fetchResearch = async (id: string) => {
-            try {
-                setLoadingResearch(true);
-                const response = await researchService.getById(id);
-                setActiveResearch(response.research);
-            } catch (error) {
-                console.error('Failed to fetch research for sidebar', error);
-                setActiveResearch(null);
-            } finally {
-                setLoadingResearch(false);
-            }
-        };
+    const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
 
-        if (researchId) {
-            // Only fetch if we don't have it or it's a different ID
-            if (!activeResearch || activeResearch.id !== researchId) {
-                void fetchResearch(researchId);
-            }
-        } else {
-            // Reset if we leave the builder
-            if (activeResearch) {
-                setActiveResearch(null);
-            }
+    useEffect((): void => {
+        if (!pendingStageNameToExpand) return;
+        if (!activeResearch?.stages) return;
+
+        const newStage = activeResearch.stages.find((s) => s.name === pendingStageNameToExpand);
+        if (newStage?.modules && newStage.modules.length > 0) {
+            setExpandedStages((prev) => new Set([...prev, newStage.id]));
         }
-    }, [location.pathname, activeResearch]);
+        setPendingStageNameToExpand(null);
+    }, [activeResearch, pendingStageNameToExpand]);
+
+    /**
+     * Invalida y refresca el research activo en caché
+     * @param id - ID del research
+     */
+    const invalidateActiveResearch = async (id: string): Promise<void> => {
+        await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+    };
 
     // Load available stage templates only when modal opens
     const loadStageTemplates = async () => {
@@ -156,16 +154,8 @@ export const Sidebar = () => {
             await researchService.addStage(activeResearch.id, stageName);
             toast.success(`Stage "${stageName}" added successfully`);
             setShowStageSelector(false);
-
-            // Recargar el research para obtener los nuevos stages
-            const response = await researchService.getById(activeResearch.id);
-            setActiveResearch(response.research);
-
-            // Si el stage tiene módulos, expandirlo automáticamente
-            const newStage = response.research.stages?.find(s => s.name === stageName);
-            if (newStage && newStage.modules && newStage.modules.length > 0) {
-                setExpandedStages(prev => new Set([...prev, newStage.id]));
-            }
+            setPendingStageNameToExpand(stageName);
+            await invalidateActiveResearch(activeResearch.id);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to add stage';
             console.error('Error adding stage:', error);
@@ -199,10 +189,7 @@ export const Sidebar = () => {
             setIsDeleting(true);
             await researchService.deleteStage(activeResearch.id, stageToDelete.id);
             toast.success(`Stage "${stageToDelete.name}" deleted successfully`);
-
-            // Recargar el research para actualizar la lista
-            const response = await researchService.getById(activeResearch.id);
-            setActiveResearch(response.research);
+            await invalidateActiveResearch(activeResearch.id);
 
             setDeleteStageModalOpen(false);
             setStageToDelete(null);
@@ -234,10 +221,7 @@ export const Sidebar = () => {
             setIsDeleting(true);
             await researchService.deleteModule(activeResearch.id, moduleToDelete.id);
             toast.success(`Module "${moduleToDelete.name}" deleted successfully`);
-
-            // Recargar el research para actualizar la lista
-            const response = await researchService.getById(activeResearch.id);
-            setActiveResearch(response.research);
+            await invalidateActiveResearch(activeResearch.id);
 
             setDeleteModuleModalOpen(false);
             setModuleToDelete(null);
@@ -260,10 +244,7 @@ export const Sidebar = () => {
             setIsUpdatingStatus(true);
             await researchService.activate(activeResearch.id);
             toast.success('Research activated successfully');
-
-            // Recargar el research para actualizar el estado
-            const response = await researchService.getById(activeResearch.id);
-            setActiveResearch(response.research);
+            await invalidateActiveResearch(activeResearch.id);
 
             setShowStatusModal(false);
         } catch (error: unknown) {

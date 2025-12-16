@@ -11,19 +11,37 @@ import { useToast } from '../../hooks/useToast';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { cn } from '../../lib/utils';
 import { flat } from '../../utils/radashi';
+import { useModuleTemplates, useModuleTemplate, useDeleteModuleTemplate } from '../../hooks/useModuleTemplatesQuery';
 
 export const ModulesPage = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const sortSelectId = useId();
+    
+    // React Query hooks
+    const { data: allModules = [], isLoading: modulesLoading, error: modulesError } = useModuleTemplates();
+    const deleteModuleMutation = useDeleteModuleTemplate();
+    
     const [stages, setStages] = useState<StageTemplateWithModules[]>([]);
-    const [ungroupedModules, setUngroupedModules] = useState<ModuleTemplate[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [isLoadingStages, setIsLoadingStages] = useState(true);
     const [selectedModule, setSelectedModule] = useState<ModuleTemplate | null>(null);
+    const [previewModuleId, setPreviewModuleId] = useState<string | null>(null);
+    const { data: previewModule } = useModuleTemplate(previewModuleId);
     const [showPreview, setShowPreview] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<string | null>(null);
+    
+    // Computed: ungrouped modules
+    const ungroupedModules = useMemo(() => {
+        const modulesInStages = new Set(
+            flat(stages.map(stage => stage.modules.map(m => m.id)))
+        );
+        return allModules.filter(m => !modulesInStages.has(m.id));
+    }, [allModules, stages]);
+    
+    // Combined loading and error state
+    const isLoading = modulesLoading || isLoadingStages;
+    const error = modulesError ? 'Failed to load module templates' : null;
 
     // Delete modal state
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -42,9 +60,10 @@ export const ModulesPage = () => {
     const [moduleUsage, setModuleUsage] = useState<Map<string, { count: number; researches: Array<{ id: string; name: string }> }>>(new Map());
     const usageLoadingRef = useRef<Set<string>>(new Set());
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Load stages on mount
     useEffect(() => {
-        loadData();
+        loadStages();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Recalculate tabs when data or search changes
@@ -121,44 +140,16 @@ export const ModulesPage = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]); // Only reload when active tab changes
 
-    const loadData = async () => {
+    const loadStages = async () => {
         try {
-            setIsLoading(true);
-            const allModules = await moduleTemplatesService.list();
+            setIsLoadingStages(true);
             const stagesData = await stageTemplatesService.getAll();
-
             setStages(stagesData);
-
-            // Get all module IDs that are in stages
-            const modulesInStages = new Set(
-                flat(stagesData.map(stage => stage.modules.map(m => m.id)))
-            );
-
-            // Filter out modules that are already in stages
-            const ungrouped = allModules.filter(m => !modulesInStages.has(m.id));
-            setUngroupedModules(ungrouped);
-
-            // Set initial active tab to first stage with modules
-            if (ungrouped.length > 0 || stagesData.length > 0) {
-                const firstStageWithModules = stagesData.find(s => s.modules.length > 0);
-                setActiveTab(firstStageWithModules?.id || 'ungrouped');
-            }
-
-            // Don't load usage data here - will be loaded lazily when needed
         } catch (err: unknown) {
-            // Handle 401 Unauthorized - redirect to login
-            if (err && typeof err === 'object' && 'response' in err) {
-                const axiosError = err as { response?: { status?: number } };
-                if (axiosError.response?.status === 401) {
-                    console.error('Unauthorized - redirecting to login');
-                    navigate('/login');
-                    return;
-                }
-            }
-            setError('Failed to load data');
-            console.error(err);
+            console.error('Failed to load stages:', err);
+            toast.error('Failed to load stages');
         } finally {
-            setIsLoading(false);
+            setIsLoadingStages(false);
         }
     };
 
@@ -220,34 +211,30 @@ export const ModulesPage = () => {
     const handleConfirmDelete = async () => {
         if (!moduleToDelete) return;
 
+        setIsDeleting(true);
         try {
-            setIsDeleting(true);
-            await moduleTemplatesService.delete(moduleToDelete.id);
-            await loadData();
-            toast.success('Module template deleted successfully');
+            await deleteModuleMutation.mutateAsync(moduleToDelete.id);
             setDeleteModalOpen(false);
             setModuleToDelete(null);
-        } catch (error: unknown) {
-            console.error('Failed to delete template:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to delete module template';
-            toast.error(errorMessage);
+        } catch (error) {
+            // Error already handled by mutation
+            console.error('Delete failed:', error);
         } finally {
             setIsDeleting(false);
         }
     };
 
-    const handlePreview = async (moduleId: string) => {
-        try {
-            // Load the full module template with structure
-            const module = await moduleTemplatesService.getById(moduleId);
-            setSelectedModule(module);
-            setShowPreview(true);
-        } catch (error: unknown) {
-            console.error('Failed to load module for preview:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Failed to load module template';
-            toast.error(errorMessage);
-        }
+    const handlePreview = (moduleId: string) => {
+        setPreviewModuleId(moduleId);
+        setShowPreview(true);
     };
+    
+    // Update selectedModule when previewModule loads
+    useEffect(() => {
+        if (previewModule && showPreview) {
+            setSelectedModule(previewModule);
+        }
+    }, [previewModule, showPreview]);
 
     const handleDuplicateClick = (template: ModuleTemplate, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -260,7 +247,7 @@ export const ModulesPage = () => {
     const handleConfirmDuplicate = async (id: string, newName: string) => {
         try {
             await moduleTemplatesService.duplicate(id, newName);
-            await loadData();
+            // React Query will auto-refetch due to staleTime
             toast.success('Module template duplicated successfully');
         } catch (error: unknown) {
             console.error('Failed to duplicate template:', error);
@@ -296,7 +283,7 @@ export const ModulesPage = () => {
         try {
             setIsDeleting(true);
             await moduleTemplatesService.bulkDelete(Array.from(selectedModules));
-            await loadData();
+            // React Query will auto-invalidate and refetch
             toast.success(`${selectedModules.size} module template(s) deleted successfully`);
             setSelectedModules(new Set());
             setIsMultiSelectMode(false);

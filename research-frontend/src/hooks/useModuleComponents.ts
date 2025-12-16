@@ -1,12 +1,108 @@
-import { useState, useEffect } from 'react';
-import { moduleTemplatesService } from '../services/moduleTemplates.service';
+import { useMemo, useState, useEffect } from 'react';
 import type { ComponentConfig } from '../types/moduleBuilder.types';
 import type { Module } from '../services/research.service';
+import { useModuleTemplates } from './useModuleTemplatesQuery';
+import type { ModuleTemplate } from '../services/moduleTemplates.service';
 
 interface UseModuleComponentsResult {
     components: ComponentConfig[];
     componentValues: Record<string, string>;
     setComponentValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+}
+
+/**
+ * Serializa un valor de componente a string para inputs controlados.
+ * @param value - Valor original (posiblemente desconocido)
+ * @returns Valor serializado
+ */
+function serializeComponentValue(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (value === null || value === undefined) return '';
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+}
+
+/**
+ * Extrae componentes desde config del módulo (formato nuevo/antiguo).
+ * @param activeModule - Módulo activo
+ * @returns Lista de componentes encontrados
+ */
+function getComponentsFromConfig(activeModule: Module): ComponentConfig[] {
+    if (!activeModule.config || typeof activeModule.config !== 'object') return [];
+
+    if ('structure' in activeModule.config) {
+        const structure = activeModule.config.structure as { components?: ComponentConfig[] };
+        if (structure?.components && Array.isArray(structure.components) && structure.components.length > 0) {
+            return structure.components;
+        }
+    }
+
+    if ('components' in activeModule.config) {
+        const components = activeModule.config.components as ComponentConfig[];
+        if (Array.isArray(components) && components.length > 0) {
+            return components;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * Convierte questions del módulo al formato ComponentConfig.
+ * @param activeModule - Módulo activo
+ * @returns Lista de componentes derivados de questions
+ */
+function getComponentsFromQuestions(activeModule: Module): ComponentConfig[] {
+    if (!activeModule.questions || activeModule.questions.length === 0) return [];
+
+    return activeModule.questions.map((question) => ({
+        id: question.id,
+        type: question.type as ComponentConfig['type'],
+        label: question.text,
+        ...(question.config && typeof question.config === 'object' ? question.config : {}),
+    }));
+}
+
+/**
+ * Busca un template activo compatible con el módulo.
+ * @param templates - Lista de templates disponibles
+ * @param moduleName - Nombre del módulo
+ * @returns Template encontrado o null
+ */
+function findActiveTemplateByModuleName(templates: ModuleTemplate[] | undefined, moduleName: string): ModuleTemplate | null {
+    if (!templates || templates.length === 0) return null;
+    const template = templates.find((t) => t.name === moduleName && t.is_active);
+    return template ?? null;
+}
+
+/**
+ * Construye el mapa inicial de valores controlados para los componentes.
+ * @param moduleComponents - Componentes del módulo
+ * @returns Mapa id->valor inicial
+ */
+function buildInitialComponentValues(moduleComponents: ComponentConfig[]): Record<string, string> {
+    const initialValues: Record<string, string> = {};
+
+    moduleComponents.forEach((comp) => {
+        if (comp.value !== undefined && comp.value !== null) {
+            initialValues[comp.id] = serializeComponentValue(comp.value);
+            return;
+        }
+
+        if (comp.settings?.readonly === true && comp.settings?.defaultValue) {
+            initialValues[comp.id] = serializeComponentValue(comp.settings.defaultValue);
+            return;
+        }
+
+        initialValues[comp.id] = '';
+    });
+
+    return initialValues;
 }
 
 /**
@@ -17,89 +113,45 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
     const [components, setComponents] = useState<ComponentConfig[]>([]);
     const [componentValues, setComponentValues] = useState<Record<string, string>>({});
 
-    useEffect(() => {
-        const loadComponents = async (): Promise<void> => {
-            if (!activeModule) {
-                setComponents([]);
-                setComponentValues({});
-                return;
-            }
+    const shouldFetchTemplates = useMemo((): boolean => {
+        if (!activeModule) return false;
+        if (!activeModule.is_from_template) return false;
 
-            try {
-                let moduleComponents: ComponentConfig[] = [];
+        const fromConfig = getComponentsFromConfig(activeModule);
+        if (fromConfig.length > 0) return false;
 
-                // 1. Si el módulo tiene config.structure.components, usarlo
-                if (activeModule.config && typeof activeModule.config === 'object') {
-                    // Buscar en config.structure.components (formato nuevo)
-                    if ('structure' in activeModule.config) {
-                        const structure = activeModule.config.structure as { components?: ComponentConfig[] };
-                        if (structure?.components && Array.isArray(structure.components) && structure.components.length > 0) {
-                            moduleComponents = structure.components;
-                        }
-                    }
-                    
-                    // Si no se encontró, buscar en config.components directamente (formato antiguo o alternativo)
-                    if (moduleComponents.length === 0 && 'components' in activeModule.config) {
-                        const components = activeModule.config.components as ComponentConfig[];
-                        if (Array.isArray(components) && components.length > 0) {
-                            moduleComponents = components;
-                        }
-                    }
-                }
+        const fromQuestions = getComponentsFromQuestions(activeModule);
+        if (fromQuestions.length > 0) return false;
 
-                // 2. Si no tiene components en config pero tiene questions, convertir questions
-                if (moduleComponents.length === 0 && activeModule.questions && activeModule.questions.length > 0) {
-                    moduleComponents = activeModule.questions.map((question) => ({
-                        id: question.id,
-                        type: question.type as ComponentConfig['type'],
-                        label: question.text,
-                        ...(question.config && typeof question.config === 'object' ? question.config : {}),
-                    }));
-                }
-
-                // 3. Si viene de un template y no tiene components, cargar desde el template
-                if (moduleComponents.length === 0 && activeModule.is_from_template) {
-                    try {
-                        const templates = await moduleTemplatesService.list();
-                        const template = templates.find(t => t.name === activeModule.name && t.is_active);
-                        if (template && template.structure) {
-                            const structure = template.structure as { components?: ComponentConfig[] };
-                            if (structure?.components && Array.isArray(structure.components)) {
-                                moduleComponents = structure.components;
-                            }
-                        }
-                    } catch (err) {
-                        console.error('Error loading template:', err);
-                    }
-                }
-
-                setComponents(moduleComponents);
-                
-                // Inicializar valores de componentes
-                // Prioridad: 1) valor guardado, 2) defaultValue si es readonly, 3) string vacío
-                const initialValues: Record<string, string> = {};
-                moduleComponents.forEach((comp) => {
-                    if (comp.value !== undefined && comp.value !== null) {
-                        // Si el componente tiene un valor guardado, usarlo
-                        initialValues[comp.id] = comp.value as string;
-                    } else if (comp.settings?.readonly === true && comp.settings?.defaultValue) {
-                        // Si es readonly y tiene defaultValue, usar ese valor
-                        initialValues[comp.id] = comp.settings.defaultValue as string;
-                    } else {
-                        // Dejar vacío para que el usuario ingrese sus propios valores
-                        initialValues[comp.id] = '';
-                    }
-                });
-                setComponentValues(initialValues);
-            } catch (err) {
-                console.error('Error loading components:', err);
-                setComponents([]);
-                setComponentValues({});
-            }
-        };
-
-        void loadComponents();
+        return true;
     }, [activeModule]);
+
+    const { data: templates } = useModuleTemplates({ enabled: shouldFetchTemplates });
+
+    const resolvedComponents = useMemo((): ComponentConfig[] => {
+        if (!activeModule) return [];
+
+        const fromConfig = getComponentsFromConfig(activeModule);
+        if (fromConfig.length > 0) return fromConfig;
+
+        const fromQuestions = getComponentsFromQuestions(activeModule);
+        if (fromQuestions.length > 0) return fromQuestions;
+
+        if (activeModule.is_from_template) {
+            const template = findActiveTemplateByModuleName(templates, activeModule.name);
+            const structure = template?.structure as { components?: ComponentConfig[] } | undefined;
+            if (structure?.components && Array.isArray(structure.components)) {
+                return structure.components;
+            }
+        }
+
+        return [];
+    }, [activeModule, templates]);
+
+    useEffect(() => {
+        setComponents(resolvedComponents);
+        setComponentValues(buildInitialComponentValues(resolvedComponents));
+    }, [resolvedComponents]);
 
     return {
         components,

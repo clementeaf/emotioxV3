@@ -75,27 +75,6 @@ class AuthService {
         }
     }
 
-    /**
-     * Refreshes access token using refresh token from cookie
-     * El refresh token se lee automáticamente de la cookie
-     * @returns Success message
-     * @throws ApiErrorResponse if refresh fails
-     */
-    async refreshToken(): Promise<RefreshTokenResponse> {
-        try {
-            const endpoint = configService.getEndpoint('auth', 'refresh');
-            // Add timeout to prevent hanging
-            // No enviamos refreshToken en el body, viene de la cookie
-            const refreshPromise = apiClient.post<RefreshTokenResponse>(endpoint, {});
-            const timeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error('Refresh token request timeout')), 10000)
-            );
-            
-            return await Promise.race([refreshPromise, timeoutPromise]);
-        } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to refresh token');
-        }
-    }
 
     /**
      * Logs out the user and clears cookies

@@ -1,7 +1,12 @@
 #!/bin/bash
 
 # Script para deployment a AWS Lambda
-# Requiere las siguientes variables de entorno
+# Carga variables desde .env
+
+# Cargar .env excluyendo credenciales AWS (Lambda las rechaza)
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | grep -v '^AWS_ACCESS' | grep -v '^AWS_SECRET' | xargs)
+fi
 
 # Verificar variables requeridas
 required_vars=(

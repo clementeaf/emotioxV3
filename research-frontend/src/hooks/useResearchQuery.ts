@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { researchService, type CreateResearchData, type UpdateResearchData } from '../services/research.service';
 import { useToast } from './useToast';
+import { requestDeduplicator } from '../utils/requestDeduplication';
 
 /**
  * Query keys para React Query
@@ -48,15 +49,21 @@ export const useResearch = (id: string | null) => {
         queryKey: researchKeys.detail(id || ''),
         queryFn: async () => {
             if (!id) throw new Error('Research ID is required');
-            try {
-                const response = await researchService.getById(id);
-                return response.research;
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Failed to load research';
-                console.error('Failed to load research:', error);
-                toast.error(errorMessage);
-                throw error;
-            }
+            
+            // Deduplicate concurrent requests for the same research ID
+            return requestDeduplicator.dedupe(`research-${id}`, async () => {
+                console.log('[useResearch] Fetching research:', id);
+                try {
+                    const response = await researchService.getById(id);
+                    console.log('[useResearch] Research loaded:', id);
+                    return response.research;
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : 'Failed to load research';
+                    console.error('[useResearch] Failed to load research:', id, error);
+                    toast.error(errorMessage);
+                    throw error;
+                }
+            });
         },
         enabled: !!id,
         staleTime: 5 * 60 * 1000,

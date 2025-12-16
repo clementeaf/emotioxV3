@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { User, LoginCredentials, RegisterCredentials } from '../types/auth';
 import { authService } from '../services/auth.service';
 
@@ -13,7 +14,6 @@ interface AuthState {
     register: (credentials: RegisterCredentials) => Promise<void>;
     updateProfile: (data: Partial<User>) => Promise<void>;
     deleteAccount: () => Promise<void>;
-    refreshAccessToken: () => Promise<void>;
     logout: () => Promise<void>;
     clearError: () => void;
 }
@@ -61,7 +61,8 @@ const initialState = {
     error: null,
 };
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()(persist(
+    (set) => ({
     ...initialState,
 
     login: async (credentials, rememberMe = false) => {
@@ -105,23 +106,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         }
     },
 
-    refreshAccessToken: async () => {
-        try {
-            // El refresh token ahora viene de la cookie automáticamente
-            await authService.refreshToken();
-            // No necesitamos actualizar el estado, las cookies se actualizan automáticamente
-        } catch (error: unknown) {
-            console.error('Refresh token failed:', error);
-            // Si falla el refresh, limpiar todo el estado
-            set({
-                user: null,
-                rememberMe: false,
-            });
-            throw error;
-        }
-    },
-
-            register: async (credentials) => {
+    register: async (credentials) => {
                 await asyncOperation(
                     set,
                     () => authService.register(credentials),
@@ -172,7 +157,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
             },
 
             clearError: () => set({ error: null }),
-        })
+        }),
+        {
+            name: 'auth-storage',
+        }
+    )
 );
 
 /**

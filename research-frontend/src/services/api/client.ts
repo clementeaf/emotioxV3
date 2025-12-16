@@ -1,6 +1,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../../stores/auth.store';
 import type { ApiErrorResponse } from './types';
+import { configService } from './config.service';
 
 // Ya no necesitamos verificar expiración de tokens en el frontend
 // El backend maneja esto automáticamente y devuelve 401 si el token expiró
@@ -11,11 +12,8 @@ import type { ApiErrorResponse } from './types';
  */
 class ApiClient {
     private client: AxiosInstance;
-    private isRefreshing = false;
-    private failedQueue: Array<{
-        resolve: (value?: unknown) => void;
-        reject: (error?: unknown) => void;
-    }> = [];
+    private refreshPromise: Promise<void> | null = null;
+    private isRefreshingFlag = false; // Immediate synchronous lock
 
     constructor(baseURL: string) {
         this.client = axios.create({
@@ -28,23 +26,6 @@ class ApiClient {
         });
 
         this.setupInterceptors();
-    }
-
-    /**
-     * Procesa la cola de peticiones fallidas después de refrescar el token
-     */
-    private processQueue(error: unknown | null, _token: string | null = null): void {
-        // Process all queued requests
-        this.failedQueue.forEach((prom) => {
-            if (error) {
-                prom.reject(error);
-            } else {
-                prom.resolve();
-            }
-        });
-
-        // Clear the queue
-        this.failedQueue = [];
     }
 
     /**
@@ -71,47 +52,64 @@ class ApiClient {
             async (error: ApiErrorResponse) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-                // Si es un error 401 y no hemos intentado refrescar
-                if (error.response?.status === 401 && !originalRequest._retry) {
+                // Evitar loop infinito: no intentar refrescar si la petición fallida ES el refresh
+                const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
+                
+                // Si es un error 401 y no hemos intentado refrescar y no es el endpoint de refresh
+                if (error.response?.status === 401 && !originalRequest._retry && !isRefreshEndpoint) {
+                    console.log('[ApiClient] 401 detected for:', originalRequest.url);
                     originalRequest._retry = true;
 
-                    if (this.isRefreshing) {
-                        // Si ya se está refrescando, esperar en la cola
-                        return new Promise((resolve, reject) => {
-                            this.failedQueue.push({
-                                resolve: () => {
-                                    // Reintentar la petición original (las cookies se envían automáticamente)
-                                    resolve(this.client(originalRequest));
-                                },
-                                reject,
-                            });
-                        });
+                    // Check-and-set atómico usando flag síncrono
+                    if (!this.isRefreshingFlag) {
+                        this.isRefreshingFlag = true; // Bloquear INMEDIATAMENTE de forma síncrona
+                        console.log('[ApiClient] Starting token refresh...');
+                        
+                        this.refreshPromise = (async () => {
+                            try {
+                                // Hacer el refresh directamente con axios, sin pasar por el interceptor
+                                const refreshEndpoint = configService.getEndpoint('auth', 'refresh');
+                                const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                                
+                                console.log('[ApiClient] Making refresh request to:', `${baseURL}${refreshEndpoint}`);
+                                
+                                const refreshCall = axios.post(
+                                    `${baseURL}${refreshEndpoint}`,
+                                    {},
+                                    {
+                                        withCredentials: true,
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                    }
+                                );
+                                
+                                const timeoutPromise = new Promise<never>((_, reject) => 
+                                    setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
+                                );
+                                
+                                await Promise.race([refreshCall, timeoutPromise]);
+                                console.log('[ApiClient] Token refresh successful');
+                            } catch (refreshError) {
+                                console.error('[ApiClient] Token refresh failed:', refreshError);
+                                useAuthStore.getState().logout();
+                                throw refreshError;
+                            } finally {
+                                this.isRefreshingFlag = false;
+                                this.refreshPromise = null;
+                            }
+                        })();
+                    } else {
+                        console.log('[ApiClient] Waiting for ongoing refresh:', originalRequest.url);
                     }
 
-                    this.isRefreshing = true;
-
+                    // Todas las peticiones esperan la misma Promise
                     try {
-                        // Intentar refrescar el token (el refreshToken viene de la cookie)
-                        const state = useAuthStore.getState();
-                        const refreshPromise = state.refreshAccessToken();
-                        const timeoutPromise = new Promise((_, reject) => 
-                            setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
-                        );
-                        
-                        await Promise.race([refreshPromise, timeoutPromise]);
-                        
-                        // Procesar cola de peticiones pendientes
-                        this.processQueue(null, null);
-                        
+                        await this.refreshPromise;
                         // Reintentar la petición original (las cookies actualizadas se envían automáticamente)
                         return this.client(originalRequest);
                     } catch (refreshError) {
-                        console.error('Token refresh failed:', refreshError);
-                        this.processQueue(refreshError, null);
-                        useAuthStore.getState().logout();
                         return Promise.reject(refreshError);
-                    } finally {
-                        this.isRefreshing = false;
                     }
                 }
 

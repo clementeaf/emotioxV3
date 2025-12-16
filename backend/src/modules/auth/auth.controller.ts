@@ -153,12 +153,33 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         const errorStack = err instanceof Error ? err.stack : undefined;
+        
+        // Determinar código de error apropiado
+        let statusCode = 500;
+        
+        // Errores de autenticación (Cognito)
+        if (errorMessage.includes('Incorrect username or password') ||
+            errorMessage.includes('NotAuthorizedException') ||
+            errorMessage.includes('UserNotFoundException')) {
+            statusCode = 401;
+        } else if (errorMessage.includes('User not found')) {
+            statusCode = 404;
+        } else if (errorMessage.includes('already exists') ||
+                   errorMessage.includes('UsernameExistsException')) {
+            statusCode = 409;
+        } else if (errorMessage.includes('Invalid') ||
+                   errorMessage.includes('required')) {
+            statusCode = 400;
+        }
+        
         console.error('Auth controller error:', {
             error: errorMessage,
             stack: errorStack,
+            statusCode,
             path,
             httpMethod,
         });
-        return error(errorMessage, 500, undefined, origin);
+        
+        return error(errorMessage, statusCode, undefined, origin);
     }
 };

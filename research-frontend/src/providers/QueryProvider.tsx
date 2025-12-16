@@ -17,6 +17,8 @@ const queryClient = new QueryClient({
             refetchOnReconnect: true,
             retry: 1,
             retryDelay: 1000,
+            // CRÍTICO: Deduplicar peticiones simultáneas
+            networkMode: 'always',
         },
         mutations: {
             retry: 1,

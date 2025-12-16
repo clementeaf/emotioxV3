@@ -3,6 +3,7 @@ import { Upload, Trash2 } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../../lib/utils';
 import { mediaService } from '../../services/media.service';
+import { getPresignedUrl } from '../../utils/presignedUrlCache';
 
 /**
  * Interfaz para archivos subidos
@@ -106,8 +107,11 @@ export const FileUploadAdvanced = ({
         return files.filter((file) => {
             if (!file.s3Key || file.status) return false;
             
-            // Necesita URL si no tiene una
-            if (!file.url) return true;
+            // No intentar si ya se está cargando
+            if (loadingUrlsRef.current.has(file.s3Key)) return false;
+            
+            // Necesita URL si no tiene una o está vacía
+            if (!file.url || file.url === '') return true;
             
             // Necesita refrescar si la URL está por expirar o ya expiró
             if (file.urlExpiresAt) {
@@ -117,7 +121,7 @@ export const FileUploadAdvanced = ({
             // Si no tiene urlExpiresAt, asumir que necesita refrescar (URL antigua)
             return true;
         });
-    }, [files.map(f => `${f.id}-${f.s3Key}-${f.url}-${f.urlExpiresAt}`).join(',')]);
+    }, [files, loadingUrlsRef.current.size]);
 
     /**
      * Efecto para obtener URLs presigned de archivos existentes que tienen s3Key pero no url
@@ -143,46 +147,48 @@ export const FileUploadAdvanced = ({
                 return;
             }
 
-            // Marcar como cargando
+            // Marcar como cargando ANTES de hacer las peticiones
             filesToLoad.forEach((file) => {
                 if (file.s3Key) {
                     loadingUrlsRef.current.add(file.s3Key);
                 }
             });
 
-            const updatedFiles = [...files];
+            const updatedFiles = [...localFiles]; // Usar localFiles en lugar de files
 
             await Promise.all(
                 filesToLoad.map(async (file) => {
                     if (!file.s3Key) return;
 
                     try {
-                        const result = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                        // Usar caché global para evitar peticiones duplicadas
+                        const result = await getPresignedUrl(file.s3Key, () => 
+                            mediaService.getMediaUrlByS3Key(file.s3Key!)
+                        );
+                        
                         const fileIndex = updatedFiles.findIndex((f) => f.id === file.id);
                         if (fileIndex !== -1) {
-                            // Calcular cuándo expira la URL (expires_in está en segundos)
-                            const expiresIn = result.expires_in || 3600;
-                            const urlExpiresAt = Date.now() + (expiresIn * 1000);
-                            
                             updatedFiles[fileIndex] = {
                                 ...updatedFiles[fileIndex],
                                 url: result.url,
-                                urlExpiresAt,
-                                mediaId: result.id || updatedFiles[fileIndex].mediaId,
+                                urlExpiresAt: result.expiresAt,
+                                mediaId: result.mediaId || updatedFiles[fileIndex].mediaId,
                             };
                         }
                     } catch (error) {
                         console.warn(`Failed to get presigned URL for file ${file.name} with s3Key ${file.s3Key}:`, error);
                     } finally {
                         // Remover de la lista de cargando
-                        loadingUrlsRef.current.delete(file.s3Key);
+                        if (file.s3Key) {
+                            loadingUrlsRef.current.delete(file.s3Key);
+                        }
                     }
                 })
             );
 
             // Solo actualizar si hay cambios
             const hasChanges = updatedFiles.some((f, index) => {
-                const oldFile = files[index];
+                const oldFile = localFiles[index];
                 return !oldFile || f.url !== oldFile.url || f.urlExpiresAt !== oldFile.urlExpiresAt;
             });
             
@@ -197,8 +203,8 @@ export const FileUploadAdvanced = ({
                 clearTimeout(loadUrlsTimeoutRef.current);
             }
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filesNeedingUrl.length, JSON.stringify(filesNeedingUrl.map(f => f.s3Key))]);
+        // Solo disparar cuando cambian los s3Keys que necesitan URL
+    }, [filesNeedingUrl.map(f => f.s3Key).join(',')]);
 
     /**
      * Efecto para refrescar URLs automáticamente antes de que expiren
@@ -476,10 +482,21 @@ export const FileUploadAdvanced = ({
         handleFileSelect(e.dataTransfer.files);
     };
 
-    const handleDelete = (fileId: string): void => {
+    const handleDelete = async (fileId: string): Promise<void> => {
+        const fileToDelete = localFiles.find((f) => f.id === fileId);
+        
+        // Delete from S3 and backend if it has mediaId
+        if (fileToDelete?.mediaId) {
+            try {
+                await mediaService.delete(fileToDelete.mediaId);
+            } catch (error) {
+                console.error('Failed to delete media from backend:', error);
+            }
+        }
+        
         const updatedFiles = localFiles.filter((f) => f.id !== fileId);
         setLocalFiles(updatedFiles);
-        onFilesChangeRef.current?.(updatedFiles);
+        onFilesChange?.(updatedFiles);
         onFileDelete?.(fileId);
     };
 

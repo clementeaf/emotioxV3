@@ -13,7 +13,7 @@ provider:
     DB_NAME: ${env:DB_NAME}
     DB_USER: ${env:DB_USER}
     DB_PASSWORD: ${env:DB_PASSWORD}
-    APP_AWS_REGION: ${env:AWS_REGION}
+    APP_AWS_REGION: us-east-1
     S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
     COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
     COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
@@ -34,6 +34,14 @@ provider:
             - cognito-idp:AdminSetUserPassword
             - cognito-idp:AdminUpdateUserAttributes
           Resource: "arn:aws:cognito-idp:${env:AWS_REGION}:*:userpool/*"
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:AssignPrivateIpAddresses
+            - ec2:UnassignPrivateIpAddresses
+          Resource: "*"
 
 functions:
   api:
@@ -42,11 +50,45 @@ functions:
       - http:
           path: /{proxy+}
           method: ANY
-          cors: false  # Deshabilitar CORS automático, se maneja en el código
+          cors:
+            origins:
+              - http://localhost:12500
+              - http://localhost:12600
+              - http://localhost:3000
+              - http://localhost:5173
+              - http://localhost:5174
+              - https://research.useremotion.com
+              - https://participant.useremotion.com
+            headers:
+              - Content-Type
+              - Authorization
+              - Cookie
+              - Set-Cookie
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: true
       - http:
           path: /
           method: ANY
-          cors: false  # Deshabilitar CORS automático, se maneja en el código
+          cors:
+            origins:
+              - http://localhost:12500
+              - http://localhost:12600
+              - http://localhost:3000
+              - http://localhost:5173
+              - http://localhost:5174
+              - https://research.useremotion.com
+              - https://participant.useremotion.com
+            headers:
+              - Content-Type
+              - Authorization
+              - Cookie
+              - Set-Cookie
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: true
 
 plugins:
   - serverless-dotenv-plugin
