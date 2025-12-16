@@ -3,9 +3,11 @@ import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth';
 import * as stageTemplatesService from './stage-templates.service';
 import * as authService from '../auth/auth.service';
+import { getRequestOrigin } from '../../utils/request';
 
 export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
+    const origin = getRequestOrigin(event);
 
     try {
         // All stage-templates routes require authentication
@@ -16,7 +18,7 @@ export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): P
         } catch (authError: unknown) {
             const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
             if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
-                return error(authErrorMessage, 401);
+                return error(authErrorMessage, 401, undefined, origin);
             }
             throw authError;
         }
@@ -24,7 +26,7 @@ export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): P
         // GET /stage-templates
         if (path === '/stage-templates' && httpMethod === 'GET') {
             const templates = await stageTemplatesService.list();
-            return success(templates);
+            return success(templates, 200, undefined, origin);
         }
 
         // POST /stage-templates
@@ -32,21 +34,21 @@ export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): P
             const body = JSON.parse(event.body || '{}');
 
             if (!body.name) {
-                return error('Name is required', 400);
+                return error('Name is required', 400, undefined, origin);
             }
 
             const template = await stageTemplatesService.create({
                 ...body,
                 created_by: user.id
             });
-            return success(template, 201);
+            return success(template, 201, undefined, origin);
         }
 
         // GET /stage-templates/:id
         if (path.match(/^\/stage-templates\/[a-zA-Z0-9-]+$/) && httpMethod === 'GET') {
             const id = path.split('/').pop() || '';
             const template = await stageTemplatesService.getById(id);
-            return success(template);
+            return success(template, 200, undefined, origin);
         }
 
         // PUT /stage-templates/:id
@@ -54,14 +56,14 @@ export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): P
             const id = path.split('/').pop() || '';
             const body = JSON.parse(event.body || '{}');
             const template = await stageTemplatesService.update(id, body);
-            return success(template);
+            return success(template, 200, undefined, origin);
         }
 
         // DELETE /stage-templates/:id
         if (path.match(/^\/stage-templates\/[a-zA-Z0-9-]+$/) && httpMethod === 'DELETE') {
             const id = path.split('/').pop() || '';
             await stageTemplatesService.deleteTemplate(id);
-            return success({ message: 'Stage template deleted successfully' });
+            return success({ message: 'Stage template deleted successfully' }, 200, undefined, origin);
         }
 
         // POST /stage-templates/:id/modules
@@ -70,11 +72,11 @@ export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): P
             const body = JSON.parse(event.body || '{}');
 
             if (!body.moduleId) {
-                return error('moduleId is required', 400);
+                return error('moduleId is required', 400, undefined, origin);
             }
 
             const result = await stageTemplatesService.addModule(id, body.moduleId, body.displayOrder);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
         // DELETE /stage-templates/:id/modules/:moduleId
@@ -83,15 +85,15 @@ export const handleStageTemplatesRoutes = async (event: APIGatewayProxyEvent): P
             const stageId = parts[2];
             const moduleId = parts[4];
             const result = await stageTemplatesService.removeModule(stageId, moduleId);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
-        return error('Route not found', 404);
+        return error('Route not found', 404, undefined, origin);
     } catch (err: any) {
         if (err.message === 'Stage template not found') {
-            return error('Stage template not found', 404);
+            return error('Stage template not found', 404, undefined, origin);
         }
         console.error('Stage Templates error:', err);
-        return error(err.message || 'Internal server error', 500);
+        return error(err.message || 'Internal server error', 500, undefined, origin);
     }
 };

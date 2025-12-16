@@ -22,11 +22,12 @@ const migrateStages = async () => {
         console.log('Creating stages table...');
         await client.query(`
             CREATE TABLE IF NOT EXISTS stages (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 research_id UUID NOT NULL REFERENCES researches(id) ON DELETE CASCADE,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
                 order_index INTEGER DEFAULT 0,
+                stage_type VARCHAR(50) DEFAULT 'module_collection' CHECK (stage_type IN ('single_module', 'module_collection')),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );

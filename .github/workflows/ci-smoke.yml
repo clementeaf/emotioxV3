@@ -1,0 +1,101 @@
+name: CI Smoke
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: emotiox_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d emotiox_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install dependencies (backend)
+        working-directory: backend
+        run: npm ci
+
+      - name: Install dependencies (research-frontend)
+        working-directory: research-frontend
+        run: npm ci
+
+      - name: Install dependencies (participant-frontend)
+        working-directory: participant-frontend
+        run: npm ci
+
+      - name: Apply DB migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/001_initial_schema.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/002_seed_data.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/003_research_techniques.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/004_enterprises.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/005_research_types_techniques_relation.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/006_researches_research_technique_id.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/007_module_templates.sql
+          psql -h 127.0.0.1 -U postgres -d emotiox_ci -v ON_ERROR_STOP=1 -f database/migrations/011_update_responses_table.sql
+
+      - name: Migrate stages schema (create stages + stage_id)
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "5432"
+          DB_NAME: emotiox_ci
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_SSL: "false"
+        run: npx --yes tsx scripts/migrate_stages_schema.ts
+
+      - name: Type-check (backend)
+        working-directory: backend
+        run: npm run type-check
+
+      - name: Type-check (research-frontend)
+        working-directory: research-frontend
+        run: npm run type-check
+
+      - name: Type-check (participant-frontend)
+        working-directory: participant-frontend
+        run: npm run type-check
+
+      - name: Run end-to-end smoke
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "5432"
+          DB_NAME: emotiox_ci
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_SSL: "false"
+          API_STAGE: ci
+        run: npx --yes tsx scripts/smoke_end_to_end.ts
+
+

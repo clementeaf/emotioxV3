@@ -3,9 +3,11 @@ import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth';
 import * as researchService from './research.service';
 import * as authService from '../auth/auth.service';
+import { getRequestOrigin } from '../../utils/request';
 
 export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
+    const origin = getRequestOrigin(event);
 
     try {
         let decoded;
@@ -16,7 +18,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             console.error('Auth error for', path, ':', authErrorMessage);
             console.error('Headers:', JSON.stringify(event.headers, null, 2));
             if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
-                return error(authErrorMessage, 401);
+                return error(authErrorMessage, 401, undefined, origin);
             }
             throw authError;
         }
@@ -25,14 +27,14 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         // GET /research
         if (path === '/research' && httpMethod === 'GET') {
             const researches = await researchService.list(user.id);
-            return success({ researches });
+            return success({ researches }, 200, undefined, origin);
         }
 
         // POST /research
         if (path === '/research' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
             const research = await researchService.create(user.id, body);
-            return success({ research }, 201);
+            return success({ research }, 201, undefined, origin);
         }
 
         // GET /research/:id
@@ -40,7 +42,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
             const research = await researchService.getById(id, user.id);
-            return success({ research });
+            return success({ research }, 200, undefined, origin);
         }
 
         // PUT /research/:id
@@ -49,7 +51,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = putMatch[1];
             const body = JSON.parse(event.body || '{}');
             const research = await researchService.update(id, user.id, body);
-            return success({ research });
+            return success({ research }, 200, undefined, origin);
         }
 
         // DELETE /research/:id
@@ -57,7 +59,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (deleteMatch && httpMethod === 'DELETE') {
             const id = deleteMatch[1];
             const result = await researchService.deleteResearch(id, user.id);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
         // PATCH /research/:id/status
@@ -66,7 +68,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = statusMatch[1];
             const body = JSON.parse(event.body || '{}');
             const research = await researchService.updateStatus(id, user.id, body.status);
-            return success({ research });
+            return success({ research }, 200, undefined, origin);
         }
 
         // POST /research/:id/activate
@@ -74,7 +76,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (activateMatch && httpMethod === 'POST') {
             const id = activateMatch[1];
             const research = await researchService.activate(id, user.id);
-            return success({ research });
+            return success({ research }, 200, undefined, origin);
         }
 
         // POST /research/:id/stages
@@ -83,10 +85,10 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = createStageMatch[1];
             const body = JSON.parse(event.body || '{}');
             if (!body.name) {
-                return error('Stage name is required', 400);
+                return error('Stage name is required', 400, undefined, origin);
             }
             const stage = await researchService.createStage(id, user.id, body.name, body.description);
-            return success({ stage }, 201);
+            return success({ stage }, 201, undefined, origin);
         }
 
         // DELETE /research/:id/stages/:stageId
@@ -95,7 +97,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const researchId = deleteStageMatch[1];
             const stageId = deleteStageMatch[2];
             const result = await researchService.deleteStage(researchId, user.id, stageId);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
         // DELETE /research/:id/modules/:moduleId
@@ -104,17 +106,17 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const researchId = deleteModuleMatch[1];
             const moduleId = deleteModuleMatch[2];
             const result = await researchService.deleteModule(researchId, user.id, moduleId);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
-        return error('Route not found', 404);
+        return error('Route not found', 404, undefined, origin);
     } catch (err: any) {
         console.error('Research controller error:', err);
 
         if (err.message === 'Invalid or expired token' || err.message === 'No token provided' || err.message === 'No authorization header') {
-            return error(err.message, 401);
+            return error(err.message, 401, undefined, origin);
         }
 
-        return error(err.message || 'Internal server error', 500);
+        return error(err.message || 'Internal server error', 500, undefined, origin);
     }
 };

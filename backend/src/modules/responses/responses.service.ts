@@ -20,7 +20,17 @@ export const save = async (researchId: string, participantId: string, moduleId: 
 export const getByResearch = async (researchId: string) => {
   const query = `
     SELECT 
-      r.*,
+      r.id,
+      r.research_id,
+      r.participant_id,
+      r.module_id,
+      r.question_id,
+      r.component_id,
+      r.value as response_value,
+      r.value,
+      r.metadata,
+      r.created_at,
+      r.updated_at,
       q.question_type,
       q.question_text,
       m.name as module_name
@@ -37,7 +47,17 @@ export const getByResearch = async (researchId: string) => {
 export const getByParticipant = async (researchId: string, participantId: string) => {
   const query = `
     SELECT 
-      r.*,
+      r.id,
+      r.research_id,
+      r.participant_id,
+      r.module_id,
+      r.question_id,
+      r.component_id,
+      r.value as response_value,
+      r.value,
+      r.metadata,
+      r.created_at,
+      r.updated_at,
       q.question_type,
       q.question_text,
       m.name as module_name

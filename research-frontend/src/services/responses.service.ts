@@ -4,9 +4,12 @@ import type { ApiErrorResponse } from './api/types';
 export interface Response {
     id: string;
     research_id: string;
-    question_id: string;
+    question_id: string | null;
+    module_id?: string | null;
+    component_id?: string | null;
     participant_id: string;
-    response_value: string | number | boolean | Record<string, unknown>;
+    response_value: string | number | boolean | Record<string, unknown> | unknown[] | null;
+    value?: string | number | boolean | Record<string, unknown> | unknown[] | null;
     created_at: string;
     updated_at: string;
 }

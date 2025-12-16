@@ -13,12 +13,14 @@ type Module = ModuleConfig;
 interface Stage {
     id: string;
     name: string;
-    order: number;
+    description: string;
+    order_index: number;
     modules: Module[];
 }
 
 interface ResearchData {
     id: string;
+    name: string;
     title: string;
     description: string;
     status: string;

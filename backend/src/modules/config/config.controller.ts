@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
+import { getRequestOrigin } from '../../utils/request';
 
 /**
  * Config Controller
@@ -11,18 +12,19 @@ export const handleConfigRoutes = async (
     event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
+    const origin = getRequestOrigin(event);
 
     try {
         // GET /config - Public endpoint for frontend configuration
         if (path === '/config' && httpMethod === 'GET') {
-            return getConfig();
+            return getConfig(origin);
         }
 
-        return error('Config route not found', 404);
+        return error('Config route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Internal server error';
         console.error('Config routes error:', errorMessage);
-        return error(errorMessage, 500);
+        return error(errorMessage, 500, undefined, origin);
     }
 };
 
@@ -30,7 +32,7 @@ export const handleConfigRoutes = async (
  * Get dynamic configuration for frontends
  * Provides API routes, feature flags, and environment settings
  */
-const getConfig = (): APIGatewayProxyResult => {
+const getConfig = (origin: string | null): APIGatewayProxyResult => {
     const config = {
         // API version
         version: '1.0.0',
@@ -153,5 +155,5 @@ const getConfig = (): APIGatewayProxyResult => {
         },
     };
 
-    return success(config);
+    return success(config, 200, undefined, origin);
 };

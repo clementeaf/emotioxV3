@@ -2,9 +2,11 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth';
 import * as analyticsService from './analytics.service';
+import { getRequestOrigin } from '../../utils/request';
 
 export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
+    const origin = getRequestOrigin(event);
     try {
         await requireAuth(event);
 
@@ -13,7 +15,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (smartvocMatch && httpMethod === 'GET') {
             const researchId = smartvocMatch[1];
             const results = await analyticsService.getSmartVOCResults(researchId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/cognitive-tasks
@@ -21,7 +23,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (cognitiveMatch && httpMethod === 'GET') {
             const researchId = cognitiveMatch[1];
             const results = await analyticsService.getCognitiveTaskResults(researchId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/navigation-flow/:moduleId
@@ -29,7 +31,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (navigationMatch && httpMethod === 'GET') {
             const [, researchId, moduleId] = navigationMatch;
             const results = await analyticsService.getNavigationFlowResults(researchId, moduleId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/preference-test/:moduleId
@@ -37,7 +39,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (preferenceMatch && httpMethod === 'GET') {
             const [, researchId, moduleId] = preferenceMatch;
             const results = await analyticsService.getPreferenceTestResults(researchId, moduleId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/text-responses/:moduleId
@@ -45,7 +47,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (textMatch && httpMethod === 'GET') {
             const [, researchId, moduleId] = textMatch;
             const results = await analyticsService.getTextResponses(researchId, moduleId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/choice-responses/:moduleId
@@ -53,7 +55,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (choiceMatch && httpMethod === 'GET') {
             const [, researchId, moduleId] = choiceMatch;
             const results = await analyticsService.getChoiceResponses(researchId, moduleId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/scale-responses/:moduleId
@@ -61,7 +63,7 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (scaleMatch && httpMethod === 'GET') {
             const [, researchId, moduleId] = scaleMatch;
             const results = await analyticsService.getScaleResponses(researchId, moduleId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
         // GET /analytics/research/:id/ranking-responses/:moduleId
@@ -69,13 +71,13 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (rankingMatch && httpMethod === 'GET') {
             const [, researchId, moduleId] = rankingMatch;
             const results = await analyticsService.getRankingResponses(researchId, moduleId);
-            return success({ results });
+            return success({ results }, 200, undefined, origin);
         }
 
-        return error('Route not found', 404);
+        return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Analytics error:', err);
-        return error(errorMessage, 500);
+        return error(errorMessage, 500, undefined, origin);
     }
 };

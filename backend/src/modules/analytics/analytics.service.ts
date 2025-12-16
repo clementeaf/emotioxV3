@@ -388,8 +388,17 @@ export const getSmartVOCResults = async (researchId: string) => {
   const modulesQuery = `
     SELECT DISTINCT m.id, m.name
     FROM modules m
+    LEFT JOIN stages s ON s.id = m.stage_id
     WHERE m.research_id = $1 
-      AND m.name ILIKE '%smartvoc%'
+      AND (
+        s.name ILIKE '%smart voc%'
+        OR m.name ILIKE '%csat%'
+        OR m.name ILIKE '%nps%'
+        OR m.name ILIKE '%ces%'
+        OR m.name ILIKE '%cv%'
+        OR m.name ILIKE '%nev%'
+        OR m.name ILIKE '%voc%'
+      )
     ORDER BY m.name
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
@@ -406,8 +415,17 @@ export const getSmartVOCResults = async (researchId: string) => {
       m.name as module_name
     FROM responses r
     INNER JOIN modules m ON r.module_id = m.id
+    LEFT JOIN stages s ON s.id = m.stage_id
     WHERE r.research_id = $1 
-      AND m.name ILIKE '%smartvoc%'
+      AND (
+        s.name ILIKE '%smart voc%'
+        OR m.name ILIKE '%csat%'
+        OR m.name ILIKE '%nps%'
+        OR m.name ILIKE '%ces%'
+        OR m.name ILIKE '%cv%'
+        OR m.name ILIKE '%nev%'
+        OR m.name ILIKE '%voc%'
+      )
     ORDER BY r.created_at ASC
   `;
   const responsesResult = await pool.query(responsesQuery, [researchId]);

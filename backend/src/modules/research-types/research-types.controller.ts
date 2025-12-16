@@ -3,9 +3,11 @@ import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth';
 import * as researchTypesService from './research-types.service';
 import * as authService from '../auth/auth.service';
+import { getRequestOrigin } from '../../utils/request';
 
 export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
+    const origin = getRequestOrigin(event);
 
     try {
         // All research-types routes require authentication
@@ -16,7 +18,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         } catch (authError: unknown) {
             const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
             if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
-                return error(authErrorMessage, 401);
+                return error(authErrorMessage, 401, undefined, origin);
             }
             throw authError;
         }
@@ -24,14 +26,14 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         // GET /research-types
         if (path === '/research-types' && httpMethod === 'GET') {
             const types = await researchTypesService.list();
-            return success({ researchTypes: types });
+            return success({ researchTypes: types }, 200, undefined, origin);
         }
 
         // POST /research-types
         if (path === '/research-types' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
             const type = await researchTypesService.create(body, user.id);
-            return success({ researchType: type }, 201);
+            return success({ researchType: type }, 201, undefined, origin);
         }
 
         // GET /research-types/:id
@@ -39,7 +41,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
             const type = await researchTypesService.getById(id);
-            return success({ researchType: type });
+            return success({ researchType: type }, 200, undefined, origin);
         }
 
         // PUT /research-types/:id
@@ -48,7 +50,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
             const id = putMatch[1];
             const body = JSON.parse(event.body || '{}');
             const type = await researchTypesService.update(id, body);
-            return success({ researchType: type });
+            return success({ researchType: type }, 200, undefined, origin);
         }
 
         // DELETE /research-types/:id
@@ -56,7 +58,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         if (deleteMatch && httpMethod === 'DELETE') {
             const id = deleteMatch[1];
             const result = await researchTypesService.deleteResearchType(id);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
         // PATCH /research-types/:id/modules
@@ -65,7 +67,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
             const id = modulesMatch[1];
             const body = JSON.parse(event.body || '{}');
             const type = await researchTypesService.updateModules(id, body.modules);
-            return success({ researchType: type });
+            return success({ researchType: type }, 200, undefined, origin);
         }
 
         // GET /research-types/:id/techniques
@@ -73,7 +75,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         if (techniquesMatch && httpMethod === 'GET') {
             const id = techniquesMatch[1];
             const techniques = await researchTypesService.getTechniquesByType(id);
-            return success({ researchTechniques: techniques });
+            return success({ researchTechniques: techniques }, 200, undefined, origin);
         }
 
         // GET /research-types/:id/module-assignments
@@ -81,7 +83,7 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         if (getModulesMatch && httpMethod === 'GET') {
             const id = getModulesMatch[1];
             const modules = await researchTypesService.getModulesByType(id);
-            return success({ moduleTemplates: modules });
+            return success({ moduleTemplates: modules }, 200, undefined, origin);
         }
 
         // PUT /research-types/:id/module-assignments
@@ -90,18 +92,18 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
             const id = putModulesMatch[1];
             const body = JSON.parse(event.body || '{}');
             const result = await researchTypesService.updateModuleAssignments(id, body.moduleTemplateIds);
-            return success(result);
+            return success(result, 200, undefined, origin);
         }
 
-        return error('Route not found', 404);
+        return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Research types controller error:', err);
 
         if (errorMessage === 'Invalid or expired token' || errorMessage === 'No authorization header' || errorMessage === 'No token provided') {
-            return error(errorMessage, 401);
+            return error(errorMessage, 401, undefined, origin);
         }
 
-        return error(errorMessage || 'Internal server error', 500);
+        return error(errorMessage || 'Internal server error', 500, undefined, origin);
     }
 };

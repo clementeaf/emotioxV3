@@ -37,4 +37,5 @@ export interface ModuleConfig {
     name: string;
     description: string;
     structure: ModuleStructure;
+    config?: Record<string, unknown>;
 }

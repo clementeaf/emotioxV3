@@ -12,33 +12,51 @@ import { useDeviceCollector } from '../hooks/useDeviceCollector';
 import { useLocationCollector } from '../hooks/useLocationCollector';
 import { useSessionTimer } from '../hooks/useSessionTimer';
 import { usePreviewMode } from '../hooks/usePreviewMode';
-import { publicService, type Module } from '../services/public.service';
+import { publicService, type Module, type ResearchData } from '../services/public.service';
 import { responseService } from '../services/response.service';
 import { MOCK_MODULES } from '../data/mockModules';
 
-// Define interfaces for the research data structure
-interface ResearchModuleConfig {
-  linkConfig?: Record<string, boolean>;
-  [key: string]: any;
-}
+/**
+ * Checks whether a value is a plain object record.
+ * @param value - Unknown value
+ * @returns True if value is a non-null object and not an array
+ */
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
 
-interface ResearchModule {
-  name: string;
-  config?: ResearchModuleConfig;
-  [key: string]: any;
-}
+/**
+ * Extracts a boolean-only map from an unknown value.
+ * @param value - Unknown value
+ * @returns Object containing only boolean properties
+ */
+const toBooleanRecord = (value: unknown): Record<string, boolean> => {
+  if (!isRecord(value)) return {};
+  const result: Record<string, boolean> = {};
+  Object.entries(value).forEach(([key, entryValue]) => {
+    if (typeof entryValue === 'boolean') {
+      result[key] = entryValue;
+    }
+  });
+  return result;
+};
 
-interface ResearchStage {
-  modules?: ResearchModule[];
-  [key: string]: any;
-}
-
-interface ResearchData {
-  modules?: ResearchStage[];
-  stages?: ResearchStage[];
-  title: string;
-  [key: string]: any;
-}
+/**
+ * Finds linkConfig within the "Research Configuration" module, if present.
+ * @param research - Research payload from public API
+ * @returns Boolean map with link configuration flags
+ */
+const getLinkConfig = (research: ResearchData): Record<string, boolean> => {
+  const stages = research.stages || [{ id: 'legacy', name: 'Legacy', description: '', order_index: 0, modules: research.modules || [] }];
+  for (const stage of stages) {
+    for (const module of stage.modules || []) {
+      if (module.name !== 'Research Configuration') continue;
+      const linkConfigValue: unknown = isRecord(module.config) ? module.config.linkConfig : undefined;
+      return toBooleanRecord(linkConfigValue);
+    }
+  }
+  return {};
+};
 
 export const ResearchPage = () => {
   const { researchId } = useParams<{ researchId: string }>();
@@ -75,14 +93,10 @@ export const ResearchPage = () => {
         setShowRestartOption(false);
 
         // Fetch research data from backend
-        const research = await publicService.getResearch(researchId) as ResearchData;
+        const research = await publicService.getResearch(researchId);
 
         // Check mobile device restriction
-        const linkConfig = research.modules?.flatMap((stage: ResearchStage) => 
-          stage.modules || []
-        ).find((module: ResearchModule) => 
-          module.name === 'Research Configuration'
-        )?.config?.linkConfig || {};
+        const linkConfig = getLinkConfig(research);
 
         // Get device info from session store
         const deviceType = useSessionStore.getState().deviceInfo?.deviceType;
@@ -100,7 +114,7 @@ export const ResearchPage = () => {
         let index = 0;
 
         // Backend returns modules directly, wrap them in a stage if needed
-        const stages = research.stages || [{ modules: research.modules || [] }];
+        const stages = research.stages || [{ id: 'legacy', name: 'Legacy', description: '', order_index: 0, modules: research.modules || [] }];
         
         stages.forEach(stage => {
           const modules = stage.modules || [];
@@ -125,7 +139,7 @@ export const ResearchPage = () => {
           linkConfig: linkConfig,
         });
 
-        console.log('✓ Research loaded:', research.title, `(${Object.keys(modulesMap).length} modules)`);
+        console.log('✓ Research loaded:', research.title || research.name, `(${Object.keys(modulesMap).length} modules)`);
       } catch (err) {
         console.error('Failed to load research:', err);
         setError('Failed to load research. Please try again.');
