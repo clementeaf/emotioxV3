@@ -29,6 +29,14 @@ class ApiClient {
     }
 
     /**
+     * Updates the base URL used by this API client.
+     * @param baseURL - New API base URL
+     */
+    setBaseUrl(baseURL: string): void {
+        this.client.defaults.baseURL = baseURL;
+    }
+
+    /**
      * Configura interceptores para requests y responses
      */
     private setupInterceptors(): void {
@@ -69,7 +77,10 @@ class ApiClient {
                             try {
                                 // Hacer el refresh directamente con axios, sin pasar por el interceptor
                                 const refreshEndpoint = configService.getEndpoint('auth', 'refresh');
-                                const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+                                const baseURL = this.client.defaults.baseURL;
+                                if (typeof baseURL !== 'string' || baseURL.trim().length === 0) {
+                                    throw new Error('API base URL not configured');
+                                }
                                 
                                 console.log('[ApiClient] Making refresh request to:', `${baseURL}${refreshEndpoint}`);
                                 
@@ -185,7 +196,7 @@ class ApiClient {
     }
 }
 
-const apiClient = new ApiClient(import.meta.env.VITE_API_URL || 'http://localhost:3000');
+const apiClient = new ApiClient('');
 
 export default apiClient;
 

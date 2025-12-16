@@ -122,19 +122,15 @@ app.use(cors({
 
 ---
 
-### 5. **participant-frontend - URLs Corregidas** ✅
-**Archivos modificados:**
-- [`participant-frontend/.env`](file:///Users/clementefalcone/Desktop/personal/emotioxV3/participant-frontend/.env)
-- [`participant-frontend/.env.local`](file:///Users/clementefalcone/Desktop/personal/emotioxV3/participant-frontend/.env.local)
-- [`participant-frontend/.env.development`](file:///Users/clementefalcone/Desktop/personal/emotioxV3/participant-frontend/.env.development) (NUEVO)
+### 5. **Frontends - API base URL dinámico (sin depender de execute-api)** ✅
 
-**Configuración:**
-```bash
-# .env y .env.local (PRODUCCIÓN POR DEFECTO)
-VITE_API_URL=https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
+**Cambio clave:** los frontends ahora resuelven el backend desde:
+- `VITE_API_URL` (si existe, usado por CI/Secrets)
+- `/runtime-config.json` (runtime, se puede cambiar sin rebuild)
 
-# .env.development (DESARROLLO CON BACKEND LOCAL)
-VITE_API_URL=http://localhost:3000
+**Ejemplo recomendado (Custom Domain estable):**
+```json
+{ "apiBaseUrl": "https://<api-id>.execute-api.<region>.amazonaws.com/<stage>" }
 ```
 
 **Scripts agregados:**
@@ -234,9 +230,7 @@ private async fetchConfig(): Promise<ApiConfig> {
 - ⏳ Esperando finalización (~5-10 minutos)
 
 **URL del API:**
-```
-https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
-```
+- Se publica automáticamente en `runtime-config.json` dentro de los buckets de frontends (ver workflow `deploy-backend.yml`).
 
 ### Frontends
 **Estado:** ✅ LISTOS
@@ -252,13 +246,15 @@ https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
 
 ### 1. Backend Health Check
 ```bash
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health
+FRONTEND_URL="https://participant.useremotion.com"
+API_BASE_URL="$(curl -fsS "${FRONTEND_URL}/runtime-config.json" | jq -r '.apiBaseUrl')"
+curl "${API_BASE_URL}/health"
 ```
 **Esperado:** `{"status":"healthy","timestamp":"2025-12-15T..."}`
 
 ### 2. Backend Config
 ```bash
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/config
+curl "${API_BASE_URL}/config"
 ```
 **Esperado:** JSON con configuración de API
 
@@ -267,7 +263,7 @@ curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/config
 curl -X OPTIONS \
   -H "Origin: https://research.useremotion.com" \
   -H "Access-Control-Request-Method: GET" \
-  https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health \
+  "${API_BASE_URL}/health" \
   -v
 ```
 **Esperado:**
@@ -376,7 +372,7 @@ npm run build
 ## 🔧 CONFIGURACIÓN PENDIENTE
 
 ### GitHub Secrets (Verificar en Settings > Secrets)
-- [ ] `VITE_API_URL_PRODUCTION` = `https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev`
+- [ ] (Opcional) `VITE_API_URL_PRODUCTION` configurado (no requerido si usas `runtime-config.json`)
 - [ ] `VITE_PARTICIPANT_FRONTEND_URL`
 - [ ] `AWS_ACCESS_KEY_ID`
 - [ ] `AWS_SECRET_ACCESS_KEY`

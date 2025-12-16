@@ -168,12 +168,11 @@ export COGNITO_CLIENT_ID=<optional>
 npm run deploy
 ```
 
-After deployment, you'll get an API Gateway URL like:
-```
-https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/production
-```
+Recommended: configure an API Gateway **Custom Domain** so frontends never depend on `*.execute-api...` hostnames.
 
-**Save this URL** - you'll need it for the frontends!
+Expected URL format:
+- Without custom domain: `https://<api-id>.execute-api.<region>.amazonaws.com/<stage>`
+- With custom domain (optional): `https://api.<cliente>.com/<stage>`
 
 ### 7. Configure GitHub Secrets
 
@@ -203,7 +202,7 @@ PARTICIPANT_FRONTEND_CLOUDFRONT_ID=<distribution-id>
 
 #### API URLs
 ```
-VITE_API_URL_PRODUCTION=https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/production
+VITE_API_URL_PRODUCTION=https://<api-id>.execute-api.<region>.amazonaws.com/production
 VITE_PARTICIPANT_FRONTEND_URL=https://xxxxxxxxxx.cloudfront.net
 ```
 

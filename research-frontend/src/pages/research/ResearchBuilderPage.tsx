@@ -106,6 +106,50 @@ export const ResearchBuilderPage = () => {
     
     const [isSaving, setIsSaving] = useState(false);
 
+    /**
+     * Safely extracts a string from an unknown value.
+     * @param value - Unknown value
+     * @returns String if value is a string, otherwise undefined
+     */
+    const toOptionalString = (value: unknown): string | undefined => {
+        return typeof value === 'string' ? value : undefined;
+    };
+
+    /**
+     * Sanitizes the serialized value of a file-upload component by removing ephemeral presigned URL fields.
+     * This prevents persisting time-limited S3 URLs into module configuration.
+     * @param serialized - Serialized component value (usually JSON)
+     * @returns Sanitized serialized value
+     */
+    const sanitizeFileUploadSerializedValue = (serialized: string | undefined): string | undefined => {
+        if (!serialized) {
+            return serialized;
+        }
+
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+            typeof value === 'object' && value !== null;
+
+        const stripUrlFields = (value: unknown): unknown => {
+            if (Array.isArray(value)) {
+                return value.map(stripUrlFields);
+            }
+            if (!isRecord(value)) {
+                return value;
+            }
+
+            const { url: _url, urlExpiresAt: _urlExpiresAt, ...rest } = value;
+            return rest;
+        };
+
+        try {
+            const parsed = JSON.parse(serialized) as unknown;
+            const sanitized = stripUrlFields(parsed);
+            return JSON.stringify(sanitized);
+        } catch {
+            return serialized;
+        }
+    };
+
     const handleSaveModule = async (): Promise<void> => {
         if (!id) return;
 
@@ -137,7 +181,9 @@ export const ResearchBuilderPage = () => {
                     // Update components with new values
                     const updatedComponents = currentComponents.map(comp => ({
                         ...comp,
-                        value: currentComponentValues[comp.id] || comp.value
+                        value: comp.type === 'file-upload'
+                            ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
+                            : (currentComponentValues[comp.id] || comp.value)
                     }));
                     
                     console.log(`✅ Updated components:`, updatedComponents);
@@ -223,8 +269,21 @@ export const ResearchBuilderPage = () => {
                         ...comp,
                         // Update default value or value from componentValues
                         ...(comp.settings?.readonly 
-                          ? { settings: { ...comp.settings, defaultValue: componentValues[comp.id] || comp.settings.defaultValue } }
-                          : { value: componentValues[comp.id] }
+                          ? {
+                              settings: {
+                                  ...comp.settings,
+                                  defaultValue: comp.type === 'file-upload'
+                                      ? (sanitizeFileUploadSerializedValue(
+                                            toOptionalString(componentValues[comp.id]) ?? toOptionalString(comp.settings.defaultValue)
+                                        ) ?? toOptionalString(comp.settings.defaultValue))
+                                      : (toOptionalString(componentValues[comp.id]) ?? toOptionalString(comp.settings.defaultValue)),
+                              },
+                          }
+                          : {
+                              value: comp.type === 'file-upload'
+                                  ? sanitizeFileUploadSerializedValue(toOptionalString(componentValues[comp.id]))
+                                  : toOptionalString(componentValues[comp.id]),
+                          }
                         )
                     }));
 

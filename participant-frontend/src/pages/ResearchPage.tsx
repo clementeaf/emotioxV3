@@ -14,7 +14,6 @@ import { useSessionTimer } from '../hooks/useSessionTimer';
 import { usePreviewMode } from '../hooks/usePreviewMode';
 import { publicService, type Module, type ResearchData } from '../services/public.service';
 import { responseService } from '../services/response.service';
-import { MOCK_MODULES } from '../data/mockModules';
 
 /**
  * Checks whether a value is a plain object record.
@@ -58,14 +57,52 @@ const getLinkConfig = (research: ResearchData): Record<string, boolean> => {
   return {};
 };
 
+/**
+ * Converts a backend module name to a stable stepId used by the participant flow.
+ * @param moduleName - Human readable module name
+ * @returns stepId or null if module should not be part of the participant flow
+ */
+const getStepIdFromModuleName = (moduleName: string): string | null => {
+  const trimmed = moduleName.trim();
+
+  if (trimmed === 'Research Configuration') return null;
+
+  // Welcome / Thank you screens
+  if (trimmed === 'Welcome Screen') return 'welcome';
+  if (trimmed === 'Thank You Screen' || trimmed === 'Thank you screen') return 'thank-you';
+
+  // Cognitive tasks
+  if (trimmed === 'Short Text') return 'short-text';
+  if (trimmed === 'Long Text') return 'long-text';
+  if (trimmed === 'Single Choice') return 'single-choice';
+  if (trimmed === 'Multiple Choice') return 'multiple-choice';
+  if (trimmed === 'Linear Scale') return 'linear-scale';
+  if (trimmed === 'Ranking') return 'ranking';
+  if (trimmed === 'Navigation Flow') return 'navigation-flow';
+  if (trimmed === 'Preference Test') return 'preference-test';
+
+  // SmartVOC
+  if (trimmed.includes('CSAT')) return 'csat';
+  if (trimmed.includes('NPS')) return 'nps';
+  if (trimmed.includes('CES')) return 'ces';
+  if (trimmed.includes('CV')) return 'cv';
+  if (trimmed.includes('NEV')) return 'nev';
+  if (trimmed.includes('VOC')) return 'voc';
+
+  return trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
 export const ResearchPage = () => {
   const { researchId } = useParams<{ researchId: string }>();
   const { isPreviewMode, participantId } = usePreviewMode();
   const { setConfig } = useSessionStore();
   const { getResponsesByModule, startNewSession, clearAllResponses } = useParticipantStore();
-  const { currentStep, goNext, isLastStep } = useNavigation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modules, setModules] = useState<Record<string, Module>>({});
+  const { currentStep, goNext, isLastStep } = useNavigation(modules);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -111,7 +148,6 @@ export const ResearchPage = () => {
 
         // Transform stages and modules into flat structure for navigation
         const modulesMap: Record<string, Module> = {};
-        let index = 0;
 
         // Backend returns modules directly, wrap them in a stage if needed
         const stages = research.stages || [{ id: 'legacy', name: 'Legacy', description: '', order_index: 0, modules: research.modules || [] }];
@@ -119,9 +155,9 @@ export const ResearchPage = () => {
         stages.forEach(stage => {
           const modules = stage.modules || [];
           modules.forEach(module => {
-            const key = `module-${index}`;
-            modulesMap[key] = module as Module;
-            index++;
+            const stepId = getStepIdFromModuleName(module.name);
+            if (!stepId) return;
+            modulesMap[stepId] = module as Module;
           });
         });
 
@@ -143,12 +179,6 @@ export const ResearchPage = () => {
       } catch (err) {
         console.error('Failed to load research:', err);
         setError('Failed to load research. Please try again.');
-        
-        // Fallback to mock modules in development
-        if (import.meta.env.DEV) {
-          console.warn('Using mock modules as fallback');
-          setModules(MOCK_MODULES);
-        }
       } finally {
         setLoading(false);
       }

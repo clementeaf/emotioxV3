@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import * as publicService from './public.service';
+import * as mediaService from '../media/media.service';
 
 export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
@@ -23,6 +24,16 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             const body = JSON.parse(event.body || '{}');
             const result = await publicService.saveParticipantResponses(researchId, body);
             return success(result, 201, undefined, origin);
+        }
+
+        // GET /public/media/by-key?s3_key=...
+        if (path === '/public/media/by-key' && httpMethod === 'GET') {
+            const s3Key = event.queryStringParameters?.s3_key;
+            if (!s3Key) {
+                return error('s3_key query parameter is required', 400, undefined, origin);
+            }
+            const result = await mediaService.getMediaUrlByS3Key(s3Key);
+            return success(result, 200, undefined, origin);
         }
 
         // Legacy endpoint (deprecated)

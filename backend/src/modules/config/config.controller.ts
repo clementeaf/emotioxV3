@@ -112,6 +112,7 @@ const getConfig = (origin: string | null): APIGatewayProxyResult => {
             public: {
                 research: '/public/research/:id',
                 submitResponse: '/public/research/:id/responses',
+                mediaByKey: '/public/media/by-key',
             },
             
             // Media

@@ -4,8 +4,19 @@ set -e
 echo "🧪 Probando flujo de autenticación con Cognito..."
 echo ""
 
-# Obtener URL de la API desde secrets o usar la de producción
-API_URL="${VITE_API_URL_PRODUCTION:-https://udnl10lc5e.execute-api.us-east-1.amazonaws.com/production}"
+# Obtener URL de la API desde env; si no existe, intentar resolver desde Serverless
+API_URL="${VITE_API_URL_PRODUCTION:-}"
+if [ -z "$API_URL" ]; then
+  if [ -d "backend/node_modules" ]; then
+    echo "Resolviendo API URL desde Serverless (backend)..."
+    API_URL="$(cd backend && npx serverless info --stage production --verbose | grep -Eo 'https://[a-z0-9]+\.execute-api\.[a-z0-9-]+\.amazonaws\.com/[a-zA-Z0-9-]+' | head -n 1)"
+  fi
+fi
+
+if [ -z "$API_URL" ]; then
+  echo "❌ No se pudo resolver API_URL. Setea VITE_API_URL_PRODUCTION o instala deps de backend (npm ci en backend)."
+  exit 1
+fi
 
 echo "📍 API URL: $API_URL"
 echo ""

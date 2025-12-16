@@ -50,10 +50,9 @@ cp .env .env.production
 # (Esto requiere editar código - ver más abajo)
 ```
 
-**⚠️ IMPORTANTE:** Guarda la URL que te devuelve el deploy, será algo como:
+**⚠️ IMPORTANTE:** no uses el hostname `*.execute-api...` en frontends. Configura un Custom Domain estable y usa:
 ```
-endpoints:
-  ANY - https://XXXXXXXX.execute-api.us-east-1.amazonaws.com/dev/{proxy+}
+https://<api-id>.execute-api.<region>.amazonaws.com/<stage>
 ```
 
 ---
@@ -106,25 +105,24 @@ npm run deploy  # Re-desplegar con CORS actualizado
 
 ---
 
-### 3️⃣ CORREGIR CONFIGURACIÓN DE PARTICIPANT-FRONTEND
+### 3️⃣ CORREGIR CONFIGURACIÓN DE PARTICIPANT-FRONTEND (SIN HARDCODE DE execute-api)
 
 **Archivos a modificar:**
 
-**`participant-frontend/.env`:**
-```bash
-# API Configuration
-VITE_API_URL=https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
+**Objetivo:** evitar depender del hostname `*.execute-api...` (puede cambiar o quedar NXDOMAIN).
+
+**Opción recomendada (si el cliente provee dominio): Custom Domain en API Gateway**
+- Ejemplo: `https://api.<cliente>.com/production`
+- Si NO hay dominio disponible, usar la opción runtime-config (abajo).
+
+**Opción alternativa (runtime config sin rebuild):**
+- Servir un archivo público `runtime-config.json` desde el frontend (S3/CloudFront o Vite) con esta forma:
+
+```json
+{ "apiBaseUrl": "https://<api-id>.execute-api.<region>.amazonaws.com/<stage>" }
 ```
 
-**`participant-frontend/.env.local`:**
-```bash
-# 🏠 LOCAL DEVELOPMENT CONFIGURATION
-# Este archivo es para desarrollo local únicamente
-# NO COMMITEAR ESTE ARCHIVO
-
-# API Configuration
-VITE_API_URL=https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
-```
+- El frontend primero intenta `VITE_API_URL`, y si no existe, lee `/runtime-config.json`.
 
 **⚠️ NOTA:** Si quieres usar backend local en desarrollo, crea un segundo archivo:
 
@@ -154,8 +152,8 @@ Y modifica `package.json`:
 2. Verifica que existan estos secrets:
 
 ```
-✅ VITE_API_URL_PRODUCTION
-   Valor esperado: https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
+✅ (Opcional) VITE_API_URL_PRODUCTION
+   Nota: ya no es obligatorio si usas `runtime-config.json` publicado por el workflow de backend.
 
 ✅ VITE_PARTICIPANT_FRONTEND_URL
    Valor esperado: https://participant.useremotion.com (o tu URL real)
@@ -170,11 +168,11 @@ Y modifica `package.json`:
 ✅ PARTICIPANT_FRONTEND_CLOUDFRONT_ID
 ```
 
-3. Si `VITE_API_URL_PRODUCTION` no existe o está mal:
+3. Si `VITE_API_URL_PRODUCTION` no existe o está mal (solo si lo querés usar):
 
 ```bash
-# Crear/actualizar el secret
-gh secret set VITE_API_URL_PRODUCTION --body "https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev"
+# Crear/actualizar el secret (ejemplo)
+gh secret set VITE_API_URL_PRODUCTION --body "https://<api-id>.execute-api.<region>.amazonaws.com/<stage>"
 
 # O hacerlo manualmente en GitHub UI
 ```
@@ -200,18 +198,21 @@ git push origin main
 
 ## 🧪 TESTING DE CONECTIVIDAD
 
-### Test 1: Backend Health Check
+### Test 1: Backend Health Check (dominio estable)
 
 ```bash
 # Debería retornar {"status":"healthy","timestamp":"..."}
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health
+# Recomendado: leer base URL desde el runtime config del frontend desplegado
+FRONTEND_URL="https://participant.useremotion.com"
+API_BASE_URL="$(curl -fsS "${FRONTEND_URL}/runtime-config.json" | jq -r '.apiBaseUrl')"
+curl "${API_BASE_URL}/health"
 ```
 
 ### Test 2: Backend Config Endpoint
 
 ```bash
 # Debería retornar la configuración de API
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/config
+curl "${API_BASE_URL}/config"
 ```
 
 ### Test 3: CORS Headers
@@ -222,7 +223,7 @@ curl -X OPTIONS \
   -H "Origin: https://research.useremotion.com" \
   -H "Access-Control-Request-Method: GET" \
   -H "Access-Control-Request-Headers: Content-Type,Authorization" \
-  https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health \
+  "${API_BASE_URL}/health" \
   -v
 ```
 

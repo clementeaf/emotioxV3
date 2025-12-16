@@ -27,7 +27,9 @@ provider:
             - s3:PutObject
             - s3:GetObject
             - s3:DeleteObject
-          Resource: "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
+          Resource:
+            - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
+            - "arn:aws:s3:::emotioxv3-media-*/*"
         - Effect: Allow
           Action:
             - cognito-idp:AdminGetUser

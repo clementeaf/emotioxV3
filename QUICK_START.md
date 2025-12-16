@@ -37,11 +37,16 @@ bash deploy-aws.sh  # Re-deploy con DB configurada
 ### Backend (una vez desplegado con DB):
 
 ```bash
+# Resolver el API base URL desde el runtime config del frontend desplegado
+# FRONTEND_URL ejemplo: https://<tu-cloudfront-domain>  (o un dominio propio si existe)
+FRONTEND_URL="https://participant.useremotion.com"
+API_BASE_URL="$(curl -fsS "${FRONTEND_URL}/runtime-config.json" | jq -r '.apiBaseUrl')"
+
 # Health check
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health
+curl "${API_BASE_URL}/health"
 
 # Registrar usuario
-curl -X POST https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/auth/register \
+curl -X POST "${API_BASE_URL}/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"test@useremotion.com","password":"Test123!","first_name":"Test","last_name":"User"}'
 ```

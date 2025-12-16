@@ -8,16 +8,12 @@ import { configService } from './config.service';
 
 interface MediaUrlResponse {
     url: string;
-    expiresIn: number;
+    expires_in: number;
+    id?: string;
 }
 
 class MediaService {
-    private baseUrl: string;
     private urlCache: Map<string, { url: string; expiresAt: number }> = new Map();
-
-    constructor() {
-        this.baseUrl = configService.getBaseUrl();
-    }
 
     /**
      * Get media URL from S3 key
@@ -32,8 +28,9 @@ class MediaService {
                 return cached.url;
             }
 
-            const endpoint = configService.getEndpoint('media', 'getUrl', { key: s3Key });
-            const url = `${this.baseUrl}${endpoint}`;
+            const baseUrl = configService.getBaseUrl();
+            const endpoint = configService.getEndpoint('public', 'mediaByKey');
+            const url = `${baseUrl}${endpoint}?s3_key=${encodeURIComponent(s3Key)}`;
             
             const response = await fetch(url, {
                 method: 'GET',
@@ -48,8 +45,8 @@ class MediaService {
 
             const data = await response.json() as MediaUrlResponse;
             
-            // Cache the URL (expires in expiresIn seconds - 5 minutes buffer)
-            const expiresAt = Date.now() + ((data.expiresIn - 300) * 1000);
+            // Cache the URL (expires in expires_in seconds - 5 minutes buffer)
+            const expiresAt = Date.now() + ((data.expires_in - 300) * 1000);
             this.urlCache.set(s3Key, { url: data.url, expiresAt });
 
             return data.url;

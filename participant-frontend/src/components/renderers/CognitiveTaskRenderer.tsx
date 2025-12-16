@@ -110,9 +110,10 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ x: number; y: number; width: number; height: number; label?: string; }> }> = [];
             
-            if (imageComponent?.defaultValue) {
+            const rawImagesJson = imageComponent?.value ?? imageComponent?.defaultValue;
+            if (rawImagesJson) {
                 try {
-                    const parsed = JSON.parse(imageComponent.defaultValue);
+                    const parsed = JSON.parse(rawImagesJson);
                     if (Array.isArray(parsed)) {
                         images = parsed.map((img: { id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ region?: { x?: number; y?: number; width?: number; height?: number }; x?: number; y?: number; width?: number; height?: number; name?: string; label?: string }> }) => ({
                             id: img.id || img.mediaId || String(Math.random()),
@@ -149,9 +150,10 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string }> = [];
             
-            if (imageComponent?.defaultValue) {
+            const rawImagesJson = imageComponent?.value ?? imageComponent?.defaultValue;
+            if (rawImagesJson) {
                 try {
-                    const parsed = JSON.parse(imageComponent.defaultValue);
+                    const parsed = JSON.parse(rawImagesJson);
                     if (Array.isArray(parsed)) {
                         images = parsed.map((img: { id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string }) => ({
                             id: img.id || img.mediaId || String(Math.random()),

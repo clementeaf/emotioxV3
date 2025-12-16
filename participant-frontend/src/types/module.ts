@@ -4,6 +4,7 @@ export interface ModuleComponent {
     type: 'input' | 'textarea' | 'select' | 'file-upload' | 'checkbox' | 'radio';
     label: string;
     defaultValue: string;
+    value?: string;
     placeholder?: {
         enabled: boolean;
         text: string;

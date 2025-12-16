@@ -65,7 +65,7 @@ set_secret "DB_PORT" "5432"
 set_secret "DB_NAME" "emotioxv3"
 set_secret "DB_USER" "emotioxadmin"
 set_secret "DB_PASSWORD" "EmotioX2024SecurePass!"
-set_secret "VITE_API_URL_PRODUCTION" "https://udnl10lc5e.execute-api.us-east-1.amazonaws.com/production"
+echo "ℹ️  Skipping VITE_API_URL_PRODUCTION: frontends now use runtime-config.json published by backend deploy workflow"
 set_secret "VITE_PARTICIPANT_FRONTEND_URL" "https://d2am10cly7c9kf.cloudfront.net"
 
 echo ""

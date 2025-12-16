@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { useParticipantStore } from '../stores/useParticipantStore';
 import { useSessionStore } from '../stores/useSessionStore';
-import { MOCK_MODULES } from '../data/mockModules';
 import { useValidation } from './useValidation';
+import type { Module } from '../services/public.service';
 
 // Define the order of steps (hardcoded for now, will be dynamic later)
 const STEPS_ORDER = [
@@ -15,18 +15,26 @@ const STEPS_ORDER = [
     'thank-you'
 ];
 
-export const useNavigation = () => {
+/**
+ * Navigation hook for participant flow.
+ * @param modulesByStep - Map of stepId -> module loaded from backend
+ */
+export const useNavigation = (modulesByStep: Record<string, Module>) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
     const { updateMetrics, trackInteraction } = useSessionStore();
     const { validateStep } = useValidation();
 
-    const currentIndex = STEPS_ORDER.indexOf(currentStep);
+    const enabledSteps = STEPS_ORDER.filter((stepId) => Boolean(modulesByStep[stepId]));
+    const steps = enabledSteps.length > 0 ? enabledSteps : STEPS_ORDER;
+
+    const currentIndex = steps.indexOf(currentStep);
     const isFirstStep = currentIndex === 0;
-    const isLastStep = currentIndex === STEPS_ORDER.length - 1;
-    const progress = Math.round(((currentIndex + 1) / STEPS_ORDER.length) * 100);
+    const isLastStep = currentIndex === steps.length - 1;
+    const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+    const progress = Math.round(((safeIndex + 1) / steps.length) * 100);
 
     const goNext = useCallback((): { success: boolean; errors?: Array<{ message: string }> } => {
-        const currentModule = MOCK_MODULES[currentStep];
+        const currentModule = modulesByStep[currentStep];
 
         // Validate current step if it's a module
         if (currentModule) {
@@ -37,8 +45,8 @@ export const useNavigation = () => {
             }
         }
 
-        if (currentIndex < STEPS_ORDER.length - 1) {
-            const nextStep = STEPS_ORDER[currentIndex + 1];
+        if (currentIndex >= 0 && currentIndex < steps.length - 1) {
+            const nextStep = steps[currentIndex + 1];
             setCurrentStep(nextStep);
             
             // Track step change
@@ -54,11 +62,11 @@ export const useNavigation = () => {
             return { success: true };
         }
         return { success: true };
-    }, [currentIndex, currentStep, setCurrentStep, validateStep, trackInteraction, updateMetrics]);
+    }, [currentIndex, currentStep, modulesByStep, setCurrentStep, steps, validateStep, trackInteraction, updateMetrics]);
 
     const goBack = useCallback(() => {
         if (currentIndex > 0) {
-            const prevStep = STEPS_ORDER[currentIndex - 1];
+            const prevStep = steps[currentIndex - 1];
             setCurrentStep(prevStep);
             
             // Track step change
@@ -68,10 +76,10 @@ export const useNavigation = () => {
                 metadata: { from: currentStep, direction: 'back' },
             });
         }
-    }, [currentIndex, currentStep, setCurrentStep, trackInteraction]);
+    }, [currentIndex, currentStep, setCurrentStep, steps, trackInteraction]);
 
     const goToStep = useCallback((stepId: string) => {
-        if (STEPS_ORDER.includes(stepId)) {
+        if (steps.includes(stepId)) {
             setCurrentStep(stepId);
             
             // Track step change
@@ -81,7 +89,7 @@ export const useNavigation = () => {
                 metadata: { from: currentStep, direction: 'direct' },
             });
         }
-    }, [currentStep, setCurrentStep, trackInteraction]);
+    }, [currentStep, setCurrentStep, steps, trackInteraction]);
 
     return {
         currentStep,

@@ -44,12 +44,6 @@ interface SubmitResponseResult {
 }
 
 class PublicService {
-    private baseUrl: string;
-
-    constructor() {
-        this.baseUrl = configService.getBaseUrl();
-    }
-
     /**
      * Fetch public research data (no auth required)
      * @param researchId - Research ID
@@ -57,8 +51,9 @@ class PublicService {
      */
     async getResearch(researchId: string): Promise<ResearchData> {
         try {
+            const baseUrl = configService.getBaseUrl();
             const endpoint = configService.getEndpoint('public', 'research', { id: researchId });
-            const url = `${this.baseUrl}${endpoint}`;
+            const url = `${baseUrl}${endpoint}`;
             
             const response = await fetch(url, {
                 method: 'GET',
@@ -87,8 +82,9 @@ class PublicService {
      */
     async submitResponse(researchId: string, data: SubmitResponseData): Promise<SubmitResponseResult> {
         try {
+            const baseUrl = configService.getBaseUrl();
             const endpoint = configService.getEndpoint('public', 'submitResponse', { id: researchId });
-            const url = `${this.baseUrl}${endpoint}`;
+            const url = `${baseUrl}${endpoint}`;
             
             const response = await fetch(url, {
                 method: 'POST',

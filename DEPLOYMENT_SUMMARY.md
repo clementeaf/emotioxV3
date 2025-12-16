@@ -93,7 +93,8 @@ origin: function (origin, callback) {
 **Configuración actual:**
 ```bash
 # .env y .env.local
-VITE_API_URL=https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
+# Opcional: si no lo seteás, el frontend usa /runtime-config.json
+# VITE_API_URL=https://<api-id>.execute-api.<region>.amazonaws.com/<stage>
 
 # .env.development (usar con npm run dev:local)
 VITE_API_URL=http://localhost:3000
@@ -163,7 +164,7 @@ npm run dev:local  # Usa backend local
 
 **URL esperada:**
 ```
-https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
+Se publica automáticamente en `runtime-config.json` dentro de los buckets de frontends.
 ```
 
 ### research-frontend
@@ -185,13 +186,15 @@ https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev
 
 ### 1. Backend Health Check
 ```bash
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health
+FRONTEND_URL="https://participant.useremotion.com"
+API_BASE_URL="$(curl -fsS "${FRONTEND_URL}/runtime-config.json" | jq -r '.apiBaseUrl')"
+curl "${API_BASE_URL}/health"
 ```
 **Esperado:** `{"status":"healthy","timestamp":"..."}`
 
 ### 2. Backend Config Endpoint
 ```bash
-curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/config
+curl "${API_BASE_URL}/config"
 ```
 **Esperado:** JSON con configuración de API
 
@@ -200,7 +203,7 @@ curl https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/config
 curl -X OPTIONS \
   -H "Origin: https://research.useremotion.com" \
   -H "Access-Control-Request-Method: GET" \
-  https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev/health \
+  "${API_BASE_URL}/health" \
   -v
 ```
 **Esperado:** 
@@ -234,7 +237,7 @@ Ve a: `Settings > Secrets and variables > Actions`
 
 Confirmar que existen:
 - ✅ `VITE_API_URL_PRODUCTION`
-  - Valor: `https://vkgnkrk8gc.execute-api.us-east-1.amazonaws.com/dev`
+  - Nota: ya no es obligatorio si el backend workflow publica `runtime-config.json`.
 - ✅ `VITE_PARTICIPANT_FRONTEND_URL`
 - ✅ `AWS_ACCESS_KEY_ID`
 - ✅ `AWS_SECRET_ACCESS_KEY`

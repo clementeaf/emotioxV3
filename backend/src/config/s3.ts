@@ -9,6 +9,7 @@ function buildS3Client(): S3Client {
 
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const sessionToken = process.env.AWS_SESSION_TOKEN;
 
     if (!accessKeyId || !secretAccessKey) {
         return new S3Client({ region });
@@ -19,6 +20,7 @@ function buildS3Client(): S3Client {
         credentials: {
             accessKeyId,
             secretAccessKey,
+            sessionToken: sessionToken || undefined,
         },
     });
 }

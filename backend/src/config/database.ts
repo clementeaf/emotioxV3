@@ -5,13 +5,18 @@ import { Pool } from 'pg';
  * - RDS (AWS) requiere SSL
  * - Localhost no soporta SSL
  */
-const shouldUseSSL = (): boolean | { rejectUnauthorized: boolean } => {
+/**
+ * Resolves pg SSL configuration for the current environment.
+ * @returns SSL config for pg (false disables SSL; object enables SSL with options)
+ */
+const shouldUseSSL = (): false | { rejectUnauthorized: boolean } => {
     const host = process.env.DB_HOST || '';
     const dbSSL = process.env.DB_SSL;
     
     // Si DB_SSL está explícitamente configurado, usar ese valor
     if (dbSSL !== undefined) {
-        return dbSSL === 'true' || dbSSL === '1';
+        const enabled = dbSSL === 'true' || dbSSL === '1';
+        return enabled ? { rejectUnauthorized: false } : false;
     }
     
     // Si el host es localhost o 127.0.0.1, no usar SSL

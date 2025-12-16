@@ -77,8 +77,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             try {
                 const urls = await Promise.all(
                     propImages.map(async (img) => {
-                        if (img.url) return img.url;
                         if (img.s3Key) return await mediaService.getMediaUrl(img.s3Key);
+                        if (img.url) return img.url;
                         return '';
                     })
                 );

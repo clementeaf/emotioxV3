@@ -31,8 +31,6 @@ jobs:
 
       - name: Build for production
         working-directory: participant-frontend
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL_PRODUCTION }}
         run: npm run build
 
       - name: Configure AWS credentials
@@ -45,7 +43,7 @@ jobs:
       - name: Deploy to S3
         working-directory: participant-frontend
         run: |
-          aws s3 sync dist/ s3://${{ secrets.PARTICIPANT_FRONTEND_S3_BUCKET }} --delete
+          aws s3 sync dist/ s3://${{ secrets.PARTICIPANT_FRONTEND_S3_BUCKET }} --delete --exclude "runtime-config.json"
 
       - name: Invalidate CloudFront cache
         run: |

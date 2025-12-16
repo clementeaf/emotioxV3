@@ -68,3 +68,44 @@ jobs:
             exit 1
           fi
           npx serverless deploy --stage production
+
+      - name: Publish runtime-config.json to frontend buckets
+        working-directory: backend
+        env:
+          RESEARCH_FRONTEND_S3_BUCKET: ${{ secrets.RESEARCH_FRONTEND_S3_BUCKET }}
+          PARTICIPANT_FRONTEND_S3_BUCKET: ${{ secrets.PARTICIPANT_FRONTEND_S3_BUCKET }}
+          RESEARCH_FRONTEND_CLOUDFRONT_ID: ${{ secrets.RESEARCH_FRONTEND_CLOUDFRONT_ID }}
+          PARTICIPANT_FRONTEND_CLOUDFRONT_ID: ${{ secrets.PARTICIPANT_FRONTEND_CLOUDFRONT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RESEARCH_FRONTEND_S3_BUCKET}" ] || [ -z "${PARTICIPANT_FRONTEND_S3_BUCKET}" ]; then
+            echo "Missing frontend S3 bucket secrets (RESEARCH_FRONTEND_S3_BUCKET / PARTICIPANT_FRONTEND_S3_BUCKET)"
+            exit 1
+          fi
+
+          echo "Resolving deployed API base URL from CloudFormation stack output..."
+          STACK_NAME="emotioxv3-backend-production"
+          API_BASE_URL="$(aws cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue | [0]" \
+            --output text)"
+
+          if [ -z "${API_BASE_URL}" ]; then
+            echo "Failed to resolve API base URL from CloudFormation output for stack: ${STACK_NAME}"
+            exit 1
+          fi
+
+          echo "API base URL: ${API_BASE_URL}"
+          printf '{ "apiBaseUrl": "%s" }\n' "${API_BASE_URL}" > runtime-config.json
+
+          echo "Uploading runtime-config.json to frontend buckets..."
+          aws s3 cp runtime-config.json "s3://${RESEARCH_FRONTEND_S3_BUCKET}/runtime-config.json" --cache-control "no-store, max-age=0"
+          aws s3 cp runtime-config.json "s3://${PARTICIPANT_FRONTEND_S3_BUCKET}/runtime-config.json" --cache-control "no-store, max-age=0"
+
+          if [ -n "${RESEARCH_FRONTEND_CLOUDFRONT_ID:-}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${RESEARCH_FRONTEND_CLOUDFRONT_ID}" --paths "/runtime-config.json"
+          fi
+          if [ -n "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID:-}" ]; then
+            aws cloudfront create-invalidation --distribution-id "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID}" --paths "/runtime-config.json"
+          fi
