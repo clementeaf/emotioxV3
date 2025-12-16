@@ -52,5 +52,19 @@ jobs:
           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
           COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
           COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           API_STAGE: production
-        run: npx serverless deploy --stage production
+        run: |
+          missing=()
+          for var in DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD AWS_REGION S3_BUCKET_NAME JWT_SECRET JWT_REFRESH_SECRET; do
+            if [ -z "${!var}" ]; then
+              missing+=("$var")
+            fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "Missing required secrets/env vars for deployment:"
+            printf ' - %s\n' "${missing[@]}"
+            exit 1
+          fi
+          npx serverless deploy --stage production
