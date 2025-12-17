@@ -140,12 +140,22 @@ class ConfigService {
     private async fetchRuntimeConfigWithDevFallback(): Promise<RuntimeConfig> {
         try {
             return await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
-        } catch (error) {
+        } catch (error: unknown) {
             const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
             if (!isLocalhost) {
                 throw error;
             }
-            return await this.fetchRuntimeConfigFromUrl(DEFAULT_DEPLOYED_RUNTIME_CONFIG_URL);
+
+            const envBaseUrl = this.getEnvApiBaseUrl();
+            if (envBaseUrl) {
+                return { apiBaseUrl: envBaseUrl };
+            }
+
+            try {
+                return await this.fetchRuntimeConfigFromUrl(DEFAULT_DEPLOYED_RUNTIME_CONFIG_URL);
+            } catch (_fallbackError: unknown) {
+                return { apiBaseUrl: 'http://localhost:3000' };
+            }
         }
     }
 
