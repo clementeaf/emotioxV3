@@ -42,6 +42,9 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
     const titleComponent = module.structure.components.find(c => c.id.includes('-title'));
     const descriptionComponent = module.structure.components.find(c => c.id.includes('-description'));
     const instructionsComponent = module.structure.components.find(c => c.id.includes('-instructions'));
+    const titleText = titleComponent?.value ?? titleComponent?.defaultValue;
+    const descriptionText = descriptionComponent?.value ?? descriptionComponent?.defaultValue;
+    const instructionsText = instructionsComponent?.value ?? instructionsComponent?.defaultValue;
 
     // Determine module type by name
     const isCSAT = module.name.includes('CSAT');
@@ -55,7 +58,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
     const renderInteractiveComponent = () => {
         if (isCSAT) {
             const displayTypeComponent = module.structure.components.find(c => c.id === 'csat-display-type');
-            const displayType = displayTypeComponent?.defaultValue || 'stars';
+            const displayType = displayTypeComponent?.value ?? displayTypeComponent?.defaultValue ?? 'stars';
 
             if (displayType === 'stars') {
                 return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} />;
@@ -99,8 +102,8 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                 const [minStr, maxStr] = scaleComponent.selectRange.predefined.split('-');
                 min = parseInt(minStr);
                 max = parseInt(maxStr);
-            } else if (scaleComponent?.defaultValue) {
-                const [minStr, maxStr] = String(scaleComponent.defaultValue).split('-');
+            } else if (scaleComponent?.value || scaleComponent?.defaultValue) {
+                const [minStr, maxStr] = String(scaleComponent.value ?? scaleComponent.defaultValue).split('-');
                 min = parseInt(minStr);
                 max = parseInt(maxStr);
             }
@@ -111,8 +114,8 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                     max={max}
                     value={scaleValue}
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
-                    startLabel={startLabelComponent?.defaultValue || ''}
-                    endLabel={endLabelComponent?.defaultValue || ''}
+                    startLabel={startLabelComponent?.value ?? startLabelComponent?.defaultValue ?? ''}
+                    endLabel={endLabelComponent?.value ?? endLabelComponent?.defaultValue ?? ''}
                 />
             );
         }
@@ -155,23 +158,23 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-2xl space-y-6">
                 {/* Title */}
-                {titleComponent?.defaultValue && (
+                {titleText && titleText.length > 0 && (
                     <h1 className="text-3xl font-bold text-gray-900 text-center">
-                        {titleComponent.defaultValue}
+                        {titleText}
                     </h1>
                 )}
 
                 {/* Description */}
-                {descriptionComponent?.defaultValue && (
+                {descriptionText && descriptionText.length > 0 && (
                     <p className="text-lg text-gray-600 text-center">
-                        {descriptionComponent.defaultValue}
+                        {descriptionText}
                     </p>
                 )}
 
                 {/* Instructions */}
-                {instructionsComponent?.defaultValue && (
+                {instructionsText && instructionsText.length > 0 && (
                     <p className="text-sm text-gray-500 text-center italic">
-                        {instructionsComponent.defaultValue}
+                        {instructionsText}
                     </p>
                 )}
 

@@ -34,6 +34,19 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
         saveResponse(module.id, componentId, value);
     }, [module.id, saveResponse]);
 
+    /**
+     * Gets the initial value to display for a module component when the participant has not answered it yet.
+     * Prefers backend-provided component.value and falls back to component.defaultValue.
+     * @param value - Component value provided by backend (optional)
+     * @param defaultValue - Component default value
+     * @returns Display value
+     */
+    const getInitialDisplayValue = useCallback((value: string | undefined, defaultValue: string): string => {
+        if (typeof value === 'string' && value.length > 0) return value;
+        if (defaultValue.length > 0) return defaultValue;
+        return '';
+    }, []);
+
     // Check if this is a SmartVOC module
     const isSmartVOC = useMemo(() =>
         module.name.includes('CSAT') ||
@@ -83,28 +96,29 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
             <div className="w-full max-w-2xl space-y-6">
                 {sortedComponents.map((component) => {
                     const savedValue = getComponentValue(component.id);
-                    const value = savedValue || component.defaultValue || '';
+                    const value = savedValue || getInitialDisplayValue(component.value, component.defaultValue);
 
                     // Render display-only components
                     if (displayOnlyIds.includes(component.id)) {
+                        const displayValue = getInitialDisplayValue(component.value, component.defaultValue);
                         if (component.id === 'title') {
                             return (
                                 <h1 key={component.id} className="text-3xl font-bold text-gray-900 text-center">
-                                    {component.defaultValue}
+                                    {displayValue}
                                 </h1>
                             );
                         }
                         if (component.id === 'message') {
                             return (
                                 <p key={component.id} className="text-lg text-gray-600 text-center max-w-2xl">
-                                    {component.defaultValue}
+                                    {displayValue}
                                 </p>
                             );
                         }
                         if (component.id === 'instructions') {
                             return (
                                 <p key={component.id} className="text-sm text-gray-500 text-center italic">
-                                    {component.defaultValue}
+                                    {displayValue}
                                 </p>
                             );
                         }

@@ -13,6 +13,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     // Extract common components
     const titleComponent = module.structure.components.find(c => c.id.includes('title'));
     const descriptionComponent = module.structure.components.find(c => c.id.includes('description'));
+    const titleText = titleComponent?.value ?? titleComponent?.defaultValue;
+    const descriptionText = descriptionComponent?.value ?? descriptionComponent?.defaultValue;
 
     // Determine task type
     const isShortText = module.name === 'Short Text';
@@ -32,9 +34,9 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 <TextQuestion
                     moduleId={module.id}
                     componentId="answer"
-                    title={titleComponent?.defaultValue}
-                    description={descriptionComponent?.defaultValue}
-                    placeholder={placeholderComp?.defaultValue || 'Escribe tu respuesta...'}
+                    title={titleText}
+                    description={descriptionText}
+                    placeholder={placeholderComp?.value ?? placeholderComp?.defaultValue ?? 'Escribe tu respuesta...'}
                     isLongText={isLongText}
                 />
             );
@@ -46,15 +48,15 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
-                    label: c.defaultValue || ''
+                    label: c.value ?? c.defaultValue ?? ''
                 }));
 
             return (
                 <ChoiceQuestion
                     moduleId={module.id}
                     componentId="choice"
-                    title={titleComponent?.defaultValue}
-                    description={descriptionComponent?.defaultValue}
+                    title={titleText}
+                    description={descriptionText}
                     options={choices}
                     isMultiple={isMultipleChoice}
                 />
@@ -68,19 +70,21 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const startLabelComp = module.structure.components.find(c => c.id.includes('start-label'));
             const endLabelComp = module.structure.components.find(c => c.id.includes('end-label'));
 
-            const min = startValueComp?.defaultValue ? parseInt(startValueComp.defaultValue) : 1;
-            const max = endValueComp?.defaultValue ? parseInt(endValueComp.defaultValue) : 5;
+            const minSource = startValueComp?.value ?? startValueComp?.defaultValue;
+            const maxSource = endValueComp?.value ?? endValueComp?.defaultValue;
+            const min = minSource ? parseInt(minSource) : 1;
+            const max = maxSource ? parseInt(maxSource) : 5;
 
             return (
                 <LinearScaleQuestion
                     moduleId={module.id}
                     componentId="scale"
-                    title={titleComponent?.defaultValue}
-                    description={descriptionComponent?.defaultValue}
+                    title={titleText}
+                    description={descriptionText}
                     minValue={min}
                     maxValue={max}
-                    minLabel={startLabelComp?.defaultValue}
-                    maxLabel={endLabelComp?.defaultValue}
+                    minLabel={startLabelComp?.value ?? startLabelComp?.defaultValue}
+                    maxLabel={endLabelComp?.value ?? endLabelComp?.defaultValue}
                 />
             );
         }
@@ -91,15 +95,15 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
-                    label: c.defaultValue || ''
+                    label: c.value ?? c.defaultValue ?? ''
                 }));
 
             return (
                 <RankingQuestion
                     moduleId={module.id}
                     componentId="ranking"
-                    title={titleComponent?.defaultValue}
-                    description={descriptionComponent?.defaultValue}
+                    title={titleText}
+                    description={descriptionText}
                     items={items}
                 />
             );
@@ -138,8 +142,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 <NavigationFlow
                     moduleId={module.id}
                     componentId="navigation-flow"
-                    title={titleComponent?.defaultValue}
-                    description={descriptionComponent?.defaultValue}
+                    title={titleText}
+                    description={descriptionText}
                     images={images}
                 />
             );
@@ -171,8 +175,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 <PreferenceTest
                     moduleId={module.id}
                     componentId="preference-test"
-                    title={titleComponent?.defaultValue}
-                    description={descriptionComponent?.defaultValue}
+                    title={titleText}
+                    description={descriptionText}
                     images={images}
                 />
             );
