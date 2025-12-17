@@ -6,6 +6,7 @@ import { EmotionSelector } from '../ui/EmotionSelector';
 import { TextareaRenderer } from './TextareaRenderer';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import type { ResponseValue } from '../../types/responses';
+import { getComponentText } from '../../utils/moduleComponent';
 
 interface SmartVOCRendererProps {
     module: ModuleConfig;
@@ -42,9 +43,9 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
     const titleComponent = module.structure.components.find(c => c.id.includes('-title'));
     const descriptionComponent = module.structure.components.find(c => c.id.includes('-description'));
     const instructionsComponent = module.structure.components.find(c => c.id.includes('-instructions'));
-    const titleText = titleComponent?.value ?? titleComponent?.defaultValue;
-    const descriptionText = descriptionComponent?.value ?? descriptionComponent?.defaultValue;
-    const instructionsText = instructionsComponent?.value ?? instructionsComponent?.defaultValue;
+    const titleText = getComponentText(titleComponent);
+    const descriptionText = getComponentText(descriptionComponent);
+    const instructionsText = getComponentText(instructionsComponent);
 
     // Determine module type by name
     const isCSAT = module.name.includes('CSAT');
@@ -58,7 +59,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
     const renderInteractiveComponent = () => {
         if (isCSAT) {
             const displayTypeComponent = module.structure.components.find(c => c.id === 'csat-display-type');
-            const displayType = displayTypeComponent?.value ?? displayTypeComponent?.defaultValue ?? 'stars';
+            const displayType = getComponentText(displayTypeComponent) || 'stars';
 
             if (displayType === 'stars') {
                 return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} />;
@@ -102,10 +103,13 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                 const [minStr, maxStr] = scaleComponent.selectRange.predefined.split('-');
                 min = parseInt(minStr);
                 max = parseInt(maxStr);
-            } else if (scaleComponent?.value || scaleComponent?.defaultValue) {
-                const [minStr, maxStr] = String(scaleComponent.value ?? scaleComponent.defaultValue).split('-');
+            } else {
+                const scaleRangeText = getComponentText(scaleComponent);
+                if (scaleRangeText.trim().length > 0) {
+                    const [minStr, maxStr] = String(scaleRangeText).split('-');
                 min = parseInt(minStr);
                 max = parseInt(maxStr);
+                }
             }
 
             return (
@@ -114,8 +118,8 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                     max={max}
                     value={scaleValue}
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
-                    startLabel={startLabelComponent?.value ?? startLabelComponent?.defaultValue ?? ''}
-                    endLabel={endLabelComponent?.value ?? endLabelComponent?.defaultValue ?? ''}
+                    startLabel={getComponentText(startLabelComponent)}
+                    endLabel={getComponentText(endLabelComponent)}
                 />
             );
         }
@@ -158,9 +162,9 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-2xl space-y-6">
                 {/* Title */}
-                {titleText && titleText.length > 0 && (
+                {(titleText || module.name).length > 0 && (
                     <h1 className="text-3xl font-bold text-gray-900 text-center">
-                        {titleText}
+                        {titleText || module.name}
                     </h1>
                 )}
 

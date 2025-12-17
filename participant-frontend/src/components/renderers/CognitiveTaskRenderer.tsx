@@ -3,6 +3,7 @@ import type { ModuleConfig } from '../../types/module';
 import { NavigationFlow } from '../ui/NavigationFlow';
 import { PreferenceTest } from '../ui/PreferenceTest';
 import { TextQuestion, ChoiceQuestion, LinearScaleQuestion, RankingQuestion } from '../questions';
+import { getComponentText } from '../../utils/moduleComponent';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
@@ -13,8 +14,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     // Extract common components
     const titleComponent = module.structure.components.find(c => c.id.includes('title'));
     const descriptionComponent = module.structure.components.find(c => c.id.includes('description'));
-    const titleText = titleComponent?.value ?? titleComponent?.defaultValue;
-    const descriptionText = descriptionComponent?.value ?? descriptionComponent?.defaultValue;
+    const titleText = getComponentText(titleComponent) || module.name;
+    const descriptionText = getComponentText(descriptionComponent) || module.description;
 
     // Determine task type
     const isShortText = module.name === 'Short Text';
@@ -36,7 +37,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     componentId="answer"
                     title={titleText}
                     description={descriptionText}
-                    placeholder={placeholderComp?.value ?? placeholderComp?.defaultValue ?? 'Escribe tu respuesta...'}
+                    placeholder={getComponentText(placeholderComp) || 'Escribe tu respuesta...'}
                     isLongText={isLongText}
                 />
             );
@@ -48,7 +49,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
-                    label: c.value ?? c.defaultValue ?? ''
+                    label: getComponentText(c)
                 }));
 
             return (
@@ -70,8 +71,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const startLabelComp = module.structure.components.find(c => c.id.includes('start-label'));
             const endLabelComp = module.structure.components.find(c => c.id.includes('end-label'));
 
-            const minSource = startValueComp?.value ?? startValueComp?.defaultValue;
-            const maxSource = endValueComp?.value ?? endValueComp?.defaultValue;
+            const minSource = getComponentText(startValueComp);
+            const maxSource = getComponentText(endValueComp);
             const min = minSource ? parseInt(minSource) : 1;
             const max = maxSource ? parseInt(maxSource) : 5;
 
@@ -83,8 +84,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     description={descriptionText}
                     minValue={min}
                     maxValue={max}
-                    minLabel={startLabelComp?.value ?? startLabelComp?.defaultValue}
-                    maxLabel={endLabelComp?.value ?? endLabelComp?.defaultValue}
+                    minLabel={getComponentText(startLabelComp)}
+                    maxLabel={getComponentText(endLabelComp)}
                 />
             );
         }
@@ -95,7 +96,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
-                    label: c.value ?? c.defaultValue ?? ''
+                    label: getComponentText(c)
                 }));
 
             return (
@@ -114,7 +115,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ x: number; y: number; width: number; height: number; label?: string; }> }> = [];
             
-            const rawImagesJson = imageComponent?.value ?? imageComponent?.defaultValue;
+            const rawImagesJson = getComponentText(imageComponent);
             if (rawImagesJson) {
                 try {
                     const parsed = JSON.parse(rawImagesJson);
@@ -154,7 +155,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string }> = [];
             
-            const rawImagesJson = imageComponent?.value ?? imageComponent?.defaultValue;
+            const rawImagesJson = getComponentText(imageComponent);
             if (rawImagesJson) {
                 try {
                     const parsed = JSON.parse(rawImagesJson);

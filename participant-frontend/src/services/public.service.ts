@@ -68,7 +68,7 @@ class PublicService {
 
             const data = await response.json() as PublicResearchResponse;
             return data.research;
-        } catch (error) {
+    } catch (error: unknown) {
             console.error('Error fetching research:', error);
             throw error;
         }
@@ -100,7 +100,7 @@ class PublicService {
 
             const result = await response.json() as SubmitResponseResult;
             return result;
-        } catch (error) {
+    } catch (error: unknown) {
             console.error('Error submitting response:', error);
             throw error;
         }

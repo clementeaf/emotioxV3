@@ -82,9 +82,9 @@ class ResponseService {
             }
 
             const result = await httpResponse.json() as SubmitResponseResult;
-            console.log('✓ Response submitted:', response.moduleId, response.componentId);
+      console.log('Response submitted:', response.moduleId, response.componentId);
             return result;
-        } catch (error) {
+    } catch (error: unknown) {
             console.error('Error submitting response:', error);
             throw error;
         }
@@ -119,9 +119,9 @@ class ResponseService {
             }
 
             const result = await httpResponse.json() as SubmitResponseResult;
-            console.log('✓ Module responses submitted:', payload.moduleId, `(${payload.responses.length} responses)`);
+      console.log('Module responses submitted:', payload.moduleId, `(${payload.responses.length} responses)`);
             return result;
-        } catch (error) {
+    } catch (error: unknown) {
             console.error('Error submitting module responses:', error);
             throw error;
         }

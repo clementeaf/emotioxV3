@@ -125,8 +125,9 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         // 404 Not Found
         return error('Route not found', 404, undefined, origin);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('Router error:', err);
-        return error(err.message || 'Internal server error', 500, undefined, origin);
+        const message = err instanceof Error ? err.message : 'Internal server error';
+        return error(message, 500, undefined, origin);
     }
 };

@@ -175,8 +175,8 @@ export const ResearchPage = () => {
           linkConfig: linkConfig,
         });
 
-        console.log('✓ Research loaded:', research.title || research.name, `(${Object.keys(modulesMap).length} modules)`);
-      } catch (err) {
+        console.log('Research loaded:', research.title || research.name, `(${Object.keys(modulesMap).length} modules)`);
+      } catch (err: unknown) {
         console.error('Failed to load research:', err);
         setError('Failed to load research. Please try again.');
       } finally {
@@ -253,8 +253,8 @@ export const ResearchPage = () => {
             },
           });
 
-          console.log(`✓ Submitted ${moduleResponses.length} responses for module ${currentModule.id}`);
-        } catch (error) {
+          console.log(`Submitted ${moduleResponses.length} responses for module ${currentModule.id}`);
+        } catch (error: unknown) {
           console.error('Error submitting responses:', error);
           // Don't block navigation on error, just log it
           alert('Error al guardar respuestas. Por favor, intenta nuevamente.');

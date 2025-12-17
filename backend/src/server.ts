@@ -32,7 +32,7 @@ app.use(cors({
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            console.warn(`⚠️  CORS: Origin not allowed: ${origin}`);
+            console.warn(`CORS: Origin not allowed: ${origin}`);
             callback(null, true); // Allow anyway in development
         }
     },
@@ -101,7 +101,7 @@ app.listen(PORT, () => {
     
     // Log cache stats every 5 minutes
     setInterval(() => {
-        console.log(`📊 Cache stats: ${cache.size()} entries`);
+        console.log(`Cache stats: ${cache.size()} entries`);
     }, 300000);
 });
 

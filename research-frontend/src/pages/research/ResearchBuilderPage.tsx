@@ -161,7 +161,7 @@ export const ResearchBuilderPage = () => {
                 const updatePromises = smartVOCModules.map(module => {
                     const moduleRef = smartVOCModuleRefs.current.get(module.id);
                     if (!moduleRef) {
-                        console.warn(`⚠️ No ref found for module ${module.id}`);
+                        console.warn(`No ref found for module ${module.id}`);
                         // Fallback: use existing config if ref not available
                         return modulesService.update(module.id, {
                             config: module.config,
@@ -173,7 +173,7 @@ export const ResearchBuilderPage = () => {
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     
-                    console.log(`💾 Saving ${module.name}:`, {
+                    console.log(`Saving ${module.name}:`, {
                         componentValues: currentComponentValues,
                         components: currentComponents
                     });
@@ -186,7 +186,7 @@ export const ResearchBuilderPage = () => {
                             : (currentComponentValues[comp.id] || comp.value)
                     }));
                     
-                    console.log(`✅ Updated components:`, updatedComponents);
+                    console.log(`Updated components:`, updatedComponents);
                     
                     // Preserve the correct backend structure
                     const config = {
@@ -209,7 +209,7 @@ export const ResearchBuilderPage = () => {
                 const updatePromises = cognitiveTaskModules.map(module => {
                     const moduleRef = cognitiveTaskModuleRefs.current.get(module.id);
                     if (!moduleRef) {
-                        console.warn(`⚠️ No ref found for module ${module.id}`);
+                        console.warn(`No ref found for module ${module.id}`);
                         return modulesService.update(module.id, {
                             config: module.config,
                             order: module.order_index

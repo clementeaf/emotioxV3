@@ -4,6 +4,7 @@ import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
 import { useParticipantStore } from '../../stores/useParticipantStore';
+import { getComponentText, toStableString } from '../../utils/moduleComponent';
 
 interface DynamicStepProps {
     module: ModuleConfig;
@@ -41,9 +42,16 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
      * @param defaultValue - Component default value
      * @returns Display value
      */
-    const getInitialDisplayValue = useCallback((value: string | undefined, defaultValue: string): string => {
-        if (typeof value === 'string' && value.length > 0) return value;
-        if (defaultValue.length > 0) return defaultValue;
+    const getInitialDisplayValue = useCallback((componentValue: unknown, component: { settings?: { defaultValue?: string }; defaultValue?: string }): string => {
+        const fromValue = toStableString(componentValue);
+        if (fromValue.trim().length > 0) return fromValue;
+
+        const fromSettings = typeof component.settings?.defaultValue === 'string' ? component.settings.defaultValue : '';
+        if (fromSettings.trim().length > 0) return fromSettings;
+
+        const fromLegacyDefault = typeof component.defaultValue === 'string' ? component.defaultValue : '';
+        if (fromLegacyDefault.trim().length > 0) return fromLegacyDefault;
+
         return '';
     }, []);
 
@@ -73,7 +81,7 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
 
     // Memoize sorted components
     const sortedComponents = useMemo(() => {
-        return [...module.structure.components].sort((a, b) => a.order - b.order);
+        return [...module.structure.components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }, [module.structure.components]);
 
     // Memoize display only IDs
@@ -96,22 +104,22 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
             <div className="w-full max-w-2xl space-y-6">
                 {sortedComponents.map((component) => {
                     const savedValue = getComponentValue(component.id);
-                    const value = savedValue || getInitialDisplayValue(component.value, component.defaultValue);
+                    const value = savedValue || getInitialDisplayValue(component.value, component);
 
                     // Render display-only components
                     if (displayOnlyIds.includes(component.id)) {
-                        const displayValue = getInitialDisplayValue(component.value, component.defaultValue);
+                        const displayValue = getComponentText(component);
                         if (component.id === 'title') {
                             return (
                                 <h1 key={component.id} className="text-3xl font-bold text-gray-900 text-center">
-                                    {displayValue}
+                                    {displayValue || module.name}
                                 </h1>
                             );
                         }
                         if (component.id === 'message') {
                             return (
                                 <p key={component.id} className="text-lg text-gray-600 text-center max-w-2xl">
-                                    {displayValue}
+                                    {displayValue || module.description}
                                 </p>
                             );
                         }
