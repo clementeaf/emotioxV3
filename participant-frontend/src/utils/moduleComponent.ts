@@ -12,7 +12,7 @@ export function toStableString(value: unknown): string {
     if (value === null || value === undefined) return '';
     try {
         return JSON.stringify(value);
-    } catch (_err: unknown) {
+    } catch {
         return String(value);
     }
 }

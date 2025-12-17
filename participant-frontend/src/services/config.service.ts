@@ -8,7 +8,7 @@ interface RuntimeConfig {
     apiBaseUrl: string;
 }
 
-const DEFAULT_DEPLOYED_RUNTIME_CONFIG_URL = 'https://d2am10cly7c9kf.cloudfront.net/runtime-config.json';
+const DEFAULT_LOCAL_API_BASE_URL = 'http://localhost:3000';
 
 interface ApiEndpoints {
     auth: Record<string, string>;
@@ -150,12 +150,7 @@ class ConfigService {
             if (envBaseUrl) {
                 return { apiBaseUrl: envBaseUrl };
             }
-
-            try {
-                return await this.fetchRuntimeConfigFromUrl(DEFAULT_DEPLOYED_RUNTIME_CONFIG_URL);
-            } catch (_fallbackError: unknown) {
-                return { apiBaseUrl: 'http://localhost:3000' };
-            }
+            return { apiBaseUrl: DEFAULT_LOCAL_API_BASE_URL };
         }
     }
 
