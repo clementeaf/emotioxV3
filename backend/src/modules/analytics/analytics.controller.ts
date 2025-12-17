@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { requireAuth } from '../../utils/auth';
+import { isAuthError, requireAuth } from '../../utils/auth';
 import * as analyticsService from './analytics.service';
 import { getRequestOrigin } from '../../utils/request';
 
@@ -78,6 +78,9 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Analytics error:', err);
+        if (isAuthError(err)) {
+            return error(errorMessage, err.statusCode, undefined, origin);
+        }
         return error(errorMessage, 500, undefined, origin);
     }
 };

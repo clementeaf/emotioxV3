@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { requireAuth } from '../../utils/auth';
+import { isAuthError, requireAuth } from '../../utils/auth';
 import * as mediaService from './media.service';
 import { getRequestOrigin } from '../../utils/request';
 
@@ -50,6 +50,9 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         console.error('Media error:', err);
+        if (isAuthError(err)) {
+            return error(errorMessage, err.statusCode, undefined, origin);
+        }
         return error(errorMessage, 500, undefined, origin);
     }
 };

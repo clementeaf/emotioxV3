@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(true);
         setError(null);
         try {
-            const response = await authService.login(credentials);
+            const response = await authService.login({ ...credentials, rememberMe: false });
             if (response.token) {
                 setToken(response.token);
             }

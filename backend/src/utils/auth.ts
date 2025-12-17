@@ -3,6 +3,36 @@ import jwksClient from 'jwks-rsa';
 import { cognitoConfig } from '../config/cognito';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 
+export type AuthErrorCode = 'NO_TOKEN' | 'INVALID_TOKEN';
+
+/**
+ * Represents an authentication error that should be returned as HTTP 401.
+ */
+export class AuthError extends Error {
+    public readonly statusCode: number = 401;
+    public readonly code: AuthErrorCode;
+
+    /**
+     * Creates an AuthError instance.
+     * @param message - Human readable error message
+     * @param code - Stable auth error code
+     */
+    constructor(message: string, code: AuthErrorCode) {
+        super(message);
+        this.name = 'AuthError';
+        this.code = code;
+    }
+}
+
+/**
+ * Type guard for AuthError.
+ * @param value - Unknown value
+ * @returns True if value is an AuthError
+ */
+export const isAuthError = (value: unknown): value is AuthError => {
+    return value instanceof AuthError;
+};
+
 // Inicializar jwksClient solo si Cognito está configurado
 let client: ReturnType<typeof jwksClient> | null = null;
 
@@ -87,7 +117,7 @@ export const getUserFromToken = async (token: string): Promise<DecodedToken> => 
             tokenLength: token.length,
             tokenPreview: token.substring(0, 20) + '...',
         });
-        throw new Error(`Invalid or expired token: ${errorMessage}`);
+        throw new AuthError('Invalid or expired token', 'INVALID_TOKEN');
     }
 };
 
@@ -163,7 +193,7 @@ export const requireAuth = async (event: APIGatewayProxyEvent): Promise<DecodedT
     const token = extractToken(event);
 
     if (!token) {
-        throw new Error('No token provided. Verifique que las cookies estén configuradas o que el header Authorization esté presente.');
+        throw new AuthError('No token provided', 'NO_TOKEN');
     }
 
     try {
@@ -176,6 +206,9 @@ export const requireAuth = async (event: APIGatewayProxyEvent): Promise<DecodedT
             tokenLength: token.length,
             cognitoConfigured: !!cognitoConfig.userPoolId,
         });
-        throw error;
+        if (isAuthError(error)) {
+            throw error;
+        }
+        throw new AuthError('Invalid or expired token', 'INVALID_TOKEN');
     }
 };

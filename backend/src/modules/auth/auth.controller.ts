@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { requireAuth } from '../../utils/auth';
+import { isAuthError, requireAuth } from '../../utils/auth';
 import * as authService from './auth.service';
 
 export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -18,7 +18,8 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         // POST /auth/login
         if (path === '/auth/login' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
-            const tokens = await authService.login(body);
+            const rememberMe = typeof body.rememberMe === 'boolean' ? body.rememberMe : false;
+            const tokens = await authService.login({ email: body.email, password: body.password });
             
             if (!tokens.accessToken) {
                 return error('Failed to generate access token', 500, undefined, origin);
@@ -38,10 +39,10 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 path: '/',
             }));
             
-            // Refresh token cookie (expira en 30 días)
+            // Refresh token cookie: persistent only when rememberMe=true, otherwise session cookie
             if (tokens.refreshToken) {
                 cookies.push(createCookie('refreshToken', tokens.refreshToken, {
-                    maxAge: 30 * 24 * 60 * 60, // 30 días
+                    maxAge: rememberMe ? 30 * 24 * 60 * 60 : undefined, // 30 días o sesión
                     httpOnly: true,
                     secure: false, // false para localhost, cambiar a true en producción
                     sameSite: 'Lax',
@@ -54,18 +55,23 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             return success({ 
                 message: 'Login successful',
                 token: tokens.accessToken, // TEMPORAL: para que el frontend pueda usarlo
+                refreshToken: tokens.refreshToken,
+                expiresIn: tokens.expiresIn,
             }, 200, cookies, origin);
         }
 
         // POST /auth/refresh
         if (path === '/auth/refresh' && httpMethod === 'POST') {
-            // El refresh token viene de la cookie, no del body
+            // Prefer cookie refreshToken; fallback to body for clients that can't send cookies (e.g. cross-site).
             const cookieHeader = event.headers.Cookie || event.headers.cookie || '';
             const refreshTokenMatch = cookieHeader
                 .split(';')
                 .find(c => c.trim().startsWith('refreshToken='));
             
-            const refreshToken = refreshTokenMatch?.split('=')[1]?.trim();
+            const cookieRefreshToken = refreshTokenMatch?.split('=')[1]?.trim();
+            const body = JSON.parse(event.body || '{}') as Record<string, unknown>;
+            const bodyRefreshToken = typeof body.refreshToken === 'string' ? body.refreshToken : undefined;
+            const refreshToken = cookieRefreshToken || bodyRefreshToken;
             
             if (!refreshToken) {
                 return error('Refresh token not found', 401, undefined, origin);
@@ -89,8 +95,8 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 path: '/',
             }));
             
-            // No retornar tokens en el body
-            return success({ message: 'Token refreshed successfully' }, 200, cookies, origin);
+            // Return access token for header-based clients
+            return success({ message: 'Token refreshed successfully', token: tokens.accessToken, expiresIn: tokens.expiresIn }, 200, cookies, origin);
         }
 
         // GET /auth/me
@@ -156,6 +162,9 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         
         // Determinar código de error apropiado
         let statusCode = 500;
+        if (isAuthError(err)) {
+            statusCode = err.statusCode;
+        }
         
         // Errores de autenticación (Cognito)
         if (errorMessage.includes('Incorrect username or password') ||

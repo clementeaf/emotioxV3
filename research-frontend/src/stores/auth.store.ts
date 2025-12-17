@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, LoginCredentials, RegisterCredentials } from '../types/auth';
+import type { User, LoginCredentials, LoginRequest, RegisterCredentials } from '../types/auth';
 import { authService } from '../services/auth.service';
 
 interface AuthState {
     user: User | null;
     token: string | null; // TEMPORAL: guardar token en memoria hasta que cookies funcionen
+    refreshToken: string | null;
     rememberMe: boolean;
     isLoading: boolean;
     error: string | null;
@@ -15,6 +16,8 @@ interface AuthState {
     updateProfile: (data: Partial<User>) => Promise<void>;
     deleteAccount: () => Promise<void>;
     logout: () => Promise<void>;
+    setToken: (token: string | null) => void;
+    setRefreshToken: (refreshToken: string | null) => void;
     clearError: () => void;
 }
 
@@ -56,6 +59,7 @@ const asyncOperation = async <T>(
 const initialState = {
     user: null,
     token: null, // TEMPORAL
+    refreshToken: null,
     rememberMe: false,
     isLoading: false,
     error: null,
@@ -69,11 +73,13 @@ export const useAuthStore = create<AuthState>()(persist(
         set({ isLoading: true, error: null });
         try {
             // El login guarda tokens en cookies, pero también retorna el token temporalmente
-            const loginResponse = await authService.login(credentials);
+            const request: LoginRequest = { ...credentials, rememberMe };
+            const loginResponse = await authService.login(request);
             
             // TEMPORAL: Guardar token en memoria porque API Gateway no está pasando cookies
             const token = loginResponse.token || null;
-            set({ token });
+            const refreshToken = loginResponse.refreshToken || null;
+            set({ token, refreshToken });
 
             // Fetch user profile
             try {
@@ -88,6 +94,7 @@ export const useAuthStore = create<AuthState>()(persist(
                 set({
                     user: null,
                     token: null,
+                    refreshToken: null,
                     rememberMe: false,
                     isLoading: false,
                 });
@@ -100,6 +107,7 @@ export const useAuthStore = create<AuthState>()(persist(
                 isLoading: false,
                 user: null,
                 token: null,
+                refreshToken: null,
                 rememberMe: false,
             });
             throw error;
@@ -152,14 +160,22 @@ export const useAuthStore = create<AuthState>()(persist(
                     set({
                         ...initialState,
                         token: null, // TEMPORAL
+                        refreshToken: null,
                     });
                 }
             },
 
+            setToken: (token: string | null) => set({ token }),
+            setRefreshToken: (refreshToken: string | null) => set({ refreshToken }),
             clearError: () => set({ error: null }),
         }),
         {
             name: 'auth-storage',
+            partialize: (state) => ({
+                user: state.user,
+                rememberMe: state.rememberMe,
+                refreshToken: state.rememberMe ? state.refreshToken : null,
+            }),
         }
     )
 );

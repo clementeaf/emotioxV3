@@ -83,23 +83,37 @@ class ApiClient {
                                 }
                                 
                                 console.log('[ApiClient] Making refresh request to:', `${baseURL}${refreshEndpoint}`);
-                                
-                                const refreshCall = axios.post(
+
+                                interface RefreshResponse {
+                                    message: string;
+                                    token?: string;
+                                    expiresIn?: number;
+                                }
+
+                                const refreshToken = useAuthStore.getState().refreshToken;
+                                const payload: Record<string, string> = {};
+                                if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
+                                    payload.refreshToken = refreshToken;
+                                }
+
+                                const refreshResponse = await axios.post<RefreshResponse>(
                                     `${baseURL}${refreshEndpoint}`,
-                                    {},
+                                    payload,
                                     {
                                         withCredentials: true,
+                                        timeout: 10000,
                                         headers: {
                                             'Content-Type': 'application/json',
                                         },
                                     }
                                 );
-                                
-                                const timeoutPromise = new Promise<never>((_, reject) => 
-                                    setTimeout(() => reject(new Error('Token refresh timeout')), 10000)
-                                );
-                                
-                                await Promise.race([refreshCall, timeoutPromise]);
+
+                                const newToken = refreshResponse.data?.token;
+                                if (typeof newToken !== 'string' || newToken.trim().length === 0) {
+                                    throw new Error('Token refresh did not return access token');
+                                }
+
+                                useAuthStore.getState().setToken(newToken);
                                 console.log('[ApiClient] Token refresh successful');
                             } catch (refreshError) {
                                 console.error('[ApiClient] Token refresh failed:', refreshError);

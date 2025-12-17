@@ -7,12 +7,16 @@ export interface User {
 }
 
 export interface LoginResponse {
-    tokens: {
-        accessToken: string;
-        idToken: string;
-        refreshToken: string;
-        expiresIn: number;
-    };
+    message: string;
+    token?: string;
+    refreshToken?: string;
+    expiresIn?: number;
+}
+
+export interface RefreshTokenResponse {
+    message: string;
+    token?: string;
+    expiresIn?: number;
 }
 
 export interface RegisterResponse {
@@ -22,6 +26,10 @@ export interface RegisterResponse {
 export interface LoginCredentials {
     email: string;
     password: string;
+}
+
+export interface LoginRequest extends LoginCredentials {
+    rememberMe: boolean;
 }
 
 export interface RegisterCredentials {

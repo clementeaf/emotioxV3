@@ -1,16 +1,9 @@
 import apiClient from './api/client';
 import { configService } from './api/config.service';
-import type { User, LoginCredentials, RegisterCredentials } from '../types/auth';
+import type { User, LoginRequest, RegisterCredentials, LoginResponse as AuthLoginResponse, RefreshTokenResponse } from '../types/auth';
 import type { ApiErrorResponse } from './api/types';
 
-export interface LoginResponse {
-    message: string;
-    token?: string; // TEMPORAL: token en response hasta que cookies funcionen
-}
-
-export interface RefreshTokenResponse {
-    message: string;
-}
+export type LoginResponse = AuthLoginResponse;
 
 export interface LogoutResponse {
     message: string;
@@ -66,12 +59,30 @@ class AuthService {
      * @returns Success message
      * @throws ApiErrorResponse if login fails
      */
-    async login(credentials: LoginCredentials): Promise<LoginResponse> {
+    async login(credentials: LoginRequest): Promise<LoginResponse> {
         try {
             const endpoint = configService.getEndpoint('auth', 'login');
             return await apiClient.post<LoginResponse>(endpoint, credentials);
         } catch (error: unknown) {
             throw this.handleError(error, 'Login failed');
+        }
+    }
+
+    /**
+     * Refreshes the access token using a refresh token (cookie or body fallback).
+     * @param refreshToken - Refresh token (optional). When omitted, backend will try cookie.
+     * @returns Refresh result with new access token when available
+     */
+    async refresh(refreshToken?: string | null): Promise<RefreshTokenResponse> {
+        try {
+            const endpoint = configService.getEndpoint('auth', 'refresh');
+            const payload: Record<string, string> = {};
+            if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
+                payload.refreshToken = refreshToken;
+            }
+            return await apiClient.post<RefreshTokenResponse>(endpoint, payload);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Token refresh failed');
         }
     }
 

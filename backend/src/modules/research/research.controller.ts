@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { requireAuth } from '../../utils/auth';
+import { isAuthError, requireAuth } from '../../utils/auth';
 import * as researchService from './research.service';
 import * as authService from '../auth/auth.service';
 import { getRequestOrigin } from '../../utils/request';
@@ -17,8 +17,8 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
             console.error('Auth error for', path, ':', authErrorMessage);
             console.error('Headers:', JSON.stringify(event.headers, null, 2));
-            if (authErrorMessage === 'Invalid or expired token' || authErrorMessage === 'No authorization header' || authErrorMessage === 'No token provided') {
-                return error(authErrorMessage, 401, undefined, origin);
+            if (isAuthError(authError)) {
+                return error(authErrorMessage, authError.statusCode, undefined, origin);
             }
             throw authError;
         }
