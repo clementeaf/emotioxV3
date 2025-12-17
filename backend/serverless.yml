@@ -12,16 +12,15 @@ provider:
     DB_PORT: ${ssm:/emotioxv3/${self:provider.stage}/DB_PORT}
     DB_NAME: ${ssm:/emotioxv3/${self:provider.stage}/DB_NAME}
     DB_USER: ${ssm:/emotioxv3/${self:provider.stage}/DB_USER}
-    # SecureString via CloudFormation Dynamic Reference (resolved by CFN, not Serverless)
-    DB_PASSWORD: "{{resolve:ssm-secure:/emotioxv3/${self:provider.stage}/DB_PASSWORD:1}}"
     DB_SSL: ${ssm:/emotioxv3/${self:provider.stage}/DB_SSL}
     APP_AWS_REGION: ${ssm:/emotioxv3/${self:provider.stage}/APP_AWS_REGION}
     S3_BUCKET_NAME: ${ssm:/emotioxv3/${self:provider.stage}/S3_BUCKET_NAME}
     CORS_ORIGIN: ${ssm:/emotioxv3/${self:provider.stage}/CORS_ORIGIN}
     COGNITO_USER_POOL_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_USER_POOL_ID}
     COGNITO_CLIENT_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_CLIENT_ID}
-    JWT_SECRET: "{{resolve:ssm-secure:/emotioxv3/${self:provider.stage}/JWT_SECRET:1}}"
-    JWT_REFRESH_SECRET: "{{resolve:ssm-secure:/emotioxv3/${self:provider.stage}/JWT_REFRESH_SECRET:1}}"
+    # Secrets are loaded at runtime from SSM SecureString (not via Lambda env vars)
+    SSM_PREFIX: /emotioxv3/${self:provider.stage}
+    SSM_REGION: ${env:AWS_REGION, 'us-east-1'}
   iam:
     role:
       statements:
@@ -47,6 +46,12 @@ provider:
             - ec2:AssignPrivateIpAddresses
             - ec2:UnassignPrivateIpAddresses
           Resource: "*"
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - "arn:aws:ssm:${env:AWS_REGION, 'us-east-1'}:${aws:accountId}:parameter/emotioxv3/${self:provider.stage}/*"
 
 functions:
   api:

@@ -1,4 +1,5 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient, type QueryConfig, type QueryResult, type QueryResultRow } from 'pg';
+import { getSecrets } from './secrets';
 
 /**
  * Determina si se debe usar SSL basado en el host de la base de datos
@@ -35,27 +36,93 @@ const shouldUseSSL = (): false | { rejectUnauthorized: boolean } => {
     return false;
 };
 
-const pool = new Pool({
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    query_timeout: 30000,
-    statement_timeout: 30000,
-    ssl: shouldUseSSL(),
-});
+type EventHandler = (...args: unknown[]) => void;
 
-// Test connection on initialization
-pool.on('connect', () => {
-    console.log('✓ Database connected');
-});
+let realPool: Pool | null = null;
+let poolPromise: Promise<Pool> | null = null;
+const pendingEventHandlers: Array<{ event: string; handler: EventHandler }> = [];
 
-pool.on('error', (err) => {
-    console.error('✗ Database connection error:', err);
-});
+/**
+ * Ensures the underlying pg Pool is initialized. In AWS, it loads DB_PASSWORD from SSM at runtime.
+ * @returns Initialized pg Pool
+ */
+const ensurePool = async (): Promise<Pool> => {
+    if (realPool) return realPool;
+    if (poolPromise) return poolPromise;
+
+    poolPromise = (async (): Promise<Pool> => {
+        if (!process.env.DB_PASSWORD || process.env.DB_PASSWORD.trim().length === 0) {
+            const secrets = await getSecrets();
+            process.env.DB_PASSWORD = secrets.dbPassword;
+        }
+
+        const pool = new Pool({
+            host: process.env.DB_HOST,
+            port: parseInt(process.env.DB_PORT || '5432'),
+            database: process.env.DB_NAME,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASSWORD,
+            max: 10,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 10000,
+            query_timeout: 30000,
+            statement_timeout: 30000,
+            ssl: shouldUseSSL(),
+        });
+
+        pendingEventHandlers.forEach(({ event, handler }) => {
+            pool.on(event as never, handler as never);
+        });
+
+        // Test connection on initialization
+        pool.on('connect', () => {
+            console.log('Database connected');
+        });
+
+        pool.on('error', (err) => {
+            console.error('Database connection error:', err);
+        });
+
+        realPool = pool;
+        return pool;
+    })();
+
+    return poolPromise;
+};
+
+/**
+ * Lazy pool wrapper compatible with pg Pool usage across the codebase.
+ */
+const pool = {
+    /**
+     * Run a SQL query.
+     */
+    async query<R extends QueryResultRow = QueryResultRow>(
+        queryTextOrConfig: string | QueryConfig,
+        values?: ReadonlyArray<unknown>
+    ): Promise<QueryResult<R>> {
+        const p = await ensurePool();
+        return p.query<R>(queryTextOrConfig as never, values as never);
+    },
+
+    /**
+     * Acquire a client from the pool.
+     */
+    async connect(): Promise<PoolClient> {
+        const p = await ensurePool();
+        return p.connect();
+    },
+
+    /**
+     * Register event handlers (connect/error).
+     */
+    on(event: string, handler: EventHandler): void {
+        if (realPool) {
+            realPool.on(event as never, handler as never);
+            return;
+        }
+        pendingEventHandlers.push({ event, handler });
+    },
+};
 
 export default pool;
