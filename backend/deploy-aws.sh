@@ -48,6 +48,10 @@ set -a
 source $ENV_FILE
 set +a
 
+# Ensure Serverless dotenv plugin loads the same env file used above.
+# This prevents .env (local) from overriding .env.production (AWS) during deploy.
+export DOTENV_PATH="$ENV_FILE"
+
 # Verificar variables críticas
 REQUIRED_VARS=(
     "DB_HOST"
