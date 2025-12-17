@@ -25,61 +25,47 @@ if [ ! -f "serverless.yml" ]; then
     exit 1
 fi
 
-# Verificar que existe .env
-if [ ! -f ".env" ]; then
-    echo -e "${RED}❌ Error: Archivo .env no encontrado${NC}"
-    echo "Crea un archivo .env con todas las variables necesarias"
+echo -e "${YELLOW}📋 Deploy using AWS SSM Parameter Store (no .env required)${NC}"
+echo -e "${YELLOW}   This will read configuration from /emotioxv3/${API_STAGE:-dev}/* in SSM.${NC}"
+
+echo -e "${YELLOW}🔍 Verificando AWS credentials y parámetros SSM...${NC}"
+if ! aws sts get-caller-identity >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: AWS CLI no tiene credenciales válidas (aws sts get-caller-identity falló)${NC}"
     exit 1
 fi
 
-echo -e "${YELLOW}📋 Cargando variables de entorno desde .env...${NC}"
+STAGE="${API_STAGE:-dev}"
+REGION="${AWS_REGION:-us-east-1}"
+PREFIX="/emotioxv3/${STAGE}"
 
-# Determinar qué archivo .env usar
-if [ -f ".env.production" ]; then
-    echo -e "${GREEN}  ✓ Usando .env.production (AWS)${NC}"
-    ENV_FILE=".env.production"
-else
-    echo -e "${YELLOW}  ⚠️  .env.production no encontrado, usando .env${NC}"
-    ENV_FILE=".env"
-fi
-
-# Exportar variables de entorno desde el archivo seleccionado
-set -a
-source $ENV_FILE
-set +a
-
-# Ensure Serverless dotenv plugin loads the same env file used above.
-# This prevents .env (local) from overriding .env.production (AWS) during deploy.
-export DOTENV_PATH="$ENV_FILE"
-
-# Verificar variables críticas
-REQUIRED_VARS=(
-    "DB_HOST"
-    "DB_PORT"
-    "DB_NAME"
-    "DB_USER"
-    "DB_PASSWORD"
-    "AWS_ACCESS_KEY_ID"
-    "AWS_SECRET_ACCESS_KEY"
-    "S3_BUCKET_NAME"
+REQUIRED_PARAMS=(
+  "DB_HOST"
+  "DB_PORT"
+  "DB_NAME"
+  "DB_USER"
+  "DB_PASSWORD"
+  "DB_SSL"
+  "S3_BUCKET_NAME"
+  "JWT_SECRET"
+  "JWT_REFRESH_SECRET"
 )
 
-echo -e "${YELLOW}🔍 Verificando variables requeridas...${NC}"
-MISSING_VARS=()
-
-for var in "${REQUIRED_VARS[@]}"; do
-    if [ -z "${!var}" ]; then
-        MISSING_VARS+=("$var")
-    else
-        echo -e "${GREEN}  ✓${NC} $var está configurado"
-    fi
+MISSING_PARAMS=()
+for key in "${REQUIRED_PARAMS[@]}"; do
+  if ! aws ssm get-parameter --region "$REGION" --name "${PREFIX}/${key}" >/dev/null 2>&1; then
+    MISSING_PARAMS+=("${PREFIX}/${key}")
+  fi
 done
 
-if [ ${#MISSING_VARS[@]} -ne 0 ]; then
-    echo -e "${RED}❌ Error: Faltan las siguientes variables en .env:${NC}"
-    printf '  - %s\n' "${MISSING_VARS[@]}"
+if [ ${#MISSING_PARAMS[@]} -ne 0 ]; then
+    echo -e "${RED}❌ Error: faltan parámetros en SSM:${NC}"
+    printf '  - %s\n' "${MISSING_PARAMS[@]}"
+    echo ""
+    echo "Crea estos parámetros en SSM (SecureString para secrets) y reintenta."
     exit 1
 fi
+
+echo -e "${GREEN}  ✓${NC} AWS creds OK, SSM parameters OK"
 
 echo ""
 echo -e "${YELLOW}📦 Instalando dependencias...${NC}"

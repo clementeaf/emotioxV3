@@ -8,17 +8,19 @@ provider:
   timeout: 60
   memorySize: 1024
   environment:
-    DB_HOST: ${env:DB_HOST}
-    DB_PORT: ${env:DB_PORT}
-    DB_NAME: ${env:DB_NAME}
-    DB_USER: ${env:DB_USER}
-    DB_PASSWORD: ${env:DB_PASSWORD}
-    APP_AWS_REGION: us-east-1
-    S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
-    COGNITO_USER_POOL_ID: ${env:COGNITO_USER_POOL_ID, ''}
-    COGNITO_CLIENT_ID: ${env:COGNITO_CLIENT_ID, ''}
-    JWT_SECRET: ${env:JWT_SECRET}
-    JWT_REFRESH_SECRET: ${env:JWT_REFRESH_SECRET}
+    DB_HOST: ${ssm:/emotioxv3/${self:provider.stage}/DB_HOST, env:DB_HOST}
+    DB_PORT: ${ssm:/emotioxv3/${self:provider.stage}/DB_PORT, env:DB_PORT, '5432'}
+    DB_NAME: ${ssm:/emotioxv3/${self:provider.stage}/DB_NAME, env:DB_NAME}
+    DB_USER: ${ssm:/emotioxv3/${self:provider.stage}/DB_USER, env:DB_USER}
+    DB_PASSWORD: ${ssm:/emotioxv3/${self:provider.stage}/DB_PASSWORD~true, env:DB_PASSWORD}
+    DB_SSL: ${ssm:/emotioxv3/${self:provider.stage}/DB_SSL, env:DB_SSL, 'true'}
+    APP_AWS_REGION: ${ssm:/emotioxv3/${self:provider.stage}/APP_AWS_REGION, env:APP_AWS_REGION, 'us-east-1'}
+    S3_BUCKET_NAME: ${ssm:/emotioxv3/${self:provider.stage}/S3_BUCKET_NAME, env:S3_BUCKET_NAME}
+    CORS_ORIGIN: ${ssm:/emotioxv3/${self:provider.stage}/CORS_ORIGIN, env:CORS_ORIGIN, '*'}
+    COGNITO_USER_POOL_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_USER_POOL_ID, env:COGNITO_USER_POOL_ID, ''}
+    COGNITO_CLIENT_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_CLIENT_ID, env:COGNITO_CLIENT_ID, ''}
+    JWT_SECRET: ${ssm:/emotioxv3/${self:provider.stage}/JWT_SECRET~true, env:JWT_SECRET}
+    JWT_REFRESH_SECRET: ${ssm:/emotioxv3/${self:provider.stage}/JWT_REFRESH_SECRET~true, env:JWT_REFRESH_SECRET}
   iam:
     role:
       statements:
@@ -93,13 +95,6 @@ functions:
             allowCredentials: true
 
 plugins:
-  - serverless-dotenv-plugin
   - serverless-offline
 
-custom:
-  dotenv:
-    path: ${env:DOTENV_PATH, '.env'}
-    exclude:
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_REGION
+custom: {}
