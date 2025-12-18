@@ -41,7 +41,22 @@ export const useValidation = () => {
                 }
             });
         } else {
-            // For other modules, check structure components
+            // Special handling for SmartVOC modules that use 'scale' component
+            const isSmartVOCScale = module.name.includes('CSAT') || 
+                                    module.name.includes('NPS') || 
+                                    module.name.includes('CES') || 
+                                    module.name.includes('CV');
+            
+            if (isSmartVOCScale) {
+                // Check for 'scale' response first
+                const scaleResponseId = createResponseId(module.id, 'scale');
+                const scaleResponse = responses.get(scaleResponseId);
+                if (scaleResponse) {
+                    stepResponses.set('scale', scaleResponse.value);
+                }
+            }
+            
+            // For all modules, also check structure components
             module.structure.components.forEach(component => {
                 const responseId = createResponseId(module.id, component.id);
                 const response = responses.get(responseId);
