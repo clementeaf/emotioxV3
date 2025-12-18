@@ -22,7 +22,23 @@ jobs:
         id: check
         continue-on-error: true
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml)'; then
+          set -e
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "✓ Manual trigger - deploying"
+            exit 0
+          fi
+          
+          # Check if we have at least 2 commits
+          COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+          if [ "${COMMIT_COUNT}" -lt "2" ]; then
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "✓ First commit - deploying"
+            exit 0
+          fi
+          
+          # Check for changes in backend or workflow file
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml)'; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
             echo "✓ Backend changes detected"
           else
