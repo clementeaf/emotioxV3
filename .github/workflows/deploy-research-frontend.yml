@@ -44,10 +44,66 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to S3
+      - name: Deploy to S3 with correct Content-Types
         working-directory: research-frontend
         run: |
+          # Sync files first
           aws s3 sync dist/ s3://${{ secrets.RESEARCH_FRONTEND_S3_BUCKET }} --delete --exclude "runtime-config.json"
+          
+          # Fix Content-Type headers for different file types
+          python3 << 'PY'
+          import subprocess
+          import os
+          import mimetypes
+          
+          bucket = "${{ secrets.RESEARCH_FRONTEND_S3_BUCKET }}"
+          dist_dir = "dist"
+          
+          # MIME type mappings
+          mime_types = {
+              '.js': 'application/javascript',
+              '.mjs': 'application/javascript',
+              '.json': 'application/json',
+              '.css': 'text/css',
+              '.html': 'text/html',
+              '.svg': 'image/svg+xml',
+              '.png': 'image/png',
+              '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg',
+              '.gif': 'image/gif',
+              '.webp': 'image/webp',
+              '.woff': 'font/woff',
+              '.woff2': 'font/woff2',
+              '.ttf': 'font/ttf',
+              '.eot': 'application/vnd.ms-fontobject',
+              '.otf': 'font/otf',
+              '.ico': 'image/x-icon',
+              '.xml': 'application/xml',
+              '.txt': 'text/plain',
+          }
+          
+          def get_content_type(file_path):
+              ext = os.path.splitext(file_path)[1].lower()
+              return mime_types.get(ext, 'application/octet-stream')
+          
+          # Walk through dist directory and update Content-Type for each file
+          for root, dirs, files in os.walk(dist_dir):
+              for file in files:
+                  file_path = os.path.join(root, file)
+                  rel_path = os.path.relpath(file_path, dist_dir)
+                  content_type = get_content_type(file_path)
+                  
+                  s3_path = f"s3://{bucket}/{rel_path}"
+                  cmd = [
+                      'aws', 's3', 'cp', file_path, s3_path,
+                      '--content-type', content_type,
+                      '--metadata-directive', 'REPLACE'
+                  ]
+                  
+                  subprocess.run(cmd, check=False)
+          
+          print("✓ Content-Type headers updated")
+          PY
 
       - name: Invalidate CloudFront cache
         run: |
