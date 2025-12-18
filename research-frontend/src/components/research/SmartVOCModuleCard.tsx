@@ -5,13 +5,14 @@ import { SmartVOCPreview } from './SmartVOCPreview';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { Toggle } from '../ui/Toggle';
-import { getModuleRequired } from '../../utils/moduleRequired';
-import { getLocalModuleHidden, isLocalhost, setLocalModuleHidden } from '../../utils/localOnlyModuleFlags';
+import { getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
+import { isLocalhost } from '../../utils/localOnlyModuleFlags';
 
 export interface SmartVOCModuleCardRef {
     getComponentValues: () => Record<string, string>;
     getComponents: () => ComponentConfig[];
     getRequired: () => boolean;
+    getHidden: () => boolean;
 }
 
 interface SmartVOCModuleCardProps {
@@ -30,7 +31,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
     const [isRequired, setIsRequired] = useState<boolean>(() => getModuleRequired(module.config));
-    const [isHidden, setIsHidden] = useState<boolean>(() => getLocalModuleHidden(module.id));
+    const [isHidden, setIsHidden] = useState<boolean>(() => getModuleHidden(module.config));
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -49,6 +50,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         getComponentValues: () => componentValues,
         getComponents: () => components,
         getRequired: () => isRequired,
+        getHidden: () => isHidden,
     }));
 
     useEffect(() => {
@@ -56,8 +58,8 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
     }, [module.id, module.config]);
 
     useEffect(() => {
-        setIsHidden(getLocalModuleHidden(module.id));
-    }, [module.id]);
+        setIsHidden(getModuleHidden(module.config));
+    }, [module.id, module.config]);
 
     const handleComponentValueChange = (componentId: string, value: string): void => {
         setComponentValues(prev => ({
@@ -80,7 +82,6 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
      */
     const handleHiddenChange = (next: boolean): void => {
         setIsHidden(next);
-        setLocalModuleHidden(module.id, next);
     };
 
     // Filter components for the editor: 

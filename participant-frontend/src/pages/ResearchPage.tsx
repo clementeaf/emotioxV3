@@ -41,6 +41,18 @@ const toBooleanRecord = (value: unknown): Record<string, boolean> => {
 };
 
 /**
+ * Determines whether a module is hidden for participants based on module.config.hidden.
+ * @param module - Module payload from backend
+ * @returns true when module is hidden
+ */
+const isModuleHidden = (module: Module): boolean => {
+  const cfg: unknown = module.config;
+  if (!isRecord(cfg)) return false;
+  const hidden = cfg.hidden;
+  return hidden === true;
+};
+
+/**
  * Finds linkConfig within the "Research Configuration" module, if present.
  * @param research - Research payload from public API
  * @returns Boolean map with link configuration flags
@@ -155,6 +167,7 @@ export const ResearchPage = () => {
         stages.forEach(stage => {
           const modules = stage.modules || [];
           modules.forEach(module => {
+            if (isModuleHidden(module as Module)) return;
             const stepId = getStepIdFromModuleName(module.name);
             if (!stepId) return;
             modulesMap[stepId] = module as Module;

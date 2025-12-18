@@ -13,7 +13,7 @@ import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
-import { withModuleRequired } from '../../utils/moduleRequired';
+import { withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 
 export const ResearchBuilderPage = () => {
     const { id } = useParams<{ id: string }>();
@@ -174,6 +174,7 @@ export const ResearchBuilderPage = () => {
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
+                    const hidden = moduleRef.getHidden();
                     
                     console.log(`Saving ${module.name}:`, {
                         componentValues: currentComponentValues,
@@ -191,13 +192,15 @@ export const ResearchBuilderPage = () => {
                     console.log(`Updated components:`, updatedComponents);
                     
                     // Preserve the correct backend structure
-                    const config = withModuleRequired({
+                    const configWithStructure = {
                         ...module.config,
                         structure: {
                             ...(module.config.structure || {}),
                             components: updatedComponents
                         }
-                    }, required);
+                    };
+
+                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
                     
                     return modulesService.update(module.id, {
                         config,
@@ -221,6 +224,7 @@ export const ResearchBuilderPage = () => {
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
+                    const hidden = moduleRef.getHidden();
                     
                     console.log(`Saving ${module.name}:`, {
                         componentValues: currentComponentValues,
@@ -234,13 +238,15 @@ export const ResearchBuilderPage = () => {
                     
                     console.log(`Updated components:`, updatedComponents);
                     
-                    const config = withModuleRequired({
+                    const configWithStructure = {
                         ...module.config,
                         structure: {
                             ...(module.config.structure || {}),
                             components: updatedComponents
                         }
-                    }, required);
+                    };
+
+                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
                     
                     return modulesService.update(module.id, {
                         config,

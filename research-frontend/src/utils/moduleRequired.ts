@@ -26,4 +26,32 @@ export const withModuleRequired = (
     };
 };
 
+/**
+ * Safely extracts the module "hidden" flag from a module config object.
+ * Defaults to false when not present or invalid.
+ * @param config - Module config object
+ * @returns Whether the module is hidden for participants
+ */
+export const getModuleHidden = (config: Record<string, unknown> | undefined): boolean => {
+    if (!config) return false;
+    const value = config.hidden;
+    return typeof value === 'boolean' ? value : false;
+};
+
+/**
+ * Returns a new module config object with the "hidden" flag set.
+ * @param config - Existing module config
+ * @param hidden - Hidden flag to set
+ * @returns Updated config object
+ */
+export const withModuleHidden = (
+    config: Record<string, unknown> | undefined,
+    hidden: boolean
+): Record<string, unknown> => {
+    return {
+        ...(config || {}),
+        hidden,
+    };
+};
+
 
