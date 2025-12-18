@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import type { ImgHTMLAttributes } from 'react';
 
 interface LazyImageProps extends ImgHTMLAttributes<HTMLImageElement> {
@@ -7,10 +7,25 @@ interface LazyImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   placeholderSrc?: string;
 }
 
-export const LazyImage = ({ src, alt, placeholderSrc, ...props }: LazyImageProps) => {
+/**
+ * Lazy-loads an image when it is near the viewport using IntersectionObserver.
+ * @param props - Image props
+ * @param ref - Forwarded ref to the underlying img element
+ */
+export const LazyImage = forwardRef<HTMLImageElement, LazyImageProps>(({ src, alt, placeholderSrc, onLoad, ...props }, ref) => {
   const [imageSrc, setImageSrc] = useState(placeholderSrc || '');
   const [imageLoaded, setImageLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  const setRefs = (node: HTMLImageElement | null): void => {
+    imgRef.current = node;
+    if (!ref) return;
+    if (typeof ref === 'function') {
+      ref(node);
+      return;
+    }
+    ref.current = node;
+  };
 
   useEffect(() => {
     let observer: IntersectionObserver;
@@ -36,13 +51,18 @@ export const LazyImage = ({ src, alt, placeholderSrc, ...props }: LazyImageProps
     };
   }, [src]);
 
-  const handleImageLoad = () => {
+  /**
+   * Marks the image as loaded and forwards the load event if provided.
+   * @param e - Load event
+   */
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>): void => {
     setImageLoaded(true);
+    onLoad?.(e);
   };
 
   return (
     <img
-      ref={imgRef}
+      ref={setRefs}
       src={imageSrc}
       alt={alt}
       onLoad={handleImageLoad}
@@ -50,5 +70,7 @@ export const LazyImage = ({ src, alt, placeholderSrc, ...props }: LazyImageProps
       {...props}
     />
   );
-};
+});
+
+LazyImage.displayName = 'LazyImage';
 

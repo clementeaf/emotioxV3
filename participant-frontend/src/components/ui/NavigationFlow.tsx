@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { mediaService } from '../../services/media.service';
 import { LazyImage } from './LazyImage';
 import { useResponse } from '../../hooks/useResponse';
@@ -8,6 +8,14 @@ interface ClickPoint {
     y: number;
     timestamp: number;
     isCorrect: boolean;
+}
+
+interface HitzoneRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    label?: string;
 }
 
 interface NavigationFlowProps {
@@ -43,6 +51,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const [startTime] = useState(Date.now());
     const [allClicks, setAllClicks] = useState<ClickPoint[]>([]);
     const imageRef = useRef<HTMLDivElement>(null);
+    const imgElRef = useRef<HTMLImageElement>(null);
+    const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
 
     // Response hook for saving data
     const response = useResponse({ moduleId, componentId });
@@ -104,24 +114,77 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const currentImageUrl = imageUrls[currentImageIndex];
     const isLastImage = currentImageIndex === images.length - 1;
 
-    const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!imageRef.current || isComplete) return;
+    /**
+     * Normalizes a hitzone to percent coordinates (0-100) relative to the rendered image.
+     * Supports ratios (0..1), percents (0..100), or pixels (requires natural size).
+     * @param hz - Raw hitzone
+     * @param natural - Natural image size
+     * @returns Normalized hitzone in percent
+     */
+    const normalizeHitzoneToPercent = (hz: HitzoneRect, natural: { width: number; height: number } | null): HitzoneRect => {
+        const looksLikeRatio = hz.width <= 1 && hz.height <= 1 && hz.x <= 1 && hz.y <= 1;
+        if (looksLikeRatio) {
+            return { ...hz, x: hz.x * 100, y: hz.y * 100, width: hz.width * 100, height: hz.height * 100 };
+        }
 
-        const rect = imageRef.current.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        const looksLikePercent = hz.width <= 100 && hz.height <= 100 && hz.x <= 100 && hz.y <= 100;
+        if (looksLikePercent) {
+            return hz;
+        }
 
-        // Check if click is within any hitzone
-        const hitZones = currentImage.hitZones || [];
-        const hitzone = hitZones[0]; // Use first hitzone for now
-        
-        if (!hitzone) return;
+        if (natural && natural.width > 0 && natural.height > 0) {
+            return {
+                ...hz,
+                x: (hz.x / natural.width) * 100,
+                y: (hz.y / natural.height) * 100,
+                width: (hz.width / natural.width) * 100,
+                height: (hz.height / natural.height) * 100,
+            };
+        }
 
-        const isInHitzone =
-            x >= hitzone.x &&
-            x <= hitzone.x + hitzone.width &&
-            y >= hitzone.y &&
-            y <= hitzone.y + hitzone.height;
+        return hz;
+    };
+
+    const normalizedHitZones = useMemo((): HitzoneRect[] => {
+        const zones = (currentImage.hitZones || []) as HitzoneRect[];
+        return zones.map((z) => normalizeHitzoneToPercent(z, imgNatural));
+    }, [currentImage.hitZones, imgNatural]);
+
+    /**
+     * Handles click on the navigation image.
+     * Computes click coordinates relative to the actual rendered image rect (object-contain safe).
+     * @param e - Mouse event
+     */
+    const handleImageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+        if (isComplete) return;
+
+        const img = imgElRef.current;
+        if (!img) return;
+
+        const rect = img.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top;
+
+        // Ignore clicks outside the rendered image (letterbox area)
+        if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) {
+            return;
+        }
+
+        const x = (relX / rect.width) * 100;
+        const y = (relY / rect.height) * 100;
+
+        if (normalizedHitZones.length === 0) return;
+
+        const isInHitzone = normalizedHitZones.some((hz) => {
+            return (
+                x >= hz.x &&
+                x <= hz.x + hz.width &&
+                y >= hz.y &&
+                y <= hz.y + hz.height
+            );
+        });
 
         const clickPoint: ClickPoint = {
             x,
@@ -203,7 +266,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         <div className="w-full space-y-3">
             {/* Progress indicator */}
             <div className="flex items-center justify-between text-xs text-gray-600">
-                <span>Imagen {currentImageIndex + 1} de {mockImages.length}</span>
+                <span>Imagen {currentImageIndex + 1} de {images.length}</span>
                 <span className="text-xs text-gray-400">{currentImage.name}</span>
             </div>
 
@@ -211,7 +274,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             <div className="w-full bg-gray-200 rounded-full h-1.5">
                 <div
                     className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentImageIndex + 1) / mockImages.length) * 100}%` }}
+                    style={{ width: `${((currentImageIndex + 1) / images.length) * 100}%` }}
                 />
             </div>
 
@@ -233,6 +296,11 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         src={currentImageUrl}
                         alt={currentImage.name || `Image ${currentImageIndex + 1}`}
                         className="absolute inset-0 w-full h-full object-contain"
+                        ref={imgElRef}
+                        onLoad={(e) => {
+                            const el = e.currentTarget;
+                            setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
+                        }}
                     />
                 ) : (
                     /* Mock interface representation */
@@ -248,14 +316,14 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 )}
 
                 {/* Invisible hitzone (only visible on hover for demo) */}
-                {!isComplete && currentImage.hitZones && currentImage.hitZones[0] && (
+                {!isComplete && normalizedHitZones[0] && (
                     <div
                         className="absolute bg-blue-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 border-2 border-dashed border-transparent hover:border-blue-400"
                         style={{
-                            left: `${currentImage.hitZones[0].x}%`,
-                            top: `${currentImage.hitZones[0].y}%`,
-                            width: `${currentImage.hitZones[0].width}%`,
-                            height: `${currentImage.hitZones[0].height}%`,
+                            left: `${normalizedHitZones[0].x}%`,
+                            top: `${normalizedHitZones[0].y}%`,
+                            width: `${normalizedHitZones[0].width}%`,
+                            height: `${normalizedHitZones[0].height}%`,
                             pointerEvents: 'none'
                         }}
                     />
