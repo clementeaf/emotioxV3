@@ -22,7 +22,6 @@ jobs:
         id: check
         continue-on-error: true
         run: |
-          set -e
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
             echo "✓ Manual trigger - deploying"
@@ -38,7 +37,8 @@ jobs:
           fi
           
           # Check for changes in backend or workflow file
-          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml)'; then
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          if echo "${CHANGED_FILES}" | grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml)'; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
             echo "✓ Backend changes detected"
           else
