@@ -95,10 +95,16 @@ export const validateModule = (
     if (isSmartVOCScale) {
         // For scale-based SmartVOC modules, check for 'scale' response
         const scaleValue = responses.get('scale');
-        if (scaleValue === undefined || scaleValue === null || scaleValue === '') {
+        // Check if scale value exists and is valid (including 0 as a valid value)
+        const hasValidScaleValue = scaleValue !== undefined && 
+                                   scaleValue !== null && 
+                                   scaleValue !== '' &&
+                                   (typeof scaleValue === 'number' || (typeof scaleValue === 'string' && scaleValue.trim().length > 0));
+        
+        if (!hasValidScaleValue) {
             // Check if any component in the structure is required
             const hasRequiredComponent = module.structure.components.some(comp => {
-                const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range'];
+                const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range', 'start-label', 'end-label'];
                 if (displayOnlyIds.some(id => comp.id.includes(id))) {
                     return false;
                 }
@@ -112,7 +118,7 @@ export const validateModule = (
                 });
             }
         }
-        // If scale value exists, module is valid
+        // If scale value exists and is valid, module is valid
         return {
             isValid: errors.length === 0,
             errors
