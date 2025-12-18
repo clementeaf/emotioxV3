@@ -51,16 +51,50 @@ export const validateModule = (
 ): ValidationResult => {
     const errors: ValidationError[] = [];
 
-    module.structure.components.forEach((component) => {
-        // Construct the response ID (assuming format: moduleId_componentId or just componentId depending on storage)
-        // In useParticipantStore, we use createResponseId(moduleId, componentId)
-        // But here we might just pass the relevant values.
-        // Let's assume 'responses' map keys match what we need to look up.
-        // Actually, looking at useParticipantStore, responses are stored by a composite ID.
-        // We should probably pass the specific value for this component.
+    // Special handling for Navigation Flow and Preference Test
+    const isNavigationFlow = module.name === 'Navigation Flow';
+    const isPreferenceTest = module.name === 'Preference Test';
 
-        // Wait, the caller will likely pass a map of { componentId: value } or we need to know how to look it up.
-        // Let's assume the caller resolves the value.
+    if (isNavigationFlow || isPreferenceTest) {
+        // For these modules, validate the main response component
+        // NavigationFlow uses 'navigation-flow-component' or 'navigation-flow' depending on how it's called
+        const possibleComponentIds = isNavigationFlow 
+            ? ['navigation-flow-component', 'navigation-flow']
+            : ['preference-test-component', 'preference-test'];
+        
+        // Check if any of the possible component IDs have a response
+        for (const mainComponentId of possibleComponentIds) {
+            const mainValue = responses.get(mainComponentId);
+            
+            // If there's a main response, consider it valid (these modules are complete when they have a response)
+            if (mainValue !== undefined && mainValue !== null && mainValue !== '') {
+                return {
+                    isValid: true,
+                    errors: []
+                };
+            }
+        }
+        
+        // If no main response, check if module is required
+        // For now, we'll consider these modules valid if they're not explicitly required
+        // or if they have any response at all
+        if (responses.size > 0) {
+            return {
+                isValid: true,
+                errors: []
+            };
+        }
+    }
+
+    // For other modules, validate structure components
+    // Skip validation for display-only components (title, description, instructions, message)
+    const displayOnlyIds = ['title', 'description', 'instructions', 'message'];
+    
+    module.structure.components.forEach((component) => {
+        // Skip display-only components
+        if (displayOnlyIds.some(id => component.id.includes(id))) {
+            return;
+        }
 
         const value = responses.get(component.id);
         const error = validateComponent(component, value);
