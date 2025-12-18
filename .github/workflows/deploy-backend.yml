@@ -71,14 +71,38 @@ jobs:
           while [ "${INDEX}" -lt "${TOTAL}" ]; do
             CHUNK=( "${NAMES[@]:${INDEX}:10}" )
             aws ssm get-parameters --region "${AWS_REGION}" --names "${CHUNK[@]}" --output json > ssm-params.json
-            INVALID_JSON="$(INVALID_JSON="${INVALID_JSON}" node -e 'const fs=require(\"fs\"); const prev=JSON.parse(process.env.INVALID_JSON||\"[]\"); const cur=(JSON.parse(fs.readFileSync(\"ssm-params.json\",\"utf8\")).InvalidParameters)||[]; const merged=[...new Set([...prev,...cur])]; console.log(JSON.stringify(merged));')"
+            INVALID_JSON="$(INVALID_JSON="${INVALID_JSON}" python3 - <<'PY'
+import json
+import os
+
+prev = json.loads(os.environ.get("INVALID_JSON", "[]"))
+with open("ssm-params.json", "r", encoding="utf-8") as f:
+    cur = json.load(f).get("InvalidParameters", []) or []
+
+merged = sorted(set(prev).union(cur))
+print(json.dumps(merged))
+PY
+)"
             INDEX=$((INDEX + 10))
           done
 
-          INVALID_COUNT="$(INVALID_JSON="${INVALID_JSON}" node -e 'const v=JSON.parse(process.env.INVALID_JSON||\"[]\"); console.log(v.length);')"
+          INVALID_COUNT="$(INVALID_JSON="${INVALID_JSON}" python3 - <<'PY'
+import json
+import os
+
+v = json.loads(os.environ.get("INVALID_JSON", "[]"))
+print(len(v))
+PY
+)"
           if [ "${INVALID_COUNT}" != "0" ]; then
             echo "Missing SSM parameters (count=${INVALID_COUNT}). InvalidParameters:"
-            INVALID_JSON="${INVALID_JSON}" node -e 'const v=JSON.parse(process.env.INVALID_JSON||"[]"); console.log(JSON.stringify(v,null,2));'
+            INVALID_JSON="${INVALID_JSON}" python3 - <<'PY'
+import json
+import os
+
+v = json.loads(os.environ.get("INVALID_JSON", "[]"))
+print(json.dumps(v, indent=2))
+PY
             exit 1
           fi
           echo "SSM parameters OK."
