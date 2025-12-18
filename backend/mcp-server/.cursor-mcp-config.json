@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {}
+    },
     "emotiox-database": {
       "command": "node",
       "args": [
