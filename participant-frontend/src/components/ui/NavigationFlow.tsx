@@ -36,12 +36,14 @@ interface NavigationFlowProps {
             label?: string;
         }>;
     }>;
+    onComplete?: () => void;
 }
 
 export const NavigationFlow: React.FC<NavigationFlowProps> = ({ 
     moduleId = 'navigation-flow',
     componentId = 'navigation-flow-component',
-    images: propImages 
+    images: propImages,
+    onComplete
 }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
@@ -203,6 +205,12 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                     setIsComplete(true);
                     // Save final response
                     saveNavigationResponse(true);
+                    // Trigger navigation to next step after a short delay
+                    if (onComplete) {
+                        setTimeout(() => {
+                            onComplete();
+                        }, 1000);
+                    }
                 } else {
                     setCurrentImageIndex(prev => prev + 1);
                     setClickPoints([]); // Clear points for new image

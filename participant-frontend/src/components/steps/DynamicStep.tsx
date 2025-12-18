@@ -8,9 +8,10 @@ import { getComponentText, toStableString } from '../../utils/moduleComponent';
 
 interface DynamicStepProps {
     module: ModuleConfig;
+    onComplete?: () => void;
 }
 
-export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
+export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) => {
     const { getResponse, saveResponse } = useParticipantStore();
 
     /**
@@ -94,7 +95,7 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module }) => {
 
     // If Cognitive Task, use specialized renderer
     if (isCognitiveTask) {
-        return <CognitiveTaskRenderer module={module} />;
+        return <CognitiveTaskRenderer module={module} onComplete={onComplete} />;
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)

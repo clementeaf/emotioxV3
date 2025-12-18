@@ -7,9 +7,10 @@ import { getComponentText } from '../../utils/moduleComponent';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
+    onComplete?: () => void;
 }
 
-export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ module }) => {
+export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ module, onComplete }) => {
 
     // Extract common components
     const titleComponent = module.structure.components.find(c => c.id.includes('title'));
@@ -146,6 +147,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     title={titleText}
                     description={descriptionText}
                     images={images}
+                    onComplete={onComplete}
                 />
             );
         }

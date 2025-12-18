@@ -387,7 +387,7 @@ export const ResearchPage = () => {
         }
       >
         {currentModule ? (
-          <DynamicStep module={currentModule} />
+          <DynamicStep module={currentModule} onComplete={handleNext} />
         ) : showRestartOption ? (
           <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
             <div className="bg-green-100 rounded-full p-3 mb-4">
