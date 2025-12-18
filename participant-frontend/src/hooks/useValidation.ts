@@ -5,9 +5,10 @@ import { validateModule, type ValidationResult } from '../utils/validation';
 import { createResponseId } from '../stores/useParticipantStore';
 
 export const useValidation = () => {
-    const { responses } = useParticipantStore();
-
     const validateStep = useCallback((module: ModuleConfig): ValidationResult => {
+        // Always get fresh responses from store to avoid stale closures
+        const { responses } = useParticipantStore.getState();
+        
         // Create a map of componentId -> value for the validator
         const stepResponses = new Map();
 
@@ -48,7 +49,7 @@ export const useValidation = () => {
                                     module.name.includes('CV');
             
             if (isSmartVOCScale) {
-                // Check for 'scale' response first
+                // Check for 'scale' response first - always get fresh from store
                 const scaleResponseId = createResponseId(module.id, 'scale');
                 const scaleResponse = responses.get(scaleResponseId);
                 if (scaleResponse) {
@@ -67,7 +68,7 @@ export const useValidation = () => {
         }
 
         return validateModule(module, stepResponses);
-    }, [responses]);
+    }, []);
 
     return {
         validateStep
