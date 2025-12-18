@@ -1,13 +1,16 @@
-import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
 import { SmartVOCPreview } from './SmartVOCPreview';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import { Toggle } from '../ui/Toggle';
+import { getModuleRequired } from '../../utils/moduleRequired';
 
 export interface SmartVOCModuleCardRef {
     getComponentValues: () => Record<string, string>;
     getComponents: () => ComponentConfig[];
+    getRequired: () => boolean;
 }
 
 interface SmartVOCModuleCardProps {
@@ -25,6 +28,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
     ({ module, researchId, isActive = false }, ref) => {
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
+    const [isRequired, setIsRequired] = useState<boolean>(() => getModuleRequired(module.config));
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -42,13 +46,26 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
     useImperativeHandle(ref, () => ({
         getComponentValues: () => componentValues,
         getComponents: () => components,
+        getRequired: () => isRequired,
     }));
+
+    useEffect(() => {
+        setIsRequired(getModuleRequired(module.config));
+    }, [module.id, module.config]);
 
     const handleComponentValueChange = (componentId: string, value: string): void => {
         setComponentValues(prev => ({
             ...prev,
             [componentId]: value,
         }));
+    };
+
+    /**
+     * Handles toggling the module required flag.
+     * @param next - Next checked value
+     */
+    const handleRequiredChange = (next: boolean): void => {
+        setIsRequired(next);
     };
 
     // Filter components for the editor: 
@@ -76,10 +93,21 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                 }`}
         >
             <div className="px-6 py-4 border-b border-gray-200 ">
-                <h3 className="text-base font-semibold text-gray-900">{module.name}</h3>
-                {module.description && (
-                    <p className="text-sm text-gray-500 mt-1">{module.description}</p>
-                )}
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <h3 className="text-base font-semibold text-gray-900">{module.name}</h3>
+                        {module.description && (
+                            <p className="text-sm text-gray-500 mt-1">{module.description}</p>
+                        )}
+                    </div>
+                    <div className="shrink-0">
+                        <Toggle
+                            checked={isRequired}
+                            onChange={(e) => handleRequiredChange(Boolean(e.target.checked))}
+                            label="Required"
+                        />
+                    </div>
+                </div>
             </div>
             <div className="p-6">
                 <ModuleContentEditor
