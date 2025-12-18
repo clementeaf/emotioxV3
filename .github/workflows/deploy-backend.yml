@@ -26,6 +26,7 @@ jobs:
             backend:
               - 'backend/**'
               - '.github/workflows/deploy-backend.yml'
+          list-files: shell
 
   deploy:
     name: Deploy to AWS Lambda
