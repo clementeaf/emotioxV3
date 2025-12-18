@@ -3,6 +3,29 @@ import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth';
 import * as authService from './auth.service';
 
+type CookieSameSite = 'Lax' | 'None';
+
+/**
+ * Resolve cookie security attributes based on request origin.
+ * - Localhost: allow HTTP cookies with SameSite=Lax.
+ * - Non-local (HTTPS): use Secure + SameSite=None to allow cross-site XHR (frontend ↔ API).
+ * @param origin - Request origin header
+ * @returns Cookie attributes to apply
+ */
+const resolveCookieAttributes = (origin: string | null): { secure: boolean; sameSite: CookieSameSite } => {
+    const raw = typeof origin === 'string' ? origin : '';
+    const isLocal =
+        raw.includes('http://localhost') ||
+        raw.includes('http://127.0.0.1') ||
+        raw.includes('http://0.0.0.0');
+
+    if (isLocal) {
+        return { secure: false, sameSite: 'Lax' };
+    }
+
+    return { secure: true, sameSite: 'None' };
+};
+
 export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path, headers } = event;
     const origin = headers.Origin || headers.origin || null;
@@ -28,14 +51,14 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             // Crear cookies para los tokens
             const { createCookie } = await import('../../utils/response');
             const cookies: string[] = [];
+            const cookieAttrs = resolveCookieAttributes(origin);
             
             // Access token cookie (expira en 1 hora)
-            // IMPORTANTE: secure=false para que funcione en localhost (HTTP)
             cookies.push(createCookie('accessToken', tokens.accessToken, {
                 maxAge: tokens.expiresIn || 3600,
                 httpOnly: true,
-                secure: false, // false para localhost, cambiar a true en producción
-                sameSite: 'Lax',
+                secure: cookieAttrs.secure,
+                sameSite: cookieAttrs.sameSite,
                 path: '/',
             }));
             
@@ -44,8 +67,8 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 cookies.push(createCookie('refreshToken', tokens.refreshToken, {
                     maxAge: rememberMe ? 30 * 24 * 60 * 60 : undefined, // 30 días o sesión
                     httpOnly: true,
-                    secure: false, // false para localhost, cambiar a true en producción
-                    sameSite: 'Lax',
+                    secure: cookieAttrs.secure,
+                    sameSite: cookieAttrs.sameSite,
                     path: '/',
                 }));
             }
@@ -86,12 +109,13 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             // Actualizar cookies
             const { createCookie } = await import('../../utils/response');
             const cookies: string[] = [];
+            const cookieAttrs = resolveCookieAttributes(origin);
             
             cookies.push(createCookie('accessToken', tokens.accessToken, {
                 maxAge: tokens.expiresIn || 3600,
                 httpOnly: true,
-                secure: false, // false para localhost
-                sameSite: 'Lax',
+                secure: cookieAttrs.secure,
+                sameSite: cookieAttrs.sameSite,
                 path: '/',
             }));
             

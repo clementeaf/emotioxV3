@@ -8,6 +8,8 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      HUSKY: "0"
     services:
       postgres:
         image: postgres:16
@@ -40,7 +42,7 @@ jobs:
 
       - name: Install dependencies (backend)
         working-directory: backend
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Install dependencies (research-frontend)
         working-directory: research-frontend

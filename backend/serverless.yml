@@ -30,7 +30,7 @@ provider:
             - s3:GetObject
             - s3:DeleteObject
           Resource:
-            - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
+            - "arn:aws:s3:::${ssm:/emotioxv3/${self:provider.stage}/S3_BUCKET_NAME}/*"
             - "arn:aws:s3:::emotioxv3-media-*/*"
         - Effect: Allow
           Action:

@@ -13,6 +13,8 @@ jobs:
   deploy:
     name: Deploy to AWS Lambda
     runs-on: ubuntu-latest
+    env:
+      HUSKY: "0"
     
     steps:
       - name: Checkout code
@@ -40,33 +42,42 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Validate required SSM parameters exist (production)
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          PREFIX="/emotioxv3/production"
+          echo "Validating SSM parameters under ${PREFIX}..."
+          # Do not print values; only validate existence.
+          NAMES=(
+            "${PREFIX}/DB_HOST"
+            "${PREFIX}/DB_PORT"
+            "${PREFIX}/DB_NAME"
+            "${PREFIX}/DB_USER"
+            "${PREFIX}/DB_PASSWORD"
+            "${PREFIX}/DB_SSL"
+            "${PREFIX}/APP_AWS_REGION"
+            "${PREFIX}/S3_BUCKET_NAME"
+            "${PREFIX}/CORS_ORIGIN"
+            "${PREFIX}/COGNITO_USER_POOL_ID"
+            "${PREFIX}/COGNITO_CLIENT_ID"
+          )
+          aws ssm get-parameters --region "${AWS_REGION}" --names "${NAMES[@]}" --output json > ssm-params.json
+          INVALID_COUNT="$(node -e 'const fs=require(\"fs\"); const v=JSON.parse(fs.readFileSync(\"ssm-params.json\",\"utf8\")); console.log((v.InvalidParameters||[]).length);')"
+          if [ "${INVALID_COUNT}" != "0" ]; then
+            echo "Missing SSM parameters (count=${INVALID_COUNT}). InvalidParameters:"
+            node -e 'const fs=require("fs"); const v=JSON.parse(fs.readFileSync("ssm-params.json","utf8")); console.log(JSON.stringify(v.InvalidParameters||[],null,2));'
+            exit 1
+          fi
+          echo "SSM parameters OK."
+
       - name: Deploy to AWS Lambda
         working-directory: backend
         env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           API_STAGE: production
         run: |
-          missing=()
-          for var in DB_HOST DB_PORT DB_NAME DB_USER DB_PASSWORD AWS_REGION S3_BUCKET_NAME JWT_SECRET JWT_REFRESH_SECRET; do
-            if [ -z "${!var}" ]; then
-              missing+=("$var")
-            fi
-          done
-          if [ ${#missing[@]} -ne 0 ]; then
-            echo "Missing required secrets/env vars for deployment:"
-            printf ' - %s\n' "${missing[@]}"
-            exit 1
-          fi
           npx serverless deploy --stage production
 
       - name: Publish runtime-config.json to frontend buckets

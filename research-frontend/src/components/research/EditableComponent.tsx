@@ -358,6 +358,7 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                                     </h2>
                                     <LocalHitzoneEditor
                                         imageUrl={hitzoneFile.url || ''}
+                                        s3Key={hitzoneFile.s3Key}
                                         initialAreas={(hitzoneFile.hitZones || []).map((hz) => ({
                                             id: hz.id,
                                             x: hz.region.x,

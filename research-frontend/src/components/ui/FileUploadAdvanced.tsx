@@ -78,6 +78,7 @@ export const FileUploadAdvanced = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [localFiles, setLocalFiles] = useState<UploadedFile[]>(files);
+    const localFilesRef = useRef<UploadedFile[]>(files);
     const loadingUrlsRef = useRef<Set<string>>(new Set()); // Rastrear URLs que se están cargando
     const onFilesChangeRef = useRef(onFilesChange);
     const lastFilesRef = useRef<string>(''); // Para evitar actualizaciones innecesarias
@@ -97,6 +98,10 @@ export const FileUploadAdvanced = ({
         }
     }, [files]);
 
+    useEffect(() => {
+        localFilesRef.current = localFiles;
+    }, [localFiles]);
+
     /**
      * Identifica archivos que necesitan URL presigned o que necesitan refrescar su URL
      */
@@ -104,8 +109,9 @@ export const FileUploadAdvanced = ({
         const now = Date.now();
         const refreshBuffer = 5 * 60 * 1000; // Refrescar 5 minutos antes de que expire
         
-        return files.filter((file) => {
-            if (!file.s3Key || file.status) return false;
+        return localFiles.filter((file) => {
+            if (!file.s3Key) return false;
+            if (file.status === 'uploading' || file.status === 'error') return false;
             
             // No intentar si ya se está cargando
             if (loadingUrlsRef.current.has(file.s3Key)) return false;
@@ -121,7 +127,24 @@ export const FileUploadAdvanced = ({
             // Si no tiene urlExpiresAt, asumir que necesita refrescar (URL antigua)
             return true;
         });
-    }, [files, loadingUrlsRef.current.size]);
+    }, [localFiles]);
+
+    /**
+     * Determines whether it's safe to use a stored presigned URL for rendering.
+     * If expiry is unknown (missing urlExpiresAt) or it's near expiry, we avoid using it to prevent noisy 403s.
+     * @param file - Uploaded file
+     * @returns true when the existing URL should be used as <img src>
+     */
+    const shouldUseExistingPresignedUrl = (file: UploadedFile): boolean => {
+        if (!file.s3Key) {
+            return true;
+        }
+        if (typeof file.urlExpiresAt !== 'number') {
+            return false;
+        }
+        const refreshBufferMs = 5 * 60 * 1000;
+        return Date.now() < (file.urlExpiresAt - refreshBufferMs);
+    };
 
     /**
      * Efecto para obtener URLs presigned de archivos existentes que tienen s3Key pero no url
@@ -154,7 +177,7 @@ export const FileUploadAdvanced = ({
                 }
             });
 
-            const updatedFiles = [...localFiles]; // Usar localFiles en lugar de files
+            const updatedFiles = [...localFilesRef.current];
 
             await Promise.all(
                 filesToLoad.map(async (file) => {
@@ -187,9 +210,15 @@ export const FileUploadAdvanced = ({
             );
 
             // Solo actualizar si hay cambios
-            const hasChanges = updatedFiles.some((f, index) => {
-                const oldFile = localFiles[index];
-                return !oldFile || f.url !== oldFile.url || f.urlExpiresAt !== oldFile.urlExpiresAt;
+            const currentById = new Map(localFilesRef.current.map((f) => [f.id, f]));
+            const hasChanges = updatedFiles.some((f) => {
+                const oldFile = currentById.get(f.id);
+                return (
+                    !oldFile ||
+                    f.url !== oldFile.url ||
+                    f.urlExpiresAt !== oldFile.urlExpiresAt ||
+                    f.mediaId !== oldFile.mediaId
+                );
             });
             
             if (hasChanges) {
@@ -546,8 +575,8 @@ export const FileUploadAdvanced = ({
                         <div className="grid gap-3">
                             {localFiles.map((file) => {
                                 const isImage = file.type?.startsWith('image/');
-                                // Solo mostrar imagen si hay URL disponible (no usar placeholder)
-                                const imageUrl = file.url || undefined;
+                                // Evitar usar URLs presigned viejas (para no disparar 403); esperar a refrescar por s3Key.
+                                const imageUrl = shouldUseExistingPresignedUrl(file) ? (file.url || undefined) : undefined;
                                 const isUploading = file.status === 'uploading';
                                 const hasError = file.status === 'error';
 
@@ -568,23 +597,28 @@ export const FileUploadAdvanced = ({
                                                         alt={file.name}
                                                         className="w-16 h-16 object-cover rounded border border-gray-200"
                                                         crossOrigin="anonymous"
-                                                        onError={async (e) => {
+                                                        onError={async (e): Promise<void> => {
+                                                            const imgEl = (e as unknown as { currentTarget: HTMLImageElement | null }).currentTarget;
+                                                            if (!imgEl) {
+                                                                return;
+                                                            }
+
                                                             // Evitar múltiples intentos de refresco
-                                                            if (e.currentTarget.dataset.refreshing === 'true') {
+                                                            if (imgEl.dataset.refreshing === 'true') {
                                                                 return;
                                                             }
                                                             
-                                                            console.error('Error loading image:', imageUrl, e);
+                                                            console.error('Error loading image:', imageUrl);
                                                             
                                                             // Si la URL expiró, intentar refrescarla
                                                             if (file.s3Key && (!file.urlExpiresAt || Date.now() >= file.urlExpiresAt)) {
-                                                                // Marcar como refrescando para evitar múltiples intentos
-                                                                e.currentTarget.dataset.refreshing = 'true';
-                                                                
                                                                 // Evitar múltiples requests simultáneos
                                                                 if (loadingUrlsRef.current.has(file.s3Key)) {
                                                                     return;
                                                                 }
+
+                                                                // Marcar como refrescando para evitar múltiples intentos
+                                                                imgEl.dataset.refreshing = 'true';
                                                                 
                                                                 loadingUrlsRef.current.add(file.s3Key);
                                                                 
@@ -604,21 +638,21 @@ export const FileUploadAdvanced = ({
                                                                         setLocalFiles(updatedFiles);
                                                                         onFilesChangeRef.current?.(updatedFiles);
                                                                         // Recargar la imagen con la nueva URL
-                                                                        e.currentTarget.dataset.refreshing = 'false';
-                                                                        e.currentTarget.src = result.url;
+                                                                        imgEl.dataset.refreshing = 'false';
+                                                                        imgEl.src = result.url;
                                                                         return;
                                                                     }
                                                                 } catch (refreshError) {
                                                                     console.error('Failed to refresh expired URL:', refreshError);
-                                                                    e.currentTarget.dataset.refreshing = 'false';
+                                                                    imgEl.dataset.refreshing = 'false';
                                                                 } finally {
                                                                     loadingUrlsRef.current.delete(file.s3Key);
                                                                 }
                                                             }
                                                             
                                                             // Si no se pudo refrescar, mostrar placeholder de error
-                                                            e.currentTarget.dataset.refreshing = 'false';
-                                                            e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="%23f0f0f0"/><text x="32" y="32" font-family="Arial" font-size="8" text-anchor="middle" dominant-baseline="middle" fill="%23999">Error</text></svg>';
+                                                            imgEl.dataset.refreshing = 'false';
+                                                            imgEl.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" fill="%23f0f0f0"/><text x="32" y="32" font-family="Arial" font-size="8" text-anchor="middle" dominant-baseline="middle" fill="%23999">Error</text></svg>';
                                                         }}
                                                     />
                                                     {isUploading && (
@@ -750,7 +784,7 @@ export const FileUploadAdvanced = ({
                         {localFiles
                             .filter((f) => f.type?.startsWith('image/'))
                             .map((file) => {
-                                const imageUrl = file.url;
+                                const imageUrl = shouldUseExistingPresignedUrl(file) ? file.url : undefined;
                                 return (
                                     <div key={file.id} className="relative">
                                         {imageUrl ? (
@@ -759,23 +793,28 @@ export const FileUploadAdvanced = ({
                                                 alt={file.name}
                                                 className="w-full h-48 object-cover rounded border border-gray-200"
                                                 crossOrigin="anonymous"
-                                                onError={async (e) => {
+                                                onError={async (e): Promise<void> => {
+                                                    const imgEl = (e as unknown as { currentTarget: HTMLImageElement | null }).currentTarget;
+                                                    if (!imgEl) {
+                                                        return;
+                                                    }
+
                                                     // Evitar múltiples intentos de refresco
-                                                    if (e.currentTarget.dataset.refreshing === 'true') {
+                                                    if (imgEl.dataset.refreshing === 'true') {
                                                         return;
                                                     }
                                                     
-                                                    console.error('Error loading preview image:', imageUrl, e);
+                                                    console.error('Error loading preview image:', imageUrl);
                                                     
                                                     // Si la URL expiró, intentar refrescarla
                                                     if (file.s3Key && (!file.urlExpiresAt || Date.now() >= file.urlExpiresAt)) {
-                                                        // Marcar como refrescando para evitar múltiples intentos
-                                                        e.currentTarget.dataset.refreshing = 'true';
-                                                        
                                                         // Evitar múltiples requests simultáneos
                                                         if (loadingUrlsRef.current.has(file.s3Key)) {
                                                             return;
                                                         }
+
+                                                        // Marcar como refrescando para evitar múltiples intentos
+                                                        imgEl.dataset.refreshing = 'true';
                                                         
                                                         loadingUrlsRef.current.add(file.s3Key);
                                                         
@@ -795,21 +834,21 @@ export const FileUploadAdvanced = ({
                                                                 setLocalFiles(updatedFiles);
                                                                 onFilesChangeRef.current?.(updatedFiles);
                                                                 // Recargar la imagen con la nueva URL
-                                                                e.currentTarget.dataset.refreshing = 'false';
-                                                                e.currentTarget.src = result.url;
+                                                                imgEl.dataset.refreshing = 'false';
+                                                                imgEl.src = result.url;
                                                                 return;
                                                             }
                                                         } catch (refreshError) {
                                                             console.error('Failed to refresh expired URL:', refreshError);
-                                                            e.currentTarget.dataset.refreshing = 'false';
+                                                            imgEl.dataset.refreshing = 'false';
                                                         } finally {
                                                             loadingUrlsRef.current.delete(file.s3Key);
                                                         }
                                                     }
                                                     
                                                     // Si no se pudo refrescar, mostrar placeholder de error
-                                                    e.currentTarget.dataset.refreshing = 'false';
-                                                    e.currentTarget.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="%23f0f0f0"/><text x="100" y="100" font-family="Arial" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">Image not available</text></svg>';
+                                                    imgEl.dataset.refreshing = 'false';
+                                                    imgEl.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><rect width="200" height="200" fill="%23f0f0f0"/><text x="100" y="100" font-family="Arial" font-size="14" text-anchor="middle" dominant-baseline="middle" fill="%23999">Image not available</text></svg>';
                                                 }}
                                             />
                                         ) : (

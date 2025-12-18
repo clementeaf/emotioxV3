@@ -1,4 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { getPresignedUrl } from '../../utils/presignedUrlCache';
+import { mediaService } from '../../services/media.service';
 
 /**
  * Interfaz para áreas de hitzone
@@ -12,7 +14,8 @@ export interface HitzoneArea {
 }
 
 interface LocalHitzoneEditorProps {
-    imageUrl: string;
+    imageUrl?: string;
+    s3Key?: string;
     initialAreas?: HitzoneArea[];
     onSave: (areas: HitzoneArea[]) => void;
     onClose: () => void;
@@ -23,6 +26,7 @@ interface LocalHitzoneEditorProps {
  */
 export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
     imageUrl,
+    s3Key,
     initialAreas = [],
     onSave,
     onClose,
@@ -57,11 +61,64 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeTestIdx, setActiveTestIdx] = useState<number | null>(null);
+    const [resolvedImageUrl, setResolvedImageUrl] = useState<string>(() => (typeof imageUrl === 'string' ? imageUrl : ''));
+    const refreshAttemptedRef = useRef(false);
+
+    useEffect(() => {
+        if (typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
+            setResolvedImageUrl(imageUrl);
+        }
+    }, [imageUrl]);
+
+    useEffect(() => {
+        if (typeof s3Key !== 'string' || s3Key.trim().length === 0) {
+            return;
+        }
+        if (resolvedImageUrl.trim().length > 0) {
+            return;
+        }
+
+        let cancelled = false;
+        void (async (): Promise<void> => {
+            try {
+                const result = await getPresignedUrl(s3Key, () => mediaService.getMediaUrlByS3Key(s3Key));
+                if (cancelled) return;
+                setImgNatural(null);
+                setImgSize(null);
+                setResolvedImageUrl(result.url);
+            } catch {
+                if (cancelled) return;
+                setResolvedImageUrl('');
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [resolvedImageUrl, s3Key]);
 
     const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>): void => {
         const { naturalWidth, naturalHeight, width, height } = e.currentTarget;
         setImgNatural({ width: naturalWidth, height: naturalHeight });
         setImgSize({ width, height });
+    };
+
+    /**
+     * Attempts to refresh an expired S3 presigned URL using the file's s3Key.
+     * @returns Promise resolved when refresh completes (or no-op when not possible)
+     */
+    const refreshImageUrlIfPossible = async (): Promise<void> => {
+        if (typeof s3Key !== 'string' || s3Key.trim().length === 0) {
+            return;
+        }
+        if (refreshAttemptedRef.current) {
+            return;
+        }
+        refreshAttemptedRef.current = true;
+        const result = await getPresignedUrl(s3Key, () => mediaService.getMediaUrlByS3Key(s3Key));
+        setImgNatural(null);
+        setImgSize(null);
+        setResolvedImageUrl(result.url);
     };
 
     const handleMouseDown = (e: React.MouseEvent): void => {
@@ -124,13 +181,16 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
                     aspectRatio: imgNatural ? `${imgNatural.width} / ${imgNatural.height}` : undefined,
                 }}
             >
-                {imageUrl && (
+                {resolvedImageUrl && (
                     <img
-                        src={imageUrl}
+                        src={resolvedImageUrl}
                         alt="Base image"
                         className="w-full h-auto max-h-[56vh] object-contain bg-white"
                         draggable={false}
                         onLoad={handleImgLoad}
+                        onError={() => {
+                            void refreshImageUrlIfPossible();
+                        }}
                         style={{ display: 'block' }}
                         crossOrigin="anonymous"
                     />

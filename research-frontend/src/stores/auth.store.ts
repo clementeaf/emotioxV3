@@ -1,7 +1,39 @@
+import axios from 'axios';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User, LoginCredentials, LoginRequest, RegisterCredentials } from '../types/auth';
 import { authService } from '../services/auth.service';
+import apiClient from '../services/api/client';
+import { configService } from '../services/api/config.service';
+
+const SESSION_REFRESH_TOKEN_KEY = 'auth-refresh-token';
+
+/**
+ * Reads the session-scoped refresh token from sessionStorage.
+ * @returns Refresh token or null when not available
+ */
+const readSessionRefreshToken = (): string | null => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    const value = window.sessionStorage.getItem(SESSION_REFRESH_TOKEN_KEY);
+    return typeof value === 'string' && value.trim().length > 0 ? value : null;
+};
+
+/**
+ * Writes or clears the session-scoped refresh token in sessionStorage.
+ * @param refreshToken - Refresh token to store, or null to clear
+ */
+const writeSessionRefreshToken = (refreshToken: string | null): void => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
+        window.sessionStorage.setItem(SESSION_REFRESH_TOKEN_KEY, refreshToken);
+        return;
+    }
+    window.sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
+};
 
 interface AuthState {
     user: User | null;
@@ -12,6 +44,7 @@ interface AuthState {
     error: string | null;
 
     login: (credentials: LoginCredentials, rememberMe?: boolean) => Promise<void>;
+    bootstrapSession: () => Promise<void>;
     register: (credentials: RegisterCredentials) => Promise<void>;
     updateProfile: (data: Partial<User>) => Promise<void>;
     deleteAccount: () => Promise<void>;
@@ -66,7 +99,7 @@ const initialState = {
 };
 
 export const useAuthStore = create<AuthState>()(persist(
-    (set) => ({
+    (set, get) => ({
     ...initialState,
 
     login: async (credentials, rememberMe = false) => {
@@ -80,6 +113,7 @@ export const useAuthStore = create<AuthState>()(persist(
             const token = loginResponse.token || null;
             const refreshToken = loginResponse.refreshToken || null;
             set({ token, refreshToken });
+            writeSessionRefreshToken(rememberMe ? null : refreshToken);
 
             // Fetch user profile
             try {
@@ -111,6 +145,51 @@ export const useAuthStore = create<AuthState>()(persist(
                 rememberMe: false,
             });
             throw error;
+        }
+    },
+
+    bootstrapSession: async () => {
+        set({ isLoading: true, error: null });
+        try {
+            const state = get();
+            const sessionRefreshToken = readSessionRefreshToken();
+            const effectiveRefreshToken =
+                state.rememberMe ? state.refreshToken : (state.refreshToken ?? sessionRefreshToken);
+
+            // If we have no evidence of a session (no tokens / no refresh token), do nothing.
+            if (!state.token && !effectiveRefreshToken) {
+                set({ isLoading: false });
+                return;
+            }
+
+            if (!state.rememberMe && !state.refreshToken && sessionRefreshToken) {
+                set({ refreshToken: sessionRefreshToken });
+            }
+
+            if (!state.token && effectiveRefreshToken) {
+                const refresh = await authService.refresh(effectiveRefreshToken);
+                const newToken = typeof refresh.token === 'string' && refresh.token.trim().length > 0 ? refresh.token : null;
+                if (newToken) {
+                    set({ token: newToken });
+                }
+            }
+
+            const endpoint = configService.getEndpoint('auth', 'me');
+            const userResponse = await apiClient.get<{ user: User }>(endpoint);
+            set({ user: userResponse.user, isLoading: false });
+        } catch (error: unknown) {
+            const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+            if (status === 401) {
+                set({
+                    ...initialState,
+                    token: null,
+                    refreshToken: null,
+                });
+                writeSessionRefreshToken(null);
+                return;
+            }
+            const message = error instanceof Error ? error.message : 'Failed to restore session';
+            set({ isLoading: false, error: message });
         }
     },
 
@@ -162,6 +241,7 @@ export const useAuthStore = create<AuthState>()(persist(
                         token: null, // TEMPORAL
                         refreshToken: null,
                     });
+                    writeSessionRefreshToken(null);
                 }
             },
 
