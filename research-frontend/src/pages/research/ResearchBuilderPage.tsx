@@ -13,6 +13,7 @@ import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
+import { withModuleRequired } from '../../utils/moduleRequired';
 
 export const ResearchBuilderPage = () => {
     const { id } = useParams<{ id: string }>();
@@ -172,6 +173,7 @@ export const ResearchBuilderPage = () => {
                     // Get current component values from the ref
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
+                    const required = moduleRef.getRequired();
                     
                     console.log(`Saving ${module.name}:`, {
                         componentValues: currentComponentValues,
@@ -189,13 +191,13 @@ export const ResearchBuilderPage = () => {
                     console.log(`Updated components:`, updatedComponents);
                     
                     // Preserve the correct backend structure
-                    const config = {
+                    const config = withModuleRequired({
                         ...module.config,
                         structure: {
                             ...(module.config.structure || {}),
                             components: updatedComponents
                         }
-                    };
+                    }, required);
                     
                     return modulesService.update(module.id, {
                         config,
@@ -218,8 +220,9 @@ export const ResearchBuilderPage = () => {
                     
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
+                    const required = moduleRef.getRequired();
                     
-                    console.log(`💾 Saving ${module.name}:`, {
+                    console.log(`Saving ${module.name}:`, {
                         componentValues: currentComponentValues,
                         components: currentComponents
                     });
@@ -229,15 +232,15 @@ export const ResearchBuilderPage = () => {
                         value: currentComponentValues[comp.id] || comp.value
                     }));
                     
-                    console.log(`✅ Updated components:`, updatedComponents);
+                    console.log(`Updated components:`, updatedComponents);
                     
-                    const config = {
+                    const config = withModuleRequired({
                         ...module.config,
                         structure: {
                             ...(module.config.structure || {}),
                             components: updatedComponents
                         }
-                    };
+                    }, required);
                     
                     return modulesService.update(module.id, {
                         config,

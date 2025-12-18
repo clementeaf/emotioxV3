@@ -5,6 +5,7 @@ import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { Toggle } from '../ui/Toggle';
 import { getModuleRequired } from '../../utils/moduleRequired';
+import { getLocalModuleHidden, isLocalhost, setLocalModuleHidden } from '../../utils/localOnlyModuleFlags';
 
 export interface CognitiveTaskModuleCardRef {
     getComponentValues: () => Record<string, string>;
@@ -28,6 +29,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
     const [isRequired, setIsRequired] = useState<boolean>(() => getModuleRequired(module.config));
+    const [isHidden, setIsHidden] = useState<boolean>(() => getLocalModuleHidden(module.id));
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -52,6 +54,10 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
         setIsRequired(getModuleRequired(module.config));
     }, [module.id, module.config]);
 
+    useEffect(() => {
+        setIsHidden(getLocalModuleHidden(module.id));
+    }, [module.id]);
+
     const handleComponentValueChange = (componentId: string, value: string): void => {
         setComponentValues(prev => ({
             ...prev,
@@ -65,6 +71,15 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
      */
     const handleRequiredChange = (next: boolean): void => {
         setIsRequired(next);
+    };
+
+    /**
+     * Handles toggling the local-only hidden flag.
+     * @param next - Next checked value
+     */
+    const handleHiddenChange = (next: boolean): void => {
+        setIsHidden(next);
+        setLocalModuleHidden(module.id, next);
     };
 
     return (
@@ -82,22 +97,31 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                             <p className="text-sm text-gray-500 mt-1">{module.description}</p>
                         )}
                     </div>
-                    <div className="shrink-0">
+                    <div className="shrink-0 flex flex-col gap-2">
                         <Toggle
                             checked={isRequired}
                             onChange={(e) => handleRequiredChange(Boolean(e.target.checked))}
                             label="Required"
                         />
+                        {isLocalhost() && (
+                            <Toggle
+                                checked={isHidden}
+                                onChange={(e) => handleHiddenChange(Boolean(e.target.checked))}
+                                label="Hide"
+                            />
+                        )}
                     </div>
                 </div>
             </div>
             <div className="p-6">
-                <ModuleContentEditor
-                    components={components}
-                    componentValues={componentValues}
-                    onValueChange={handleComponentValueChange}
-                    researchId={researchId}
-                />
+                {!isHidden && (
+                    <ModuleContentEditor
+                        components={components}
+                        componentValues={componentValues}
+                        onValueChange={handleComponentValueChange}
+                        researchId={researchId}
+                    />
+                )}
             </div>
         </div>
     );

@@ -26,7 +26,7 @@ const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
 
         return (
             <div className="w-full">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                     {(label || description) && (
                         <div className="flex-1" onClick={handleToggleClick}>
                             {label && (
