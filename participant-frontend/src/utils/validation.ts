@@ -86,9 +86,42 @@ export const validateModule = (
         }
     }
 
+    // Special handling for SmartVOC modules that use 'scale' component
+    const isSmartVOCScale = module.name.includes('CSAT') || 
+                            module.name.includes('NPS') || 
+                            module.name.includes('CES') || 
+                            module.name.includes('CV');
+    
+    if (isSmartVOCScale) {
+        // For scale-based SmartVOC modules, check for 'scale' response
+        const scaleValue = responses.get('scale');
+        if (scaleValue === undefined || scaleValue === null || scaleValue === '') {
+            // Check if any component in the structure is required
+            const hasRequiredComponent = module.structure.components.some(comp => {
+                const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range'];
+                if (displayOnlyIds.some(id => comp.id.includes(id))) {
+                    return false;
+                }
+                return comp.required === true;
+            });
+            
+            if (hasRequiredComponent) {
+                errors.push({
+                    componentId: 'scale',
+                    message: 'Este campo es requerido'
+                });
+            }
+        }
+        // If scale value exists, module is valid
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
     // For other modules, validate structure components
     // Skip validation for display-only components (title, description, instructions, message)
-    const displayOnlyIds = ['title', 'description', 'instructions', 'message'];
+    const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range'];
     
     module.structure.components.forEach((component) => {
         // Skip display-only components
