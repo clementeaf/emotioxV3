@@ -102,8 +102,15 @@ jobs:
                   aws ssm put-parameter --region "${AWS_REGION}" --name "${PREFIX}/DB_PASSWORD" --type "SecureString" --value "${DB_PASSWORD}" --overwrite > /dev/null
                   ;;
                 DB_HOST|DB_PORT|DB_NAME|DB_USER|DB_SSL|APP_AWS_REGION|S3_BUCKET_NAME|CORS_ORIGIN|COGNITO_USER_POOL_ID|COGNITO_CLIENT_ID)
-                  value="$(eval "printf '%s' \"\${${key}:-}\"")"
-                  [ -n "${value}" ] || { echo "Missing GitHub Secret: ${key}"; exit 1; }
+                  value="$(printenv "${key}" || true)"
+                  if [ -z "${value}" ]; then
+                    case "${key}" in
+                      APP_AWS_REGION) value="${AWS_REGION}" ;;
+                      DB_SSL) value="true" ;;
+                      CORS_ORIGIN) value="https://research.useremotion.com" ;;
+                      *) echo "Missing GitHub Secret: ${key}"; exit 1 ;;
+                    esac
+                  fi
                   aws ssm put-parameter --region "${AWS_REGION}" --name "${PREFIX}/${key}" --type "String" --value "${value}" --overwrite > /dev/null
                   ;;
                 *)
