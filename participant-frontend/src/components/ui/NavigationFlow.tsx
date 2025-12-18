@@ -384,7 +384,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             {/* Instructions */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800">
-                    <span className="font-semibold">Instrucción:</span> Haz clic en las áreas interactivas para avanzar.
+                    <span className="font-semibold">Instrucción:</span> El flujo continuará en la medida que selecciones el área especificada.
                     {clickPoints.length > 0 && !isComplete && (
                         <span className="block mt-1 text-blue-600">
                             {clickPoints.filter(p => !p.isCorrect).length > 0

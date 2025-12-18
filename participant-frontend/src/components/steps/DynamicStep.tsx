@@ -90,7 +90,7 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
 
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
-        return <SmartVOCRenderer module={module} />;
+        return <SmartVOCRenderer module={module} onComplete={onComplete} />;
     }
 
     // If Cognitive Task, use specialized renderer

@@ -14,12 +14,14 @@ interface PreferenceTestProps {
         s3Key?: string;
         url?: string;
     }>;
+    onComplete?: () => void;
 }
 
 export const PreferenceTest: React.FC<PreferenceTestProps> = ({ 
     moduleId = 'preference-test',
     componentId = 'preference-test-component',
-    images: propImages 
+    images: propImages,
+    onComplete
 }) => {
     const [selectedImage, setSelectedImage] = useState<number | null>(null);
     const [zoomImage, setZoomImage] = useState<number | null>(null);
@@ -80,10 +82,16 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
         }))
         : mockImages.map(m => ({ ...m, url: undefined as string | undefined }));
 
-    const handleImageSelect = (imageId: number) => {
+    const handleImageSelect = (imageId: number): void => {
         setSelectedImage(imageId);
         // Save selection immediately
         savePreferenceResponse(imageId);
+        // Auto-advance after a short delay if onComplete is provided
+        if (onComplete) {
+            setTimeout(() => {
+                onComplete();
+            }, 500);
+        }
     };
 
     const handleZoomOpen = (imageId: number) => {

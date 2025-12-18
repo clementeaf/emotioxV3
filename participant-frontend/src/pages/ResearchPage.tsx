@@ -207,18 +207,19 @@ export const ResearchPage = () => {
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
 
   /**
-   * Generates the appropriate button text based on the current module type
+   * Determines if the "Guardar y continuar" button should be shown for the current module
    * @param module - Current module or undefined
-   * @returns Button text string
+   * @returns true if button should be shown, false otherwise
    */
-  const getButtonText = useCallback((module: Module | undefined): string => {
+  const shouldShowButton = useCallback((module: Module | undefined): boolean => {
     if (!module) {
-      return 'Guardar y continuar';
+      return true; // Default: show button
     }
 
     const moduleName = module.name || '';
     
-    // Linear Scale modules (CSAT, CES, CV, NPS, Linear Scale)
+    // Hide button for modules that auto-advance
+    // Linear Scale modules (CSAT, CES, CV, NPS, Linear Scale) - auto-advance on selection
     if (
       moduleName.includes('CSAT') ||
       moduleName.includes('CES') ||
@@ -226,43 +227,26 @@ export const ResearchPage = () => {
       moduleName.includes('NPS') ||
       moduleName === 'Linear Scale'
     ) {
-      return 'Selecciona un valor para pasar al siguiente paso';
+      return false;
     }
 
-    // Multiple Choice
-    if (moduleName === 'Multiple Choice') {
-      return 'Guardar y continuar';
-    }
-
-    // Navigation Flow
+    // Navigation Flow - auto-advances when flow completes
     if (moduleName === 'Navigation Flow') {
-      return 'El flujo continuará en la medida que selecciones el área especificada';
+      return false;
     }
 
-    // NEV (Net Emotional Value)
+    // NEV - auto-advances when required emotions are selected
     if (moduleName.includes('NEV') || moduleName.includes('Net Emotional Value')) {
-      // Try to get minimum emotions from module.config
-      const config = isRecord(module.config) ? module.config : {};
-      const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
-      
-      if (minEmotions !== undefined && minEmotions > 0) {
-        if (minEmotions === 1) {
-          return 'Selecciona una emoción para pasar al siguiente paso';
-        }
-        return `Selecciona ${minEmotions} emociones para pasar al siguiente paso`;
-      }
-      
-      // Default message if minEmotions is not configured
-      return 'Selecciona las emociones para pasar al siguiente paso';
+      return false;
     }
 
-    // Preference Test
+    // Preference Test - auto-advances when image is selected
     if (moduleName === 'Preference Test') {
-      return 'Se pasa al siguiente paso seleccionando una de las imágenes';
+      return false;
     }
 
-    // Default for other modules
-    return 'Guardar y continuar';
+    // Show button for Multiple Choice and other modules that require explicit confirmation
+    return true;
   }, []);
 
   const handleNext = useCallback(async () => {
@@ -437,18 +421,25 @@ export const ResearchPage = () => {
 
       <MainLayout
         footer={
-          <Button
-            onClick={handleNext}
-            disabled={submitting}
-          >
-            {submitting 
-              ? 'Guardando...' 
-              : showRestartOption 
-                ? 'Comenzar de nuevo' 
+          shouldShowButton(currentModule) && !showRestartOption ? (
+            <Button
+              onClick={handleNext}
+              disabled={submitting}
+            >
+              {submitting 
+                ? 'Guardando...' 
                 : isLastStep 
                   ? 'Finalizar' 
-                  : getButtonText(currentModule)}
-          </Button>
+                  : 'Guardar y continuar'}
+            </Button>
+          ) : showRestartOption ? (
+            <Button
+              onClick={handleNext}
+              disabled={submitting}
+            >
+              Comenzar de nuevo
+            </Button>
+          ) : null
         }
       >
         {currentModule ? (

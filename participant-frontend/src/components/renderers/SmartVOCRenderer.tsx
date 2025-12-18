@@ -10,9 +10,10 @@ import { getComponentText } from '../../utils/moduleComponent';
 
 interface SmartVOCRendererProps {
     module: ModuleConfig;
+    onComplete?: () => void;
 }
 
-export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) => {
+export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onComplete }) => {
     const { getResponse, saveResponse } = useParticipantStore();
 
     /**
@@ -75,7 +76,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
             const displayType = getComponentText(displayTypeComponent) || 'stars';
 
             if (displayType === 'stars') {
-                return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} />;
+                return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} onComplete={onComplete} />;
             } else {
                 return (
                     <ScaleSelector
@@ -83,6 +84,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                         max={5}
                         value={scaleValue}
                         onChange={(val) => saveComponentValue('scale', val ?? null)}
+                        onComplete={onComplete}
                     />
                 );
             }
@@ -97,6 +99,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel="No lo recomendaría"
                     endLabel="Lo recomendaría"
+                    onComplete={onComplete}
                 />
             );
         }
@@ -133,12 +136,24 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel={getComponentText(startLabelComponent)}
                     endLabel={getComponentText(endLabelComponent)}
+                    onComplete={onComplete}
                 />
             );
         }
 
         if (isNEV) {
-            return <EmotionSelector value={emotionValues} onChange={(val) => saveComponentValue('emotions', val)} />;
+            // Try to get minimum emotions from module.config
+            const config = typeof module.config === 'object' && module.config !== null ? module.config as Record<string, unknown> : {};
+            const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
+            
+            return (
+                <EmotionSelector 
+                    value={emotionValues} 
+                    onChange={(val) => saveComponentValue('emotions', val)}
+                    onComplete={onComplete}
+                    minEmotions={minEmotions}
+                />
+            );
         }
 
         if (isVOC) {
@@ -199,6 +214,40 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
                 <div className="mt-8">
                     {renderInteractiveComponent()}
                 </div>
+
+                {/* Module-specific instruction text */}
+                {(isCSAT || isNPS || isCES || isCV) && (
+                    <p className="text-sm text-gray-600 text-center mt-4">
+                        Selecciona un valor para pasar al siguiente paso
+                    </p>
+                )}
+
+                {isNEV && (() => {
+                    // Try to get minimum emotions from module.config
+                    const config = typeof module.config === 'object' && module.config !== null ? module.config as Record<string, unknown> : {};
+                    const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
+                    
+                    if (minEmotions !== undefined && minEmotions > 0) {
+                        if (minEmotions === 1) {
+                            return (
+                                <p className="text-sm text-gray-600 text-center mt-4">
+                                    Selecciona una emoción para pasar al siguiente paso
+                                </p>
+                            );
+                        }
+                        return (
+                            <p className="text-sm text-gray-600 text-center mt-4">
+                                Selecciona {minEmotions} emociones para pasar al siguiente paso
+                            </p>
+                        );
+                    }
+                    
+                    return (
+                        <p className="text-sm text-gray-600 text-center mt-4">
+                            Selecciona las emociones para pasar al siguiente paso
+                        </p>
+                    );
+                })()}
             </div>
         </div>
     );

@@ -11,6 +11,7 @@ interface LinearScaleQuestionProps {
     minLabel?: string;
     maxLabel?: string;
     required?: boolean;
+    onComplete?: () => void;
 }
 
 export const LinearScaleQuestion = ({
@@ -23,6 +24,7 @@ export const LinearScaleQuestion = ({
     minLabel,
     maxLabel,
     required = false,
+    onComplete,
 }: LinearScaleQuestionProps) => {
     const [selectedValue, setSelectedValue] = useState<number | null>(null);
     const { save } = useResponse({ moduleId, componentId });
@@ -36,8 +38,14 @@ export const LinearScaleQuestion = ({
         }
     }, [selectedValue, minValue, maxValue, save]);
 
-    const handleSelect = (value: number) => {
+    const handleSelect = (value: number): void => {
         setSelectedValue(value);
+        // Auto-advance after a short delay if onComplete is provided
+        if (onComplete) {
+            setTimeout(() => {
+                onComplete();
+            }, 500);
+        }
     };
 
     const values = Array.from({ length: maxValue - minValue + 1 }, (_, i) => minValue + i);

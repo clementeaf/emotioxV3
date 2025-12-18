@@ -4,13 +4,24 @@ interface StarSelectorProps {
     max: number; // Usually 5
     value: number | null;
     onChange: (value: number) => void;
+    onComplete?: () => void;
 }
 
 export const StarSelector: React.FC<StarSelectorProps> = ({
     max,
     value,
-    onChange
+    onChange,
+    onComplete
 }) => {
+    const handleChange = (newValue: number): void => {
+        onChange(newValue);
+        // Auto-advance after a short delay if onComplete is provided
+        if (onComplete) {
+            setTimeout(() => {
+                onComplete();
+            }, 500);
+        }
+    };
     const stars = Array.from({ length: max }, (_, i) => i + 1);
 
     return (
@@ -22,7 +33,7 @@ export const StarSelector: React.FC<StarSelectorProps> = ({
                     <button
                         key={starValue}
                         type="button"
-                        onClick={() => onChange(starValue)}
+                        onClick={() => handleChange(starValue)}
                         className="transition-transform hover:scale-110 focus:outline-none"
                     >
                         <svg
