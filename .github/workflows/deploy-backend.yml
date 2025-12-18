@@ -21,11 +21,14 @@ jobs:
       - name: Check for changes in backend
         id: check
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -E '^(backend/|\.github/workflows/deploy-backend\.yml)'; then
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(backend/|\.github/workflows/deploy-backend\.yml)'; then
             echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "Backend changes detected"
           else
             echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No backend changes detected"
           fi
+        continue-on-error: false
 
   deploy:
     name: Deploy to AWS Lambda
