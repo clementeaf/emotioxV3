@@ -19,9 +19,9 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
         'https://useremotion.com',
         'https://www.useremotion.com',
         
-        // Production - S3/CloudFront (agregar IDs específicos si los tienes)
-        // Formato: 'https://[DISTRIBUTION-ID].cloudfront.net'
-        // Ejemplo: 'https://d1234567890abc.cloudfront.net',
+        // Production - CloudFront
+        'https://d2mgq2ppntnjct.cloudfront.net',  // research-frontend
+        'https://d2am10cly7c9kf.cloudfront.net',  // participant-frontend
     ];
 
     // Si hay un origen y está en la lista permitida, usarlo
