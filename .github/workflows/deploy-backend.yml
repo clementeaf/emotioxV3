@@ -47,6 +47,9 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           set -euo pipefail
+          echo "AWS region: ${AWS_REGION}"
+          AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          echo "AWS account: ${AWS_ACCOUNT_ID}"
           PREFIX="/emotioxv3/production"
           echo "Validating SSM parameters under ${PREFIX}..."
           # Do not print values; only validate existence.
