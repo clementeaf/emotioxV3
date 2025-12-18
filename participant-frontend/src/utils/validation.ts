@@ -86,11 +86,14 @@ export const validateModule = (
         }
     }
 
-    // Special handling for SmartVOC modules that use 'scale' component
-    const isSmartVOCScale = module.name.includes('CSAT') || 
-                            module.name.includes('NPS') || 
-                            module.name.includes('CES') || 
-                            module.name.includes('CV');
+    // Special handling for SmartVOC modules that use 'scale' component (CSAT, NPS, CES, CV)
+    // IMPORTANT: Only check for 'scale' if module name explicitly includes these types
+    const isSmartVOCScale = (module.name.includes('CSAT') || 
+                             module.name.includes('NPS') || 
+                             module.name.includes('CES') || 
+                             module.name.includes('CV')) &&
+                             !module.name.includes('VOC') && // Exclude VOC
+                             !module.name.includes('NEV'); // Exclude NEV
     
     if (isSmartVOCScale) {
         // For scale-based SmartVOC modules (CSAT, NPS, CES, CV), check for 'scale' response
@@ -121,7 +124,7 @@ export const validateModule = (
                 const displayOnlyIds = [
                     'title', 'description', 'instructions', 'message', 
                     'scale-range', 'range', 'scale', 
-                    'start-label', 'end-label', 'start-label', 'end-label'
+                    'start-label', 'end-label'
                 ];
                 if (displayOnlyIds.some(id => comp.id.includes(id))) {
                     return false;
@@ -137,6 +140,37 @@ export const validateModule = (
             }
         }
         // If scale value exists and is valid, module is valid
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    // Special handling for VOC module (uses 'text' component)
+    const isVOC = module.name.includes('VOC') && !module.name.includes('CSAT') && !module.name.includes('NPS') && !module.name.includes('CES') && !module.name.includes('CV');
+    if (isVOC) {
+        const textValue = responses.get('text');
+        const hasValidTextValue = textValue !== undefined && 
+                                  textValue !== null && 
+                                  textValue !== '' &&
+                                  (typeof textValue === 'string' ? textValue.trim().length > 0 : true);
+        
+        if (!hasValidTextValue) {
+            const hasRequiredComponent = module.structure.components.some(comp => {
+                const displayOnlyIds = ['title', 'description', 'instructions', 'message'];
+                if (displayOnlyIds.some(id => comp.id.includes(id))) {
+                    return false;
+                }
+                return comp.required === true;
+            });
+            
+            if (hasRequiredComponent) {
+                errors.push({
+                    componentId: 'text',
+                    message: 'Este campo es requerido'
+                });
+            }
+        }
         return {
             isValid: errors.length === 0,
             errors

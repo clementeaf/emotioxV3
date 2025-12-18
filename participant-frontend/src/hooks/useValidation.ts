@@ -42,11 +42,14 @@ export const useValidation = () => {
                 }
             });
         } else {
-            // Special handling for SmartVOC modules that use 'scale' component
-            const isSmartVOCScale = module.name.includes('CSAT') || 
+            // Special handling for SmartVOC modules that use 'scale' component (CSAT, NPS, CES, CV)
+            // IMPORTANT: Exclude VOC and NEV which use different component IDs
+            const isSmartVOCScale = (module.name.includes('CSAT') || 
                                     module.name.includes('NPS') || 
                                     module.name.includes('CES') || 
-                                    module.name.includes('CV');
+                                    module.name.includes('CV')) &&
+                                    !module.name.includes('VOC') &&
+                                    !module.name.includes('NEV');
             
             if (isSmartVOCScale) {
                 // Check for 'scale' response first - always get fresh from store
@@ -54,6 +57,30 @@ export const useValidation = () => {
                 const scaleResponse = responses.get(scaleResponseId);
                 if (scaleResponse) {
                     stepResponses.set('scale', scaleResponse.value);
+                }
+            }
+            
+            // Special handling for VOC module (uses 'text' component)
+            const isVOC = module.name.includes('VOC') && 
+                         !module.name.includes('CSAT') && 
+                         !module.name.includes('NPS') && 
+                         !module.name.includes('CES') && 
+                         !module.name.includes('CV');
+            if (isVOC) {
+                const textResponseId = createResponseId(module.id, 'text');
+                const textResponse = responses.get(textResponseId);
+                if (textResponse) {
+                    stepResponses.set('text', textResponse.value);
+                }
+            }
+            
+            // Special handling for NEV module (uses 'emotions' component)
+            const isNEV = module.name.includes('NEV') || module.name.includes('Net Emotional Value');
+            if (isNEV) {
+                const emotionsResponseId = createResponseId(module.id, 'emotions');
+                const emotionsResponse = responses.get(emotionsResponseId);
+                if (emotionsResponse) {
+                    stepResponses.set('emotions', emotionsResponse.value);
                 }
             }
             
