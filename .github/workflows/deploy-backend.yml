@@ -13,6 +13,10 @@ jobs:
   deploy:
     name: Deploy to AWS Lambda
     runs-on: ubuntu-latest
+    # The paths: filter above should handle this, but we add a safety check
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.head_commit != null
     env:
       HUSKY: "0"
     
