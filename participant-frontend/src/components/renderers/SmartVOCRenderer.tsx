@@ -39,10 +39,23 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module }) =>
     const emotionValues = (getSavedValue('emotions') as string[]) || [];
     const textValue = (getSavedValue('text') as string) || '';
 
-    // Extract display-only components
-    const titleComponent = module.structure.components.find(c => c.id.includes('-title'));
-    const descriptionComponent = module.structure.components.find(c => c.id.includes('-description'));
-    const instructionsComponent = module.structure.components.find(c => c.id.includes('-instructions'));
+    /**
+     * Finds the best matching component for a Smart VOC display field.
+     * Some module templates use ids like "csat-title", others use "csat-question".
+     * @param kind - Field kind
+     * @returns Matching component or undefined
+     */
+    const findDisplayComponent = (kind: 'title' | 'description' | 'instructions'): ModuleConfig['structure']['components'][number] | undefined => {
+        if (kind === 'title') {
+            return module.structure.components.find((c) => c.id.includes('title') || c.id.includes('question'));
+        }
+        return module.structure.components.find((c) => c.id.includes(kind));
+    };
+
+    // Extract display-only components (robust to differing id conventions)
+    const titleComponent = findDisplayComponent('title');
+    const descriptionComponent = findDisplayComponent('description');
+    const instructionsComponent = findDisplayComponent('instructions');
     const titleText = getComponentText(titleComponent);
     const descriptionText = getComponentText(descriptionComponent);
     const instructionsText = getComponentText(instructionsComponent);
