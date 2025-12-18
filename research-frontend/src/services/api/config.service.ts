@@ -151,18 +151,25 @@ class ConfigService {
     }
 
     private async fetchRuntimeConfigFromUrl(url: string): Promise<RuntimeConfig> {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error(
-                `API base URL is not configured. Provide /runtime-config.json or set VITE_API_URL. Failed to load: ${url}`
-            );
-        }
+        try {
+            const response = await fetch(url, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(
+                    `API base URL is not configured. Provide /runtime-config.json or set VITE_API_URL. Failed to load: ${url} (${response.status} ${response.statusText})`
+                );
+            }
 
-        const data = await response.json() as unknown;
-        if (!this.isRuntimeConfig(data)) {
-            throw new Error(`Invalid runtime config format from ${url}. Expected {"apiBaseUrl":"https://..."}`);
+            const data = await response.json() as unknown;
+            if (!this.isRuntimeConfig(data)) {
+                throw new Error(`Invalid runtime config format from ${url}. Expected {"apiBaseUrl":"https://..."}`);
+            }
+            return data;
+        } catch (error) {
+            if (error instanceof Error) {
+                throw new Error(`Failed to fetch runtime config from ${url}: ${error.message}`);
+            }
+            throw new Error(`Failed to fetch runtime config from ${url}: Unknown error`);
         }
-        return data;
     }
 
     /**

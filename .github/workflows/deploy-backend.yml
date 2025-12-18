@@ -238,8 +238,14 @@ with open("runtime-config.json", "w", encoding="utf-8") as f:
 PY
 
           echo "Uploading runtime-config.json to frontend buckets..."
-          aws s3 cp runtime-config.json "s3://${RESEARCH_FRONTEND_S3_BUCKET}/runtime-config.json" --cache-control "no-store, max-age=0"
-          aws s3 cp runtime-config.json "s3://${PARTICIPANT_FRONTEND_S3_BUCKET}/runtime-config.json" --cache-control "no-store, max-age=0"
+          aws s3 cp runtime-config.json "s3://${RESEARCH_FRONTEND_S3_BUCKET}/runtime-config.json" \
+            --content-type "application/json" \
+            --cache-control "no-store, max-age=0" \
+            --metadata-directive REPLACE
+          aws s3 cp runtime-config.json "s3://${PARTICIPANT_FRONTEND_S3_BUCKET}/runtime-config.json" \
+            --content-type "application/json" \
+            --cache-control "no-store, max-age=0" \
+            --metadata-directive REPLACE
 
           if [ -n "${RESEARCH_FRONTEND_CLOUDFRONT_ID:-}" ]; then
             aws cloudfront create-invalidation --distribution-id "${RESEARCH_FRONTEND_CLOUDFRONT_ID}" --paths "/runtime-config.json"
