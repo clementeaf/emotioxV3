@@ -93,18 +93,36 @@ export const validateModule = (
                             module.name.includes('CV');
     
     if (isSmartVOCScale) {
-        // For scale-based SmartVOC modules, check for 'scale' response
+        // For scale-based SmartVOC modules (CSAT, NPS, CES, CV), check for 'scale' response
         const scaleValue = responses.get('scale');
-        // Check if scale value exists and is valid (including 0 as a valid value)
-        const hasValidScaleValue = scaleValue !== undefined && 
-                                   scaleValue !== null && 
-                                   scaleValue !== '' &&
-                                   (typeof scaleValue === 'number' || (typeof scaleValue === 'string' && scaleValue.trim().length > 0));
+        
+        // Check if scale value exists and is valid
+        // Valid values include: any number (including 0), or non-empty string
+        const hasValidScaleValue = (() => {
+            if (scaleValue === undefined || scaleValue === null) {
+                return false;
+            }
+            // Number values (including 0) are always valid
+            if (typeof scaleValue === 'number') {
+                return true;
+            }
+            // String values must be non-empty after trimming
+            if (typeof scaleValue === 'string') {
+                return scaleValue.trim().length > 0;
+            }
+            // Any other type is considered invalid
+            return false;
+        })();
         
         if (!hasValidScaleValue) {
-            // Check if any component in the structure is required
+            // Only show error if module has required components (excluding display-only components)
             const hasRequiredComponent = module.structure.components.some(comp => {
-                const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range', 'start-label', 'end-label'];
+                // Skip display-only components that don't require user input
+                const displayOnlyIds = [
+                    'title', 'description', 'instructions', 'message', 
+                    'scale-range', 'range', 'scale', 
+                    'start-label', 'end-label', 'start-label', 'end-label'
+                ];
                 if (displayOnlyIds.some(id => comp.id.includes(id))) {
                     return false;
                 }
