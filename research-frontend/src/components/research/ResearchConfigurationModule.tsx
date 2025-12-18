@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
-import { ExternalLink, QrCode } from 'lucide-react';
+import { ExternalLink, QrCode, Copy } from 'lucide-react';
 
 
 interface ResearchConfigurationProps {
@@ -28,17 +28,153 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const backlinks = (config.backlinks || {}) as Record<string, string>;
     const researchUrl = (config.researchUrl || '') as string;
     const participantLimit = (config.participantLimit || 50) as number;
+    const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
 
-    // Generate participant-frontend URL
-    const getParticipantUrl = () => {
+    /**
+     * Loads participant base URL from /runtime-config.json when deployed (CloudFront).
+     * @returns void
+     */
+    useEffect((): void => {
+        const host = window.location.hostname;
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+        if (isLocal) {
+            setRuntimeParticipantBaseUrl(null);
+            return;
+        }
+
+        const isRuntimeConfigWithParticipant = (value: unknown): value is { participantBaseUrl: string } => {
+            if (typeof value !== 'object' || value === null) return false;
+            const record = value as Record<string, unknown>;
+            return typeof record.participantBaseUrl === 'string' && record.participantBaseUrl.trim().length > 0;
+        };
+
+        let cancelled = false;
+        void (async (): Promise<void> => {
+            try {
+                const response = await fetch('/runtime-config.json', { cache: 'no-store' });
+                if (!response.ok) return;
+                const data = (await response.json()) as unknown;
+                if (!cancelled && isRuntimeConfigWithParticipant(data)) {
+                    setRuntimeParticipantBaseUrl(data.participantBaseUrl.replace(/\/+$/, ''));
+                }
+            } catch {
+                // ignore - we can fall back to env config
+            }
+        })();
+
+        return (): void => {
+            cancelled = true;
+        };
+    }, []);
+
+    /**
+     * Resolves the participant-frontend base URL for the current environment.
+     * - Localhost: uses participant dev server
+     * - Deployed: uses runtime-config.json participantBaseUrl (CloudFront), or VITE_PARTICIPANT_FRONTEND_URL if provided
+     * @returns Participant app base URL (origin)
+     */
+    const resolveParticipantBaseUrl = (): string => {
+        const host = window.location.hostname;
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+        if (isLocal) {
+            return 'http://localhost:12600';
+        }
+        if (runtimeParticipantBaseUrl && runtimeParticipantBaseUrl.trim().length > 0) {
+            return runtimeParticipantBaseUrl;
+        }
+        const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
+        return typeof envUrl === 'string' ? envUrl : '';
+    };
+
+    /**
+     * Extracts a safe pathname/search/hash from a user-provided URL-like value.
+     * Accepts full URLs, host+path, or just path/query fragments.
+     * @param value - User-provided URL-like string (may omit protocol)
+     * @returns Parsed URL parts
+     */
+    const parseUrlParts = (value: string): { pathname: string; search: string; hash: string } => {
+        const trimmed = value.trim();
+        if (trimmed.length === 0) {
+            return { pathname: '/', search: '', hash: '' };
+        }
+
+        const normalizeForParsing = (input: string): string => {
+            if (input.startsWith('http://') || input.startsWith('https://')) {
+                return input;
+            }
+            // If it looks like it starts with a path, use a placeholder base.
+            if (input.startsWith('/')) {
+                return `https://placeholder.local${input}`;
+            }
+            // Try as host+path first.
+            return `https://${input}`;
+        };
+
+        try {
+            const u = new URL(normalizeForParsing(trimmed));
+            return { pathname: u.pathname || '/', search: u.search || '', hash: u.hash || '' };
+        } catch {
+            // Fallback: treat as a path fragment (e.g., "sysgd-jye746?respondent={your_id}")
+            const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+            const u = new URL(`https://placeholder.local${normalizedPath}`);
+            return { pathname: u.pathname || '/', search: u.search || '', hash: u.hash || '' };
+        }
+    };
+
+    /**
+     * Builds the participant-facing URL used for Preview/QR.
+     * If a custom Research URL is provided, it is used (with the participant base).
+     * Otherwise, falls back to /research/:id (legacy).
+     * @returns Full URL to open in participant app
+     */
+    const buildParticipantShareUrl = (): string => {
+        const baseUrl = resolveParticipantBaseUrl();
+        if (!baseUrl || baseUrl.trim().length === 0) {
+            return '';
+        }
+        const base = new URL(baseUrl);
+
+        if (researchUrl && researchUrl.trim().length > 0) {
+            const parts = parseUrlParts(researchUrl);
+            return `${base.origin}${parts.pathname}${parts.search}${parts.hash}`;
+        }
+
         if (!researchId) return '';
-        
-        const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const baseUrl = isDevelopment 
-            ? 'http://localhost:12600' 
-            : import.meta.env.VITE_PARTICIPANT_FRONTEND_URL || 'https://participant.useremotion.com';
-        
-        return `${baseUrl}/research/${researchId}`;
+        return `${base.origin}/research/${researchId}`;
+    };
+
+    /**
+     * Opens the participant-facing URL in a new tab.
+     * @returns void
+     */
+    const handleLinkPreview = (): void => {
+        const url = buildParticipantShareUrl();
+        if (!url) return;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    /**
+     * Copies the Research URL to clipboard with https:// prefix.
+     * @returns void
+     */
+    const handleCopyResearchUrl = async (): Promise<void> => {
+        const value = researchUrl.trim();
+        if (value.length === 0) return;
+        const fullUrl = value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`;
+        try {
+            await navigator.clipboard.writeText(fullUrl);
+        } catch {
+            // Best-effort fallback
+            const textarea = document.createElement('textarea');
+            textarea.value = fullUrl;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
     };
 
     const handleDemographicChange = (key: string, value: boolean) => {
@@ -282,12 +418,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 placeholder="www.useremotion.com/sysgd-jye746?respondent={your_id}"
                                 className="rounded-l-none"
                             />
-                            <Button variant="ghost" size="sm" title="Copy">
-                                📋
+                            <Button variant="ghost" size="sm" title="Copy" onClick={handleCopyResearchUrl}>
+                                <Copy className="h-4 w-4" />
                             </Button>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" onClick={handleLinkPreview}>
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Link Preview
                             </Button>
@@ -330,7 +466,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             <QRCodeModal
                 isOpen={showQRModal}
                 onClose={() => setShowQRModal(false)}
-                url={getParticipantUrl()}
+                url={buildParticipantShareUrl()}
                 title="Research link QR Code"
                 description="This is your Public QR Code"
                 downloadFileName="research-qr-code.png"

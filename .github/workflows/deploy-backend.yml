@@ -176,7 +176,41 @@ jobs:
           fi
 
           echo "API base URL: ${API_BASE_URL}"
-          printf '{ "apiBaseUrl": "%s" }\n' "${API_BASE_URL}" > runtime-config.json
+          
+          RESEARCH_BASE_URL=""
+          PARTICIPANT_BASE_URL=""
+          if [ -n "${RESEARCH_FRONTEND_CLOUDFRONT_ID:-}" ]; then
+            RESEARCH_DOMAIN="$(aws cloudfront get-distribution --id "${RESEARCH_FRONTEND_CLOUDFRONT_ID}" --query "Distribution.DomainName" --output text 2>/dev/null || true)"
+            if [ -n "${RESEARCH_DOMAIN}" ] && [ "${RESEARCH_DOMAIN}" != "None" ]; then
+              RESEARCH_BASE_URL="https://${RESEARCH_DOMAIN}"
+            fi
+          fi
+          if [ -n "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID:-}" ]; then
+            PARTICIPANT_DOMAIN="$(aws cloudfront get-distribution --id "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID}" --query "Distribution.DomainName" --output text 2>/dev/null || true)"
+            if [ -n "${PARTICIPANT_DOMAIN}" ] && [ "${PARTICIPANT_DOMAIN}" != "None" ]; then
+              PARTICIPANT_BASE_URL="https://${PARTICIPANT_DOMAIN}"
+            fi
+          fi
+
+          python3 - <<'PY'
+import json
+import os
+
+payload = {
+  "apiBaseUrl": os.environ["API_BASE_URL"],
+}
+
+research_base = os.environ.get("RESEARCH_BASE_URL", "").strip()
+participant_base = os.environ.get("PARTICIPANT_BASE_URL", "").strip()
+if research_base:
+  payload["researchBaseUrl"] = research_base
+if participant_base:
+  payload["participantBaseUrl"] = participant_base
+
+with open("runtime-config.json", "w", encoding="utf-8") as f:
+  json.dump(payload, f)
+  f.write("\n")
+PY
 
           echo "Uploading runtime-config.json to frontend buckets..."
           aws s3 cp runtime-config.json "s3://${RESEARCH_FRONTEND_S3_BUCKET}/runtime-config.json" --cache-control "no-store, max-age=0"
