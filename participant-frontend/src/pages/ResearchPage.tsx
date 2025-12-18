@@ -14,6 +14,7 @@ import { useSessionTimer } from '../hooks/useSessionTimer';
 import { usePreviewMode } from '../hooks/usePreviewMode';
 import { publicService, type Module, type ResearchData } from '../services/public.service';
 import { responseService } from '../services/response.service';
+import { getComponentText } from '../utils/moduleComponent';
 
 /**
  * Checks whether a value is a plain object record.
@@ -205,6 +206,33 @@ export const ResearchPage = () => {
 
   // Get current module
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
+
+  /**
+   * Gets the button text for the current module
+   * @param module - Current module or undefined
+   * @returns Button text to display
+   */
+  const getButtonText = useCallback((module: Module | undefined): string => {
+    if (!module) {
+      return 'Guardar y continuar';
+    }
+
+    // For Welcome Screen, use the start_button_text component value
+    if (module.name === 'Welcome Screen') {
+      const startButtonComponent = module.structure?.components?.find(
+        (comp) => comp.id === 'start_button_text' || comp.id === 'start-button-text'
+      );
+      if (startButtonComponent) {
+        const buttonText = getComponentText(startButtonComponent);
+        if (buttonText.trim().length > 0) {
+          return buttonText;
+        }
+      }
+    }
+
+    // Default text
+    return 'Guardar y continuar';
+  }, []);
 
   /**
    * Determines if the "Guardar y continuar" button should be shown for the current module
@@ -430,7 +458,7 @@ export const ResearchPage = () => {
                 ? 'Guardando...' 
                 : isLastStep 
                   ? 'Finalizar' 
-                  : 'Guardar y continuar'}
+                  : getButtonText(currentModule)}
             </Button>
           ) : showRestartOption ? (
             <Button
