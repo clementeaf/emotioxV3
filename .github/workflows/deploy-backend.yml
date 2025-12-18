@@ -45,6 +45,17 @@ jobs:
       - name: Validate required SSM parameters exist (production)
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_SSL: ${{ secrets.DB_SSL }}
+          APP_AWS_REGION: ${{ secrets.APP_AWS_REGION }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
         run: |
           set -euo pipefail
           echo "AWS region: ${AWS_REGION}"
@@ -80,9 +91,45 @@ jobs:
 
           INVALID_COUNT="$(INVALID_JSON="${INVALID_JSON}" python3 -c 'import json,os; v=json.loads(os.environ.get("INVALID_JSON","[]")); print(len(v))')"
           if [ "${INVALID_COUNT}" != "0" ]; then
-            echo "Missing SSM parameters (count=${INVALID_COUNT}). InvalidParameters:"
-            INVALID_JSON="${INVALID_JSON}" python3 -c 'import json,os; v=json.loads(os.environ.get("INVALID_JSON","[]")); print(json.dumps(v, indent=2))'
-            exit 1
+            echo "Missing SSM parameters (count=${INVALID_COUNT}). Attempting bootstrap from GitHub Secrets..."
+
+            missing_basenames="$(INVALID_JSON="${INVALID_JSON}" python3 -c 'import json,os; v=json.loads(os.environ.get("INVALID_JSON","[]")); print(" ".join([p.split("/")[-1] for p in v]))')"
+
+            for key in ${missing_basenames}; do
+              case "${key}" in
+                DB_PASSWORD)
+                  [ -n "${DB_PASSWORD:-}" ] || { echo "Missing GitHub Secret: DB_PASSWORD"; exit 1; }
+                  aws ssm put-parameter --region "${AWS_REGION}" --name "${PREFIX}/DB_PASSWORD" --type "SecureString" --value "${DB_PASSWORD}" --overwrite > /dev/null
+                  ;;
+                DB_HOST|DB_PORT|DB_NAME|DB_USER|DB_SSL|APP_AWS_REGION|S3_BUCKET_NAME|CORS_ORIGIN|COGNITO_USER_POOL_ID|COGNITO_CLIENT_ID)
+                  value="$(eval "printf '%s' \"\${${key}:-}\"")"
+                  [ -n "${value}" ] || { echo "Missing GitHub Secret: ${key}"; exit 1; }
+                  aws ssm put-parameter --region "${AWS_REGION}" --name "${PREFIX}/${key}" --type "String" --value "${value}" --overwrite > /dev/null
+                  ;;
+                *)
+                  echo "Unknown missing SSM key: ${key}"
+                  exit 1
+                  ;;
+              esac
+            done
+
+            echo "Bootstrap complete. Re-validating SSM parameters..."
+            INVALID_JSON="[]"
+            TOTAL="${#NAMES[@]}"
+            INDEX=0
+            while [ "${INDEX}" -lt "${TOTAL}" ]; do
+              CHUNK=( "${NAMES[@]:${INDEX}:10}" )
+              aws ssm get-parameters --region "${AWS_REGION}" --names "${CHUNK[@]}" --output json > ssm-params.json
+              INVALID_JSON="$(INVALID_JSON="${INVALID_JSON}" python3 -c 'import json,os; prev=json.loads(os.environ.get("INVALID_JSON","[]")); cur=(json.load(open("ssm-params.json","r",encoding="utf-8")).get("InvalidParameters",[]) or []); merged=sorted(set(prev).union(cur)); print(json.dumps(merged))')"
+              INDEX=$((INDEX + 10))
+            done
+
+            INVALID_COUNT="$(INVALID_JSON="${INVALID_JSON}" python3 -c 'import json,os; v=json.loads(os.environ.get("INVALID_JSON","[]")); print(len(v))')"
+            if [ "${INVALID_COUNT}" != "0" ]; then
+              echo "Missing SSM parameters after bootstrap (count=${INVALID_COUNT}). InvalidParameters:"
+              INVALID_JSON="${INVALID_JSON}" python3 -c 'import json,os; v=json.loads(os.environ.get("INVALID_JSON","[]")); print(json.dumps(v, indent=2))'
+              exit 1
+            fi
           fi
           echo "SSM parameters OK."
 
