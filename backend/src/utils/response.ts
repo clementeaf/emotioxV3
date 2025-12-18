@@ -5,6 +5,7 @@
  */
 export const getCorsHeaders = (origin?: string | null): Record<string, string> => {
     // Lista de orígenes permitidos (desarrollo y producción)
+    // Incluye CloudFront URLs para research-frontend y participant-frontend
     const allowedOrigins = [
         // Development - Local
         'http://localhost:12500',  // research-frontend local
