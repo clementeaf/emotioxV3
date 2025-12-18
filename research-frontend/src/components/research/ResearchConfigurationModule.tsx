@@ -32,9 +32,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
 
     /**
      * Loads participant base URL from /runtime-config.json when deployed (CloudFront).
-     * @returns void
      */
-    useEffect((): void => {
+    useEffect(() => {
         const host = window.location.hostname;
         const isLocal = host === 'localhost' || host === '127.0.0.1';
         if (isLocal) {
