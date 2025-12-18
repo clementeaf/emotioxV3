@@ -85,8 +85,9 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
         return [...module.structure.components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }, [module.structure.components]);
 
-    // Memoize display only IDs
-    const displayOnlyIds = useMemo(() => ['title', 'message', 'instructions'], []);
+    // Memoize display only IDs (components that should not be rendered as inputs)
+    // start_button_text is used for button text but should not be displayed as an input
+    const displayOnlyIds = useMemo(() => ['title', 'message', 'instructions', 'start_button_text', 'start-button-text'], []);
 
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
@@ -106,6 +107,11 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
                 {sortedComponents.map((component) => {
                     const savedValue = getComponentValue(component.id);
                     const value = savedValue || getInitialDisplayValue(component.value, component);
+
+                    // Skip start_button_text - it's used for button text but not displayed
+                    if (component.id === 'start_button_text' || component.id === 'start-button-text') {
+                        return null;
+                    }
 
                     // Render display-only components
                     if (displayOnlyIds.includes(component.id)) {
