@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import { useSessionStore } from '../../stores/useSessionStore';
 import { MOCK_MODULES } from '../../data/mockModules';
@@ -91,12 +91,80 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
         return `${seconds}s`;
     };
 
+    // Close sidebar when clicking outside on mobile
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleClickOutside = (event: MouseEvent): void => {
+            const target = event.target as HTMLElement;
+            const sidebar = document.querySelector('[data-dev-sidebar]');
+            const burgerButton = document.querySelector('[data-burger-button]');
+            
+            if (sidebar && !sidebar.contains(target) && !burgerButton?.contains(target)) {
+                // Only close on mobile (screen width < 768px)
+                if (window.innerWidth < 768) {
+                    onToggle();
+                }
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen, onToggle]);
+
     return (
         <>
+            {/* Burger Menu Button - Mobile Only */}
+            <button
+                data-burger-button
+                onClick={onToggle}
+                className="fixed top-4 left-4 z-50 md:hidden bg-white shadow-lg border border-gray-200 rounded-lg p-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                aria-label="Toggle navigation menu"
+            >
+                <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    {isOpen ? (
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                        />
+                    ) : (
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 6h16M4 12h16M4 18h16"
+                        />
+                    )}
+                </svg>
+            </button>
+
+            {/* Overlay - Mobile Only */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+                    onClick={onToggle}
+                />
+            )}
+
             {/* Sidebar */}
             <div
-                className="fixed top-4 left-4 bottom-4 bg-white shadow-2xl border border-gray-100 rounded-2xl transition-all duration-300 z-40 flex flex-col overflow-hidden"
-                style={{ width: isOpen ? '280px' : '80px' }}
+                data-dev-sidebar
+                className={`fixed top-4 bottom-4 bg-white shadow-2xl border border-gray-100 rounded-2xl transition-all duration-300 z-40 flex flex-col overflow-hidden
+                    ${isOpen 
+                        ? 'left-4 md:left-4' 
+                        : '-left-full md:left-4 md:w-20'
+                    }
+                    ${isOpen ? 'w-[280px] md:w-[280px]' : 'md:w-20'}
+                `}
             >
                 {/* Header */}
                 <div className={`p-6 border-b border-gray-200 flex items-center ${isOpen ? 'justify-between' : 'justify-center'}`}>
