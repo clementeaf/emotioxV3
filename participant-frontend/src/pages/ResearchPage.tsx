@@ -206,6 +206,65 @@ export const ResearchPage = () => {
   // Get current module
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
 
+  /**
+   * Generates the appropriate button text based on the current module type
+   * @param module - Current module or undefined
+   * @returns Button text string
+   */
+  const getButtonText = useCallback((module: Module | undefined): string => {
+    if (!module) {
+      return 'Guardar y continuar';
+    }
+
+    const moduleName = module.name || '';
+    
+    // Linear Scale modules (CSAT, CES, CV, NPS, Linear Scale)
+    if (
+      moduleName.includes('CSAT') ||
+      moduleName.includes('CES') ||
+      moduleName.includes('CV') ||
+      moduleName.includes('NPS') ||
+      moduleName === 'Linear Scale'
+    ) {
+      return 'Selecciona un valor para pasar al siguiente paso';
+    }
+
+    // Multiple Choice
+    if (moduleName === 'Multiple Choice') {
+      return 'Guardar y continuar';
+    }
+
+    // Navigation Flow
+    if (moduleName === 'Navigation Flow') {
+      return 'El flujo continuará en la medida que selecciones el área especificada';
+    }
+
+    // NEV (Net Emotional Value)
+    if (moduleName.includes('NEV') || moduleName.includes('Net Emotional Value')) {
+      // Try to get minimum emotions from module.config
+      const config = isRecord(module.config) ? module.config : {};
+      const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
+      
+      if (minEmotions !== undefined && minEmotions > 0) {
+        if (minEmotions === 1) {
+          return 'Selecciona una emoción para pasar al siguiente paso';
+        }
+        return `Selecciona ${minEmotions} emociones para pasar al siguiente paso`;
+      }
+      
+      // Default message if minEmotions is not configured
+      return 'Selecciona las emociones para pasar al siguiente paso';
+    }
+
+    // Preference Test
+    if (moduleName === 'Preference Test') {
+      return 'Se pasa al siguiente paso seleccionando una de las imágenes';
+    }
+
+    // Default for other modules
+    return 'Guardar y continuar';
+  }, []);
+
   const handleNext = useCallback(async () => {
     // Handle restart option for multiple sessions
     if (showRestartOption && currentStep === 'thank-you') {
@@ -382,7 +441,13 @@ export const ResearchPage = () => {
             onClick={handleNext}
             disabled={submitting}
           >
-            {submitting ? 'Guardando...' : showRestartOption ? 'Comenzar de nuevo' : isLastStep ? 'Finalizar' : 'Guardar y continuar'}
+            {submitting 
+              ? 'Guardando...' 
+              : showRestartOption 
+                ? 'Comenzar de nuevo' 
+                : isLastStep 
+                  ? 'Finalizar' 
+                  : getButtonText(currentModule)}
           </Button>
         }
       >
