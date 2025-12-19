@@ -1,4 +1,4 @@
-const CACHE_NAME = 'emotiox-participant-cache-v1';
+const CACHE_NAME = 'emotiox-participant-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -6,6 +6,8 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Skip waiting to activate immediately
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -21,34 +23,69 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
+  // For JS, CSS, and other assets, always fetch from network first (stale-while-revalidate)
+  // This ensures we get the latest code
+  const url = new URL(event.request.url);
+  const isAsset = url.pathname.match(/\.(js|css|mjs|json|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$/);
+  
+  if (isAsset) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Clone the response because it can only be consumed once
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
           return response;
-        }
-        return fetch(event.request);
-      })
-      .catch(() => {
-        // If fetch fails, return a fallback if available
-        return caches.match('/index.html');
-      })
-  );
+        })
+        .catch(() => {
+          // If fetch fails, try cache as fallback
+          return caches.match(event.request);
+        })
+    );
+  } else {
+    // For HTML and other resources, try cache first, then network
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          if (response) {
+            return response;
+          }
+          return fetch(event.request).then((response) => {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+            return response;
+          });
+        })
+        .catch(() => {
+          // If fetch fails, return a fallback if available
+          return caches.match('/index.html');
+        })
+    );
+  }
 });
 
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
+  // Take control of all pages immediately
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      // Delete old caches
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
+              console.log('Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      }),
+      // Claim all clients to ensure the new service worker takes control
+      self.clients.claim()
+    ])
   );
 });
 
