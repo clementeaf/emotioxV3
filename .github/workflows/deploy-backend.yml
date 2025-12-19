@@ -274,7 +274,7 @@ PY
     name: Workflow Success
     runs-on: ubuntu-latest
     needs: [check-changes, deploy]
-    if: always() && (needs.check-changes.result == 'success' || needs.check-changes.result == 'skipped')
+    if: always()
     steps:
       - name: Determine workflow result
         run: |
