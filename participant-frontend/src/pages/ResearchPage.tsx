@@ -275,6 +275,11 @@ export const ResearchPage = () => {
   // Get current module
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
 
+  // Log version to verify new code is loaded
+  useEffect(() => {
+    console.log('[ResearchPage] ✅ VERSION 1bd5f18 - New button text code loaded!', new Date().toISOString());
+  }, []);
+
   /**
    * Checks if a component is the start_button_text component
    * @param component - Component to check

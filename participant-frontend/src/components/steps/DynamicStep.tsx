@@ -14,6 +14,11 @@ interface DynamicStepProps {
 export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) => {
     const { getResponse, saveResponse } = useParticipantStore();
     
+    // Log version to verify new code is loaded
+    React.useEffect(() => {
+        console.log('[DynamicStep] ✅ VERSION 1bd5f18 - New filtering code loaded!', new Date().toISOString());
+    }, []);
+    
     /**
      * Checks if a component is the start_button_text component that should be hidden
      * @param component - Component to check
