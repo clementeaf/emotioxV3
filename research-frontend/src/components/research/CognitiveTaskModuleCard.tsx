@@ -1,4 +1,4 @@
-import { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle, useState, useMemo } from 'react';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
 import type { Module } from '../../services/research.service';
@@ -29,8 +29,19 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     ({ module, researchId, isActive = false }, ref) => {
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
-    const [isRequired, setIsRequired] = useState<boolean>(() => getModuleRequired(module.config));
-    const [isHidden, setIsHidden] = useState<boolean>(() => getModuleHidden(module.config));
+
+    // Derive initial values from props
+    const initialRequired = useMemo(() => getModuleRequired(module.config), [module.config]);
+    const initialHidden = useMemo(() => getModuleHidden(module.config), [module.config]);
+
+    const [isRequired, setIsRequired] = useState<boolean>(initialRequired);
+    const [isHidden, setIsHidden] = useState<boolean>(initialHidden);
+
+    // Reset state when config changes
+    useEffect(() => {
+        setIsRequired(initialRequired);
+        setIsHidden(initialHidden);
+    }, [initialRequired, initialHidden]);
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -51,14 +62,6 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
         getRequired: () => isRequired,
         getHidden: () => isHidden,
     }));
-
-    useEffect(() => {
-        setIsRequired(getModuleRequired(module.config));
-    }, [module.id, module.config]);
-
-    useEffect(() => {
-        setIsHidden(getModuleHidden(module.config));
-    }, [module.id, module.config]);
 
     const handleComponentValueChange = (componentId: string, value: string): void => {
         setComponentValues(prev => ({

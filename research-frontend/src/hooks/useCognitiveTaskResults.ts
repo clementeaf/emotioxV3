@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as analyticsService from '../services/analytics.service';
 import type { CognitiveTaskResults } from '../services/analytics.service';
 
@@ -7,7 +7,7 @@ export const useCognitiveTaskResults = (researchId: string) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
-    const fetchResults = async () => {
+    const fetchResults = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
@@ -19,13 +19,13 @@ export const useCognitiveTaskResults = (researchId: string) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [researchId]);
 
     useEffect(() => {
         if (researchId) {
             fetchResults();
         }
-    }, [researchId]);
+    }, [researchId, fetchResults]);
 
     return {
         data,

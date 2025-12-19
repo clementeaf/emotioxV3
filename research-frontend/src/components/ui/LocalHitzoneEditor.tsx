@@ -61,9 +61,10 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeTestIdx, setActiveTestIdx] = useState<number | null>(null);
-    const [resolvedImageUrl, setResolvedImageUrl] = useState<string>(() => (typeof imageUrl === 'string' ? imageUrl : ''));
+    const [resolvedImageUrl, setResolvedImageUrl] = useState<string>('');
     const refreshAttemptedRef = useRef(false);
 
+    // Initialize resolvedImageUrl from imageUrl prop
     useEffect(() => {
         if (typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
             setResolvedImageUrl(imageUrl);

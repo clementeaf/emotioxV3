@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 // import { cognitiveTaskService } from '../services/cognitiveTask.service'; // TODO: Uncomment when API is ready
 import type { CognitiveTaskAnalytics } from '../services/cognitiveTask.service';
 
@@ -19,7 +19,7 @@ export const useCognitiveTaskAnalytics = (
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!researchId) {
             setIsLoading(false);
             return;
@@ -152,11 +152,11 @@ export const useCognitiveTaskAnalytics = (
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [researchId]);
 
     useEffect(() => {
         void fetchData();
-    }, [researchId]);
+    }, [researchId, fetchData]);
 
     return {
         data,

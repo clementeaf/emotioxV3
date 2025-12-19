@@ -6,8 +6,30 @@
 import apiClient from './api/client';
 
 // ==========================================
+// SHARED TYPES
+// ==========================================
+
+export interface BaseResponse {
+    participantId: string;
+    createdAt: string;
+    [key: string]: unknown;
+}
+
+export interface ResponseMetadata {
+    duration?: number;
+    deviceType?: string;
+    browserInfo?: string;
+    [key: string]: unknown;
+}
+
+// ==========================================
 // COGNITIVE TASK RESULTS
 // ==========================================
+
+export interface CognitiveTaskResponse extends BaseResponse {
+    moduleId: string;
+    responseData: Record<string, unknown>;
+}
 
 export interface CognitiveTaskResults {
     modules: Array<{
@@ -15,7 +37,7 @@ export interface CognitiveTaskResults {
         moduleName: string;
         description: string;
         totalResponses: number;
-        responses: any[];
+        responses: CognitiveTaskResponse[];
     }>;
 }
 
@@ -29,6 +51,22 @@ export const getCognitiveTaskResults = async (researchId: string): Promise<Cogni
 // ==========================================
 // NAVIGATION FLOW RESULTS
 // ==========================================
+
+export interface NavigationFlowResponse extends BaseResponse {
+    moduleId: string;
+    completedFlow: boolean;
+    clicks: number;
+    correctClicks: number;
+    accuracy: number;
+    duration: number;
+    heatmapData: Array<{
+        x: number;
+        y: number;
+        timestamp: number;
+        isCorrect: boolean;
+    }>;
+    metadata?: ResponseMetadata;
+}
 
 export interface NavigationFlowResults {
     totalResponses: number;
@@ -44,7 +82,7 @@ export interface NavigationFlowResults {
         timestamp: number;
         isCorrect: boolean;
     }>;
-    responses: any[];
+    responses: NavigationFlowResponse[];
 }
 
 export const getNavigationFlowResults = async (
@@ -61,6 +99,13 @@ export const getNavigationFlowResults = async (
 // PREFERENCE TEST RESULTS
 // ==========================================
 
+export interface PreferenceTestResponse extends BaseResponse {
+    moduleId: string;
+    selectedImageId: number;
+    viewTime: number;
+    metadata?: ResponseMetadata;
+}
+
 export interface PreferenceTestResults {
     totalResponses: number;
     selections: Array<{
@@ -69,7 +114,7 @@ export interface PreferenceTestResults {
         percentage: number;
     }>;
     averageViewTime: number;
-    responses: any[];
+    responses: PreferenceTestResponse[];
 }
 
 export const getPreferenceTestResults = async (
@@ -86,14 +131,15 @@ export const getPreferenceTestResults = async (
 // TEXT RESPONSES
 // ==========================================
 
+export interface TextResponse extends BaseResponse {
+    moduleId: string;
+    text: string;
+    metadata?: ResponseMetadata;
+}
+
 export interface TextResponses {
     totalResponses: number;
-    responses: Array<{
-        participantId: string;
-        text: string;
-        metadata: any;
-        createdAt: string;
-    }>;
+    responses: TextResponse[];
 }
 
 export const getTextResponses = async (
@@ -110,6 +156,12 @@ export const getTextResponses = async (
 // CHOICE RESPONSES
 // ==========================================
 
+export interface ChoiceResponse extends BaseResponse {
+    moduleId: string;
+    choice: string;
+    metadata?: ResponseMetadata;
+}
+
 export interface ChoiceResponses {
     totalResponses: number;
     choiceCounts: Array<{
@@ -117,7 +169,7 @@ export interface ChoiceResponses {
         count: number;
         percentage: number;
     }>;
-    responses: any[];
+    responses: ChoiceResponse[];
 }
 
 export const getChoiceResponses = async (
@@ -134,6 +186,12 @@ export const getChoiceResponses = async (
 // SCALE RESPONSES
 // ==========================================
 
+export interface ScaleResponse extends BaseResponse {
+    moduleId: string;
+    value: number;
+    metadata?: ResponseMetadata;
+}
+
 export interface ScaleResponses {
     totalResponses: number;
     average: number;
@@ -142,7 +200,7 @@ export interface ScaleResponses {
         count: number;
         percentage: number;
     }>;
-    responses: any[];
+    responses: ScaleResponse[];
 }
 
 export const getScaleResponses = async (
@@ -159,6 +217,15 @@ export const getScaleResponses = async (
 // RANKING RESPONSES
 // ==========================================
 
+export interface RankingResponse extends BaseResponse {
+    moduleId: string;
+    rankings: Array<{
+        item: string;
+        position: number;
+    }>;
+    metadata?: ResponseMetadata;
+}
+
 export interface RankingResponses {
     totalResponses: number;
     rankings: Array<{
@@ -166,7 +233,7 @@ export interface RankingResponses {
         meanPosition: number;
         count: number;
     }>;
-    responses: any[];
+    responses: RankingResponse[];
 }
 
 export const getRankingResponses = async (

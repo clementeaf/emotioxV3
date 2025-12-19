@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as analyticsService from '../services/analytics.service';
 import type { TextResponses } from '../services/analytics.service';
 
@@ -7,7 +7,7 @@ export const useTextResponses = (researchId: string, moduleId: string) => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
-    const fetchResults = async () => {
+    const fetchResults = useCallback(async () => {
         try {
             setIsLoading(true);
             setError(null);
@@ -19,13 +19,13 @@ export const useTextResponses = (researchId: string, moduleId: string) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [researchId, moduleId]);
 
     useEffect(() => {
         if (researchId && moduleId) {
             fetchResults();
         }
-    }, [researchId, moduleId]);
+    }, [researchId, moduleId, fetchResults]);
 
     return {
         data,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import * as analyticsService from '../services/analytics.service';
 import type { SmartVOCAnalytics } from '../services/smartVOC.service';
 
@@ -17,7 +17,7 @@ export const useSmartVOCAnalytics = (researchId: string | null): UseSmartVOCAnal
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!researchId) {
             setIsLoading(false);
             return;
@@ -48,11 +48,11 @@ export const useSmartVOCAnalytics = (researchId: string | null): UseSmartVOCAnal
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [researchId]);
 
     useEffect(() => {
         void fetchData();
-    }, [researchId]);
+    }, [researchId, fetchData]);
 
     return {
         data,

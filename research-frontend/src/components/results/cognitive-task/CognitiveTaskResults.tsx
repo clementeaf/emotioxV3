@@ -15,6 +15,25 @@ interface CognitiveTaskResultsProps {
   className?: string;
 }
 
+interface ModuleData {
+  moduleId: string;
+  moduleName: string;
+  description: string;
+  totalResponses: number;
+  responses: Array<{
+    participantId: string;
+    value?: string | unknown;
+    responseData?: Record<string, unknown>;
+    moduleId?: string;
+    createdAt: string;
+  }>;
+}
+
+interface TextResponseFormatted {
+  text: string;
+  mood: string;
+}
+
 export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskResultsProps) => {
   const { data, isLoading, error, refetch } = useCognitiveTaskResults(researchId);
 
@@ -35,7 +54,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
   };
 
   // Renderizar cada módulo según su tipo
-  const renderModuleResults = (module: any, index: number) => {
+  const renderModuleResults = (module: ModuleData, index: number) => {
     const moduleType = detectModuleType(module.moduleName);
     const questionNumber = `3.${index + 1}`;
 
@@ -66,7 +85,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
       case 'long_text':
         // Usamos VOCComments para mostrar respuestas de texto
         const textResponses = module.responses
-          .map((r: any) => {
+          .map((r): TextResponseFormatted | null => {
             try {
               const value = typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
               return { text: value, mood: 'Positive' };
@@ -74,7 +93,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               return null;
             }
           })
-          .filter((r: any) => r !== null);
+          .filter((r): r is TextResponseFormatted => r !== null);
 
         return (
           <VOCComments
