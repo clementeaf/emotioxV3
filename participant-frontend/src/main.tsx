@@ -49,7 +49,9 @@ configService.init().then(() => {
 })
 
 // Register Service Worker (only in production)
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// TEMPORARILY DISABLED to break cache cycle - will re-enable after cache is cleared
+const ENABLE_SW = false; // Set to true after cache is cleared
+if (ENABLE_SW && 'serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     // First, unregister all existing service workers to force fresh start
     navigator.serviceWorker.getRegistrations().then(registrations => {
