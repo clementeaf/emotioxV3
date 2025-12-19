@@ -220,11 +220,27 @@ export const ResearchPage = () => {
     // For Welcome Screen, use the start_button_text component value
     if (module.name === 'Welcome Screen') {
       const startButtonComponent = module.structure?.components?.find(
-        (comp) => comp.id === 'start_button_text' || comp.id === 'start-button-text'
+        (comp) => comp.id === 'start_button_text' || 
+                 comp.id === 'start-button-text' ||
+                 comp.id.includes('start_button_text') ||
+                 comp.id.includes('start-button-text')
       );
       if (startButtonComponent) {
-        const buttonText = getComponentText(startButtonComponent);
-        if (buttonText.trim().length > 0) {
+        // Try to get value from component.value, component.defaultValue, or component.settings.defaultValue
+        let buttonText = getComponentText(startButtonComponent);
+        
+        // If getComponentText doesn't return a value, try other sources
+        if (!buttonText || buttonText.trim().length === 0) {
+          if (typeof startButtonComponent.value === 'string' && startButtonComponent.value.trim().length > 0) {
+            buttonText = startButtonComponent.value;
+          } else if (typeof startButtonComponent.defaultValue === 'string' && startButtonComponent.defaultValue.trim().length > 0) {
+            buttonText = startButtonComponent.defaultValue;
+          } else if (typeof startButtonComponent.settings?.defaultValue === 'string' && startButtonComponent.settings.defaultValue.trim().length > 0) {
+            buttonText = startButtonComponent.settings.defaultValue;
+          }
+        }
+        
+        if (buttonText && buttonText.trim().length > 0) {
           return buttonText;
         }
       }

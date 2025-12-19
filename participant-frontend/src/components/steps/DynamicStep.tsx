@@ -105,38 +105,44 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-2xl space-y-6">
                 {sortedComponents.map((component) => {
-                    const savedValue = getComponentValue(component.id);
-                    const value = savedValue || getInitialDisplayValue(component.value, component);
-
                     // Skip start_button_text - it's used for button text but not displayed
-                    if (component.id === 'start_button_text' || component.id === 'start-button-text') {
+                    // Check both exact match and includes to catch variations
+                    if (component.id === 'start_button_text' || 
+                        component.id === 'start-button-text' ||
+                        component.id.includes('start_button_text') ||
+                        component.id.includes('start-button-text')) {
                         return null;
                     }
 
+                    const savedValue = getComponentValue(component.id);
+                    const value = savedValue || getInitialDisplayValue(component.value, component);
+
                     // Render display-only components
-                    if (displayOnlyIds.includes(component.id)) {
+                    if (displayOnlyIds.some(id => component.id.includes(id))) {
                         const displayValue = getComponentText(component);
-                        if (component.id === 'title') {
+                        if (component.id.includes('title')) {
                             return (
                                 <h1 key={component.id} className="text-3xl font-bold text-gray-900 text-center">
                                     {displayValue || module.name}
                                 </h1>
                             );
                         }
-                        if (component.id === 'message') {
+                        if (component.id.includes('message')) {
                             return (
                                 <p key={component.id} className="text-lg text-gray-600 text-center max-w-2xl">
                                     {displayValue || module.description}
                                 </p>
                             );
                         }
-                        if (component.id === 'instructions') {
+                        if (component.id.includes('instructions')) {
                             return (
                                 <p key={component.id} className="text-sm text-gray-500 text-center italic">
                                     {displayValue}
                                 </p>
                             );
                         }
+                        // For other display-only components, don't render them
+                        return null;
                     }
 
                     // Render interactive components
