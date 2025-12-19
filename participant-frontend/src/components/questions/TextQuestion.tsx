@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useResponse } from '../../hooks/useResponse';
 
 interface TextQuestionProps {
@@ -20,18 +20,23 @@ export const TextQuestion = ({
     isLongText = false,
     required = false,
 }: TextQuestionProps) => {
-    const [text, setText] = useState('');
-    const { save } = useResponse({ moduleId, componentId });
-
-    useEffect(() => {
-        // Auto-save on text change (debounced by user typing)
-        if (text.trim()) {
-            save(text, { length: text.length });
-        }
-    }, [text, save]);
+    const { value, save } = useResponse({ moduleId, componentId });
+    
+    // Convert store value to string for display
+    const storeValue = value !== null && value !== undefined 
+        ? (typeof value === 'string' ? value : String(value))
+        : '';
+    
+    // Use local state for controlled input, initialized from store
+    // The parent component uses a key based on moduleId, so this component
+    // will remount when switching between modules, ensuring fresh state
+    const [text, setText] = useState<string>(storeValue);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setText(e.target.value);
+        const newText = e.target.value;
+        setText(newText);
+        // Save immediately on change
+        save(newText, { length: newText.length });
     };
 
     return (

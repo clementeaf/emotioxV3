@@ -34,6 +34,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const placeholderComp = module.structure.components.find(c => c.id.includes('placeholder'));
             return (
                 <TextQuestion
+                    key={`${module.id}-answer`}
                     moduleId={module.id}
                     componentId="answer"
                     title={titleText}
