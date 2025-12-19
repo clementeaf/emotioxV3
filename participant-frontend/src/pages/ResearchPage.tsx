@@ -144,6 +144,25 @@ export const ResearchPage = () => {
 
         // Fetch research data from backend
         const research = await publicService.getResearch(researchId);
+        console.log('[ResearchPage] Loaded research from backend:', research);
+        
+        // Log Welcome Screen module details if it exists
+        const welcomeModule = research.stages?.flatMap(s => s.modules || [])
+          .find(m => m.name === 'Welcome Screen');
+        if (welcomeModule) {
+          console.log('[ResearchPage] Welcome Screen module from backend:', welcomeModule);
+          const structure = welcomeModule.config?.structure as { components?: Array<{ id?: string; type?: string; label?: string; name?: string; value?: unknown; defaultValue?: string; settings?: Record<string, unknown> }> } | undefined;
+          console.log('[ResearchPage] Welcome Screen structure:', structure);
+          console.log('[ResearchPage] Welcome Screen components:', structure?.components?.map((c: { id?: string; type?: string; label?: string; name?: string; value?: unknown; defaultValue?: string; settings?: Record<string, unknown> }) => ({
+            id: c.id,
+            type: c.type,
+            label: c.label,
+            name: c.name,
+            value: c.value,
+            defaultValue: c.defaultValue,
+            settings: c.settings
+          })));
+        }
 
         // Check mobile device restriction
         const linkConfig = getLinkConfig(research);

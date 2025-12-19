@@ -13,6 +13,23 @@ interface DynamicStepProps {
 
 export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) => {
     const { getResponse, saveResponse } = useParticipantStore();
+    
+    // Log module details when it's Welcome Screen
+    React.useEffect(() => {
+        if (module.name === 'Welcome Screen') {
+            console.log('[DynamicStep] Welcome Screen module received:', module);
+            console.log('[DynamicStep] Module structure:', module.structure);
+            console.log('[DynamicStep] Module components:', module.structure?.components?.map(c => ({
+                id: c.id,
+                type: c.type,
+                label: c.label,
+                name: c.name,
+                value: c.value,
+                defaultValue: c.defaultValue,
+                settings: c.settings
+            })));
+        }
+    }, [module]);
 
     /**
      * Obtiene el valor de una respuesta previa o el valor por defecto
