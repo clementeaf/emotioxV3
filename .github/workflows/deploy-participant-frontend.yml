@@ -105,6 +105,15 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: |
-          aws cloudfront create-invalidation \
+          echo "Creating CloudFront invalidation for all paths..."
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.PARTICIPANT_FRONTEND_CLOUDFRONT_ID }} \
-            --paths "/*"
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "Invalidation created: $INVALIDATION_ID"
+          echo "Waiting for invalidation to complete..."
+          aws cloudfront wait invalidation-completed \
+            --distribution-id ${{ secrets.PARTICIPANT_FRONTEND_CLOUDFRONT_ID }} \
+            --id "$INVALIDATION_ID"
+          echo "✓ CloudFront cache invalidated successfully"
