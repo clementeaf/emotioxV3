@@ -153,6 +153,16 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
                         return null;
                     }
 
+                    // Double-check: Never render start_button_text as input (safety check)
+                    const isStartButton = component.id === 'start_button_text' || 
+                                         component.id === 'start-button-text' ||
+                                         component.id.includes('start_button_text') ||
+                                         component.id.includes('start-button-text');
+                    if (isStartButton) {
+                        console.warn('[DynamicStep] start_button_text component passed filter! This should not happen. Component:', component);
+                        return null;
+                    }
+
                     // Render interactive components
                     switch (component.type) {
                         case 'input':
