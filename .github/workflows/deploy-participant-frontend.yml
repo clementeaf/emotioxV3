@@ -107,7 +107,7 @@ jobs:
 
                   file_path = os.path.join(root, file)
                   rel_path = os.path.relpath(file_path, dist_dir)
-                  config = get_file_config(file_path)
+                  config = get_file_config(file_path).copy()
 
                   # Special handling for sw.js - should never be cached
                   if file == 'sw.js':
