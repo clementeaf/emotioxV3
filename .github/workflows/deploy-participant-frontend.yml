@@ -42,65 +42,92 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to S3 with correct Content-Types
+      - name: Deploy to S3 with optimized caching
         working-directory: participant-frontend
         run: |
-          # Sync files first
-          aws s3 sync dist/ s3://${{ secrets.PARTICIPANT_FRONTEND_S3_BUCKET }} --delete --exclude "runtime-config.json"
-          
-          # Fix Content-Type headers for different file types
+          # Deploy with optimal Content-Type and Cache-Control headers
           python3 << 'PY'
           import subprocess
           import os
-          import mimetypes
-          
+
           bucket = "${{ secrets.PARTICIPANT_FRONTEND_S3_BUCKET }}"
           dist_dir = "dist"
-          
-          # MIME type mappings
-          mime_types = {
-              '.js': 'application/javascript',
-              '.mjs': 'application/javascript',
-              '.json': 'application/json',
-              '.css': 'text/css',
-              '.html': 'text/html',
-              '.svg': 'image/svg+xml',
-              '.png': 'image/png',
-              '.jpg': 'image/jpeg',
-              '.jpeg': 'image/jpeg',
-              '.gif': 'image/gif',
-              '.webp': 'image/webp',
-              '.woff': 'font/woff',
-              '.woff2': 'font/woff2',
-              '.ttf': 'font/ttf',
-              '.eot': 'application/vnd.ms-fontobject',
-              '.otf': 'font/otf',
-              '.ico': 'image/x-icon',
-              '.xml': 'application/xml',
-              '.txt': 'text/plain',
+
+          # MIME type and cache control mappings
+          file_configs = {
+              '.js': {
+                  'content_type': 'application/javascript',
+                  'cache_control': 'public, max-age=31536000, immutable'  # 1 year for hashed assets
+              },
+              '.mjs': {
+                  'content_type': 'application/javascript',
+                  'cache_control': 'public, max-age=31536000, immutable'
+              },
+              '.css': {
+                  'content_type': 'text/css',
+                  'cache_control': 'public, max-age=31536000, immutable'
+              },
+              '.json': {
+                  'content_type': 'application/json',
+                  'cache_control': 'public, max-age=3600'  # 1 hour
+              },
+              '.html': {
+                  'content_type': 'text/html',
+                  'cache_control': 'no-cache, must-revalidate'  # Always revalidate
+              },
+              '.svg': {'content_type': 'image/svg+xml', 'cache_control': 'public, max-age=31536000'},
+              '.png': {'content_type': 'image/png', 'cache_control': 'public, max-age=31536000'},
+              '.jpg': {'content_type': 'image/jpeg', 'cache_control': 'public, max-age=31536000'},
+              '.jpeg': {'content_type': 'image/jpeg', 'cache_control': 'public, max-age=31536000'},
+              '.gif': {'content_type': 'image/gif', 'cache_control': 'public, max-age=31536000'},
+              '.webp': {'content_type': 'image/webp', 'cache_control': 'public, max-age=31536000'},
+              '.woff': {'content_type': 'font/woff', 'cache_control': 'public, max-age=31536000'},
+              '.woff2': {'content_type': 'font/woff2', 'cache_control': 'public, max-age=31536000'},
+              '.ttf': {'content_type': 'font/ttf', 'cache_control': 'public, max-age=31536000'},
+              '.eot': {'content_type': 'application/vnd.ms-fontobject', 'cache_control': 'public, max-age=31536000'},
+              '.otf': {'content_type': 'font/otf', 'cache_control': 'public, max-age=31536000'},
+              '.ico': {'content_type': 'image/x-icon', 'cache_control': 'public, max-age=86400'},
+              '.xml': {'content_type': 'application/xml', 'cache_control': 'public, max-age=3600'},
+              '.txt': {'content_type': 'text/plain', 'cache_control': 'public, max-age=3600'},
           }
-          
-          def get_content_type(file_path):
+
+          def get_file_config(file_path):
               ext = os.path.splitext(file_path)[1].lower()
-              return mime_types.get(ext, 'application/octet-stream')
-          
-          # Walk through dist directory and update Content-Type for each file
+              return file_configs.get(ext, {
+                  'content_type': 'application/octet-stream',
+                  'cache_control': 'public, max-age=86400'
+              })
+
+          # Walk through dist directory and upload with appropriate headers
           for root, dirs, files in os.walk(dist_dir):
               for file in files:
+                  # Skip runtime-config.json as it's handled separately
+                  if file == 'runtime-config.json':
+                      continue
+
                   file_path = os.path.join(root, file)
                   rel_path = os.path.relpath(file_path, dist_dir)
-                  content_type = get_content_type(file_path)
-                  
+                  config = get_file_config(file_path)
+
+                  # Special handling for sw.js - should never be cached
+                  if file == 'sw.js':
+                      config['cache_control'] = 'no-cache, no-store, must-revalidate'
+
                   s3_path = f"s3://{bucket}/{rel_path}"
                   cmd = [
                       'aws', 's3', 'cp', file_path, s3_path,
-                      '--content-type', content_type,
+                      '--content-type', config['content_type'],
+                      '--cache-control', config['cache_control'],
                       '--metadata-directive', 'REPLACE'
                   ]
-                  
-                  subprocess.run(cmd, check=False)
-          
-          print("✓ Content-Type headers updated")
+
+                  result = subprocess.run(cmd, capture_output=True, text=True)
+                  if result.returncode != 0:
+                      print(f"Error uploading {rel_path}: {result.stderr}")
+                  else:
+                      print(f"✓ {rel_path} ({config['cache_control']})")
+
+          print("✓ All files deployed with optimized cache headers")
           PY
 
       - name: Invalidate CloudFront cache

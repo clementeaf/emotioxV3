@@ -1,20 +1,11 @@
-const CACHE_NAME = 'emotiox-participant-cache-v2';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  // Add other critical assets here
-];
+// Dynamic cache version based on timestamp to ensure fresh deploys
+const CACHE_VERSION = '__CACHE_VERSION__'; // Will be replaced during build
+const CACHE_NAME = `emotiox-participant-cache-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {
   // Skip waiting to activate immediately
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-  );
+  console.log('Service Worker installing with cache version:', CACHE_VERSION);
 });
 
 self.addEventListener('fetch', (event) => {
@@ -23,16 +14,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For JS, CSS, and other assets, always fetch from network first (stale-while-revalidate)
-  // This ensures we get the latest code
   const url = new URL(event.request.url);
   const isAsset = url.pathname.match(/\.(js|css|mjs|json|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$/);
-  
-  if (isAsset) {
+  const isHTML = url.pathname.endsWith('.html') || url.pathname === '/';
+
+  // Network-first strategy for HTML to always get latest version
+  if (isHTML) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Clone the response because it can only be consumed once
+          // Cache the latest HTML for offline fallback
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -40,31 +31,36 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // If fetch fails, try cache as fallback
-          return caches.match(event.request);
+          // If fetch fails (offline), use cached version
+          return caches.match(event.request).then((cachedResponse) => {
+            return cachedResponse || caches.match('/index.html');
+          });
         })
     );
-  } else {
-    // For HTML and other resources, try cache first, then network
+  }
+  // Network-first with cache fallback for assets (JS, CSS, images, fonts)
+  else if (isAsset) {
     event.respondWith(
-      caches.match(event.request)
+      fetch(event.request)
         .then((response) => {
-          if (response) {
-            return response;
-          }
-          return fetch(event.request).then((response) => {
+          // Only cache successful responses
+          if (response.status === 200) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);
             });
-            return response;
-          });
+          }
+          return response;
         })
         .catch(() => {
-          // If fetch fails, return a fallback if available
-          return caches.match('/index.html');
+          // If fetch fails, try cache as fallback
+          return caches.match(event.request);
         })
     );
+  }
+  // For other requests (API calls, etc.), just fetch without caching
+  else {
+    event.respondWith(fetch(event.request));
   }
 });
 
