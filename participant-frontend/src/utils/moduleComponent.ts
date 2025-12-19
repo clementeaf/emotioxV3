@@ -26,14 +26,33 @@ export function toStableString(value: unknown): string {
 export function getComponentText(component: ModuleComponent | null | undefined): string {
     if (!component) return '';
 
-    const fromValue = toStableString(component.value);
-    if (fromValue.trim().length > 0) return fromValue;
+    // First try component.value (direct value)
+    if (component.value !== undefined && component.value !== null) {
+        const fromValue = toStableString(component.value);
+        if (fromValue.trim().length > 0) {
+            return fromValue;
+        }
+    }
 
-    const fromSettingsDefault = typeof component.settings?.defaultValue === 'string' ? component.settings.defaultValue : '';
-    if (fromSettingsDefault.trim().length > 0) return fromSettingsDefault;
+    // Then try component.settings.defaultValue
+    if (component.settings?.defaultValue !== undefined && component.settings.defaultValue !== null) {
+        const fromSettingsDefault = typeof component.settings.defaultValue === 'string' 
+            ? component.settings.defaultValue 
+            : toStableString(component.settings.defaultValue);
+        if (fromSettingsDefault.trim().length > 0) {
+            return fromSettingsDefault;
+        }
+    }
 
-    const fromLegacyDefault = typeof component.defaultValue === 'string' ? component.defaultValue : '';
-    if (fromLegacyDefault.trim().length > 0) return fromLegacyDefault;
+    // Finally try component.defaultValue (legacy)
+    if (component.defaultValue !== undefined && component.defaultValue !== null) {
+        const fromLegacyDefault = typeof component.defaultValue === 'string' 
+            ? component.defaultValue 
+            : toStableString(component.defaultValue);
+        if (fromLegacyDefault.trim().length > 0) {
+            return fromLegacyDefault;
+        }
+    }
 
     return '';
 }
