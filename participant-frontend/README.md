@@ -1,6 +1,38 @@
-# React + TypeScript + Vite
+# Participant Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite application for participant-facing research interface.
+
+## ⚠️ API Configuration - CRITICAL
+
+**DO NOT use `VITE_API_URL` in `.env` files!**
+
+Setting `VITE_API_URL` in `.env` will hardcode the API URL into the JavaScript bundle during build, making it impossible to change without rebuilding the entire application. This causes deployment issues where the wrong API endpoint gets baked into production builds.
+
+### Correct approach:
+
+Use `/public/runtime-config.json` for dynamic API configuration:
+
+```json
+{
+  "apiBaseUrl": "https://your-api-gateway.execute-api.region.amazonaws.com/stage"
+}
+```
+
+This file:
+- ✅ Can be updated post-deployment without rebuilding
+- ✅ Is fetched at runtime with cache-busting
+- ✅ Works for both local development and production
+- ✅ Allows different environments to use different APIs
+
+### Why this matters:
+
+The app uses `configService` which:
+1. Fetches `/runtime-config.json?t=<timestamp>` to bypass cache
+2. Reads `apiBaseUrl` from the JSON
+3. Fetches `/config` from that base URL to get full API configuration
+4. Uses service discovery pattern - no hardcoded routes
+
+If `VITE_API_URL` is set, Vite compiles it into the bundle, breaking this dynamic configuration system.
 
 Currently, two official plugins are available:
 

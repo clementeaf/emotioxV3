@@ -155,7 +155,9 @@ class ConfigService {
     }
 
     private async fetchRuntimeConfigFromUrl(url: string): Promise<RuntimeConfig> {
-        const response = await fetch(url, { cache: 'no-store' });
+        // Force cache bypass with timestamp to prevent serving stale config
+        const cacheBuster = `?t=${Date.now()}`;
+        const response = await fetch(url + cacheBuster, { cache: 'no-store' });
         if (!response.ok) {
             throw new Error(
                 `API base URL is not configured. Provide /runtime-config.json or set VITE_API_URL. Failed to load: ${url}`
