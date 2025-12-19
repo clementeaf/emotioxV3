@@ -15,6 +15,7 @@ import { usePreviewMode } from '../hooks/usePreviewMode';
 import { publicService, type Module, type ResearchData } from '../services/public.service';
 import { responseService } from '../services/response.service';
 import { getComponentText } from '../utils/moduleComponent';
+import type { ModuleStructure, ModuleComponent } from '../types/module';
 
 /**
  * Checks whether a value is a plain object record.
@@ -178,6 +179,45 @@ export const ResearchPage = () => {
           return;
         }
 
+        /**
+         * Normalizes a module from backend format to ModuleConfig format
+         * Backend returns: { id, name, description, config: { structure: { components: [...] } } }
+         * Frontend expects: { id, name, description, structure: { components: [...] } }
+         * @param module - Module from backend
+         * @returns Normalized module
+         */
+        const normalizeModule = (module: unknown): Module => {
+          if (!isRecord(module)) {
+            throw new Error('Invalid module format');
+          }
+
+          const moduleId = typeof module.id === 'string' ? module.id : '';
+          const moduleName = typeof module.name === 'string' ? module.name : '';
+          const moduleDescription = typeof module.description === 'string' ? module.description : '';
+
+          // Extract structure from config.structure or config.components (legacy)
+          let structure: ModuleStructure = { components: [] };
+          
+          if (isRecord(module.config)) {
+            // New format: config.structure.components
+            if (isRecord(module.config.structure) && Array.isArray(module.config.structure.components)) {
+              structure = { components: module.config.structure.components as ModuleComponent[] };
+            }
+            // Legacy format: config.components
+            else if (Array.isArray(module.config.components)) {
+              structure = { components: module.config.components as ModuleComponent[] };
+            }
+          }
+
+          return {
+            id: moduleId,
+            name: moduleName,
+            description: moduleDescription,
+            structure: structure,
+            config: isRecord(module.config) ? module.config : {}
+          };
+        };
+
         // Transform stages and modules into flat structure for navigation
         const modulesMap: Record<string, Module> = {};
 
@@ -187,10 +227,15 @@ export const ResearchPage = () => {
         stages.forEach(stage => {
           const modules = stage.modules || [];
           modules.forEach(module => {
-            if (isModuleHidden(module as Module)) return;
-            const stepId = getStepIdFromModuleName(module.name);
-            if (!stepId) return;
-            modulesMap[stepId] = module as Module;
+            try {
+              const normalizedModule = normalizeModule(module);
+              if (isModuleHidden(normalizedModule)) return;
+              const stepId = getStepIdFromModuleName(normalizedModule.name);
+              if (!stepId) return;
+              modulesMap[stepId] = normalizedModule;
+            } catch (error: unknown) {
+              console.error('Error normalizing module:', error, module);
+            }
           });
         });
 
@@ -227,6 +272,35 @@ export const ResearchPage = () => {
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
 
   /**
+   * Checks if a component is the start_button_text component
+   * @param component - Component to check
+   * @returns true if component is start_button_text
+   */
+  const isStartButtonComponent = useCallback((component: { id?: string; label?: string; name?: string }): boolean => {
+    const id = component.id?.toLowerCase() || '';
+    const label = component.label?.toLowerCase() || '';
+    const name = component.name?.toLowerCase() || '';
+    
+    // Check by ID (exact match or contains)
+    if (id === 'start_button_text' || 
+        id === 'start-button-text' ||
+        id.includes('start_button_text') ||
+        id.includes('start-button-text')) {
+      return true;
+    }
+    
+    // Check by label/name (more flexible matching)
+    if (label.includes('start button') || 
+        name.includes('start button') ||
+        label === 'start button text' ||
+        name === 'start button text') {
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  /**
    * Gets the button text for the current module
    * @param module - Current module or undefined
    * @returns Button text to display
@@ -239,14 +313,9 @@ export const ResearchPage = () => {
     // For Welcome Screen, use the start_button_text component value
     if (module.name === 'Welcome Screen') {
       console.log('[ResearchPage] Welcome Screen module:', module);
-      console.log('[ResearchPage] Module structure components:', module.structure?.components?.map(c => ({ id: c.id, type: c.type, value: c.value, defaultValue: c.defaultValue })));
+      console.log('[ResearchPage] Module structure components:', module.structure?.components?.map(c => ({ id: c.id, type: c.type, label: c.label, name: c.name, value: c.value, defaultValue: c.defaultValue })));
       
-      const startButtonComponent = module.structure?.components?.find(
-        (comp) => comp.id === 'start_button_text' || 
-                 comp.id === 'start-button-text' ||
-                 comp.id.includes('start_button_text') ||
-                 comp.id.includes('start-button-text')
-      );
+      const startButtonComponent = module.structure?.components?.find((comp) => isStartButtonComponent(comp));
       
       console.log('[ResearchPage] Found startButtonComponent:', startButtonComponent);
       
@@ -275,13 +344,13 @@ export const ResearchPage = () => {
           return buttonText;
         }
       } else {
-        console.log('[ResearchPage] startButtonComponent not found!');
+        console.log('[ResearchPage] startButtonComponent not found! Searching in:', module.structure?.components?.map(c => ({ id: c.id, label: c.label, name: c.name })));
       }
     }
 
     // Default text
     return 'Guardar y continuar';
-  }, []);
+  }, [isStartButtonComponent]);
 
   /**
    * Determines if the "Guardar y continuar" button should be shown for the current module

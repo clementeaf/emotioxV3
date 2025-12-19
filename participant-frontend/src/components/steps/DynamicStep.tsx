@@ -14,6 +14,35 @@ interface DynamicStepProps {
 export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) => {
     const { getResponse, saveResponse } = useParticipantStore();
     
+    /**
+     * Checks if a component is the start_button_text component that should be hidden
+     * @param component - Component to check
+     * @returns true if component should be filtered out
+     */
+    const isStartButtonComponent = useCallback((component: { id?: string; label?: string; name?: string }): boolean => {
+        const id = component.id?.toLowerCase() || '';
+        const label = component.label?.toLowerCase() || '';
+        const name = component.name?.toLowerCase() || '';
+        
+        // Check by ID (exact match or contains)
+        if (id === 'start_button_text' || 
+            id === 'start-button-text' ||
+            id.includes('start_button_text') ||
+            id.includes('start-button-text')) {
+            return true;
+        }
+        
+        // Check by label/name (more flexible matching)
+        if (label.includes('start button') || 
+            name.includes('start button') ||
+            label === 'start button text' ||
+            name === 'start button text') {
+            return true;
+        }
+        
+        return false;
+    }, []);
+    
     // Log module details when it's Welcome Screen
     React.useEffect(() => {
         if (module.name === 'Welcome Screen') {
@@ -110,33 +139,21 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     const filteredComponents = useMemo(() => {
         console.log('[DynamicStep] All components before filtering:', sortedComponents.map(c => ({ id: c.id, type: c.type, label: c.label, name: c.name })));
         const filtered = sortedComponents.filter(component => {
-            // Skip start_button_text - it's used for button text but not displayed
-            // Check by ID
-            const isStartButtonById = component.id === 'start_button_text' || 
-                                     component.id === 'start-button-text' ||
-                                     component.id.includes('start_button_text') ||
-                                     component.id.includes('start-button-text');
-            // Also check by label/name (in case the ID is different)
-            const isStartButtonByLabel = component.label?.toLowerCase().includes('start button') ||
-                                        component.name?.toLowerCase().includes('start button') ||
-                                        component.label?.toLowerCase() === 'start button text';
+            const shouldFilter = isStartButtonComponent(component);
             
-            const isStartButton = isStartButtonById || isStartButtonByLabel;
-            
-            if (isStartButton) {
+            if (shouldFilter) {
                 console.log('[DynamicStep] Filtering out start_button_text component:', {
                     id: component.id,
                     label: component.label,
                     name: component.name,
-                    type: component.type,
-                    fullComponent: component
+                    type: component.type
                 });
             }
-            return !isStartButton;
+            return !shouldFilter;
         });
         console.log('[DynamicStep] Filtered components after filtering:', filtered.map(c => ({ id: c.id, type: c.type, label: c.label })));
         return filtered;
-    }, [sortedComponents]);
+    }, [sortedComponents, isStartButtonComponent]);
 
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
@@ -186,22 +203,12 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
                     }
 
                     // Double-check: Never render start_button_text as input (safety check)
-                    const isStartButtonById = component.id === 'start_button_text' || 
-                                             component.id === 'start-button-text' ||
-                                             component.id.includes('start_button_text') ||
-                                             component.id.includes('start-button-text');
-                    const isStartButtonByLabel = component.label?.toLowerCase().includes('start button') ||
-                                                component.name?.toLowerCase().includes('start button') ||
-                                                component.label?.toLowerCase() === 'start button text';
-                    const isStartButton = isStartButtonById || isStartButtonByLabel;
-                    
-                    if (isStartButton) {
+                    if (isStartButtonComponent(component)) {
                         console.warn('[DynamicStep] start_button_text component passed filter! This should not happen. Component:', {
                             id: component.id,
                             label: component.label,
                             name: component.name,
-                            type: component.type,
-                            fullComponent: component
+                            type: component.type
                         });
                         return null;
                     }
