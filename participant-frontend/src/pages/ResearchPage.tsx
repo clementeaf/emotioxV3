@@ -181,7 +181,7 @@ export const ResearchPage = () => {
 
         /**
          * Normalizes a module from backend format to ModuleConfig format
-         * Backend returns: { id, name, description, config: { structure: { components: [...] } } }
+         * Backend returns: { id, name, description, config: {...}, structure: { components: [...] } }
          * Frontend expects: { id, name, description, structure: { components: [...] } }
          * @param module - Module from backend
          * @returns Normalized module
@@ -195,11 +195,15 @@ export const ResearchPage = () => {
           const moduleName = typeof module.name === 'string' ? module.name : '';
           const moduleDescription = typeof module.description === 'string' ? module.description : '';
 
-          // Extract structure from config.structure or config.components (legacy)
+          // Extract structure - backend already provides it in structure field
           let structure: ModuleStructure = { components: [] };
           
-          if (isRecord(module.config)) {
-            // New format: config.structure.components
+          // First try: structure field (backend already extracts it)
+          if (isRecord(module.structure) && Array.isArray(module.structure.components)) {
+            structure = { components: module.structure.components as ModuleComponent[] };
+          }
+          // Fallback: config.structure.components (legacy or if backend didn't extract)
+          else if (isRecord(module.config)) {
             if (isRecord(module.config.structure) && Array.isArray(module.config.structure.components)) {
               structure = { components: module.config.structure.components as ModuleComponent[] };
             }
