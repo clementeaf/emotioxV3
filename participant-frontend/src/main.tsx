@@ -51,38 +51,53 @@ configService.init().then(() => {
 // Register Service Worker (only in production)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js?version=' + Date.now())
-      .then(registration => {
-        console.log('SW registered: ', registration);
-        
-        // Force update check on every page load
-        registration.update();
-        
-        // Listen for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New service worker available, force reload
-                console.log('New service worker available, reloading...');
-                window.location.reload();
-              }
-            });
-          }
+    // First, unregister all existing service workers to force fresh start
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      registrations.forEach(registration => {
+        registration.unregister().then(() => {
+          console.log('Unregistered old service worker');
         });
-      })
-      .catch(registrationError => {
-        console.log('SW registration failed: ', registrationError);
       });
-    
-    // Check for updates every 60 seconds
-    setInterval(() => {
-      navigator.serviceWorker.getRegistration().then(registration => {
-        if (registration) {
+    }).then(() => {
+      // Clear all caches
+      if ('caches' in window) {
+        caches.keys().then(cacheNames => {
+          return Promise.all(
+            cacheNames.map(cacheName => {
+              console.log('Deleting cache:', cacheName);
+              return caches.delete(cacheName);
+            })
+          );
+        });
+      }
+    }).then(() => {
+      // Register new service worker with timestamp to bypass cache
+      const buildTime = (window as { __BUILD_TIME__?: number }).__BUILD_TIME__ || Date.now();
+      const swUrl = '/sw.js?version=' + Date.now() + '&build=' + buildTime;
+      navigator.serviceWorker.register(swUrl)
+        .then(registration => {
+          console.log('SW registered: ', registration);
+          
+          // Force update check immediately
           registration.update();
-        }
-      });
-    }, 60000);
+          
+          // Listen for updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New service worker available, force reload
+                  console.log('New service worker available, reloading...');
+                  window.location.reload();
+                }
+              });
+            }
+          });
+        })
+        .catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+        });
+    });
   });
 }

@@ -24,7 +24,20 @@ const injectCacheVersion = () => {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), injectCacheVersion()],
+  plugins: [
+    react(), 
+    injectCacheVersion(),
+    // Inject build time as env variable
+    {
+      name: 'inject-build-time',
+      transformIndexHtml(html) {
+        return html.replace(
+          '<head>',
+          `<head><script>window.__BUILD_TIME__ = ${Date.now()};</script>`
+        );
+      }
+    }
+  ],
   server: {
     port: 12600,
     strictPort: true,
