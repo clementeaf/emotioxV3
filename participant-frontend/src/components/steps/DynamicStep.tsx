@@ -19,24 +19,34 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
      * @param component - Component to check
      * @returns true if component should be filtered out
      */
-    const isStartButtonComponent = useCallback((component: { id?: string; label?: string; name?: string }): boolean => {
+    const isStartButtonComponent = useCallback((component: { id?: string; label?: string; name?: string; type?: string }): boolean => {
         const id = component.id?.toLowerCase() || '';
         const label = component.label?.toLowerCase() || '';
         const name = component.name?.toLowerCase() || '';
+        const type = component.type?.toLowerCase() || '';
         
         // Check by ID (exact match or contains)
         if (id === 'start_button_text' || 
             id === 'start-button-text' ||
             id.includes('start_button_text') ||
-            id.includes('start-button-text')) {
+            id.includes('start-button-text') ||
+            id.includes('startbuttontext')) {
             return true;
         }
         
         // Check by label/name (more flexible matching)
+        // Match "start button text" or "start button" in any variation
         if (label.includes('start button') || 
             name.includes('start button') ||
             label === 'start button text' ||
-            name === 'start button text') {
+            name === 'start button text' ||
+            label.includes('startbutton') ||
+            name.includes('startbutton')) {
+            return true;
+        }
+        
+        // Additional check: if it's an input with "button" and "text" in the label, it's likely the start button text
+        if (type === 'input' && (label.includes('button') && label.includes('text'))) {
             return true;
         }
         
@@ -137,21 +147,42 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
 
     // Filter out start_button_text components before rendering
     const filteredComponents = useMemo(() => {
-        console.log('[DynamicStep] All components before filtering:', sortedComponents.map(c => ({ id: c.id, type: c.type, label: c.label, name: c.name })));
+        console.log('[DynamicStep] All components before filtering:', sortedComponents.map(c => ({ 
+            id: c.id, 
+            type: c.type, 
+            label: c.label, 
+            name: c.name,
+            fullComponent: c
+        })));
         const filtered = sortedComponents.filter(component => {
             const shouldFilter = isStartButtonComponent(component);
             
             if (shouldFilter) {
-                console.log('[DynamicStep] Filtering out start_button_text component:', {
+                console.warn('[DynamicStep] ⚠️ FILTERING OUT start_button_text component:', {
                     id: component.id,
                     label: component.label,
                     name: component.name,
-                    type: component.type
+                    type: component.type,
+                    fullComponent: component
                 });
+            } else {
+                // Log components that are NOT being filtered (for debugging)
+                const id = component.id?.toLowerCase() || '';
+                const label = component.label?.toLowerCase() || '';
+                const name = component.name?.toLowerCase() || '';
+                if (id.includes('button') || label.includes('button') || name.includes('button')) {
+                    console.log('[DynamicStep] Component with "button" in id/label/name but NOT filtered:', {
+                        id: component.id,
+                        label: component.label,
+                        name: component.name,
+                        type: component.type
+                    });
+                }
             }
             return !shouldFilter;
         });
         console.log('[DynamicStep] Filtered components after filtering:', filtered.map(c => ({ id: c.id, type: c.type, label: c.label })));
+        console.log('[DynamicStep] Total components:', sortedComponents.length, 'Filtered out:', sortedComponents.length - filtered.length, 'Remaining:', filtered.length);
         return filtered;
     }, [sortedComponents, isStartButtonComponent]);
 
@@ -204,13 +235,43 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
 
                     // Double-check: Never render start_button_text as input (safety check)
                     if (isStartButtonComponent(component)) {
-                        console.warn('[DynamicStep] start_button_text component passed filter! This should not happen. Component:', {
+                        console.error('[DynamicStep] ❌ ERROR: start_button_text component passed filter! This should not happen. Component:', {
+                            id: component.id,
+                            label: component.label,
+                            name: component.name,
+                            type: component.type,
+                            fullComponent: component
+                        });
+                        return null;
+                    }
+                    
+                    // Additional safety: check if component label contains "Start button text" (case insensitive)
+                    const componentLabel = component.label?.toLowerCase() || '';
+                    const componentName = component.name?.toLowerCase() || '';
+                    if ((componentLabel.includes('start button text') || componentName.includes('start button text')) && component.type === 'input') {
+                        console.error('[DynamicStep] ❌ ERROR: Found input component with "Start button text" label that passed all filters!', {
                             id: component.id,
                             label: component.label,
                             name: component.name,
                             type: component.type
                         });
                         return null;
+                    }
+
+                    // Final safety check before rendering input: if label contains "Start button text", don't render
+                    if (component.type === 'input') {
+                        const label = component.label?.toLowerCase() || '';
+                        const name = component.name?.toLowerCase() || '';
+                        if (label === 'start button text' || name === 'start button text' || 
+                            (label.includes('start') && label.includes('button') && label.includes('text'))) {
+                            console.error('[DynamicStep] ❌ BLOCKED: Input component with "Start button text" label attempted to render!', {
+                                id: component.id,
+                                label: component.label,
+                                name: component.name,
+                                type: component.type
+                            });
+                            return null;
+                        }
                     }
 
                     // Render interactive components
