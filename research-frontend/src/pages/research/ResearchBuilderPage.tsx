@@ -138,6 +138,7 @@ export const ResearchBuilderPage = () => {
                 return value;
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { url: _url, urlExpiresAt: _urlExpiresAt, ...rest } = value;
             return rest;
         };

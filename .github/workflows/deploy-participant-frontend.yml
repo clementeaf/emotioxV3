@@ -101,10 +101,6 @@ jobs:
           # Walk through dist directory and upload with appropriate headers
           for root, dirs, files in os.walk(dist_dir):
               for file in files:
-                  # Skip runtime-config.json as it's handled separately
-                  if file == 'runtime-config.json':
-                      continue
-
                   file_path = os.path.join(root, file)
                   rel_path = os.path.relpath(file_path, dist_dir)
                   config = get_file_config(file_path).copy()
@@ -112,6 +108,11 @@ jobs:
                   # Special handling for sw.js - should never be cached
                   if file == 'sw.js':
                       config['cache_control'] = 'no-cache, no-store, must-revalidate'
+                  
+                  # Special handling for runtime-config.json - should never be cached
+                  if file == 'runtime-config.json':
+                      config['cache_control'] = 'no-cache, no-store, must-revalidate'
+                      config['content_type'] = 'application/json'
 
                   s3_path = f"s3://{bucket}/{rel_path}"
                   cmd = [

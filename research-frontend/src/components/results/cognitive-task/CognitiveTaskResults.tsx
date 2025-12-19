@@ -82,7 +82,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
         );
 
       case 'short_text':
-      case 'long_text':
+      case 'long_text': {
         // Usamos VOCComments para mostrar respuestas de texto
         const textResponses = module.responses
           .map((r): TextResponseFormatted | null => {
@@ -103,6 +103,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             comments={textResponses.length > 0 ? textResponses : [{ text: 'No responses yet', mood: 'gray' }]}
           />
         );
+      }
 
       case 'single_choice':
         return (

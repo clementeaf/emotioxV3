@@ -21,9 +21,9 @@ export default defineConfig([
     },
     rules: {
       'react-refresh/only-export-components': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/set-state-in-effect': 'off', // Disabled - produces false positives with derived state patterns
       'react-hooks/exhaustive-deps': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/preserve-manual-memoization': 'off', // Disabled - manual optimization hints not needed
       'no-case-declarations': 'warn',
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',

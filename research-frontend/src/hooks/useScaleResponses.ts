@@ -25,6 +25,7 @@ export const useScaleResponses = (researchId: string, moduleId: string) => {
         if (researchId && moduleId) {
             fetchResults();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [researchId, moduleId]);
 
     return {

@@ -283,7 +283,7 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                     } else {
                         setFiles([]);
                     }
-                }, [value]);
+                }, []);
 
                 const handleFilesChange = (newFiles: UploadedFile[]): void => {
                     setFiles(newFiles);

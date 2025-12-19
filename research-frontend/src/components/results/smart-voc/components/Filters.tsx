@@ -5,6 +5,7 @@ interface FiltersProps {
   researchId?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const Filters = (_props: FiltersProps) => (
   <div className="bg-white rounded-lg border border-gray-200 p-4">
     <h3 className="font-semibold mb-2">Filters</h3>

@@ -47,7 +47,6 @@ export const CustomSelect = ({
 
     useEffect(() => {
         if (value !== undefined) {
-            // eslint-disable-next-line
             setSelectedValue(value);
         }
     }, [value]);

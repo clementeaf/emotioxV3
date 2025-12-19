@@ -56,7 +56,6 @@ export const Autocomplete = ({
         if (value) {
             const selectedOption = options.find((opt) => opt.value === value);
             if (selectedOption) {
-                // eslint-disable-next-line
                 setInputValue(selectedOption.label);
             } else {
                 setInputValue(value);
@@ -92,7 +91,6 @@ export const Autocomplete = ({
     );
 
     useEffect(() => {
-        // eslint-disable-next-line
         setShowCreateOption(
             inputValue.trim().length > 0 && !exactMatch && onCreateNew !== undefined
         );

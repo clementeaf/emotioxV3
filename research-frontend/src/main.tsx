@@ -32,6 +32,7 @@ interface BootstrapErrorScreenProps {
  * @param props - Component props
  * @returns React element
  */
+// eslint-disable-next-line react-refresh/only-export-components
 const BootstrapErrorScreen = (props: BootstrapErrorScreenProps): ReactElement => {
   const message = props.error instanceof Error ? props.error.message : 'Unknown initialization error';
   return (
