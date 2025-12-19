@@ -1,22 +1,14 @@
 // Service Worker para caché offline y mejor rendimiento
-const CACHE_NAME = 'emotiox-research-v1';
-const RUNTIME_CACHE = 'emotiox-runtime-v1';
-
-// Assets estáticos para cachear
-const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-];
+// Dynamic cache version based on timestamp to ensure fresh deploys
+const CACHE_VERSION = '__CACHE_VERSION__'; // Will be replaced during build
+const CACHE_NAME = `emotiox-research-cache-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `emotiox-research-runtime-${CACHE_VERSION}`;
 
 // Instalar Service Worker
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS);
-        })
-    );
+    // Skip waiting to activate immediately
     self.skipWaiting();
+    console.log('Service Worker installing with cache version:', CACHE_VERSION);
 });
 
 // Activar Service Worker
@@ -33,78 +25,82 @@ self.addEventListener('activate', (event) => {
     return self.clients.claim();
 });
 
-// Estrategia: Network First, luego Cache
+// Estrategia: Network First optimizada con cache inteligente
 self.addEventListener('fetch', (event) => {
-    // Ignorar requests que no son GET
+    // Only handle GET requests
     if (event.request.method !== 'GET') {
         return;
     }
 
-    // Validar esquema del request antes de procesarlo
+    // Validate request scheme
     try {
         const requestUrl = new URL(event.request.url);
-        // Ignorar requests con esquemas no soportados (chrome-extension://, etc.)
         if (requestUrl.protocol !== 'http:' && requestUrl.protocol !== 'https:') {
             return;
         }
     } catch (error) {
-        // Si no se puede parsear la URL, ignorar el request
         return;
     }
 
-    // Ignorar requests a APIs externas (dejar que pasen directamente)
-    if (event.request.url.includes('/api/') || event.request.url.startsWith('http')) {
+    // Don't cache API requests - let them pass through
+    if (event.request.url.includes('/api/')) {
+        event.respondWith(fetch(event.request));
         return;
     }
 
-    event.respondWith(
-        fetch(event.request)
-            .then((response) => {
-                // Validar que el request tenga un esquema válido (http/https)
-                // Ignorar requests de extensiones de Chrome (chrome-extension://)
-                const requestUrl = new URL(event.request.url);
-                const isValidScheme = requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:';
-                
-                if (!isValidScheme) {
-                    // No intentar cachear requests con esquemas no soportados
-                    return response;
-                }
+    const url = new URL(event.request.url);
+    const isAsset = url.pathname.match(/\.(js|css|mjs|json|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$/);
+    const isHTML = url.pathname.endsWith('.html') || url.pathname === '/';
 
-                // Clonar la respuesta
-                const responseToCache = response.clone();
-
-                // Cachear assets estáticos
-                if (event.request.destination === 'script' || 
-                    event.request.destination === 'style' ||
-                    event.request.destination === 'image') {
-                    caches.open(RUNTIME_CACHE).then((cache) => {
-                        // Verificar nuevamente antes de cachear
-                        try {
+    // Network-first strategy for HTML to always get latest version
+    if (isHTML) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Cache the latest HTML for offline fallback
+                    if (response.status === 200) {
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
                             cache.put(event.request, responseToCache).catch((error) => {
-                                // Silenciar errores de cacheo (pueden ocurrir con requests especiales)
                                 console.debug('Cache put failed (non-critical):', error);
                             });
-                        } catch (error) {
-                            // Silenciar errores de cacheo
-                            console.debug('Cache put error (non-critical):', error);
-                        }
+                        });
+                    }
+                    return response;
+                })
+                .catch(() => {
+                    // If fetch fails (offline), use cached version
+                    return caches.match(event.request).then((cachedResponse) => {
+                        return cachedResponse || caches.match('/index.html');
                     });
-                }
-
-                return response;
-            })
-            .catch(() => {
-                // Si falla la red, intentar desde caché
-                return caches.match(event.request).then((cachedResponse) => {
-                    if (cachedResponse) {
-                        return cachedResponse;
+                })
+        );
+    }
+    // Network-first with cache fallback for assets
+    else if (isAsset) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Only cache successful responses
+                    if (response.status === 200) {
+                        const responseToCache = response.clone();
+                        caches.open(RUNTIME_CACHE).then((cache) => {
+                            cache.put(event.request, responseToCache).catch((error) => {
+                                console.debug('Cache put failed (non-critical):', error);
+                            });
+                        });
                     }
-                    // Si no hay caché, devolver página offline
-                    if (event.request.destination === 'document') {
-                        return caches.match('/index.html');
-                    }
-                });
-            })
-    );
+                    return response;
+                })
+                .catch(() => {
+                    // If fetch fails, try cache as fallback
+                    return caches.match(event.request);
+                })
+        );
+    }
+    // For other requests, just fetch without caching
+    else {
+        event.respondWith(fetch(event.request));
+    }
 });
 

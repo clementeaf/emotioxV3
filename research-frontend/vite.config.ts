@@ -1,9 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { readFileSync, writeFileSync } from 'fs'
+import { resolve } from 'path'
+
+// Plugin to inject cache version into service worker
+const injectCacheVersion = () => {
+  return {
+    name: 'inject-cache-version',
+    closeBundle() {
+      const swPath = resolve(__dirname, 'dist/sw.js')
+      try {
+        let content = readFileSync(swPath, 'utf-8')
+        const cacheVersion = Date.now().toString()
+        content = content.replace('__CACHE_VERSION__', cacheVersion)
+        writeFileSync(swPath, content)
+        console.log(`✓ Injected cache version: ${cacheVersion}`)
+      } catch (error) {
+        console.error('Failed to inject cache version:', error)
+      }
+    }
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), injectCacheVersion()],
   server: {
     port: 12500,
     strictPort: true,
