@@ -91,14 +91,19 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
 
     // Filter out start_button_text components before rendering
     const filteredComponents = useMemo(() => {
-        return sortedComponents.filter(component => {
+        const filtered = sortedComponents.filter(component => {
             // Skip start_button_text - it's used for button text but not displayed
             const isStartButton = component.id === 'start_button_text' || 
                                  component.id === 'start-button-text' ||
                                  component.id.includes('start_button_text') ||
                                  component.id.includes('start-button-text');
+            if (isStartButton) {
+                console.log('[DynamicStep] Filtering out start_button_text component:', component.id, component);
+            }
             return !isStartButton;
         });
+        console.log('[DynamicStep] Filtered components:', filtered.map(c => ({ id: c.id, type: c.type, label: c.label })));
+        return filtered;
     }, [sortedComponents]);
 
     // If SmartVOC, use specialized renderer

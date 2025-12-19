@@ -219,30 +219,44 @@ export const ResearchPage = () => {
 
     // For Welcome Screen, use the start_button_text component value
     if (module.name === 'Welcome Screen') {
+      console.log('[ResearchPage] Welcome Screen module:', module);
+      console.log('[ResearchPage] Module structure components:', module.structure?.components?.map(c => ({ id: c.id, type: c.type, value: c.value, defaultValue: c.defaultValue })));
+      
       const startButtonComponent = module.structure?.components?.find(
         (comp) => comp.id === 'start_button_text' || 
                  comp.id === 'start-button-text' ||
                  comp.id.includes('start_button_text') ||
                  comp.id.includes('start-button-text')
       );
+      
+      console.log('[ResearchPage] Found startButtonComponent:', startButtonComponent);
+      
       if (startButtonComponent) {
         // Try to get value from component.value, component.defaultValue, or component.settings.defaultValue
         let buttonText = getComponentText(startButtonComponent);
+        console.log('[ResearchPage] getComponentText result:', buttonText);
         
         // If getComponentText doesn't return a value, try other sources
         if (!buttonText || buttonText.trim().length === 0) {
           if (typeof startButtonComponent.value === 'string' && startButtonComponent.value.trim().length > 0) {
             buttonText = startButtonComponent.value;
+            console.log('[ResearchPage] Using component.value:', buttonText);
           } else if (typeof startButtonComponent.defaultValue === 'string' && startButtonComponent.defaultValue.trim().length > 0) {
             buttonText = startButtonComponent.defaultValue;
+            console.log('[ResearchPage] Using component.defaultValue:', buttonText);
           } else if (typeof startButtonComponent.settings?.defaultValue === 'string' && startButtonComponent.settings.defaultValue.trim().length > 0) {
             buttonText = startButtonComponent.settings.defaultValue;
+            console.log('[ResearchPage] Using component.settings.defaultValue:', buttonText);
           }
         }
+        
+        console.log('[ResearchPage] Final buttonText:', buttonText);
         
         if (buttonText && buttonText.trim().length > 0) {
           return buttonText;
         }
+      } else {
+        console.log('[ResearchPage] startButtonComponent not found!');
       }
     }
 
