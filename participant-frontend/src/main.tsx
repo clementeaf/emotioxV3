@@ -51,12 +51,38 @@ configService.init().then(() => {
 // Register Service Worker (only in production)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/sw.js?version=' + Date.now())
       .then(registration => {
         console.log('SW registered: ', registration);
+        
+        // Force update check on every page load
+        registration.update();
+        
+        // Listen for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New service worker available, force reload
+                console.log('New service worker available, reloading...');
+                window.location.reload();
+              }
+            });
+          }
+        });
       })
       .catch(registrationError => {
         console.log('SW registration failed: ', registrationError);
       });
+    
+    // Check for updates every 60 seconds
+    setInterval(() => {
+      navigator.serviceWorker.getRegistration().then(registration => {
+        if (registration) {
+          registration.update();
+        }
+      });
+    }, 60000);
   });
 }

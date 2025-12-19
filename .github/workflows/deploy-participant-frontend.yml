@@ -130,12 +130,13 @@ jobs:
           print("✓ All files deployed with optimized cache headers")
           PY
 
-      - name: Invalidate CloudFront cache
+      - name: Invalidate CloudFront cache (aggressive)
         run: |
-          echo "Creating CloudFront invalidation for all paths..."
+          echo "Creating CloudFront invalidation for all paths (aggressive)..."
+          # Invalidate all paths including specific asset patterns
           INVALIDATION_ID=$(aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.PARTICIPANT_FRONTEND_CLOUDFRONT_ID }} \
-            --paths "/*" \
+            --paths "/*" "/index.html" "/sw.js" "/assets/*" \
             --query 'Invalidation.Id' \
             --output text)
           echo "Invalidation created: $INVALIDATION_ID"
@@ -144,3 +145,13 @@ jobs:
             --distribution-id ${{ secrets.PARTICIPANT_FRONTEND_CLOUDFRONT_ID }} \
             --id "$INVALIDATION_ID"
           echo "✓ CloudFront cache invalidated successfully"
+          
+          # Force a second invalidation after a short delay to ensure it takes effect
+          echo "Creating secondary invalidation to force refresh..."
+          sleep 5
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.PARTICIPANT_FRONTEND_CLOUDFRONT_ID }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text
+          echo "✓ Secondary invalidation created"
