@@ -89,6 +89,18 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     // start_button_text is used for button text but should not be displayed as an input
     const displayOnlyIds = useMemo(() => ['title', 'message', 'instructions', 'start_button_text', 'start-button-text'], []);
 
+    // Filter out start_button_text components before rendering
+    const filteredComponents = useMemo(() => {
+        return sortedComponents.filter(component => {
+            // Skip start_button_text - it's used for button text but not displayed
+            const isStartButton = component.id === 'start_button_text' || 
+                                 component.id === 'start-button-text' ||
+                                 component.id.includes('start_button_text') ||
+                                 component.id.includes('start-button-text');
+            return !isStartButton;
+        });
+    }, [sortedComponents]);
+
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
         return <SmartVOCRenderer module={module} onComplete={onComplete} />;
@@ -104,16 +116,7 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-2xl space-y-6">
-                {sortedComponents.map((component) => {
-                    // Skip start_button_text - it's used for button text but not displayed
-                    // Check both exact match and includes to catch variations
-                    if (component.id === 'start_button_text' || 
-                        component.id === 'start-button-text' ||
-                        component.id.includes('start_button_text') ||
-                        component.id.includes('start-button-text')) {
-                        return null;
-                    }
-
+                {filteredComponents.map((component) => {
                     const savedValue = getComponentValue(component.id);
                     const value = savedValue || getInitialDisplayValue(component.value, component);
 
