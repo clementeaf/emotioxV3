@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, forwardRef, useId } from 'react';
+import { type InputHTMLAttributes, forwardRef, useId, useState } from 'react';
 import { cn } from '../../lib/utils';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -7,9 +7,21 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-    ({ className, label, error, id: propId, ...props }, ref) => {
+    ({ className, label, error, id: propId, onFocus, onBlur, placeholder, ...props }, ref) => {
         const generatedId = useId();
         const id = propId || generatedId;
+        const [isFocused, setIsFocused] = useState(false);
+
+        const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+            setIsFocused(true);
+            onFocus?.(e);
+        };
+
+        const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+            setIsFocused(false);
+            onBlur?.(e);
+        };
+
         return (
             <div className="w-full">
                 {label && (
@@ -26,6 +38,9 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                         error && 'border-red-300 focus:ring-red-400 focus:border-red-400',
                         className
                     )}
+                    placeholder={isFocused ? '' : placeholder}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
                     {...props}
                 />
                 {error && <p className="mt-1 text-sm text-red-500">{error}</p>}

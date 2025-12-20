@@ -74,7 +74,10 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                 c.id?.includes('display-type') || c.id?.includes('type')
             );
             if (displayTypeComponent) {
-                config.type = getComponentValue(displayTypeComponent.id) || 'stars';
+                const typeValue = getComponentValue(displayTypeComponent.id);
+                config.type = typeValue || 'stars'; // Default a 'stars' si está vacío
+            } else {
+                config.type = 'stars'; // Default si no encuentra componente
             }
         }
 
@@ -151,13 +154,13 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                         {config.type === 'stars' ? (
                             // Estrellas
                             Array.from({ length: 5 }, (_, i) => (
-                                <span key={i} className="text-2xl text-gray-300">★</span>
+                                <span key={i} className="text-2xl text-gray-300 hover:text-yellow-400 cursor-pointer transition-colors">★</span>
                             ))
                         ) : (
                             // Números 1-5
                             <div className="flex gap-2">
                                 {Array.from({ length: 5 }, (_, i) => (
-                                    <div key={i} className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded bg-white text-gray-600">
+                                    <div key={i} className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded bg-white text-gray-600 hover:bg-blue-50 hover:border-blue-400 cursor-pointer transition-all">
                                         {i + 1}
                                     </div>
                                 ))}

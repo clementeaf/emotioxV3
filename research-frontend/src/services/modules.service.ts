@@ -1,6 +1,7 @@
 import apiClient from './api/client';
 import { configService } from './api/config.service';
 import type { ApiErrorResponse } from './api/types';
+import { moduleTemplatesService } from './moduleTemplates.service';
 
 export interface Module {
     id: string;
@@ -17,6 +18,13 @@ export interface CreateModuleData {
     module_type: string;
     order?: number;
     config?: Record<string, unknown>;
+}
+
+export interface CreateModuleFromTemplateData {
+    research_id: string;
+    stage_id: string;
+    template_id: string;
+    order_index?: number;
 }
 
 export interface UpdateModuleData {
@@ -90,6 +98,25 @@ class ModulesService {
     }
 
     /**
+     * Actualiza el order_index de múltiples módulos en un stage
+     * @param stageId - ID del stage
+     * @param updates - Array de {moduleId, order_index}
+     * @returns Resultado de la operación
+     * @throws ApiErrorResponse si falla la operación
+     */
+    async updateModulesOrder(
+        stageId: string,
+        updates: Array<{ moduleId: string; order_index: number }>
+    ): Promise<{ message: string }> {
+        try {
+            const endpoint = `/stages/${stageId}/modules/reorder`;
+            return await apiClient.put<{ message: string }>(endpoint, { updates });
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to update modules order');
+        }
+    }
+
+    /**
      * Elimina un módulo
      * @param id - ID del módulo
      * @returns Mensaje de confirmación
@@ -101,6 +128,37 @@ class ModulesService {
             return await apiClient.delete<DeleteResponse>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete module');
+        }
+    }
+
+    /**
+     * Crea un módulo desde un template
+     * @param data - Datos para crear el módulo desde template
+     * @returns Módulo creado
+     * @throws ApiErrorResponse si falla la creación
+     */
+    async createFromTemplate(data: CreateModuleFromTemplateData): Promise<ModuleResponse> {
+        try {
+            // Get the template
+            const template = await moduleTemplatesService.getById(data.template_id);
+
+            // Prepare module data using template structure
+            const moduleData = {
+                research_id: data.research_id,
+                stage_id: data.stage_id,
+                name: template.name,
+                description: template.description,
+                order_index: data.order_index ?? 0,
+                is_from_template: true,
+                config: {
+                    structure: template.structure
+                }
+            };
+
+            const endpoint = configService.getEndpoint('modules', 'create');
+            return await apiClient.post<ModuleResponse>(endpoint, moduleData);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to create module from template');
         }
     }
 

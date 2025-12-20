@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
 import { ExternalLink, QrCode, Copy } from 'lucide-react';
+import { useUrlValidation } from '../../hooks/useUrlValidation';
+import { useToast } from '../../hooks/useToast';
 
 
 interface ResearchConfigurationProps {
@@ -21,6 +23,10 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
     const [participantLimitEnabled, setParticipantLimitEnabled] = useState(true);
     const [showQRModal, setShowQRModal] = useState(false);
+    const [urlErrors, setUrlErrors] = useState<Record<string, string>>({});
+
+    const { validateUrl, extractParameters } = useUrlValidation();
+    const toast = useToast();
     
 
     const demographics = (config.demographics || {}) as Record<string, boolean>;
@@ -29,6 +35,9 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const researchUrl = (config.researchUrl || '') as string;
     const participantLimit = (config.participantLimit || 50) as number;
     const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
+
+    // Extract URL parameters dynamically
+    const urlParameters = useMemo(() => extractParameters(researchUrl), [researchUrl, extractParameters]);
 
     /**
      * Loads participant base URL from /runtime-config.json when deployed (CloudFront).
@@ -162,17 +171,23 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         const fullUrl = value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`;
         try {
             await navigator.clipboard.writeText(fullUrl);
+            toast.success('Research URL copied to clipboard');
         } catch {
             // Best-effort fallback
-            const textarea = document.createElement('textarea');
-            textarea.value = fullUrl;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.focus();
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
+            try {
+                const textarea = document.createElement('textarea');
+                textarea.value = fullUrl;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                toast.success('Research URL copied to clipboard');
+            } catch {
+                toast.error('Failed to copy URL to clipboard');
+            }
         }
     };
 
@@ -191,6 +206,20 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     };
 
     const handleBacklinkChange = (key: string, value: string) => {
+        // Validate URL if value is not empty
+        if (value.trim()) {
+            const { isValid, error } = validateUrl(value);
+            setUrlErrors(prev => ({
+                ...prev,
+                [`backlink-${key}`]: isValid ? '' : (error || 'Invalid URL'),
+            }));
+        } else {
+            setUrlErrors(prev => ({
+                ...prev,
+                [`backlink-${key}`]: '',
+            }));
+        }
+
         onChange({
             ...config,
             backlinks: { ...backlinks, [key]: value }
@@ -198,6 +227,20 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     };
 
     const handleResearchUrlChange = (value: string) => {
+        // Validate URL if value is not empty
+        if (value.trim()) {
+            const { isValid, error } = validateUrl(value);
+            setUrlErrors(prev => ({
+                ...prev,
+                research: isValid ? '' : (error || 'Invalid URL'),
+            }));
+        } else {
+            setUrlErrors(prev => ({
+                ...prev,
+                research: '',
+            }));
+        }
+
         onChange({
             ...config,
             researchUrl: value
@@ -361,6 +404,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleBacklinkChange('complete', e.target.value)}
                                 placeholder="www.useremotion.com/"
                                 className="rounded-l-none"
+                                error={urlErrors['backlink-complete']}
                             />
                         </div>
                     </div>
@@ -376,6 +420,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleBacklinkChange('disqualified', e.target.value)}
                                 placeholder="www.useremotion.com/"
                                 className="rounded-l-none"
+                                error={urlErrors['backlink-disqualified']}
                             />
                         </div>
                     </div>
@@ -391,6 +436,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleBacklinkChange('overquota', e.target.value)}
                                 placeholder="www.useremotion.com/"
                                 className="rounded-l-none"
+                                error={urlErrors['backlink-overquota']}
                             />
                         </div>
                     </div>
@@ -416,6 +462,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleResearchUrlChange(e.target.value)}
                                 placeholder="www.useremotion.com/sysgd-jye746?respondent={your_id}"
                                 className="rounded-l-none"
+                                error={urlErrors.research}
                             />
                             <Button variant="ghost" size="sm" title="Copy" onClick={handleCopyResearchUrl}>
                                 <Copy className="h-4 w-4" />
@@ -441,22 +488,27 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 {/* C. Parameters */}
                 <div className="space-y-4">
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-2">C. Research&apos;s parameters to save</h3>
+                        <h3 className="text-sm font-semibold text-gray-900 mb-2">C. Research&apos;s parameters detected</h3>
                         <p className="text-xs text-gray-500 mb-4">
-                            Please specify parameters that you want to save (comma separated keys)
+                            Parameters detected in your research URL (use {'{parameter_name}'} in the URL above)
                         </p>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                        {['Parameters', 'Separated', 'With', 'Comma', 'Keys'].map((param) => (
-                            <span
-                                key={param}
-                                className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
-                            >
-                                {param}
-                                <button className="ml-1 text-blue-600 hover:text-blue-800">×</button>
-                            </span>
-                        ))}
+                        {urlParameters.length > 0 ? (
+                            urlParameters.map((param) => (
+                                <span
+                                    key={param}
+                                    className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
+                                >
+                                    {param}
+                                </span>
+                            ))
+                        ) : (
+                            <p className="text-sm text-gray-500">
+                                No parameters detected. Use {'{parameter_name}'} in your URL to add dynamic parameters.
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

@@ -108,7 +108,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         <div
             ref={cardRef}
             id={`module-${module.id}`}
-            className={`rounded-lg shadow-sm border bg-white transition-all ${isActive ? 'border-blue-400 shadow-md' : 'border-gray-200'
+            className={`rounded-lg shadow-sm border bg-white transition-all pl-10 ${isActive ? 'border-blue-400 shadow-md' : 'border-gray-200'
                 }`}
         >
             <div className="px-6 py-4 border-b border-gray-200 ">

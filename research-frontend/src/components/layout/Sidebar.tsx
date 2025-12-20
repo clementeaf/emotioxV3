@@ -576,7 +576,11 @@ export const Sidebar = () => {
                     onClose={() => setDeleteStageModalOpen(false)}
                     onConfirm={handleConfirmDeleteStage}
                     title="Delete Stage"
-                    message={`Are you sure you want to delete the stage "${stageToDelete?.name}"? This will also delete all modules in this stage. This action cannot be undone.`}
+                    message={
+                        stageToDelete?.name?.toLowerCase().includes('cognitive')
+                            ? `Are you sure you want to delete the stage "${stageToDelete.name}"? This will also delete all modules in this stage. This action cannot be undone.\n\nNote: You can safely delete this stage if you only want to use Smart VOC modules in your research.`
+                            : `Are you sure you want to delete the stage "${stageToDelete?.name}"? This will also delete all modules in this stage. This action cannot be undone.`
+                    }
                     confirmText="Delete"
                     cancelText="Cancel"
                     variant="danger"

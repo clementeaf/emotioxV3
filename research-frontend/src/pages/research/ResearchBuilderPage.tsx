@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../components/ui/Button';
-import { useResearch } from '../../hooks/useResearchQuery';
+import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
 import type { Research, Stage, Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
@@ -9,17 +10,22 @@ import { ResearchBuilderHeader } from '../../components/research/ResearchBuilder
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
 import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
+import { SortableSmartVOCCard } from '../../components/research/SortableSmartVOCCard';
 import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
+import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 export const ResearchBuilderPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const toast = useToast();
+    const queryClient = useQueryClient();
 
     const { data: research, isLoading: loading, error } = useResearch(id || null);
     
@@ -104,8 +110,61 @@ export const ResearchBuilderPage = () => {
     const cognitiveTaskModuleRefs = useRef<Map<string, CognitiveTaskModuleCardRef>>(new Map());
     
     useWelcomeScreenRedirect(typedResearch, loading, activeModuleId, isSettings, id);
-    
+
     const [isSaving, setIsSaving] = useState(false);
+
+    // State for module template selection modal
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
+
+    // State for locally ordered Smart VOC modules (for drag & drop)
+    const [orderedSmartVOCModules, setOrderedSmartVOCModules] = useState<Module[]>(smartVOCModules);
+
+    // Update ordered modules when smartVOCModules changes (e.g., after save)
+    useEffect(() => {
+        setOrderedSmartVOCModules(smartVOCModules);
+    }, [smartVOCModules]);
+
+    // Configure sensors for drag & drop
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    // Handle drag end for Smart VOC modules reordering
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = orderedSmartVOCModules.findIndex(m => m.id === active.id);
+        const newIndex = orderedSmartVOCModules.findIndex(m => m.id === over.id);
+
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const reordered = arrayMove(orderedSmartVOCModules, oldIndex, newIndex);
+        setOrderedSmartVOCModules(reordered);
+
+        // Update order_index in backend
+        if (smartVOCStage) {
+            try {
+                const updates = reordered.map((module, index) => ({
+                    moduleId: module.id,
+                    order_index: index,
+                }));
+
+                await modulesService.updateModulesOrder(smartVOCStage.id, updates);
+                toast.success('Modules reordered successfully');
+            } catch (error) {
+                console.error('Error reordering modules:', error);
+                toast.error('Failed to save new order');
+                // Revert to original order
+                setOrderedSmartVOCModules(smartVOCModules);
+            }
+        }
+    };
 
     /**
      * Safely extracts a string from an unknown value.
@@ -329,6 +388,45 @@ export const ResearchBuilderPage = () => {
         }));
     }, [setComponentValues]);
 
+    /**
+     * Opens the module template selection modal for a specific stage
+     */
+    const handleOpenTemplateModal = useCallback((stage: Stage) => {
+        setSelectedStage(stage);
+        setIsTemplateModalOpen(true);
+    }, []);
+
+    /**
+     * Creates a module from a selected template
+     */
+    const handleCreateModuleFromTemplate = useCallback(async (templateId: string) => {
+        if (!id || !selectedStage) {
+            toast.error('Missing research or stage information');
+            return;
+        }
+
+        try {
+            // Calculate next order_index
+            const existingModules = selectedStage.modules || [];
+            const nextOrderIndex = existingModules.length;
+
+            await modulesService.createFromTemplate({
+                research_id: id,
+                stage_id: selectedStage.id,
+                template_id: templateId,
+                order_index: nextOrderIndex
+            });
+
+            // Invalidate and refetch research data
+            await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+
+            toast.success('Module added successfully');
+        } catch (error) {
+            console.error('Failed to create module from template:', error);
+            throw error; // Re-throw to let modal handle it
+        }
+    }, [id, selectedStage, queryClient, toast]);
+
     // Loading state
     if (loading) {
         return (
@@ -374,31 +472,65 @@ export const ResearchBuilderPage = () => {
             {/* Content Area */}
             {isSettings && <ResearchSettingsView research={typedResearch} />}
 
-            {/* Smart VOC Stage: Show all modules in the same view */}
+            {/* Smart VOC Stage: Show all modules in the same view with drag & drop */}
             {isSmartVOCStage && smartVOCModules.length > 0 && (
                 <div className="space-y-6 h-full max-h-[720px] overflow-y-auto">
                     <div className="mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">Smart VOC - All Questions</h2>
                         <p className="text-sm text-gray-500 mt-1">
-                            Configure all Smart VOC questions in this unified view
+                            Configure all Smart VOC questions in this unified view. Drag the handle to reorder.
                         </p>
                     </div>
-                    {smartVOCModules.map((module) => (
-                        <SmartVOCModuleCard
-                            key={module.id}
-                            ref={(ref) => {
-                                if (ref) {
-                                    smartVOCModuleRefs.current.set(module.id, ref);
-                                } else {
-                                    smartVOCModuleRefs.current.delete(module.id);
-                                }
-                            }}
-                            module={module}
-                            researchId={id!}
-                            onSave={handleSaveModule}
-                            isActive={activeModuleId === module.id}
-                        />
-                    ))}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={orderedSmartVOCModules.map(m => m.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            {orderedSmartVOCModules.map((module) => (
+                                <SortableSmartVOCCard key={module.id} module={module}>
+                                    <SmartVOCModuleCard
+                                        ref={(ref) => {
+                                            if (ref) {
+                                                smartVOCModuleRefs.current.set(module.id, ref);
+                                            } else {
+                                                smartVOCModuleRefs.current.delete(module.id);
+                                            }
+                                        }}
+                                        module={module}
+                                        researchId={id!}
+                                        onSave={handleSaveModule}
+                                        isActive={activeModuleId === module.id}
+                                    />
+                                </SortableSmartVOCCard>
+                            ))}
+                        </SortableContext>
+                    </DndContext>
+                </div>
+            )}
+
+            {/* Smart VOC Stage Empty State */}
+            {isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
+                <div className="flex flex-col items-center justify-center h-96 text-center">
+                    <div className="max-w-md">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Smart VOC Modules</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            This Smart VOC stage doesn&apos;t have any modules yet. You can add modules from templates.
+                        </p>
+                        <Button
+                            onClick={() => handleOpenTemplateModal(smartVOCStage)}
+                            variant="primary"
+                            className="mt-2"
+                        >
+                            Add Module from Template
+                        </Button>
+                        <p className="text-xs text-gray-500 mt-4">
+                            Or delete this stage if you don&apos;t need it for your research.
+                        </p>
+                    </div>
                 </div>
             )}
 
@@ -427,6 +559,28 @@ export const ResearchBuilderPage = () => {
                             isActive={activeModuleId === module.id}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Cognitive Tasks Stage Empty State */}
+            {isCognitiveTasksStage && cognitiveTaskModules.length === 0 && cognitiveTasksStage && (
+                <div className="flex flex-col items-center justify-center h-96 text-center">
+                    <div className="max-w-md">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Cognitive Task Modules</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            This Cognitive Tasks stage doesn&apos;t have any modules yet. You can add task modules from templates.
+                        </p>
+                        <Button
+                            onClick={() => handleOpenTemplateModal(cognitiveTasksStage)}
+                            variant="primary"
+                            className="mt-2"
+                        >
+                            Add Module from Template
+                        </Button>
+                        <p className="text-xs text-gray-500 mt-4">
+                            Or delete this stage if you only want to use Smart VOC in your research.
+                        </p>
+                    </div>
                 </div>
             )}
 
@@ -459,6 +613,17 @@ export const ResearchBuilderPage = () => {
                     </div>
                 </div>
             )}
+
+            {/* Module Template Selection Modal */}
+            <ModuleTemplateSelectionModal
+                isOpen={isTemplateModalOpen}
+                onClose={() => {
+                    setIsTemplateModalOpen(false);
+                    setSelectedStage(null);
+                }}
+                onSelect={handleCreateModuleFromTemplate}
+                stageType={selectedStage?.stage_type}
+            />
         </div>
     );
 };
