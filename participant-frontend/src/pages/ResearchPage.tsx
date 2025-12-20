@@ -416,6 +416,15 @@ export const ResearchPage = () => {
       return;
     }
 
+    // Verify Turnstile token on welcome step (only in participant mode)
+    if (currentStep === 'welcome' && !isPreviewMode) {
+      const { turnstileVerified } = useSessionStore.getState();
+      if (!turnstileVerified) {
+        alert('Por favor, completa la verificación de seguridad antes de continuar.');
+        return;
+      }
+    }
+
     // In preview mode, don't send data to backend
     if (isPreviewMode) {
       console.log('[Preview Mode] Skipping data submission');
@@ -424,7 +433,7 @@ export const ResearchPage = () => {
         const errorMessage = result.errors.map(e => e.message).join('\n');
         alert(errorMessage);
       }
-      
+
       // Check if we've reached the thank-you page and multiple sessions are allowed
       if (result.success && currentStep === 'thank-you') {
         const linkConfig = useSessionStore.getState().config?.linkConfig;
@@ -432,7 +441,7 @@ export const ResearchPage = () => {
           setShowRestartOption(true);
         }
       }
-      
+
       return;
     }
 
@@ -455,12 +464,16 @@ export const ResearchPage = () => {
           setSubmitting(true);
           console.log(`[Participant Mode] Submitting responses for module: ${currentModule.id}`);
 
+          // Get Turnstile token for anti-bot verification
+          const { turnstileToken } = useSessionStore.getState();
+
           await responseService.submitModuleResponses(researchId, participantId, {
             participantId,
             moduleId: currentModule.id,
             responses: moduleResponses,
             metadata: {
               completedAt: Date.now(),
+              turnstileToken: turnstileToken || undefined,
             },
           });
 

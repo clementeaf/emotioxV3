@@ -326,6 +326,47 @@ interface ParticipantResponsePayload {
 }
 
 /**
+ * Verifies Cloudflare Turnstile token
+ * @param token - Turnstile token from frontend
+ * @returns true if token is valid, false otherwise
+ */
+const verifyTurnstileToken = async (token: string): Promise<boolean> => {
+  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+
+  // If no secret key is configured, skip validation (for development/testing)
+  if (!secretKey) {
+    console.warn('[Turnstile] No secret key configured, skipping verification');
+    return true;
+  }
+
+  try {
+    const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        secret: secretKey,
+        response: token,
+      }),
+    });
+
+    const data = await response.json() as { success: boolean; 'error-codes'?: string[] };
+
+    if (!data.success) {
+      console.error('[Turnstile] Verification failed:', data['error-codes']);
+      return false;
+    }
+
+    console.log('[Turnstile] Token verified successfully');
+    return true;
+  } catch (error) {
+    console.error('[Turnstile] Verification error:', error);
+    return false;
+  }
+};
+
+/**
  * Save participant responses for a module
  * This is the modern endpoint for saving responses from participant-frontend
  */
@@ -334,6 +375,17 @@ export const saveParticipantResponses = async (
   payload: ParticipantResponsePayload
 ) => {
   const { participantId, moduleId, responses, metadata = {} } = payload;
+
+  // Verify Turnstile token (anti-bot protection)
+  const turnstileToken = metadata.turnstileToken as string | undefined;
+  if (turnstileToken) {
+    const isValid = await verifyTurnstileToken(turnstileToken);
+    if (!isValid) {
+      throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+    }
+  } else {
+    console.warn('[Turnstile] No token provided in metadata. This might be a preview mode request or an old client.');
+  }
 
   /**
    * Checks whether a string is valid JSON text.
