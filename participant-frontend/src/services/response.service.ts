@@ -4,6 +4,7 @@
  */
 
 import { configService } from './config.service';
+import { useSessionStore } from '../stores/useSessionStore';
 
 interface ResponseData {
     moduleId: string;
@@ -60,12 +61,23 @@ class ResponseService {
             const endpoint = `/public/research/${researchId}/responses`;
             const url = `${this.baseUrl}${endpoint}`;
 
+            // Get Turnstile token from session store (if available)
+            let turnstileToken: string | undefined;
+            try {
+                const token = useSessionStore.getState().turnstileToken;
+                turnstileToken = token || undefined;
+            } catch {
+                console.warn('[ResponseService] Could not get Turnstile token for submitResponse');
+            }
+
             const payload = {
                 participantId,
                 moduleId: response.moduleId,
                 responses: [response],
                 metadata: {
                     timestamp: Date.now(),
+                    turnstileToken,
+                    isPreviewMode: false,
                 },
             };
 
@@ -78,7 +90,25 @@ class ResponseService {
             });
 
             if (!httpResponse.ok) {
-                throw new Error(`Failed to submit response: ${httpResponse.statusText}`);
+                const errorText = await httpResponse.text();
+                let errorMessage = `Failed to submit response: ${httpResponse.statusText}`;
+                
+                try {
+                    const errorData = JSON.parse(errorText) as { message?: string; error?: string };
+                    errorMessage = errorData.message || errorData.error || errorMessage;
+                } catch {
+                    if (errorText) {
+                        errorMessage = errorText;
+                    }
+                }
+                
+                if (errorMessage.includes('verification') || errorMessage.includes('Anti-bot') || errorMessage.includes('security') || errorMessage.includes('Turnstile')) {
+                    const verificationError = new Error(errorMessage);
+                    verificationError.name = 'TurnstileVerificationError';
+                    throw verificationError;
+                }
+                
+                throw new Error(errorMessage);
             }
 
             const result = await httpResponse.json() as SubmitResponseResult;
@@ -115,7 +145,28 @@ class ResponseService {
             });
 
             if (!httpResponse.ok) {
-                throw new Error(`Failed to submit module responses: ${httpResponse.statusText}`);
+                const errorText = await httpResponse.text();
+                let errorMessage = `Failed to submit module responses: ${httpResponse.statusText}`;
+                
+                // Try to parse error message from response
+                try {
+                    const errorData = JSON.parse(errorText) as { message?: string; error?: string };
+                    errorMessage = errorData.message || errorData.error || errorMessage;
+                } catch {
+                    // If parsing fails, use the text as is
+                    if (errorText) {
+                        errorMessage = errorText;
+                    }
+                }
+                
+                // Check if error is related to Turnstile verification
+                if (errorMessage.includes('verification') || errorMessage.includes('Anti-bot') || errorMessage.includes('security') || errorMessage.includes('Turnstile')) {
+                    const verificationError = new Error(errorMessage);
+                    verificationError.name = 'TurnstileVerificationError';
+                    throw verificationError;
+                }
+                
+                throw new Error(errorMessage);
             }
 
             const result = await httpResponse.json() as SubmitResponseResult;
@@ -155,12 +206,24 @@ class ResponseService {
             return null;
         }
 
+        // Get Turnstile token from session store (if available)
+        let turnstileToken: string | undefined;
+        try {
+            const token = useSessionStore.getState().turnstileToken;
+            turnstileToken = token || undefined;
+        } catch {
+            // If store is not available, token will be undefined
+            console.warn('[ResponseService] Could not get Turnstile token for flushModule');
+        }
+
         const payload: ModuleResponsePayload = {
             participantId,
             moduleId,
             responses: queue,
             metadata: {
                 completedAt: Date.now(),
+                turnstileToken,
+                isPreviewMode: false,
             },
         };
 

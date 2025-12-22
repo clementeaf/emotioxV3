@@ -410,6 +410,8 @@ export const ResearchPage = () => {
       // Start a new session
       startNewSession();
       clearAllResponses();
+      // Clear Turnstile token to force re-verification
+      useSessionStore.getState().clearTurnstileToken();
       // Reset to first step
       useParticipantStore.getState().setCurrentStep('welcome');
       setShowRestartOption(false);
@@ -418,8 +420,8 @@ export const ResearchPage = () => {
 
     // Verify Turnstile token on welcome step (only in participant mode)
     if (currentStep === 'welcome' && !isPreviewMode) {
-      const { turnstileVerified } = useSessionStore.getState();
-      if (!turnstileVerified) {
+      const { turnstileVerified, turnstileToken } = useSessionStore.getState();
+      if (!turnstileVerified || !turnstileToken) {
         alert('Por favor, completa la verificación de seguridad antes de continuar.');
         return;
       }
@@ -447,6 +449,13 @@ export const ResearchPage = () => {
 
     // In participant mode, send data to backend
     if (participantId && researchId && currentModule) {
+      // Verify Turnstile token before submitting (required for anti-bot protection)
+      const { turnstileToken, turnstileVerified } = useSessionStore.getState();
+      if (!turnstileVerified || !turnstileToken) {
+        alert('La verificación de seguridad es requerida. Por favor, recarga la página y completa la verificación.');
+        return;
+      }
+
       // Get all responses for current module
       const moduleResponses = getResponsesByModule(currentModule.id).map((response) => ({
         moduleId: currentModule.id,
@@ -464,24 +473,31 @@ export const ResearchPage = () => {
           setSubmitting(true);
           console.log(`[Participant Mode] Submitting responses for module: ${currentModule.id}`);
 
-          // Get Turnstile token for anti-bot verification
-          const { turnstileToken } = useSessionStore.getState();
-
           await responseService.submitModuleResponses(researchId, participantId, {
             participantId,
             moduleId: currentModule.id,
             responses: moduleResponses,
             metadata: {
               completedAt: Date.now(),
-              turnstileToken: turnstileToken || undefined,
+              turnstileToken,
+              isPreviewMode: false,
             },
           });
 
           console.log(`Submitted ${moduleResponses.length} responses for module ${currentModule.id}`);
         } catch (error: unknown) {
           console.error('Error submitting responses:', error);
-          // Don't block navigation on error, just log it
-          alert('Error al guardar respuestas. Por favor, intenta nuevamente.');
+          
+          // Check if error is related to Turnstile verification
+          const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+          if (errorMessage.includes('verification') || errorMessage.includes('Anti-bot') || errorMessage.includes('security')) {
+            alert('Error de verificación de seguridad. Por favor, recarga la página y completa la verificación nuevamente.');
+            // Clear token to force re-verification
+            useSessionStore.getState().clearTurnstileToken();
+          } else {
+            alert('Error al guardar respuestas. Por favor, intenta nuevamente.');
+          }
+          
           setSubmitting(false);
           return;
         } finally {

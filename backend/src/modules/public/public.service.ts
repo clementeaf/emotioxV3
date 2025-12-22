@@ -288,6 +288,11 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
   );
 };
 
+/**
+ * Legacy endpoint for saving responses (deprecated)
+ * @param data - Response data in legacy format
+ * @returns Saved response record
+ */
 export const saveResponse = async (data: Record<string, unknown>) => {
   const { research_id, participant_id, module_id, question_id, answer, metadata = {} } = data;
 
@@ -295,6 +300,42 @@ export const saveResponse = async (data: Record<string, unknown>) => {
   // This prevents preview mode responses from being saved
   if (!participant_id || typeof participant_id !== 'string' || participant_id.trim() === '') {
     throw new Error('participant_id is required. Preview mode responses are not saved.');
+  }
+
+  // Verify Turnstile token for legacy endpoint (anti-bot protection)
+  const metadataRecord = typeof metadata === 'object' && metadata !== null ? metadata as Record<string, unknown> : {};
+  const turnstileToken = metadataRecord.turnstileToken as string | undefined;
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isPreviewMode = metadataRecord.isPreviewMode === true;
+
+  // In production, token is mandatory (except for preview mode)
+  if (isProduction && !isPreviewMode) {
+    if (!turnstileToken) {
+      console.error('[Turnstile] Token is required in production but not provided (legacy endpoint)');
+      throw new Error('Anti-bot verification is required. Please refresh the page and complete the security check.');
+    }
+
+    try {
+      const isValid = await verifyTurnstileToken(turnstileToken);
+      if (!isValid) {
+        throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown verification error';
+      console.error('[Turnstile] Verification error (legacy endpoint):', errorMessage);
+      throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+    }
+  } else if (turnstileToken) {
+    // In development or preview mode, validate if token is provided but don't require it
+    const isValid = await verifyTurnstileToken(turnstileToken);
+    if (!isValid) {
+      console.warn('[Turnstile] Token validation failed in development/preview mode (legacy endpoint), but allowing request');
+      if (isProduction) {
+        throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+      }
+    }
+  } else {
+    console.warn('[Turnstile] No token provided in metadata (legacy endpoint). This might be a preview mode request or development environment.');
   }
 
   const query = `
@@ -329,14 +370,27 @@ interface ParticipantResponsePayload {
  * Verifies Cloudflare Turnstile token
  * @param token - Turnstile token from frontend
  * @returns true if token is valid, false otherwise
+ * @throws Error if secret key is required but not configured in production
  */
 const verifyTurnstileToken = async (token: string): Promise<boolean> => {
   const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // If no secret key is configured, skip validation (for development/testing)
+  // In production, secret key is mandatory
   if (!secretKey) {
-    console.warn('[Turnstile] No secret key configured, skipping verification');
+    if (isProduction) {
+      console.error('[Turnstile] TURNSTILE_SECRET_KEY is required in production but not configured');
+      throw new Error('Turnstile verification is not properly configured. Please contact support.');
+    }
+    // In development, allow skipping validation but log warning
+    console.warn('[Turnstile] No secret key configured, skipping verification (development mode)');
     return true;
+  }
+
+  // Validate token format (basic check)
+  if (!token || typeof token !== 'string' || token.trim().length === 0) {
+    console.error('[Turnstile] Invalid token format');
+    return false;
   }
 
   try {
@@ -351,17 +405,27 @@ const verifyTurnstileToken = async (token: string): Promise<boolean> => {
       }),
     });
 
-    const data = await response.json() as { success: boolean; 'error-codes'?: string[] };
+    if (!response.ok) {
+      console.error('[Turnstile] Verification request failed with status:', response.status);
+      return false;
+    }
+
+    const data = await response.json() as { success: boolean; 'error-codes'?: string[]; challenge_ts?: string };
 
     if (!data.success) {
-      console.error('[Turnstile] Verification failed:', data['error-codes']);
+      const errorCodes = data['error-codes'] || [];
+      console.error('[Turnstile] Verification failed:', {
+        errorCodes,
+        challengeTimestamp: data.challenge_ts,
+      });
       return false;
     }
 
     console.log('[Turnstile] Token verified successfully');
     return true;
   } catch (error) {
-    console.error('[Turnstile] Verification error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Turnstile] Verification error:', errorMessage);
     return false;
   }
 };
@@ -378,13 +442,44 @@ export const saveParticipantResponses = async (
 
   // Verify Turnstile token (anti-bot protection)
   const turnstileToken = metadata.turnstileToken as string | undefined;
-  if (turnstileToken) {
-    const isValid = await verifyTurnstileToken(turnstileToken);
-    if (!isValid) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isPreviewMode = metadata.isPreviewMode === true;
+
+  // In production, token is mandatory (except for preview mode)
+  if (isProduction && !isPreviewMode) {
+    if (!turnstileToken) {
+      console.error('[Turnstile] Token is required in production but not provided');
+      throw new Error('Anti-bot verification is required. Please refresh the page and complete the security check.');
+    }
+
+    try {
+      const isValid = await verifyTurnstileToken(turnstileToken);
+      if (!isValid) {
+        throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown verification error';
+      console.error('[Turnstile] Verification error:', errorMessage);
       throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
     }
   } else {
-    console.warn('[Turnstile] No token provided in metadata. This might be a preview mode request or an old client.');
+    // In development or preview mode, validate if token is provided but don't require it
+    if (turnstileToken) {
+      const isValid = await verifyTurnstileToken(turnstileToken);
+      if (!isValid) {
+        console.warn('[Turnstile] Token validation failed in development/preview mode, but allowing request');
+        // In development, we log but don't block
+        if (isProduction) {
+          throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+        }
+      }
+    } else {
+      if (isProduction && !isPreviewMode) {
+        // This should not happen due to check above, but adding as safety
+        throw new Error('Anti-bot verification is required. Please refresh the page and complete the security check.');
+      }
+      console.warn('[Turnstile] No token provided in metadata. This might be a preview mode request or development environment.');
+    }
   }
 
   /**
