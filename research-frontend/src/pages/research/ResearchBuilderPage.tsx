@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../components/ui/Button';
 import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
 import type { Research, Stage, Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
@@ -14,6 +13,8 @@ import { SortableSmartVOCCard } from '../../components/research/SortableSmartVOC
 import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
+import { StageEmptyState } from '../../components/research/StageEmptyState';
+import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
@@ -423,30 +424,12 @@ export const ResearchBuilderPage = () => {
 
     // Loading state
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                    <p className="mt-4 text-gray-600">Loading research...</p>
-                </div>
-            </div>
-        );
+        return <LoadingErrorStates type="loading" />;
     }
 
     // Error state
     if (error || !typedResearch) {
-        const errorMessage = error instanceof Error ? error.message : error ? String(error) : 'Research not found';
-        return (
-            <div className="max-w-2xl mx-auto mt-8">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Research</h2>
-                    <p className="text-red-600 mb-4">{errorMessage}</p>
-                    <Button onClick={() => navigate('/research')} variant="outline">
-                        Back to Research List
-                    </Button>
-                </div>
-            </div>
-        );
+        return <LoadingErrorStates type="error" error={error} onBack={() => navigate('/research')} />;
     }
 
     return (
@@ -508,24 +491,11 @@ export const ResearchBuilderPage = () => {
 
             {/* Smart VOC Stage Empty State */}
             {isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
-                <div className="flex flex-col items-center justify-center h-96 text-center">
-                    <div className="max-w-md">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Smart VOC Modules</h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                            This Smart VOC stage doesn&apos;t have any modules yet. You can add modules from templates.
-                        </p>
-                        <Button
-                            onClick={() => handleOpenTemplateModal(smartVOCStage)}
-                            variant="primary"
-                            className="mt-2"
-                        >
-                            Add Module from Template
-                        </Button>
-                        <p className="text-xs text-gray-500 mt-4">
-                            Or delete this stage if you don&apos;t need it for your research.
-                        </p>
-                    </div>
-                </div>
+                <StageEmptyState
+                    stageName={smartVOCStage.name}
+                    stageType="smart-voc"
+                    onAddModule={() => handleOpenTemplateModal(smartVOCStage)}
+                />
             )}
 
             {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
@@ -558,24 +528,11 @@ export const ResearchBuilderPage = () => {
 
             {/* Cognitive Tasks Stage Empty State */}
             {isCognitiveTasksStage && cognitiveTaskModules.length === 0 && cognitiveTasksStage && (
-                <div className="flex flex-col items-center justify-center h-96 text-center">
-                    <div className="max-w-md">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">No Cognitive Task Modules</h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                            This Cognitive Tasks stage doesn&apos;t have any modules yet. You can add task modules from templates.
-                        </p>
-                        <Button
-                            onClick={() => handleOpenTemplateModal(cognitiveTasksStage)}
-                            variant="primary"
-                            className="mt-2"
-                        >
-                            Add Module from Template
-                        </Button>
-                        <p className="text-xs text-gray-500 mt-4">
-                            Or delete this stage if you only want to use Smart VOC in your research.
-                        </p>
-                    </div>
-                </div>
+                <StageEmptyState
+                    stageName={cognitiveTasksStage.name}
+                    stageType="cognitive-tasks"
+                    onAddModule={() => handleOpenTemplateModal(cognitiveTasksStage)}
+                />
             )}
 
             {/* Regular module view: Show single module */}
