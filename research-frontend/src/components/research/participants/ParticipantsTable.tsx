@@ -169,7 +169,7 @@ export function ParticipantsTable({
             } else {
                 toast.error('Error al eliminar participante');
             }
-        } catch (error) {
+        } catch {
             toast.error('Error al eliminar participante');
         } finally {
             setIsDeleting(false);
@@ -209,7 +209,7 @@ export function ParticipantsTable({
             } else {
                 toast.success(`Se eliminaron ${successful} participante(s) correctamente`);
             }
-        } catch (error) {
+        } catch {
             toast.error('Error al eliminar participantes');
         } finally {
             setIsDeleting(false);
@@ -229,7 +229,7 @@ export function ParticipantsTable({
             const url = getPublicTestsUrl(researchId, participantId);
             await navigator.clipboard.writeText(url);
             toast.success('URL copiada al portapapeles');
-        } catch (err) {
+        } catch {
             toast.error('Error al copiar URL');
         }
     };

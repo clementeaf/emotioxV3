@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface Participant {
     id: string;
@@ -42,24 +42,6 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
         },
         lastUpdate: new Date().toISOString()
     });
-    
-    // Create refs to store the latest function instances
-    const handleParticipantLoginRef = useRef<((data: { participantId: string; timestamp: string }) => void) | null>(null);
-    const handleParticipantStepRef = useRef<((data: { participantId: string; stepName: string; progress: number; timestamp: string; duration: string }) => void) | null>(null);
-    const handleParticipantDisqualifiedRef = useRef<((data: { participantId: string; reason: string; timestamp: string }) => void) | null>(null);
-    const handleParticipantQuotaExceededRef = useRef<((data: { participantId: string; quotaType: string; quotaValue: string; timestamp: string }) => void) | null>(null);
-    const handleParticipantCompletedRef = useRef<((data: { participantId: string; timestamp: string }) => void) | null>(null);
-    const handleParticipantErrorRef = useRef<((data: { participantId: string; timestamp: string }) => void) | null>(null);
-    
-    // Update refs when functions change
-    useEffect(() => {
-        handleParticipantLoginRef.current = handleParticipantLogin;
-        handleParticipantStepRef.current = handleParticipantStep;
-        handleParticipantDisqualifiedRef.current = handleParticipantDisqualified;
-        handleParticipantQuotaExceededRef.current = handleParticipantQuotaExceeded;
-        handleParticipantCompletedRef.current = handleParticipantCompleted;
-        handleParticipantErrorRef.current = handleParticipantError;
-    });
 
     const getWebsocketUrl = (): string => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -67,96 +49,7 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
         return `${protocol}//${host}/ws`;
     };
 
-    const connect = useCallback(() => {
-        if (!researchId || !token) {
-            setError('Missing researchId or token');
-            return;
-        }
-
-        // Close existing connection if any
-        if (ws) {
-            ws.close();
-        }
-
-        try {
-            const wsUrl = `${getWebsocketUrl()}?researchId=${researchId}&token=${token}`;
-            const newWs = new WebSocket(wsUrl);
-
-            newWs.onopen = () => {
-                setIsConnected(true);
-                setError(null);
-                console.log('Monitoring WebSocket connected');
-            };
-
-            newWs.onmessage = (event) => {
-                try {
-                    const eventMessage = JSON.parse(event.data);
-                    
-                    switch (eventMessage.type) {
-                        case 'PARTICIPANT_LOGIN':
-                            handleParticipantLoginRef.current?.(eventMessage.data as { participantId: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_STEP':
-                            handleParticipantStepRef.current?.(eventMessage.data as { participantId: string; stepName: string; progress: number; timestamp: string; duration: string });
-                            break;
-                        case 'PARTICIPANT_DISQUALIFIED':
-                            handleParticipantDisqualifiedRef.current?.(eventMessage.data as { participantId: string; reason: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_QUOTA_EXCEEDED':
-                            handleParticipantQuotaExceededRef.current?.(eventMessage.data as { participantId: string; quotaType: string; quotaValue: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_COMPLETED':
-                            handleParticipantCompletedRef.current?.(eventMessage.data as { participantId: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_ERROR':
-                            handleParticipantErrorRef.current?.(eventMessage.data as { participantId: string; timestamp: string });
-                            break;
-                        default:
-                            break;
-                    }
-                } catch (parseError) {
-                    console.error('Error parsing WebSocket message:', parseError);
-                }
-            };
-
-            newWs.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                setError('WebSocket connection error');
-            };
-
-            newWs.onclose = () => {
-                setIsConnected(false);
-                console.log('Monitoring WebSocket disconnected');
-            };
-
-            setWs(newWs);
-        } catch (connectionError) {
-            console.error('Failed to create WebSocket connection:', connectionError);
-            setError('Failed to establish WebSocket connection');
-        }
-    }, [researchId, token]);
-
-    const disconnect = useCallback(() => {
-        if (ws) {
-            ws.close();
-            setWs(null);
-            setIsConnected(false);
-        }
-    }, [ws]);
-
-    // Initialize connection when researchId and token are available
-    useEffect(() => {
-        if (researchId && token) {
-            connect();
-        } else {
-            disconnect();
-        }
-
-        return () => {
-            disconnect();
-        };
-    }, [researchId, token, connect, disconnect]);
-
+    // Event handlers
     const handleParticipantLogin = useCallback((data: { participantId: string; timestamp: string }) => {
         setMonitoringData(prev => {
             const participantExists = prev.participants.some(p => p.id === data.participantId);
@@ -194,15 +87,15 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
                 if (p.id === data.participantId) {
                     // Check if step already exists
                     const stepExists = p.steps.some(step => step.name === data.stepName);
-                    
-                    const updatedSteps = stepExists 
-                        ? p.steps.map(step => 
-                            step.name === data.stepName 
-                                ? { ...step, completed: true, duration: data.duration } 
+
+                    const updatedSteps = stepExists
+                        ? p.steps.map(step =>
+                            step.name === data.stepName
+                                ? { ...step, completed: true, duration: data.duration }
                                 : step
                           )
                         : [...p.steps, { name: data.stepName, completed: true, duration: data.duration }];
-                    
+
                     const completedSteps = updatedSteps.filter(step => step.completed).length;
                     const totalSteps = updatedSteps.length;
                     const newProgress = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
@@ -295,6 +188,96 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
         // Handle participant error event
         console.log('Participant error:', data);
     }, []);
+
+    const connect = useCallback(() => {
+        if (!researchId || !token) {
+            setError('Missing researchId or token');
+            return;
+        }
+
+        // Close existing connection if any
+        if (ws) {
+            ws.close();
+        }
+
+        try {
+            const wsUrl = `${getWebsocketUrl()}?researchId=${researchId}&token=${token}`;
+            const newWs = new WebSocket(wsUrl);
+
+            newWs.onopen = () => {
+                setIsConnected(true);
+                setError(null);
+                console.log('Monitoring WebSocket connected');
+            };
+
+            newWs.onmessage = (event) => {
+                try {
+                    const eventMessage = JSON.parse(event.data);
+
+                    switch (eventMessage.type) {
+                        case 'PARTICIPANT_LOGIN':
+                            handleParticipantLogin(eventMessage.data as { participantId: string; timestamp: string });
+                            break;
+                        case 'PARTICIPANT_STEP':
+                            handleParticipantStep(eventMessage.data as { participantId: string; stepName: string; progress: number; timestamp: string; duration: string });
+                            break;
+                        case 'PARTICIPANT_DISQUALIFIED':
+                            handleParticipantDisqualified(eventMessage.data as { participantId: string; reason: string; timestamp: string });
+                            break;
+                        case 'PARTICIPANT_QUOTA_EXCEEDED':
+                            handleParticipantQuotaExceeded(eventMessage.data as { participantId: string; quotaType: string; quotaValue: string; timestamp: string });
+                            break;
+                        case 'PARTICIPANT_COMPLETED':
+                            handleParticipantCompleted(eventMessage.data as { participantId: string; timestamp: string });
+                            break;
+                        case 'PARTICIPANT_ERROR':
+                            handleParticipantError(eventMessage.data as { participantId: string; timestamp: string });
+                            break;
+                        default:
+                            break;
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing WebSocket message:', parseError);
+                }
+            };
+
+            newWs.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                setError('WebSocket connection error');
+            };
+
+            newWs.onclose = () => {
+                setIsConnected(false);
+                console.log('Monitoring WebSocket disconnected');
+            };
+
+            setWs(newWs);
+        } catch (connectionError) {
+            console.error('Failed to create WebSocket connection:', connectionError);
+            setError('Failed to establish WebSocket connection');
+        }
+    }, [researchId, token, ws, handleParticipantLogin, handleParticipantStep, handleParticipantDisqualified, handleParticipantQuotaExceeded, handleParticipantCompleted, handleParticipantError]);
+
+    const disconnect = useCallback(() => {
+        if (ws) {
+            ws.close();
+            setWs(null);
+            setIsConnected(false);
+        }
+    }, [ws]);
+
+    // Initialize connection when researchId and token are available
+    useEffect(() => {
+        if (researchId && token) {
+            connect();
+        } else {
+            disconnect();
+        }
+
+        return () => {
+            disconnect();
+        };
+    }, [researchId, token, connect, disconnect]);
 
     return {
         isConnected,
