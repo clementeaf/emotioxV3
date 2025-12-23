@@ -6,6 +6,8 @@ export { Textarea } from './Textarea';
 export { Card } from './Card';
 export { Checkbox } from './Checkbox';
 export { Toggle } from './Toggle';
+export { Badge } from './Badge';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
 export * from './ConfirmationModal';
 export { FileUpload } from './FileUpload';
 export { Hitzone } from './Hitzone';

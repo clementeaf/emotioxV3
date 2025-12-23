@@ -236,10 +236,7 @@ export const ResearchBuilderPage = () => {
                     const required = moduleRef.getRequired();
                     const hidden = moduleRef.getHidden();
                     
-                    console.log(`Saving ${module.name}:`, {
-                        componentValues: currentComponentValues,
-                        components: currentComponents
-                    });
+                    // Removed excessive logging for production
                     
                     // Update components with new values
                     const updatedComponents = currentComponents.map(comp => ({
@@ -249,7 +246,7 @@ export const ResearchBuilderPage = () => {
                             : (currentComponentValues[comp.id] || comp.value)
                     }));
                     
-                    console.log(`Updated components:`, updatedComponents);
+                    // Removed excessive logging for production
                     
                     // Preserve the correct backend structure
                     const configWithStructure = {
@@ -286,17 +283,14 @@ export const ResearchBuilderPage = () => {
                     const required = moduleRef.getRequired();
                     const hidden = moduleRef.getHidden();
                     
-                    console.log(`Saving ${module.name}:`, {
-                        componentValues: currentComponentValues,
-                        components: currentComponents
-                    });
+                    // Removed excessive logging for production
                     
                     const updatedComponents = currentComponents.map(comp => ({
                         ...comp,
                         value: currentComponentValues[comp.id] || comp.value
                     }));
                     
-                    console.log(`Updated components:`, updatedComponents);
+                    // Removed excessive logging for production
                     
                     const configWithStructure = {
                         ...module.config,

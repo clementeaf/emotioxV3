@@ -127,11 +127,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         if (path === '/auth/me' && httpMethod === 'GET') {
             try {
                 const decoded = await requireAuth(event);
-                console.log('GET /auth/me - Token decoded:', {
-                    sub: decoded.sub,
-                    email: decoded.email,
-                    username: decoded['cognito:username'],
-                });
+                // Token decoded successfully, proceeding with request
                 
                 const user = await authService.getMe(decoded.sub);
                 return success({ user }, 200, undefined, origin);

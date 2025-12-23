@@ -2,7 +2,9 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth';
 import * as researchService from './research.service';
+import * as researchInProgressService from './research-in-progress.service';
 import * as authService from '../auth/auth.service';
+import * as publicService from '../public/public.service';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -107,6 +109,50 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const moduleId = deleteModuleMatch[2];
             const result = await researchService.deleteModule(researchId, user.id, moduleId);
             return success(result, 200, undefined, origin);
+        }
+
+        // GET /research/:id/metrics
+        const metricsMatch = path.match(/^\/research\/([^\/]+)\/metrics$/);
+        if (metricsMatch && httpMethod === 'GET') {
+            const researchId = metricsMatch[1];
+            const metrics = await researchInProgressService.getOverviewMetrics(researchId, user.id);
+            return success(metrics, 200, undefined, origin);
+        }
+
+        // GET /research/:id/participants/status
+        const participantsStatusMatch = path.match(/^\/research\/([^\/]+)\/participants\/status$/);
+        if (participantsStatusMatch && httpMethod === 'GET') {
+            const researchId = participantsStatusMatch[1];
+            const participants = await researchInProgressService.getParticipantsWithStatus(researchId, user.id);
+            return success(participants, 200, undefined, origin);
+        }
+
+        // GET /research/:id/participants/:participantId
+        const participantDetailsMatch = path.match(/^\/research\/([^\/]+)\/participants\/([^\/]+)$/);
+        if (participantDetailsMatch && httpMethod === 'GET') {
+            const researchId = participantDetailsMatch[1];
+            const participantId = participantDetailsMatch[2];
+            const participant = await researchInProgressService.getParticipantDetails(researchId, participantId, user.id);
+            return success(participant, 200, undefined, origin);
+        }
+
+        // DELETE /research/:id/participants/:participantId
+        const deleteParticipantMatch = path.match(/^\/research\/([^\/]+)\/participants\/([^\/]+)$/);
+        if (deleteParticipantMatch && httpMethod === 'DELETE') {
+            const researchId = deleteParticipantMatch[1];
+            const participantId = deleteParticipantMatch[2];
+            const result = await researchInProgressService.deleteParticipant(researchId, participantId, user.id);
+            return success(result, 200, undefined, origin);
+        }
+
+        // GET /eye-tracking-recruit/research/:id
+        const eyeTrackingRecruitMatch = path.match(/^\/eye-tracking-recruit\/research\/([^\/]+)$/);
+        if (eyeTrackingRecruitMatch && httpMethod === 'GET') {
+            const researchId = eyeTrackingRecruitMatch[1];
+            // Verificar que el research existe y pertenece al usuario
+            await researchService.getById(researchId, user.id);
+            const config = await publicService.getResearchConfiguration(researchId);
+            return success({ linkConfig: config.linkConfig || {}, ...config }, 200, undefined, origin);
         }
 
         return error('Route not found', 404, undefined, origin);

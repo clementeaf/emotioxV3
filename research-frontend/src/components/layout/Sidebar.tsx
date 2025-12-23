@@ -13,7 +13,8 @@ import {
     ChevronDown,
     ChevronRight,
     Trash2,
-    BarChart3
+    BarChart3,
+    TrendingUp
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -543,6 +544,29 @@ export const Sidebar = () => {
                             ) : (
                                 <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Progress Section */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Progress
+                            </h3>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/progress`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    location.pathname.includes('/builder/progress')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <TrendingUp className="h-4 w-4 mr-2" />
+                                View Progress
+                            </Link>
                         </div>
                     </div>
 

@@ -10,6 +10,7 @@ export interface Response {
     participant_id: string;
     response_value: string | number | boolean | Record<string, unknown> | unknown[] | null;
     value?: string | number | boolean | Record<string, unknown> | unknown[] | null;
+    metadata?: string | Record<string, unknown> | null;
     created_at: string;
     updated_at: string;
 }

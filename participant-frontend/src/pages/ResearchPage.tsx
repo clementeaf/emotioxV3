@@ -145,24 +145,13 @@ export const ResearchPage = () => {
 
         // Fetch research data from backend
         const research = await publicService.getResearch(researchId);
-        console.log('[ResearchPage] Loaded research from backend:', research);
+        // Removed excessive logging for production
         
         // Log Welcome Screen module details if it exists
         const welcomeModule = research.stages?.flatMap(s => s.modules || [])
           .find(m => m.name === 'Welcome Screen');
         if (welcomeModule) {
-          console.log('[ResearchPage] Welcome Screen module from backend:', welcomeModule);
-          const structure = welcomeModule.config?.structure as { components?: Array<{ id?: string; type?: string; label?: string; name?: string; value?: unknown; defaultValue?: string; settings?: Record<string, unknown> }> } | undefined;
-          console.log('[ResearchPage] Welcome Screen structure:', structure);
-          console.log('[ResearchPage] Welcome Screen components:', structure?.components?.map((c: { id?: string; type?: string; label?: string; name?: string; value?: unknown; defaultValue?: string; settings?: Record<string, unknown> }) => ({
-            id: c.id,
-            type: c.type,
-            label: c.label,
-            name: c.name,
-            value: c.value,
-            defaultValue: c.defaultValue,
-            settings: c.settings
-          })));
+          // Removed unused variable and logging for production
         }
 
         // Check mobile device restriction
@@ -257,7 +246,7 @@ export const ResearchPage = () => {
           linkConfig: linkConfig,
         });
 
-        console.log('Research loaded:', research.title || research.name, `(${Object.keys(modulesMap).length} modules)`);
+        // Removed excessive logging for production
       } catch (err: unknown) {
         console.error('Failed to load research:', err);
         setError('Failed to load research. Please try again.');
@@ -275,10 +264,7 @@ export const ResearchPage = () => {
   // Get current module
   const currentModule = useMemo(() => modules[currentStep], [modules, currentStep]);
 
-  // Log version to verify new code is loaded
-  useEffect(() => {
-    console.log('[ResearchPage] ✅ VERSION 1bd5f18 - New button text code loaded!', new Date().toISOString());
-  }, []);
+  // Removed version logging for production
 
   /**
    * Checks if a component is the start_button_text component
@@ -321,39 +307,38 @@ export const ResearchPage = () => {
 
     // For Welcome Screen, use the start_button_text component value
     if (module.name === 'Welcome Screen') {
-      console.log('[ResearchPage] Welcome Screen module:', module);
-      console.log('[ResearchPage] Module structure components:', module.structure?.components?.map(c => ({ id: c.id, type: c.type, label: c.label, name: c.name, value: c.value, defaultValue: c.defaultValue })));
+      // Removed excessive logging for production
       
       const startButtonComponent = module.structure?.components?.find((comp) => isStartButtonComponent(comp));
       
-      console.log('[ResearchPage] Found startButtonComponent:', startButtonComponent);
+      // Removed excessive logging for production
       
       if (startButtonComponent) {
         // Try to get value from component.value, component.defaultValue, or component.settings.defaultValue
         let buttonText = getComponentText(startButtonComponent);
-        console.log('[ResearchPage] getComponentText result:', buttonText);
+        // Removed excessive logging for production
         
         // If getComponentText doesn't return a value, try other sources
         if (!buttonText || buttonText.trim().length === 0) {
           if (typeof startButtonComponent.value === 'string' && startButtonComponent.value.trim().length > 0) {
             buttonText = startButtonComponent.value;
-            console.log('[ResearchPage] Using component.value:', buttonText);
+            // Removed excessive logging for production
           } else if (typeof startButtonComponent.defaultValue === 'string' && startButtonComponent.defaultValue.trim().length > 0) {
             buttonText = startButtonComponent.defaultValue;
-            console.log('[ResearchPage] Using component.defaultValue:', buttonText);
+            // Removed excessive logging for production
           } else if (typeof startButtonComponent.settings?.defaultValue === 'string' && startButtonComponent.settings.defaultValue.trim().length > 0) {
             buttonText = startButtonComponent.settings.defaultValue;
-            console.log('[ResearchPage] Using component.settings.defaultValue:', buttonText);
+            // Removed excessive logging for production
           }
         }
         
-        console.log('[ResearchPage] Final buttonText:', buttonText);
+        // Removed excessive logging for production
         
         if (buttonText && buttonText.trim().length > 0) {
           return buttonText;
         }
       } else {
-        console.log('[ResearchPage] startButtonComponent not found! Searching in:', module.structure?.components?.map(c => ({ id: c.id, label: c.label, name: c.name })));
+        // Removed excessive logging for production
       }
     }
 
@@ -429,7 +414,7 @@ export const ResearchPage = () => {
 
     // In preview mode, don't send data to backend
     if (isPreviewMode) {
-      console.log('[Preview Mode] Skipping data submission');
+      // Removed excessive logging for production
       const result = goNext();
       if (!result.success && result.errors) {
         const errorMessage = result.errors.map(e => e.message).join('\n');
@@ -471,7 +456,7 @@ export const ResearchPage = () => {
       if (moduleResponses.length > 0) {
         try {
           setSubmitting(true);
-          console.log(`[Participant Mode] Submitting responses for module: ${currentModule.id}`);
+          // Removed excessive logging for production
 
           await responseService.submitModuleResponses(researchId, participantId, {
             participantId,
@@ -484,7 +469,7 @@ export const ResearchPage = () => {
             },
           });
 
-          console.log(`Submitted ${moduleResponses.length} responses for module ${currentModule.id}`);
+          // Removed excessive logging for production
         } catch (error: unknown) {
           console.error('Error submitting responses:', error);
           
@@ -504,7 +489,7 @@ export const ResearchPage = () => {
           setSubmitting(false);
         }
       } else {
-        console.log(`[Participant Mode] No responses to submit for module: ${currentModule.id}`);
+        // Removed excessive logging for production
       }
     }
 

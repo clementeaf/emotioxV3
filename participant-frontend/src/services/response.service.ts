@@ -112,7 +112,7 @@ class ResponseService {
             }
 
             const result = await httpResponse.json() as SubmitResponseResult;
-      console.log('Response submitted:', response.moduleId, response.componentId);
+      // Removed excessive logging for production
             return result;
     } catch (error: unknown) {
             console.error('Error submitting response:', error);
@@ -170,7 +170,7 @@ class ResponseService {
             }
 
             const result = await httpResponse.json() as SubmitResponseResult;
-      console.log('Module responses submitted:', payload.moduleId, `(${payload.responses.length} responses)`);
+      // Removed excessive logging for production
             return result;
     } catch (error: unknown) {
             console.error('Error submitting module responses:', error);

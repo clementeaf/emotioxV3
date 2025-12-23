@@ -56,6 +56,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleResearchTypesRoutes(event);
         }
 
+        // Eye tracking recruit routes (must be before /research to avoid conflicts)
+        if (path.startsWith('/eye-tracking-recruit')) {
+            const { handleResearchRoutes } = await import('./modules/research/research.controller');
+            return await handleResearchRoutes(event);
+        }
+
         // Research routes (must be after research-types and research-techniques to avoid conflicts)
         if (path.startsWith('/research') && !path.startsWith('/research-types') && !path.startsWith('/research-techniques')) {
             const { handleResearchRoutes } = await import('./modules/research/research.controller');

@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import type { PoolClient } from 'pg';
 import cache, { CacheKeys } from '../../config/cache';
 
 export interface ResearchData {
@@ -78,7 +79,7 @@ export const create = async (userId: string, data: ResearchData) => {
     }
 };
 
-const cloneTemplateModulesInternal = async (client: any, researchId: string, researchTypeId: string, moduleNames: string[]) => {
+const cloneTemplateModulesInternal = async (client: PoolClient, researchId: string, researchTypeId: string, moduleNames: string[]) => {
     // Get research type with default_modules
     const typeQuery = 'SELECT default_modules FROM research_types WHERE id = $1';
     const typeResult = await client.query(typeQuery, [researchTypeId]);
@@ -137,7 +138,7 @@ const cloneTemplateModulesInternal = async (client: any, researchId: string, res
  * @param researchId - ID of the research
  * @param userId - ID of the user (for createStage)
  */
-const addDefaultStage = async (client: any, researchId: string, userId: string) => {
+const addDefaultStage = async (client: PoolClient, researchId: string, userId: string) => {
     try {
         // Check if "Research Configuration" stage template exists
         const stageTemplateQuery = `
