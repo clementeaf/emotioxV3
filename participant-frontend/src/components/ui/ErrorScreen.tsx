@@ -1,0 +1,29 @@
+import { Button } from './Button';
+
+interface ErrorScreenProps {
+  title?: string;
+  message: string;
+  onRetry?: () => void;
+  retryButtonText?: string;
+}
+
+export const ErrorScreen = ({
+  title = 'Error',
+  message,
+  onRetry,
+  retryButtonText = 'Retry'
+}: ErrorScreenProps) => {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">{title}</h1>
+        <p className="text-gray-600 mb-4">{message}</p>
+        {onRetry && (
+          <Button onClick={onRetry}>
+            {retryButtonText}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};

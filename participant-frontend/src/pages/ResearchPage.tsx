@@ -5,6 +5,12 @@ import { Button } from '../components/ui/Button';
 import { DevSidebar } from '../components/layout/DevSidebar';
 import { DynamicStep } from '../components/steps/DynamicStep';
 import { PreviewModeBanner } from '../components/ui/PreviewModeBanner';
+import { LoadingScreen } from '../components/ui/LoadingScreen';
+import { ErrorScreen } from '../components/ui/ErrorScreen';
+import { MobileRestrictionScreen } from '../components/ui/MobileRestrictionScreen';
+import { InvalidResearchScreen } from '../components/ui/InvalidResearchScreen';
+import { ResearchCompletionContent } from '../components/ui/ResearchCompletionContent';
+import { UnconfiguredStepContent } from '../components/ui/UnconfiguredStepContent';
 import { useSessionStore } from '../stores/useSessionStore';
 import { useParticipantStore } from '../stores/useParticipantStore';
 import { useNavigation } from '../hooks/useNavigation';
@@ -510,69 +516,22 @@ export const ResearchPage = () => {
   }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep]);
 
   if (!researchId) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">
-            Invalid Research
-          </h1>
-          <p className="text-gray-600">
-            No research ID provided
-          </p>
-        </div>
-      </div>
-    );
+    return <InvalidResearchScreen />;
   }
 
   // Show mobile restriction message
   if (mobileRestriction) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center max-w-md p-6">
-          <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
-            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Access Restricted
-          </h1>
-          <p className="text-gray-600 mb-6">
-            {mobileRestriction}
-          </p>
-          <Button onClick={() => window.location.reload()}>
-            Reload Page
-          </Button>
-        </div>
-      </div>
-    );
+    return <MobileRestrictionScreen message={mobileRestriction} />;
   }
 
   // Show loading state
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading research...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // Show error state
   if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
-            Retry
-          </Button>
-        </div>
-      </div>
-    );
+    return <ErrorScreen message={error} onRetry={() => window.location.reload()} />;
   }
 
   return (
@@ -614,28 +573,9 @@ export const ResearchPage = () => {
         {currentModule ? (
           <DynamicStep module={currentModule} onComplete={handleNext} />
         ) : showRestartOption ? (
-          <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
-            <div className="bg-green-100 rounded-full p-3 mb-4">
-              <svg className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              ¡Gracias por completar la encuesta!
-            </h1>
-            <p className="text-gray-600 max-w-md">
-              Esta investigación permite múltiples respuestas. Puedes comenzar de nuevo si lo deseas.
-            </p>
-          </div>
+          <ResearchCompletionContent showRestartOption={showRestartOption} />
         ) : (
-          <div className="flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Step: {currentStep}
-            </h1>
-            <p className="text-gray-500">
-              Este paso aún no está configurado.
-            </p>
-          </div>
+          <UnconfiguredStepContent currentStep={currentStep} />
         )}
       </MainLayout>
     </>
