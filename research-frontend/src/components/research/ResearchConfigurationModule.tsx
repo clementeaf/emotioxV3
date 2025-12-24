@@ -8,6 +8,31 @@ import { useUrlValidation } from '../../hooks/useUrlValidation';
 import { useToast } from '../../hooks/useToast';
 
 
+interface BacklinkInputProps {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    error?: string;
+}
+
+const BacklinkInput = ({ label, value, onChange, error }: BacklinkInputProps) => (
+    <div>
+        <label className="block text-sm text-gray-700 mb-2">{label}</label>
+        <div className="flex gap-1">
+            <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
+                https://
+            </span>
+            <Input
+                value={value || ''}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="www.useremotion.com/"
+                className="rounded-l-none"
+                error={error}
+            />
+        </div>
+    </div>
+);
+
 interface ResearchConfigurationProps {
     config: Record<string, unknown>;
     onChange: (config: Record<string, unknown>) => void;
@@ -27,7 +52,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
 
     const { validateUrl, extractParameters } = useUrlValidation();
     const toast = useToast();
-    
+
 
     const demographics = (config.demographics || {}) as Record<string, boolean>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
@@ -254,7 +279,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
-    
+
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -393,53 +418,26 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         </p>
                     </div>
 
-                    <div>
-                        <label className="block text-sm text-gray-700 mb-2">Link for complete interviews</label>
-                        <div className="flex gap-1">
-                            <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
-                                https://
-                            </span>
-                            <Input
-                                value={backlinks.complete || ''}
-                                onChange={(e) => handleBacklinkChange('complete', e.target.value)}
-                                placeholder="www.useremotion.com/"
-                                className="rounded-l-none"
-                                error={urlErrors['backlink-complete']}
-                            />
-                        </div>
-                    </div>
+                    <BacklinkInput
+                        label="Link for complete interviews"
+                        value={backlinks.complete}
+                        onChange={(value) => handleBacklinkChange('complete', value)}
+                        error={urlErrors['backlink-complete']}
+                    />
 
-                    <div>
-                        <label className="block text-sm text-gray-700 mb-2">Link for disqualified interviews</label>
-                        <div className="flex gap-1">
-                            <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
-                                https://
-                            </span>
-                            <Input
-                                value={backlinks.disqualified || ''}
-                                onChange={(e) => handleBacklinkChange('disqualified', e.target.value)}
-                                placeholder="www.useremotion.com/"
-                                className="rounded-l-none"
-                                error={urlErrors['backlink-disqualified']}
-                            />
-                        </div>
-                    </div>
+                    <BacklinkInput
+                        label="Link for disqualified interviews"
+                        value={backlinks.disqualified}
+                        onChange={(value) => handleBacklinkChange('disqualified', value)}
+                        error={urlErrors['backlink-disqualified']}
+                    />
 
-                    <div>
-                        <label className="block text-sm text-gray-700 mb-2">Link for overquota interviews</label>
-                        <div className="flex gap-1">
-                            <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
-                                https://
-                            </span>
-                            <Input
-                                value={backlinks.overquota || ''}
-                                onChange={(e) => handleBacklinkChange('overquota', e.target.value)}
-                                placeholder="www.useremotion.com/"
-                                className="rounded-l-none"
-                                error={urlErrors['backlink-overquota']}
-                            />
-                        </div>
-                    </div>
+                    <BacklinkInput
+                        label="Link for overquota interviews"
+                        value={backlinks.overquota}
+                        onChange={(value) => handleBacklinkChange('overquota', value)}
+                        error={urlErrors['backlink-overquota']}
+                    />
                 </div>
 
                 {/* B. Research Link */}
@@ -473,8 +471,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Link Preview
                             </Button>
-                            <Button 
-                                variant="primary" 
+                            <Button
+                                variant="primary"
                                 size="sm"
                                 onClick={() => setShowQRModal(true)}
                             >
