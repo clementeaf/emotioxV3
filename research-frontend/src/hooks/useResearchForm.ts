@@ -9,6 +9,7 @@ interface CreateResearchFormData {
     enterpriseName: string;
     researchTypeId: string;
     researchTechniqueId: string;
+    useDefaultModules: boolean;
 }
 
 interface ResearchFormErrors {
@@ -26,9 +27,10 @@ export const useResearchForm = () => {
         enterpriseName: '',
         researchTypeId: '',
         researchTechniqueId: '',
+        useDefaultModules: true,
     });
     const [currentStep, setCurrentStep] = useState<number>(0);
-    const [researchTypes, setResearchTypes] = useState<Array<{ id: string; name: string }>>([]);
+    const [researchTypes, setResearchTypes] = useState<Array<{ id: string; name: string; default_modules?: any[] }>>([]);
     const [loadingResearchTypes, setLoadingResearchTypes] = useState<boolean>(false);
     const [availableTechniques, setAvailableTechniques] = useState<ResearchTechnique[]>([]);
     const [loadingTechniquesForType, setLoadingTechniquesForType] = useState<boolean>(false);
@@ -45,7 +47,7 @@ export const useResearchForm = () => {
         setLoadingResearchTypes(true);
         try {
             const response = await researchTypesService.list();
-            setResearchTypes(response.researchTypes.map((rt) => ({ id: rt.id, name: rt.name })));
+            setResearchTypes(response.researchTypes.map((rt) => ({ id: rt.id, name: rt.name, default_modules: rt.default_modules })));
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to load research types';
             setSubmitError(errorMessage);
@@ -99,9 +101,9 @@ export const useResearchForm = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleFieldChange = (field: keyof CreateResearchFormData, value: string): void => {
+    const handleFieldChange = (field: keyof CreateResearchFormData, value: string | boolean): void => {
         setFormData((prev) => ({ ...prev, [field]: value }));
-        if (formErrors[field]) {
+        if (formErrors[field as keyof ResearchFormErrors]) {
             setFormErrors((prev) => ({ ...prev, [field]: undefined }));
         }
         setSubmitError('');
@@ -138,15 +140,24 @@ export const useResearchForm = () => {
         setIsCreating(true);
 
         try {
-            const response = await researchService.create({
+            // Extract default modules if enabled
+            const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
+            const createData: any = {
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
                 research_type_id: formData.researchTypeId,
                 research_technique_id: formData.researchTechniqueId,
-            });
+            };
 
+            if (formData.useDefaultModules && selectedType?.default_modules) {
+                const moduleNames = selectedType.default_modules.map((m: any) => m.name);
+                if (moduleNames.length > 0) {
+                    createData.use_default_modules = moduleNames;
+                }
+            }
+
+            const response = await researchService.create(createData);
             setSubmitSuccess(true);
-            // Don't reset form here - let the component handle navigation
             return response.research.id;
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to create research';
@@ -164,6 +175,7 @@ export const useResearchForm = () => {
             enterpriseName: '',
             researchTypeId: '',
             researchTechniqueId: '',
+            useDefaultModules: true,
         });
         setFormErrors({});
         setSubmitError('');

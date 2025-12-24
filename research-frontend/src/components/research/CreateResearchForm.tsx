@@ -98,7 +98,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
         if (researchId) {
             // Reset form
             resetForm();
-            
+
             // If onSuccess callback is provided, call it instead of navigating
             if (onSuccess) {
                 onSuccess();
@@ -164,6 +164,8 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                         onResearchTechniqueChange={(value) => {
                                             handleFieldChange('researchTechniqueId', value);
                                         }}
+                                        useDefaultModules={formData.useDefaultModules}
+                                        onToggleDefaultModules={(value) => handleFieldChange('useDefaultModules', value)}
                                     />
                                 )}
 

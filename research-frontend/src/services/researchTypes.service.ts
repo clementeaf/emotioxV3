@@ -7,9 +7,11 @@ export interface ResearchType {
     id: string;
     name: string;
     description?: string;
-    created_by: string;
+    default_modules?: any[];
     created_at: string;
     updated_at: string;
+    created_by?: string;
+    is_active?: boolean;
     research_techniques?: ResearchTechnique[];
 }
 
