@@ -90,15 +90,11 @@ class ApiClient {
                                     expiresIn?: number;
                                 }
 
-                                const refreshToken = useAuthStore.getState().refreshToken;
-                                const payload: Record<string, string> = {};
-                                if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
-                                    payload.refreshToken = refreshToken;
-                                }
-
+                                // El refresh token está en cookies httpOnly, el backend lo leerá automáticamente
+                                // No necesitamos pasarlo en el body
                                 const refreshResponse = await axios.post<RefreshResponse>(
                                     `${baseURL}${refreshEndpoint}`,
-                                    payload,
+                                    {},
                                     {
                                         withCredentials: true,
                                         timeout: 10000,

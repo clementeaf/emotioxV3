@@ -1,44 +1,13 @@
 import axios from 'axios';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { User, LoginCredentials, LoginRequest, RegisterCredentials } from '../types/auth';
 import { authService } from '../services/auth.service';
 import apiClient from '../services/api/client';
 import { configService } from '../services/api/config.service';
 
-const SESSION_REFRESH_TOKEN_KEY = 'auth-refresh-token';
-
-/**
- * Reads the session-scoped refresh token from sessionStorage.
- * @returns Refresh token or null when not available
- */
-const readSessionRefreshToken = (): string | null => {
-    if (typeof window === 'undefined') {
-        return null;
-    }
-    const value = window.sessionStorage.getItem(SESSION_REFRESH_TOKEN_KEY);
-    return typeof value === 'string' && value.trim().length > 0 ? value : null;
-};
-
-/**
- * Writes or clears the session-scoped refresh token in sessionStorage.
- * @param refreshToken - Refresh token to store, or null to clear
- */
-const writeSessionRefreshToken = (refreshToken: string | null): void => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-    if (typeof refreshToken === 'string' && refreshToken.trim().length > 0) {
-        window.sessionStorage.setItem(SESSION_REFRESH_TOKEN_KEY, refreshToken);
-        return;
-    }
-    window.sessionStorage.removeItem(SESSION_REFRESH_TOKEN_KEY);
-};
-
 interface AuthState {
     user: User | null;
-    token: string | null; // TEMPORAL: guardar token en memoria hasta que cookies funcionen
-    refreshToken: string | null;
+    token: string | null; // Token en memoria solo para la sesión actual (no persistido)
     rememberMe: boolean;
     isLoading: boolean;
     error: string | null;
@@ -50,7 +19,6 @@ interface AuthState {
     deleteAccount: () => Promise<void>;
     logout: () => Promise<void>;
     setToken: (token: string | null) => void;
-    setRefreshToken: (refreshToken: string | null) => void;
     clearError: () => void;
 }
 
@@ -91,36 +59,33 @@ const asyncOperation = async <T>(
  */
 const initialState = {
     user: null,
-    token: null, // TEMPORAL
-    refreshToken: null,
+    token: null, // Token en memoria solo para la sesión actual
     rememberMe: false,
     isLoading: false,
     error: null,
 };
 
-export const useAuthStore = create<AuthState>()(persist(
-    (set, get) => ({
+export const useAuthStore = create<AuthState>()((set) => ({
     ...initialState,
 
     login: async (credentials, rememberMe = false) => {
         set({ isLoading: true, error: null });
         try {
-            // El login guarda tokens en cookies, pero también retorna el token temporalmente
+            // El login guarda tokens en cookies httpOnly (seguro)
+            // El token en el body es solo para uso inmediato en esta sesión
             const request: LoginRequest = { ...credentials, rememberMe };
             const loginResponse = await authService.login(request);
             
-            // TEMPORAL: Guardar token en memoria porque API Gateway no está pasando cookies
+            // Guardar token en memoria solo para esta sesión (no persistido)
+            // Los tokens reales están en cookies httpOnly manejadas por el backend
             const token = loginResponse.token || null;
-            const refreshToken = loginResponse.refreshToken || null;
-            set({ token, refreshToken });
-            writeSessionRefreshToken(rememberMe ? null : refreshToken);
+            set({ token, rememberMe });
 
-            // Fetch user profile
+            // Fetch user profile usando las cookies
             try {
                 const userResponse = await authService.getMe();
                 set({
                     user: userResponse.user,
-                    rememberMe,
                     isLoading: false,
                 });
             } catch {
@@ -128,7 +93,6 @@ export const useAuthStore = create<AuthState>()(persist(
                 set({
                     user: null,
                     token: null,
-                    refreshToken: null,
                     rememberMe: false,
                     isLoading: false,
                 });
@@ -141,7 +105,6 @@ export const useAuthStore = create<AuthState>()(persist(
                 isLoading: false,
                 user: null,
                 token: null,
-                refreshToken: null,
                 rememberMe: false,
             });
             throw error;
@@ -151,41 +114,22 @@ export const useAuthStore = create<AuthState>()(persist(
     bootstrapSession: async () => {
         set({ isLoading: true, error: null });
         try {
-            const state = get();
-            const sessionRefreshToken = readSessionRefreshToken();
-            const effectiveRefreshToken =
-                state.rememberMe ? state.refreshToken : (state.refreshToken ?? sessionRefreshToken);
-
-            // If we have no evidence of a session (no tokens / no refresh token), do nothing.
-            if (!state.token && !effectiveRefreshToken) {
-                set({ isLoading: false });
-                return;
-            }
-
-            if (!state.rememberMe && !state.refreshToken && sessionRefreshToken) {
-                set({ refreshToken: sessionRefreshToken });
-            }
-
-            if (!state.token && effectiveRefreshToken) {
-                const refresh = await authService.refresh(effectiveRefreshToken);
-                const newToken = typeof refresh.token === 'string' && refresh.token.trim().length > 0 ? refresh.token : null;
-                if (newToken) {
-                    set({ token: newToken });
-                }
-            }
-
+            // Intentar obtener el usuario usando las cookies httpOnly
+            // Si hay cookies válidas, el backend las usará automáticamente
+            // Si no hay cookies o expiraron, el backend responderá con 401
             const endpoint = configService.getEndpoint('auth', 'me');
             const userResponse = await apiClient.get<{ user: User }>(endpoint);
+            
+            // Si llegamos aquí, las cookies son válidas
+            // El interceptor de axios manejará el refresh token automáticamente si es necesario
             set({ user: userResponse.user, isLoading: false });
         } catch (error: unknown) {
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;
             if (status === 401) {
+                // No hay sesión válida, limpiar estado
                 set({
                     ...initialState,
-                    token: null,
-                    refreshToken: null,
                 });
-                writeSessionRefreshToken(null);
                 return;
             }
             const message = error instanceof Error ? error.message : 'Failed to restore session';
@@ -235,29 +179,16 @@ export const useAuthStore = create<AuthState>()(persist(
                 } catch (error) {
                     console.error('Logout error:', error);
                 } finally {
-                    // Limpiar estado local
+                    // Limpiar estado local (las cookies ya fueron limpiadas por el backend)
                     set({
                         ...initialState,
-                        token: null, // TEMPORAL
-                        refreshToken: null,
                     });
-                    writeSessionRefreshToken(null);
                 }
             },
 
             setToken: (token: string | null) => set({ token }),
-            setRefreshToken: (refreshToken: string | null) => set({ refreshToken }),
             clearError: () => set({ error: null }),
-        }),
-        {
-            name: 'auth-storage',
-            partialize: (state) => ({
-                user: state.user,
-                rememberMe: state.rememberMe,
-                refreshToken: state.rememberMe ? state.refreshToken : null,
-            }),
-        }
-    )
+        })
 );
 
 /**

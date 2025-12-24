@@ -18,7 +18,9 @@ provider:
     CORS_ORIGIN: ${ssm:/emotioxv3/${self:provider.stage}/CORS_ORIGIN}
     COGNITO_USER_POOL_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_USER_POOL_ID}
     COGNITO_CLIENT_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_CLIENT_ID}
-    # Secrets are loaded at runtime from SSM SecureString (not via Lambda env vars)
+    COGNITO_DOMAIN: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_DOMAIN, ''}
+    # COGNITO_CLIENT_SECRET is loaded at runtime from SSM SecureString (not via Lambda env vars)
+    # API_BASE_URL and FRONTEND_URL are constructed from request context or SSM Parameter Store
     SSM_PREFIX: /emotioxv3/${self:provider.stage}
     SSM_REGION: ${env:AWS_REGION, 'us-east-1'}
     # WebSocket API endpoint will be obtained from requestContext in WebSocket events

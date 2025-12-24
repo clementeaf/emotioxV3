@@ -183,15 +183,6 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'dashboard', pageName: 'Edit Research Technique' },
     },
 
-    // Settings route - redirects to profile for now
-    {
-        path: '/settings',
-        element: <Navigate to="/profile" replace />,
-        layout: 'dashboard',
-        isProtected: true,
-        errorBoundary: { context: 'dashboard', pageName: 'Settings' },
-    },
-
     // Default redirect
     {
         path: '/',

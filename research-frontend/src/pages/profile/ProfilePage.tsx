@@ -50,77 +50,79 @@ export const ProfilePage = () => {
     };
 
     return (
-        <div className="space-y-6 max-w-2xl mx-auto">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Profile Settings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                        {error && (
-                            <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md border border-red-200">
-                                {error}
+        <div className="h-full p-4 sm:p-6 overflow-y-auto">
+            <div className="space-y-4 sm:space-y-6 max-w-2xl mx-auto">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Profile Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                            {error && (
+                                <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md border border-red-200">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Input
+                                    id="firstName"
+                                    label="First Name"
+                                    {...register('firstName')}
+                                    error={errors.firstName?.message}
+                                />
+                                <Input
+                                    id="lastName"
+                                    label="Last Name"
+                                    {...register('lastName')}
+                                    error={errors.lastName?.message}
+                                />
                             </div>
-                        )}
 
-                        <div className="grid grid-cols-2 gap-4">
                             <Input
-                                id="firstName"
-                                label="First Name"
-                                {...register('firstName')}
-                                error={errors.firstName?.message}
+                                id="email"
+                                label="Email address"
+                                type="email"
+                                {...register('email')}
+                                error={errors.email?.message}
+                                disabled // Email usually shouldn't be changed easily without verification
                             />
-                            <Input
-                                id="lastName"
-                                label="Last Name"
-                                {...register('lastName')}
-                                error={errors.lastName?.message}
-                            />
-                        </div>
 
-                        <Input
-                            id="email"
-                            label="Email address"
-                            type="email"
-                            {...register('email')}
-                            error={errors.email?.message}
-                            disabled // Email usually shouldn't be changed easily without verification
-                        />
+                            <div className="flex justify-end">
+                                <Button type="submit" isLoading={isLoading} disabled={!isDirty}>
+                                    Save Changes
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
 
-                        <div className="flex justify-end">
-                            <Button type="submit" isLoading={isLoading} disabled={!isDirty}>
-                                Save Changes
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+                <Card className="border-red-200">
+                    <CardHeader>
+                        <CardTitle className="text-red-600">Danger Zone</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Once you delete your account, there is no going back. Please be certain.
+                        </p>
+                        <Button variant="danger" onClick={handleDeleteClick} isLoading={isLoading}>
+                            Delete Account
+                        </Button>
+                    </CardContent>
+                </Card>
 
-            <Card className="border-red-200">
-                <CardHeader>
-                    <CardTitle className="text-red-600">Danger Zone</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">
-                        Once you delete your account, there is no going back. Please be certain.
-                    </p>
-                    <Button variant="danger" onClick={handleDeleteClick} isLoading={isLoading}>
-                        Delete Account
-                    </Button>
-                </CardContent>
-            </Card>
-
-            <ConfirmationModal
-                isOpen={deleteModalOpen}
-                onClose={() => setDeleteModalOpen(false)}
-                onConfirm={handleConfirmDelete}
-                title="Delete Account"
-                message="Are you sure you want to delete your account? This action cannot be undone."
-                confirmText="Delete Account"
-                cancelText="Cancel"
-                variant="danger"
-                isLoading={isLoading}
-            />
+                <ConfirmationModal
+                    isOpen={deleteModalOpen}
+                    onClose={() => setDeleteModalOpen(false)}
+                    onConfirm={handleConfirmDelete}
+                    title="Delete Account"
+                    message="Are you sure you want to delete your account? This action cannot be undone."
+                    confirmText="Delete Account"
+                    cancelText="Cancel"
+                    variant="danger"
+                    isLoading={isLoading}
+                />
+            </div>
         </div>
     );
 };

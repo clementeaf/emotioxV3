@@ -222,11 +222,11 @@ export const DashboardPage = () => {
     }, [toast]);
 
     return (
-        <div className="h-full p-6 space-y-6">
+        <div className="h-full p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto">
             {/* Main Content - Table and Sidebar */}
-            <div className="flex gap-6">
+            <div className="flex gap-4 sm:gap-6 flex-col lg:flex-row">
                 {/* Left Section - Research Table */}
-                <div className="w-full rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                <div className="flex-1 lg:w-full rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0">
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead className="bg-gray-50 border-b border-gray-200">
@@ -292,7 +292,7 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Right Sidebar - Research Types Filter */}
-                <div className="w-80 space-y-4">
+                <div className="w-full lg:w-80 space-y-3 sm:space-y-4 flex-shrink-0">
                     {typedResearchTypes.slice(0, 4).map((type) => (
                         <ResearchTypeCard
                             key={type.id}
@@ -304,11 +304,11 @@ export const DashboardPage = () => {
             </div>
 
             {/* Bottom Section - Research Cards by Type */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                <div className="flex items-center gap-4 mb-6 overflow-x-auto pb-2">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6">
                     <button
                         onClick={() => setActiveFilter('all')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
                             activeFilter === 'all'
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -320,7 +320,7 @@ export const DashboardPage = () => {
                         <button
                             key={type.id}
                             onClick={() => setActiveFilter(type.id)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
                                 activeFilter === type.id
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -332,7 +332,7 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Research Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                     {filteredResearches.slice(0, 4).map((research: Research) => (
                         <div
                             key={research.id}
