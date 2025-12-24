@@ -1,4 +1,4 @@
-import { Link, useLocation, matchPath } from 'react-router-dom';
+import { Link, useLocation, matchPath, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,7 +14,8 @@ import {
     ChevronRight,
     Trash2,
     BarChart3,
-    TrendingUp
+    TrendingUp,
+    LogOut
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -25,6 +26,7 @@ import { Modal } from '../ui/Modal';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { useToast } from '../../hooks/useToast';
 import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
+import { useAuthStore } from '../../stores/auth.store';
 
 interface NavItem {
     path: string;
@@ -47,8 +49,10 @@ const navItems: NavItem[] = [
  */
 export const Sidebar = () => {
     const location = useLocation();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const toast = useToast();
+    const logout = useAuthStore((state) => state.logout);
     const [showStageSelector, setShowStageSelector] = useState(false);
     const [isAddingStage, setIsAddingStage] = useState(false);
     const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
@@ -594,6 +598,39 @@ export const Sidebar = () => {
                     </div>
                 </div>
 
+                {/* Settings & Logout */}
+                <div className="p-4 border-t border-gray-100 space-y-2">
+                    <Link
+                        to="/settings"
+                        className={cn(
+                            'flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                            location.pathname === '/settings'
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        )}
+                    >
+                        <Settings className={cn('h-5 w-5 mr-3', location.pathname === '/settings' ? 'text-blue-600' : 'text-gray-400')} />
+                        Settings
+                    </Link>
+                    <button
+                        onClick={async () => {
+                            try {
+                                await logout();
+                                navigate('/login');
+                            } catch (error) {
+                                toast.error('Error al cerrar sesión');
+                            }
+                        }}
+                        className={cn(
+                            'w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                            'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        )}
+                    >
+                        <LogOut className="h-5 w-5 mr-3 text-gray-400" />
+                        Logout
+                    </button>
+                </div>
+
                 {/* Delete Stage Confirmation Modal */}
                 <ConfirmationModal
                     isOpen={deleteStageModalOpen}
@@ -771,7 +808,7 @@ export const Sidebar = () => {
             </nav>
 
             {/* Settings */}
-            <div className="p-4 border-t border-gray-100">
+            <div className="p-4 border-t border-gray-100 space-y-2">
                 <Link
                     to="/settings"
                     className={cn(
@@ -784,6 +821,23 @@ export const Sidebar = () => {
                     <Settings className={cn('h-5 w-5 mr-3', location.pathname === '/settings' ? 'text-blue-600' : 'text-gray-400')} />
                     Settings
                 </Link>
+                <button
+                    onClick={async () => {
+                        try {
+                            await logout();
+                            navigate('/login');
+                        } catch (error) {
+                            toast.error('Error al cerrar sesión');
+                        }
+                    }}
+                    className={cn(
+                        'w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                        'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    )}
+                >
+                    <LogOut className="h-5 w-5 mr-3 text-gray-400" />
+                    Logout
+                </button>
             </div>
         </div>
     );
