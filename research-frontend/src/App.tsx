@@ -6,14 +6,15 @@ import { PageErrorBoundary } from './components/PageErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastProvider } from './contexts/ToastContext';
 import { QueryProvider } from './providers/QueryProvider';
+import { AuthProvider } from './providers/AuthProvider';
 import { routesConfig, type RouteConfig } from './config/routes';
 
 // Lazy load layouts para code splitting
-const AuthLayout = lazy(() => 
+const AuthLayout = lazy(() =>
     import('./components/layout/AuthLayout').then(m => ({ default: m.AuthLayout }))
 ) as React.LazyExoticComponent<() => ReactElement>;
 
-const DashboardLayout = lazy(() => 
+const DashboardLayout = lazy(() =>
     import('./components/layout/DashboardLayout').then(m => ({ default: m.DashboardLayout }))
 ) as React.LazyExoticComponent<() => ReactElement>;
 
@@ -130,7 +131,9 @@ function App() {
             <QueryProvider>
                 <ToastProvider>
                     <BrowserRouter>
-                        <Routes>{routes}</Routes>
+                        <AuthProvider>
+                            <Routes>{routes}</Routes>
+                        </AuthProvider>
                     </BrowserRouter>
                 </ToastProvider>
             </QueryProvider>
