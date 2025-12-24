@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { getRequestOrigin } from '../../utils/request';
+import { loadSsmParameters } from '../../config/ssm';
 
 /**
  * Config Controller
@@ -17,7 +18,7 @@ export const handleConfigRoutes = async (
     try {
         // GET /config - Public endpoint for frontend configuration
         if (path === '/config' && httpMethod === 'GET') {
-            return getConfig(origin);
+            return await getConfig(origin);
         }
 
         return error('Config route not found', 404, undefined, origin);
@@ -32,13 +33,47 @@ export const handleConfigRoutes = async (
  * Get dynamic configuration for frontends
  * Provides API routes, feature flags, and environment settings
  */
-const getConfig = (origin: string | null): APIGatewayProxyResult => {
+const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> => {
+    // Get WebSocket API URL from SSM Parameter Store or environment
+    let websocketApiUrl: string | null = null;
+    
+    try {
+        // Try to get from SSM Parameter Store first
+        const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
+        const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
+        
+        const ssmParams = await loadSsmParameters({
+            names: ['WEBSOCKET_API_ENDPOINT'],
+            prefix: ssmPrefix,
+            region: ssmRegion
+        });
+        
+        if (ssmParams.WEBSOCKET_API_ENDPOINT) {
+            websocketApiUrl = ssmParams.WEBSOCKET_API_ENDPOINT.replace(/^https:\/\//, 'wss://');
+        }
+    } catch (error) {
+        console.warn('Failed to load WEBSOCKET_API_ENDPOINT from SSM:', error);
+    }
+    
+    // Fallback to environment variable if SSM didn't work
+    if (!websocketApiUrl && process.env.WEBSOCKET_API_ENDPOINT) {
+        websocketApiUrl = process.env.WEBSOCKET_API_ENDPOINT.replace(/^https:\/\//, 'wss://');
+    }
+    
+    // If still not available, log warning (frontend will use fallback)
+    if (!websocketApiUrl) {
+        console.warn('WEBSOCKET_API_ENDPOINT not configured. WebSocket will not be available until configured in SSM Parameter Store.');
+    }
+
     const config = {
         // API version
         version: '1.0.0',
         
         // Environment
         environment: process.env.API_STAGE || 'development',
+        
+        // WebSocket API URL (full URL for WebSocket connections)
+        websocketApiUrl: websocketApiUrl,
         
         // API endpoints (relative paths - frontend will use same domain)
         endpoints: {
@@ -60,6 +95,29 @@ const getConfig = (origin: string | null): APIGatewayProxyResult => {
                 activate: '/research/:id/activate',
                 stages: '/research/:id/stages',
                 modules: '/research/:id/modules',
+                metrics: '/research/:id/metrics',
+                participantsStatus: '/research/:id/participants/status',
+                participantDetails: '/research/:id/participants/:participantId',
+                deleteParticipant: '/research/:id/participants/:participantId',
+            },
+            
+            // Research Progress
+            researchProgress: {
+                getResearchConfiguration: '/research-progress/research/:id',
+                createConfig: '/research-progress/research/:id',
+                updateConfig: '/research-progress/research/:id',
+                delete: '/research-progress/research/:id',
+                createParticipant: '/research-progress/config/:configId/participant',
+                updateParticipantStatus: '/research-progress/participant/:participantId/status',
+                getParticipants: '/research-progress/config/:configId/participants',
+                getStats: '/research-progress/config/:configId/stats',
+                generateLink: '/research-progress/config/:configId/link',
+                getActiveLinks: '/research-progress/config/:configId/links',
+                deactivateLink: '/research-progress/link/:token/deactivate',
+                validateLink: '/research-progress/link/:token/validate',
+                getResearchSummary: '/research-progress/research/:id/summary',
+                registerPublicParticipant: '/research-progress/public/participant/start',
+                updatePublicParticipantStatus: '/research-progress/public/participant/:participantId/status',
             },
             
             // Research Types

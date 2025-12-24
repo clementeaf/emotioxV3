@@ -17,22 +17,40 @@ export const getOverviewMetrics = async (researchId: string, userId: string) => 
         throw new Error('Research not found');
     }
 
+    return getOverviewMetricsInternal(researchId);
+};
+
+export const getOverviewMetricsInternal = async (researchId: string) => {
+    // Verifying research existence
+    const researchCheck = await pool.query(
+        'SELECT id, status FROM researches WHERE id = $1 AND deleted_at IS NULL',
+        [researchId]
+    );
+
+    if (researchCheck.rows.length === 0) {
+        throw new Error('Research not found');
+    }
+
     const research = researchCheck.rows[0];
     const researchStatus = research.status;
 
     // Obtener estadísticas de participantes
     const participantsQuery = `
+        WITH participant_stats AS (
+            SELECT DISTINCT participant_id
+            FROM responses
+            WHERE research_id = $1
+        ),
+        participants_with_responses AS (
+            SELECT DISTINCT participant_id
+            FROM responses
+            WHERE research_id = $1
+            GROUP BY participant_id
+            HAVING COUNT(*) > 0
+        )
         SELECT 
-            COUNT(DISTINCT participant_id) as total_participants,
-            COUNT(DISTINCT CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM responses r2 
-                    WHERE r2.research_id = $1 
-                    AND r2.participant_id = r.participant_id
-                ) THEN participant_id 
-            END) as participants_with_responses
-        FROM responses r
-        WHERE r.research_id = $1
+            (SELECT COUNT(*) FROM participant_stats) as total_participants,
+            (SELECT COUNT(*) FROM participants_with_responses) as participants_with_responses
     `;
     const participantsResult = await pool.query(participantsQuery, [researchId]);
     const totalParticipants = parseInt(participantsResult.rows[0]?.total_participants || '0', 10);
@@ -75,11 +93,15 @@ export const getOverviewMetrics = async (researchId: string, userId: string) => 
 
     // Calcular tiempo promedio
     const timeQuery = `
-        SELECT 
-            AVG(EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at)))) as avg_duration_seconds
-        FROM responses
-        WHERE research_id = $1
-        GROUP BY participant_id
+        WITH participant_durations AS (
+            SELECT 
+                EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration_seconds
+            FROM responses
+            WHERE research_id = $1
+            GROUP BY participant_id
+        )
+        SELECT AVG(duration_seconds) as avg_duration_seconds
+        FROM participant_durations
     `;
     const timeResult = await pool.query(timeQuery, [researchId]);
     const avgDurationSeconds = parseFloat(timeResult.rows[0]?.avg_duration_seconds || '0');
@@ -88,7 +110,6 @@ export const getOverviewMetrics = async (researchId: string, userId: string) => 
     const seconds = Math.floor(avgDurationSeconds % 60);
     const averageTime = `${minutes} min ${seconds} seg`;
 
-    // Determinar estado
     let statusValue = 'Inactiva';
     let statusDescription = 'Los participantes no pueden acceder';
 
@@ -118,23 +139,20 @@ export const getOverviewMetrics = async (researchId: string, userId: string) => 
         },
         averageTime: {
             value: averageTime,
-            description: `Última actividad: ${getLastActivityText(researchId)}`,
+            description: `Última actividad: ${await getLastActivityText(researchId)}`,
             icon: 'clock'
         }
     };
 };
 
 /**
- * Obtiene la lista de participantes con su estado
- * @param researchId - ID de la investigación
- * @param userId - ID del usuario (para verificar permisos)
- * @returns Lista de participantes con estado
+ * Obtiene la lista de participantes con su estado (Internal version)
  */
-export const getParticipantsWithStatus = async (researchId: string, userId: string) => {
-    // Verificar que el research existe y pertenece al usuario
+export const getParticipantsWithStatusInternal = async (researchId: string) => {
+    // Verificar que el research existe
     const researchCheck = await pool.query(
-        'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
-        [researchId, userId]
+        'SELECT id FROM researches WHERE id = $1 AND deleted_at IS NULL',
+        [researchId]
     );
 
     if (researchCheck.rows.length === 0) {
@@ -161,8 +179,8 @@ export const getParticipantsWithStatus = async (researchId: string, userId: stri
         )
         SELECT 
             ps.participant_id as id,
-            COALESCE(ps.participant_id, 'Unknown') as name,
-            COALESCE(ps.participant_id, 'unknown@example.com') as email,
+            COALESCE(ps.participant_id::text, 'Unknown') as name,
+            COALESCE(ps.participant_id::text, 'unknown@example.com') as email,
             CASE 
                 WHEN ps.completed_modules >= tm.total THEN 'Completado'
                 WHEN ps.completed_modules > 0 THEN 'En proceso'
@@ -211,6 +229,27 @@ export const getParticipantsWithStatus = async (researchId: string, userId: stri
 };
 
 /**
+ * Obtiene la lista de participantes con su estado
+ * @param researchId - ID de la investigación
+ * @param userId - ID del usuario (para verificar permisos)
+ * @returns Lista de participantes con estado
+ */
+export const getParticipantsWithStatus = async (researchId: string, userId: string) => {
+    // Verificar que el research existe y pertenece al usuario
+    const researchCheck = await pool.query(
+        'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+        [researchId, userId]
+    );
+
+    if (researchCheck.rows.length === 0) {
+        throw new Error('Research not found');
+    }
+
+    // Return internal implementation result
+    return getParticipantsWithStatusInternal(researchId);
+};
+
+/**
  * Obtiene los detalles de un participante específico
  * @param researchId - ID de la investigación
  * @param participantId - ID del participante
@@ -248,8 +287,8 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         )
         SELECT 
             ps.participant_id as id,
-            COALESCE(ps.participant_id, 'Unknown') as name,
-            COALESCE(ps.participant_id, 'unknown@example.com') as email,
+            COALESCE(ps.participant_id::text, 'Unknown') as name,
+            COALESCE(ps.participant_id::text, 'unknown@example.com') as email,
             CASE 
                 WHEN ps.completed_modules >= tm.total THEN 'Completado'
                 WHEN ps.completed_modules > 0 THEN 'En proceso'
@@ -435,4 +474,3 @@ const formatLastActivity = (date: Date | string): string => {
     const years = Math.floor(diffDays / 365);
     return years === 1 ? 'Hace 1 año' : `Hace ${years} años`;
 };
-

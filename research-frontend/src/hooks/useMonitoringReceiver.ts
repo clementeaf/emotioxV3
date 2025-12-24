@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { configService } from '../services/api/config.service';
 
 interface Participant {
     id: string;
@@ -43,10 +44,45 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
         lastUpdate: new Date().toISOString()
     });
 
-    const getWebsocketUrl = (): string => {
+    /**
+     * Obtiene la URL del WebSocket API desde la configuración
+     * Funciona tanto en desarrollo local como en producción (S3/CloudFront)
+     * @returns URL completa del WebSocket API Gateway o null si no está disponible
+     */
+    const getWebsocketUrl = async (): Promise<string | null> => {
+        // Priority 1: Allow override via environment variable (useful for production with distinct API Gateway)
+        if (import.meta.env.VITE_WEBSOCKET_URL) {
+            return import.meta.env.VITE_WEBSOCKET_URL;
+        }
+
+        // Priority 2: Try to get from config service (works in both local and production)
+        try {
+            // Ensure config is initialized - init() is idempotent and handles both local and production
+            // In local: uses VITE_API_URL or DEFAULT_LOCAL_API_BASE_URL
+            // In production: reads /runtime-config.json from CloudFront, then calls ${apiBaseUrl}/config
+            await configService.init();
+            const config = configService.getConfig();
+            if (config.websocketApiUrl) {
+                return config.websocketApiUrl;
+            }
+        } catch (error) {
+            console.warn('Failed to get WebSocket URL from config service, using fallback', error);
+        }
+
+        // Priority 3: Fallback based on environment
+        // In local development: use localhost
+        // In production: this should not happen if config service is working correctly
+        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
+        if (isLocalhost) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return `${protocol}//localhost:3001`;
+        }
+
+        // Last resort: try to construct from current origin (should not be needed in production)
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
-        return `${protocol}//${host}/ws`;
+        console.warn('Using fallback WebSocket URL. This should not happen in production.', `${protocol}//${host}`);
+        return `${protocol}//${host}`;
     };
 
     // Event handlers
@@ -93,7 +129,7 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
                             step.name === data.stepName
                                 ? { ...step, completed: true, duration: data.duration }
                                 : step
-                          )
+                        )
                         : [...p.steps, { name: data.stepName, completed: true, duration: data.duration }];
 
                     const completedSteps = updatedSteps.filter(step => step.completed).length;
@@ -189,95 +225,113 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
         console.log('Participant error:', data);
     }, []);
 
-    const connect = useCallback(() => {
+    // Initialize connection when researchId and token are available
+    useEffect(() => {
         if (!researchId || !token) {
-            setError('Missing researchId or token');
             return;
         }
 
-        // Close existing connection if any
-        if (ws) {
-            ws.close();
-        }
+        let socket: WebSocket | null = null;
 
-        try {
-            const wsUrl = `${getWebsocketUrl()}?researchId=${researchId}&token=${token}`;
-            const newWs = new WebSocket(wsUrl);
-
-            newWs.onopen = () => {
-                setIsConnected(true);
-                setError(null);
-                console.log('Monitoring WebSocket connected');
-            };
-
-            newWs.onmessage = (event) => {
-                try {
-                    const eventMessage = JSON.parse(event.data);
-
-                    switch (eventMessage.type) {
-                        case 'PARTICIPANT_LOGIN':
-                            handleParticipantLogin(eventMessage.data as { participantId: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_STEP':
-                            handleParticipantStep(eventMessage.data as { participantId: string; stepName: string; progress: number; timestamp: string; duration: string });
-                            break;
-                        case 'PARTICIPANT_DISQUALIFIED':
-                            handleParticipantDisqualified(eventMessage.data as { participantId: string; reason: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_QUOTA_EXCEEDED':
-                            handleParticipantQuotaExceeded(eventMessage.data as { participantId: string; quotaType: string; quotaValue: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_COMPLETED':
-                            handleParticipantCompleted(eventMessage.data as { participantId: string; timestamp: string });
-                            break;
-                        case 'PARTICIPANT_ERROR':
-                            handleParticipantError(eventMessage.data as { participantId: string; timestamp: string });
-                            break;
-                        default:
-                            break;
-                    }
-                } catch (parseError) {
-                    console.error('Error parsing WebSocket message:', parseError);
+        const connectWebSocket = async (): Promise<void> => {
+            try {
+                const baseUrl = await getWebsocketUrl();
+                if (!baseUrl) {
+                    console.error('WebSocket URL not available');
+                    setError('WebSocket URL not configured');
+                    return;
                 }
-            };
 
-            newWs.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                setError('WebSocket connection error');
-            };
+                // Ensure baseUrl doesn't have trailing slash, and add query params
+                const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+                const wsUrl = `${cleanBaseUrl}?researchId=${encodeURIComponent(researchId)}&token=${encodeURIComponent(token)}`;
+                socket = new WebSocket(wsUrl);
 
-            newWs.onclose = () => {
-                setIsConnected(false);
-                console.log('Monitoring WebSocket disconnected');
-            };
+                socket.onopen = () => {
+                    setIsConnected(true);
+                    setError(null);
+                    console.log('Monitoring WebSocket connected');
+                };
 
-            setWs(newWs);
-        } catch (connectionError) {
-            console.error('Failed to create WebSocket connection:', connectionError);
-            setError('Failed to establish WebSocket connection');
-        }
-    }, [researchId, token, ws, handleParticipantLogin, handleParticipantStep, handleParticipantDisqualified, handleParticipantQuotaExceeded, handleParticipantCompleted, handleParticipantError]);
+                socket.onmessage = (event) => {
+                    try {
+                        const eventMessage = JSON.parse(event.data);
+
+                        switch (eventMessage.type) {
+                            case 'RESEARCH_UPDATE':
+                                // Handle full state update from backend
+                                setMonitoringData(prev => ({
+                                    ...prev,
+                                    ...eventMessage.data, // Expecting { metrics, participants }
+                                    lastUpdate: new Date().toISOString()
+                                }));
+                                break;
+
+                            case 'PARTICIPANT_LOGIN':
+                                handleParticipantLogin(eventMessage.data as { participantId: string; timestamp: string });
+                                break;
+                            case 'PARTICIPANT_STEP':
+                                handleParticipantStep(eventMessage.data as { participantId: string; stepName: string; progress: number; timestamp: string; duration: string });
+                                break;
+                            case 'PARTICIPANT_DISQUALIFIED':
+                                handleParticipantDisqualified(eventMessage.data as { participantId: string; reason: string; timestamp: string });
+                                break;
+                            case 'PARTICIPANT_QUOTA_EXCEEDED':
+                                handleParticipantQuotaExceeded(eventMessage.data as { participantId: string; quotaType: string; quotaValue: string; timestamp: string });
+                                break;
+                            case 'PARTICIPANT_COMPLETED':
+                                handleParticipantCompleted(eventMessage.data as { participantId: string; timestamp: string });
+                                break;
+                            case 'PARTICIPANT_ERROR':
+                                handleParticipantError(eventMessage.data as { participantId: string; timestamp: string });
+                                break;
+                            default:
+                                break;
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing WebSocket message:', parseError);
+                    }
+                };
+
+                socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    // Only set error if we are not already connected to avoid loop on immediate fail
+                    setIsConnected(false);
+                    setError('WebSocket connection error');
+                };
+
+                socket.onclose = () => {
+                    setIsConnected(false);
+                    console.log('Monitoring WebSocket disconnected');
+                };
+
+                setWs(socket);
+            } catch (connectionError) {
+                console.error('Failed to create WebSocket connection:', connectionError);
+                setError('Failed to establish WebSocket connection');
+            }
+        };
+
+        void connectWebSocket();
+
+        return () => {
+            if (socket) {
+                socket.close();
+            }
+        };
+    }, [researchId, token, handleParticipantLogin, handleParticipantStep, handleParticipantDisqualified, handleParticipantQuotaExceeded, handleParticipantCompleted, handleParticipantError]);
+
+    const connect = useCallback(() => {
+        // No-op - connection is managed by useEffect now
+        // Force re-render or logic if needed, but for now we rely on auto-connect
+        console.log('Manual connect requested - handled by effect');
+    }, []);
 
     const disconnect = useCallback(() => {
         if (ws) {
             ws.close();
-            setWs(null);
-            setIsConnected(false);
         }
     }, [ws]);
-
-    // Initialize connection when researchId and token are available
-    useEffect(() => {
-        if (researchId && token) {
-            connect();
-        } else {
-            disconnect();
-        }
-
-        return () => {
-            disconnect();
-        };
-    }, [researchId, token, connect, disconnect]);
 
     return {
         isConnected,

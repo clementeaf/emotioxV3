@@ -27,6 +27,7 @@ interface ApiEndpoints {
 interface ApiConfig {
     version: string;
     environment: string;
+    websocketApiUrl: string | null;
     endpoints: ApiEndpoints;
     features: {
         authentication: boolean;

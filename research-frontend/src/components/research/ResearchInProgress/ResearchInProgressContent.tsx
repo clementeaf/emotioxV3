@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { ParticipantsTable } from '../participants/ParticipantsTable';
 import { Button } from '../../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/Card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/Tabs';
+import { useAuthStore } from '../../../stores/auth.store';
 import { useMonitoringReceiver } from '../../../hooks/useMonitoringReceiver';
 import { researchInProgressService, type ResearchStatus, type Participant, type ResearchConfiguration } from '../../../services/researchInProgress.service';
 import { Activity, CheckCircle, Clock, Info, Users } from 'lucide-react';
@@ -22,8 +23,12 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     const params = useParams<{ id: string }>();
     const researchId = propResearchId || params.id;
     const toast = useToast();
+    const toastRef = useRef(toast);
+    const token = useAuthStore(state => state.token);
 
-    const { isConnected, monitoringData, connect } = useMonitoringReceiver(researchId || null, null);
+    toastRef.current = toast;
+
+    const { isConnected, monitoringData, connect } = useMonitoringReceiver(researchId || null, token || null);
 
     const [status, setStatus] = useState<ResearchStatus>({
         status: { value: '--', description: 'Cargando...', icon: 'chart-line' },
@@ -82,14 +87,14 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
             } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : 'Error al cargar los datos de la investigación';
                 setError(errorMessage);
-                toast.error(errorMessage);
+                toastRef.current.error(errorMessage);
             } finally {
                 setIsLoading(false);
             }
         };
 
         void loadData();
-    }, [researchId, toast]);
+    }, [researchId]);
 
     const handleParticipantDeleted = (participantId: string): void => {
         setParticipants(prev => prev.filter(p => p.id !== participantId));

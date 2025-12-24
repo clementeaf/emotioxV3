@@ -21,6 +21,8 @@ provider:
     # Secrets are loaded at runtime from SSM SecureString (not via Lambda env vars)
     SSM_PREFIX: /emotioxv3/${self:provider.stage}
     SSM_REGION: ${env:AWS_REGION, 'us-east-1'}
+    # WebSocket API endpoint will be obtained from requestContext in WebSocket events
+    # For HTTP endpoints, it will be retrieved from outputs or SSM Parameter Store
   iam:
     role:
       statements:
@@ -37,7 +39,7 @@ provider:
             - cognito-idp:AdminGetUser
             - cognito-idp:AdminSetUserPassword
             - cognito-idp:AdminUpdateUserAttributes
-          Resource: "arn:aws:cognito-idp:${env:AWS_REGION}:*:userpool/*"
+          Resource: "arn:aws:cognito-idp:${self:provider.region}:*:userpool/*"
         - Effect: Allow
           Action:
             - ec2:CreateNetworkInterface
@@ -51,7 +53,11 @@ provider:
             - ssm:GetParameter
             - ssm:GetParameters
           Resource:
-            - "arn:aws:ssm:${env:AWS_REGION, 'us-east-1'}:${aws:accountId}:parameter/emotioxv3/${self:provider.stage}/*"
+            - "arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/emotioxv3/${self:provider.stage}/*"
+        - Effect: Allow
+          Action:
+            - execute-api:ManageConnections
+          Resource: "arn:aws:execute-api:*:*:**/@connections/*"
 
 functions:
   api:
@@ -103,8 +109,23 @@ functions:
               - X-Api-Key
               - X-Amz-Security-Token
             allowCredentials: true
+  monitor:
+    handler: dist/modules/monitor/handler.handleSocket
+    runtime: nodejs20.x
+    events:
+      - websocket:
+          route: $connect
+      - websocket:
+          route: $disconnect
+      - websocket:
+          route: $default
 
 plugins:
   - serverless-offline
 
 custom: {}
+
+# Note: After deployment, get the WebSocket API endpoint from AWS Console or CloudFormation
+# and save it to SSM Parameter Store: /emotioxv3/{stage}/WEBSOCKET_API_ENDPOINT
+# The endpoint format is: wss://{api-id}.execute-api.{region}.amazonaws.com/{stage}
+# You can find it in: AWS Console > API Gateway > WebSocket APIs > {your-api} > Details > WebSocket URL

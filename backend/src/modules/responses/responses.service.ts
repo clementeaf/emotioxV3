@@ -14,6 +14,47 @@ export const save = async (researchId: string, participantId: string, moduleId: 
     JSON.stringify(answer),
     JSON.stringify(metadata),
   ]);
+  /* 
+    Logic to trigger real-time updates via WebSocket.
+    We fetch the updated metrics (using internal method to bypass user check) and send them to connected clients.
+  */
+  try {
+    // Import dynamically to avoid circular dependencies if any
+    const { monitorService } = await import('../monitor/monitor.service');
+    const { getOverviewMetricsInternal, getParticipantsWithStatusInternal } = await import('../research/research-in-progress.service');
+
+    // Determine endpoint
+    const isOffline = process.env.IS_OFFLINE || process.env.IS_LOCAL;
+    // Default local endpoint for serverless-offline
+    let endpoint = 'http://localhost:3001';
+
+    if (!isOffline && process.env.WEBSOCKET_API_ENDPOINT) {
+      endpoint = process.env.WEBSOCKET_API_ENDPOINT;
+    }
+
+    // Fetch updated data
+    const [metrics, participants] = await Promise.all([
+      getOverviewMetricsInternal(researchId),
+      getParticipantsWithStatusInternal(researchId)
+    ]);
+
+    const payload = {
+      type: 'RESEARCH_UPDATE',
+      data: {
+        metrics,
+        participants
+      }
+    };
+
+    // Fire and forget - don't block response saving
+    monitorService.notifyResearchUpdate(researchId, payload, endpoint).catch(err => {
+      console.error('Failed to send WebSocket update:', err);
+    });
+
+  } catch (err) {
+    console.error('Error triggering research update:', err);
+  }
+
   return result.rows[0];
 };
 
