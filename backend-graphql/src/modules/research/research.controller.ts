@@ -1,0 +1,168 @@
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { success, error } from '../../utils/response';
+import { isAuthError, requireAuth } from '../../utils/auth';
+import * as researchService from './research.service';
+import * as researchInProgressService from './research-in-progress.service';
+import * as authService from '../auth/auth.service';
+import * as publicService from '../public/public.service';
+import { getRequestOrigin } from '../../utils/request';
+
+export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const { httpMethod, path } = event;
+    const origin = getRequestOrigin(event);
+
+    try {
+        let decoded;
+        try {
+            decoded = await requireAuth(event);
+        } catch (authError: unknown) {
+            const authErrorMessage = authError instanceof Error ? authError.message : 'Authentication failed';
+            console.error('Auth error for', path, ':', authErrorMessage);
+            console.error('Headers:', JSON.stringify(event.headers, null, 2));
+            if (isAuthError(authError)) {
+                return error(authErrorMessage, authError.statusCode, undefined, origin);
+            }
+            throw authError;
+        }
+        const user = await authService.getMe(decoded.sub);
+
+        // GET /research
+        if (path === '/research' && httpMethod === 'GET') {
+            const researches = await researchService.list(user.id);
+            return success({ researches }, 200, undefined, origin);
+        }
+
+        // POST /research
+        if (path === '/research' && httpMethod === 'POST') {
+            const body = JSON.parse(event.body || '{}');
+            const research = await researchService.create(user.id, body);
+            return success({ research }, 201, undefined, origin);
+        }
+
+        // GET /research/:id
+        const getMatch = path.match(/^\/research\/([^\/]+)$/);
+        if (getMatch && httpMethod === 'GET') {
+            const id = getMatch[1];
+            const research = await researchService.getById(id, user.id);
+            return success({ research }, 200, undefined, origin);
+        }
+
+        // PUT /research/:id
+        const putMatch = path.match(/^\/research\/([^\/]+)$/);
+        if (putMatch && httpMethod === 'PUT') {
+            const id = putMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const research = await researchService.update(id, user.id, body);
+            return success({ research }, 200, undefined, origin);
+        }
+
+        // DELETE /research/:id
+        const deleteMatch = path.match(/^\/research\/([^\/]+)$/);
+        if (deleteMatch && httpMethod === 'DELETE') {
+            const id = deleteMatch[1];
+            const result = await researchService.deleteResearch(id, user.id);
+            return success(result, 200, undefined, origin);
+        }
+
+        // PATCH /research/:id/status
+        const statusMatch = path.match(/^\/research\/([^\/]+)\/status$/);
+        if (statusMatch && httpMethod === 'PATCH') {
+            const id = statusMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const research = await researchService.updateStatus(id, user.id, body.status);
+            return success({ research }, 200, undefined, origin);
+        }
+
+        // POST /research/:id/activate
+        const activateMatch = path.match(/^\/research\/([^\/]+)\/activate$/);
+        if (activateMatch && httpMethod === 'POST') {
+            const id = activateMatch[1];
+            const research = await researchService.activate(id, user.id);
+            return success({ research }, 200, undefined, origin);
+        }
+
+        // POST /research/:id/stages
+        const createStageMatch = path.match(/^\/research\/([^\/]+)\/stages$/);
+        if (createStageMatch && httpMethod === 'POST') {
+            const id = createStageMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            if (!body.name) {
+                return error('Stage name is required', 400, undefined, origin);
+            }
+            const stage = await researchService.createStage(id, user.id, body.name, body.description);
+            return success({ stage }, 201, undefined, origin);
+        }
+
+        // DELETE /research/:id/stages/:stageId
+        const deleteStageMatch = path.match(/^\/research\/([^\/]+)\/stages\/([^\/]+)$/);
+        if (deleteStageMatch && httpMethod === 'DELETE') {
+            const researchId = deleteStageMatch[1];
+            const stageId = deleteStageMatch[2];
+            const result = await researchService.deleteStage(researchId, user.id, stageId);
+            return success(result, 200, undefined, origin);
+        }
+
+        // DELETE /research/:id/modules/:moduleId
+        const deleteModuleMatch = path.match(/^\/research\/([^\/]+)\/modules\/([^\/]+)$/);
+        if (deleteModuleMatch && httpMethod === 'DELETE') {
+            const researchId = deleteModuleMatch[1];
+            const moduleId = deleteModuleMatch[2];
+            const result = await researchService.deleteModule(researchId, user.id, moduleId);
+            return success(result, 200, undefined, origin);
+        }
+
+        // GET /research/:id/metrics
+        const metricsMatch = path.match(/^\/research\/([^\/]+)\/metrics$/);
+        if (metricsMatch && httpMethod === 'GET') {
+            const researchId = metricsMatch[1];
+            const metrics = await researchInProgressService.getOverviewMetrics(researchId, user.id);
+            return success(metrics, 200, undefined, origin);
+        }
+
+        // GET /research/:id/participants/status
+        const participantsStatusMatch = path.match(/^\/research\/([^\/]+)\/participants\/status$/);
+        if (participantsStatusMatch && httpMethod === 'GET') {
+            const researchId = participantsStatusMatch[1];
+            const participants = await researchInProgressService.getParticipantsWithStatus(researchId, user.id);
+            return success(participants, 200, undefined, origin);
+        }
+
+        // GET /research/:id/participants/:participantId
+        const participantDetailsMatch = path.match(/^\/research\/([^\/]+)\/participants\/([^\/]+)$/);
+        if (participantDetailsMatch && httpMethod === 'GET') {
+            const researchId = participantDetailsMatch[1];
+            const participantId = participantDetailsMatch[2];
+            const participant = await researchInProgressService.getParticipantDetails(researchId, participantId, user.id);
+            return success(participant, 200, undefined, origin);
+        }
+
+        // DELETE /research/:id/participants/:participantId
+        const deleteParticipantMatch = path.match(/^\/research\/([^\/]+)\/participants\/([^\/]+)$/);
+        if (deleteParticipantMatch && httpMethod === 'DELETE') {
+            const researchId = deleteParticipantMatch[1];
+            const participantId = deleteParticipantMatch[2];
+            const result = await researchInProgressService.deleteParticipant(researchId, participantId, user.id);
+            return success(result, 200, undefined, origin);
+        }
+
+        // GET /eye-tracking-recruit/research/:id
+        const eyeTrackingRecruitMatch = path.match(/^\/eye-tracking-recruit\/research\/([^\/]+)$/);
+        if (eyeTrackingRecruitMatch && httpMethod === 'GET') {
+            const researchId = eyeTrackingRecruitMatch[1];
+            // Verificar que el research existe y pertenece al usuario
+            await researchService.getById(researchId, user.id);
+            const config = await publicService.getResearchConfiguration(researchId);
+            return success({ linkConfig: config.linkConfig || {}, ...config }, 200, undefined, origin);
+        }
+
+        return error('Route not found', 404, undefined, origin);
+    } catch (err: any) {
+        console.error('Research controller error:', err);
+
+        if (err.message === 'Invalid or expired token' || err.message === 'No token provided' || err.message === 'No authorization header') {
+            return error(err.message, 401, undefined, origin);
+        }
+
+        return error(err.message || 'Internal server error', 500, undefined, origin);
+    }
+};

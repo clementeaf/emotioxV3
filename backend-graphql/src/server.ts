@@ -1,0 +1,108 @@
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import type { APIGatewayProxyEvent } from 'aws-lambda';
+import { handler } from './handler';
+import cache from './config/cache';
+
+dotenv.config({ path: '../.env' });
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// CORS configuration - Dynamic origin validation for development
+app.use(cors({
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:12500',  // research-frontend
+            'http://localhost:12600',  // participant-frontend
+            'http://localhost:3000',
+            'http://localhost:5173',
+            'http://localhost:5174',
+            // Production origins (for testing)
+            'https://research.useremotion.com',
+            'https://participant.useremotion.com',
+        ];
+
+        // Allow requests with no origin (like mobile apps, curl, Postman)
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`CORS: Origin not allowed: ${origin}`);
+            callback(new Error('CORS: Origin not allowed'), false);
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],
+}));
+
+app.use(express.json());
+
+// Convert Express request to Lambda event format
+app.use(async (req, res) => {
+    const event: APIGatewayProxyEvent = {
+        httpMethod: req.method,
+        path: req.path,
+        headers: req.headers as Record<string, string>,
+        multiValueHeaders: {},
+        body: req.body ? JSON.stringify(req.body) : null,
+        isBase64Encoded: false,
+        pathParameters: null,
+        queryStringParameters: (req.query as Record<string, string>) || null,
+        multiValueQueryStringParameters: null,
+        stageVariables: null,
+        requestContext: {} as APIGatewayProxyEvent['requestContext'],
+        resource: req.path,
+    };
+
+    try {
+        const result = await handler(event, {} as any);
+
+        // Set headers
+        if (result.headers) {
+            const headers = result.headers;
+            Object.keys(headers).forEach((key) => {
+                const value = headers[key];
+                if (value && typeof value === 'string') {
+                    res.setHeader(key, value);
+                }
+            });
+        }
+
+        // Send response
+        res.status(result.statusCode).send(result.body);
+    } catch (error) {
+        console.error('Server error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.listen(PORT, () => {
+    console.log(`\n✓ Server running on http://localhost:${PORT}`);
+    console.log(`✓ Database: ${process.env.DB_NAME}`);
+    console.log(`✓ Region: ${process.env.APP_AWS_REGION}`);
+    console.log(`✓ Cache: Enabled (in-memory)\n`);
+    console.log('Available endpoints:');
+    console.log('  GET  /health');
+    console.log('  POST /auth/register');
+    console.log('  POST /auth/login');
+    console.log('  GET  /auth/me');
+    console.log('  GET  /research-types (admin)');
+    console.log('  GET  /research-techniques');
+    console.log('  GET  /research');
+    console.log('  GET  /public/research/:id');
+    console.log('  GET  /cache/stats');
+    console.log('  DELETE /cache/clear (admin)');
+    console.log('  POST /graphql (YOGA)\n');
+
+    // Log cache stats every 5 minutes
+    setInterval(() => {
+        console.log(`Cache stats: ${cache.size()} entries`);
+    }, 300000);
+});
+

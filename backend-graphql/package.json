@@ -1,0 +1,51 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "dev": "tsx watch src/server.ts",
+    "dev:nodemon": "nodemon",
+    "dev:serverless": "serverless offline",
+    "deploy": "serverless deploy",
+    "start": "node server.js",
+    "start:ts": "tsx src/server.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "nodemon": "^3.1.11",
+    "serverless": "^3.40.0",
+    "serverless-domain-manager": "^8.0.0",
+    "serverless-dotenv-plugin": "^6.0.0",
+    "serverless-offline": "^13.9.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.957.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.936.0",
+    "@aws-sdk/client-s3": "^3.937.0",
+    "@aws-sdk/client-ssm": "^3.937.0",
+    "@aws-sdk/s3-request-presigner": "^3.937.0",
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "@types/aws-lambda": "^8.10.159",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/pg": "^8.15.6",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "graphql": "^16.12.0",
+    "graphql-yoga": "^5.18.0",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.2.0",
+    "pg": "^8.16.3"
+  }
+}
