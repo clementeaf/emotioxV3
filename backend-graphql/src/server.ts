@@ -1,11 +1,12 @@
-import dotenv from 'dotenv';
+import './config/env'; // Must be first
 import express from 'express';
 import cors from 'cors';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { handler } from './handler';
 import cache from './config/cache';
 
-dotenv.config({ path: '../.env' });
+console.log('Environment loaded from server.ts'); // Debug log
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;

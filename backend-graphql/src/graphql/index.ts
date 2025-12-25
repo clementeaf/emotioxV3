@@ -1,41 +1,48 @@
 import { createSchema, createYoga } from 'graphql-yoga';
 import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
+import { typeDefs as authTypeDefs } from './auth/schema';
+import { resolvers as authResolvers } from './auth/resolvers';
+import { GraphQLContext } from './context';
 
-// 1. Define Schema
-const typeDefs = `
+// 1. Define Schema (Merged)
+const rootTypeDefs = `
   type Query {
     hello: String
     serverTime: String
   }
+  type Mutation {
+    _empty: String
+  }
 `;
 
-// 2. Define Resolvers
-const resolvers = {
+const rootResolvers = {
     Query: {
         hello: () => 'Hello from GraphQL Yoga in Lambda!',
         serverTime: () => new Date().toISOString(),
     },
 };
 
-// 3. Create Yoga App
+// 2. Create Yoga App
 const yoga = createYoga<{
     event: APIGatewayProxyEvent;
     lambdaContext: Context;
+    responseHeaders: Record<string, string | string[]>;
 }>({
     schema: createSchema({
-        typeDefs,
-        resolvers,
+        typeDefs: [rootTypeDefs, authTypeDefs],
+        resolvers: [rootResolvers, authResolvers],
     }),
-    graphqlEndpoint: '/graphql', // Ruta donde escuchará
-    landingPage: true, // Habilita GraphiQL
+    graphqlEndpoint: '/graphql',
+    landingPage: true,
 });
 
-// 4. Integración con AWS Lambda
-// Esta función adaptará el evento de API Gateway para Yoga
+// 3. AWS Lambda Handler
 export const graphqlHandler = async (
     event: APIGatewayProxyEvent,
     lambdaContext: Context
 ): Promise<APIGatewayProxyResult> => {
+    const responseHeaders: Record<string, string | string[]> = {};
+
     const response = await yoga.fetch(
         event.path + (event.queryStringParameters ? '?' + new URLSearchParams(event.queryStringParameters as any).toString() : ''),
         {
@@ -46,17 +53,34 @@ export const graphqlHandler = async (
         {
             event,
             lambdaContext,
+            responseHeaders, // Pass the mutable headers object to context
         }
     );
 
-    const responseHeaders: Record<string, string> = {};
+    // Map Yoga Response headers
+    const resultHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
+        resultHeaders[key] = value;
     });
+
+    // Handling Cookies specially for API Gateway (multiValueHeaders)
+    let multiValueHeaders: Record<string, (string | number | boolean)[]> = {};
+
+    if (responseHeaders['Set-Cookie']) {
+        // If resolver set cookies in our context
+        const cookies = responseHeaders['Set-Cookie'];
+        if (Array.isArray(cookies)) {
+            multiValueHeaders['Set-Cookie'] = cookies;
+        } else {
+            multiValueHeaders['Set-Cookie'] = [cookies];
+        }
+        delete responseHeaders['Set-Cookie']; // Remove from single headers to avoid overwrite/confusion
+    }
 
     return {
         statusCode: response.status,
-        headers: responseHeaders,
+        headers: { ...resultHeaders, ...responseHeaders as Record<string, string> },
+        multiValueHeaders,
         body: await response.text(),
         isBase64Encoded: false,
     };
