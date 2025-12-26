@@ -29,87 +29,98 @@ export const ResearchBuilderPage = () => {
     const queryClient = useQueryClient();
 
     const { data: research, isLoading: loading, error } = useResearch(id || null);
-    
+
     // Type assertion para TypeScript
-    const typedResearch = research as Research | null;    
+    const typedResearch = research as Research | null;
     const isSettings = location.pathname.endsWith('/settings');
     const moduleMatch = location.pathname.match(/\/module\/([^/]+)/);
     const activeModuleId = moduleMatch ? moduleMatch[1] : null;
-    
+
     const activeModule = activeModuleId && typedResearch && typedResearch.stages
         ? typedResearch.stages.flatMap((s: Stage) => s.modules || []).find((m: Module) => m.id === activeModuleId) || null
         : null;
-    
+
     const smartVOCStage = useMemo((): Stage | null => {
         if (!typedResearch?.stages) return null;
-        
-        let stage = typedResearch.stages.find((s: Stage) => 
-            s.name.toLowerCase().includes('smart voc') || 
+
+        let stage = typedResearch.stages.find((s: Stage) =>
+            s.name.toLowerCase().includes('smart voc') ||
             s.name.toLowerCase() === 'smart voc'
         );
-        
+
         if (!stage && activeModule && typedResearch.stages) {
-            stage = typedResearch.stages.find((s: Stage) => 
+            stage = typedResearch.stages.find((s: Stage) =>
                 s.modules?.some((m: Module) => m.id === activeModule.id) &&
                 (s.name.toLowerCase().includes('smart voc') || s.name.toLowerCase() === 'smart voc')
             );
         }
-        
+
         return stage || null;
     }, [typedResearch, activeModule]);
-    
+
     const smartVOCModules = useMemo((): Module[] => {
         if (!smartVOCStage || !smartVOCStage.modules) return [];
         // Mantener el mismo orden que viene del backend (igual que en el sidebar)
         // El sidebar muestra los módulos en el orden que vienen de stage.modules
         return [...smartVOCStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
     }, [smartVOCStage]);
-    
+
     const isSmartVOCStage = smartVOCStage !== null && (
-        !activeModuleId || 
+        !activeModuleId ||
         smartVOCModules.some(m => m.id === activeModuleId)
     );
-    
+
     // Cognitive Tasks stage logic (same structure as Smart VOC)
     const cognitiveTasksStage = useMemo((): Stage | null => {
         if (!typedResearch?.stages) return null;
-        
-        let stage = typedResearch.stages.find((s: Stage) => 
-            s.name.toLowerCase().includes('cognitive task') || 
+
+        let stage = typedResearch.stages.find((s: Stage) =>
+            s.name.toLowerCase().includes('cognitive task') ||
             s.name.toLowerCase() === 'cognitive tasks'
         );
-        
+
         if (!stage && activeModule && typedResearch.stages) {
-            stage = typedResearch.stages.find((s: Stage) => 
+            stage = typedResearch.stages.find((s: Stage) =>
                 s.modules?.some((m: Module) => m.id === activeModule.id) &&
                 (s.name.toLowerCase().includes('cognitive task') || s.name.toLowerCase() === 'cognitive tasks')
             );
         }
-        
+
         return stage || null;
     }, [typedResearch, activeModule]);
-    
+
     const cognitiveTaskModules = useMemo((): Module[] => {
         if (!cognitiveTasksStage || !cognitiveTasksStage.modules) return [];
         return [...cognitiveTasksStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
     }, [cognitiveTasksStage]);
-    
+
     const isCognitiveTasksStage = cognitiveTasksStage !== null && (
-        !activeModuleId || 
+        !activeModuleId ||
         cognitiveTaskModules.some(m => m.id === activeModuleId)
     );
-    
+
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
-    
+
     const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
-    
+
+    // Initialize componentValues from config for Research Configuration module
+    useEffect(() => {
+        if (isResearchConfigModule && activeModule?.config) {
+            const flatConfig = flattenResearchConfig(activeModule.config);
+            setComponentValues(prev => ({
+                ...prev,
+                ...flatConfig
+            }));
+        }
+    }, [isResearchConfigModule, activeModule, setComponentValues]);
+
     // Refs for SmartVOC module cards to access their component values
     const smartVOCModuleRefs = useRef<Map<string, SmartVOCModuleCardRef>>(new Map());
-    
+
     // Refs for Cognitive Task module cards to access their component values
     const cognitiveTaskModuleRefs = useRef<Map<string, CognitiveTaskModuleCardRef>>(new Map());
-    
+
     useWelcomeScreenRedirect(typedResearch, loading, activeModuleId, isSettings, id);
 
     const [isSaving, setIsSaving] = useState(false);
@@ -217,7 +228,7 @@ export const ResearchBuilderPage = () => {
 
         try {
             setIsSaving(true);
-            
+
             if (isSmartVOCStage && smartVOCModules.length > 0) {
                 // Save all Smart VOC modules with their current component values
                 const updatePromises = smartVOCModules.map(module => {
@@ -230,15 +241,13 @@ export const ResearchBuilderPage = () => {
                             order: module.order_index
                         });
                     }
-                    
+
                     // Get current component values from the ref
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
                     const hidden = moduleRef.getHidden();
-                    
-                    // Removed excessive logging for production
-                    
+
                     // Update components with new values
                     const updatedComponents = currentComponents.map(comp => ({
                         ...comp,
@@ -246,9 +255,7 @@ export const ResearchBuilderPage = () => {
                             ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
                             : (currentComponentValues[comp.id] || comp.value)
                     }));
-                    
-                    // Removed excessive logging for production
-                    
+
                     // Preserve the correct backend structure
                     const configWithStructure = {
                         ...module.config,
@@ -259,7 +266,7 @@ export const ResearchBuilderPage = () => {
                     };
 
                     const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
-                    
+
                     return modulesService.update(module.id, {
                         config,
                         order: module.order_index
@@ -278,21 +285,17 @@ export const ResearchBuilderPage = () => {
                             order: module.order_index
                         });
                     }
-                    
+
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
                     const hidden = moduleRef.getHidden();
-                    
-                    // Removed excessive logging for production
-                    
+
                     const updatedComponents = currentComponents.map(comp => ({
                         ...comp,
                         value: currentComponentValues[comp.id] || comp.value
                     }));
-                    
-                    // Removed excessive logging for production
-                    
+
                     const configWithStructure = {
                         ...module.config,
                         structure: {
@@ -302,7 +305,7 @@ export const ResearchBuilderPage = () => {
                     };
 
                     const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
-                    
+
                     return modulesService.update(module.id, {
                         config,
                         order: module.order_index
@@ -315,8 +318,8 @@ export const ResearchBuilderPage = () => {
                 if (isResearchConfigModule) {
                     // Transform componentValues into structured config
                     const structuredConfig = transformResearchConfigComponentValues(componentValues);
-                    
-                    // Preserve the correct backend structure: { structure: { components: [...] } }
+
+                    // Preserve other config properties but overwrite the structured ones
                     const config = {
                         ...activeModule.config,
                         ...structuredConfig
@@ -332,22 +335,22 @@ export const ResearchBuilderPage = () => {
                     const updatedComponents = components.map(comp => ({
                         ...comp,
                         // Update default value or value from componentValues
-                        ...(comp.settings?.readonly 
-                          ? {
-                              settings: {
-                                  ...comp.settings,
-                                  defaultValue: comp.type === 'file-upload'
-                                      ? (sanitizeFileUploadSerializedValue(
+                        ...(comp.settings?.readonly
+                            ? {
+                                settings: {
+                                    ...comp.settings,
+                                    defaultValue: comp.type === 'file-upload'
+                                        ? (sanitizeFileUploadSerializedValue(
                                             toOptionalString(componentValues[comp.id]) ?? toOptionalString(comp.settings.defaultValue)
                                         ) ?? toOptionalString(comp.settings.defaultValue))
-                                      : (toOptionalString(componentValues[comp.id]) ?? toOptionalString(comp.settings.defaultValue)),
-                              },
-                          }
-                          : {
-                              value: comp.type === 'file-upload'
-                                  ? sanitizeFileUploadSerializedValue(toOptionalString(componentValues[comp.id]))
-                                  : toOptionalString(componentValues[comp.id]),
-                          }
+                                        : (toOptionalString(componentValues[comp.id]) ?? toOptionalString(comp.settings.defaultValue)),
+                                },
+                            }
+                            : {
+                                value: comp.type === 'file-upload'
+                                    ? sanitizeFileUploadSerializedValue(toOptionalString(componentValues[comp.id]))
+                                    : toOptionalString(componentValues[comp.id]),
+                            }
                         )
                     }));
 
@@ -355,8 +358,8 @@ export const ResearchBuilderPage = () => {
                     const config = {
                         ...activeModule.config,
                         structure: {
-                          ...(activeModule.config.structure || {}),
-                          components: updatedComponents
+                            ...(activeModule.config.structure || {}),
+                            components: updatedComponents
                         }
                     };
 
@@ -554,10 +557,20 @@ export const ResearchBuilderPage = () => {
                 <div className="space-y-6">
                     <div className="rounded-lg shadow-sm border border-gray-100 p-6">
                         <ResearchConfigurationModule
-                            config={componentValues}
+                            config={transformResearchConfigComponentValues(componentValues)}
                             onChange={(newConfig) => {
                                 Object.keys(newConfig).forEach(key => {
-                                    handleComponentValueChange(key, String(newConfig[key]));
+                                    if (key === 'demographics' || key === 'linkConfig') {
+                                        Object.entries(newConfig[key] as Record<string, boolean>).forEach(([subKey, val]) => {
+                                            handleComponentValueChange(subKey, String(val));
+                                        });
+                                    } else if (key === 'backlinks') {
+                                        Object.entries(newConfig[key] as Record<string, string>).forEach(([subKey, val]) => {
+                                            handleComponentValueChange(subKey, val);
+                                        });
+                                    } else {
+                                        handleComponentValueChange(key, String(newConfig[key]));
+                                    }
                                 });
                             }}
                         />
@@ -583,35 +596,69 @@ export const ResearchBuilderPage = () => {
 const transformResearchConfigComponentValues = (values: Record<string, string>): Record<string, unknown> => {
     // Initialize structured config
     const config: Record<string, unknown> = {
-      demographics: {},
-      linkConfig: {},
-      backlinks: {},
-      participantLimit: 50
+        demographics: {},
+        linkConfig: {},
+        backlinks: {},
+        participantLimit: 50,
+        researchUrl: ''
     };
 
     // Process each component value
     Object.entries(values).forEach(([key, value]) => {
-      // Handle demographics
-      if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key)) {
-        (config.demographics as Record<string, boolean>)[key] = value === 'true';
-      }
-      // Handle link configuration
-      else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
-        (config.linkConfig as Record<string, boolean>)[key] = value === 'true';
-      }
-      // Handle backlinks
-      else if (['complete', 'disqualified', 'overquota'].includes(key)) {
-        (config.backlinks as Record<string, string>)[key] = value;
-      }
-      // Handle research URL
-      else if (key === 'researchUrl') {
-        config.researchUrl = value;
-      }
-      // Handle participant limit
-      else if (key === 'participantLimit') {
-        config.participantLimit = parseInt(value) || 50;
-      }
+        // Handle demographics
+        if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key)) {
+            (config.demographics as Record<string, boolean>)[key] = value === 'true';
+        }
+        // Handle link configuration
+        else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
+            (config.linkConfig as Record<string, boolean>)[key] = value === 'true';
+        }
+        // Handle backlinks
+        else if (['complete', 'disqualified', 'overquota'].includes(key)) {
+            (config.backlinks as Record<string, string>)[key] = value;
+        }
+        // Handle research URL
+        else if (key === 'researchUrl') {
+            config.researchUrl = value;
+        }
+        // Handle participant limit
+        else if (key === 'participantLimit') {
+            config.participantLimit = parseInt(value) || 50;
+        }
     });
 
     return config;
-  };
+};
+
+// Helper function to flatten nested config into componentValues
+const flattenResearchConfig = (config: Record<string, unknown>): Record<string, string> => {
+    const values: Record<string, string> = {};
+
+    if (config.demographics) {
+        Object.entries(config.demographics as Record<string, boolean>).forEach(([key, value]) => {
+            values[key] = String(value);
+        });
+    }
+
+    if (config.linkConfig) {
+        Object.entries(config.linkConfig as Record<string, boolean>).forEach(([key, value]) => {
+            values[key] = String(value);
+        });
+    }
+
+    if (config.backlinks) {
+        Object.entries(config.backlinks as Record<string, string>).forEach(([key, value]) => {
+            values[key] = value;
+        });
+    }
+
+    if (config.researchUrl) {
+        values.researchUrl = String(config.researchUrl);
+    }
+
+    if (config.participantLimit !== undefined) {
+        values.participantLimit = String(config.participantLimit);
+    }
+
+    return values;
+};
