@@ -12,13 +12,13 @@ import type { Research } from '../../services/research.service';
  * Componente memoizado para fila de tabla
  * Evita re-renders innecesarios cuando solo cambian otros elementos
  */
-const ResearchTableRow = memo(({ 
-    research, 
-    onRowClick, 
-    onCopy, 
-    onDelete 
-}: { 
-    research: Research; 
+const ResearchTableRow = memo(({
+    research,
+    onRowClick,
+    onCopy,
+    onDelete
+}: {
+    research: Research;
     onRowClick: (id: string) => void;
     onCopy: (research: Research) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
@@ -115,33 +115,31 @@ ResearchTableRow.displayName = 'ResearchTableRow';
 /**
  * Componente memoizado para tarjeta de tipo de investigación
  */
-const ResearchTypeCard = memo(({ 
-    type, 
-    onView 
-}: { 
-    type: { id: string; name: string }; 
+const ResearchTypeCard = memo(({
+    type,
+    onView
+}: {
+    type: { id: string; name: string };
     onView: (name: string) => void;
 }) => {
     const initials = useMemo(() => type.name.substring(0, 2).toUpperCase(), [type.name]);
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-sm font-bold">{initials}</span>
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">{initials}</span>
                     </div>
                     <div>
-                        <h4 className="text-sm font-semibold text-gray-900">{type.name}</h4>
-                        <p className="text-xs text-gray-500">By UserEmotion</p>
+                        <h4 className="text-sm font-semibold text-gray-900 leading-tight">{type.name}</h4>
+                        <p className="text-[10px] text-gray-500">By UserEmotion</p>
                     </div>
                 </div>
-            </div>
-            <div className="text-right">
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="text-blue-600 hover:text-blue-800"
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-blue-600 hover:text-blue-800 h-8 px-2 text-xs"
                     onClick={() => onView(type.name)}
                 >
                     View
@@ -160,7 +158,7 @@ ResearchTypeCard.displayName = 'ResearchTypeCard';
 export const DashboardPage = () => {
     const navigate = useNavigate();
     const toast = useToast();
-    
+
     // Usar React Query para datos optimizados con caché
     const { data: researches = [], isLoading } = useResearches();
     const { data: researchTypes = [] } = useResearchTypes();
@@ -169,7 +167,7 @@ export const DashboardPage = () => {
     // Type assertions para TypeScript
     const typedResearches = researches as Research[];
     const typedResearchTypes = researchTypes as Array<{ id: string; name: string }>;
-    
+
     // State local solo para UI
     const [activeFilter, setActiveFilter] = useState<string>('all');
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -203,7 +201,7 @@ export const DashboardPage = () => {
 
     const handleConfirmDelete = useCallback(async () => {
         if (!researchToDelete) return;
-        
+
         try {
             await deleteResearch.mutateAsync(researchToDelete.id);
             setDeleteModalOpen(false);
@@ -226,10 +224,10 @@ export const DashboardPage = () => {
             {/* Main Content - Table and Sidebar */}
             <div className="flex gap-4 sm:gap-6 flex-col lg:flex-row">
                 {/* Left Section - Research Table */}
-                <div className="flex-1 lg:w-full rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0">
+                <div className="flex-1 lg:w-full rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 max-h-[50vh] overflow-y-auto">
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
+                            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         Name
@@ -292,7 +290,7 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Right Sidebar - Research Types Filter */}
-                <div className="w-full lg:w-80 space-y-3 sm:space-y-4 flex-shrink-0">
+                <div className="w-full lg:w-80 space-y-2 flex-shrink-0 max-h-[50vh] overflow-y-auto pr-1">
                     {typedResearchTypes.slice(0, 4).map((type) => (
                         <ResearchTypeCard
                             key={type.id}
@@ -308,11 +306,10 @@ export const DashboardPage = () => {
                 <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6">
                     <button
                         onClick={() => setActiveFilter('all')}
-                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                            activeFilter === 'all'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
+                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${activeFilter === 'all'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
                     >
                         All
                     </button>
@@ -320,11 +317,10 @@ export const DashboardPage = () => {
                         <button
                             key={type.id}
                             onClick={() => setActiveFilter(type.id)}
-                            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                                activeFilter === type.id
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
+                            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${activeFilter === type.id
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
                         >
                             {type.name}
                         </button>
