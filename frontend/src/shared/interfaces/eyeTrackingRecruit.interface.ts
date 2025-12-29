@@ -19,73 +19,17 @@ export type DemographicQuestionKeys =
 export type LinkConfigKeys =
   | 'allowMobile'
   | 'trackLocation'
-  | 'allowMultipleAttempts';
+  | 'allowMultipleAttempts'
+  | 'showProgressBar';
 
-// Tipos para las claves de las opciones de parámetros
-export type ParameterOptionKeys =
-  | 'saveDeviceInfo'
-  | 'saveLocationInfo'
-  | 'saveResponseTimes'
-  | 'saveUserJourney';
-
-// Estructura para las preguntas demográficas
-export interface DemographicQuestions {
-  age: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Rangos de edad predefinidos
-    disqualifyingAges?: string[]; // Edades que descalifican
-  };
-  country: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Lista de países o "all"
-    disqualifyingCountries?: string[]; // Países que descalifican
-    priorityCountries?: string[]; // Países con prioridad en el reclutamiento
-  };
-  gender: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Lista de opciones de género
-    disqualifyingGenders?: string[]; // Géneros que descalifican
-  };
-  educationLevel: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Niveles de educación
-    disqualifyingEducation?: string[]; // Niveles educativos que descalifican
-  };
-  householdIncome: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Rangos de ingresos
-    disqualifyingIncomes?: string[]; // Ingresos que descalifican
-  };
-  employmentStatus: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Estados de empleo
-    disqualifyingEmploymentStatuses?: string[]; // Estados de empleo que descalifican
-  };
-  dailyHoursOnline: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Rangos de horas
-    disqualifyingHours?: string[]; // Horas que descalifican
-  };
-  technicalProficiency: {
-    enabled: boolean;
-    required: boolean;
-    options?: string[]; // Niveles de habilidad técnica
-    disqualifyingProficiencies?: string[]; // Niveles de competencia que descalifican
-  };
-}
+// ... (skipping lines)
 
 // Estructura para la configuración del enlace
 export interface LinkConfig {
   allowMobile: boolean; // Permitir dispositivos móviles
   trackLocation: boolean; // Rastrear ubicación del participante
   allowMultipleAttempts: boolean; // Permitir múltiples intentos del mismo participante
+  showProgressBar: boolean; // Mostrar barra de progreso
 }
 
 // Estructura para el límite de participantes
@@ -211,3 +155,21 @@ export enum RecruitLinkType {
   PREVIEW = 'preview', // Enlace de vista previa
   ADMIN = 'admin' // Enlace de administrador
 }
+
+// Estructura base para cuotas
+export interface BaseQuota {
+  option: string;
+  limit: number;
+  current?: number;
+  enabled?: boolean;
+}
+
+// Tipos específicos de cuotas
+export type AgeQuota = BaseQuota;
+export type CountryQuota = BaseQuota;
+export type GenderQuota = BaseQuota;
+export type EducationLevelQuota = BaseQuota;
+export type HouseholdIncomeQuota = BaseQuota;
+export type EmploymentStatusQuota = BaseQuota;
+export type DailyHoursOnlineQuota = BaseQuota;
+export type TechnicalProficiencyQuota = BaseQuota;

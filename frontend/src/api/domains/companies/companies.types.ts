@@ -2,13 +2,14 @@
  * Companies Domain Types
  */
 
-// Re-export from shared interfaces
-export type {
-  Company
-} from '../../../../../shared/interfaces/company.interface';
-
-// Import for local use
-import type { Company } from '../../../../../shared/interfaces/company.interface';
+// Local definition since @shared/interfaces/company.interface is missing
+export interface Company {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt: string;
+}
 
 // API Response wrapper
 export interface ApiResponse<T> {

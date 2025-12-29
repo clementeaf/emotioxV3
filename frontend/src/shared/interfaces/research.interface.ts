@@ -4,7 +4,8 @@
 export enum ResearchType {
   EYE_TRACKING = 'eye-tracking',
   ATTENTION_PREDICTION = 'attention-prediction',
-  COGNITIVE_ANALYSIS = 'cognitive-analysis'
+  COGNITIVE_ANALYSIS = 'cognitive-analysis',
+  BEHAVIOURAL = 'behavioural'
 }
 
 /**

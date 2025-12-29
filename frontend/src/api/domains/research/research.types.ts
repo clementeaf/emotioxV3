@@ -16,7 +16,7 @@
 // } from '@/shared/types/research.types'; // Comentado - tipos no existen
 
 // Import the correct backend type for API calls
-export type { CreateResearchRequest } from '../../../../../shared/types/backend-core.types';
+export type { CreateResearchRequest } from '@shared/types/research.types';
 
 export type { ResearchType, ResearchStatus } from '@/shared/types/research.types';
 

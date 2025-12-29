@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-import { ErrorSectionProps } from '../../../../../shared/interfaces/research-creation.interface';
+import { ErrorSectionProps } from '@shared/interfaces/research-creation.interface';
 
 /**
  * Sección de error para pasos no válidos

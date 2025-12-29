@@ -4,7 +4,7 @@
  */
 
 // Re-export shared types
-export * from '../../../../../shared/interfaces/company.interface';
+// Export removed: @shared/interfaces/company.interface does not exist
 
 // Import necessary types
 import type { ClientStatus } from '@/shared/types/clients.types';

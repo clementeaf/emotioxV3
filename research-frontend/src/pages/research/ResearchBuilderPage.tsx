@@ -560,7 +560,12 @@ export const ResearchBuilderPage = () => {
                             config={transformResearchConfigComponentValues(componentValues)}
                             onChange={(newConfig) => {
                                 Object.keys(newConfig).forEach(key => {
-                                    if (key === 'demographics' || key === 'linkConfig') {
+                                    if (key === 'demographics') {
+                                        Object.entries(newConfig[key] as Record<string, any>).forEach(([subKey, val]) => {
+                                            const valueToSave = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                                            handleComponentValueChange(subKey, valueToSave);
+                                        });
+                                    } else if (key === 'linkConfig') {
                                         Object.entries(newConfig[key] as Record<string, boolean>).forEach(([subKey, val]) => {
                                             handleComponentValueChange(subKey, String(val));
                                         });
@@ -603,11 +608,24 @@ const transformResearchConfigComponentValues = (values: Record<string, string>):
         researchUrl: ''
     };
 
+    // Helper to try parsing JSON or return original
+    const tryParse = (val: string) => {
+        if (val === 'true') return true;
+        if (val === 'false') return false;
+        try {
+            const parsed = JSON.parse(val);
+            if (typeof parsed === 'object' && parsed !== null) return parsed;
+        } catch {
+            // ignore
+        }
+        return val;
+    };
+
     // Process each component value
     Object.entries(values).forEach(([key, value]) => {
         // Handle demographics
         if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key)) {
-            (config.demographics as Record<string, boolean>)[key] = value === 'true';
+            (config.demographics as Record<string, any>)[key] = tryParse(value);
         }
         // Handle link configuration
         else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
@@ -635,8 +653,12 @@ const flattenResearchConfig = (config: Record<string, unknown>): Record<string, 
     const values: Record<string, string> = {};
 
     if (config.demographics) {
-        Object.entries(config.demographics as Record<string, boolean>).forEach(([key, value]) => {
-            values[key] = String(value);
+        Object.entries(config.demographics as Record<string, any>).forEach(([key, value]) => {
+            if (typeof value === 'object' && value !== null) {
+                values[key] = JSON.stringify(value);
+            } else {
+                values[key] = String(value);
+            }
         });
     }
 

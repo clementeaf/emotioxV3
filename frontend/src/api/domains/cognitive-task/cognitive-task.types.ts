@@ -15,10 +15,10 @@ export type {
   ScaleConfig,
   UploadedFile,
   QuestionTypeInfo
-} from '../../../../../shared/interfaces/cognitive-task.interface';
+} from '@shared/interfaces/cognitive-task.interface';
 
 // Import for local use
-import type { CognitiveTaskFormData, Question } from '../../../../../shared/interfaces/cognitive-task.interface';
+import type { CognitiveTaskFormData, Question } from '@shared/interfaces/cognitive-task.interface';
 
 // API Response wrapper
 export interface ApiResponse<T> {

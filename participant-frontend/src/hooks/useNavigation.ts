@@ -7,6 +7,7 @@ import type { Module } from '../services/public.service';
 // Define the order of steps (hardcoded for now, will be dynamic later)
 const STEPS_ORDER = [
     'welcome',
+    'demographics',
     // SmartVOC
     'csat', 'nps', 'ces', 'cv', 'nev', 'voc',
     // Cognitive Tasks
@@ -48,17 +49,17 @@ export const useNavigation = (modulesByStep: Record<string, Module>) => {
         if (currentIndex >= 0 && currentIndex < steps.length - 1) {
             const nextStep = steps[currentIndex + 1];
             setCurrentStep(nextStep);
-            
+
             // Track step change
             trackInteraction({
                 type: 'step_change',
                 target: nextStep,
                 metadata: { from: currentStep, direction: 'next' },
             });
-            
+
             // Update metrics
             updateMetrics({ stepChanges: currentIndex + 1 });
-            
+
             return { success: true };
         }
         return { success: true };
@@ -68,7 +69,7 @@ export const useNavigation = (modulesByStep: Record<string, Module>) => {
         if (currentIndex > 0) {
             const prevStep = steps[currentIndex - 1];
             setCurrentStep(prevStep);
-            
+
             // Track step change
             trackInteraction({
                 type: 'step_change',
@@ -81,7 +82,7 @@ export const useNavigation = (modulesByStep: Record<string, Module>) => {
     const goToStep = useCallback((stepId: string) => {
         if (steps.includes(stepId)) {
             setCurrentStep(stepId);
-            
+
             // Track step change
             trackInteraction({
                 type: 'step_change',

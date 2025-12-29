@@ -128,16 +128,16 @@ export const getResearchConfiguration = async (researchId: string): Promise<Reco
     ORDER BY m.order_index
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
-  
+
   // Look for Research Configuration module
   const researchConfigModule: DbResearchConfigModuleRow | undefined = (modulesResult.rows as DbResearchConfigModuleRow[])
     .find((moduleRow: DbResearchConfigModuleRow) => moduleRow.name === 'Research Configuration');
-  
+
   if (researchConfigModule && researchConfigModule.config) {
     const configRecord: Record<string, unknown> = parseJsonRecord(researchConfigModule.config);
     return configRecord;
   }
-  
+
   return {};
 };
 
@@ -148,7 +148,7 @@ export const getResearchConfiguration = async (researchId: string): Promise<Reco
  */
 export const getResearch = async (researchId: string): Promise<PublicResearchDto> => {
   const cacheKey = `${CacheKeys.PUBLIC_RESEARCH}:${researchId}`;
-  
+
   return cache.getOrSet(
     cacheKey,
     async () => {
@@ -431,6 +431,36 @@ const verifyTurnstileToken = async (token: string): Promise<boolean> => {
 };
 
 /**
+ * Validates participant demographics against disqualifications and quota availability
+ * Called before participant completes demographics step
+ */
+export const validateDemographics = async (
+  researchId: string,
+  demographicAnswers: Record<string, string>
+): Promise<{ valid: boolean; reason?: 'DISQUALIFIED' | 'QUOTA_FULL'; details?: string }> => {
+  try {
+    // Get research configuration to access demographic rules
+    const researchConfig = await getResearchConfiguration(researchId);
+    const demographics = (researchConfig.demographics || {}) as Record<string, any>;
+
+    // Import quota service
+    const quotaService = await import('../quotas/quota.service');
+
+    // Check validation through quota service
+    const validation = await quotaService.checkQuotaAvailability(
+      researchId,
+      demographicAnswers,
+      demographics
+    );
+
+    return validation;
+  } catch (error) {
+    console.error('Error validating demographics:', error);
+    throw error;
+  }
+};
+
+/**
  * Save participant responses for a module
  * This is the modern endpoint for saving responses from participant-frontend
  */
@@ -555,7 +585,7 @@ export const saveParticipantResponses = async (
   const researchConfig = await getResearchConfiguration(researchId);
   if (researchConfig && researchConfig.participantLimit) {
     const participantLimit = researchConfig.participantLimit as { enabled: boolean; value: number };
-    
+
     if (participantLimit.enabled) {
       const currentCount = await getParticipantCount(researchId);
       if (currentCount >= participantLimit.value) {
@@ -641,6 +671,23 @@ export const saveParticipantResponses = async (
       ]);
 
       savedResponses.push(result.rows[0]);
+    }
+
+    // If this is a demographics module, increment quotas
+    const moduleName = moduleNameById.get(moduleId);
+    if (moduleName && (moduleName.toLowerCase().includes('demographic') || moduleName === 'Information')) {
+      // Extract demographic answers from responses
+      const demographicAnswers: Record<string, string> = {};
+      for (const response of responses) {
+        if (typeof response.value === 'string') {
+          demographicAnswers[response.componentId] = response.value;
+        }
+      }
+
+      // Increment matching quotas
+      const quotaService = await import('../quotas/quota.service');
+      await quotaService.incrementQuota(client, researchId, participantId, demographicAnswers);
+      console.log(`✓ Updated quota counts for participant ${participantId}`);
     }
 
     await client.query('COMMIT');

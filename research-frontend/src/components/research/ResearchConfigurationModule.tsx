@@ -3,8 +3,9 @@ import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
-import { ExternalLink, QrCode, Copy } from 'lucide-react';
+import { ExternalLink, QrCode, Copy, Settings } from 'lucide-react';
 import { useUrlValidation } from '../../hooks/useUrlValidation';
+import { DemographicConfigModal } from './DemographicConfigModal';
 import { useToast } from '../../hooks/useToast';
 
 
@@ -54,11 +55,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const toast = useToast();
 
 
-    const demographics = (config.demographics || {}) as Record<string, boolean>;
+    const demographics = (config.demographics || {}) as Record<string, any>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
     const backlinks = (config.backlinks || {}) as Record<string, string>;
     const researchUrl = (config.researchUrl || '') as string;
     const participantLimit = (config.participantLimit || 50) as number;
+    const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
     const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
 
     // Extract URL parameters dynamically
@@ -216,12 +218,37 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         }
     };
 
-    const handleDemographicChange = (key: string, value: boolean) => {
+    const handleDemographicChange = (key: string, value: any) => {
         onChange({
             ...config,
             demographics: { ...demographics, [key]: value }
         });
     };
+
+    // Helper to get safe boolean enabled state
+    const isDemographicEnabled = (key: string): boolean => {
+        const val = demographics[key];
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'object' && val !== null) return val.enabled === true;
+        return false;
+    };
+
+    const handleSaveDemographicConfig = (newConfig: any) => {
+        if (!activeConfigModal) return;
+
+        onChange({
+            ...config,
+            demographics: {
+                ...demographics,
+                [activeConfigModal]: {
+                    enabled: true,
+                    ...newConfig
+                }
+            }
+        });
+    };
+
+    const DEMOGRAPHIC_KEYS = ['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'];
 
     const handleLinkConfigChange = (key: string, value: boolean) => {
         onChange({
@@ -302,21 +329,45 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 px-4">
-                        {['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].map((key) => (
-                            <label key={key} className={`flex items-center gap-2 text-sm ${!demographicEnabled ? 'opacity-50' : ''}`}>
-                                <input
-                                    type="checkbox"
-                                    checked={demographics[key] || false}
-                                    onChange={(e) => handleDemographicChange(key, e.target.checked)}
-                                    disabled={!demographicEnabled}
-                                    className="rounded border-gray-300"
-                                />
-                                <span className="capitalize">
-                                    {key.replace(/([A-Z])/g, ' $1').trim()}
-                                </span>
-                            </label>
-                        ))}
+                    <div className="space-y-4 px-4">
+                        <div className="space-y-3">
+                            {DEMOGRAPHIC_KEYS.map((key) => {
+                                const isEnabled = isDemographicEnabled(key);
+                                // variable removed: unused
+
+
+                                return (
+                                    <div key={key} className={`flex items-center justify-between p-3 border rounded-md ${!demographicEnabled ? 'opacity-50' : ''}`}>
+                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={isEnabled}
+                                                onChange={(e) => handleDemographicChange(key, e.target.checked)}
+                                                disabled={!demographicEnabled}
+                                                className="rounded border-gray-300"
+                                            />
+                                            <span className="capitalize">
+                                                {key === 'country' ? 'Country & Geography' :
+                                                    key === 'age' ? 'Age Range' :
+                                                        key.replace(/([A-Z])/g, ' $1').trim()}
+                                            </span>
+                                        </label>
+
+                                        {isEnabled && demographicEnabled && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setActiveConfigModal(key)}
+                                                className="h-8 w-8 p-0"
+                                                title="Configure"
+                                            >
+                                                <Settings className="h-4 w-4 text-gray-500" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -512,6 +563,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             </div>
 
             {/* QR Code Modal */}
+            {/* QR Code Modal */}
             <QRCodeModal
                 isOpen={showQRModal}
                 onClose={() => setShowQRModal(false)}
@@ -520,6 +572,16 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 description="This is your Public QR Code"
                 downloadFileName="research-qr-code.png"
             />
+
+            {activeConfigModal && (
+                <DemographicConfigModal
+                    isOpen={!!activeConfigModal}
+                    onClose={() => setActiveConfigModal(null)}
+                    demographicType={activeConfigModal}
+                    onSave={handleSaveDemographicConfig}
+                    initialConfig={typeof demographics[activeConfigModal] === 'object' ? demographics[activeConfigModal] : undefined}
+                />
+            )}
         </div>
     );
 };

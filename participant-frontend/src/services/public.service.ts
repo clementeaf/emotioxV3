@@ -8,7 +8,21 @@ import { configService } from './config.service';
 import type { ModuleConfig } from '../types/module';
 
 // Alias for consistency
-type Module = ModuleConfig;
+type Module = ModuleConfig & {
+    config?: {
+        backlinks?: {
+            complete?: string;
+            disqualified?: string;
+            overquota?: string;
+        };
+        linkConfig?: {
+            allowMobile?: boolean;
+            trackLocation?: boolean;
+            allowMultiple?: boolean;
+        };
+        participantLimit?: number;
+    };
+};
 
 interface Stage {
     id: string;
@@ -54,7 +68,7 @@ class PublicService {
             const baseUrl = configService.getBaseUrl();
             const endpoint = configService.getEndpoint('public', 'research', { id: researchId });
             const url = `${baseUrl}${endpoint}`;
-            
+
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -68,7 +82,7 @@ class PublicService {
 
             const data = await response.json() as PublicResearchResponse;
             return data.research;
-    } catch (error: unknown) {
+        } catch (error: unknown) {
             console.error('Error fetching research:', error);
             throw error;
         }
@@ -85,7 +99,7 @@ class PublicService {
             const baseUrl = configService.getBaseUrl();
             const endpoint = configService.getEndpoint('public', 'submitResponse', { id: researchId });
             const url = `${baseUrl}${endpoint}`;
-            
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -100,8 +114,40 @@ class PublicService {
 
             const result = await response.json() as SubmitResponseResult;
             return result;
-    } catch (error: unknown) {
+        } catch (error: unknown) {
             console.error('Error submitting response:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Validate participant demographics
+     * @param researchId - Research ID
+     * @param demographics - Demographic answers
+     * @returns Validation result
+     */
+    async validateDemographics(researchId: string, demographics: Record<string, string>): Promise<ValidationResult> {
+        try {
+            const baseUrl = configService.getBaseUrl();
+            const endpoint = configService.getEndpoint('public', 'validateDemographics', { id: researchId });
+            const url = `${baseUrl}${endpoint}`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ demographics }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to validate demographics: ${response.statusText}`);
+            }
+
+            const data = await response.json() as { validation: ValidationResult };
+            return data.validation;
+        } catch (error: unknown) {
+            console.error('Error validating demographics:', error);
             throw error;
         }
     }
@@ -109,11 +155,17 @@ class PublicService {
 
 export const publicService = new PublicService();
 
+export interface ValidationResult {
+    valid: boolean;
+    reason?: 'QUOTA_FULL' | 'DISQUALIFIED';
+    details?: string;
+}
+
 // Export types
-export type { 
-    ResearchData, 
-    Stage, 
-    Module, 
+export type {
+    ResearchData,
+    Stage,
+    Module,
     SubmitResponseData,
-    SubmitResponseResult 
+    SubmitResponseResult
 };

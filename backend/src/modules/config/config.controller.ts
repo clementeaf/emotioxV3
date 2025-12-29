@@ -36,30 +36,30 @@ export const handleConfigRoutes = async (
 const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> => {
     // Get WebSocket API URL from SSM Parameter Store or environment
     let websocketApiUrl: string | null = null;
-    
+
     try {
         // Try to get from SSM Parameter Store first
         const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
         const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
-        
+
         const ssmParams = await loadSsmParameters({
             names: ['WEBSOCKET_API_ENDPOINT'],
             prefix: ssmPrefix,
             region: ssmRegion
         });
-        
+
         if (ssmParams.WEBSOCKET_API_ENDPOINT) {
             websocketApiUrl = ssmParams.WEBSOCKET_API_ENDPOINT.replace(/^https:\/\//, 'wss://');
         }
     } catch (error) {
         console.warn('Failed to load WEBSOCKET_API_ENDPOINT from SSM:', error);
     }
-    
+
     // Fallback to environment variable if SSM didn't work
     if (!websocketApiUrl && process.env.WEBSOCKET_API_ENDPOINT) {
         websocketApiUrl = process.env.WEBSOCKET_API_ENDPOINT.replace(/^https:\/\//, 'wss://');
     }
-    
+
     // If still not available, log warning (frontend will use fallback)
     if (!websocketApiUrl) {
         console.warn('WEBSOCKET_API_ENDPOINT not configured. WebSocket will not be available until configured in SSM Parameter Store.');
@@ -68,13 +68,13 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
     const config = {
         // API version
         version: '1.0.0',
-        
+
         // Environment
         environment: process.env.API_STAGE || 'development',
-        
+
         // WebSocket API URL (full URL for WebSocket connections)
         websocketApiUrl: websocketApiUrl,
-        
+
         // API endpoints (relative paths - frontend will use same domain)
         endpoints: {
             // Auth
@@ -84,7 +84,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 me: '/auth/me',
                 refresh: '/auth/refresh',
             },
-            
+
             // Research
             research: {
                 list: '/research',
@@ -100,7 +100,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 participantDetails: '/research/:id/participants/:participantId',
                 deleteParticipant: '/research/:id/participants/:participantId',
             },
-            
+
             // Research Progress
             researchProgress: {
                 getResearchConfiguration: '/research-progress/research/:id',
@@ -119,7 +119,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 registerPublicParticipant: '/research-progress/public/participant/start',
                 updatePublicParticipantStatus: '/research-progress/public/participant/:participantId/status',
             },
-            
+
             // Research Types
             researchTypes: {
                 list: '/research-types',
@@ -128,7 +128,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 update: '/research-types/:id',
                 delete: '/research-types/:id',
             },
-            
+
             // Research Techniques
             researchTechniques: {
                 list: '/research-techniques',
@@ -138,7 +138,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 delete: '/research-techniques/:id',
                 byType: '/research-techniques/by-type/:typeId',
             },
-            
+
             // Modules
             modules: {
                 list: '/modules',
@@ -147,7 +147,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 update: '/modules/:id',
                 delete: '/modules/:id',
             },
-            
+
             // Module Templates
             moduleTemplates: {
                 list: '/module-templates',
@@ -156,7 +156,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 update: '/module-templates/:id',
                 delete: '/module-templates/:id',
             },
-            
+
             // Questions
             questions: {
                 list: '/questions',
@@ -165,33 +165,34 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 update: '/questions/:id',
                 delete: '/questions/:id',
             },
-            
+
             // Public endpoints (participant-frontend)
             public: {
                 research: '/public/research/:id',
+                validateDemographics: '/public/research/:id/validate-demographics',
                 submitResponse: '/public/research/:id/responses',
                 mediaByKey: '/public/media/by-key',
             },
-            
+
             // Media
             media: {
                 upload: '/media/upload',
                 getUrl: '/media/:key',
                 delete: '/media/:key',
             },
-            
+
             // Analysis
             analysis: {
                 research: '/analysis/research/:id',
             },
-            
+
             // Enterprises
             enterprises: {
                 list: '/enterprises',
                 create: '/enterprises',
             },
         },
-        
+
         // Feature flags
         features: {
             authentication: true,
@@ -199,14 +200,14 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
             analytics: true,
             cache: true,
         },
-        
+
         // Limits and constraints
         limits: {
             maxFileSize: 5 * 1024 * 1024, // 5MB
             maxResponseLength: 10000,
             requestTimeout: 30000, // 30s
         },
-        
+
         // Cache settings
         cache: {
             enabled: true,

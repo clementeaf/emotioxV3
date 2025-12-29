@@ -4,12 +4,11 @@
  */
 
 // Re-export from shared interfaces
-export type {
-  WelcomeScreenConfig,
-  WelcomeScreenRecord,
-  WelcomeScreenFormData,
-  WelcomeScreenUpdate
-} from '../../../../../shared/interfaces/welcome-screen.interface';
+// Local definitions since @shared/interfaces/welcome-screen.interface is missing
+export type WelcomeScreenConfig = WelcomeScreenModel;
+export type WelcomeScreenRecord = WelcomeScreenModel;
+export type WelcomeScreenFormData = CreateWelcomeScreenRequest;
+export type WelcomeScreenUpdate = UpdateWelcomeScreenRequest;
 
 // API Response wrapper
 export interface ApiResponse<T> {

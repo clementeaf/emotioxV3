@@ -17,10 +17,10 @@ export type {
   NPSConfig,
   VOCConfig,
   ConditionalLogic
-} from '../../../../../shared/interfaces/smart-voc.interface';
+} from '@shared/interfaces/smart-voc.interface';
 
 // Import for local use
-import type { SmartVOCQuestion } from '../../../../../shared/interfaces/smart-voc.interface';
+import type { SmartVOCQuestion } from '@shared/interfaces/smart-voc.interface';
 
 // API Response wrapper
 export interface ApiResponse<T> {

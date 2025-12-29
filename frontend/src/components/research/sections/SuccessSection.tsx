@@ -2,7 +2,7 @@ import { memo } from 'react';
 
 import { ResearchConfirmation } from '@/components/research/research-management/ResearchConfirmation';
 
-import { SuccessSectionProps } from '../../../../../shared/interfaces/research-creation.interface';
+import { SuccessSectionProps } from '@shared/interfaces/research-creation.interface';
 
 /**
  * Sección de investigación exitosa

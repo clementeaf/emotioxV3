@@ -26,6 +26,15 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             return success(result, 201, undefined, origin);
         }
 
+        // POST /public/research/:id/validate-demographics
+        const validateMatch = path.match(/^\/public\/research\/([^\/]+)\/validate-demographics$/);
+        if (validateMatch && httpMethod === 'POST') {
+            const researchId = validateMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const validation = await publicService.validateDemographics(researchId, body.demographics || {});
+            return success({ validation }, 200, undefined, origin);
+        }
+
         // GET /public/media/by-key?s3_key=...
         if (path === '/public/media/by-key' && httpMethod === 'GET') {
             const s3Key = event.queryStringParameters?.s3_key;

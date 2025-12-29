@@ -25,9 +25,9 @@ import type {
   GenerateRecruitmentLinkResponse,
   CreateEyeTrackingRecruitRequest,
   UpdateEyeTrackingRecruitRequest
-} from '../../../../../shared/interfaces/eyeTrackingRecruit.interface';
+} from '@shared/interfaces/eyeTrackingRecruit.interface';
 
-import { RecruitLinkType } from '../../../../../shared/interfaces/eyeTrackingRecruit.interface';
+import { RecruitLinkType } from '@shared/interfaces/eyeTrackingRecruit.interface';
 
 // Re-export recruit types
 export type {

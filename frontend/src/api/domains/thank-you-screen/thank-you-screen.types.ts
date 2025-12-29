@@ -8,7 +8,7 @@ export type {
   ThankYouScreenModel,
   ThankYouScreenFormData,
   ThankYouScreenConfig
-} from '../../../../../shared/interfaces/thank-you-screen.interface';
+} from '@shared/interfaces/thank-you-screen.interface';
 
 // API Response wrapper
 export interface ApiResponse<T> {

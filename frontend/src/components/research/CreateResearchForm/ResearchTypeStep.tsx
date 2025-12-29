@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
-import { ResearchType } from '../../../../../shared/interfaces/research.model';
+import { ResearchType } from '@shared/interfaces/research.model';
 
 interface ResearchTypeStepProps {
   selectedType?: ResearchType;

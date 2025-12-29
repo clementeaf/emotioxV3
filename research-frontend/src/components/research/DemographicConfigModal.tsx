@@ -71,31 +71,24 @@ interface ModalProps {
 }
 
 const CONTINENTS = [
-  'Africa', 'Antarctica', 'Asia', 'Europe', 
+  'Africa', 'Antarctica', 'Asia', 'Europe',
   'North America', 'Oceania', 'South America'
 ];
 
-const CHILE_REGIONS = [
-  'Arica y Parinacota', 'Tarapacá', 'Antofagasta', 'Atacama',
-  'Coquimbo', 'Valparaíso', 'Metropolitana de Santiago', 
-  'Libertador General Bernardo O\'Higgins', 'Maule', 'Ñuble',
-  'Biobío', 'La Araucanía', 'Los Ríos', 'Los Lagos',
-  'Aysén del General Carlos Ibáñez del Campo', 'Magallanes y de la Antártica Chilena'
-];
+import { CHILE_REGIONS } from '../../data/chile-geography';
 
-const CHILE_COMMUNES: Record<string, string[]> = {
-  'Arica y Parinacota': ['Arica', 'Camarones', 'Putre', 'General Lagos'],
-  'Tarapacá': ['Iquique', 'Alto Hospicio', 'Pozo Almonte', 'Camiña', 'Colchane', 'Huara', 'Pica'],
-  // ... más regiones y comunas
-};
+const CHILE_COMMUNES = CHILE_REGIONS.reduce((acc, region) => {
+  acc[region.name] = region.communes.map(c => c.name);
+  return acc;
+}, {} as Record<string, string[]>);
 
 const EDUCATION_LEVELS = [
-  'Basic', 'High School', 'Technical', 'Professional', 
+  'Basic', 'High School', 'Technical', 'Professional',
   'Master', 'Doctorate'
 ];
 
 const EMPLOYMENT_STATUSES = [
-  'Employed Full-time', 'Employed Part-time', 'Self-employed', 
+  'Employed Full-time', 'Employed Part-time', 'Self-employed',
   'Unemployed', 'Student', 'Retired', 'Homemaker', 'Other'
 ];
 
@@ -103,10 +96,10 @@ const TECHNICAL_PROFICIENCIES = [
   'Beginner', 'Intermediate', 'Advanced', 'Expert'
 ];
 
-export const DemographicConfigModal = ({ 
-  isOpen, 
-  onClose, 
-  demographicType, 
+export const DemographicConfigModal = ({
+  isOpen,
+  onClose,
+  demographicType,
   onSave,
   initialConfig = {}
 }: ModalProps) => {
@@ -122,8 +115,8 @@ export const DemographicConfigModal = ({
   const [selectedEducationLevels, setSelectedEducationLevels] = useState<string[]>(initialConfig?.selectedEducationLevels || []);
   const [selectedEmploymentStatuses, setSelectedEmploymentStatuses] = useState<string[]>(initialConfig?.selectedEmploymentStatuses || []);
   const [selectedTechnicalProficiencies, setSelectedTechnicalProficiencies] = useState<string[]>(initialConfig?.selectedTechnicalProficiencies || []);
-    
-    const [advancedRules, setAdvancedRules] = useState<AdvancedRule[]>([]);
+
+  const [advancedRules, setAdvancedRules] = useState<AdvancedRule[]>([]);
 
   // Initialize state with initialConfig only once when the component mounts
   useEffect(() => {
@@ -134,7 +127,7 @@ export const DemographicConfigModal = ({
 
   const handleSave = () => {
     const config: DemographicConfig = {};
-    
+
     switch (demographicType) {
       case 'age':
       case 'annualIncome':
@@ -166,11 +159,15 @@ export const DemographicConfigModal = ({
         config.quotas = quotas;
         config.disqualifications = disqualifications;
         break;
+      case 'gender':
+        config.quotas = quotas;
+        config.disqualifications = disqualifications;
+        break;
     }
-    
+
     // Add advanced rules to config
     config.advancedRules = advancedRules;
-    
+
     onSave(config);
     onClose();
   };
@@ -195,7 +192,7 @@ export const DemographicConfigModal = ({
 
   const updateDisqualification = (index: number, value: string | { value: string } | boolean) => {
     const newDisqualifications = [...disqualifications];
-    
+
     if (typeof value === 'boolean') {
       newDisqualifications[index] = { ...newDisqualifications[index], enabled: value };
     } else if (typeof value === 'string') {
@@ -203,7 +200,7 @@ export const DemographicConfigModal = ({
     } else {
       newDisqualifications[index] = { ...newDisqualifications[index], ...value };
     }
-    
+
     setDisqualifications(newDisqualifications);
   };
 
@@ -212,25 +209,25 @@ export const DemographicConfigModal = ({
   };
 
   const toggleEducationLevel = (level: string) => {
-    setSelectedEducationLevels(prev => 
-      prev.includes(level) 
-        ? prev.filter(l => l !== level) 
+    setSelectedEducationLevels(prev =>
+      prev.includes(level)
+        ? prev.filter(l => l !== level)
         : [...prev, level]
     );
   };
 
   const toggleEmploymentStatus = (status: string) => {
-    setSelectedEmploymentStatuses(prev => 
-      prev.includes(status) 
-        ? prev.filter(s => s !== status) 
+    setSelectedEmploymentStatuses(prev =>
+      prev.includes(status)
+        ? prev.filter(s => s !== status)
         : [...prev, status]
     );
   };
 
   const toggleTechnicalProficiency = (proficiency: string) => {
-    setSelectedTechnicalProficiencies(prev => 
-      prev.includes(proficiency) 
-        ? prev.filter(p => p !== proficiency) 
+    setSelectedTechnicalProficiencies(prev =>
+      prev.includes(proficiency)
+        ? prev.filter(p => p !== proficiency)
         : [...prev, proficiency]
     );
   };
@@ -245,7 +242,7 @@ export const DemographicConfigModal = ({
             <h2 className="text-xl font-semibold text-gray-900">
               Configure {demographicType.replace(/([A-Z])/g, ' $1').trim()}
             </h2>
-            <button 
+            <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-500"
             >
@@ -264,7 +261,7 @@ export const DemographicConfigModal = ({
                     <Input
                       type="number"
                       value={rangeConfig.min}
-                      onChange={(e) => setRangeConfig({...rangeConfig, min: parseInt(e.target.value) || 0})}
+                      onChange={(e) => setRangeConfig({ ...rangeConfig, min: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                   <div>
@@ -272,7 +269,7 @@ export const DemographicConfigModal = ({
                     <Input
                       type="number"
                       value={rangeConfig.max}
-                      onChange={(e) => setRangeConfig({...rangeConfig, max: parseInt(e.target.value) || 100})}
+                      onChange={(e) => setRangeConfig({ ...rangeConfig, max: parseInt(e.target.value) || 100 })}
                     />
                   </div>
                   <div>
@@ -280,7 +277,7 @@ export const DemographicConfigModal = ({
                     <Input
                       type="number"
                       value={rangeConfig.step}
-                      onChange={(e) => setRangeConfig({...rangeConfig, step: parseInt(e.target.value) || 1})}
+                      onChange={(e) => setRangeConfig({ ...rangeConfig, step: parseInt(e.target.value) || 1 })}
                     />
                   </div>
                 </div>
@@ -332,14 +329,13 @@ export const DemographicConfigModal = ({
                         >
                           <option value="">Select a region</option>
                           {CHILE_REGIONS.map(region => (
-                            <option key={region} value={region}>{region}</option>
+                            <option key={region.name} value={region.name}>{region.name}</option>
                           ))}
                         </select>
                       </div>
 
                       {selectedRegion && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Commune</label>
                           <select
                             value={selectedCommune}
                             onChange={(e) => setSelectedCommune(e.target.value)}
@@ -438,16 +434,16 @@ export const DemographicConfigModal = ({
                       />
                       <span className="font-medium text-gray-700">Quota #{index + 1}</span>
                     </div>
-                    <Button 
+                    <Button
                       onClick={() => removeQuota(index)}
-                      variant="outline" 
+                      variant="outline"
                       size="sm"
                       className="text-red-600 hover:text-red-800"
                     >
                       Remove
                     </Button>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
@@ -469,7 +465,7 @@ export const DemographicConfigModal = ({
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
                     <Input
@@ -503,16 +499,16 @@ export const DemographicConfigModal = ({
                       />
                       <span className="font-medium text-gray-700">Disqualification #{index + 1}</span>
                     </div>
-                    <Button 
+                    <Button
                       onClick={() => removeDisqualification(index)}
-                      variant="outline" 
+                      variant="outline"
                       size="sm"
                       className="text-red-600 hover:text-red-800"
                     >
                       Remove
                     </Button>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
                     <Input
@@ -522,7 +518,7 @@ export const DemographicConfigModal = ({
                       disabled={!disqualification.enabled}
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
                     <Input
@@ -535,7 +531,7 @@ export const DemographicConfigModal = ({
                 </div>
               ))}
             </div>
-                      {/* Advanced Dynamic Rules */}
+            {/* Advanced Dynamic Rules */}
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-gray-800">Advanced Dynamic Rules</h3>
@@ -559,16 +555,16 @@ export const DemographicConfigModal = ({
                       />
                       <span className="font-medium text-gray-700">Rule #{index + 1}</span>
                     </div>
-                    <Button 
+                    <Button
                       onClick={() => setAdvancedRules(advancedRules.filter((_, i) => i !== index))}
-                      variant="outline" 
+                      variant="outline"
                       size="sm"
                       className="text-red-600 hover:text-red-800"
                     >
                       Remove
                     </Button>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
@@ -603,7 +599,7 @@ export const DemographicConfigModal = ({
                       </select>
                     </div>
                   </div>
-                  
+
                   {rule.action === 'quota_limit' && rule.enabled && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Quota Limit</label>
@@ -619,7 +615,7 @@ export const DemographicConfigModal = ({
                       />
                     </div>
                   )}
-                  
+
                   {rule.action === 'redirect' && rule.enabled && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Redirect URL</label>
@@ -634,7 +630,7 @@ export const DemographicConfigModal = ({
                       />
                     </div>
                   )}
-                  
+
                   {rule.action === 'custom_message' && rule.enabled && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Custom Message</label>

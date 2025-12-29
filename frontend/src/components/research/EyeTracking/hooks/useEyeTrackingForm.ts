@@ -1,7 +1,7 @@
 import { DEFAULT_EYE_TRACKING_CONFIG, EyeTrackingConfig, EyeTrackingFormData, EyeTrackingStimulus } from '@shared/interfaces/eye-tracking.interface';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { QuestionType } from '../../../../../../shared/interfaces/question-types.enum';
+import { QuestionType } from '@shared/interfaces/question-types.enum';
 
 import { useErrorLog } from '@/components/utils/ErrorLogger';
 import { useFileUpload } from '@/hooks';
@@ -345,7 +345,7 @@ export function useEyeTrackingForm({
     isUpdating,
     isDeleting
   } = useEyeTrackingBuild(researchId);
-  
+
   // Usar estados del hook centralizado para isSaving
   const isSavingFromHook = isCreating || isUpdating;
 
@@ -365,12 +365,12 @@ export function useEyeTrackingForm({
       ...DEFAULT_EYE_TRACKING_CONFIG,
       researchId: researchId || ''
     };
-    
+
     // Actualizar con datos del build config
     if (eyeTrackingData.researchId) {
       baseFormData.researchId = eyeTrackingData.researchId;
     }
-    
+
     setFormData(baseFormData);
     setEyeTrackingId(eyeTrackingData.id || null);
   }, [eyeTrackingData, isLoadingEyeTracking]);

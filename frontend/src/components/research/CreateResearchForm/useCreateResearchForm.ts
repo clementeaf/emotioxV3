@@ -4,8 +4,17 @@ import { toast } from 'react-hot-toast';
 import { useCreateResearch, useResearchList } from '@/api/domains/research';
 import { useResearchStore, researchHelpers } from '@/stores/useResearchStore';
 import { getTechniqueStages } from '@/config/techniques-registry';
-import { ResearchBasicData, ResearchType } from '../../../../../shared/interfaces/research.model';
+import { ResearchType } from '@shared/interfaces/research.interface';
 import { CreateResearchRequest } from '@/api/domains/research/research.types';
+
+// Local definition for form state
+interface ResearchBasicData {
+  name: string;
+  companyId: string;
+  type?: ResearchType;
+  technique?: string;
+  description?: string;
+}
 
 interface Step {
   id: number;
@@ -290,7 +299,7 @@ export default function useCreateResearchForm(onResearchCreated?: (researchId: s
       const result = await createResearchMutation.mutateAsync(createData);
       console.log('🚀 BACKEND CREATE SUCCESS:', result);
 
-      const resultData = result as { data?: any; id?: string; name?: string; message?: string; [key: string]: any };
+      const resultData = result as { data?: any; id?: string; name?: string; message?: string;[key: string]: any };
 
       console.log('🚀 RECONCILING OPTIMISTIC DATA WITH REAL ID');
       reconcileByClientId(clientId, {
@@ -343,7 +352,7 @@ export default function useCreateResearchForm(onResearchCreated?: (researchId: s
     isSubmitting,
     showSummary,
     countdown,
-    
+
     // Acciones
     updateFormData,
     goToNextStep,
@@ -351,7 +360,7 @@ export default function useCreateResearchForm(onResearchCreated?: (researchId: s
     toggleResearchType,
     toggleTechnique,
     submitForm,
-    
+
     // Validaciones
     canGoNext
   };
