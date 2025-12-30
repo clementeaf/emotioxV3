@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
+import { HeatmapRenderer } from './HeatmapRenderer';
 
 interface AOI {
   id: string;
@@ -18,6 +19,8 @@ interface NavigationStep {
   participantCount: number;
   aois?: AOI[];
   hasHeatmap?: boolean;
+  heatmapData?: Array<{ x: number; y: number; value?: number }>;
+  imageUrl?: string;
 }
 
 interface NavigationTestCardProps {
@@ -87,7 +90,7 @@ export const NavigationTestCard = ({
       <div className="space-y-4">
         {steps.map((step) => {
           const isExpanded = expandedSteps.has(step.stepNumber);
-          
+
           return (
             <div key={step.stepNumber} className="border rounded-lg overflow-hidden">
               {/* Step Header - Always Visible */}
@@ -103,7 +106,7 @@ export const NavigationTestCard = ({
                     <span className="text-sm font-medium text-gray-700">Step {step.stepNumber}</span>
                     {/* Progress bar */}
                     <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-xs">
-                      <div 
+                      <div
                         className="bg-blue-600 h-2 rounded-full transition-all"
                         style={{ width: `${step.completionRate}%` }}
                       />
@@ -167,9 +170,19 @@ export const NavigationTestCard = ({
                   {/* Content Area */}
                   <div className="p-4">
                     {/* Heatmap/Image Placeholder */}
-                    {step.hasHeatmap && (
+                    {step.imageUrl && (
+                      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100">
+                        <HeatmapRenderer
+                          imageUrl={step.imageUrl}
+                          data={step.heatmapData || []}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+
+                    {!step.imageUrl && (
                       <div className="mb-4 rounded-lg overflow-hidden bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 h-64 flex items-center justify-center">
-                        <span className="text-white font-semibold text-lg">Heatmap Visualization</span>
+                        <span className="text-white font-semibold text-lg">Heatmap (No Image Available)</span>
                       </div>
                     )}
 
@@ -182,10 +195,10 @@ export const NavigationTestCard = ({
                             {/* AOI Thumbnail */}
                             <div className={cn(
                               'w-16 h-16 rounded flex items-center justify-center flex-shrink-0',
-                              idx === 0 ? 'bg-gray-100' : 
-                              idx === 1 ? 'bg-blue-900' :
-                              idx === 2 ? 'bg-gray-200' :
-                              'bg-gradient-to-br from-blue-200 to-purple-200'
+                              idx === 0 ? 'bg-gray-100' :
+                                idx === 1 ? 'bg-blue-900' :
+                                  idx === 2 ? 'bg-gray-200' :
+                                    'bg-gradient-to-br from-blue-200 to-purple-200'
                             )}>
                               {idx === 0 && (
                                 <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">

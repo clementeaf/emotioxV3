@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react';
 import { useNavigationFlowResults } from '../../../hooks/useNavigationFlowResults';
 import { NavigationTestCard } from './components/NavigationTestCard';
+import { researchService, type Module } from '../../../services/research.service';
+import { mediaService } from '../../../services/media.service';
 
 interface NavigationFlowResultsWrapperProps {
     researchId: string;
@@ -14,7 +17,87 @@ export const NavigationFlowResultsWrapper = ({
     moduleName,
     questionNumber
 }: NavigationFlowResultsWrapperProps) => {
-    const { data, isLoading } = useNavigationFlowResults(researchId, moduleId);
+    const { data, isLoading: isResultsLoading } = useNavigationFlowResults(researchId, moduleId);
+    const [module, setModule] = useState<Module | null>(null);
+    const [isModuleLoading, setIsModuleLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchModuleFromResearch = async () => {
+            try {
+                // Since standalone module endpoint fails (404), fetch the full research
+                const response = await researchService.getById(researchId);
+                const research = response.research;
+
+                // Find the module within stages
+                let foundModule: Module | undefined;
+                if (research.stages) {
+                    for (const stage of research.stages) {
+                        foundModule = stage.modules.find(m => m.id === moduleId);
+                        if (foundModule) break;
+                    }
+                }
+
+                if (foundModule) {
+                    console.log('ResultsWrapper: Found module:', foundModule.id);
+                    // Check for file-upload component and resolve URL if needed (URL is stripped on save)
+                    if (foundModule.config && typeof foundModule.config === 'object') {
+                        const config = foundModule.config as any;
+                        const components = config.structure?.components || [];
+                        console.log('ResultsWrapper: Config components:', components);
+                        const fileUploadComponent = components.find((c: any) => c.type === 'file-upload');
+
+                        if (fileUploadComponent) {
+                            console.log('ResultsWrapper: Found file upload component:', fileUploadComponent);
+                            if (fileUploadComponent.value) {
+                                try {
+                                    const files = JSON.parse(fileUploadComponent.value);
+                                    console.log('ResultsWrapper: Parsed files:', files);
+                                    if (Array.isArray(files) && files.length > 0) {
+                                        const file = files[0];
+                                        // Always refresh URL if s3Key exists because stored URLs might be expired
+                                        if (file.s3Key) {
+                                            console.log('ResultsWrapper: s3Key found, forcing URL refresh:', file.s3Key);
+                                            try {
+                                                const mediaResponse = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                                                console.log('ResultsWrapper: Resolved fresh URL:', mediaResponse.url);
+                                                file.url = mediaResponse.url;
+                                                // Update the in-memory module object so the render logic finds it
+                                                files[0] = file;
+                                                fileUploadComponent.value = JSON.stringify(files);
+                                            } catch (err) {
+                                                console.warn('Failed to resolve media URL for module', moduleId, err);
+                                            }
+                                        } else {
+                                            console.log('ResultsWrapper: No s3Key found, using existing URL if any:', file);
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error('ResultsWrapper: JSON parse error', e);
+                                }
+                            } else {
+                                console.log('ResultsWrapper: File component has no value');
+                            }
+                        } else {
+                            console.log('ResultsWrapper: No file-upload component found');
+                        }
+                    }
+                    setModule(foundModule);
+                } else {
+                    console.warn(`Module ${moduleId} not found in research ${researchId}`);
+                }
+            } catch (error) {
+                console.error('Failed to fetch research/module details:', error);
+            } finally {
+                setIsModuleLoading(false);
+            }
+        };
+
+        if (researchId && moduleId) {
+            fetchModuleFromResearch();
+        }
+    }, [researchId, moduleId]);
+
+    const isLoading = isResultsLoading || isModuleLoading;
 
     if (isLoading || !data) {
         return (
@@ -25,6 +108,68 @@ export const NavigationFlowResultsWrapper = ({
         );
     }
 
+    // Extract image URL and HitZones from module config components
+    let imageUrl = '';
+    // heatmapData was unused here, removing it to satisfy linter
+    // const heatmapData = data.heatmapData || [];
+
+    if (module?.config && typeof module.config === 'object') {
+        const config = module.config as any;
+        // Check if components exist in structure
+        const components = config.structure?.components || [];
+
+        // Find file-upload component
+        const fileUploadComponent = components.find((c: any) => c.type === 'file-upload');
+
+        if (fileUploadComponent) {
+            // value is stored in componentValues or directly in the component if it's a default/preview
+            // In the saved module, the value might be in a separate 'values' map or the component itself might have a value property if it was saved that way.
+            // However, based on the builder, the value is passed to EditableComponent. 
+            // We need to check where the actual filled value is stored in the module response.
+            // Looking at the potential structure: module.config.components might have the definition, but where is the 'value' (the uploaded file)?
+
+            // If it's a configured module, the 'value' might be embedded in the component definition in some implementations, 
+            // OR we need to look for a default value if it's a template? 
+            // But this is a configured instance. Let's check if 'value' is on the component.
+
+            // Wait, looking at ModuleBuilderPage, 'components' state holds the configuration. 
+            // When saving, it saves { structure: { components } }. 
+            // And EditableComponent receives 'value' from 'componentValues'.
+            // But where are componentValues saved?
+            // In ModuleBuilderPage, it seems values might not be saved in the structure?
+            // Let's look at ModuleContentEditor usage in ResearchBuilderPage... 
+
+            // Actually, for a *configured* research module (not just a template), the "answer" or "configuration" 
+            // (like the image to show) must be saved somewhere.
+            // If it's a Cognitive Task "Navigation Flow", the user "uploads" an image as part of *designing* the task.
+            // So that image array must be saved in the module's config.
+
+            // Let's fallback to checking if the component has a 'value' property or if we can find it in settings.
+            // Re-reading EditableComponent: value determines the files.
+            // Re-reading ModuleBuilderPage: it saves `structure: { components }`.
+            // So if the user uploaded a file in the builder, it must be saved into the component's `value` property 
+            // OR the component's `defaultValue`?
+
+            // Let's blindly try to find a 'value' property on the component that parses to a file list.
+
+            if (fileUploadComponent.value) {
+                try {
+                    const files = JSON.parse(fileUploadComponent.value);
+                    if (Array.isArray(files) && files.length > 0) {
+                        imageUrl = files[0].url;
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }
+        }
+
+        // Fallback: check top-level config just in case (legacy)
+        if (!imageUrl) {
+            imageUrl = (config.image_url || config.imageUrl || '') as string;
+        }
+    }
+
     // Map responses to steps (one step per navigation flow)
     const steps = [{
         stepNumber: 1,
@@ -33,6 +178,8 @@ export const NavigationFlowResultsWrapper = ({
         completionRate: Math.round(data.completionRate),
         participantCount: data.totalResponses,
         hasHeatmap: data.heatmapData.length > 0,
+        heatmapData: data.heatmapData, // Pass the raw heatmap data
+        imageUrl: imageUrl, // Pass the background image
         aois: [] // TODO: Extract AOIs from hitZones if needed
     }];
 

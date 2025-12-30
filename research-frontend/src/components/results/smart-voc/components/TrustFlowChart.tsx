@@ -70,10 +70,10 @@ function filterDataByTimeRange(
   range: 'today' | 'week' | 'month'
 ) {
   if (!dataToFilter || dataToFilter.length === 0) return [];
-  
+
   const now = new Date();
   let daysBack: number;
-  
+
   switch (range) {
     case 'today':
       daysBack = 1;
@@ -91,9 +91,9 @@ function filterDataByTimeRange(
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const cutoffDate = new Date(today);
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-  
+
   const cutoffDateStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
-  
+
   return dataToFilter.filter(item => {
     if (item.timestamp && typeof item.timestamp === 'string') {
       return item.timestamp >= cutoffDateStr;
@@ -102,11 +102,11 @@ function filterDataByTimeRange(
   });
 }
 
-export const TrustFlowChart = ({ 
-  data, 
-  timeRange, 
+export const TrustFlowChart = ({
+  data,
+  timeRange,
   onTimeRangeChange,
-  className 
+  className
 }: TrustFlowChartProps) => {
   const filteredData = useMemo(() => {
     return filterDataByTimeRange(data, timeRange);
@@ -133,7 +133,7 @@ export const TrustFlowChart = ({
             <h3 className="text-gray-900 font-medium">Trust Relationship Flow</h3>
             <p className="text-sm text-gray-500 mt-1">Customer's perception about service in time</p>
           </div>
-          <select 
+          <select
             className="text-sm border border-gray-300 rounded-md px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={timeRange}
             onChange={(e) => onTimeRangeChange(e.target.value as 'today' | 'week' | 'month')}
@@ -147,8 +147,8 @@ export const TrustFlowChart = ({
         </div>
       </div>
 
-      <div className="h-64 mt-6 relative">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="h-64 mt-6 relative" style={{ minHeight: '256px' }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <LineChart data={filteredData}>
             <CartesianGrid
               strokeDasharray="3 3"

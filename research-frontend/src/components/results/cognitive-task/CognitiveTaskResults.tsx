@@ -162,7 +162,46 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
         );
     }
   };
-  
+
+  // Filter modules to show only cognitive tasks
+  const shouldShowModule = (moduleName: string): boolean => {
+    const normalized = moduleName.toLowerCase();
+
+    // Explicit exclusions (System & Smart VOC)
+    if (
+      normalized.includes('research configuration') ||
+      normalized.includes('welcome screen') ||
+      normalized.includes('thank you screen') ||
+      normalized.includes('csat') ||
+      normalized.includes('nps') ||
+      normalized.includes('ces') ||
+      normalized.includes('voc') ||
+      normalized.includes('net emotional value') ||
+      normalized.includes('nev') ||
+      normalized.includes('smart voc')
+    ) {
+      return false;
+    }
+
+    // Explicit inclusions (Cognitive Tasks)
+    if (
+      normalized.includes('navigation flow') ||
+      normalized.includes('preference test') ||
+      normalized.includes('short text') ||
+      normalized.includes('long text') ||
+      normalized.includes('single choice') ||
+      normalized.includes('multiple choice') ||
+      normalized.includes('linear scale') ||
+      normalized.includes('ranking')
+    ) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const filteredModules = data?.modules?.filter(m => shouldShowModule(m.moduleName)) || [];
+
   return (
     <ResultsStateHandler
       isLoading={isLoading}
@@ -177,36 +216,36 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
       }
     >
       <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
-      {/* Main Content + Sidebar */}
-      <div className="flex gap-6">
-        {/* Left: Main Content */}
-        <div className="flex-1 space-y-6">
-          {/* Cognitive Task Header */}
-          <Card className="p-4 bg-gray-50">
-            <h2 className="text-xl font-semibold text-gray-900">Cognitive Tasks Results</h2>
-            {data && (
-              <p className="text-sm text-gray-600 mt-1">
-                {data.modules.length} modules • {data.modules.reduce((sum, m) => sum + m.totalResponses, 0)} total responses
-              </p>
-            )}
-          </Card>
-
-          {/* Dynamic Module Rendering */}
-          {data?.modules && data.modules.length > 0 ? (
-            data.modules.map((module, index) => renderModuleResults(module, index))
-          ) : (
-            <Card className="p-8 text-center">
-              <p className="text-gray-500">No cognitive task modules found for this research.</p>
+        {/* Main Content + Sidebar */}
+        <div className="flex gap-6">
+          {/* Left: Main Content */}
+          <div className="flex-1 space-y-6">
+            {/* Cognitive Task Header */}
+            <Card className="p-4 bg-gray-50">
+              <h2 className="text-xl font-semibold text-gray-900">Cognitive Tasks Results</h2>
+              {data && (
+                <p className="text-sm text-gray-600 mt-1">
+                  {filteredModules.length} modules • {filteredModules.reduce((sum, m) => sum + m.totalResponses, 0)} total responses
+                </p>
+              )}
             </Card>
-          )}
-        </div>
 
-        {/* Right: Filters Sidebar */}
-        <div className="w-80 shrink-0">
-          <Filters researchId={researchId} />
+            {/* Dynamic Module Rendering */}
+            {filteredModules.length > 0 ? (
+              filteredModules.map((module, index) => renderModuleResults(module, index))
+            ) : (
+              <Card className="p-8 text-center">
+                <p className="text-gray-500">No cognitive task modules found for this research.</p>
+              </Card>
+            )}
+          </div>
+
+          {/* Right: Filters Sidebar */}
+          <div className="w-80 shrink-0">
+            <Filters researchId={researchId} />
+          </div>
         </div>
       </div>
-    </div>
     </ResultsStateHandler>
   );
 };

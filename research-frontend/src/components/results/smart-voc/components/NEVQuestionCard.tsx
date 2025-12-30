@@ -139,7 +139,7 @@ export const NEVQuestionCard = ({
             <div className="flex gap-4" style={{ minWidth: `${minChartWidth}px` }}>
               {/* Eje Y con valores */}
               <div className="flex flex-col justify-between h-[300px] w-8 flex-shrink-0">
-                {[10, 5, 0].map((value) => (
+                {[100, 50, 0].map((value) => (
                   <div key={value} className="text-sm text-gray-500">
                     {value}
                   </div>
@@ -149,8 +149,8 @@ export const NEVQuestionCard = ({
               {/* Área del gráfico */}
               <div className="flex-1 flex flex-col">
                 {/* Contenedor de barras con líneas de cuadrícula */}
-                <div 
-                  className="flex gap-1 items-end h-[300px] border-b border-gray-200 border-t border-gray-200" 
+                <div
+                  className="flex gap-1 items-end h-[300px] border-b border-gray-200 border-t border-gray-200"
                   style={{ backgroundImage: 'linear-gradient(to bottom, rgba(229, 231, 235, 0.5) 0px, rgba(229, 231, 235, 0.5) 1px, transparent 1px, transparent 149px, rgba(229, 231, 235, 0.5) 149px, rgba(229, 231, 235, 0.5) 150px, transparent 150px)' }}
                 >
                   {emotionalStates.map((state) => (
@@ -167,7 +167,7 @@ export const NEVQuestionCard = ({
                           state.isPositive ? 'bg-[#4ADE80]' : 'bg-[#F87171]'
                         )}
                         style={{
-                          height: `${(state.value / 10) * 280}px`,
+                          height: `${(state.value / 100) * 280}px`,
                           minHeight: state.value > 0 ? '4px' : '0'
                         }}
                       />

@@ -66,6 +66,39 @@ class ModulesService {
     }
 
     /**
+     * Obtiene un módulo por su ID
+     * @param id - ID del módulo
+     * @param researchId - ID de la investigación (opcional, para fallback)
+     * @returns Módulo encontrado
+     * @throws ApiErrorResponse si falla la búsqueda
+     */
+    async getById(id: string, researchId?: string): Promise<ModuleResponse> {
+        try {
+            // Intenta primero con el endpoint estándar /modules/:id
+            let endpoint: string;
+            try {
+                endpoint = configService.getEndpoint('modules', 'getById', { id });
+            } catch {
+                endpoint = `/modules/${id}`;
+            }
+
+            return await apiClient.get<ModuleResponse>(endpoint);
+        } catch (error: unknown) {
+            // Si falla y tenemos researchId, intentamos con el endpoint anidado
+            if (researchId) {
+                try {
+                    const fallbackEndpoint = `/research/${researchId}/modules/${id}`;
+                    return await apiClient.get<ModuleResponse>(fallbackEndpoint);
+                } catch (fallbackError) {
+                    // Si también falla, lanzamos el error original
+                    throw this.handleError(error, 'Failed to fetch module');
+                }
+            }
+            throw this.handleError(error, 'Failed to fetch module');
+        }
+    }
+
+    /**
      * Actualiza un módulo
      * @param id - ID del módulo
      * @param data - Datos a actualizar

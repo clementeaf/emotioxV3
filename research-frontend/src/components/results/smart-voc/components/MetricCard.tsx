@@ -90,13 +90,13 @@ const defaultData = [
   { date: 'Jun', satisfied: 0, dissatisfied: 0 }
 ];
 
-export const MetricCard = ({ 
-  title, 
+export const MetricCard = ({
+  title,
   abbreviation,
-  score, 
-  question, 
+  score,
+  question,
   hasData = true,
-  className 
+  className
 }: MetricCardProps) => {
   return (
     <Card className={cn('p-6 space-y-6', className)}>
@@ -134,8 +134,8 @@ export const MetricCard = ({
         <p className="text-gray-500">{question}</p>
       </div>
 
-      <div className="h-40">
-        <ResponsiveContainer width="100%" height="100%">
+      <div style={{ width: '100%', height: '160px', minHeight: '160px' }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <LineChart data={hasData ? defaultData : defaultData}>
             <CartesianGrid
               strokeDasharray="3 3"
