@@ -123,8 +123,8 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                 const scaleRangeText = getComponentText(scaleComponent);
                 if (scaleRangeText.trim().length > 0) {
                     const [minStr, maxStr] = String(scaleRangeText).split('-');
-                min = parseInt(minStr);
-                max = parseInt(maxStr);
+                    min = parseInt(minStr);
+                    max = parseInt(maxStr);
                 }
             }
 
@@ -142,13 +142,52 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
         }
 
         if (isNEV) {
-            // Try to get minimum emotions from module.config
+            // Helper to parse target count from text
+            const parseTargetCount = (text: string): number | undefined => {
+                if (!text) return undefined;
+
+                // Match digits and Spanish number words
+                const regex = /\b(un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\b/gi;
+                const matches = text.match(regex);
+
+                if (!matches) return undefined;
+
+                // Get the last number mentioned (usually "hasta X" or "selecciona X")
+                const lastMatch = matches[matches.length - 1].toLowerCase();
+
+                const numberMap: Record<string, number> = {
+                    'un': 1, 'una': 1, 'uno': 1,
+                    'dos': 2,
+                    'tres': 3,
+                    'cuatro': 4,
+                    'cinco': 5,
+                    'seis': 6,
+                    'siete': 7,
+                    'ocho': 8,
+                    'nueve': 9,
+                    'diez': 10
+                };
+
+                // If it's a digit
+                if (/^\d+$/.test(lastMatch)) {
+                    return parseInt(lastMatch, 10);
+                }
+
+                return numberMap[lastMatch];
+            };
+
+            // Try to get minimum emotions from module.config first
             const config = typeof module.config === 'object' && module.config !== null ? module.config as Record<string, unknown> : {};
-            const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
-            
+            let minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
+
+            // If not in config, try to extract from title
+            if (minEmotions === undefined && titleText) {
+                minEmotions = parseTargetCount(titleText);
+            }
+
             return (
-                <EmotionSelector 
-                    value={emotionValues} 
+                <EmotionSelector
+                    value={emotionValues}
                     onChange={(val) => saveComponentValue('emotions', val)}
                     onComplete={onComplete}
                     minEmotions={minEmotions}
@@ -191,14 +230,14 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
             <div className="w-full max-w-2xl space-y-6">
                 {/* Title */}
                 {(titleText || module.name).length > 0 && (
-                    <h1 className="text-3xl font-bold text-gray-900 text-center">
+                    <h1 className="text-xl md:text-3xl font-bold text-gray-900 text-center">
                         {titleText || module.name}
                     </h1>
                 )}
 
                 {/* Description */}
                 {descriptionText && descriptionText.length > 0 && (
-                    <p className="text-lg text-gray-600 text-center">
+                    <p className="text-base md:text-lg text-gray-600 text-center">
                         {descriptionText}
                     </p>
                 )}
@@ -226,7 +265,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     // Try to get minimum emotions from module.config
                     const config = typeof module.config === 'object' && module.config !== null ? module.config as Record<string, unknown> : {};
                     const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
-                    
+
                     if (minEmotions !== undefined && minEmotions > 0) {
                         if (minEmotions === 1) {
                             return (
@@ -241,7 +280,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                             </p>
                         );
                     }
-                    
+
                     return (
                         <p className="text-sm text-gray-600 text-center mt-4">
                             Selecciona las emociones para pasar al siguiente paso

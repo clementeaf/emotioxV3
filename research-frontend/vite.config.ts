@@ -32,6 +32,13 @@ export default defineConfig({
       protocol: 'ws',
       host: 'localhost',
     },
+    proxy: {
+      '/dev': {
+        target: 'https://ro05auvmxc.execute-api.us-east-1.amazonaws.com',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   preview: {
     port: 12500,

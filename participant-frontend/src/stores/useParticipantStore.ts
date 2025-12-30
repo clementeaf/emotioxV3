@@ -12,14 +12,16 @@ interface ParticipantState {
 
   // Respuestas
   responses: ResponsesMap;
-  
+
   // Sesión
   sessionId: string;
   sessionStartTime: number;
   sessionCount: number;
+  participantId: string | null;
 
   // Actions - Navegación
   setCurrentStep: (step: string) => void;
+  setParticipantId: (id: string | null) => void;
 
   // Actions - Respuestas
   saveResponse: (moduleId: string, componentId: string, value: ResponseValue, metadata?: ResponseMetadata) => void;
@@ -28,7 +30,7 @@ interface ParticipantState {
   updateResponse: (moduleId: string, componentId: string, value: ResponseValue, metadata?: ResponseMetadata) => void;
   clearResponse: (moduleId: string, componentId: string) => void;
   clearAllResponses: () => void;
-  
+
   // Actions - Sesión
   startNewSession: () => void;
   getSessionId: () => string;
@@ -75,6 +77,15 @@ export const useParticipantStore = create<ParticipantState>()(
       sessionId: crypto.randomUUID(),
       sessionStartTime: Date.now(),
       sessionCount: 1,
+      participantId: null,
+
+      /**
+       * Establece el ID del participante
+       * @param id - ID del participante
+       */
+      setParticipantId: (id: string | null) => {
+        set({ participantId: id });
+      },
 
       /**
        * Establece el step actual
@@ -169,7 +180,7 @@ export const useParticipantStore = create<ParticipantState>()(
       clearAllResponses: () => {
         set({ responses: new Map<ResponseId, Response>() });
       },
-      
+
       /**
        * Inicia una nueva sesión
        */
@@ -182,7 +193,7 @@ export const useParticipantStore = create<ParticipantState>()(
         set(newState);
         return newState;
       },
-      
+
       /**
        * Obtiene el ID de la sesión actual
        */
@@ -198,14 +209,16 @@ export const useParticipantStore = create<ParticipantState>()(
         sessionId: state.sessionId,
         sessionStartTime: state.sessionStartTime,
         sessionCount: state.sessionCount,
+        participantId: state.participantId,
       }),
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as { 
-          currentStep?: string; 
+        const persisted = persistedState as {
+          currentStep?: string;
           responses?: Response[];
           sessionId?: string;
           sessionStartTime?: number;
           sessionCount?: number;
+          participantId?: string;
         };
         return {
           ...currentState,
@@ -214,6 +227,7 @@ export const useParticipantStore = create<ParticipantState>()(
           sessionId: persisted.sessionId ?? currentState.sessionId,
           sessionStartTime: persisted.sessionStartTime ?? currentState.sessionStartTime,
           sessionCount: persisted.sessionCount ?? currentState.sessionCount,
+          participantId: persisted.participantId ?? currentState.participantId,
         };
       },
     }

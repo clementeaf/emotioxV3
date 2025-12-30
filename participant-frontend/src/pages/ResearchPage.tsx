@@ -11,6 +11,7 @@ import { MobileRestrictionScreen } from '../components/ui/MobileRestrictionScree
 import { InvalidResearchScreen } from '../components/ui/InvalidResearchScreen';
 import { ResearchCompletionContent } from '../components/ui/ResearchCompletionContent';
 import { UnconfiguredStepContent } from '../components/ui/UnconfiguredStepContent';
+import { WelcomeStep } from '../components/steps/WelcomeStep';
 import { DemographicsStep } from '../components/steps/DemographicsStep';
 import { useSessionStore } from '../stores/useSessionStore';
 import { useParticipantStore } from '../stores/useParticipantStore';
@@ -179,6 +180,24 @@ export const ResearchPage = () => {
 
   // Initialize location collector (will be called manually when needed)
   useLocationCollector();
+
+  // Check for participant change (session persistence fix)
+  useEffect(() => {
+    if (!participantId) return;
+
+    const storedParticipantId = useParticipantStore.getState().participantId;
+
+    // If we have a stored participant ID and it's different from the URL
+    if (storedParticipantId && storedParticipantId !== participantId) {
+      console.log('[ResearchPage] Participant changed, resetting session');
+      clearAllResponses();
+      useSessionStore.getState().clearTurnstileToken();
+      startNewSession();
+    }
+
+    // Always update to current participant ID
+    useParticipantStore.getState().setParticipantId(participantId);
+  }, [participantId, clearAllResponses, startNewSession]);
 
   // Initialize session timer
   useSessionTimer();
@@ -651,7 +670,12 @@ export const ResearchPage = () => {
           ) : null
         }
       >
-        {currentModule && currentModule.id !== 'demographics' ? (
+        {currentModule && currentStep === 'welcome' ? (
+          <WelcomeStep
+            title={getComponentText(currentModule.structure.components?.find(c => c.id?.includes('title')))}
+            message={getComponentText(currentModule.structure.components?.find(c => c.id?.includes('message')))}
+          />
+        ) : currentModule && currentModule.id !== 'demographics' ? (
           <DynamicStep module={currentModule} onComplete={handleNext} />
         ) : currentModule && currentModule.id === 'demographics' ? (
           <DemographicsStep module={currentModule} onComplete={handleNext} />

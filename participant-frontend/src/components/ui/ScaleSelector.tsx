@@ -113,7 +113,7 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
                         type="button"
                         onClick={() => handleChange(num)}
                         className={`
-                            w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-sm sm:text-base 
+                            w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
                             transition-all flex items-center justify-center flex-shrink-0
                             ${value === num
                                 ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
