@@ -113,6 +113,42 @@ const ResearchTableRow = memo(({
 ResearchTableRow.displayName = 'ResearchTableRow';
 
 /**
+ * Componente skeleton para filas de tabla durante la carga
+ */
+const TableSkeletonRow = memo(() => {
+    return (
+        <tr className="animate-pulse">
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="h-4 bg-gray-200 rounded w-32"></div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="h-4 bg-gray-200 rounded w-24"></div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                    <div className="w-20 h-2 bg-gray-200 rounded-full"></div>
+                    <div className="h-4 bg-gray-200 rounded w-8"></div>
+                </div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="h-4 bg-gray-200 rounded w-24"></div>
+            </td>
+            <td className="px-4 py-4 whitespace-nowrap">
+                <div className="flex items-center gap-1">
+                    <div className="h-6 w-6 bg-gray-200 rounded"></div>
+                    <div className="h-6 w-6 bg-gray-200 rounded"></div>
+                </div>
+            </td>
+        </tr>
+    );
+});
+
+TableSkeletonRow.displayName = 'TableSkeletonRow';
+
+/**
  * Componente memoizado para tarjeta de tipo de investigación
  */
 const ResearchTypeCard = memo(({
@@ -125,7 +161,7 @@ const ResearchTypeCard = memo(({
     const initials = useMemo(() => type.name.substring(0, 2).toUpperCase(), [type.name]);
 
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 hover:shadow-md transition-shadow h-full flex flex-col justify-between">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -220,12 +256,12 @@ export const DashboardPage = () => {
     }, [toast]);
 
     return (
-        <div className="h-full p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto">
+        <div className="h-full w-full flex flex-col p-6 overflow-hidden">
             {/* Main Content - Table and Sidebar */}
-            <div className="flex gap-4 sm:gap-6 flex-col lg:flex-row">
+            <div className="flex gap-6 flex-1 min-h-0">
                 {/* Left Section - Research Table */}
-                <div className="flex-1 lg:w-full rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 max-h-[50vh] overflow-y-auto">
-                    <div className="overflow-x-auto">
+                <div className="flex-1 rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 flex flex-col">
+                    <div className="flex-1 overflow-auto">
                         <table className="w-full">
                             <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                 <tr>
@@ -251,14 +287,11 @@ export const DashboardPage = () => {
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {isLoading ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
-                                            <div className="flex justify-center">
-                                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                            </div>
-                                            <p className="mt-2">Loading researches...</p>
-                                        </td>
-                                    </tr>
+                                    <>
+                                        {[...Array(5)].map((_, index) => (
+                                            <TableSkeletonRow key={`skeleton-${index}`} />
+                                        ))}
+                                    </>
                                 ) : filteredResearches.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
@@ -290,7 +323,7 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Right Sidebar - Research Types Filter */}
-                <div className="w-full lg:w-80 space-y-2 flex-shrink-0 max-h-[50vh] overflow-y-auto pr-1">
+                <div className="w-80 flex-shrink-0 flex flex-col gap-2">
                     {typedResearchTypes.slice(0, 4).map((type) => (
                         <ResearchTypeCard
                             key={type.id}
@@ -302,11 +335,11 @@ export const DashboardPage = () => {
             </div>
 
             {/* Bottom Section - Research Cards by Type */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6">
-                <div className="flex items-center gap-2 sm:gap-4 mb-4 sm:mb-6 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 mt-6 flex-shrink-0">
+                <div className="flex items-center gap-4 mb-6 overflow-x-auto pb-2">
                     <button
                         onClick={() => setActiveFilter('all')}
-                        className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${activeFilter === 'all'
+                        className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${activeFilter === 'all'
                             ? 'bg-blue-600 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
@@ -317,7 +350,7 @@ export const DashboardPage = () => {
                         <button
                             key={type.id}
                             onClick={() => setActiveFilter(type.id)}
-                            className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${activeFilter === type.id
+                            className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0 ${activeFilter === type.id
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
@@ -328,7 +361,7 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Research Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {filteredResearches.slice(0, 4).map((research: Research) => (
                         <div
                             key={research.id}

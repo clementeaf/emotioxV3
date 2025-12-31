@@ -13,9 +13,7 @@ export const DashboardLayout = () => {
 
             {/* Main Content */}
             <main className="rounded-lg bg-white w-full h-full overflow-hidden flex flex-col">
-                <div className="h-full overflow-y-auto">
-                    <Outlet />
-                </div>
+                <Outlet />
             </main>
         </div>
     );
