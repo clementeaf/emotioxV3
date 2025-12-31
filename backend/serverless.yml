@@ -77,6 +77,8 @@ functions:
               - http://localhost:5174
               - https://research.useremotion.com
               - https://participant.useremotion.com
+              - https://research.emotiox.org
+              - https://participant.emotiox.org
               - https://d2mgq2ppntnjct.cloudfront.net
               - https://d2am10cly7c9kf.cloudfront.net
             headers:
@@ -100,6 +102,8 @@ functions:
               - http://localhost:5174
               - https://research.useremotion.com
               - https://participant.useremotion.com
+              - https://research.emotiox.org
+              - https://participant.emotiox.org
               - https://d2mgq2ppntnjct.cloudfront.net
               - https://d2am10cly7c9kf.cloudfront.net
             headers:

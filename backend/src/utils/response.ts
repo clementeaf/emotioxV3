@@ -17,6 +17,8 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
         // Production - Domains
         'https://research.useremotion.com',
         'https://participant.useremotion.com',
+        'https://research.emotiox.org',
+        'https://participant.emotiox.org',
         'https://useremotion.com',
         'https://www.useremotion.com',
         

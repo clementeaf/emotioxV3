@@ -23,6 +23,8 @@ app.use(cors({
             // Production origins (for testing)
             'https://research.useremotion.com',
             'https://participant.useremotion.com',
+            'https://research.emotiox.org',
+            'https://participant.emotiox.org',
         ];
 
         // Allow requests with no origin (like mobile apps, curl, Postman)
