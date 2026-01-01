@@ -492,6 +492,11 @@ export const ResearchPage = () => {
       return false;
     }
 
+    // Thank You Screen - final step, no button needed
+    if (moduleName === 'Thank You Screen' || moduleName === 'Thank you screen') {
+      return false;
+    }
+
     // Show button for Multiple Choice and other modules that require explicit confirmation
     return true;
   }, []);
