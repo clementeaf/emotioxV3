@@ -5,7 +5,14 @@ import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
 import { ExternalLink, QrCode, Copy, Settings } from 'lucide-react';
 import { useUrlValidation } from '../../hooks/useUrlValidation';
-import { DemographicConfigModal } from './DemographicConfigModal';
+import AgeConfigModal from './AgeConfigModal';
+import CountryConfigModal from './CountryConfigModal';
+import GenderConfigModal from './GenderConfigModal';
+import EducationConfigModal from './EducationConfigModal';
+import EmploymentStatusConfigModal from './EmploymentStatusConfigModal';
+import HouseholdIncomeConfigModal from './HouseholdIncomeConfigModal';
+import DailyHoursOnlineConfigModal from './DailyHoursOnlineConfigModal';
+import TechnicalProficiencyConfigModal from './TechnicalProficiencyConfigModal';
 import { useToast } from '../../hooks/useToast';
 
 
@@ -573,13 +580,126 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 downloadFileName="research-qr-code.png"
             />
 
-            {activeConfigModal && (
-                <DemographicConfigModal
-                    isOpen={!!activeConfigModal}
+            {/* Specific Config Modals */}
+            {activeConfigModal === 'age' && (
+                <AgeConfigModal
+                    isOpen={true}
                     onClose={() => setActiveConfigModal(null)}
-                    demographicType={activeConfigModal}
-                    onSave={handleSaveDemographicConfig}
-                    initialConfig={typeof demographics[activeConfigModal] === 'object' ? demographics[activeConfigModal] : undefined}
+                    onSave={(validAges, disqualifyingAges) => {
+                        handleSaveDemographicConfig({
+                            validAges,
+                            disqualifyingAges
+                        });
+                    }}
+                    initialValidAges={demographics.age?.validAges || []}
+                    initialDisqualifyingAges={demographics.age?.disqualifyingAges || []}
+                />
+            )}
+
+            {activeConfigModal === 'country' && (
+                <CountryConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(validCountries, disqualifyingCountries, priorityCountries) => {
+                        handleSaveDemographicConfig({
+                            validCountries,
+                            disqualifyingCountries,
+                            priorityCountries
+                        });
+                    }}
+                    initialValidCountries={demographics.country?.validCountries || []}
+                    initialDisqualifyingCountries={demographics.country?.disqualifyingCountries || []}
+                    initialPriorityCountries={demographics.country?.priorityCountries || []}
+                />
+            )}
+
+            {activeConfigModal === 'gender' && (
+                <GenderConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified
+                        });
+                    }}
+                    currentOptions={demographics.gender?.options}
+                    currentDisqualified={demographics.gender?.disqualified}
+                />
+            )}
+
+            {activeConfigModal === 'educationLevel' && (
+                <EducationConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified
+                        });
+                    }}
+                    currentOptions={demographics.educationLevel?.options}
+                    currentDisqualified={demographics.educationLevel?.disqualified}
+                />
+            )}
+
+            {activeConfigModal === 'employmentStatus' && (
+                <EmploymentStatusConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified
+                        });
+                    }}
+                    currentOptions={demographics.employmentStatus?.options}
+                    currentDisqualified={demographics.employmentStatus?.disqualified}
+                />
+            )}
+
+            {activeConfigModal === 'annualIncome' && (
+                <HouseholdIncomeConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified
+                        });
+                    }}
+                    currentOptions={demographics.annualIncome?.options}
+                    currentDisqualified={demographics.annualIncome?.disqualified}
+                />
+            )}
+
+            {activeConfigModal === 'dailyHoursOnline' && (
+                <DailyHoursOnlineConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified
+                        });
+                    }}
+                    currentOptions={demographics.dailyHoursOnline?.options}
+                    currentDisqualified={demographics.dailyHoursOnline?.disqualified}
+                />
+            )}
+
+            {activeConfigModal === 'technicalProficiency' && (
+                <TechnicalProficiencyConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    onSave={(options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified
+                        });
+                    }}
+                    currentOptions={demographics.technicalProficiency?.options}
+                    currentDisqualified={demographics.technicalProficiency?.disqualified}
                 />
             )}
         </div>
