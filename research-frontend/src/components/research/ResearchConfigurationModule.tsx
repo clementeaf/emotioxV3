@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
 import { ExternalLink, QrCode, Copy, Settings } from 'lucide-react';
 import { useUrlValidation } from '../../hooks/useUrlValidation';
+import { mapModalConfigToBackend } from '../../utils/demographicsMapper';
 import AgeConfigModal from './AgeConfigModal';
 import CountryConfigModal from './CountryConfigModal';
 import GenderConfigModal from './GenderConfigModal';
@@ -240,17 +241,17 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         return false;
     };
 
-    const handleSaveDemographicConfig = (newConfig: any) => {
+    const handleSaveDemographicConfig = (newConfig: Record<string, unknown>) => {
         if (!activeConfigModal) return;
+
+        // Transform modal data to backend format
+        const backendConfig = mapModalConfigToBackend(activeConfigModal, newConfig);
 
         onChange({
             ...config,
             demographics: {
                 ...demographics,
-                [activeConfigModal]: {
-                    enabled: true,
-                    ...newConfig
-                }
+                [activeConfigModal]: backendConfig
             }
         });
     };
