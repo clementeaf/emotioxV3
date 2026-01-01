@@ -51,9 +51,9 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChang
         const newValue = value.includes(emotionId)
             ? value.filter(id => id !== emotionId)
             : [...value, emotionId];
-        
+
         onChange(newValue);
-        
+
         // Auto-advance if minimum emotions requirement is met
         if (onComplete && minEmotions !== undefined && minEmotions > 0) {
             if (newValue.length >= minEmotions) {
@@ -76,7 +76,7 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChang
             {EMOTIONS.map((row, rowIndex) => (
                 <div
                     key={rowIndex}
-                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2"
+                    className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5"
                 >
                     {row.map((emotion) => {
                         const isSelected = value.includes(emotion.id);
@@ -86,23 +86,23 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChang
                                 key={emotion.id}
                                 type="button"
                                 onClick={() => toggleEmotion(emotion.id)}
-                                className="relative px-3 py-4 rounded-lg border-2 text-sm font-medium transition-all min-h-[64px] flex items-center justify-center text-center"
+                                className="relative px-1 py-1.5 rounded-md border-2 text-[10px] sm:text-xs font-medium transition-all min-h-[36px] flex items-center justify-center text-center"
                                 style={{
                                     backgroundColor: emotion.color,
                                     borderColor: isSelected ? '#3b82f6' : '#d1d5db',
                                     color: '#1f2937',
-                                    boxShadow: isSelected ? '0 0 0 4px rgba(59, 130, 246, 0.3)' : 'none',
+                                    boxShadow: isSelected ? '0 0 0 2px rgba(59, 130, 246, 0.3)' : 'none',
                                 }}
                             >
-                                <span className="leading-tight break-words px-1">
+                                <span className="leading-tight break-words w-full">
                                     {emotion.name}
                                 </span>
 
                                 {/* Checkmark */}
                                 {isSelected && (
-                                    <div className="absolute top-1 right-1">
+                                    <div className="absolute top-0.5 right-0.5">
                                         <svg
-                                            className="w-4 h-4 text-blue-600"
+                                            className="w-3 h-3 text-blue-600"
                                             fill="currentColor"
                                             viewBox="0 0 20 20"
                                         >

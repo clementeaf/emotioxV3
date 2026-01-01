@@ -436,25 +436,28 @@ export const ResearchBuilderPage = () => {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <ResearchBuilderHeader
-                research={typedResearch}
-                activeModule={isSmartVOCStage || isCognitiveTasksStage ? null : activeModule}
-                isSettings={isSettings}
-                isSaving={isSaving}
-                onSave={handleSaveModule}
-                isSmartVOCStage={isSmartVOCStage}
-                smartVOCStageName={smartVOCStage?.name}
-                isCognitiveTasksStage={isCognitiveTasksStage}
-                cognitiveTasksStageName={cognitiveTasksStage?.name}
-            />
+        <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
+            <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
+                <ResearchBuilderHeader
+                    research={typedResearch}
+                    activeModule={isSmartVOCStage || isCognitiveTasksStage ? null : activeModule}
+                    isSettings={isSettings}
+                    isSaving={isSaving}
+                    onSave={handleSaveModule}
+                    isSmartVOCStage={isSmartVOCStage}
+                    smartVOCStageName={smartVOCStage?.name}
+                    isCognitiveTasksStage={isCognitiveTasksStage}
+                    cognitiveTasksStageName={cognitiveTasksStage?.name}
+                />
+            </div>
 
             {/* Content Area */}
-            {isSettings && <ResearchSettingsView research={typedResearch} />}
+            <div className="flex-1 min-h-0 overflow-auto">
+                {isSettings && <ResearchSettingsView research={typedResearch} />}
 
-            {/* Smart VOC Stage: Show all modules in the same view with drag & drop */}
-            {isSmartVOCStage && smartVOCModules.length > 0 && (
-                <div className="space-y-6 h-full max-h-[720px] overflow-y-auto">
+                {/* Smart VOC Stage: Show all modules in the same view with drag & drop */}
+                {isSmartVOCStage && smartVOCModules.length > 0 && (
+                    <div className="space-y-6">
                     <div className="mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">Smart VOC - All Questions</h2>
                         <p className="text-sm text-gray-500 mt-1">
@@ -489,21 +492,21 @@ export const ResearchBuilderPage = () => {
                             ))}
                         </SortableContext>
                     </DndContext>
-                </div>
-            )}
+                    </div>
+                )}
 
-            {/* Smart VOC Stage Empty State */}
-            {isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
-                <StageEmptyState
-                    stageName={smartVOCStage.name}
-                    stageType="smart-voc"
-                    onAddModule={() => handleOpenTemplateModal(smartVOCStage)}
-                />
-            )}
+                {/* Smart VOC Stage Empty State */}
+                {isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
+                    <StageEmptyState
+                        stageName={smartVOCStage.name}
+                        stageType="smart-voc"
+                        onAddModule={() => handleOpenTemplateModal(smartVOCStage)}
+                    />
+                )}
 
-            {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
-            {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
-                <div className="space-y-6 h-full max-h-[720px] overflow-y-auto">
+                {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
+                {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
+                    <div className="space-y-6">
                     <div className="mb-4">
                         <h2 className="text-lg font-semibold text-gray-900">Cognitive Tasks - All Tasks</h2>
                         <p className="text-sm text-gray-500 mt-1">
@@ -526,62 +529,63 @@ export const ResearchBuilderPage = () => {
                             isActive={activeModuleId === module.id}
                         />
                     ))}
-                </div>
-            )}
-
-            {/* Cognitive Tasks Stage Empty State */}
-            {isCognitiveTasksStage && cognitiveTaskModules.length === 0 && cognitiveTasksStage && (
-                <StageEmptyState
-                    stageName={cognitiveTasksStage.name}
-                    stageType="cognitive-tasks"
-                    onAddModule={() => handleOpenTemplateModal(cognitiveTasksStage)}
-                />
-            )}
-
-            {/* Regular module view: Show single module */}
-            {!isSmartVOCStage && !isCognitiveTasksStage && !isResearchConfigModule && activeModule && (
-                <div className="space-y-6">
-                    <div className="rounded-lg shadow-sm border border-gray-100 p-6">
-                        <ModuleContentEditor
-                            components={components}
-                            componentValues={componentValues}
-                            onValueChange={handleComponentValueChange}
-                            researchId={id}
-                        />
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Research Configuration module: Show custom component */}
-            {!isSmartVOCStage && !isCognitiveTasksStage && isResearchConfigModule && activeModule && (
-                <div className="space-y-6">
-                    <div className="rounded-lg shadow-sm border border-gray-100 p-6">
-                        <ResearchConfigurationModule
-                            config={transformResearchConfigComponentValues(componentValues)}
-                            onChange={(newConfig) => {
-                                Object.keys(newConfig).forEach(key => {
-                                    if (key === 'demographics') {
-                                        Object.entries(newConfig[key] as Record<string, any>).forEach(([subKey, val]) => {
-                                            const valueToSave = typeof val === 'object' ? JSON.stringify(val) : String(val);
-                                            handleComponentValueChange(subKey, valueToSave);
-                                        });
-                                    } else if (key === 'linkConfig') {
-                                        Object.entries(newConfig[key] as Record<string, boolean>).forEach(([subKey, val]) => {
-                                            handleComponentValueChange(subKey, String(val));
-                                        });
-                                    } else if (key === 'backlinks') {
-                                        Object.entries(newConfig[key] as Record<string, string>).forEach(([subKey, val]) => {
-                                            handleComponentValueChange(subKey, val);
-                                        });
-                                    } else {
-                                        handleComponentValueChange(key, String(newConfig[key]));
-                                    }
-                                });
-                            }}
-                        />
+                {/* Cognitive Tasks Stage Empty State */}
+                {isCognitiveTasksStage && cognitiveTaskModules.length === 0 && cognitiveTasksStage && (
+                    <StageEmptyState
+                        stageName={cognitiveTasksStage.name}
+                        stageType="cognitive-tasks"
+                        onAddModule={() => handleOpenTemplateModal(cognitiveTasksStage)}
+                    />
+                )}
+
+                {/* Regular module view: Show single module */}
+                {!isSmartVOCStage && !isCognitiveTasksStage && !isResearchConfigModule && activeModule && (
+                    <div className="space-y-6">
+                        <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
+                            <ModuleContentEditor
+                                components={components}
+                                componentValues={componentValues}
+                                onValueChange={handleComponentValueChange}
+                                researchId={id}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+
+                {/* Research Configuration module: Show custom component */}
+                {!isSmartVOCStage && !isCognitiveTasksStage && isResearchConfigModule && activeModule && (
+                    <div className="space-y-6">
+                        <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
+                            <ResearchConfigurationModule
+                                config={transformResearchConfigComponentValues(componentValues)}
+                                onChange={(newConfig) => {
+                                    Object.keys(newConfig).forEach(key => {
+                                        if (key === 'demographics') {
+                                            Object.entries(newConfig[key] as Record<string, any>).forEach(([subKey, val]) => {
+                                                const valueToSave = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                                                handleComponentValueChange(subKey, valueToSave);
+                                            });
+                                        } else if (key === 'linkConfig') {
+                                            Object.entries(newConfig[key] as Record<string, boolean>).forEach(([subKey, val]) => {
+                                                handleComponentValueChange(subKey, String(val));
+                                            });
+                                        } else if (key === 'backlinks') {
+                                            Object.entries(newConfig[key] as Record<string, string>).forEach(([subKey, val]) => {
+                                                handleComponentValueChange(subKey, val);
+                                            });
+                                        } else {
+                                            handleComponentValueChange(key, String(newConfig[key]));
+                                        }
+                                    });
+                                }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Module Template Selection Modal */}
             <ModuleTemplateSelectionModal
