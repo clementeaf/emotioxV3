@@ -487,6 +487,11 @@ export const ResearchPage = () => {
       return false;
     }
 
+    // Single Choice - auto-advances when option is selected
+    if (moduleName === 'Single Choice') {
+      return false;
+    }
+
     // Show button for Multiple Choice and other modules that require explicit confirmation
     return true;
   }, []);

@@ -62,6 +62,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     description={descriptionText}
                     options={choices}
                     isMultiple={isMultipleChoice}
+                    onComplete={isSingleChoice ? onComplete : undefined}
                 />
             );
         }
@@ -117,7 +118,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             // Extract images from file-upload component
             const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ x: number; y: number; width: number; height: number; label?: string; }> }> = [];
-            
+
             const rawImagesJson = getComponentText(imageComponent);
             if (rawImagesJson) {
                 try {
@@ -158,7 +159,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             // Extract images from file-upload component
             const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string }> = [];
-            
+
             const rawImagesJson = getComponentText(imageComponent);
             if (rawImagesJson) {
                 try {
@@ -195,11 +196,17 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
         <div className="flex flex-col items-center justify-center px-4 py-6">
             <div className="w-full max-w-2xl">
                 {renderInteractiveComponent()}
-                
+
                 {/* Module-specific instruction text */}
                 {isLinearScale && (
                     <p className="text-sm text-gray-600 text-center mt-4">
                         Selecciona un valor para pasar al siguiente paso
+                    </p>
+                )}
+
+                {isSingleChoice && (
+                    <p className="text-sm text-gray-600 text-center mt-4">
+                        Selecciona una opción para pasar al siguiente paso
                     </p>
                 )}
 

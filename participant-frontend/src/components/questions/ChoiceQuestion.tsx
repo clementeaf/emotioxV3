@@ -14,6 +14,7 @@ interface ChoiceQuestionProps {
     options: Option[];
     isMultiple?: boolean;
     required?: boolean;
+    onComplete?: () => void;
 }
 
 export const ChoiceQuestion = ({
@@ -24,6 +25,7 @@ export const ChoiceQuestion = ({
     options,
     isMultiple = false,
     required = false,
+    onComplete,
 }: ChoiceQuestionProps) => {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const { save } = useResponse({ moduleId, componentId });
@@ -48,6 +50,12 @@ export const ChoiceQuestion = ({
             );
         } else {
             setSelectedIds([optionId]);
+            // Auto-advance for single choice after a short delay
+            if (onComplete) {
+                setTimeout(() => {
+                    onComplete();
+                }, 500);
+            }
         }
     };
 

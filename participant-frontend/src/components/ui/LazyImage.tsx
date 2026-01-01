@@ -7,13 +7,16 @@ interface LazyImageProps extends ImgHTMLAttributes<HTMLImageElement> {
   placeholderSrc?: string;
 }
 
+// Transparent 1x1 pixel placeholder to avoid empty src warning
+const TRANSPARENT_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
 /**
  * Lazy-loads an image when it is near the viewport using IntersectionObserver.
  * @param props - Image props
  * @param ref - Forwarded ref to the underlying img element
  */
 export const LazyImage = forwardRef<HTMLImageElement, LazyImageProps>(({ src, alt, placeholderSrc, onLoad, ...props }, ref) => {
-  const [imageSrc, setImageSrc] = useState(placeholderSrc || '');
+  const [imageSrc, setImageSrc] = useState(placeholderSrc || TRANSPARENT_PLACEHOLDER);
   const [imageLoaded, setImageLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
