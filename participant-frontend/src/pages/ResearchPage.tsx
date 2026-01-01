@@ -187,12 +187,15 @@ export const ResearchPage = () => {
 
     const storedParticipantId = useParticipantStore.getState().participantId;
 
-    // If we have a stored participant ID and it's different from the URL
-    if (storedParticipantId && storedParticipantId !== participantId) {
-      console.log('[ResearchPage] Participant changed, resetting session');
+    // If we have a new participant (different from stored or no stored ID)
+    // we need to reset the session to start from the beginning
+    if (!storedParticipantId || storedParticipantId !== participantId) {
+      console.log('[ResearchPage] New or changed participant, resetting session');
       clearAllResponses();
       useSessionStore.getState().clearTurnstileToken();
       startNewSession();
+      // Reset to the first step (welcome)
+      useParticipantStore.getState().setCurrentStep('welcome');
     }
 
     // Always update to current participant ID
@@ -641,6 +644,7 @@ export const ResearchPage = () => {
         <DevSidebar
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
+          modules={modules}
         />
       )}
 

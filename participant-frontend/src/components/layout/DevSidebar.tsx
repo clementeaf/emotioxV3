@@ -7,6 +7,7 @@ import type { ModuleConfig } from '../../types/module';
 interface DevSidebarProps {
     isOpen: boolean;
     onToggle: () => void;
+    modules?: Record<string, ModuleConfig>; // Optional: actual modules from backend
 }
 
 /**
@@ -71,11 +72,13 @@ function getGroupedModules(modules: Record<string, ModuleConfig>): { title: stri
     }));
 }
 
-export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
+export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, modules }) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
     const { getSessionSummary } = useSessionStore();
 
-    const groupedModules = useMemo(() => getGroupedModules(MOCK_MODULES), []);
+    // Use actual modules from backend if provided, otherwise fall back to mocks
+    const activeModules = modules && Object.keys(modules).length > 0 ? modules : MOCK_MODULES;
+    const groupedModules = useMemo(() => getGroupedModules(activeModules), [activeModules]);
     const sessionSummary = getSessionSummary();
 
     // Calculate global index for numbering
@@ -99,7 +102,7 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
             const target = event.target as HTMLElement;
             const sidebar = document.querySelector('[data-dev-sidebar]');
             const burgerButton = document.querySelector('[data-burger-button]');
-            
+
             if (sidebar && !sidebar.contains(target) && !burgerButton?.contains(target)) {
                 // Only close on mobile (screen width < 768px)
                 if (window.innerWidth < 768) {
@@ -159,8 +162,8 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle }) => {
             <div
                 data-dev-sidebar
                 className={`fixed top-4 bottom-4 bg-white shadow-2xl border border-gray-100 rounded-2xl transition-all duration-300 z-40 flex flex-col overflow-hidden
-                    ${isOpen 
-                        ? 'left-4 md:left-4' 
+                    ${isOpen
+                        ? 'left-4 md:left-4'
                         : '-left-full md:left-4 md:w-20'
                     }
                     ${isOpen ? 'w-[280px] md:w-[280px]' : 'md:w-20'}
