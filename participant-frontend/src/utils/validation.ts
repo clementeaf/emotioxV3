@@ -58,14 +58,14 @@ export const validateModule = (
     if (isNavigationFlow || isPreferenceTest) {
         // For these modules, validate the main response component
         // NavigationFlow uses 'navigation-flow-component' or 'navigation-flow' depending on how it's called
-        const possibleComponentIds = isNavigationFlow 
+        const possibleComponentIds = isNavigationFlow
             ? ['navigation-flow-component', 'navigation-flow']
             : ['preference-test-component', 'preference-test'];
-        
+
         // Check if any of the possible component IDs have a response
         for (const mainComponentId of possibleComponentIds) {
             const mainValue = responses.get(mainComponentId);
-            
+
             // If there's a main response, consider it valid (these modules are complete when they have a response)
             if (mainValue !== undefined && mainValue !== null && mainValue !== '') {
                 return {
@@ -74,7 +74,7 @@ export const validateModule = (
                 };
             }
         }
-        
+
         // If no main response, check if module is required
         // For now, we'll consider these modules valid if they're not explicitly required
         // or if they have any response at all
@@ -88,17 +88,17 @@ export const validateModule = (
 
     // Special handling for SmartVOC modules that use 'scale' component (CSAT, NPS, CES, CV)
     // IMPORTANT: Only check for 'scale' if module name explicitly includes these types
-    const isSmartVOCScale = (module.name.includes('CSAT') || 
-                             module.name.includes('NPS') || 
-                             module.name.includes('CES') || 
-                             module.name.includes('CV')) &&
-                             !module.name.includes('VOC') && // Exclude VOC
-                             !module.name.includes('NEV'); // Exclude NEV
-    
+    const isSmartVOCScale = (module.name.includes('CSAT') ||
+        module.name.includes('NPS') ||
+        module.name.includes('CES') ||
+        module.name.includes('CV')) &&
+        !module.name.includes('VOC') && // Exclude VOC
+        !module.name.includes('NEV'); // Exclude NEV
+
     if (isSmartVOCScale) {
         // For scale-based SmartVOC modules (CSAT, NPS, CES, CV), check for 'scale' response
         const scaleValue = responses.get('scale');
-        
+
         // Check if scale value exists and is valid
         // Valid values include: any number (including 0), or non-empty string
         const hasValidScaleValue = (() => {
@@ -116,14 +116,14 @@ export const validateModule = (
             // Any other type is considered invalid
             return false;
         })();
-        
+
         if (!hasValidScaleValue) {
             // Only show error if module has required components (excluding display-only components)
             const hasRequiredComponent = module.structure.components.some(comp => {
                 // Skip display-only components that don't require user input
                 const displayOnlyIds = [
-                    'title', 'description', 'instructions', 'message', 
-                    'scale-range', 'range', 'scale', 
+                    'title', 'description', 'instructions', 'message',
+                    'scale-range', 'range', 'scale',
                     'start-label', 'end-label'
                 ];
                 if (displayOnlyIds.some(id => comp.id.includes(id))) {
@@ -131,7 +131,7 @@ export const validateModule = (
                 }
                 return comp.required === true;
             });
-            
+
             if (hasRequiredComponent) {
                 errors.push({
                     componentId: 'scale',
@@ -147,14 +147,14 @@ export const validateModule = (
     }
 
     // Special handling for VOC module (uses 'text' component)
-    const isVOC = module.name.includes('VOC') && !module.name.includes('CSAT') && !module.name.includes('NPS') && !module.name.includes('CES') && !module.name.includes('CV');
+    const isVOC = module.name.includes('VOC') && !module.name.includes('CSAT') && !module.name.includes('NPS') && !module.name.includes('CES') && !module.name.includes('CV') && !module.name.includes('NEV');
     if (isVOC) {
         const textValue = responses.get('text');
-        const hasValidTextValue = textValue !== undefined && 
-                                  textValue !== null && 
-                                  textValue !== '' &&
-                                  (typeof textValue === 'string' ? textValue.trim().length > 0 : true);
-        
+        const hasValidTextValue = textValue !== undefined &&
+            textValue !== null &&
+            textValue !== '' &&
+            (typeof textValue === 'string' ? textValue.trim().length > 0 : true);
+
         if (!hasValidTextValue) {
             const hasRequiredComponent = module.structure.components.some(comp => {
                 const displayOnlyIds = ['title', 'description', 'instructions', 'message'];
@@ -163,7 +163,7 @@ export const validateModule = (
                 }
                 return comp.required === true;
             });
-            
+
             if (hasRequiredComponent) {
                 errors.push({
                     componentId: 'text',
@@ -177,10 +177,50 @@ export const validateModule = (
         };
     }
 
+    // Special handling for NEV module (uses 'emotions' component - array of emotion IDs)
+    const isNEV = module.name.includes('NEV') || module.name.includes('Net Emotional Value');
+    if (isNEV) {
+        const emotionsValue = responses.get('emotions');
+
+        // Check if emotions array exists and has at least one selection
+        const hasValidEmotionsValue = (() => {
+            if (emotionsValue === undefined || emotionsValue === null) {
+                return false;
+            }
+            // Array of emotions must have at least one item
+            if (Array.isArray(emotionsValue)) {
+                return emotionsValue.length > 0;
+            }
+            // Any other type is considered invalid for emotions
+            return false;
+        })();
+
+        if (!hasValidEmotionsValue) {
+            const hasRequiredComponent = module.structure.components.some(comp => {
+                const displayOnlyIds = ['title', 'description', 'instructions', 'message'];
+                if (displayOnlyIds.some(id => comp.id.includes(id))) {
+                    return false;
+                }
+                return comp.required === true;
+            });
+
+            if (hasRequiredComponent) {
+                errors.push({
+                    componentId: 'emotions',
+                    message: 'Debes seleccionar al menos una emoción'
+                });
+            }
+        }
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
     // For other modules, validate structure components
     // Skip validation for display-only components (title, description, instructions, message)
     const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range'];
-    
+
     module.structure.components.forEach((component) => {
         // Skip display-only components
         if (displayOnlyIds.some(id => component.id.includes(id))) {
