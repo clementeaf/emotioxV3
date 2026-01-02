@@ -106,25 +106,69 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
     return (
         <div className="w-full space-y-4">
             {/* Scale buttons */}
-            <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
-                {numbers.map((num) => (
-                    <button
-                        key={num}
-                        type="button"
-                        onClick={() => handleChange(num)}
-                        className={`
-                            w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
-                            transition-all flex items-center justify-center flex-shrink-0
-                            ${value === num
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
-                            }
-                        `}
-                    >
-                        {num}
-                    </button>
-                ))}
-            </div>
+            {/* Scale buttons */}
+            {numbers.length >= 10 ? (
+                <div className="flex flex-col gap-2 sm:gap-3">
+                    <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
+                        {numbers.slice(0, Math.ceil(numbers.length / 2)).map((num) => (
+                            <button
+                                key={num}
+                                type="button"
+                                onClick={() => handleChange(num)}
+                                className={`
+                                    w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
+                                    transition-all flex items-center justify-center flex-shrink-0
+                                    ${value === num
+                                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
+                                    }
+                                `}
+                            >
+                                {num}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
+                        {numbers.slice(Math.ceil(numbers.length / 2)).map((num) => (
+                            <button
+                                key={num}
+                                type="button"
+                                onClick={() => handleChange(num)}
+                                className={`
+                                    w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
+                                    transition-all flex items-center justify-center flex-shrink-0
+                                    ${value === num
+                                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
+                                    }
+                                `}
+                            >
+                                {num}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
+                    {numbers.map((num) => (
+                        <button
+                            key={num}
+                            type="button"
+                            onClick={() => handleChange(num)}
+                            className={`
+                                w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
+                                transition-all flex items-center justify-center flex-shrink-0
+                                ${value === num
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
+                                }
+                            `}
+                        >
+                            {num}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Labels */}
             {(startLabel || endLabel) && (
