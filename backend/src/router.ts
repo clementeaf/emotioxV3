@@ -1,10 +1,35 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error, getCorsHeaders } from './utils/response';
 
-export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-    const { httpMethod, path } = event;
+/**
+ * Normalizes the API Gateway path by removing the stage prefix if present
+ * API Gateway with {proxy+} may include the stage in the path (e.g., /dev/auth/me)
+ * @param path - Original path from API Gateway
+ * @param stage - Stage name from request context
+ * @returns Normalized path without stage prefix
+ */
+const normalizePath = (path: string, stage?: string): string => {
+    if (!stage) {
+        return path;
+    }
+    
+    // Remove stage prefix if present (e.g., /dev/auth/me -> /auth/me)
+    const stagePrefix = `/${stage}`;
+    if (path.startsWith(stagePrefix)) {
+        return path.substring(stagePrefix.length) || '/';
+    }
+    
+    return path;
+};
 
-    console.log(`${httpMethod} ${path}`);
+export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    const { httpMethod, path: rawPath, requestContext } = event;
+    
+    // Normalize path to remove stage prefix if present
+    const stage = requestContext?.stage;
+    const path = normalizePath(rawPath, stage);
+
+    console.log(`${httpMethod} ${rawPath} -> ${path}${stage ? ` (stage: ${stage})` : ''}`);
 
     const origin = event.headers.Origin || event.headers.origin || null;
 
@@ -27,111 +52,121 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
     // Config endpoint (public - no auth required)
     if (path === '/config' && httpMethod === 'GET') {
         const { handleConfigRoutes } = await import('./modules/config/config.controller');
-        return await handleConfigRoutes(event);
+        const normalizedEvent: APIGatewayProxyEvent = {
+            ...event,
+            path,
+        };
+        return await handleConfigRoutes(normalizedEvent);
     }
 
     // Route to modules (will be implemented)
     try {
+        // Create a normalized event with the corrected path
+        const normalizedEvent: APIGatewayProxyEvent = {
+            ...event,
+            path,
+        };
+        
         // Auth routes
         if (path.startsWith('/auth')) {
             const { handleAuthRoutes } = await import('./modules/auth/auth.controller');
-            return await handleAuthRoutes(event);
+            return await handleAuthRoutes(normalizedEvent);
         }
 
         // Enterprises routes
         if (path.startsWith('/enterprises')) {
             const { handleEnterprisesRoutes } = await import('./modules/enterprises/enterprises.controller');
-            return await handleEnterprisesRoutes(event);
+            return await handleEnterprisesRoutes(normalizedEvent);
         }
 
         // Research Techniques routes (admin only)
         if (path.startsWith('/research-techniques')) {
             const { handleResearchTechniquesRoutes } = await import('./modules/research-techniques/research-techniques.controller');
-            return await handleResearchTechniquesRoutes(event);
+            return await handleResearchTechniquesRoutes(normalizedEvent);
         }
 
         // Research Types routes (admin only)
         if (path.startsWith('/research-types')) {
             const { handleResearchTypesRoutes } = await import('./modules/research-types/research-types.controller');
-            return await handleResearchTypesRoutes(event);
+            return await handleResearchTypesRoutes(normalizedEvent);
         }
 
         // Eye tracking recruit routes (must be before /research to avoid conflicts)
         if (path.startsWith('/eye-tracking-recruit')) {
             const { handleResearchRoutes } = await import('./modules/research/research.controller');
-            return await handleResearchRoutes(event);
+            return await handleResearchRoutes(normalizedEvent);
         }
 
         // Research routes (must be after research-types and research-techniques to avoid conflicts)
         if (path.startsWith('/research') && !path.startsWith('/research-types') && !path.startsWith('/research-techniques')) {
             const { handleResearchRoutes } = await import('./modules/research/research.controller');
-            return await handleResearchRoutes(event);
+            return await handleResearchRoutes(normalizedEvent);
         }
 
         // Modules routes
         if (path.startsWith('/modules')) {
             const { handleModulesRoutes } = await import('./modules/modules/modules.controller');
-            return await handleModulesRoutes(event);
+            return await handleModulesRoutes(normalizedEvent);
         }
 
         // Module Templates routes
         if (path.startsWith('/module-templates')) {
             const { handleModuleTemplatesRoutes } = await import('./modules/module-templates/module-templates.controller');
-            return await handleModuleTemplatesRoutes(event);
+            return await handleModuleTemplatesRoutes(normalizedEvent);
         }
 
         // Stage Templates routes
         if (path.startsWith('/stage-templates')) {
             const { handleStageTemplatesRoutes } = await import('./modules/stage-templates/stage-templates.controller');
-            return await handleStageTemplatesRoutes(event);
+            return await handleStageTemplatesRoutes(normalizedEvent);
         }
 
         // Questions routes
         if (path.startsWith('/questions')) {
             const { handleQuestionsRoutes } = await import('./modules/questions/questions.controller');
-            return await handleQuestionsRoutes(event);
+            return await handleQuestionsRoutes(normalizedEvent);
         }
 
         // Media routes
         if (path.startsWith('/media')) {
             const { handleMediaRoutes } = await import('./modules/media/media.controller');
-            return await handleMediaRoutes(event);
+            return await handleMediaRoutes(normalizedEvent);
         }
 
         // Responses routes
         if (path.startsWith('/responses')) {
             const { handleResponsesRoutes } = await import('./modules/responses/responses.controller');
-            return await handleResponsesRoutes(event);
+            return await handleResponsesRoutes(normalizedEvent);
         }
 
         // Public routes (no auth)
         if (path.startsWith('/public')) {
             const { handlePublicRoutes } = await import('./modules/public/public.controller');
-            return await handlePublicRoutes(event);
+            return await handlePublicRoutes(normalizedEvent);
         }
 
         // Users routes (publicly exposed as requested)
         if (path.startsWith('/users')) {
             const { handleUsersRoutes } = await import('./modules/users/users.controller');
-            return await handleUsersRoutes(event);
+            return await handleUsersRoutes(normalizedEvent);
         }
 
         // Analysis routes
         if (path.startsWith('/analysis')) {
             const { handleAnalysisRoutes } = await import('./modules/analysis/analysis.controller');
-            return await handleAnalysisRoutes(event);
+            return await handleAnalysisRoutes(normalizedEvent);
         }
 
         // Analytics routes
         if (path.startsWith('/analytics')) {
             const { handleAnalyticsRoutes } = await import('./modules/analytics/analytics.controller');
-            return await handleAnalyticsRoutes(event);
+            return await handleAnalyticsRoutes(normalizedEvent);
         }
 
         // Cache routes (admin only - add auth check as needed)
         if (path.startsWith('/cache')) {
             const { handleCacheRoutes } = await import('./modules/cache/cache.controller');
-            return await handleCacheRoutes(event);
+            return await handleCacheRoutes(normalizedEvent);
         }
 
         // 404 Not Found
