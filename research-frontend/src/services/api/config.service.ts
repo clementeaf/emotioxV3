@@ -153,7 +153,9 @@ class ConfigService {
 
     private async fetchRuntimeConfigFromUrl(url: string): Promise<RuntimeConfig> {
         try {
-            const response = await fetch(url, { cache: 'no-store' });
+            // Add cache buster to bypass browser/intermediate caches
+            const cacheBuster = `?t=${Date.now()}`;
+            const response = await fetch(`${url}${cacheBuster}`, { cache: 'no-store' });
             if (!response.ok) {
                 throw new Error(
                     `API base URL is not configured. Provide /runtime-config.json or set VITE_API_URL. Failed to load: ${url} (${response.status} ${response.statusText})`
@@ -215,7 +217,7 @@ class ConfigService {
         }
 
         let endpoint = this.config.endpoints[category][action];
-        
+
         if (!endpoint) {
             throw new Error(`Endpoint not found: ${category}.${action}`);
         }

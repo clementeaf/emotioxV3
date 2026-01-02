@@ -17,6 +17,7 @@ import { ResearchTypeBuilderPage } from '../pages/research-types/ResearchTypeBui
 import { ModuleTemplateAssignationPage } from '../pages/research-types/ModuleTemplateAssignationPage';
 import { ResearchTechniquesPage } from '../pages/research-techniques/ResearchTechniquesPage';
 import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/ResearchTechniqueBuilderPage';
+import { UserManagementPage } from '../pages/admin/UserManagementPage';
 
 export interface RouteConfig {
     path: string;
@@ -46,6 +47,14 @@ export const routesConfig: RouteConfig[] = [
         element: <RegisterPage />,
         layout: 'auth',
         errorBoundary: { context: 'auth', pageName: 'Register' },
+    },
+
+    // Public Admin Routes (No Auth)
+    {
+        path: '/admin/users',
+        element: <UserManagementPage />,
+        layout: 'none',
+        errorBoundary: { context: 'general', pageName: 'User Management' },
     },
 
     // Protected routes - Dashboard

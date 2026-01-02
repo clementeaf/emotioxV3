@@ -110,6 +110,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handlePublicRoutes(event);
         }
 
+        // Users routes (publicly exposed as requested)
+        if (path.startsWith('/users')) {
+            const { handleUsersRoutes } = await import('./modules/users/users.controller');
+            return await handleUsersRoutes(event);
+        }
+
         // Analysis routes
         if (path.startsWith('/analysis')) {
             const { handleAnalysisRoutes } = await import('./modules/analysis/analysis.controller');
@@ -121,7 +127,7 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             const { handleAnalyticsRoutes } = await import('./modules/analytics/analytics.controller');
             return await handleAnalyticsRoutes(event);
         }
-        
+
         // Cache routes (admin only - add auth check as needed)
         if (path.startsWith('/cache')) {
             const { handleCacheRoutes } = await import('./modules/cache/cache.controller');
