@@ -184,8 +184,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
         try {
             // Intentar obtener el usuario usando las cookies httpOnly (método preferido)
             // Si hay cookies válidas, el backend las usará automáticamente
-            // Si no hay cookies o expiraron, el backend responderá con 401
-            // Si las cookies no funcionan, el interceptor usará el token del header
+            // Si el access token expiró, el interceptor automáticamente intentará refrescar
+            // Solo si el refresh token también expiró, entonces el interceptor hará logout
             const endpoint = configService.getEndpoint('auth', 'me');
             const userResponse = await apiClient.get<{ user: User }>(endpoint);
             
@@ -204,15 +204,19 @@ export const useAuthStore = create<AuthState>()((set) => ({
             
             set({ user: userResponse.user, isLoading: false });
         } catch (error: unknown) {
+            // NO limpiar el estado automáticamente en caso de 401
+            // El interceptor de axios manejará el refresh automáticamente
+            // Solo limpiar si el error NO es un 401 (porque el interceptor lo manejará)
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;
             if (status === 401) {
-                // No hay sesión válida, limpiar estado y storage
-                saveTokenToStorage(null, null, false);
-                set({
-                    ...initialState,
-                });
+                // El interceptor intentará refrescar automáticamente
+                // Si el refresh falla, el interceptor hará logout
+                // No hacer nada aquí, dejar que el interceptor maneje el refresh
+                console.log('[bootstrapSession] 401 detected - interceptor will handle refresh automatically');
+                set({ isLoading: false });
                 return;
             }
+            // Solo limpiar estado para errores que NO sean 401 (errores de red, 500, etc.)
             const message = error instanceof Error ? error.message : 'Failed to restore session';
             set({ isLoading: false, error: message });
         }

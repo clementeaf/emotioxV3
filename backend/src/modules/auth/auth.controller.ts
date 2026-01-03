@@ -173,27 +173,40 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 return error('Refresh token not found', 401, undefined, origin);
             }
 
-            const tokens = await authService.refreshToken({ refreshToken: refreshToken });
+            try {
+            try {
+                const tokens = await authService.refreshToken({ refreshToken: refreshToken });
 
-            if (!tokens.accessToken) {
-                return error('Failed to refresh access token', 500, undefined, origin);
+                if (!tokens.accessToken) {
+                    return error('Failed to refresh access token', 500, undefined, origin);
+                }
+
+                // Actualizar cookies
+                const { createCookie } = await import('../../utils/response');
+                const cookies: string[] = [];
+                const cookieAttrs = resolveCookieAttributes(origin);
+
+                cookies.push(createCookie('accessToken', tokens.accessToken, {
+                    maxAge: tokens.expiresIn || 86400, // 24 hours
+                    httpOnly: true,
+                    secure: cookieAttrs.secure,
+                    sameSite: cookieAttrs.sameSite,
+                    path: '/',
+                }));
+
+                // Return access token for header-based clients
+                return success({ message: 'Token refreshed successfully', token: tokens.accessToken, expiresIn: tokens.expiresIn }, 200, cookies, origin);
+            } catch (serviceError: unknown) {
+                // Si el refresh token expiró o es inválido, devolver 401
+                const errorMessage = serviceError instanceof Error ? serviceError.message : 'Failed to refresh token';
+                const statusCode = (serviceError as Error & { statusCode?: number }).statusCode || 500;
+                
+                if (statusCode === 401 || errorMessage.includes('expired') || errorMessage.includes('invalid')) {
+                    return error('Refresh token expired or invalid', 401, undefined, origin);
+                }
+                
+                return error(errorMessage, statusCode, undefined, origin);
             }
-
-            // Actualizar cookies
-            const { createCookie } = await import('../../utils/response');
-            const cookies: string[] = [];
-            const cookieAttrs = resolveCookieAttributes(origin);
-
-            cookies.push(createCookie('accessToken', tokens.accessToken, {
-                maxAge: tokens.expiresIn || 86400, // 24 hours
-                httpOnly: true,
-                secure: cookieAttrs.secure,
-                sameSite: cookieAttrs.sameSite,
-                path: '/',
-            }));
-
-            // Return access token for header-based clients
-            return success({ message: 'Token refreshed successfully', token: tokens.accessToken, expiresIn: tokens.expiresIn }, 200, cookies, origin);
         }
 
         // GET /auth/me

@@ -362,6 +362,18 @@ export const refreshToken = async (data: RefreshTokenData) => {
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to refresh token';
         console.error('Refresh token error:', error);
+        
+        // Distinguir entre diferentes tipos de errores de Cognito
+        // NotAuthorizedException generalmente significa refresh token expirado o inválido
+        if (errorMessage.includes('NotAuthorizedException') || 
+            errorMessage.includes('NotAuthorized') ||
+            errorMessage.includes('Invalid refresh token') ||
+            errorMessage.includes('Token has expired')) {
+            const refreshError = new Error('Refresh token expired or invalid');
+            (refreshError as Error & { statusCode?: number }).statusCode = 401;
+            throw refreshError;
+        }
+        
         throw new Error(errorMessage);
     }
 };

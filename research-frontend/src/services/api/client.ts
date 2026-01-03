@@ -137,11 +137,19 @@ class ApiClient {
                             } catch (refreshError) {
                                 console.error('[ApiClient] Token refresh failed:', refreshError);
                                 
-                                // Si el refresh token expiró o es inválido, hacer logout
+                                // Solo hacer logout si el refresh token expiró o es inválido (401)
+                                // Otros errores (red, 500, etc.) no deberían cerrar la sesión
+                                const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
                                 const errorMessage = refreshError instanceof Error ? refreshError.message : 'Unknown error';
-                                if (errorMessage.includes('expired') || errorMessage.includes('invalid') || errorMessage.includes('401')) {
-                                    console.log('[ApiClient] Refresh token expired or invalid, logging out');
+                                
+                                if (status === 401 || 
+                                    errorMessage.includes('Refresh token expired') || 
+                                    errorMessage.includes('Refresh token invalid') ||
+                                    errorMessage.includes('expired or invalid')) {
+                                    console.log('[ApiClient] Refresh token expired or invalid (401), logging out');
                                     useAuthStore.getState().logout();
+                                } else {
+                                    console.warn('[ApiClient] Token refresh failed for non-auth reason, NOT logging out:', errorMessage);
                                 }
                                 
                                 throw refreshError;
