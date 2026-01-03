@@ -138,7 +138,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             // Refresh token cookie: persistent only when rememberMe=true, otherwise session cookie
             if (tokens.refreshToken) {
                 cookies.push(createCookie('refreshToken', tokens.refreshToken, {
-                    maxAge: rememberMe ? 24 * 60 * 60 : undefined, // 24 horas o sesión
+                    maxAge: rememberMe ? 2 * 24 * 60 * 60 : undefined, // 2 días (48 horas) o sesión - matches Cognito RefreshTokenValidity
                     httpOnly: true,
                     secure: cookieAttrs.secure,
                     sameSite: cookieAttrs.sameSite,
