@@ -261,26 +261,26 @@ export const DashboardPage = () => {
             <div className="flex flex-col xl:flex-row gap-3 sm:gap-4 lg:gap-6 flex-1 min-h-0">
                 {/* Left Section - Research Table */}
                 <div className="flex-1 rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
-                    <div className={`flex-1 overflow-auto min-h-0 ${filteredResearches.length === 0 && !isLoading ? 'min-h-[300px]' : ''}`}>
-                        <table className="w-full min-w-[600px]">
+                    <div className={`flex-1 min-h-0 ${filteredResearches.length > 0 || isLoading ? 'overflow-auto' : 'overflow-hidden'}`}>
+                        <table className="w-full min-w-[600px] table-fixed">
                                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
                                             Name
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">
                                             Status
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">
                                             Date
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[18%]">
                                             Progress
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[18%]">
                                             Researcher
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
                                             Actions
                                         </th>
                                     </tr>
@@ -294,16 +294,18 @@ export const DashboardPage = () => {
                                     </>
                                 ) : filteredResearches.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-2 sm:px-4 py-8 sm:py-12 text-center text-gray-500">
-                                            <p className="text-xs sm:text-sm">No researches found</p>
-                                            {activeFilter !== 'all' && (
-                                                <button
-                                                    onClick={() => setActiveFilter('all')}
-                                                    className="mt-2 text-blue-600 hover:text-blue-800 text-xs sm:text-sm"
-                                                >
-                                                    Clear filters
-                                                </button>
-                                            )}
+                                        <td colSpan={6} className="px-2 sm:px-3 lg:px-4 py-8 sm:py-12 text-center text-gray-500 h-[400px] align-middle">
+                                            <div className="flex flex-col items-center justify-center h-full">
+                                                <p className="text-xs sm:text-sm">No researches found</p>
+                                                {activeFilter !== 'all' && (
+                                                    <button
+                                                        onClick={() => setActiveFilter('all')}
+                                                        className="mt-2 text-blue-600 hover:text-blue-800 text-xs sm:text-sm"
+                                                    >
+                                                        Clear filters
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
@@ -335,7 +337,7 @@ export const DashboardPage = () => {
             </div>
 
             {/* Bottom Section - Research Cards by Type */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 lg:p-6 mt-3 sm:mt-4 lg:mt-6 flex-shrink-0 hidden xl:block min-h-[200px]">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 lg:p-6 mt-3 sm:mt-4 lg:mt-6 flex-shrink-0 hidden xl:block">
                 <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 mb-4 sm:mb-5 lg:mb-6 overflow-x-auto pb-2">
                     <button
                         onClick={() => setActiveFilter('all')}
@@ -360,38 +362,40 @@ export const DashboardPage = () => {
                     ))}
                 </div>
 
-                {/* Research Cards Grid */}
-                {filteredResearches.length === 0 ? (
-                    <div className="flex items-center justify-center min-h-[120px] text-center">
-                        <p className="text-xs sm:text-sm text-gray-500">No researches found for this type</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                        {filteredResearches.slice(0, 4).map((research: Research) => (
-                            <div
-                                key={research.id}
-                                onClick={() => handleRowClick(research.id)}
-                                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                            >
-                                <h4 className="text-sm font-semibold text-gray-900 mb-2">
-                                    {research.name}
-                                </h4>
-                                <p className="text-xs text-gray-500 mb-3">By User</p>
-                                <p className="text-xs text-gray-400 mb-3">
-                                    Last modified:{' '}
-                                    {new Date(research.updated_at || research.created_at).toLocaleDateString('en-US', {
-                                        year: 'numeric',
-                                        month: '2-digit',
-                                        day: '2-digit',
-                                    })}
-                                </p>
-                                <Button variant="outline" size="sm" className="w-full">
-                                    Review
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                {/* Research Cards Grid - Altura fija para mantener consistencia */}
+                <div className="min-h-[180px]">
+                    {filteredResearches.length === 0 ? (
+                        <div className="flex items-center justify-center h-full min-h-[180px] text-center">
+                            <p className="text-xs sm:text-sm text-gray-500">No researches found for this type</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                            {filteredResearches.slice(0, 4).map((research: Research) => (
+                                <div
+                                    key={research.id}
+                                    onClick={() => handleRowClick(research.id)}
+                                    className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                                >
+                                    <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                                        {research.name}
+                                    </h4>
+                                    <p className="text-xs text-gray-500 mb-3">By User</p>
+                                    <p className="text-xs text-gray-400 mb-3">
+                                        Last modified:{' '}
+                                        {new Date(research.updated_at || research.created_at).toLocaleDateString('en-US', {
+                                            year: 'numeric',
+                                            month: '2-digit',
+                                            day: '2-digit',
+                                        })}
+                                    </p>
+                                    <Button variant="outline" size="sm" className="w-full">
+                                        Review
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Delete Confirmation Modal */}
