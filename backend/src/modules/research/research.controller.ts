@@ -35,6 +35,9 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         // POST /research
         if (path === '/research' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
+            console.log('[Research Controller] POST /research - Body received:', JSON.stringify(body, null, 2));
+            console.log('[Research Controller] research_type_id:', body.research_type_id);
+            console.log('[Research Controller] use_default_modules:', body.use_default_modules);
             const research = await researchService.create(user.id, body);
             return success({ research }, 201, undefined, origin);
         }

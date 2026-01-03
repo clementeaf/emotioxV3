@@ -12,7 +12,7 @@ import { configService } from './config.service';
  */
 class ApiClient {
     private client: AxiosInstance;
-    private refreshPromise: Promise<void> | null = null;
+    private refreshPromise: Promise<string> | null = null;
     private isRefreshingFlag = false; // Immediate synchronous lock
 
     constructor(baseURL: string) {
@@ -63,12 +63,18 @@ class ApiClient {
                 // Evitar loop infinito: no intentar refrescar si la petición fallida ES el refresh
                 const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
                 
-                // Si es un error 401 y no hemos intentado refrescar y no es el endpoint de refresh
-                if (error.response?.status === 401 && !originalRequest._retry && !isRefreshEndpoint) {
-                    console.log('[ApiClient] 401 detected for:', originalRequest.url);
+                // Verificar si el 401 es realmente por token expirado
+                // Algunos 401 pueden ser por permisos u otros motivos
+                const isTokenExpired = error.response?.status === 401 && 
+                    !originalRequest._retry && 
+                    !isRefreshEndpoint &&
+                    originalRequest.url !== configService.getEndpoint('auth', 'me');
+
+                if (isTokenExpired) {
+                    console.log('[ApiClient] 401 detected (likely expired token) for:', originalRequest.url);
                     originalRequest._retry = true;
 
-                    // Check-and-set atómico usando flag síncrono
+                    // Check-and-set atómico usando flag síncrono para evitar múltiples refreshes
                     if (!this.isRefreshingFlag) {
                         this.isRefreshingFlag = true; // Bloquear INMEDIATAMENTE de forma síncrona
                         console.log('[ApiClient] Starting token refresh...');
@@ -87,14 +93,24 @@ class ApiClient {
                                 interface RefreshResponse {
                                     message: string;
                                     token?: string;
+                                    refreshToken?: string;
                                     expiresIn?: number;
                                 }
 
                                 // El refresh token está en cookies httpOnly, el backend lo leerá automáticamente
-                                // No necesitamos pasarlo en el body
+                                // También intentar desde localStorage como fallback
+                                const state = useAuthStore.getState();
+                                const refreshTokenFromStorage = localStorage.getItem('auth_refresh_token') || 
+                                                                 sessionStorage.getItem('auth_refresh_token');
+                                
+                                const refreshPayload: Record<string, string> = {};
+                                if (refreshTokenFromStorage) {
+                                    refreshPayload.refreshToken = refreshTokenFromStorage;
+                                }
+
                                 const refreshResponse = await axios.post<RefreshResponse>(
                                     `${baseURL}${refreshEndpoint}`,
-                                    {},
+                                    refreshPayload,
                                     {
                                         withCredentials: true,
                                         timeout: 10000,
@@ -109,11 +125,34 @@ class ApiClient {
                                     throw new Error('Token refresh did not return access token');
                                 }
 
+                                // Si viene un nuevo refresh token, guardarlo también
+                                const newRefreshToken = refreshResponse.data?.refreshToken;
+                                
+                                // Actualizar token en store (esto también lo guarda en storage)
+                                // Si hay un nuevo refresh token, actualizarlo también
+                                if (newRefreshToken && typeof newRefreshToken === 'string') {
+                                    const rememberMe = state.rememberMe;
+                                    if (rememberMe) {
+                                        localStorage.setItem('auth_refresh_token', newRefreshToken);
+                                    } else {
+                                        sessionStorage.setItem('auth_refresh_token', newRefreshToken);
+                                    }
+                                }
+                                
                                 useAuthStore.getState().setToken(newToken);
                                 console.log('[ApiClient] Token refresh successful');
+                                
+                                return newToken;
                             } catch (refreshError) {
                                 console.error('[ApiClient] Token refresh failed:', refreshError);
-                                useAuthStore.getState().logout();
+                                
+                                // Si el refresh token expiró o es inválido, hacer logout
+                                const errorMessage = refreshError instanceof Error ? refreshError.message : 'Unknown error';
+                                if (errorMessage.includes('expired') || errorMessage.includes('invalid') || errorMessage.includes('401')) {
+                                    console.log('[ApiClient] Refresh token expired or invalid, logging out');
+                                    useAuthStore.getState().logout();
+                                }
+                                
                                 throw refreshError;
                             } finally {
                                 this.isRefreshingFlag = false;
@@ -126,10 +165,18 @@ class ApiClient {
 
                     // Todas las peticiones esperan la misma Promise
                     try {
-                        await this.refreshPromise;
-                        // Reintentar la petición original (las cookies actualizadas se envían automáticamente)
+                        const newToken = await this.refreshPromise;
+                        
+                        // CRÍTICO: Actualizar el header Authorization del request original con el nuevo token
+                        if (originalRequest.headers && newToken) {
+                            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                        }
+                        
+                        // Reintentar la petición original con el nuevo token
+                        console.log('[ApiClient] Retrying original request with new token');
                         return this.client(originalRequest);
                     } catch (refreshError) {
+                        // Si el refresh falló, rechazar el error original
                         return Promise.reject(refreshError);
                     }
                 }

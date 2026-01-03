@@ -44,7 +44,16 @@ async function seedStages() {
                 name: 'Cognitive Tasks',
                 description: 'Cognitive assessment and task-based research modules.',
                 stage_type: 'module_collection' as const,
-                modules: []
+                modules: [
+                    'Short Text',
+                    'Long Text',
+                    'Single Choice',
+                    'Multiple Choice',
+                    'Linear Scale',
+                    'Ranking',
+                    'Navigation Flow',
+                    'Preference Test'
+                ]
             },
             {
                 name: 'Thank You Screen',

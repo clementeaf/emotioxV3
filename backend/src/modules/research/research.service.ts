@@ -26,6 +26,7 @@ export const list = async (userId: string) => {
 };
 
 export const create = async (userId: string, data: ResearchData) => {
+    console.log('[Research Service] create() called with data:', JSON.stringify(data, null, 2));
     const client = await pool.connect();
 
     try {
@@ -33,6 +34,7 @@ export const create = async (userId: string, data: ResearchData) => {
 
         let { description } = data;
         const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
+        console.log('[Research Service] Extracted values - research_type_id:', research_type_id, 'use_default_modules:', use_default_modules);
 
         // If description is not provided and we have a technique, try to get it from the technique
         if (!description && research_technique_id) {
@@ -61,13 +63,76 @@ export const create = async (userId: string, data: ResearchData) => {
 
         const research = researchResult.rows[0];
 
-        // Clone modules from template if requested
-        if (research_type_id && use_default_modules.length > 0) {
-            await cloneTemplateModulesInternal(client, research.id, research_type_id, use_default_modules);
-        }
-
-        // Automatically add "Research Configuration" stage to all new researches
+        // Automatically add "Research Configuration" stage to all new researches FIRST
         await addDefaultStage(client, research.id, userId);
+
+        // Clone modules from template if requested and associate them to a stage
+        if (research_type_id) {
+            console.log(`[Research Service] Creating default modules for research type ${research_type_id}`);
+            console.log(`[Research Service] use_default_modules:`, use_default_modules);
+            
+            // If use_default_modules is provided, use it; otherwise, get all default modules from the research type
+            let modulesToCreate: string[] = [];
+            
+            if (use_default_modules && use_default_modules.length > 0) {
+                modulesToCreate = use_default_modules;
+                console.log(`[Research Service] Using provided module names:`, modulesToCreate);
+            } else {
+                // Get all default modules from research type
+                const typeQuery = 'SELECT default_modules FROM research_types WHERE id = $1';
+                const typeResult = await client.query(typeQuery, [research_type_id]);
+                
+                if (typeResult.rows.length > 0 && typeResult.rows[0].default_modules) {
+                    const defaultModules = typeResult.rows[0].default_modules || [];
+                    modulesToCreate = defaultModules.map((m: any) => m.name);
+                    console.log(`[Research Service] Auto-detected default modules from research type:`, modulesToCreate);
+                }
+            }
+            
+            if (modulesToCreate.length > 0) {
+                // Separate stage templates from individual modules
+                // "Smart VOC" and "Cognitive Task" are stage templates, not individual modules
+                // "Welcome Screen" and "Thank You Screen" are also stage templates (single_module)
+                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen'];
+                const individualModules: string[] = [];
+                const stagesToCreate: string[] = [];
+                
+                for (const name of modulesToCreate) {
+                    // Normalize names for stage template lookup
+                    let normalizedName = name;
+                    if (name === 'Cognitive Task') {
+                        normalizedName = 'Cognitive Tasks';
+                    } else if (name === 'Thank you screen') {
+                        normalizedName = 'Thank You Screen';
+                    }
+                    
+                    if (stageTemplateNames.includes(name) || stageTemplateNames.includes(normalizedName)) {
+                        stagesToCreate.push(normalizedName); // Use normalized name
+                    } else {
+                        individualModules.push(name);
+                    }
+                }
+                
+                // Create stages from stage templates first (these will create their own modules)
+                for (const stageName of stagesToCreate) {
+                    console.log(`[Research Service] Creating stage from template: ${stageName}`);
+                    await createStageFromTemplateInternal(client, research.id, stageName);
+                }
+                
+                // Then create any remaining individual modules in a default stage
+                if (individualModules.length > 0) {
+                    const defaultModulesStage = await createDefaultModulesStage(client, research.id, research_type_id);
+                    console.log(`[Research Service] Created default modules stage:`, defaultModulesStage.id, defaultModulesStage.name);
+                    console.log(`[Research Service] Creating ${individualModules.length} individual modules in stage ${defaultModulesStage.id}:`, individualModules);
+                    await cloneTemplateModulesInternal(client, research.id, research_type_id, individualModules, defaultModulesStage.id);
+                    console.log(`[Research Service] Successfully cloned ${individualModules.length} individual modules in stage ${defaultModulesStage.id}`);
+                } else {
+                    console.log(`[Research Service] No individual modules to create (all were stages)`);
+                }
+            } else {
+                console.log(`[Research Service] No default modules to create`);
+            }
+        }
 
         await client.query('COMMIT');
         return research;
@@ -79,7 +144,42 @@ export const create = async (userId: string, data: ResearchData) => {
     }
 };
 
-const cloneTemplateModulesInternal = async (client: PoolClient, researchId: string, researchTypeId: string, moduleNames: string[]) => {
+/**
+ * Creates a stage for default modules from research type
+ */
+const createDefaultModulesStage = async (client: PoolClient, researchId: string, researchTypeId: string): Promise<{ id: string; name: string }> => {
+    // Get research type name for stage name
+    const typeQuery = 'SELECT name FROM research_types WHERE id = $1';
+    const typeResult = await client.query(typeQuery, [researchTypeId]);
+    const typeName = typeResult.rows[0]?.name || 'Default Modules';
+
+    // Get the maximum order_index for this research
+    const maxOrderResult = await client.query(
+        'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+        [researchId]
+    );
+    const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
+
+    // Create the stage
+    const stageQuery = `
+        INSERT INTO stages (research_id, name, description, order_index, stage_type)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, name, description, order_index, stage_type
+    `;
+    const stageResult = await client.query(stageQuery, [
+        researchId,
+        typeName,
+        `Default modules for ${typeName}`,
+        nextOrder,
+        'module_collection'
+    ]);
+
+    return stageResult.rows[0];
+};
+
+const cloneTemplateModulesInternal = async (client: PoolClient, researchId: string, researchTypeId: string, moduleNames: string[], stageId: string) => {
+    console.log(`[cloneTemplateModulesInternal] Called with stageId: ${stageId}, moduleNames:`, moduleNames);
+    
     // Get research type with default_modules
     const typeQuery = 'SELECT default_modules FROM research_types WHERE id = $1';
     const typeResult = await client.query(typeQuery, [researchTypeId]);
@@ -89,29 +189,98 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
     }
 
     const defaultModules = typeResult.rows[0].default_modules || [];
+    console.log(`[cloneTemplateModulesInternal] Found ${defaultModules.length} default modules in research type`);
+    console.log(`[cloneTemplateModulesInternal] Requested module names:`, moduleNames);
 
     // Filter modules by names
     const modulesToClone = defaultModules.filter((m: any) => moduleNames.includes(m.name));
+    console.log(`[cloneTemplateModulesInternal] Filtered to ${modulesToClone.length} modules to clone:`, modulesToClone.map((m: any) => m.name));
+
+    if (modulesToClone.length === 0) {
+        console.warn(`[cloneTemplateModulesInternal] No modules found matching names:`, moduleNames);
+        console.warn(`[cloneTemplateModulesInternal] Available modules:`, defaultModules.map((m: any) => m.name));
+    }
 
     // Create modules and questions
     for (const templateModule of modulesToClone) {
+        console.log(`[cloneTemplateModulesInternal] Creating module: ${templateModule.name}`);
+        
+        // Try to get the module template structure if config is empty
+        let moduleConfig = templateModule.config || {};
+        
+        // If config is empty, try to get it from module_templates table
+        if (!moduleConfig || Object.keys(moduleConfig).length === 0) {
+            console.log(`[cloneTemplateModulesInternal] Config is empty, fetching from module_templates for: ${templateModule.name}`);
+            
+            // Normalize module name for lookup (handle case variations)
+            const normalizedName = templateModule.name
+                .split(' ')
+                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+            
+            // Try exact match first, then case-insensitive match
+            let templateQuery = 'SELECT structure FROM module_templates WHERE name = $1 AND is_active = true';
+            let templateResult = await client.query(templateQuery, [templateModule.name]);
+            
+            if (templateResult.rows.length === 0 && normalizedName !== templateModule.name) {
+                console.log(`[cloneTemplateModulesInternal] Trying normalized name: ${normalizedName}`);
+                templateResult = await client.query(templateQuery, [normalizedName]);
+            }
+            
+            // If still not found, try case-insensitive search
+            if (templateResult.rows.length === 0) {
+                console.log(`[cloneTemplateModulesInternal] Trying case-insensitive search`);
+                templateQuery = 'SELECT structure FROM module_templates WHERE LOWER(name) = LOWER($1) AND is_active = true';
+                templateResult = await client.query(templateQuery, [templateModule.name]);
+            }
+            
+            if (templateResult.rows.length > 0 && templateResult.rows[0].structure) {
+                let structure = templateResult.rows[0].structure;
+                
+                // Parse if string
+                if (typeof structure === 'string') {
+                    try {
+                        structure = JSON.parse(structure);
+                    } catch (e) {
+                        console.error(`[cloneTemplateModulesInternal] Error parsing structure:`, e);
+                        structure = {};
+                    }
+                }
+                
+                // Ensure structure is an object
+                if (structure && typeof structure === 'object' && !Array.isArray(structure)) {
+                    moduleConfig = {
+                        structure: structure
+                    };
+                    console.log(`[cloneTemplateModulesInternal] Found structure in module_templates for ${templateModule.name}`);
+                } else {
+                    console.warn(`[cloneTemplateModulesInternal] Invalid structure format for ${templateModule.name}`);
+                }
+            } else {
+                console.warn(`[cloneTemplateModulesInternal] No module template found for ${templateModule.name}`);
+            }
+        }
+        
         const moduleQuery = `
-      INSERT INTO modules (research_id, name, description, order_index, is_from_template, config)
-      VALUES ($1, $2, $3, $4, true, $5)
+      INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
+      VALUES ($1, $2, $3, $4, $5, true, $6)
       RETURNING id
     `;
         const moduleResult = await client.query(moduleQuery, [
             researchId,
+            stageId,
             templateModule.name,
             templateModule.description,
             templateModule.order,
-            JSON.stringify(templateModule.config || {}),
+            JSON.stringify(moduleConfig),
         ]);
 
         const moduleId = moduleResult.rows[0].id;
+        console.log(`[cloneTemplateModulesInternal] Created module ${templateModule.name} with ID: ${moduleId} in stage ${stageId}`);
 
         // Create questions for this module
         if (templateModule.questions && Array.isArray(templateModule.questions)) {
+            console.log(`[cloneTemplateModulesInternal] Creating ${templateModule.questions.length} questions for module ${templateModule.name}`);
             for (let i = 0; i < templateModule.questions.length; i++) {
                 const q = templateModule.questions[i];
                 const questionQuery = `
@@ -133,12 +302,147 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
 };
 
 /**
+ * Creates a stage from a stage template (internal, used during research creation)
+ * @param client - Database client (transaction)
+ * @param researchId - ID of the research
+ * @param stageTemplateName - Name of the stage template
+ */
+const createStageFromTemplateInternal = async (client: PoolClient, researchId: string, stageTemplateName: string): Promise<void> => {
+    // Normalize stage name (handle "Cognitive Task" vs "Cognitive Tasks")
+    const normalizedName = stageTemplateName === 'Cognitive Task' ? 'Cognitive Tasks' : stageTemplateName;
+    
+    // Find the stage template
+    const templateQuery = 'SELECT id, stage_type, description FROM stage_templates WHERE name = $1 AND is_active = true';
+    const templateResult = await client.query(templateQuery, [normalizedName]);
+    
+    if (templateResult.rows.length === 0) {
+        console.warn(`[createStageFromTemplateInternal] Stage template "${normalizedName}" not found`);
+        return;
+    }
+    
+    const stageTemplate = templateResult.rows[0];
+    const stageTemplateId = stageTemplate.id;
+    const stageType = stageTemplate.stage_type || 'module_collection';
+    const stageDescription = stageTemplate.description || `Default modules for ${normalizedName}`;
+    
+    // Get the maximum order_index for this research
+    const maxOrderResult = await client.query(
+        'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+        [researchId]
+    );
+    const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
+    
+    // Create the stage
+    const stageQuery = `
+        INSERT INTO stages (research_id, name, description, order_index, stage_type)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, name, description, order_index, stage_type
+    `;
+    const stageResult = await client.query(stageQuery, [
+        researchId,
+        normalizedName,
+        stageDescription,
+        nextOrder,
+        stageType
+    ]);
+    const newStage = stageResult.rows[0];
+    
+    console.log(`[createStageFromTemplateInternal] Created stage "${normalizedName}" with ID: ${newStage.id}`);
+    
+    // Get modules associated with this stage template
+    let modulesQuery = `
+        SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
+        FROM stage_templates_module_templates stmt
+        JOIN module_templates mt ON stmt.module_template_id = mt.id
+        WHERE stmt.stage_template_id = $1 AND mt.is_active = true
+        ORDER BY stmt.display_order
+    `;
+    let modulesResult = await client.query(modulesQuery, [stageTemplateId]);
+    
+    // If no modules found and this is Cognitive Tasks, try to find modules by name
+    if (modulesResult.rows.length === 0 && normalizedName === 'Cognitive Tasks') {
+        console.log(`[createStageFromTemplateInternal] No modules associated with Cognitive Tasks stage template, searching by name...`);
+        const cognitiveTaskModuleNames = [
+            'Short Text',
+            'Long Text',
+            'Single Choice',
+            'Multiple Choice',
+            'Linear Scale',
+            'Ranking',
+            'Navigation Flow',
+            'Preference Test'
+        ];
+        
+        modulesQuery = `
+            SELECT id, name, description, structure
+            FROM module_templates
+            WHERE name = ANY($1) AND is_active = true
+            ORDER BY array_position($1, name)
+        `;
+        modulesResult = await client.query(modulesQuery, [cognitiveTaskModuleNames]);
+        
+        if (modulesResult.rows.length > 0) {
+            console.log(`[createStageFromTemplateInternal] Found ${modulesResult.rows.length} Cognitive Tasks modules by name`);
+            // Add display_order based on the order in the array
+            modulesResult.rows.forEach((row, index) => {
+                row.display_order = index;
+            });
+        }
+    }
+    
+    // Create modules for this stage
+    for (const templateModule of modulesResult.rows) {
+        let structure = templateModule.structure;
+        
+        // Parse if string
+        if (typeof structure === 'string') {
+            try {
+                structure = JSON.parse(structure);
+            } catch (e) {
+                console.error(`[createStageFromTemplateInternal] Error parsing structure for module "${templateModule.name}":`, e);
+                structure = {};
+            }
+        }
+        
+        // Ensure structure is an object
+        if (!structure || typeof structure !== 'object' || Array.isArray(structure)) {
+            structure = {};
+        }
+        
+        // Config must have the structure { structure: { components: [...] } }
+        const config = {
+            structure: structure
+        };
+        
+        const moduleQuery = `
+            INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
+            VALUES ($1, $2, $3, $4, $5, true, $6)
+            RETURNING id
+        `;
+        await client.query(moduleQuery, [
+            researchId,
+            newStage.id,
+            templateModule.name,
+            templateModule.description,
+            templateModule.display_order,
+            JSON.stringify(config),
+        ]);
+        
+        console.log(`[createStageFromTemplateInternal] Created module "${templateModule.name}" for stage "${normalizedName}"`);
+    }
+    
+    if (modulesResult.rows.length === 0) {
+        console.warn(`[createStageFromTemplateInternal] No modules found for stage template "${normalizedName}"`);
+    }
+};
+
+/**
  * Adds default "Research Configuration" stage to a new research
  * @param client - Database client (transaction)
  * @param researchId - ID of the research
  * @param userId - ID of the user (for createStage)
  */
-const addDefaultStage = async (client: PoolClient, researchId: string, userId: string) => {
+const addDefaultStage = async (client: PoolClient, researchId: string, userId: string): Promise<{ id: string } | null> => {
     try {
         // Check if "Research Configuration" stage template exists
         const stageTemplateQuery = `
@@ -149,7 +453,7 @@ const addDefaultStage = async (client: PoolClient, researchId: string, userId: s
 
         if (stageTemplateResult.rows.length === 0) {
             console.log('⚠️  Research Configuration stage template not found, skipping...');
-            return;
+            return null;
         }
 
         const stageTemplateId = stageTemplateResult.rows[0].id;
@@ -228,9 +532,11 @@ const addDefaultStage = async (client: PoolClient, researchId: string, userId: s
         }
 
         console.log(`✓ Added default stage "Research Configuration" to research ${researchId}`);
+        return newStage;
     } catch (error) {
         console.error('Error adding default Research Configuration stage:', error);
         // Don't throw - we don't want to fail research creation if default stage fails
+        return null;
     }
 };
 
