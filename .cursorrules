@@ -1,5 +1,116 @@
 # EmotioX V3 - Reglas de Cursor AI
 
+## 🚨 REGLA DE ORO: CALIDAD ANTE TODO
+
+**NUNCA JAMÁS** se debe subir un commit que provoque:
+- ❌ Errores en los workflows de CI/CD
+- ❌ Errores técnicos (runtime errors, compilation errors, type errors)
+- ❌ Deuda técnica intencional
+- ❌ Tests fallidos
+- ❌ Warnings de seguridad
+
+### Protocolo Pre-Commit OBLIGATORIO
+
+**ANTES** de hacer `git commit`, DEBES verificar:
+
+1. **Build sin errores**:
+   ```bash
+   # Backend
+   cd backend && npm run build
+
+   # Research Frontend
+   cd research-frontend && npm run build
+
+   # Participant Frontend
+   cd participant-frontend && npm run build
+   ```
+
+2. **Type checking pasa**:
+   ```bash
+   # Backend
+   cd backend && npm run type-check
+
+   # Research Frontend
+   cd research-frontend && npm run type-check
+
+   # Participant Frontend
+   cd participant-frontend && npm run type-check
+   ```
+
+3. **Linting pasa** (sin errores, warnings aceptables):
+   ```bash
+   # Backend
+   cd backend && npm run lint
+
+   # Research Frontend
+   cd research-frontend && npm run lint
+
+   # Participant Frontend
+   cd participant-frontend && npm run lint
+   ```
+
+4. **Tests pasan** (cuando existan):
+   ```bash
+   npm test
+   ```
+
+5. **Pre-commit hooks pasan**:
+   - Los hooks automáticos deben ejecutarse y completarse exitosamente
+   - Si un hook falla, corregir el problema ANTES de commitear
+
+### Qué Hacer Si Algo Falla
+
+**SI ENCUENTRAS ERRORES**:
+1. ❌ **NO HAGAS COMMIT** hasta corregir todos los errores
+2. 🔧 Corrige el problema en el código
+3. ✅ Verifica nuevamente que todo pase
+4. ✔️ Solo entonces procede con el commit
+
+**SI HAY WARNINGS**:
+1. Evalúa si son críticos o pueden postergarse
+2. Documenta en el commit message si decides proceder con warnings
+3. Crea un issue/tarea para resolverlos después
+
+**SI UN WORKFLOW FALLA DESPUÉS DE PUSH**:
+1. 🚨 **PRIORIDAD MÁXIMA**: Identifica y corrige el error inmediatamente
+2. Revierte el commit si es necesario: `git revert HEAD && git push`
+3. Corrige localmente, verifica todo nuevamente
+4. Haz nuevo commit con el fix
+
+### Ejemplos de Errores INACEPTABLES
+
+```bash
+# ❌ NUNCA hacer esto:
+git commit -m "fix: algo" --no-verify  # Omite pre-commit hooks
+
+# ❌ NUNCA commitear con errores conocidos:
+# - TypeScript errors
+# - ESLint errors (no warnings)
+# - Build failures
+# - Test failures
+
+# ✅ CORRECTO:
+# Corregir todos los errores → Verificar → Commit
+```
+
+### Deuda Técnica
+
+**NUNCA INTRODUCIR DEUDA TÉCNICA INTENCIONALMENTE**:
+- ❌ No usar `@ts-ignore` sin justificación extrema
+- ❌ No usar `any` cuando se puede tipar correctamente
+- ❌ No comentar código en lugar de eliminarlo
+- ❌ No duplicar código en lugar de abstraer
+- ❌ No hardcodear valores que deberían ser configurables
+- ❌ No omitir validaciones necesarias
+- ❌ No ignorar errores sin manejo apropiado
+
+**SI ES ABSOLUTAMENTE NECESARIO** introducir algo temporal:
+1. Debe estar justificado en un comentario `// TODO: [RAZÓN] - [ISSUE #]`
+2. Debe tener un issue/ticket asociado
+3. Debe resolverse en máximo 2 sprints
+
+---
+
 ## Verificación de Despliegues Post-Push
 
 **IMPORTANTE**: Después de hacer `git push` al repositorio, SIEMPRE debes verificar proactivamente que los workflows de GitHub Actions se ejecutaron correctamente y actualizaron las aplicaciones correspondientes en AWS.
