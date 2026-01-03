@@ -149,60 +149,105 @@ export const getResearchConfiguration = async (researchId: string): Promise<Reco
 export const getResearch = async (researchId: string): Promise<PublicResearchDto> => {
   const cacheKey = `${CacheKeys.PUBLIC_RESEARCH}:${researchId}`;
 
-  return cache.getOrSet(
-    cacheKey,
-    async () => {
-      // Check if research is active
-      const researchQuery = `
-        SELECT id, name, description, status
-        FROM researches
-        WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
-      `;
-      const researchResult = await pool.query(researchQuery, [researchId]);
+  try {
+    return await cache.getOrSet(
+      cacheKey,
+      async () => {
+        try {
+        // Check if research is active
+        const researchQuery = `
+          SELECT id, name, description, status
+          FROM researches
+          WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
+        `;
+        const researchResult = await pool.query(researchQuery, [researchId]);
 
-      if (researchResult.rows.length === 0) {
-        throw new Error('Research not found or not active');
-      }
+        if (researchResult.rows.length === 0) {
+          // Check if research exists but is not active
+          const checkQuery = `
+            SELECT id, name, status, deleted_at
+            FROM researches
+            WHERE id = $1
+          `;
+          const checkResult = await pool.query(checkQuery, [researchId]);
+          
+          if (checkResult.rows.length === 0) {
+            throw new Error(`Research not found: ${researchId}`);
+          }
+          
+          const research = checkResult.rows[0];
+          if (research.deleted_at) {
+            throw new Error(`Research has been deleted: ${researchId}`);
+          }
+          if (research.status !== 'active') {
+            throw new Error(`Research is not active (status: ${research.status}): ${researchId}`);
+          }
+          
+          throw new Error(`Research not found or not active: ${researchId}`);
+        }
 
-      const researchRow: DbResearchRow = researchResult.rows[0] as DbResearchRow;
+        const researchRow: DbResearchRow = researchResult.rows[0] as DbResearchRow;
 
-      // Get stages with modules + questions (mirrors authenticated /research/:id payload shape)
-      const stagesQuery = `
-        SELECT s.id, s.name, s.description, s.order_index, s.stage_type,
-               COALESCE(json_agg(
-                 json_build_object(
-                   'id', m.id,
-                   'name', m.name,
-                   'description', m.description,
-                   'order_index', m.order_index,
-                   'is_from_template', m.is_from_template,
-                   'config', m.config,
-                   'questions', (
-                     SELECT COALESCE(json_agg(
-                       json_build_object(
-                         'id', q.id,
-                         'type', q.question_type,
-                         'text', q.question_text,
-                         'order', q.order_index,
-                         'config', q.config,
-                         'validation', q.validation,
-                         'required', q.required
-                       ) ORDER BY q.order_index
-                     ), '[]'::json)
-                     FROM questions q WHERE q.module_id = m.id
-                   )
-                 ) ORDER BY m.order_index
-               ) FILTER (WHERE m.id IS NOT NULL), '[]'::json) as modules
-        FROM stages s
-        LEFT JOIN modules m ON s.id = m.stage_id
-        WHERE s.research_id = $1
-        GROUP BY s.id
-        ORDER BY s.order_index
-      `;
+        // Get stages with modules + questions (mirrors authenticated /research/:id payload shape)
+        let stagesResult;
+        try {
+          const stagesQuery = `
+          SELECT s.id, s.name, s.description, s.order_index, s.stage_type,
+                 COALESCE(json_agg(
+                   json_build_object(
+                     'id', m.id,
+                     'name', m.name,
+                     'description', m.description,
+                     'order_index', m.order_index,
+                     'is_from_template', m.is_from_template,
+                     'config', COALESCE(m.config, '{}'::jsonb),
+                     'questions', (
+                       SELECT COALESCE(json_agg(
+                         json_build_object(
+                           'id', q.id,
+                           'type', q.question_type,
+                           'text', q.question_text,
+                           'order', q.order_index,
+                           'config', COALESCE(q.config, '{}'::jsonb),
+                           'validation', COALESCE(q.validation, '{}'::jsonb),
+                           'required', COALESCE(q.required, false)
+                         ) ORDER BY q.order_index
+                       ), '[]'::json)
+                       FROM questions q WHERE q.module_id = m.id
+                     )
+                   ) ORDER BY m.order_index
+                 ) FILTER (WHERE m.id IS NOT NULL), '[]'::json) as modules
+          FROM stages s
+          LEFT JOIN modules m ON s.id = m.stage_id
+          WHERE s.research_id = $1
+          GROUP BY s.id, s.name, s.description, s.order_index, s.stage_type
+          ORDER BY s.order_index
+          `;
+          stagesResult = await pool.query(stagesQuery, [researchId]);
+        } catch (queryError: unknown) {
+          console.error('Error executing stages query:', queryError);
+          console.error('Research ID:', researchId);
+          if (queryError instanceof Error) {
+            console.error('Query error stack:', queryError.stack);
+          }
+          throw new Error(`Failed to fetch stages: ${queryError instanceof Error ? queryError.message : 'Unknown error'}`);
+        }
 
-      const stagesResult = await pool.query(stagesQuery, [researchId]);
+        // Handle case when no stages exist
+        if (!stagesResult || !stagesResult.rows || stagesResult.rows.length === 0) {
+          console.log(`[getResearch] No stages found for research: ${researchId}`);
+          return {
+            id: researchRow.id,
+            name: researchRow.name,
+            title: researchRow.name,
+            description: researchRow.description ?? '',
+            status: researchRow.status,
+            stages: [],
+            modules: [],
+          };
+        }
 
-      const stages: PublicStageDto[] = (stagesResult.rows as Array<Record<string, unknown>>).map(
+        const stages: PublicStageDto[] = (stagesResult.rows as Array<Record<string, unknown>>).map(
         (row: Record<string, unknown>): PublicStageDto => {
           const stageId: string = typeof row.id === 'string' ? row.id : '';
           const stageName: string = typeof row.name === 'string' ? row.name : '';
@@ -223,7 +268,17 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
               const moduleDescription: string = typeof moduleDescriptionRaw === 'string' ? moduleDescriptionRaw : '';
               const moduleOrderIndex: number = typeof moduleValue.order_index === 'number' ? moduleValue.order_index : 0;
 
-              const moduleConfig: Record<string, unknown> = parseJsonRecord(moduleValue.config);
+              // Parse config safely - PostgreSQL may return JSON as string
+              let moduleConfigRaw = moduleValue.config;
+              if (typeof moduleConfigRaw === 'string') {
+                try {
+                  moduleConfigRaw = JSON.parse(moduleConfigRaw);
+                } catch (e) {
+                  console.error('Error parsing module config string:', e);
+                  moduleConfigRaw = {};
+                }
+              }
+              const moduleConfig: Record<string, unknown> = parseJsonRecord(moduleConfigRaw);
               const structure: PublicModuleStructureDto = extractStructure(moduleConfig);
 
               const rawQuestions: unknown = moduleValue.questions;
@@ -272,20 +327,34 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
         }
       );
 
-      const flattenedModules: PublicModuleDto[] = stages.flatMap((stage: PublicStageDto) => stage.modules);
+        const flattenedModules: PublicModuleDto[] = stages.flatMap((stage: PublicStageDto) => stage.modules);
 
-      return {
-        id: researchRow.id,
-        name: researchRow.name,
-        title: researchRow.name,
-        description: researchRow.description ?? '',
-        status: researchRow.status,
-        stages,
-        modules: flattenedModules,
-      };
-    },
-    CacheTTL.SHORT // Cache for 1 minute (frequently changing)
-  );
+        return {
+          id: researchRow.id,
+          name: researchRow.name,
+          title: researchRow.name,
+          description: researchRow.description ?? '',
+          status: researchRow.status,
+          stages,
+          modules: flattenedModules,
+        };
+      } catch (error: unknown) {
+        console.error('Error in getResearch:', error);
+        console.error('Research ID:', researchId);
+        if (error instanceof Error) {
+          console.error('Error stack:', error.stack);
+        }
+        throw error;
+      }
+      },
+      CacheTTL.SHORT // Cache for 1 minute (frequently changing)
+    );
+  } catch (error: unknown) {
+    // Clear cache on error to prevent caching bad data
+    cache.delete(cacheKey);
+    console.error('[getResearch] Error outside cache:', error);
+    throw error;
+  }
 };
 
 /**

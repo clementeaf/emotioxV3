@@ -13,8 +13,27 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
         const researchMatch = path.match(/^\/public\/research\/([^\/]+)$/);
         if (researchMatch && httpMethod === 'GET') {
             const researchId = researchMatch[1];
-            const research = await publicService.getResearch(researchId);
-            return success({ research }, 200, undefined, origin);
+            try {
+                console.log(`[Public API] Fetching research: ${researchId}`);
+                const research = await publicService.getResearch(researchId);
+                console.log(`[Public API] Successfully fetched research: ${researchId}`);
+                return success({ research }, 200, undefined, origin);
+            } catch (serviceError: unknown) {
+                console.error('[Public API] Error in getResearch service:', serviceError);
+                const errorMessage = serviceError instanceof Error ? serviceError.message : 'Failed to load research';
+                console.error('[Public API] Error details:', {
+                    researchId,
+                    error: errorMessage,
+                    stack: serviceError instanceof Error ? serviceError.stack : undefined
+                });
+                
+                // Return 404 for not found errors, 500 for others
+                if (errorMessage.includes('not found') || errorMessage.includes('not active') || errorMessage.includes('deleted')) {
+                    return error(errorMessage, 404, undefined, origin);
+                }
+                
+                throw serviceError; // Re-throw to be caught by outer catch
+            }
         }
 
         // POST /public/research/:id/responses
