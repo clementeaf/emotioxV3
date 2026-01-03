@@ -174,7 +174,6 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             }
 
             try {
-            try {
                 const tokens = await authService.refreshToken({ refreshToken: refreshToken });
 
                 if (!tokens.accessToken) {
