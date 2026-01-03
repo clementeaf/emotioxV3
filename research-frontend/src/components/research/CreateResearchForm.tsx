@@ -9,7 +9,7 @@ import { useEnterprise } from '../../hooks/useEnterprise';
 import { type AutocompleteOption } from '../ui/Autocomplete';
 
 interface CreateResearchFormProps {
-    onSuccess?: () => void;
+    onSuccess?: (researchId: string) => void;
 }
 
 export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) => {
@@ -115,9 +115,9 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
             // Reset form
             resetForm();
 
-            // If onSuccess callback is provided, call it instead of navigating
+            // If onSuccess callback is provided, call it with researchId
             if (onSuccess) {
-                onSuccess();
+                onSuccess(researchId);
             } else {
                 // Default behavior: navigate to builder page
                 navigate(`/research/${researchId}/builder`);
