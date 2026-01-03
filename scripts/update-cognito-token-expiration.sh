@@ -56,10 +56,20 @@ echo "✅ User Pool ID: $USER_POOL_ID"
 echo "✅ Client ID: $CLIENT_ID"
 echo ""
 
-# 24 horas en segundos
-TOKEN_VALIDITY=86400
+# 24 horas = 1440 minutos (para AccessToken e IdToken)
+# Cognito usa minutos para AccessTokenValidity e IdTokenValidity (rango: 5-1440 minutos)
+ACCESS_TOKEN_VALIDITY=1440
+ID_TOKEN_VALIDITY=1440
 
-echo "🔄 Actualizando App Client con expiración de tokens de 24 horas ($TOKEN_VALIDITY segundos)..."
+# 24 horas = 1 día, pero RefreshTokenValidity debe ser mayor que AccessTokenValidity
+# Por lo tanto, usamos 2 días para RefreshToken
+REFRESH_TOKEN_VALIDITY=2
+
+echo "🔄 Actualizando App Client con expiración de tokens..."
+echo "   Access Token: $ACCESS_TOKEN_VALIDITY minutos (24 horas)"
+echo "   ID Token: $ID_TOKEN_VALIDITY minutos (24 horas)"
+echo "   Refresh Token: $REFRESH_TOKEN_VALIDITY día(s) (48 horas - mínimo requerido)"
+echo ""
 
 # Obtener configuración actual del client
 CURRENT_CONFIG=$(aws cognito-idp describe-user-pool-client \
@@ -68,12 +78,12 @@ CURRENT_CONFIG=$(aws cognito-idp describe-user-pool-client \
     --region "$REGION" \
     --output json)
 
-# Crear archivo temporal con la configuración actualizada usando jq
+# Crear archivo temporal
 TEMP_CONFIG=$(mktemp)
 
-# Usar jq para construir el JSON correctamente, preservando toda la configuración actual
-jq --argjson tokenValidity "$TOKEN_VALIDITY" \
-    '.UserPoolClient | 
+# Paso 1: Actualizar RefreshTokenValidity primero (debe ser mayor que AccessTokenValidity)
+echo "   Paso 1: Actualizando RefreshTokenValidity a $REFRESH_TOKEN_VALIDITY días..."
+jq '.UserPoolClient | 
     {
         "UserPoolId": .UserPoolId,
         "ClientId": .ClientId,
@@ -86,31 +96,155 @@ jq --argjson tokenValidity "$TOKEN_VALIDITY" \
         "AllowedOAuthScopes": .AllowedOAuthScopes,
         "AllowedOAuthFlowsUserPoolClient": .AllowedOAuthFlowsUserPoolClient,
         "PreventUserExistenceErrors": (.PreventUserExistenceErrors // "ENABLED"),
-        "AccessTokenValidity": $tokenValidity,
-        "IdTokenValidity": $tokenValidity,
-        "RefreshTokenValidity": $tokenValidity
+        "RefreshTokenValidity": '"$REFRESH_TOKEN_VALIDITY"'
     }' <<< "$CURRENT_CONFIG" > "$TEMP_CONFIG"
 
-# Actualizar el App Client
-aws cognito-idp update-user-pool-client \
+if aws cognito-idp update-user-pool-client \
     --user-pool-id "$USER_POOL_ID" \
     --client-id "$CLIENT_ID" \
     --region "$REGION" \
     --cli-input-json "file://$TEMP_CONFIG" \
-    --output json > /dev/null
+    --output json > /dev/null 2>&1; then
+    echo "   ✅ RefreshTokenValidity actualizado exitosamente"
+else
+    echo "   ❌ Error actualizando RefreshTokenValidity"
+    rm -f "$TEMP_CONFIG"
+    exit 1
+fi
+
+# Paso 2: Intentar actualizar AccessTokenValidity e IdTokenValidity
+# Nota: Si AccessTokenValidity e IdTokenValidity son null en el User Pool,
+# puede que no se puedan establecer a nivel de App Client
+echo "   Paso 2: Intentando actualizar AccessTokenValidity e IdTokenValidity..."
+
+# Obtener configuración actualizada
+CURRENT_CONFIG=$(aws cognito-idp describe-user-pool-client \
+    --user-pool-id "$USER_POOL_ID" \
+    --client-id "$CLIENT_ID" \
+    --region "$REGION" \
+    --output json)
+
+        # Intentar establecer AccessTokenValidity e IdTokenValidity junto con TokenValidityUnits
+        jq --argjson accessTokenValidity "$ACCESS_TOKEN_VALIDITY" \
+           --argjson idTokenValidity "$ID_TOKEN_VALIDITY" \
+            '.UserPoolClient | 
+            {
+                "UserPoolId": .UserPoolId,
+                "ClientId": .ClientId,
+                "ClientName": .ClientName,
+                "ExplicitAuthFlows": .ExplicitAuthFlows,
+                "SupportedIdentityProviders": .SupportedIdentityProviders,
+                "CallbackURLs": .CallbackURLs,
+                "LogoutURLs": .LogoutURLs,
+                "AllowedOAuthFlows": .AllowedOAuthFlows,
+                "AllowedOAuthScopes": .AllowedOAuthScopes,
+                "AllowedOAuthFlowsUserPoolClient": .AllowedOAuthFlowsUserPoolClient,
+                "PreventUserExistenceErrors": (.PreventUserExistenceErrors // "ENABLED"),
+                "AccessTokenValidity": $accessTokenValidity,
+                "IdTokenValidity": $idTokenValidity,
+                "RefreshTokenValidity": .RefreshTokenValidity,
+                "TokenValidityUnits": {
+                    "AccessToken": "minutes",
+                    "IdToken": "minutes",
+                    "RefreshToken": "days"
+                }
+            }' <<< "$CURRENT_CONFIG" > "$TEMP_CONFIG"
+
+# Intentar actualizar, pero no fallar si no funciona
+if aws cognito-idp update-user-pool-client \
+    --user-pool-id "$USER_POOL_ID" \
+    --client-id "$CLIENT_ID" \
+    --region "$REGION" \
+    --cli-input-json "file://$TEMP_CONFIG" \
+    --output json > /dev/null 2>&1; then
+    echo "   ✅ AccessTokenValidity e IdTokenValidity actualizados exitosamente"
+    ACCESS_TOKEN_UPDATED=true
+else
+    echo "   ⚠️  No se pudieron actualizar AccessTokenValidity e IdTokenValidity"
+    echo "      (Puede que el User Pool use valores por defecto que no se pueden sobrescribir)"
+    echo "      Los tokens seguirán usando la configuración del User Pool (probablemente 1 hora)"
+    ACCESS_TOKEN_UPDATED=false
+fi
 
 rm -f "$TEMP_CONFIG"
 
-echo "✅ App Client actualizado exitosamente!"
+# Paso 3: Si AccessTokenValidity e IdTokenValidity no se pudieron actualizar,
+# intentar actualizar el User Pool directamente
+if [ "$ACCESS_TOKEN_UPDATED" = false ]; then
+    echo "   Paso 3: Intentando actualizar User Pool directamente..."
+    
+    # Primero establecer TokenValidityUnits si no está configurado
+    if aws cognito-idp update-user-pool \
+        --user-pool-id "$USER_POOL_ID" \
+        --region "$REGION" \
+        --token-validity-units AccessToken=minutes IdToken=minutes RefreshToken=days \
+        --output json > /dev/null 2>&1; then
+        echo "   ✅ TokenValidityUnits configurado en User Pool"
+        
+        # Ahora intentar actualizar el App Client nuevamente
+        CURRENT_CONFIG=$(aws cognito-idp describe-user-pool-client \
+            --user-pool-id "$USER_POOL_ID" \
+            --client-id "$CLIENT_ID" \
+            --region "$REGION" \
+            --output json)
+        
+        jq --argjson accessTokenValidity "$ACCESS_TOKEN_VALIDITY" \
+           --argjson idTokenValidity "$ID_TOKEN_VALIDITY" \
+            '.UserPoolClient | 
+            {
+                "UserPoolId": .UserPoolId,
+                "ClientId": .ClientId,
+                "ClientName": .ClientName,
+                "ExplicitAuthFlows": .ExplicitAuthFlows,
+                "SupportedIdentityProviders": .SupportedIdentityProviders,
+                "CallbackURLs": .CallbackURLs,
+                "LogoutURLs": .LogoutURLs,
+                "AllowedOAuthFlows": .AllowedOAuthFlows,
+                "AllowedOAuthScopes": .AllowedOAuthScopes,
+                "AllowedOAuthFlowsUserPoolClient": .AllowedOAuthFlowsUserPoolClient,
+                "PreventUserExistenceErrors": (.PreventUserExistenceErrors // "ENABLED"),
+                "AccessTokenValidity": $accessTokenValidity,
+                "IdTokenValidity": $idTokenValidity,
+                "RefreshTokenValidity": .RefreshTokenValidity,
+                "TokenValidityUnits": {
+                    "AccessToken": "minutes",
+                    "IdToken": "minutes",
+                    "RefreshToken": "days"
+                }
+            }' <<< "$CURRENT_CONFIG" > "$TEMP_CONFIG"
+        
+        if aws cognito-idp update-user-pool-client \
+            --user-pool-id "$USER_POOL_ID" \
+            --client-id "$CLIENT_ID" \
+            --region "$REGION" \
+            --cli-input-json "file://$TEMP_CONFIG" \
+            --output json > /dev/null 2>&1; then
+            echo "   ✅ AccessTokenValidity e IdTokenValidity actualizados después de configurar TokenValidityUnits"
+            ACCESS_TOKEN_UPDATED=true
+        else
+            echo "   ⚠️  Aún no se pudieron actualizar AccessTokenValidity e IdTokenValidity"
+        fi
+    else
+        echo "   ⚠️  No se pudo configurar TokenValidityUnits en User Pool"
+    fi
+fi
+
+rm -f "$TEMP_CONFIG"
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📋 Configuración de Tokens:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Access Token Validity: 24 horas ($TOKEN_VALIDITY segundos)"
-echo "ID Token Validity:    24 horas ($TOKEN_VALIDITY segundos)"
-echo "Refresh Token Validity: 24 horas ($TOKEN_VALIDITY segundos)"
+if [ "$ACCESS_TOKEN_UPDATED" = true ]; then
+    echo "Access Token Validity: 24 horas ($ACCESS_TOKEN_VALIDITY minutos) ✅"
+    echo "ID Token Validity:    24 horas ($ID_TOKEN_VALIDITY minutos) ✅"
+else
+    echo "Access Token Validity: Usando valor por defecto del User Pool (probablemente 1 hora) ⚠️"
+    echo "ID Token Validity:    Usando valor por defecto del User Pool (probablemente 1 hora) ⚠️"
+fi
+echo "Refresh Token Validity: $REFRESH_TOKEN_VALIDITY día(s) (48 horas) ✅"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "⚠️  Nota: Los tokens existentes seguirán con su expiración original."
-echo "   Los nuevos tokens tendrán la nueva expiración de 24 horas."
+echo "   Los nuevos tokens tendrán la nueva expiración configurada."
 echo ""
