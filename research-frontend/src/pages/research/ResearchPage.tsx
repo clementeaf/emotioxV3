@@ -171,7 +171,7 @@ export const ResearchPage = () => {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
+            <div className="h-full w-full flex items-center justify-center">
                 <div className="text-center">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
                     <p className="mt-4 text-gray-600">Loading researches...</p>
@@ -183,8 +183,8 @@ export const ResearchPage = () => {
     if (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to load researches';
         return (
-            <div className="max-w-4xl mx-auto mt-8">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <div className="h-full w-full flex items-center justify-center p-6">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-2xl w-full">
                     <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Researches</h2>
                     <p className="text-red-600 mb-4">{errorMessage}</p>
                     <Button onClick={() => window.location.reload()} variant="outline">
@@ -196,9 +196,9 @@ export const ResearchPage = () => {
     }
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
             {/* Header */}
-            <div className="mb-8">
+            <div className="mb-6 sm:mb-8 flex-shrink-0">
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">All Research Projects</h1>
@@ -212,30 +212,32 @@ export const ResearchPage = () => {
             </div>
 
             {/* Research List */}
-            {typedResearches.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center">
-                    <Folder className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Research Projects Yet</h3>
-                    <p className="text-gray-500 mb-6">
-                        Create your first research project to get started
-                    </p>
-                    <Button onClick={() => setShowCreateForm(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Research
-                    </Button>
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {typedResearches.map((research) => (
-                        <ResearchCard
-                            key={research.id}
-                            research={research}
-                            onResearchClick={handleResearchClick}
-                            onDelete={handleDeleteClick}
-                        />
-                    ))}
-                </div>
-            )}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+                {typedResearches.length === 0 ? (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center">
+                        <Folder className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Research Projects Yet</h3>
+                        <p className="text-gray-500 mb-6">
+                            Create your first research project to get started
+                        </p>
+                        <Button onClick={() => setShowCreateForm(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Research
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {typedResearches.map((research) => (
+                            <ResearchCard
+                                key={research.id}
+                                research={research}
+                                onResearchClick={handleResearchClick}
+                                onDelete={handleDeleteClick}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
 
             <CreateResearchTechniqueModal
                 isOpen={showTechniqueModal}
