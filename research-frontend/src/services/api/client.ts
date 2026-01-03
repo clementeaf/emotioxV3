@@ -99,7 +99,6 @@ class ApiClient {
 
                                 // El refresh token está en cookies httpOnly, el backend lo leerá automáticamente
                                 // También intentar desde localStorage como fallback
-                                const state = useAuthStore.getState();
                                 const refreshTokenFromStorage = localStorage.getItem('auth_refresh_token') || 
                                                                  sessionStorage.getItem('auth_refresh_token');
                                 
@@ -125,22 +124,14 @@ class ApiClient {
                                     throw new Error('Token refresh did not return access token');
                                 }
 
-                                // Si viene un nuevo refresh token, guardarlo también
-                                const newRefreshToken = refreshResponse.data?.refreshToken;
+                                // NOTE: Cognito does NOT return a new refreshToken on refresh
+                                // The original refreshToken remains valid until it expires or is revoked
+                                // We keep the existing refreshToken in storage/cookies
                                 
                                 // Actualizar token en store (esto también lo guarda en storage)
-                                // Si hay un nuevo refresh token, actualizarlo también
-                                if (newRefreshToken && typeof newRefreshToken === 'string') {
-                                    const rememberMe = state.rememberMe;
-                                    if (rememberMe) {
-                                        localStorage.setItem('auth_refresh_token', newRefreshToken);
-                                    } else {
-                                        sessionStorage.setItem('auth_refresh_token', newRefreshToken);
-                                    }
-                                }
-                                
+                                // El refreshToken existente se mantiene (no se renueva)
                                 useAuthStore.getState().setToken(newToken);
-                                console.log('[ApiClient] Token refresh successful');
+                                console.log('[ApiClient] Token refresh successful - new access token obtained');
                                 
                                 return newToken;
                             } catch (refreshError) {
@@ -168,8 +159,17 @@ class ApiClient {
                         const newToken = await this.refreshPromise;
                         
                         // CRÍTICO: Actualizar el header Authorization del request original con el nuevo token
+                        // El token ya está actualizado en el store, pero debemos asegurar que el header esté actualizado
                         if (originalRequest.headers && newToken) {
                             originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                        }
+                        
+                        // Verificar que el token en el store esté sincronizado
+                        const currentToken = useAuthStore.getState().token;
+                        if (currentToken !== newToken) {
+                            console.warn('[ApiClient] Token mismatch detected - store token differs from refreshed token');
+                            // Forzar actualización del store si hay desincronización
+                            useAuthStore.getState().setToken(newToken);
                         }
                         
                         // Reintentar la petición original con el nuevo token

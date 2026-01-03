@@ -1,41 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { researchService, type Research } from '../../services/research.service';
+import { type Research } from '../../services/research.service';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { useToast } from '../../hooks/useToast';
+import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
 import { ClipboardList, ArrowRight, Calendar, Folder, Trash2 } from 'lucide-react';
 
 export const ResearchInProgressPage = () => {
     const navigate = useNavigate();
-    const toast = useToast();
-    const [researches, setResearches] = useState<Research[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string>('');
+    const { data: allResearches = [], isLoading, error } = useResearches();
+    const deleteResearch = useDeleteResearch();
     const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
     const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
-    const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-    useEffect(() => {
-        const fetchRecentResearches = async () => {
-            try {
-                setLoading(true);
-                const response = await researchService.list();
-                // Get the 3 most recent researches (sorted by created_at descending)
-                const sortedResearches = response.researches
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                    .slice(0, 3);
-                setResearches(sortedResearches);
-            } catch (err: unknown) {
-                const errorMessage = err instanceof Error ? err.message : 'Failed to load researches';
-                setError(errorMessage);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        void fetchRecentResearches();
-    }, []);
+    // Get the 3 most recent researches (sorted by created_at descending)
+    const researches = useMemo(() => {
+        return allResearches
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 3);
+    }, [allResearches]);
 
     const handleResearchClick = (researchId: string) => {
         navigate(`/research/${researchId}/builder`);
@@ -51,29 +34,19 @@ export const ResearchInProgressPage = () => {
         if (!researchToDelete) return;
 
         try {
-            setIsDeleting(true);
-            await researchService.delete(researchToDelete.id);
-            toast.success('Research deleted successfully!');
-            
-            // Refresh the list
-            const response = await researchService.list();
-            const sortedResearches = response.researches
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                .slice(0, 3);
-            setResearches(sortedResearches);
-            
+            // Usar el hook de React Query que invalida automáticamente el cache
+            await deleteResearch.mutateAsync(researchToDelete.id);
+            // El cache se invalida automáticamente en useDeleteResearch
+            // Esto asegura que tanto "Research's in Progress" como "Research" se actualicen
             setDeleteModalOpen(false);
             setResearchToDelete(null);
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'Failed to delete research';
-            toast.error(errorMessage);
+            // El error ya se maneja en useDeleteResearch
             console.error('Failed to delete research:', err);
-        } finally {
-            setIsDeleting(false);
         }
     };
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-center">
@@ -85,11 +58,12 @@ export const ResearchInProgressPage = () => {
     }
 
     if (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load researches';
         return (
             <div className="max-w-4xl mx-auto mt-8">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                     <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Researches</h2>
-                    <p className="text-red-600 mb-4">{error}</p>
+                    <p className="text-red-600 mb-4">{errorMessage}</p>
                     <Button onClick={() => window.location.reload()} variant="outline">
                         Try Again
                     </Button>
@@ -226,7 +200,7 @@ export const ResearchInProgressPage = () => {
                 confirmText="Delete"
                 cancelText="Cancel"
                 variant="danger"
-                isLoading={isDeleting}
+                isLoading={deleteResearch.isPending}
             />
         </div>
     );

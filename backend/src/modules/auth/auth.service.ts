@@ -64,7 +64,7 @@ export const register = async (data: RegisterData) => {
                     });
                     const getUserResult = await cognitoClient.send(getUserCommand);
                     cognitoSub = getUserResult.Username || email;
-                    
+
                     // Verificar si el usuario ya existe en la base de datos
                     const existingUserQuery = `
                         SELECT id, email, role, first_name, last_name, created_at
@@ -73,7 +73,7 @@ export const register = async (data: RegisterData) => {
                         LIMIT 1
                     `;
                     const existingUser = await pool.query(existingUserQuery, [email, cognitoSub]);
-                    
+
                     if (existingUser.rows.length > 0) {
                         // Usuario ya existe, retornar información existente
                         return existingUser.rows[0];
@@ -105,7 +105,7 @@ export const register = async (data: RegisterData) => {
             LIMIT 1
         `;
         const existingUser = await pool.query(checkUserQuery, [email, cognitoSub]);
-        
+
         if (existingUser.rows.length > 0) {
             return existingUser.rows[0];
         }
@@ -162,7 +162,7 @@ export const login = async (data: LoginData) => {
     }
 };
 
-export const getMe = async (cognitoSub: string) => {
+export const getMe = async (cognitoSub: string, username?: string, emailFromToken?: string) => {
     try {
         if (!cognitoSub) {
             throw new Error('cognitoSub is required');
@@ -175,15 +175,117 @@ export const getMe = async (cognitoSub: string) => {
         `;
         const result = await pool.query(query, [cognitoSub]);
 
-        if (result.rows.length === 0) {
-            console.error('GetMe: User not found in database', {
-                cognitoSub,
-                query: 'SELECT * FROM users WHERE cognito_sub = $1',
-            });
-            throw new Error(`User not found for cognito_sub: ${cognitoSub}`);
+        if (result.rows.length > 0) {
+            return result.rows[0];
         }
 
-        return result.rows[0];
+        console.log(`[AuthService] User not found in DB for sub ${cognitoSub}, attempting to sync...`);
+
+        // Use email from token if available, otherwise fetch from Cognito
+        let email = emailFromToken;
+        let firstName: string | undefined;
+        let lastName: string | undefined;
+
+        if (!email) {
+            try {
+                console.log(`[AuthService] No email in token, fetching from Cognito using username: ${username || cognitoSub}`);
+                // Use username for AdminGetUser, not sub
+                const adminGetUserCommand = new AdminGetUserCommand({
+                    UserPoolId: cognitoConfig.userPoolId,
+                    Username: username || cognitoSub,
+                });
+                const cognitoUser = await cognitoClient.send(adminGetUserCommand);
+
+                email = cognitoUser.UserAttributes?.find(a => a.Name === 'email')?.Value;
+                firstName = cognitoUser.UserAttributes?.find(a => a.Name === 'given_name')?.Value;
+                lastName = cognitoUser.UserAttributes?.find(a => a.Name === 'family_name')?.Value;
+            } catch (cognitoError) {
+                console.error('[AuthService] Failed to fetch user from Cognito:', cognitoError);
+                throw new Error(`User not found for cognito_sub: ${cognitoSub} and failed to sync`);
+            }
+        }
+
+        if (!email) {
+            console.error('[AuthService] No email found for user', cognitoSub);
+            throw new Error(`User not found for cognito_sub: ${cognitoSub} (No Email)`);
+        }
+
+        console.log(`[AuthService] Syncing user ${email} to DB...`);
+
+        // Check if cognito_sub already exists (to avoid duplicate key error)
+        const subCheckQuery = 'SELECT id, email, role, first_name, last_name, created_at, updated_at FROM users WHERE cognito_sub = $1';
+        const subCheck = await pool.query(subCheckQuery, [cognitoSub]);
+        
+        if (subCheck.rows.length > 0) {
+            console.log(`[AuthService] User already exists with cognito_sub ${cognitoSub}`);
+            return subCheck.rows[0];
+        }
+
+        // Check if user exists by email (to avoid duplicate key error if sub mismatch)
+        const emailCheckQuery = 'SELECT id, cognito_sub FROM users WHERE email = $1';
+        const emailCheck = await pool.query(emailCheckQuery, [email]);
+
+        if (emailCheck.rows.length > 0) {
+            const existingUser = emailCheck.rows[0];
+            // If the existing user has a different cognito_sub, we can't update it (would violate unique constraint)
+            if (existingUser.cognito_sub && existingUser.cognito_sub !== cognitoSub) {
+                console.error(`[AuthService] User with email ${email} already exists with different cognito_sub: ${existingUser.cognito_sub}`);
+                throw new Error(`User with email ${email} already exists with different Cognito identity`);
+            }
+            
+            // Update cognito_sub if it's null or matches
+            console.log(`[AuthService] User exists by email ${email}, updating cognito_sub...`);
+            const updateSubQuery = `
+                UPDATE users 
+                SET cognito_sub = $1, deleted_at = NULL 
+                WHERE email = $2 AND (cognito_sub IS NULL OR cognito_sub = $1)
+                RETURNING id, email, role, first_name, last_name, created_at, updated_at
+            `;
+            const updateResult = await pool.query(updateSubQuery, [cognitoSub, email]);
+            
+            if (updateResult.rows.length > 0) {
+                return updateResult.rows[0];
+            }
+            
+            // If update didn't affect any rows, user might have been created by another request
+            // Try to fetch again
+            const retryQuery = 'SELECT id, email, role, first_name, last_name, created_at, updated_at FROM users WHERE cognito_sub = $1';
+            const retryResult = await pool.query(retryQuery, [cognitoSub]);
+            if (retryResult.rows.length > 0) {
+                return retryResult.rows[0];
+            }
+        }
+
+        // Create new user with ON CONFLICT handling
+        const insertQuery = `
+            INSERT INTO users (email, cognito_sub, role, first_name, last_name)
+            VALUES ($1, $2, 'researcher', $3, $4)
+            ON CONFLICT ON CONSTRAINT users_cognito_sub_key DO UPDATE SET
+                deleted_at = NULL,
+                email = EXCLUDED.email,
+                first_name = COALESCE(EXCLUDED.first_name, users.first_name),
+                last_name = COALESCE(EXCLUDED.last_name, users.last_name)
+            RETURNING id, email, role, first_name, last_name, created_at, updated_at
+        `;
+        
+        try {
+            const insertResult = await pool.query(insertQuery, [email, cognitoSub, firstName, lastName]);
+            console.log(`[AuthService] User synced successfully: ${insertResult.rows[0].id}`);
+            return insertResult.rows[0];
+        } catch (insertError: unknown) {
+            // If insert fails due to duplicate key, try to fetch the existing user
+            const errorMessage = insertError instanceof Error ? insertError.message : 'Unknown error';
+            if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
+                console.log(`[AuthService] Duplicate key detected, fetching existing user...`);
+                const fetchQuery = 'SELECT id, email, role, first_name, last_name, created_at, updated_at FROM users WHERE cognito_sub = $1';
+                const fetchResult = await pool.query(fetchQuery, [cognitoSub]);
+                if (fetchResult.rows.length > 0) {
+                    return fetchResult.rows[0];
+                }
+            }
+            throw insertError;
+        }
+
     } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to get user';
         console.error('GetMe error:', {

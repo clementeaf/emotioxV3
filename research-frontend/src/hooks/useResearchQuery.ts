@@ -26,6 +26,7 @@ export const useResearches = () => {
         queryFn: async () => {
             try {
                 const response = await researchService.list();
+                console.log('[useResearches] API Response:', response);
                 return response.researches;
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Failed to load researches';
@@ -49,7 +50,7 @@ export const useResearch = (id: string | null) => {
         queryKey: researchKeys.detail(id || ''),
         queryFn: async () => {
             if (!id) throw new Error('Research ID is required');
-            
+
             // Deduplicate concurrent requests for the same research ID
             return requestDeduplicator.dedupe(`research-${id}`, async () => {
                 console.log('[useResearch] Fetching research:', id);

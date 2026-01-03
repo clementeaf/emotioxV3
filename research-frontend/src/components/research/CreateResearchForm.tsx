@@ -63,15 +63,25 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
     const handleFormSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
         e.preventDefault();
 
+        console.log('[CreateResearchForm] Form submitted', {
+            currentStep,
+            formData,
+            formErrors,
+        });
+
         if (currentStep === 0) {
+            console.log('[CreateResearchForm] Step 0: Validating and moving to next step');
             handleNextStep();
             return;
         }
+
+        console.log('[CreateResearchForm] Step 1: Processing submission');
 
         // If enterprise doesn't exist, try to find it by name or create it
         let enterpriseId = formData.enterpriseId;
         if (!enterpriseId && formData.enterpriseName.trim()) {
             try {
+                console.log('[CreateResearchForm] Enterprise ID not found, checking existing enterprises or creating new one');
                 // First, check if an enterprise with this name already exists
                 const existingEnterprise = enterprises.find(
                     (e) => e.name.toLowerCase() === formData.enterpriseName.trim().toLowerCase()
@@ -80,22 +90,28 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 if (existingEnterprise) {
                     // Use the existing enterprise
                     enterpriseId = existingEnterprise.id;
+                    console.log('[CreateResearchForm] Found existing enterprise:', enterpriseId);
                 } else {
                     // Create a new enterprise
+                    console.log('[CreateResearchForm] Creating new enterprise:', formData.enterpriseName.trim());
                     const newEnterpriseId = await createEnterprise(formData.enterpriseName.trim());
                     if (newEnterpriseId) {
                         enterpriseId = newEnterpriseId;
+                        console.log('[CreateResearchForm] Created new enterprise:', enterpriseId);
                     }
                 }
             } catch (error: unknown) {
-                console.error('Failed to create enterprise:', error);
+                console.error('[CreateResearchForm] Failed to create enterprise:', error);
                 return;
             }
         }
 
+        console.log('[CreateResearchForm] Calling handleSubmit with enterpriseId:', enterpriseId);
         const researchId = await handleSubmit(enterpriseId);
+        console.log('[CreateResearchForm] handleSubmit returned:', researchId);
 
         if (researchId) {
+            console.log('[CreateResearchForm] Research created successfully, navigating...');
             // Reset form
             resetForm();
 
@@ -106,6 +122,8 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 // Default behavior: navigate to builder page
                 navigate(`/research/${researchId}/builder`);
             }
+        } else {
+            console.error('[CreateResearchForm] Failed to create research, check errors above');
         }
     };
 

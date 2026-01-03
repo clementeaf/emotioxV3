@@ -16,6 +16,8 @@ export interface LoginResponse {
 export interface RefreshTokenResponse {
     message: string;
     token?: string;
+    // NOTE: Cognito does NOT return a new refreshToken on refresh
+    // The original refreshToken remains valid until it expires or is revoked
     expiresIn?: number;
 }
 

@@ -7,7 +7,7 @@ import { configService } from '../services/api/config.service';
 
 interface AuthState {
     user: User | null;
-    token: string | null; // Token en memoria solo para la sesión actual (no persistido)
+    token: string | null;
     rememberMe: boolean;
     isLoading: boolean;
     error: string | null;
@@ -21,6 +21,59 @@ interface AuthState {
     setToken: (token: string | null) => void;
     clearError: () => void;
 }
+
+/**
+ * Claves para localStorage (solo como fallback si las cookies no funcionan)
+ * NOTA: Las cookies httpOnly son el método preferido y más seguro
+ */
+const STORAGE_KEYS = {
+    TOKEN: 'auth_token',
+    REFRESH_TOKEN: 'auth_refresh_token',
+    REMEMBER_ME: 'auth_remember_me',
+} as const;
+
+/**
+ * Guardar token en localStorage/sessionStorage
+ * SOLO como fallback temporal si las cookies no funcionan correctamente
+ * Las cookies httpOnly son el método preferido y más seguro
+ */
+const saveTokenToStorage = (token: string | null, refreshToken: string | null = null, rememberMe: boolean = false): void => {
+    // Solo guardar si las cookies no están funcionando
+    // Por ahora lo mantenemos como fallback temporal hasta que API Gateway pase cookies correctamente
+    if (token && rememberMe) {
+        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
+        if (refreshToken) {
+            localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+        }
+    } else if (token) {
+        // Guardar en sessionStorage si no es rememberMe
+        sessionStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        if (refreshToken) {
+            sessionStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+        }
+    } else {
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        sessionStorage.removeItem(STORAGE_KEYS.TOKEN);
+        sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+    }
+};
+
+/**
+ * Recuperar token de localStorage/sessionStorage
+ * SOLO como fallback temporal si las cookies no funcionan correctamente
+ */
+const getTokenFromStorage = (): { token: string | null; rememberMe: boolean } => {
+    // Solo recuperar si las cookies no están funcionando
+    // Por ahora lo mantenemos como fallback temporal hasta que API Gateway pase cookies correctamente
+    const rememberMe = localStorage.getItem(STORAGE_KEYS.REMEMBER_ME) === 'true';
+    const token = rememberMe
+        ? localStorage.getItem(STORAGE_KEYS.TOKEN)
+        : sessionStorage.getItem(STORAGE_KEYS.TOKEN);
+    return { token, rememberMe };
+};
 
 /**
  * Helper para ejecutar operaciones async con manejo de estado
@@ -71,14 +124,18 @@ export const useAuthStore = create<AuthState>()((set) => ({
     login: async (credentials, rememberMe = false) => {
         set({ isLoading: true, error: null });
         try {
-            // El login guarda tokens en cookies httpOnly (seguro)
-            // El token en el body es solo para uso inmediato en esta sesión
+            // El login guarda tokens en cookies httpOnly (seguro y preferido)
+            // El token en el body es TEMPORAL: solo para uso en Authorization header
+            // hasta que API Gateway pase cookies correctamente
             const request: LoginRequest = { ...credentials, rememberMe };
             const loginResponse = await authService.login(request);
             
-            // Guardar token en memoria solo para esta sesión (no persistido)
-            // Los tokens reales están en cookies httpOnly manejadas por el backend
+            // Guardar token en memoria (para Authorization header como fallback)
+            // También guardar en storage como fallback temporal hasta que las cookies funcionen
             const token = loginResponse.token || null;
+            const refreshToken = loginResponse.refreshToken || null;
+            // TODO: Una vez que API Gateway pase cookies correctamente, eliminar esta línea
+            saveTokenToStorage(token, refreshToken, rememberMe);
             set({ token, rememberMe });
 
             // Fetch user profile usando las cookies
@@ -90,6 +147,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
                 });
             } catch {
                 // Si falla getMe, limpiar todo el estado para evitar inconsistencia
+                saveTokenToStorage(null, null, false);
                 set({
                     user: null,
                     token: null,
@@ -100,6 +158,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
             }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Login failed';
+            saveTokenToStorage(null, null, false);
             set({
                 error: message,
                 isLoading: false,
@@ -113,20 +172,42 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
     bootstrapSession: async () => {
         set({ isLoading: true, error: null });
+        
+        // TODO: Idealmente deberíamos confiar solo en cookies httpOnly
+        // Por ahora, recuperar token de storage como fallback temporal
+        // hasta que API Gateway pase cookies correctamente
+        const { token: storedToken, rememberMe: storedRememberMe } = getTokenFromStorage();
+        if (storedToken) {
+            set({ token: storedToken, rememberMe: storedRememberMe });
+        }
+        
         try {
-            // Intentar obtener el usuario usando las cookies httpOnly
+            // Intentar obtener el usuario usando las cookies httpOnly (método preferido)
             // Si hay cookies válidas, el backend las usará automáticamente
             // Si no hay cookies o expiraron, el backend responderá con 401
+            // Si las cookies no funcionan, el interceptor usará el token del header
             const endpoint = configService.getEndpoint('auth', 'me');
             const userResponse = await apiClient.get<{ user: User }>(endpoint);
             
-            // Si llegamos aquí, las cookies son válidas
+            // Si llegamos aquí, la autenticación fue exitosa (ya sea por cookies o por header)
             // El interceptor de axios manejará el refresh token automáticamente si es necesario
+            // Si el token se actualizó durante el refresh, guardarlo como fallback
+            const currentToken = useAuthStore.getState().token;
+            if (currentToken && currentToken !== storedToken) {
+                // TODO: Una vez que las cookies funcionen, eliminar esta línea
+                // El refresh token no cambia normalmente, mantener el existente
+                const storedRefreshToken = storedRememberMe
+                    ? localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+                    : sessionStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+                saveTokenToStorage(currentToken, storedRefreshToken, storedRememberMe);
+            }
+            
             set({ user: userResponse.user, isLoading: false });
         } catch (error: unknown) {
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;
             if (status === 401) {
-                // No hay sesión válida, limpiar estado
+                // No hay sesión válida, limpiar estado y storage
+                saveTokenToStorage(null, null, false);
                 set({
                     ...initialState,
                 });
@@ -179,14 +260,25 @@ export const useAuthStore = create<AuthState>()((set) => ({
                 } catch (error) {
                     console.error('Logout error:', error);
                 } finally {
-                    // Limpiar estado local (las cookies ya fueron limpiadas por el backend)
+                    // Limpiar estado local y storage (las cookies ya fueron limpiadas por el backend)
+                    saveTokenToStorage(null, null, false);
                     set({
                         ...initialState,
                     });
                 }
             },
 
-            setToken: (token: string | null) => set({ token }),
+            setToken: (token: string | null) => {
+                const state = useAuthStore.getState();
+                // TODO: Una vez que las cookies funcionen correctamente, eliminar esta línea
+                // El token solo se necesita en memoria para el header Authorization como fallback
+                // Mantener el refresh token existente si hay uno
+                const storedRefreshToken = state.rememberMe
+                    ? localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
+                    : sessionStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+                saveTokenToStorage(token, storedRefreshToken, state.rememberMe);
+                set({ token });
+            },
             clearError: () => set({ error: null }),
         })
 );

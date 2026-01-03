@@ -261,7 +261,7 @@ export const DashboardPage = () => {
             <div className="flex flex-col xl:flex-row gap-3 sm:gap-4 lg:gap-6 flex-1 min-h-0">
                 {/* Left Section - Research Table */}
                 <div className="flex-1 rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
-                    <div className="flex-1 overflow-auto min-h-0">
+                    <div className={`flex-1 overflow-auto min-h-0 ${filteredResearches.length === 0 && !isLoading ? 'min-h-[300px]' : ''}`}>
                         <table className="w-full min-w-[600px]">
                                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                     <tr>
@@ -335,7 +335,7 @@ export const DashboardPage = () => {
             </div>
 
             {/* Bottom Section - Research Cards by Type */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 lg:p-6 mt-3 sm:mt-4 lg:mt-6 flex-shrink-0 hidden xl:block">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 lg:p-6 mt-3 sm:mt-4 lg:mt-6 flex-shrink-0 hidden xl:block min-h-[200px]">
                 <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 mb-4 sm:mb-5 lg:mb-6 overflow-x-auto pb-2">
                     <button
                         onClick={() => setActiveFilter('all')}
@@ -361,31 +361,37 @@ export const DashboardPage = () => {
                 </div>
 
                 {/* Research Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                    {filteredResearches.slice(0, 4).map((research: Research) => (
-                        <div
-                            key={research.id}
-                            onClick={() => handleRowClick(research.id)}
-                            className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                        >
-                            <h4 className="text-sm font-semibold text-gray-900 mb-2">
-                                {research.name}
-                            </h4>
-                            <p className="text-xs text-gray-500 mb-3">By User</p>
-                            <p className="text-xs text-gray-400 mb-3">
-                                Last modified:{' '}
-                                {new Date(research.updated_at || research.created_at).toLocaleDateString('en-US', {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                })}
-                            </p>
-                            <Button variant="outline" size="sm" className="w-full">
-                                Review
-                            </Button>
-                        </div>
-                    ))}
-                </div>
+                {filteredResearches.length === 0 ? (
+                    <div className="flex items-center justify-center min-h-[120px] text-center">
+                        <p className="text-xs sm:text-sm text-gray-500">No researches found for this type</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                        {filteredResearches.slice(0, 4).map((research: Research) => (
+                            <div
+                                key={research.id}
+                                onClick={() => handleRowClick(research.id)}
+                                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                                <h4 className="text-sm font-semibold text-gray-900 mb-2">
+                                    {research.name}
+                                </h4>
+                                <p className="text-xs text-gray-500 mb-3">By User</p>
+                                <p className="text-xs text-gray-400 mb-3">
+                                    Last modified:{' '}
+                                    {new Date(research.updated_at || research.created_at).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                    })}
+                                </p>
+                                <Button variant="outline" size="sm" className="w-full">
+                                    Review
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Delete Confirmation Modal */}

@@ -88,7 +88,10 @@ class ResearchService {
     async list(): Promise<ResearchListResponse> {
         try {
             const endpoint = configService.getEndpoint('research', 'list');
-            return await apiClient.get<ResearchListResponse>(endpoint);
+            console.log('[ResearchService] Fetching list from:', endpoint);
+            const response = await apiClient.get<ResearchListResponse>(endpoint);
+            console.log('[ResearchService] Raw response:', response);
+            return response;
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch researches');
         }

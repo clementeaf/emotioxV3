@@ -7,7 +7,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-    ({ className, label, error, id: propId, onFocus, onBlur, placeholder, ...props }, ref) => {
+    ({ className, label, error, id: propId, onFocus, onBlur, placeholder, value, onChange, ...props }, ref) => {
         const generatedId = useId();
         const id = propId || generatedId;
         const [isFocused, setIsFocused] = useState(false);
@@ -20,6 +20,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
             setIsFocused(false);
             onBlur?.(e);
+        };
+
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            console.log('[Input] onChange triggered:', { id, value: e.target.value });
+            onChange?.(e);
         };
 
         return (
@@ -38,6 +43,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
                         error && 'border-red-300 focus:ring-red-400 focus:border-red-400',
                         className
                     )}
+                    value={value}
+                    onChange={handleChange}
                     placeholder={isFocused ? '' : placeholder}
                     onFocus={handleFocus}
                     onBlur={handleBlur}

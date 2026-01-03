@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { researchTypesService } from '../services/researchTypes.service';
-import { researchService } from '../services/research.service';
 import { type ResearchTechnique } from '../services/researchTechniques.service';
+import { useCreateResearch } from './useResearchQuery';
 
 interface CreateResearchFormData {
     name: string;
@@ -35,9 +35,11 @@ export const useResearchForm = () => {
     const [availableTechniques, setAvailableTechniques] = useState<ResearchTechnique[]>([]);
     const [loadingTechniquesForType, setLoadingTechniquesForType] = useState<boolean>(false);
     const [formErrors, setFormErrors] = useState<ResearchFormErrors>({});
-    const [isCreating, setIsCreating] = useState<boolean>(false);
     const [submitError, setSubmitError] = useState<string>('');
     const [submitSuccess, setSubmitSuccess] = useState<boolean>(false);
+    
+    // Usar el hook de React Query para crear research (con invalidación automática)
+    const createResearchMutation = useCreateResearch();
 
     useEffect(() => {
         void loadResearchTypes();
@@ -102,7 +104,12 @@ export const useResearchForm = () => {
     };
 
     const handleFieldChange = (field: keyof CreateResearchFormData, value: string | boolean): void => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
+        console.log('[useResearchForm] Field changed:', { field, value });
+        setFormData((prev) => {
+            const newData = { ...prev, [field]: value };
+            console.log('[useResearchForm] Updated formData:', newData);
+            return newData;
+        });
         if (formErrors[field as keyof ResearchFormErrors]) {
             setFormErrors((prev) => ({ ...prev, [field]: undefined }));
         }
@@ -128,16 +135,24 @@ export const useResearchForm = () => {
         setSubmitError('');
         setSubmitSuccess(false);
 
+        console.log('[useResearchForm] handleSubmit called', {
+            currentStep,
+            enterpriseId,
+            formData,
+        });
+
         if (currentStep === 0) {
             handleNextStep();
             return null;
         }
 
+        console.log('[useResearchForm] Validating step 2...');
         if (!validateStep2()) {
+            console.error('[useResearchForm] Step 2 validation failed', formErrors);
             return null;
         }
 
-        setIsCreating(true);
+        console.log('[useResearchForm] Validation passed, creating research...');
 
         try {
             // Extract default modules if enabled
@@ -156,15 +171,17 @@ export const useResearchForm = () => {
                 }
             }
 
-            const response = await researchService.create(createData);
+            console.log('[useResearchForm] Sending create request with data:', createData);
+            // Usar la mutación de React Query que invalida automáticamente las queries
+            const response = await createResearchMutation.mutateAsync(createData);
+            console.log('[useResearchForm] Research created successfully:', response);
             setSubmitSuccess(true);
             return response.research.id;
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to create research';
+            console.error('[useResearchForm] Error creating research:', error);
             setSubmitError(errorMessage);
             return null;
-        } finally {
-            setIsCreating(false);
         }
     };
 
@@ -191,7 +208,7 @@ export const useResearchForm = () => {
         availableTechniques,
         loadingTechniquesForType,
         formErrors,
-        isCreating,
+        isCreating: createResearchMutation.isPending,
         submitError,
         submitSuccess,
         setFormData,

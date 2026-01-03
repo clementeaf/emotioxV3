@@ -12,12 +12,12 @@ import type { Research } from '../../services/research.service';
 /**
  * Componente memoizado para tarjeta de investigación
  */
-const ResearchCard = memo(({ 
-    research, 
-    onResearchClick, 
-    onDelete 
-}: { 
-    research: Research; 
+const ResearchCard = memo(({
+    research,
+    onResearchClick,
+    onDelete
+}: {
+    research: Research;
     onResearchClick: (id: string) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
 }) => {
@@ -107,6 +107,13 @@ export const ResearchPage = () => {
 
     // Type assertion para TypeScript
     const typedResearches = researches as Research[];
+
+    console.log('[ResearchPage] Render state:', {
+        isLoading,
+        error,
+        researchesCount: typedResearches.length,
+        researches: typedResearches
+    });
 
     const handleResearchClick = useCallback((researchId: string) => {
         navigate(`/research/${researchId}/builder`);

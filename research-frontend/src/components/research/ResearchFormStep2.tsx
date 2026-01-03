@@ -81,24 +81,27 @@ export const ResearchFormStep2 = ({
             )}
 
             {hasDefaultModules && (
-                <div className="flex items-start p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex-1">
-                        <h4 className="text-sm font-medium text-blue-900 mb-1">Use Suggested Modules</h4>
-                        <p className="text-sm text-blue-700 mb-2">
-                            This research type comes with a recommended set of modules (Smart VOC, Cognitive Tasks).
-                            Only uncheck this if you want to start with an empty research configuration.
-                        </p>
-                        <label className="flex items-center space-x-2 cursor-pointer">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                        <label className="flex items-start gap-2 cursor-pointer flex-shrink-0 mt-0.5">
                             <input
                                 type="checkbox"
                                 checked={useDefaultModules}
                                 onChange={(e) => onToggleDefaultModules(e.target.checked)}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5"
                             />
-                            <span className="text-sm font-medium text-blue-800">
+                            <span className="text-sm font-medium text-blue-900">
                                 Include default modules
                             </span>
                         </label>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-blue-700 mb-1.5">
+                                This research type includes these modules: {selectedResearchType?.default_modules?.map((m: { name: string }) => m.name).join(', ')}
+                            </p>
+                            <p className="text-xs text-blue-600">
+                                Uncheck to start with an empty configuration.
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
