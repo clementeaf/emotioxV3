@@ -1,0 +1,133 @@
+# EmotioX V3 - Reglas de Cursor AI
+
+## Verificación de Despliegues Post-Push
+
+**IMPORTANTE**: Después de hacer `git push` al repositorio, SIEMPRE debes verificar proactivamente que los workflows de GitHub Actions se ejecutaron correctamente y actualizaron las aplicaciones correspondientes en AWS.
+
+### Protocolo de Verificación Post-Push
+
+Cada vez que se hace push a la rama `main`, sigue estos pasos:
+
+1. **Identificar archivos modificados**:
+   ```bash
+   git diff HEAD~1 HEAD --name-only
+   ```
+
+2. **Determinar qué workflows deben ejecutarse**:
+   - Cambios en `backend/` o `.github/workflows/deploy-backend.yml` → **Deploy Backend to AWS Lambda**
+   - Cambios en `research-frontend/` o `.github/workflows/deploy-research-frontend.yml` → **Deploy Research Frontend to S3/CloudFront**
+   - Cambios en `participant-frontend/` o `.github/workflows/deploy-participant-frontend.yml` → **Deploy Participant Frontend to S3/CloudFront**
+
+3. **Monitorear ejecución de workflows**:
+   ```bash
+   # Listar últimos workflows
+   gh run list --limit 5
+
+   # Ver detalles de un workflow específico
+   gh run view <run-id>
+
+   # Ver logs si hay errores
+   gh run view <run-id> --log-failed
+   ```
+
+4. **Verificar actualización en AWS según componente**:
+
+   **Para Backend**:
+   ```bash
+   # Verificar última actualización del stack CloudFormation
+   aws cloudformation describe-stacks \
+     --stack-name emotioxv3-backend-production \
+     --query 'Stacks[0].[LastUpdatedTime,StackStatus]' \
+     --output table
+
+   # Verificar que runtime-config.json se actualizó en ambos frontends
+   aws s3api head-object --bucket emotioxv3-research-frontend --key runtime-config.json --query 'LastModified'
+   aws s3api head-object --bucket emotioxv3-participant-frontend --key runtime-config.json --query 'LastModified'
+   ```
+
+   **Para Research Frontend**:
+   ```bash
+   # Verificar archivos más recientes en S3
+   aws s3 ls s3://emotioxv3-research-frontend/ --recursive | tail -20
+
+   # Verificar última modificación del index.html
+   aws s3api head-object --bucket emotioxv3-research-frontend --key index.html --query 'LastModified'
+
+   # Verificar invalidaciones recientes de CloudFront
+   aws cloudfront list-invalidations --distribution-id E3HBEQ4F8V5KO0 --max-items 3
+   ```
+
+   **Para Participant Frontend**:
+   ```bash
+   # Verificar archivos más recientes en S3
+   aws s3 ls s3://emotioxv3-participant-frontend/ --recursive | tail -20
+
+   # Verificar última modificación del index.html
+   aws s3api head-object --bucket emotioxv3-participant-frontend --key index.html --query 'LastModified'
+
+   # Verificar invalidaciones recientes de CloudFront
+   aws cloudfront list-invalidations --distribution-id EAPLN65ZHVPFI --max-items 3
+   ```
+
+5. **Confirmar al usuario**:
+   - ✅ Si todo se actualizó correctamente
+   - ⚠️ Si hay warnings pero el deploy fue exitoso
+   - ❌ Si hubo errores y qué hacer para solucionarlos
+
+### Ejemplo de Flujo Completo
+
+```bash
+# 1. Después de push
+git push origin main
+
+# 2. Esperar unos segundos y verificar workflows
+sleep 10 && gh run list --limit 3
+
+# 3. Si se modificó backend, verificar:
+aws cloudformation describe-stacks --stack-name emotioxv3-backend-production --query 'Stacks[0].LastUpdatedTime'
+
+# 4. Si se modificó research-frontend, verificar:
+aws s3api head-object --bucket emotioxv3-research-frontend --key index.html --query 'LastModified'
+
+# 5. Si se modificó participant-frontend, verificar:
+aws s3api head-object --bucket emotioxv3-participant-frontend --key index.html --query 'LastModified'
+
+# 6. Reportar resultados al usuario
+```
+
+### Casos Especiales
+
+- **Workflow falla pero marca como success**: Revisar si tiene `continue-on-error: true`. Inspeccionar logs con `gh run view <id> --log`.
+- **runtime-config.json desactualizado**: El workflow de backend debe actualizarlo. Si falla, ejecutar manualmente: `gh workflow run "Deploy Backend to AWS Lambda"`.
+- **CloudFront no invalida cache**: Verificar que la invalidación se completó con `aws cloudfront get-invalidation`.
+
+### Recursos AWS del Proyecto
+
+| Componente | Stack/Bucket | CloudFront ID | URL |
+|------------|--------------|---------------|-----|
+| Backend Production | emotioxv3-backend-production | N/A | https://udnl10lc5e.execute-api.us-east-1.amazonaws.com/production |
+| Backend Dev | emotioxv3-backend-dev | N/A | https://ro05auvmxc.execute-api.us-east-1.amazonaws.com/dev |
+| Research Frontend | emotioxv3-research-frontend | E3HBEQ4F8V5KO0 | https://research.emotiox.org |
+| Participant Frontend | emotioxv3-participant-frontend | EAPLN65ZHVPFI | https://participant.emotiox.org |
+
+---
+
+## Otras Reglas de Desarrollo
+
+### Git Commits
+- Seguir conventional commits: `feat:`, `fix:`, `chore:`, etc.
+- Incluir scope cuando sea relevante: `fix(backend):`, `feat(research-frontend):`
+- Commits siempre incluyen footer generado por Claude Code
+
+### TypeScript
+- Evitar `any` siempre que sea posible
+- Usar tipos explícitos en APIs públicas
+- Mantener `strict: true` en tsconfig
+
+### Testing
+- Ejecutar tests antes de push cuando sea posible
+- Pre-commit hooks deben pasar siempre
+
+### Code Review
+- Revisar warnings de ESLint en pre-commit
+- No ignorar errores de TypeScript sin justificación
