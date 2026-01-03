@@ -274,6 +274,11 @@ export const ResearchBuilderPage = () => {
                 });
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
+                
+                // Invalidate and refetch research data to update the UI
+                if (id) {
+                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+                }
             } else if (isCognitiveTasksStage && cognitiveTaskModules.length > 0) {
                 // Save all Cognitive Task modules with their current component values (same structure as Smart VOC)
                 const updatePromises = cognitiveTaskModules.map(module => {
@@ -313,6 +318,11 @@ export const ResearchBuilderPage = () => {
                 });
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${cognitiveTaskModules.length} Cognitive Task module(s) successfully`);
+                
+                // Invalidate and refetch research data to update the UI
+                if (id) {
+                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+                }
             } else if (activeModule) {
                 // Special handling for Research Configuration module
                 if (isResearchConfigModule) {
@@ -369,6 +379,11 @@ export const ResearchBuilderPage = () => {
                     });
                     toast.success('Module saved successfully');
                 }
+            }
+
+            // Invalidate and refetch research data to update the UI
+            if (id) {
+                await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
             }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to save module';
