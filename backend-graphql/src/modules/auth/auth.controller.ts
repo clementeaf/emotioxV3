@@ -128,7 +128,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             
             // Access token cookie (expira en 1 hora)
             cookies.push(createCookie('accessToken', tokens.accessToken, {
-                maxAge: tokens.expiresIn || 3600,
+                maxAge: tokens.expiresIn || 86400, // 24 hours
                 httpOnly: true,
                 secure: cookieAttrs.secure,
                 sameSite: cookieAttrs.sameSite,
@@ -138,7 +138,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             // Refresh token cookie: persistent only when rememberMe=true, otherwise session cookie
             if (tokens.refreshToken) {
                 cookies.push(createCookie('refreshToken', tokens.refreshToken, {
-                    maxAge: rememberMe ? 30 * 24 * 60 * 60 : undefined, // 30 días o sesión
+                    maxAge: rememberMe ? 24 * 60 * 60 : undefined, // 24 horas o sesión
                     httpOnly: true,
                     secure: cookieAttrs.secure,
                     sameSite: cookieAttrs.sameSite,
@@ -185,7 +185,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             const cookieAttrs = resolveCookieAttributes(origin);
             
             cookies.push(createCookie('accessToken', tokens.accessToken, {
-                maxAge: tokens.expiresIn || 3600,
+                maxAge: tokens.expiresIn || 86400, // 24 hours
                 httpOnly: true,
                 secure: cookieAttrs.secure,
                 sameSite: cookieAttrs.sameSite,
@@ -395,19 +395,19 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 const cookies: string[] = [];
                 const cookieAttrs = resolveCookieAttributes(origin);
                 
-                // Access token cookie
+                // Access token cookie (24 hours = 86400 seconds)
                 cookies.push(createCookie('accessToken', accessToken, {
-                    maxAge: tokenData.expires_in || 3600,
+                    maxAge: tokenData.expires_in || 86400,
                     httpOnly: true,
                     secure: cookieAttrs.secure,
                     sameSite: cookieAttrs.sameSite,
                     path: '/',
                 }));
                 
-                // Refresh token cookie (if provided)
+                // Refresh token cookie (if provided) - 24 hours
                 if (refreshToken) {
                     cookies.push(createCookie('refreshToken', refreshToken, {
-                        maxAge: 30 * 24 * 60 * 60, // 30 days
+                        maxAge: 24 * 60 * 60, // 24 hours
                         httpOnly: true,
                         secure: cookieAttrs.secure,
                         sameSite: cookieAttrs.sameSite,

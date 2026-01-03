@@ -163,8 +163,8 @@ El sistema usa **AWS Cognito** para autenticación:
 6. Backend valida token con Cognito en cada request protegido
 
 **Refresh Token:**
-- AccessToken expira en 1 hora
-- RefreshToken expira en 30 días
+- AccessToken expira en 24 horas
+- RefreshToken expira en 24 horas
 - Frontend auto-renueva token antes de expirar
 
 Ver detalles en: [`research-frontend/ARCHITECTURE_AUTH.md`](../research-frontend/ARCHITECTURE_AUTH.md)

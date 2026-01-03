@@ -419,8 +419,8 @@ Participant Frontend: https://yyy.cloudfront.net
 
 ### Tokens
 ```typescript
-accessToken   // 1 hora de vida, se renueva automáticamente
-refreshToken  // 30 días, se guarda SIEMPRE (incluso si rememberMe=false)
+accessToken   // 24 horas de vida, se renueva automáticamente
+refreshToken  // 24 horas, se guarda SIEMPRE (incluso si rememberMe=false)
 ```
 
 ### Flow
