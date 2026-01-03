@@ -406,10 +406,10 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                     path: '/',
                 }));
 
-                // Refresh token cookie (if provided) - 24 hours
+                // Refresh token cookie (if provided) - 2 days (48 hours) to match Cognito configuration
                 if (refreshToken) {
                     cookies.push(createCookie('refreshToken', refreshToken, {
-                        maxAge: 24 * 60 * 60, // 24 hours
+                        maxAge: 2 * 24 * 60 * 60, // 2 days (48 hours) - matches Cognito RefreshTokenValidity
                         httpOnly: true,
                         secure: cookieAttrs.secure,
                         sameSite: cookieAttrs.sameSite,
