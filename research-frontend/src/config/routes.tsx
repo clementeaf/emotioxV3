@@ -7,7 +7,6 @@ import { ErrorPage } from '../pages/ErrorPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ResearchPage } from '../pages/research/ResearchPage';
 import { ResearchBuilderPage } from '../pages/research/ResearchBuilderPage';
-import { ResearchInProgressPage } from '../pages/research/ResearchInProgressPage';
 import { ResearchResultsPage } from '../pages/research/ResearchResultsPage';
 import { ResearchProgressPage } from '../pages/research/ResearchProgressPage';
 import { ModulesPage } from '../pages/modules/ModulesPage';
@@ -113,13 +112,6 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Results' },
-    },
-    {
-        path: '/research-in-progress',
-        element: <ResearchInProgressPage />,
-        layout: 'dashboard',
-        isProtected: true,
-        errorBoundary: { context: 'dashboard', pageName: "Research's in Progress" },
     },
     {
         path: '/modules',

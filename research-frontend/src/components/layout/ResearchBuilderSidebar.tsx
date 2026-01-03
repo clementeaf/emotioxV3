@@ -244,7 +244,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             {/* Header with Back Button */}
             <div className="p-4 border-b border-gray-100">
                 <Link
-                    to="/research-in-progress"
+                    to="/research"
                     className="flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
                 >
                     <ArrowLeft className="h-4 w-4 mr-2" />

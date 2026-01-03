@@ -1,12 +1,14 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import {
     BrainCircuit,
     LayoutDashboard,
     Boxes,
     Wrench,
-    ClipboardList,
-    LogOut
+    LogOut,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useToast } from '../../hooks/useToast';
@@ -23,7 +25,6 @@ const navItems: NavItem[] = [
     { path: '/research', label: 'Research', icon: Boxes },
     { path: '/research-types', label: 'Research Type Builder', icon: Wrench },
     { path: '/modules', label: 'Modules', icon: Boxes },
-    { path: '/research-in-progress', label: "Research's in Progress", icon: ClipboardList },
 ];
 
 /**
@@ -35,6 +36,15 @@ export const StandardSidebar = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const logout = useAuthStore((state) => state.logout);
+    
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebar-collapsed');
+        return saved ? JSON.parse(saved) : false;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+    }, [isCollapsed]);
 
     const handleLogout = async () => {
         try {
@@ -45,15 +55,20 @@ export const StandardSidebar = () => {
         }
     };
 
+    const toggleCollapse = () => {
+        setIsCollapsed(!isCollapsed);
+    };
+
     return (
-        <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg flex-shrink-0 overflow-hidden">
+        <div className={cn(
+            "bg-white border-r border-gray-100 flex flex-col h-full rounded-lg flex-shrink-0 overflow-hidden transition-all duration-300",
+            isCollapsed ? "w-16" : "w-64"
+        )}>
             {/* Logo */}
             <div className="p-4 border-b border-gray-100 flex-shrink-0">
-                <div className="flex flex-col items-center justify-between gap-4">
-                    <div className="flex items-center">
-                        <div className="rounded-full bg-blue-500 p-2">
-                            <BrainCircuit className="h-5 w-5 text-white" />
-                        </div>
+                <div className="flex items-center justify-center">
+                    <div className="rounded-full bg-blue-500 p-2">
+                        <BrainCircuit className="h-5 w-5 text-white" />
                     </div>
                 </div>
             </div>
@@ -70,14 +85,20 @@ export const StandardSidebar = () => {
                             key={item.path}
                             to={item.path}
                             className={cn(
-                                'flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                                'flex items-center rounded-lg text-sm font-medium transition-colors',
                                 isActive
                                     ? 'bg-blue-50 text-blue-600'
-                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                                isCollapsed ? 'px-2 py-2.5 justify-center' : 'px-3 py-2.5'
                             )}
+                            title={isCollapsed ? item.label : undefined}
                         >
-                            <Icon className={cn('h-5 w-5 mr-3', isActive ? 'text-blue-600' : 'text-gray-400')} />
-                            {item.label}
+                            <Icon className={cn(
+                                'h-5 w-5',
+                                isActive ? 'text-blue-600' : 'text-gray-400',
+                                !isCollapsed && 'mr-3'
+                            )} />
+                            {!isCollapsed && item.label}
                         </Link>
                     );
                 })}
@@ -88,12 +109,34 @@ export const StandardSidebar = () => {
                 <button
                     onClick={handleLogout}
                     className={cn(
-                        'w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                        'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        'w-full flex items-center rounded-lg text-sm font-medium transition-colors',
+                        'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                        isCollapsed ? 'px-2 py-2.5 justify-center' : 'px-3 py-2.5'
                     )}
+                    title={isCollapsed ? "Logout" : undefined}
                 >
-                    <LogOut className="h-5 w-5 mr-3 text-gray-400" />
-                    Logout
+                    <LogOut className={cn(
+                        'h-5 w-5 text-gray-400',
+                        !isCollapsed && 'mr-3'
+                    )} />
+                    {!isCollapsed && "Logout"}
+                </button>
+                
+                {/* Toggle Button */}
+                <button
+                    onClick={toggleCollapse}
+                    className={cn(
+                        "w-full flex items-center rounded-lg text-sm font-medium transition-colors",
+                        "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                        "px-2 py-2.5 justify-center"
+                    )}
+                    title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                    {isCollapsed ? (
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
+                    ) : (
+                        <ChevronLeft className="h-5 w-5 text-gray-400" />
+                    )}
                 </button>
             </div>
         </div>
