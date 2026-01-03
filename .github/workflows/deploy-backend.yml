@@ -233,6 +233,10 @@ jobs:
             fi
           fi
 
+          export API_BASE_URL
+          export RESEARCH_BASE_URL
+          export PARTICIPANT_BASE_URL
+
           python3 - <<'PY'
           import json
           import os
