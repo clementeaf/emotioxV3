@@ -204,19 +204,36 @@ jobs:
             exit 1
           fi
 
-          echo "Resolving deployed API base URL from CloudFormation stack output..."
+          echo "Resolving deployed API base URL..."
           STACK_NAME="emotioxv3-backend-production"
-          API_BASE_URL="$(aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
-            --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue | [0]" \
-            --output text)"
-
-          if [ -z "${API_BASE_URL}" ]; then
-            echo "Failed to resolve API base URL from CloudFormation output for stack: ${STACK_NAME}"
-            exit 1
+          
+          # Try to get custom domain first, fallback to API Gateway URL
+          CUSTOM_DOMAIN="api.emotiox.org"
+          STAGE="production"
+          
+          # Check if custom domain exists and is available
+          DOMAIN_STATUS="$(aws apigatewayv2 get-domain-name \
+            --domain-name "${CUSTOM_DOMAIN}" \
+            --query 'DomainNameConfigurations[0].DomainNameStatus' \
+            --output text 2>/dev/null || echo '')"
+          
+          if [ "${DOMAIN_STATUS}" = "AVAILABLE" ]; then
+            # Custom domain is mapped directly to the stage, so no need to include /production in path
+            API_BASE_URL="https://${CUSTOM_DOMAIN}"
+            echo "Using custom domain: ${API_BASE_URL}"
+          else
+            # Fallback to API Gateway URL
+            API_BASE_URL="$(aws cloudformation describe-stacks \
+              --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='ServiceEndpoint'].OutputValue | [0]" \
+              --output text)"
+            
+            if [ -z "${API_BASE_URL}" ]; then
+              echo "Failed to resolve API base URL from CloudFormation output for stack: ${STACK_NAME}"
+              exit 1
+            fi
+            echo "Using API Gateway URL: ${API_BASE_URL}"
           fi
-
-          echo "API base URL: ${API_BASE_URL}"
           
           RESEARCH_BASE_URL=""
           PARTICIPANT_BASE_URL=""
