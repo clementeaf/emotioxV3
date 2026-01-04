@@ -127,9 +127,21 @@ functions:
           route: $default
 
 plugins:
+  - serverless-domain-manager
   - serverless-offline
 
-custom: {}
+custom:
+  customDomain:
+    domainName: api.emotiox.org
+    basePath: ''
+    stage: ${self:provider.stage}
+    certificateArn: arn:aws:acm:us-east-1:041238861016:certificate/65f56f43-e4c5-480f-9002-a42f6f469b37
+    createRoute53Record: false
+    createRoute53IPv6Record: false
+    endpointType: 'regional'
+    securityPolicy: tls_1_2
+    apiType: rest
+    autoDomain: false
 
 # Note: After deployment, get the WebSocket API endpoint from AWS Console or CloudFormation
 # and save it to SSM Parameter Store: /emotioxv3/{stage}/WEBSOCKET_API_ENDPOINT
