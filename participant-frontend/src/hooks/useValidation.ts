@@ -42,6 +42,30 @@ export const useValidation = () => {
                 }
             });
         } else {
+            // Special handling for Ranking module (uses 'ranking' component - array of item IDs)
+            const isRanking = module.name === 'Ranking';
+            
+            if (isRanking) {
+                // Check for 'ranking' response - always get fresh from store
+                const rankingResponseId = createResponseId(module.id, 'ranking');
+                const rankingResponse = responses.get(rankingResponseId);
+                if (rankingResponse) {
+                    stepResponses.set('ranking', rankingResponse.value);
+                }
+            }
+            
+            // Special handling for Linear Scale module (uses 'scale' component)
+            const isLinearScale = module.name === 'Linear Scale';
+            
+            if (isLinearScale) {
+                // Check for 'scale' response - always get fresh from store
+                const scaleResponseId = createResponseId(module.id, 'scale');
+                const scaleResponse = responses.get(scaleResponseId);
+                if (scaleResponse) {
+                    stepResponses.set('scale', scaleResponse.value);
+                }
+            }
+            
             // Special handling for SmartVOC modules that use 'scale' component (CSAT, NPS, CES, CV)
             // IMPORTANT: Exclude VOC and NEV which use different component IDs
             const isSmartVOCScale = (module.name.includes('CSAT') || 

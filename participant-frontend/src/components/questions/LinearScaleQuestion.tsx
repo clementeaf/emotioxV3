@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useResponse } from '../../hooks/useResponse';
+import { ScaleSelector } from '../ui/ScaleSelector';
 
 interface LinearScaleQuestionProps {
     moduleId: string;
@@ -14,6 +15,20 @@ interface LinearScaleQuestionProps {
     onComplete?: () => void;
 }
 
+/**
+ * Linear Scale Question component with horizontal slider
+ * @param moduleId - Module identifier
+ * @param componentId - Component identifier
+ * @param title - Question title
+ * @param description - Question description
+ * @param minValue - Minimum value for the scale (default: 1)
+ * @param maxValue - Maximum value for the scale (default: 5)
+ * @param minLabel - Label for the minimum value
+ * @param maxLabel - Label for the maximum value
+ * @param required - Whether the question is required
+ * @param onComplete - Callback when a value is selected
+ * @returns Linear scale question with horizontal slider
+ */
 export const LinearScaleQuestion = ({
     moduleId,
     componentId,
@@ -38,17 +53,9 @@ export const LinearScaleQuestion = ({
         }
     }, [selectedValue, minValue, maxValue, save]);
 
-    const handleSelect = (value: number): void => {
+    const handleChange = (value: number): void => {
         setSelectedValue(value);
-        // Auto-advance after a short delay if onComplete is provided
-        if (onComplete) {
-            setTimeout(() => {
-                onComplete();
-            }, 500);
-        }
     };
-
-    const values = Array.from({ length: maxValue - minValue + 1 }, (_, i) => minValue + i);
 
     return (
         <div className="w-full space-y-6">
@@ -64,35 +71,16 @@ export const LinearScaleQuestion = ({
             )}
 
             <div className="space-y-4">
-                {/* Scale buttons */}
-                <div className="flex justify-center gap-2">
-                    {values.map(value => {
-                        const isSelected = selectedValue === value;
-                        return (
-                            <button
-                                key={value}
-                                onClick={() => handleSelect(value)}
-                                className={`
-                                    w-12 h-12 rounded-lg border-2 font-semibold transition-all
-                                    ${isSelected
-                                        ? 'border-purple-500 bg-purple-500 text-white scale-110'
-                                        : 'border-gray-300 bg-white text-gray-700 hover:border-purple-300 hover:scale-105'
-                                    }
-                                `}
-                            >
-                                {value}
-                            </button>
-                        );
-                    })}
-                </div>
-
-                {/* Labels */}
-                {(minLabel || maxLabel) && (
-                    <div className="flex justify-between text-sm text-gray-600">
-                        <span>{minLabel || ''}</span>
-                        <span>{maxLabel || ''}</span>
-                    </div>
-                )}
+                <ScaleSelector
+                    min={minValue}
+                    max={maxValue}
+                    value={selectedValue}
+                    onChange={handleChange}
+                    startLabel={minLabel}
+                    endLabel={maxLabel}
+                    variant="slider"
+                    onComplete={onComplete}
+                />
             </div>
 
             {selectedValue !== null && (

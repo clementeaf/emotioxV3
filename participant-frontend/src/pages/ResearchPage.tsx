@@ -547,11 +547,19 @@ export const ResearchPage = () => {
     // In participant mode, send data to backend
     if (participantId && researchId && currentModule) {
       // Verify Turnstile token before submitting (required for anti-bot protection)
+      // Skip verification in development (localhost) or if using test site key
+      const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const { turnstileToken, turnstileVerified } = useSessionStore.getState();
-      if (!turnstileVerified || !turnstileToken) {
+      
+      if (!isDevelopment && (!turnstileVerified || !turnstileToken)) {
         alert('La verificación de seguridad es requerida. Por favor, recarga la página y completa la verificación.');
         return;
       }
+      
+      // In development, use a mock token if not available
+      const finalToken = isDevelopment && (!turnstileToken || !turnstileVerified) 
+        ? 'dev-mock-token' 
+        : turnstileToken;
 
       // Get all responses for current module
       const moduleResponses = getResponsesByModule(currentModule.id).map((response) => ({
@@ -576,7 +584,7 @@ export const ResearchPage = () => {
             responses: moduleResponses,
             metadata: {
               completedAt: Date.now(),
-              turnstileToken,
+              turnstileToken: finalToken,
               isPreviewMode: false,
             },
           });

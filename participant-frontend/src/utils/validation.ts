@@ -86,6 +86,57 @@ export const validateModule = (
         }
     }
 
+    // Special handling for Ranking module (uses 'ranking' component - array of item IDs)
+    const isRanking = module.name === 'Ranking';
+
+    if (isRanking) {
+        // For Ranking modules, check for 'ranking' response (array of item IDs)
+        const rankingValue = responses.get('ranking');
+
+        // Check if ranking value exists and is valid
+        // Valid values include: non-empty array
+        const hasValidRankingValue = (() => {
+            if (rankingValue === undefined || rankingValue === null) {
+                return false;
+            }
+            // Array must have at least one item
+            if (Array.isArray(rankingValue)) {
+                return rankingValue.length > 0;
+            }
+            // Any other type is considered invalid
+            return false;
+        })();
+
+        if (!hasValidRankingValue) {
+            // Only show error if module has required components (excluding display-only components)
+            const hasRequiredComponent = module.structure.components.some(comp => {
+                // Skip display-only components that don't require user input
+                const displayOnlyIds = [
+                    'title', 'description', 'instructions', 'message'
+                ];
+                if (displayOnlyIds.some(id => comp.id.includes(id))) {
+                    return false;
+                }
+                return comp.required === true;
+            });
+
+            if (hasRequiredComponent) {
+                errors.push({
+                    componentId: 'ranking',
+                    message: 'Este campo es requerido'
+                });
+            }
+        }
+        // If ranking value exists and is valid, module is valid
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+
+    // Special handling for Linear Scale module (uses 'scale' component)
+    const isLinearScale = module.name === 'Linear Scale';
+
     // Special handling for SmartVOC modules that use 'scale' component (CSAT, NPS, CES, CV)
     // IMPORTANT: Only check for 'scale' if module name explicitly includes these types
     const isSmartVOCScale = (module.name.includes('CSAT') ||
@@ -95,8 +146,9 @@ export const validateModule = (
         !module.name.includes('VOC') && // Exclude VOC
         !module.name.includes('NEV'); // Exclude NEV
 
-    if (isSmartVOCScale) {
-        // For scale-based SmartVOC modules (CSAT, NPS, CES, CV), check for 'scale' response
+    // Handle both Linear Scale and SmartVOC scale modules
+    if (isLinearScale || isSmartVOCScale) {
+        // For scale-based modules (Linear Scale, CSAT, NPS, CES, CV), check for 'scale' response
         const scaleValue = responses.get('scale');
 
         // Check if scale value exists and is valid
@@ -124,7 +176,7 @@ export const validateModule = (
                 const displayOnlyIds = [
                     'title', 'description', 'instructions', 'message',
                     'scale-range', 'range', 'scale',
-                    'start-label', 'end-label'
+                    'start-label', 'end-label', 'start-value', 'end-value'
                 ];
                 if (displayOnlyIds.some(id => comp.id.includes(id))) {
                     return false;
