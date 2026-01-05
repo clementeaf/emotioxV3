@@ -56,12 +56,38 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
 
         // GET /public/media/by-key?s3_key=...
         if (path === '/public/media/by-key' && httpMethod === 'GET') {
-            const s3Key = event.queryStringParameters?.s3_key;
-            if (!s3Key) {
-                return error('s3_key query parameter is required', 400, undefined, origin);
+            try {
+                const rawS3Key = event.queryStringParameters?.s3_key;
+                if (!rawS3Key) {
+                    return error('s3_key query parameter is required', 400, undefined, origin);
+                }
+                
+                // Decode URL-encoded s3_key (API Gateway should do this, but handle manually for safety)
+                const s3Key = decodeURIComponent(rawS3Key);
+                
+                console.log(`[Public API] Getting media URL for s3_key: ${s3Key}`);
+                const result = await mediaService.getMediaUrlByS3Key(s3Key);
+                console.log(`[Public API] Successfully generated media URL for s3_key: ${s3Key}`);
+                return success(result, 200, undefined, origin);
+            } catch (serviceError: unknown) {
+                console.error('[Public API] Error in getMediaUrlByS3Key:', serviceError);
+                const errorMessage = serviceError instanceof Error ? serviceError.message : 'Failed to get media URL';
+                console.error('[Public API] Error details:', {
+                    s3Key: event.queryStringParameters?.s3_key,
+                    error: errorMessage,
+                    stack: serviceError instanceof Error ? serviceError.stack : undefined
+                });
+                
+                // Return 404 for not found errors, 400 for validation errors, 500 for others
+                if (errorMessage.includes('not found')) {
+                    return error(errorMessage, 404, undefined, origin);
+                }
+                if (errorMessage.includes('Invalid') || errorMessage.includes('required')) {
+                    return error(errorMessage, 400, undefined, origin);
+                }
+                
+                throw serviceError; // Re-throw to be caught by outer catch
             }
-            const result = await mediaService.getMediaUrlByS3Key(s3Key);
-            return success(result, 200, undefined, origin);
         }
 
         // Legacy endpoint (deprecated)

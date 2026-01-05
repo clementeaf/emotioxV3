@@ -35,7 +35,8 @@ const validateResearchS3Key = (s3Key: string): string => {
     }
 
     // Basic character allowlist (safe subset)
-    const allowed = /^[A-Za-z0-9/_\-.]+$/;
+    // Allow spaces in filenames (S3 supports them)
+    const allowed = /^[A-Za-z0-9/_\-. ]+$/;
     if (!allowed.test(key)) {
         throw new Error('Invalid s3_key');
     }
