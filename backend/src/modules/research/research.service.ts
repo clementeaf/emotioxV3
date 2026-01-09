@@ -861,6 +861,8 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
     try {
         await client.query('BEGIN');
 
+        console.log('[ResearchService] Starting stage deletion:', { researchId, userId, stageId });
+
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
             'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
@@ -868,26 +870,66 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
         );
 
         if (researchCheck.rows.length === 0) {
+            console.error('[ResearchService] Research not found:', { researchId, userId });
             throw new Error('Research not found');
         }
 
         // Verificar que el stage existe y pertenece al research
         const stageCheck = await client.query(
-            'SELECT id FROM stages WHERE id = $1 AND research_id = $2',
+            'SELECT id, name FROM stages WHERE id = $1 AND research_id = $2',
             [stageId, researchId]
         );
 
         if (stageCheck.rows.length === 0) {
+            console.error('[ResearchService] Stage not found:', { stageId, researchId });
             throw new Error('Stage not found');
         }
 
+        const stageName = stageCheck.rows[0].name;
+        console.log('[ResearchService] Stage found:', { stageId, stageName });
+
+        // Verificar si hay módulos asociados (para logging)
+        const modulesCheck = await client.query(
+            'SELECT COUNT(*) as count FROM modules WHERE stage_id = $1',
+            [stageId]
+        );
+        const moduleCount = parseInt(modulesCheck.rows[0].count || '0', 10);
+        console.log('[ResearchService] Modules to be deleted (CASCADE):', { stageId, moduleCount });
+
         // Eliminar el stage (CASCADE eliminará automáticamente los módulos asociados)
-        await client.query('DELETE FROM stages WHERE id = $1', [stageId]);
+        const deleteResult = await client.query('DELETE FROM stages WHERE id = $1', [stageId]);
+        
+        if (deleteResult.rowCount === 0) {
+            console.error('[ResearchService] No rows deleted:', { stageId });
+            throw new Error('Failed to delete stage: no rows affected');
+        }
 
         await client.query('COMMIT');
+        console.log('[ResearchService] Stage deleted successfully:', { stageId, stageName, moduleCount });
         return { message: 'Stage deleted successfully' };
-    } catch (error) {
+    } catch (error: unknown) {
         await client.query('ROLLBACK');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('[ResearchService] Error deleting stage:', {
+            researchId,
+            userId,
+            stageId,
+            error: errorMessage,
+            stack: errorStack
+        });
+        
+        // Re-throw with more context if it's a database error
+        if (error instanceof Error) {
+            // Check for common database errors
+            if (errorMessage.includes('foreign key') || errorMessage.includes('constraint')) {
+                throw new Error(`Cannot delete stage: database constraint violation - ${errorMessage}`);
+            }
+            if (errorMessage.includes('violates foreign key')) {
+                throw new Error('Cannot delete stage: it has dependencies that prevent deletion');
+            }
+        }
+        
         throw error;
     } finally {
         client.release();

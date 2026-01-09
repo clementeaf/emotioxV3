@@ -101,8 +101,33 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (deleteStageMatch && httpMethod === 'DELETE') {
             const researchId = deleteStageMatch[1];
             const stageId = deleteStageMatch[2];
-            const result = await researchService.deleteStage(researchId, user.id, stageId);
-            return success(result, 200, undefined, origin);
+            try {
+                const result = await researchService.deleteStage(researchId, user.id, stageId);
+                return success(result, 200, undefined, origin);
+            } catch (deleteError: unknown) {
+                const errorMessage = deleteError instanceof Error ? deleteError.message : 'Failed to delete stage';
+                console.error('[ResearchController] Error deleting stage:', {
+                    researchId,
+                    stageId,
+                    userId: user.id,
+                    error: errorMessage,
+                    stack: deleteError instanceof Error ? deleteError.stack : undefined
+                });
+                
+                // Handle specific error cases
+                if (errorMessage.includes('Research not found')) {
+                    return error('Research not found', 404, undefined, origin);
+                }
+                if (errorMessage.includes('Stage not found')) {
+                    return error('Stage not found', 404, undefined, origin);
+                }
+                if (errorMessage.includes('foreign key') || errorMessage.includes('constraint')) {
+                    return error('Cannot delete stage: it has dependencies that prevent deletion', 409, undefined, origin);
+                }
+                
+                // Generic error
+                return error(errorMessage || 'Failed to delete stage', 500, undefined, origin);
+            }
         }
 
         // DELETE /research/:id/modules/:moduleId

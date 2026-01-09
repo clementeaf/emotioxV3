@@ -61,7 +61,17 @@
   - [x] Agregar logging para debug cuando se elimina un stage
   - [x] Verificar que el modal se cierra correctamente después de eliminar exitosamente
   - [x] Verificar que el toast de éxito se muestra correctamente
-- [ ] Delete Stage: Mensaje de eliminar sección con error 500
+- [x] Delete Stage: Mensaje de eliminar sección con error 500
+  - [x] Verificar que el controller maneja correctamente los errores de `deleteStage` (línea 104)
+  - [x] Agregar manejo específico de errores en el controller para errores de eliminación de stage
+  - [x] Mejorar el manejo de errores en `deleteStage` del servicio para lanzar errores más descriptivos
+  - [x] Agregar logging detallado en el servicio cuando ocurre un error al eliminar stage
+  - [x] Verificar que los errores de base de datos (foreign key constraints, etc.) se manejan correctamente
+  - [x] Agregar validación adicional antes de eliminar para verificar que no hay dependencias que impidan la eliminación
+  - [x] Mejorar el mensaje de error que se devuelve al frontend para que sea más descriptivo
+  - [x] Verificar que el error se propaga correctamente desde el servicio al controller
+  - [x] Agregar manejo de errores específicos (Research not found, Stage not found) con códigos de estado apropiados (404)
+  - [x] Verificar que el ROLLBACK se ejecuta correctamente cuando hay un error en la transacción
 - [ ] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción
 - [ ] Smart VOC - Pregunta de NPS: Ya no está el foco de Activo que se veía en VOC
 - [ ] Smart VOC - Pregunta de NPS: Debe tener placeholder "En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?"
