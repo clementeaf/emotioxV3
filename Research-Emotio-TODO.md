@@ -1,0 +1,25 @@
+# Research Emotio - Lista de Problemas
+
+- [ ] Research Configuration - Age Range: Al seleccionar "Age Range", no se levanta la modal de configuración
+  - [ ] Agregar handler onClick al span que contiene el texto "Age Range" (línea 357-361)
+  - [ ] El handler debe verificar primero que demographicEnabled sea true (si es false, no hacer nada porque el checkbox está disabled)
+  - [ ] Si demographicEnabled es true pero isEnabled es false, activar el checkbox primero llamando a handleDemographicChange('age', true)
+  - [ ] Llamar a setActiveConfigModal('age') para abrir la modal de configuración
+  - [ ] Usar e.stopPropagation() en el onClick del span para evitar que el evento se propague al label y active/desactive el checkbox cuando ya está activado
+  - [ ] Verificar que la modal AgeConfigModal se renderice correctamente cuando activeConfigModal === 'age' (ya implementado en línea 585-598)
+  - [ ] Probar el comportamiento: click en "Age Range" cuando checkbox está desactivado debe activarlo y abrir modal
+  - [ ] Probar el comportamiento: click en "Age Range" cuando checkbox está activado debe solo abrir modal sin cambiar estado
+- [ ] Research Configuration - Age Range: Solo el checkbox es seleccionable, pero no toda la fila
+- [ ] Opciones de edad: No permite apagar algún rango de edad
+- [ ] QR: Genera una URL con acceso denegado
+- [ ] Delete Stage: No hace la tarea de eliminar
+- [ ] Delete Stage: Mensaje de eliminar sección con error 500
+- [ ] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción
+- [ ] Smart VOC - Pregunta de NPS: Ya no está el foco de Activo que se veía en VOC
+- [ ] Smart VOC - Pregunta de NPS: Debe tener placeholder "En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?"
+- [ ] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC
+- [ ] Smart VOC - Pregunta de CES: Ya no está el foco de Activo que se veía en VOC
+- [ ] Smart VOC - Pregunta de NEV: No se previsualizan las emociones/estados de ánimo
+- [ ] Smart VOC - Estado de foco: Solo aparece cuando uno selecciona la pregunta desde el navegador colapsable del costado izquierdo
+- [ ] Thank you: Inputs sin foco, como en casi todo el sistema
+- [ ] Link Preview: El link generado de vista previa no funciona

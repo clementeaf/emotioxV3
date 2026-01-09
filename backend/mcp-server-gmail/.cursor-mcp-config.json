@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "gmail": {
+      "command": "node",
+      "args": [
+        "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/mcp-server-gmail/dist/index.js"
+      ],
+      "env": {
+        "GMAIL_CLIENT_ID": "tu-client-id-aqui",
+        "GMAIL_CLIENT_SECRET": "tu-client-secret-aqui",
+        "GMAIL_REDIRECT_URI": "http://localhost:3000/oauth2callback"
+      }
+    }
+  }
+}
