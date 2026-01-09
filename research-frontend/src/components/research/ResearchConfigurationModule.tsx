@@ -344,6 +344,20 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 // variable removed: unused
 
 
+                                const handleLabelClick = (e: React.MouseEvent<HTMLSpanElement>): void => {
+                                    e.stopPropagation();
+                                    
+                                    if (!demographicEnabled) {
+                                        return;
+                                    }
+                                    
+                                    if (!isEnabled) {
+                                        handleDemographicChange(key, true);
+                                    }
+                                    
+                                    setActiveConfigModal(key);
+                                };
+
                                 return (
                                     <div key={key} className={`flex items-center justify-between p-3 border rounded-md ${!demographicEnabled ? 'opacity-50' : ''}`}>
                                         <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -354,7 +368,10 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                                 disabled={!demographicEnabled}
                                                 className="rounded border-gray-300"
                                             />
-                                            <span className="capitalize">
+                                            <span 
+                                                className="capitalize cursor-pointer"
+                                                onClick={handleLabelClick}
+                                            >
                                                 {key === 'country' ? 'Country & Geography' :
                                                     key === 'age' ? 'Age Range' :
                                                         key.replace(/([A-Z])/g, ' $1').trim()}
