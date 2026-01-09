@@ -73,6 +73,15 @@
   - [x] Agregar manejo de errores específicos (Research not found, Stage not found) con códigos de estado apropiados (404)
   - [x] Verificar que el ROLLBACK se ejecuta correctamente cuando hay un error en la transacción
 - [ ] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción
+  - [x] Verificar que el endpoint `/stages/${stageId}/modules/reorder` existe en el backend (línea 145 en modules.service.ts)
+  - [x] Si no existe, crear el endpoint PUT `/stages/:stageId/modules/reorder` en el research.controller.ts
+  - [x] Crear la función `updateModulesOrderInStage` en research.service.ts que actualice el order_index de múltiples módulos en un stage específico
+  - [x] Verificar que el endpoint valida que el stage pertenece al research y que el usuario tiene permisos
+  - [x] Verificar que el endpoint maneja correctamente errores (404 si el stage no existe, 400 si los datos son inválidos)
+  - [x] Verificar que cuando se guarda después de reordenar, `handleSaveModule` usa `orderedSmartVOCModules` en lugar de `smartVOCModules` para obtener el orden correcto
+  - [x] Verificar que cuando se guarda, se usa el índice del array reordenado en lugar de `module.order_index` del módulo original
+  - [x] Agregar logging para debug cuando se reordena y cuando se guarda
+  - [ ] Probar que al mover un módulo VOC hacia el final y guardar, no se produce error
 - [ ] Smart VOC - Pregunta de NPS: Ya no está el foco de Activo que se veía en VOC
 - [ ] Smart VOC - Pregunta de NPS: Debe tener placeholder "En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?"
 - [ ] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC

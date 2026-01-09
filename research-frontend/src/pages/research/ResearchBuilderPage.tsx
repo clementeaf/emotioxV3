@@ -229,16 +229,17 @@ export const ResearchBuilderPage = () => {
         try {
             setIsSaving(true);
 
-            if (isSmartVOCStage && smartVOCModules.length > 0) {
+            if (isSmartVOCStage && orderedSmartVOCModules.length > 0) {
                 // Save all Smart VOC modules with their current component values
-                const updatePromises = smartVOCModules.map(module => {
+                // Use orderedSmartVOCModules instead of smartVOCModules to preserve the reordered state
+                const updatePromises = orderedSmartVOCModules.map((module, index) => {
                     const moduleRef = smartVOCModuleRefs.current.get(module.id);
                     if (!moduleRef) {
                         console.warn(`No ref found for module ${module.id}`);
                         // Fallback: use existing config if ref not available
                         return modulesService.update(module.id, {
                             config: module.config,
-                            order: module.order_index
+                            order: index // Use the index from the reordered array
                         });
                     }
 
@@ -269,11 +270,11 @@ export const ResearchBuilderPage = () => {
 
                     return modulesService.update(module.id, {
                         config,
-                        order: module.order_index
+                        order: index // Use the index from the reordered array instead of module.order_index
                     });
                 });
                 await Promise.all(updatePromises);
-                toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
+                toast.success(`Saved ${orderedSmartVOCModules.length} Smart VOC module(s) successfully`);
                 
                 // Invalidate and refetch research data to update the UI
                 if (id) {

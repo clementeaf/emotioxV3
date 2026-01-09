@@ -937,6 +937,78 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
 };
 
 /**
+ * Actualiza el order_index de múltiples módulos en un stage
+ * @param stageId - ID del stage
+ * @param userId - ID del usuario
+ * @param updates - Array de {moduleId, order_index}
+ * @returns Mensaje de confirmación
+ */
+export const updateModulesOrderInStage = async (
+    stageId: string,
+    userId: string,
+    updates: Array<{ moduleId: string; order_index: number }>
+): Promise<{ message: string }> => {
+    const client = await pool.connect();
+    console.log(`[updateModulesOrderInStage] Attempting to update order for ${updates.length} modules in stage ${stageId} by user ${userId}`);
+
+    try {
+        await client.query('BEGIN');
+
+        // Verificar que el stage existe y obtener el research_id
+        const stageCheck = await client.query(
+            'SELECT id, research_id FROM stages WHERE id = $1',
+            [stageId]
+        );
+        if (stageCheck.rows.length === 0) {
+            console.warn(`[updateModulesOrderInStage] Stage ${stageId} not found`);
+            throw new Error('Stage not found');
+        }
+
+        const researchId = stageCheck.rows[0].research_id;
+
+        // Verificar que el research existe y pertenece al usuario
+        const researchCheck = await client.query(
+            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            [researchId, userId]
+        );
+        if (researchCheck.rows.length === 0) {
+            console.warn(`[updateModulesOrderInStage] Research ${researchId} not found or not owned by user ${userId}`);
+            throw new Error('Research not found');
+        }
+
+        // Verificar que todos los módulos pertenecen al stage
+        const moduleIds = updates.map(u => u.moduleId);
+        const modulesCheck = await client.query(
+            'SELECT id FROM modules WHERE id = ANY($1) AND stage_id = $2',
+            [moduleIds, stageId]
+        );
+        if (modulesCheck.rows.length !== moduleIds.length) {
+            console.warn(`[updateModulesOrderInStage] Some modules do not belong to stage ${stageId}`);
+            throw new Error('One or more modules not found in this stage');
+        }
+
+        // Actualizar el order_index de cada módulo
+        for (const { moduleId, order_index } of updates) {
+            await client.query(
+                'UPDATE modules SET order_index = $1 WHERE id = $2 AND stage_id = $3',
+                [order_index, moduleId, stageId]
+            );
+            console.log(`[updateModulesOrderInStage] Updated module ${moduleId} to order_index ${order_index}`);
+        }
+
+        await client.query('COMMIT');
+        console.log(`[updateModulesOrderInStage] Successfully updated order for ${updates.length} modules in stage ${stageId}`);
+        return { message: 'Modules order updated successfully' };
+    } catch (error: any) {
+        await client.query('ROLLBACK');
+        console.error(`[updateModulesOrderInStage] Transaction rolled back due to error: ${error.message}`, error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+/**
  * Elimina un módulo de un research
  * @param researchId - ID del research
  * @param userId - ID del usuario

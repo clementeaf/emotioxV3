@@ -139,6 +139,30 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success(result, 200, undefined, origin);
         }
 
+        // PUT /stages/:stageId/modules/reorder
+        const reorderModulesMatch = path.match(/^\/stages\/([^\/]+)\/modules\/reorder$/);
+        if (reorderModulesMatch && httpMethod === 'PUT') {
+            const stageId = reorderModulesMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            if (!body.updates || !Array.isArray(body.updates)) {
+                return error('updates array is required', 400, undefined, origin);
+            }
+            try {
+                const result = await researchService.updateModulesOrderInStage(stageId, user.id, body.updates);
+                return success(result, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to update modules order';
+                console.error('Error updating modules order:', err);
+                if (errorMessage === 'Stage not found' || errorMessage === 'Research not found') {
+                    return error(errorMessage, 404, undefined, origin);
+                }
+                if (errorMessage.includes('not found in this stage')) {
+                    return error(errorMessage, 400, undefined, origin);
+                }
+                return error(errorMessage, 500, undefined, origin);
+            }
+        }
+
         // GET /research/:id/metrics
         const metricsMatch = path.match(/^\/research\/([^\/]+)\/metrics$/);
         if (metricsMatch && httpMethod === 'GET') {

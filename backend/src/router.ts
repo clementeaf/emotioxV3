@@ -103,6 +103,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleResearchRoutes(normalizedEvent);
         }
 
+        // Stages routes (for stage-specific operations like reordering modules)
+        if (path.startsWith('/stages')) {
+            const { handleResearchRoutes } = await import('./modules/research/research.controller');
+            return await handleResearchRoutes(normalizedEvent);
+        }
+
         // Modules routes
         if (path.startsWith('/modules')) {
             const { handleModulesRoutes } = await import('./modules/modules/modules.controller');
