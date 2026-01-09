@@ -7,6 +7,7 @@ interface AgeOption {
   id: string;
   label: string;
   isDisqualifying: boolean;
+  isEnabled: boolean;
   isEditing?: boolean;
 }
 
@@ -66,9 +67,12 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       // Inicializar con opciones predefinidas
+      // Solo agregar opciones que estén en initialValidAges o initialDisqualifyingAges como activadas
+      const allInitialAges = [...initialValidAges, ...initialDisqualifyingAges];
       const initialOptions = predefinedOptions.map(option => ({
         ...option,
         isDisqualifying: initialDisqualifyingAges.includes(option.label),
+        isEnabled: allInitialAges.includes(option.label),
         isEditing: false
       }));
 
@@ -80,6 +84,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
         id: `custom-${Date.now()}-${Math.random()}`,
         label: age,
         isDisqualifying: initialDisqualifyingAges.includes(age),
+        isEnabled: true,
         isEditing: false
       }));
 
@@ -106,12 +111,23 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
     );
   };
 
+  const handleToggleEnabled = (id: string) => {
+    setAgeOptions(prev =>
+      prev.map(option =>
+        option.id === id
+          ? { ...option, isEnabled: !option.isEnabled }
+          : option
+      )
+    );
+  };
+
   const handleAddOption = () => {
     if (newOption.trim()) {
       const newAgeOption: AgeOption = {
         id: `custom-${Date.now()}`,
         label: newOption.trim(),
         isDisqualifying: false,
+        isEnabled: true,
         isEditing: false
       };
       setAgeOptions(prev => [...prev, newAgeOption]);
@@ -196,11 +212,11 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
 
   const handleSave = () => {
     const validAges = ageOptions
-      .filter(option => !option.isDisqualifying)
+      .filter(option => option.isEnabled && !option.isDisqualifying)
       .map(option => option.label);
 
     const disqualifyingAges = ageOptions
-      .filter(option => option.isDisqualifying)
+      .filter(option => option.isEnabled && option.isDisqualifying)
       .map(option => option.label);
 
     onSave(validAges, disqualifyingAges);
@@ -213,7 +229,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
     onClose();
   };
 
-  const validOptionsCount = ageOptions.filter(option => !option.isDisqualifying).length;
+  const validOptionsCount = ageOptions.filter(option => option.isEnabled && !option.isDisqualifying).length;
 
   if (!isOpen) return null;
 
@@ -267,12 +283,32 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
               {ageOptions.map((option) => (
                 <div
                   key={option.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${option.isDisqualifying
+                  className={`flex items-center justify-between p-3 rounded-lg border ${!option.isEnabled
+                    ? 'bg-gray-100 border-gray-300 opacity-60'
+                    : option.isDisqualifying
                     ? 'bg-orange-50 border-orange-200'
                     : 'bg-gray-50 border-gray-200'
                     }`}
                 >
                   <div className="flex items-center space-x-3 flex-1">
+                    {/* Toggle para activar/desactivar */}
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-xs font-medium ${option.isEnabled ? 'text-gray-700' : 'text-gray-400'}`}>
+                        {option.isEnabled ? 'Activa' : 'Inactiva'}
+                      </span>
+                      <button
+                        onClick={() => handleToggleEnabled(option.id)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${option.isEnabled ? 'bg-blue-500' : 'bg-gray-300'
+                          }`}
+                        title={option.isEnabled ? 'Desactivar rango de edad' : 'Activar rango de edad'}
+                      >
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${option.isEnabled ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                        />
+                      </button>
+                    </div>
+
                     {option.isEditing ? (
                       <input
                         type="text"
@@ -286,27 +322,30 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                         }}
                         className="flex-1 px-2 py-1 border border-gray-300 rounded"
                         autoFocus
+                        disabled={!option.isEnabled}
                       />
                     ) : (
-                      <span className="font-medium">{option.label}</span>
+                      <span className={`font-medium ${!option.isEnabled ? 'text-gray-400' : ''}`}>{option.label}</span>
                     )}
 
-                    {/* Toggle Switch */}
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-sm ${option.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
-                        {option.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
-                      </span>
-                      <button
-                        onClick={() => handleToggleDisqualifying(option.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${option.isDisqualifying ? 'bg-orange-500' : 'bg-green-500'
-                          }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${option.isDisqualifying ? 'translate-x-6' : 'translate-x-1'
+                    {/* Toggle Switch para Clasifica/Desclasifica */}
+                    {option.isEnabled && (
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-sm ${option.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
+                          {option.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
+                        </span>
+                        <button
+                          onClick={() => handleToggleDisqualifying(option.id)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${option.isDisqualifying ? 'bg-orange-500' : 'bg-green-500'
                             }`}
-                        />
-                      </button>
-                    </div>
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${option.isDisqualifying ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                          />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Botones de acción */}
@@ -315,8 +354,9 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                       <>
                         <button
                           onClick={() => handleEditSave(option.id, option.label)}
-                          className="p-1 text-green-600 hover:text-green-800"
+                          className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Guardar"
+                          disabled={!option.isEnabled}
                         >
                           <Save size={16} />
                         </button>
@@ -332,8 +372,9 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                       <>
                         <button
                           onClick={() => handleEditStart(option.id)}
-                          className="p-1 text-blue-600 hover:text-blue-800"
+                          className="p-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Editar"
+                          disabled={!option.isEnabled}
                         >
                           <Edit2 size={16} />
                         </button>
@@ -423,7 +464,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                     {quotas.map((quota) => {
                       const agesWithQuotas = quotas.map(q => q.ageRange);
                       const availableAges = ageOptions.filter(
-                        option => !option.isDisqualifying && (!agesWithQuotas.includes(option.label) || option.label === quota.ageRange)
+                        option => option.isEnabled && !option.isDisqualifying && (!agesWithQuotas.includes(option.label) || option.label === quota.ageRange)
                       );
 
                       return (
@@ -538,15 +579,15 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                   {/* Agregar nueva cuota */}
                   <button
                     onClick={handleAddQuota}
-                    disabled={quotas.length >= ageOptions.filter(o => !o.isDisqualifying).length}
+                    disabled={quotas.length >= ageOptions.filter(o => o.isEnabled && !o.isDisqualifying).length}
                     className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-300 disabled:hover:text-gray-600"
-                    title={quotas.length >= ageOptions.filter(o => !o.isDisqualifying).length ? 'Ya agregaste cuotas para todos los rangos de edad habilitados' : 'Agregar nueva cuota'}
+                    title={quotas.length >= ageOptions.filter(o => o.isEnabled && !o.isDisqualifying).length ? 'Ya agregaste cuotas para todos los rangos de edad habilitados' : 'Agregar nueva cuota'}
                   >
                     <Plus size={16} />
                     <span>Agregar nueva cuota</span>
                   </button>
 
-                  {quotas.length >= ageOptions.filter(o => !o.isDisqualifying).length && (
+                  {quotas.length >= ageOptions.filter(o => o.isEnabled && !o.isDisqualifying).length && (
                     <p className="text-center text-sm text-gray-500 mt-2">
                       Has configurado cuotas para todos los rangos de edad habilitados
                     </p>

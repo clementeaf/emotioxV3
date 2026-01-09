@@ -24,7 +24,21 @@
   - [ ] Probar que click en el span solo abre modal (comportamiento actual)
   - [ ] Probar que click en el botón Settings solo abre modal (comportamiento actual)
   - [ ] Probar que click en el área vacía de la fila (padding, espacios) abre la modal
-- [ ] Opciones de edad: No permite apagar algún rango de edad
+- [x] Opciones de edad: No permite apagar algún rango de edad
+  - [x] Agregar campo `isEnabled` o `isActive` a la interfaz `AgeOption` para permitir desactivar opciones (línea 6-11)
+  - [x] Modificar la inicialización en useEffect para que solo agregue opciones predefinidas que estén en initialValidAges o initialDisqualifyingAges (líneas 69-73)
+  - [x] Si una opción predefinida no está en initialValidAges ni initialDisqualifyingAges, agregarla con isEnabled: false
+  - [x] Modificar handleSave para que solo guarde opciones con isEnabled: true (filtrar antes de mapear en líneas 198-204)
+  - [x] Agregar toggle o checkbox en la UI para activar/desactivar cada opción de edad (línea 267-351)
+  - [x] El toggle debe actualizar el estado isEnabled de la opción
+  - [x] Las opciones desactivadas (isEnabled: false) deben mostrarse visualmente diferentes (opacidad, estilo gris)
+  - [x] Las opciones desactivadas no deben incluirse en validAges ni disqualifyingAges al guardar
+  - [x] Verificar que al eliminar una opción (handleDelete) se elimine correctamente y no se vuelva a agregar al reabrir
+  - [x] Actualizar handleAddQuota para considerar solo opciones activadas
+  - [x] Actualizar dropdown de cuotas para considerar solo opciones activadas
+  - [x] Actualizar validOptionsCount para considerar solo opciones activadas
+  - [x] Deshabilitar toggle de Clasifica/Desclasifica cuando la opción está desactivada
+  - [x] Deshabilitar botones de editar cuando la opción está desactivada
 - [ ] QR: Genera una URL con acceso denegado
 - [ ] Delete Stage: No hace la tarea de eliminar
 - [ ] Delete Stage: Mensaje de eliminar sección con error 500
