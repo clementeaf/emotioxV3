@@ -144,14 +144,40 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
         try {
             setIsDeleting(true);
+            console.log('[ResearchBuilderSidebar] Deleting stage:', { researchId: activeResearch.id, stageId: stageToDelete.id, stageName: stageToDelete.name });
+            
+            // Check if the stage being deleted contains the active module
+            const stageToDeleteData = activeResearch.stages?.find(s => s.id === stageToDelete.id);
+            const modulesInStage = stageToDeleteData?.modules || [];
+            const activeModuleId = location.pathname.match(/\/module\/([^/]+)/)?.[1];
+            const isActiveModuleInDeletedStage = activeModuleId && modulesInStage.some(m => m.id === activeModuleId);
+            
             await researchService.deleteStage(activeResearch.id, stageToDelete.id);
-            toast.success(`Stage "${stageToDelete.name}" deleted successfully`);
+            console.log('[ResearchBuilderSidebar] Stage deleted successfully');
+            
+            // Remove the deleted stage from expandedStages
+            setExpandedStages(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(stageToDelete.id);
+                return newSet;
+            });
+            
+            // If the active module was in the deleted stage, navigate to builder root
+            if (isActiveModuleInDeletedStage) {
+                console.log('[ResearchBuilderSidebar] Active module was in deleted stage, navigating to builder root');
+                navigate(`/research/${activeResearch.id}/builder`);
+            }
+            
+            // Invalidate and refetch the research data
             await invalidateActiveResearch(activeResearch.id);
+            await queryClient.refetchQueries({ queryKey: researchKeys.detail(activeResearch.id) });
+            
+            toast.success(`Stage "${stageToDelete.name}" deleted successfully`);
             setDeleteStageModalOpen(false);
             setStageToDelete(null);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to delete stage';
-            console.error('Error deleting stage:', error);
+            console.error('[ResearchBuilderSidebar] Error deleting stage:', error);
             toast.error(errorMessage);
         } finally {
             setIsDeleting(false);

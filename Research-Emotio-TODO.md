@@ -50,7 +50,17 @@
   - [x] Agregar validación en el botón Generate QR para mostrar error si no se puede generar la URL
   - [x] Agregar logging para debug en producción
   - [x] Normalizar URLs para asegurar que siempre tengan protocolo (https)
-- [ ] Delete Stage: No hace la tarea de eliminar
+- [x] Delete Stage: No hace la tarea de eliminar
+  - [x] Verificar que `handleConfirmDeleteStage` está llamando correctamente a `researchService.deleteStage` (línea 147)
+  - [x] Verificar que `invalidateActiveResearch` está invalidando correctamente la query después de eliminar (línea 149)
+  - [x] Verificar que el estado `expandedStages` se limpia cuando se elimina un stage (remover el stageId del Set)
+  - [x] Verificar que si el stage eliminado contiene el módulo activo, se redirige a una ruta válida
+  - [x] Verificar que la navegación se actualiza correctamente si el stage eliminado era el que estaba visible
+  - [x] Agregar refetch explícito después de invalidar la query para asegurar que los datos se actualicen
+  - [x] Verificar que el estado local `expandedStages` se sincroniza con los stages disponibles después de eliminar
+  - [x] Agregar logging para debug cuando se elimina un stage
+  - [x] Verificar que el modal se cierra correctamente después de eliminar exitosamente
+  - [x] Verificar que el toast de éxito se muestra correctamente
 - [ ] Delete Stage: Mensaje de eliminar sección con error 500
 - [ ] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción
 - [ ] Smart VOC - Pregunta de NPS: Ya no está el foco de Activo que se veía en VOC
