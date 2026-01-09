@@ -39,7 +39,17 @@
   - [x] Actualizar validOptionsCount para considerar solo opciones activadas
   - [x] Deshabilitar toggle de Clasifica/Desclasifica cuando la opción está desactivada
   - [x] Deshabilitar botones de editar cuando la opción está desactivada
-- [ ] QR: Genera una URL con acceso denegado
+- [x] QR: Genera una URL con acceso denegado
+  - [x] Verificar que `resolveParticipantBaseUrl()` obtiene correctamente el `runtimeParticipantBaseUrl` desde `/runtime-config.json` en producción (línea 119-130)
+  - [x] Mejorar `resolveParticipantBaseUrl()` para asegurar que siempre use https en producción y agregar fallback a participant.emotiox.org
+  - [x] Verificar que `buildParticipantShareUrl()` genera una URL válida cuando no hay `researchUrl` configurado (debe ser `${base.origin}/research/${researchId}`)
+  - [x] Verificar que `buildParticipantShareUrl()` genera una URL válida cuando hay `researchUrl` configurado (debe incluir el dominio base correcto)
+  - [x] Verificar que la URL generada usa el protocolo correcto (https) en producción
+  - [x] Agregar validación para asegurar que la URL generada es válida antes de pasarla al QRCodeModal
+  - [x] Agregar manejo de errores cuando `runtimeParticipantBaseUrl` no está disponible en producción con logging
+  - [x] Agregar validación en el botón Generate QR para mostrar error si no se puede generar la URL
+  - [x] Agregar logging para debug en producción
+  - [x] Normalizar URLs para asegurar que siempre tengan protocolo (https)
 - [ ] Delete Stage: No hace la tarea de eliminar
 - [ ] Delete Stage: Mensaje de eliminar sección con error 500
 - [ ] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción

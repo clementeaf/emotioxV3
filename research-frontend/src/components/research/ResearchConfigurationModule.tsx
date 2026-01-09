@@ -95,13 +95,25 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         void (async (): Promise<void> => {
             try {
                 const response = await fetch('/runtime-config.json', { cache: 'no-store' });
-                if (!response.ok) return;
+                if (!response.ok) {
+                    console.warn('[ResearchConfigurationModule] Failed to fetch runtime-config.json:', response.status, response.statusText);
+                    return;
+                }
                 const data = (await response.json()) as unknown;
                 if (!cancelled && isRuntimeConfigWithParticipant(data)) {
-                    setRuntimeParticipantBaseUrl(data.participantBaseUrl.replace(/\/+$/, ''));
+                    const participantUrl = data.participantBaseUrl.replace(/\/+$/, '');
+                    // Ensure URL has protocol
+                    const normalizedUrl = participantUrl.startsWith('http://') || participantUrl.startsWith('https://')
+                        ? participantUrl
+                        : `https://${participantUrl}`;
+                    setRuntimeParticipantBaseUrl(normalizedUrl);
+                    console.log('[ResearchConfigurationModule] Loaded participantBaseUrl from runtime-config.json:', normalizedUrl);
+                } else if (!cancelled) {
+                    console.warn('[ResearchConfigurationModule] runtime-config.json does not contain valid participantBaseUrl');
                 }
-            } catch {
-                // ignore - we can fall back to env config
+            } catch (error) {
+                console.warn('[ResearchConfigurationModule] Error loading runtime-config.json, falling back to env config:', error);
+                // Fallback handled in resolveParticipantBaseUrl
             }
         })();
 
@@ -122,11 +134,36 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         if (isLocal) {
             return 'http://localhost:12600';
         }
+        
+        // Priority 1: Use runtimeParticipantBaseUrl from runtime-config.json
         if (runtimeParticipantBaseUrl && runtimeParticipantBaseUrl.trim().length > 0) {
-            return runtimeParticipantBaseUrl;
+            // Ensure it uses https in production
+            const url = runtimeParticipantBaseUrl.trim();
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                return url;
+            }
+            // If no protocol, assume https for production
+            return `https://${url}`;
         }
+        
+        // Priority 2: Use environment variable
         const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
-        return typeof envUrl === 'string' ? envUrl : '';
+        if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
+            const url = envUrl.trim();
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                return url;
+            }
+            // If no protocol, assume https for production
+            return `https://${url}`;
+        }
+        
+        // Priority 3: Fallback to participant.emotiox.org if on research.emotiox.org
+        if (host === 'research.emotiox.org' || host.includes('emotiox.org')) {
+            return 'https://participant.emotiox.org';
+        }
+        
+        // Last resort: return empty string (will be handled by buildParticipantShareUrl)
+        return '';
     };
 
     /**
@@ -173,17 +210,54 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const buildParticipantShareUrl = (): string => {
         const baseUrl = resolveParticipantBaseUrl();
         if (!baseUrl || baseUrl.trim().length === 0) {
+            console.warn('[ResearchConfigurationModule] No participant base URL available for QR generation');
             return '';
         }
-        const base = new URL(baseUrl);
+        
+        let base: URL;
+        try {
+            base = new URL(baseUrl);
+        } catch (error) {
+            console.error('[ResearchConfigurationModule] Invalid participant base URL:', baseUrl, error);
+            return '';
+        }
+
+        // Ensure https in production
+        if (base.protocol !== 'https:' && base.hostname !== 'localhost' && !base.hostname.includes('127.0.0.1')) {
+            base.protocol = 'https:';
+        }
 
         if (researchUrl && researchUrl.trim().length > 0) {
             const parts = parseUrlParts(researchUrl);
-            return `${base.origin}${parts.pathname}${parts.search}${parts.hash}`;
+            const finalUrl = `${base.origin}${parts.pathname}${parts.search}${parts.hash}`;
+            // Validate URL before returning
+            try {
+                new URL(finalUrl);
+                return finalUrl;
+            } catch (error) {
+                console.error('[ResearchConfigurationModule] Invalid URL generated from researchUrl:', finalUrl, error);
+                // Fallback to researchId if URL is invalid
+                if (researchId) {
+                    return `${base.origin}/research/${researchId}`;
+                }
+                return '';
+            }
         }
 
-        if (!researchId) return '';
-        return `${base.origin}/research/${researchId}`;
+        if (!researchId) {
+            console.warn('[ResearchConfigurationModule] No researchId available for QR generation');
+            return '';
+        }
+        
+        const finalUrl = `${base.origin}/research/${researchId}`;
+        // Validate URL before returning
+        try {
+            new URL(finalUrl);
+            return finalUrl;
+        } catch (error) {
+            console.error('[ResearchConfigurationModule] Invalid URL generated:', finalUrl, error);
+            return '';
+        }
     };
 
     /**
@@ -575,7 +649,14 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                             <Button
                                 variant="primary"
                                 size="sm"
-                                onClick={() => setShowQRModal(true)}
+                                onClick={() => {
+                                    const url = buildParticipantShareUrl();
+                                    if (!url || url.trim().length === 0) {
+                                        toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
+                                        return;
+                                    }
+                                    setShowQRModal(true);
+                                }}
                             >
                                 <QrCode className="h-4 w-4 mr-2" />
                                 Generate QR
