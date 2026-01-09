@@ -9,7 +9,21 @@
   - [x] Verificar que la modal AgeConfigModal se renderice correctamente cuando activeConfigModal === 'age' (ya implementado en línea 585-598)
   - [ ] Probar el comportamiento: click en "Age Range" cuando checkbox está desactivado debe activarlo y abrir modal
   - [ ] Probar el comportamiento: click en "Age Range" cuando checkbox está activado debe solo abrir modal sin cambiar estado
-- [ ] Research Configuration - Age Range: Solo el checkbox es seleccionable, pero no toda la fila
+- [x] Research Configuration - Age Range: Solo el checkbox es seleccionable, pero no toda la fila
+  - [x] Agregar onClick handler al div contenedor de la fila (línea 362) para hacer toda la fila clickeable
+  - [x] Agregar clase cursor-pointer al div contenedor para indicar visualmente que es clickeable
+  - [x] El handler del div debe verificar que demographicEnabled sea true antes de proceder
+  - [x] Si isEnabled es false, activar el checkbox primero llamando a handleDemographicChange(key, true)
+  - [x] Llamar a setActiveConfigModal(key) para abrir la modal de configuración
+  - [x] Agregar e.stopPropagation() en el onChange del checkbox para evitar que active el handler del div
+  - [x] Agregar e.stopPropagation() en el onClick del checkbox para evitar que active el handler del div
+  - [x] Agregar e.stopPropagation() en el onClick del span (ya tiene handleLabelClick) para evitar doble activación
+  - [x] Agregar e.stopPropagation() en el onClick del botón Settings para evitar que active el handler del div
+  - [x] Agregar hover:bg-gray-50 y transition-colors al div para feedback visual cuando se hace hover sobre la fila
+  - [ ] Probar que click en el checkbox solo toggle el checkbox sin abrir modal
+  - [ ] Probar que click en el span solo abre modal (comportamiento actual)
+  - [ ] Probar que click en el botón Settings solo abre modal (comportamiento actual)
+  - [ ] Probar que click en el área vacía de la fila (padding, espacios) abre la modal
 - [ ] Opciones de edad: No permite apagar algún rango de edad
 - [ ] QR: Genera una URL con acceso denegado
 - [ ] Delete Stage: No hace la tarea de eliminar

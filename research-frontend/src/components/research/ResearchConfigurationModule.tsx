@@ -358,15 +358,37 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                     setActiveConfigModal(key);
                                 };
 
+                                const handleRowClick = (): void => {
+                                    if (!demographicEnabled) {
+                                        return;
+                                    }
+                                    
+                                    if (!isEnabled) {
+                                        handleDemographicChange(key, true);
+                                    }
+                                    
+                                    setActiveConfigModal(key);
+                                };
+
+                                const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+                                    e.stopPropagation();
+                                    handleDemographicChange(key, e.target.checked);
+                                };
+
                                 return (
-                                    <div key={key} className={`flex items-center justify-between p-3 border rounded-md ${!demographicEnabled ? 'opacity-50' : ''}`}>
+                                    <div 
+                                        key={key} 
+                                        onClick={handleRowClick}
+                                        className={`flex items-center justify-between p-3 border rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${!demographicEnabled ? 'opacity-50' : ''}`}
+                                    >
                                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                                             <input
                                                 type="checkbox"
                                                 checked={isEnabled}
-                                                onChange={(e) => handleDemographicChange(key, e.target.checked)}
+                                                onChange={handleCheckboxChange}
                                                 disabled={!demographicEnabled}
                                                 className="rounded border-gray-300"
+                                                onClick={(e) => e.stopPropagation()}
                                             />
                                             <span 
                                                 className="capitalize cursor-pointer"
@@ -382,7 +404,10 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => setActiveConfigModal(key)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveConfigModal(key);
+                                                }}
                                                 className="h-8 w-8 p-0"
                                                 title="Configure"
                                             >
