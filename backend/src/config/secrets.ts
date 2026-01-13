@@ -24,30 +24,62 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
         const prefix = process.env.SSM_PREFIX;
         const region = process.env.SSM_REGION || process.env.AWS_REGION || process.env.APP_AWS_REGION || 'us-east-1';
 
+        // If SSM_PREFIX is not configured, use environment variables directly (e.g., in CI)
         if (!prefix) {
-            throw new Error('SSM_PREFIX is not configured');
+            const dbPassword = process.env.DB_PASSWORD;
+            if (!dbPassword) {
+                throw new Error('DB_PASSWORD not found in environment variables and SSM_PREFIX is not configured');
+            }
+            cachedSecrets = {
+                dbPassword,
+                dbHost: process.env.DB_HOST,
+                dbPort: process.env.DB_PORT,
+                dbName: process.env.DB_NAME,
+                dbUser: process.env.DB_USER,
+                dbSsl: process.env.DB_SSL,
+            };
+            return cachedSecrets;
         }
 
-        const values = await loadSsmParameters({
-            prefix,
-            region,
-            names: ['DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_SSL'],
-        });
+        // Try to load from SSM, but fallback to environment variables if SSM is not available
+        try {
+            const values = await loadSsmParameters({
+                prefix,
+                region,
+                names: ['DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_SSL'],
+            });
 
-        const dbPassword = values.DB_PASSWORD;
-        if (typeof dbPassword !== 'string' || dbPassword.trim().length === 0) {
-            throw new Error('DB_PASSWORD not found in SSM');
+            const dbPassword = values.DB_PASSWORD;
+            if (typeof dbPassword !== 'string' || dbPassword.trim().length === 0) {
+                throw new Error('DB_PASSWORD not found in SSM');
+            }
+
+            cachedSecrets = {
+                dbPassword,
+                dbHost: values.DB_HOST,
+                dbPort: values.DB_PORT,
+                dbName: values.DB_NAME,
+                dbUser: values.DB_USER,
+                dbSsl: values.DB_SSL,
+            };
+            return cachedSecrets;
+        } catch (ssmError) {
+            // If SSM fails (e.g., in CI without AWS credentials), fallback to environment variables
+            console.warn('Failed to load secrets from SSM, using environment variables:', ssmError);
+            const dbPassword = process.env.DB_PASSWORD;
+            if (!dbPassword) {
+                throw new Error(`DB_PASSWORD not found in environment variables and SSM failed: ${ssmError instanceof Error ? ssmError.message : String(ssmError)}`);
+            }
+            cachedSecrets = {
+                dbPassword,
+                dbHost: process.env.DB_HOST,
+                dbPort: process.env.DB_PORT,
+                dbName: process.env.DB_NAME,
+                dbUser: process.env.DB_USER,
+                dbSsl: process.env.DB_SSL,
+            };
+            return cachedSecrets;
         }
-
-        cachedSecrets = {
-            dbPassword,
-            dbHost: values.DB_HOST,
-            dbPort: values.DB_PORT,
-            dbName: values.DB_NAME,
-            dbUser: values.DB_USER,
-            dbSsl: values.DB_SSL,
-        };
-        return cachedSecrets;
     })();
 
     return secretsPromise;
