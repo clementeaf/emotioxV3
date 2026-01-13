@@ -47,6 +47,10 @@ migration-backups/
 *.pem
 *.key
 
+# Credentials directory (all files are sensitive)
+docs/credentials/*
+!docs/credentials/README.md
+
 # Terraform
 infrastructure/.terraform/
 infrastructure/.terraform.lock.hcl
