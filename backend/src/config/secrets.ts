@@ -2,6 +2,10 @@ import { loadSsmParameters } from './ssm';
 
 interface SecretsConfig {
     dbPassword: string;
+    dbHost?: string;
+    dbPort?: string;
+    dbName?: string;
+    dbUser?: string;
 }
 
 let cachedSecrets: SecretsConfig | null = null;
@@ -26,7 +30,7 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
         const values = await loadSsmParameters({
             prefix,
             region,
-            names: ['DB_PASSWORD'],
+            names: ['DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER'],
         });
 
         const dbPassword = values.DB_PASSWORD;
@@ -34,7 +38,13 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
             throw new Error('DB_PASSWORD not found in SSM');
         }
 
-        cachedSecrets = { dbPassword };
+        cachedSecrets = {
+            dbPassword,
+            dbHost: values.DB_HOST,
+            dbPort: values.DB_PORT,
+            dbName: values.DB_NAME,
+            dbUser: values.DB_USER,
+        };
         return cachedSecrets;
     })();
 

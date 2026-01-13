@@ -51,9 +51,25 @@ const ensurePool = async (): Promise<Pool> => {
     if (poolPromise) return poolPromise;
 
     poolPromise = (async (): Promise<Pool> => {
-        if (!process.env.DB_PASSWORD || process.env.DB_PASSWORD.trim().length === 0) {
+        // Load database config from SSM if not in environment or if password is missing
+        const needsSecrets = !process.env.DB_PASSWORD || process.env.DB_PASSWORD.trim().length === 0;
+        if (needsSecrets || !process.env.DB_HOST) {
             const secrets = await getSecrets();
-            process.env.DB_PASSWORD = secrets.dbPassword;
+            if (!process.env.DB_PASSWORD || process.env.DB_PASSWORD.trim().length === 0) {
+                process.env.DB_PASSWORD = secrets.dbPassword;
+            }
+            if (!process.env.DB_HOST && secrets.dbHost) {
+                process.env.DB_HOST = secrets.dbHost;
+            }
+            if (!process.env.DB_PORT && secrets.dbPort) {
+                process.env.DB_PORT = secrets.dbPort;
+            }
+            if (!process.env.DB_NAME && secrets.dbName) {
+                process.env.DB_NAME = secrets.dbName;
+            }
+            if (!process.env.DB_USER && secrets.dbUser) {
+                process.env.DB_USER = secrets.dbUser;
+            }
         }
 
         const pool = new Pool({
