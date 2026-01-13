@@ -100,7 +100,7 @@ export const createCookie = (
         secure = options.secure !== undefined ? options.secure : false, // Usar el valor pasado o false por defecto
         sameSite = options.sameSite || 'Lax', // Usar el valor pasado o 'Lax' por defecto
         path = '/',
-        domain, // No establecer domain para que funcione en cualquier dominio
+        domain, // Domain puede ser especificado explícitamente
     } = options;
 
     let cookie = `${name}=${value}`;
@@ -113,8 +113,17 @@ export const createCookie = (
         cookie += `; Path=${path}`;
     }
 
-    // NO establecer domain para que funcione en localhost y en el dominio de producción
-    // Si se establece domain, las cookies solo funcionarán en ese dominio específico
+    // Establecer domain para compartir cookies entre subdominios
+    // Si no se especifica domain explícitamente, usar .emotiox.org para producción
+    // Esto permite que las cookies funcionen entre portal.emotiox.org, app.emotiox.org, server.emotiox.org, etc.
+    if (domain) {
+        cookie += `; Domain=${domain}`;
+    } else if (secure && sameSite === 'None') {
+        // Solo establecer domain compartido en producción (HTTPS + SameSite=None)
+        // Esto permite compartir cookies entre subdominios de emotiox.org
+        cookie += `; Domain=.emotiox.org`;
+    }
+    // En localhost, no establecer domain para que funcione correctamente
 
     if (httpOnly) {
         cookie += '; HttpOnly';
