@@ -19,7 +19,10 @@ app.use(cors({
             'http://localhost:3000',
             'http://localhost:5173',
             'http://localhost:5174',
-            // Production origins from environment
+            // Production origins
+            'https://portal.emotiox.org',  // research-frontend production
+            'https://app.emotiox.org',     // participant-frontend production
+            // Additional origins from environment
             process.env.CORS_ORIGIN,
             process.env.RESEARCH_FRONTEND_URL,
             process.env.PARTICIPANT_FRONTEND_URL

@@ -49,6 +49,16 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         return success({ status: 'healthy', timestamp: new Date().toISOString() }, 200, undefined, origin);
     }
 
+    // Debug endpoint to see all headers
+    if (path === '/debug-headers' && httpMethod === 'GET') {
+        return success({
+            headers: event.headers,
+            origin: origin,
+            method: httpMethod,
+            path: path
+        }, 200, undefined, origin);
+    }
+
     // Config endpoint (public - no auth required)
     if (path === '/config' && httpMethod === 'GET') {
         const { handleConfigRoutes } = await import('./modules/config/config.controller');

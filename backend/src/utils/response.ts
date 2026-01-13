@@ -13,25 +13,34 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
         'http://localhost:3000',   // backend local / legacy
         'http://localhost:5173',   // vite default port
         'http://localhost:5174',   // vite alternative port
-        
-        // Production - Domains
+
+        // Production - Domains (new subdomain structure)
+        'https://portal.emotiox.org',      // research-frontend production
+        'https://app.emotiox.org',         // participant-frontend production
+
+        // Production - Domains (legacy)
         'https://research.useremotion.com',
         'https://participant.useremotion.com',
         'https://research.emotiox.org',
         'https://participant.emotiox.org',
         'https://useremotion.com',
         'https://www.useremotion.com',
-        
+
         // Production - CloudFront
         'https://d2mgq2ppntnjct.cloudfront.net',  // research-frontend
         'https://d2am10cly7c9kf.cloudfront.net',  // participant-frontend
     ];
 
     // Si hay un origen y está en la lista permitida, usarlo
-    // Si no hay origen o no está permitido, usar el primero de la lista (localhost por defecto)
-    const allowedOrigin = origin && allowedOrigins.includes(origin)
-        ? origin
-        : allowedOrigins[0];
+    // También aceptar cualquier subdominio de emotiox.org o useremotion.com
+    let allowedOrigin: string;
+    if (origin && (allowedOrigins.includes(origin) ||
+                   origin.endsWith('.emotiox.org') ||
+                   origin.endsWith('.useremotion.com'))) {
+        allowedOrigin = origin;
+    } else {
+        allowedOrigin = allowedOrigins[0];
+    }
 
     return {
         'Access-Control-Allow-Origin': allowedOrigin,
