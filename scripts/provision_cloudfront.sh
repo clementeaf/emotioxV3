@@ -37,6 +37,7 @@ echo "✅ OAC ID: $OAC_ID"
 create_dist_config() {
     local reference=$1
     local alias=$2
+    local origin_path=$3
     local start_cert=$4
     
     cat <<EOF

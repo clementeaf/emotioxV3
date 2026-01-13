@@ -2,7 +2,7 @@
 
 # Configuration
 # Configuration
-BUCKET_NAME="${S3_BUCKET_NAME:-emotioxv3-research-frontend}"
+BUCKET_NAME="${S3_BUCKET_NAME:-emotiox-unified-058310}"
 DISTRIBUTION_ID="E346VL90X0G11J" # portal.emotiox.org
 REGION="us-east-1"
 
@@ -15,7 +15,7 @@ echo ""
 
 # 1. Build
 echo "Building project..."
-export VITE_API_URL="${VITE_API_URL:-https://api.emotiox.org}"
+export VITE_API_URL="${VITE_API_URL:-https://server.emotiox.org}"
 npm run build
 if [ $? -ne 0 ]; then
     echo "❌ Build failed"
@@ -26,7 +26,7 @@ fi
 echo "Creating runtime-config.json..."
 cat > dist/runtime-config.json <<EOF
 {
-  "apiBaseUrl": "https://api.emotiox.org"
+  "apiBaseUrl": "https://server.emotiox.org"
 }
 EOF
 
