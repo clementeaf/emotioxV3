@@ -196,8 +196,24 @@ jobs:
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
           COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
           COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          COGNITO_DOMAIN: ${{ secrets.COGNITO_DOMAIN }}
           ACM_CERTIFICATE_ARN: ${{ secrets.ACM_CERTIFICATE_ARN }}
         run: |
+          # If COGNITO_DOMAIN is not in secrets, try to get it from SSM
+          if [ -z "${COGNITO_DOMAIN:-}" ]; then
+            echo "COGNITO_DOMAIN not in secrets, fetching from SSM..."
+            export COGNITO_DOMAIN=$(aws ssm get-parameter \
+              --name "/emotioxv3/production/COGNITO_DOMAIN" \
+              --region "${AWS_REGION}" \
+              --query 'Parameter.Value' \
+              --output text 2>/dev/null || echo '')
+            if [ -z "${COGNITO_DOMAIN}" ]; then
+              echo "Warning: COGNITO_DOMAIN not found in SSM, using empty string"
+              export COGNITO_DOMAIN=""
+            else
+              echo "✓ COGNITO_DOMAIN loaded from SSM"
+            fi
+          fi
           npx serverless deploy --stage production
 
       - name: Publish runtime-config.json to frontend buckets
