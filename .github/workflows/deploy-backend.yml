@@ -186,6 +186,17 @@ jobs:
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           API_STAGE: production
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_SSL: ${{ secrets.DB_SSL }}
+          APP_AWS_REGION: ${{ secrets.APP_AWS_REGION }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          ACM_CERTIFICATE_ARN: ${{ secrets.ACM_CERTIFICATE_ARN }}
         run: |
           npx serverless deploy --stage production
 
