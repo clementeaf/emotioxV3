@@ -6,6 +6,7 @@ interface SecretsConfig {
     dbPort?: string;
     dbName?: string;
     dbUser?: string;
+    dbSsl?: string;
 }
 
 let cachedSecrets: SecretsConfig | null = null;
@@ -30,7 +31,7 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
         const values = await loadSsmParameters({
             prefix,
             region,
-            names: ['DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER'],
+            names: ['DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_SSL'],
         });
 
         const dbPassword = values.DB_PASSWORD;
@@ -44,6 +45,7 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
             dbPort: values.DB_PORT,
             dbName: values.DB_NAME,
             dbUser: values.DB_USER,
+            dbSsl: values.DB_SSL,
         };
         return cachedSecrets;
     })();

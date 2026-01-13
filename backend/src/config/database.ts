@@ -61,6 +61,7 @@ const ensurePool = async (): Promise<Pool> => {
         process.env.DB_PORT = secrets.dbPort || process.env.DB_PORT || '5432';
         process.env.DB_NAME = secrets.dbName || process.env.DB_NAME || '';
         process.env.DB_USER = secrets.dbUser || process.env.DB_USER || '';
+        process.env.DB_SSL = secrets.dbSsl || process.env.DB_SSL || '';
 
         const pool = new Pool({
             host: process.env.DB_HOST,
