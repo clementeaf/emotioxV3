@@ -57,9 +57,20 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         }
 
         // Build from request context (API Gateway)
-        if (requestContext?.domainName && requestContext?.stage) {
+        if (requestContext?.domainName) {
             const protocol = requestContext.protocol || 'https';
-            return `${protocol}://${requestContext.domainName}/${requestContext.stage}`;
+            const domainName = requestContext.domainName;
+            
+            // Custom domains (like server.emotiox.org) don't include stage in path
+            // API Gateway URLs (like *.execute-api.*.amazonaws.com) do include stage
+            if (domainName.includes('.execute-api.') || domainName.includes('.amazonaws.com')) {
+                // API Gateway URL - include stage
+                if (requestContext.stage) {
+                    return `${protocol}://${domainName}/${requestContext.stage}`;
+                }
+            }
+            // Custom domain - don't include stage
+            return `${protocol}://${domainName}`;
         }
 
         // Fallback to origin if available
