@@ -254,8 +254,27 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         if (path === '/auth/google' && httpMethod === 'GET') {
             // Build Cognito Hosted UI URL with Google as identity provider
             // This requires Google to be configured as an Identity Provider in Cognito User Pool
-            const cognitoDomain = process.env.COGNITO_DOMAIN;
+            let cognitoDomain = process.env.COGNITO_DOMAIN;
             const clientId = process.env.COGNITO_CLIENT_ID;
+
+            // Try to load COGNITO_DOMAIN from SSM if not in environment
+            if (!cognitoDomain) {
+                try {
+                    const { loadSsmParameters } = await import('../../config/ssm');
+                    const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
+                    const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
+
+                    const ssmParams = await loadSsmParameters({
+                        names: ['COGNITO_DOMAIN'],
+                        prefix: ssmPrefix,
+                        region: ssmRegion
+                    });
+
+                    cognitoDomain = ssmParams.COGNITO_DOMAIN;
+                } catch (error) {
+                    console.warn('Failed to load COGNITO_DOMAIN from SSM:', error);
+                }
+            }
 
             if (!cognitoDomain || !clientId) {
                 return error(
@@ -318,8 +337,27 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
             // Exchange authorization code for tokens using Cognito
             try {
-                const cognitoDomain = process.env.COGNITO_DOMAIN;
+                let cognitoDomain = process.env.COGNITO_DOMAIN;
                 const clientId = process.env.COGNITO_CLIENT_ID;
+
+                // Try to load COGNITO_DOMAIN from SSM if not in environment
+                if (!cognitoDomain) {
+                    try {
+                        const { loadSsmParameters } = await import('../../config/ssm');
+                        const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
+                        const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
+
+                        const ssmParams = await loadSsmParameters({
+                            names: ['COGNITO_DOMAIN'],
+                            prefix: ssmPrefix,
+                            region: ssmRegion
+                        });
+
+                        cognitoDomain = ssmParams.COGNITO_DOMAIN;
+                    } catch (error) {
+                        console.warn('Failed to load COGNITO_DOMAIN from SSM:', error);
+                    }
+                }
 
                 if (!cognitoDomain || !clientId) {
                     return error('Cognito not configured', 500, undefined, origin);
