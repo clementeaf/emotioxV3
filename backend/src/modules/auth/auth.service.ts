@@ -162,7 +162,7 @@ export const login = async (data: LoginData) => {
     }
 };
 
-export const getMe = async (cognitoSub: string, username?: string, emailFromToken?: string) => {
+export const getMe = async (cognitoSub: string, username?: string, emailFromToken?: string, firstNameFromToken?: string, lastNameFromToken?: string) => {
     try {
         if (!cognitoSub) {
             throw new Error('cognitoSub is required');
@@ -181,14 +181,17 @@ export const getMe = async (cognitoSub: string, username?: string, emailFromToke
 
         console.log(`[AuthService] User not found in DB for sub ${cognitoSub}, attempting to sync...`);
 
-        // Use email from token if available, otherwise fetch from Cognito
+        // Use email and name from token if available, otherwise fetch from Cognito
         let email = emailFromToken;
-        let firstName: string | undefined;
-        let lastName: string | undefined;
+        let firstName = firstNameFromToken;
+        let lastName = lastNameFromToken;
 
-        if (!email) {
+        // Try to extract name from token if available (for Google OAuth)
+        // The token may contain given_name and family_name
+        // We'll fetch from Cognito if not in token
+        if (!email || (!firstName && !lastName)) {
             try {
-                console.log(`[AuthService] No email in token, fetching from Cognito using username: ${username || cognitoSub}`);
+                console.log(`[AuthService] Fetching user info from Cognito using username: ${username || cognitoSub}`);
                 // Use username for AdminGetUser, not sub
                 const adminGetUserCommand = new AdminGetUserCommand({
                     UserPoolId: cognitoConfig.userPoolId,
@@ -196,12 +199,22 @@ export const getMe = async (cognitoSub: string, username?: string, emailFromToke
                 });
                 const cognitoUser = await cognitoClient.send(adminGetUserCommand);
 
-                email = cognitoUser.UserAttributes?.find(a => a.Name === 'email')?.Value;
-                firstName = cognitoUser.UserAttributes?.find(a => a.Name === 'given_name')?.Value;
-                lastName = cognitoUser.UserAttributes?.find(a => a.Name === 'family_name')?.Value;
+                // Only use Cognito values if not already set from token
+                if (!email) {
+                    email = cognitoUser.UserAttributes?.find(a => a.Name === 'email')?.Value;
+                }
+                if (!firstName) {
+                    firstName = cognitoUser.UserAttributes?.find(a => a.Name === 'given_name')?.Value;
+                }
+                if (!lastName) {
+                    lastName = cognitoUser.UserAttributes?.find(a => a.Name === 'family_name')?.Value;
+                }
             } catch (cognitoError) {
                 console.error('[AuthService] Failed to fetch user from Cognito:', cognitoError);
-                throw new Error(`User not found for cognito_sub: ${cognitoSub} and failed to sync`);
+                // If we have email from token, we can still proceed
+                if (!email) {
+                    throw new Error(`User not found for cognito_sub: ${cognitoSub} and failed to sync`);
+                }
             }
         }
 

@@ -505,16 +505,28 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 // Decode ID token to get user info (without verification for now, will be verified by getMe)
                 // The ID token from Cognito is already verified by Cognito
                 const jwt = await import('jsonwebtoken');
-                const decodedToken = jwt.decode(idToken) as { sub?: string; email?: string } | null;
+                const decodedToken = jwt.decode(idToken) as { 
+                    sub?: string; 
+                    email?: string; 
+                    given_name?: string;
+                    family_name?: string;
+                    name?: string;
+                    preferred_username?: string;
+                } | null;
 
                 if (!decodedToken || !decodedToken.sub) {
                     throw new Error('Invalid ID token: missing sub claim');
                 }
 
                 const cognitoSub = decodedToken.sub;
+                const email = decodedToken.email;
+                const firstName = decodedToken.given_name;
+                const lastName = decodedToken.family_name;
+                const username = decodedToken.preferred_username;
 
                 // Get or create user in database
-                const user = await authService.getMe(cognitoSub);
+                // Pass email, username, firstName, and lastName from token to enable automatic user creation
+                const user = await authService.getMe(cognitoSub, username, email, firstName, lastName);
 
                 // Create cookies for tokens
                 const { createCookie } = await import('../../utils/response');
