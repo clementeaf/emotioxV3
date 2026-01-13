@@ -1,0 +1,149 @@
+service: emotioxv3-backend
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${env:AWS_REGION, 'us-east-1'}
+  stage: ${env:API_STAGE, 'dev'}
+  timeout: 60
+  memorySize: 1024
+  environment:
+    DB_HOST: ${ssm:/emotioxv3/${self:provider.stage}/DB_HOST}
+    DB_PORT: ${ssm:/emotioxv3/${self:provider.stage}/DB_PORT}
+    DB_NAME: ${ssm:/emotioxv3/${self:provider.stage}/DB_NAME}
+    DB_USER: ${ssm:/emotioxv3/${self:provider.stage}/DB_USER}
+    DB_SSL: ${ssm:/emotioxv3/${self:provider.stage}/DB_SSL}
+    APP_AWS_REGION: ${ssm:/emotioxv3/${self:provider.stage}/APP_AWS_REGION}
+    S3_BUCKET_NAME: ${ssm:/emotioxv3/${self:provider.stage}/S3_BUCKET_NAME}
+    CORS_ORIGIN: ${ssm:/emotioxv3/${self:provider.stage}/CORS_ORIGIN}
+    COGNITO_USER_POOL_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_USER_POOL_ID}
+    COGNITO_CLIENT_ID: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_CLIENT_ID}
+    COGNITO_DOMAIN: ${ssm:/emotioxv3/${self:provider.stage}/COGNITO_DOMAIN, ''}
+    # COGNITO_CLIENT_SECRET is loaded at runtime from SSM SecureString (not via Lambda env vars)
+    # API_BASE_URL and FRONTEND_URL are constructed from request context or SSM Parameter Store
+    SSM_PREFIX: /emotioxv3/${self:provider.stage}
+    SSM_REGION: ${env:AWS_REGION, 'us-east-1'}
+    # WebSocket API endpoint will be obtained from requestContext in WebSocket events
+    # For HTTP endpoints, it will be retrieved from outputs or SSM Parameter Store
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource:
+            - "arn:aws:s3:::${ssm:/emotioxv3/${self:provider.stage}/S3_BUCKET_NAME}/*"
+            - "arn:aws:s3:::emotioxv3-media-*/*"
+        - Effect: Allow
+          Action:
+            - cognito-idp:AdminGetUser
+            - cognito-idp:AdminSetUserPassword
+            - cognito-idp:AdminUpdateUserAttributes
+          Resource: "arn:aws:cognito-idp:${self:provider.region}:*:userpool/*"
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:AssignPrivateIpAddresses
+            - ec2:UnassignPrivateIpAddresses
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - "arn:aws:ssm:${self:provider.region}:${aws:accountId}:parameter/emotioxv3/${self:provider.stage}/*"
+        - Effect: Allow
+          Action:
+            - execute-api:ManageConnections
+          Resource: "arn:aws:execute-api:*:*:**/@connections/*"
+
+functions:
+  api:
+    handler: dist/handler.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors:
+            origins:
+              - http://localhost:12500
+              - http://localhost:12600
+              - http://localhost:3000
+              - http://localhost:5173
+              - http://localhost:5174
+              - https://research.useremotion.com
+              - https://participant.useremotion.com
+              - https://research.emotiox.org
+              - https://participant.emotiox.org
+              - https://d2mgq2ppntnjct.cloudfront.net
+              - https://d2am10cly7c9kf.cloudfront.net
+            headers:
+              - Content-Type
+              - Authorization
+              - Cookie
+              - Set-Cookie
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: true
+      - http:
+          path: /
+          method: ANY
+          cors:
+            origins:
+              - http://localhost:12500
+              - http://localhost:12600
+              - http://localhost:3000
+              - http://localhost:5173
+              - http://localhost:5174
+              - https://research.useremotion.com
+              - https://participant.useremotion.com
+              - https://research.emotiox.org
+              - https://participant.emotiox.org
+              - https://d2mgq2ppntnjct.cloudfront.net
+              - https://d2am10cly7c9kf.cloudfront.net
+            headers:
+              - Content-Type
+              - Authorization
+              - Cookie
+              - Set-Cookie
+              - X-Amz-Date
+              - X-Api-Key
+              - X-Amz-Security-Token
+            allowCredentials: true
+  monitor:
+    handler: dist/modules/monitor/handler.handleSocket
+    runtime: nodejs20.x
+    events:
+      - websocket:
+          route: $connect
+      - websocket:
+          route: $disconnect
+      - websocket:
+          route: $default
+
+plugins:
+  - serverless-domain-manager
+  - serverless-offline
+
+custom:
+  customDomain:
+    domainName: api.emotiox.org
+    basePath: ''
+    stage: ${self:provider.stage}
+    certificateArn: arn:aws:acm:us-east-1:041238861016:certificate/65f56f43-e4c5-480f-9002-a42f6f469b37
+    createRoute53Record: false
+    createRoute53IPv6Record: false
+    endpointType: 'regional'
+    securityPolicy: tls_1_2
+    apiType: rest
+    autoDomain: false
+
+# Note: After deployment, get the WebSocket API endpoint from AWS Console or CloudFormation
+# and save it to SSM Parameter Store: /emotioxv3/{stage}/WEBSOCKET_API_ENDPOINT
+# The endpoint format is: wss://{api-id}.execute-api.{region}.amazonaws.com/{stage}
+# You can find it in: AWS Console > API Gateway > WebSocket APIs > {your-api} > Details > WebSocket URL
