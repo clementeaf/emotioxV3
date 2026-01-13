@@ -51,26 +51,16 @@ const ensurePool = async (): Promise<Pool> => {
     if (poolPromise) return poolPromise;
 
     poolPromise = (async (): Promise<Pool> => {
-        // Load database config from SSM if not in environment or if password is missing
-        const needsSecrets = !process.env.DB_PASSWORD || process.env.DB_PASSWORD.trim().length === 0;
-        if (needsSecrets || !process.env.DB_HOST) {
-            const secrets = await getSecrets();
-            if (!process.env.DB_PASSWORD || process.env.DB_PASSWORD.trim().length === 0) {
-                process.env.DB_PASSWORD = secrets.dbPassword;
-            }
-            if (!process.env.DB_HOST && secrets.dbHost) {
-                process.env.DB_HOST = secrets.dbHost;
-            }
-            if (!process.env.DB_PORT && secrets.dbPort) {
-                process.env.DB_PORT = secrets.dbPort;
-            }
-            if (!process.env.DB_NAME && secrets.dbName) {
-                process.env.DB_NAME = secrets.dbName;
-            }
-            if (!process.env.DB_USER && secrets.dbUser) {
-                process.env.DB_USER = secrets.dbUser;
-            }
-        }
+        // Always load database config from SSM to ensure we use the correct values
+        // SSM is the source of truth, environment variables are fallback
+        const secrets = await getSecrets();
+        
+        // Always use SSM values if available, fallback to env vars
+        process.env.DB_PASSWORD = secrets.dbPassword || process.env.DB_PASSWORD || '';
+        process.env.DB_HOST = secrets.dbHost || process.env.DB_HOST || '';
+        process.env.DB_PORT = secrets.dbPort || process.env.DB_PORT || '5432';
+        process.env.DB_NAME = secrets.dbName || process.env.DB_NAME || '';
+        process.env.DB_USER = secrets.dbUser || process.env.DB_USER || '';
 
         const pool = new Pool({
             host: process.env.DB_HOST,
