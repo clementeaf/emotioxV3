@@ -64,7 +64,7 @@ const ensurePool = async (): Promise<Pool> => {
             password: process.env.DB_PASSWORD,
             max: 10,
             idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
+            connectionTimeoutMillis: 20000, // Increased from 10000 to 20000 for RDS cold starts
             query_timeout: 30000,
             statement_timeout: 30000,
             ssl: shouldUseSSL(),
