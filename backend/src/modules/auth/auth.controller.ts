@@ -58,7 +58,15 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
         // Build from request context (API Gateway)
         if (requestContext?.domainName) {
-            const protocol = requestContext.protocol || 'https';
+            // Determine protocol: check X-Forwarded-Proto header first, then requestContext
+            let protocol = 'https';
+            const forwardedProto = headers['X-Forwarded-Proto'] || headers['x-forwarded-proto'];
+            if (forwardedProto && (forwardedProto === 'http' || forwardedProto === 'https')) {
+                protocol = forwardedProto;
+            } else if (requestContext.protocol && requestContext.protocol !== 'HTTP/1.1') {
+                protocol = requestContext.protocol;
+            }
+            
             const domainName = requestContext.domainName;
             
             // Custom domains (like server.emotiox.org) don't include stage in path
