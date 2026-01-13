@@ -275,20 +275,20 @@ jobs:
           PY
 
           echo "Uploading runtime-config.json to frontend buckets..."
-          aws s3 cp runtime-config.json "s3://${RESEARCH_FRONTEND_S3_BUCKET}/runtime-config.json" \
+          aws s3 cp runtime-config.json "s3://${RESEARCH_FRONTEND_S3_BUCKET}/research-frontend/runtime-config.json" \
             --content-type "application/json" \
             --cache-control "no-store, max-age=0" \
             --metadata-directive REPLACE
-          aws s3 cp runtime-config.json "s3://${PARTICIPANT_FRONTEND_S3_BUCKET}/runtime-config.json" \
+          aws s3 cp runtime-config.json "s3://${PARTICIPANT_FRONTEND_S3_BUCKET}/participant-frontend/runtime-config.json" \
             --content-type "application/json" \
             --cache-control "no-store, max-age=0" \
             --metadata-directive REPLACE
 
           if [ -n "${RESEARCH_FRONTEND_CLOUDFRONT_ID:-}" ]; then
-            aws cloudfront create-invalidation --distribution-id "${RESEARCH_FRONTEND_CLOUDFRONT_ID}" --paths "/runtime-config.json"
+            aws cloudfront create-invalidation --distribution-id "${RESEARCH_FRONTEND_CLOUDFRONT_ID}" --paths "/research-frontend/runtime-config.json"
           fi
           if [ -n "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID:-}" ]; then
-            aws cloudfront create-invalidation --distribution-id "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID}" --paths "/runtime-config.json"
+            aws cloudfront create-invalidation --distribution-id "${PARTICIPANT_FRONTEND_CLOUDFRONT_ID}" --paths "/participant-frontend/runtime-config.json"
           fi
 
   workflow-success:

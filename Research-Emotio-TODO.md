@@ -83,6 +83,15 @@
   - [x] Agregar logging para debug cuando se reordena y cuando se guarda
   - [ ] Probar que al mover un módulo VOC hacia el final y guardar, no se produce error
 - [ ] Smart VOC - Pregunta de NPS: Ya no está el foco de Activo que se veía en VOC
+  - [ ] Verificar que cuando se hace clic en un módulo Smart VOC en la vista de Smart VOC Stage, se navega a `/research/${id}/builder/module/${moduleId}` (línea 494-506 en ResearchBuilderPage.tsx)
+  - [ ] Agregar handler onClick al div contenedor de SmartVOCModuleCard para navegar al módulo cuando se hace clic
+  - [ ] El handler debe usar navigate() para actualizar la URL a `/research/${id}/builder/module/${moduleId}`
+  - [ ] Verificar que el handler no interfiera con los elementos interactivos dentro del card (inputs, toggles, botones)
+  - [ ] Usar e.stopPropagation() en los elementos interactivos para evitar que el clic se propague al contenedor
+  - [ ] Verificar que el cursor cambia a pointer cuando se hace hover sobre el card para indicar que es clickeable
+  - [ ] Verificar que el foco de "Activo" (border-blue-400 shadow-md) aparece correctamente cuando activeModuleId === module.id
+  - [ ] Probar que al hacer clic en un módulo NPS, la URL se actualiza y el foco aparece
+  - [ ] Probar que al hacer clic en un módulo VOC, la URL se actualiza y el foco aparece (comportamiento esperado)
 - [ ] Smart VOC - Pregunta de NPS: Debe tener placeholder "En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?"
 - [ ] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC
 - [ ] Smart VOC - Pregunta de CES: Ya no está el foco de Activo que se veía en VOC

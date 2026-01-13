@@ -19,18 +19,17 @@ app.use(cors({
             'http://localhost:3000',
             'http://localhost:5173',
             'http://localhost:5174',
-            // Production origins (for testing)
-            'https://research.useremotion.com',
-            'https://participant.useremotion.com',
-            'https://research.emotiox.org',
-            'https://participant.emotiox.org',
-        ];
-        
+            // Production origins from environment
+            process.env.CORS_ORIGIN,
+            process.env.RESEARCH_FRONTEND_URL,
+            process.env.PARTICIPANT_FRONTEND_URL
+        ].filter(Boolean); // Remove undefined values
+
         // Allow requests with no origin (like mobile apps, curl, Postman)
         if (!origin) {
             return callback(null, true);
         }
-        
+
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -100,7 +99,7 @@ app.listen(PORT, () => {
     console.log('  GET  /public/research/:id');
     console.log('  GET  /cache/stats');
     console.log('  DELETE /cache/clear (admin)\n');
-    
+
     // Log cache stats every 5 minutes
     setInterval(() => {
         console.log(`Cache stats: ${cache.size()} entries`);

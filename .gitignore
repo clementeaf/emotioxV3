@@ -37,3 +37,22 @@ Thumbs.db
 # Local development
 *.local
 backend/runtime-config.json
+
+# Migration credentials (NEVER COMMIT)
+cefal_*.csv
+client_secret_*.json
+MIGRATION_CREDENTIALS.md
+migration-backups/
+*.dump
+*.pem
+*.key
+
+# Terraform
+infrastructure/.terraform/
+infrastructure/.terraform.lock.hcl
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl

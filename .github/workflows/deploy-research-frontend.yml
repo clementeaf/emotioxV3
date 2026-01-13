@@ -115,7 +115,7 @@ jobs:
                   if file == 'sw.js':
                       config['cache_control'] = 'no-cache, no-store, must-revalidate'
 
-                  s3_path = f"s3://{bucket}/{rel_path}"
+                  s3_path = f"s3://{bucket}/research-frontend/{rel_path}"
                   cmd = [
                       'aws', 's3', 'cp', file_path, s3_path,
                       '--content-type', config['content_type'],

@@ -50,10 +50,17 @@ interface ModuleDefinition {
             value: string;
             eligibility?: string;
         }>;
+        selectRange?: {
+            type: string;
+            predefined: string;
+            variant: string;
+        };
         fileUpload?: {
             maxSizeMB: number;
             acceptedFormats: string[];
             recommendedResolution?: string;
+            allowHitZones?: boolean;
+            allowParticipantSelection?: boolean;
         };
     }>;
 }
