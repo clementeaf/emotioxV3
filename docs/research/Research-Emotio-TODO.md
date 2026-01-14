@@ -97,8 +97,12 @@
   - [x] Actualizar placeholder en seed_smart_voc_modules_from_md.ts
   - [x] Crear script de migración update_nps_placeholder.ts para actualizar módulos existentes
   - [ ] Ejecutar script de migración en producción para actualizar módulos NPS existentes
-- [ ] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC
-- [ ] Smart VOC - Pregunta de CES: Ya no está el foco de Activo que se veía en VOC
+- [x] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC
+  - [x] La solución implementada para NPS aplica automáticamente a CSAT ya que todos los módulos Smart VOC usan el mismo componente SmartVOCModuleCard
+  - [x] El componente ya tiene isActive prop, handleCardClick para navegación, border-blue-400 shadow-md cuando está activo, cursor-pointer, y stopPropagation en elementos interactivos
+- [x] Smart VOC - Pregunta de CES: Ya no está el foco de Activo que se veía en VOC
+  - [x] La solución implementada para NPS aplica automáticamente a CES ya que todos los módulos Smart VOC usan el mismo componente SmartVOCModuleCard
+  - [x] El componente ya tiene isActive prop, handleCardClick para navegación, border-blue-400 shadow-md cuando está activo, cursor-pointer, y stopPropagation en elementos interactivos
 - [ ] Smart VOC - Pregunta de NEV: No se previsualizan las emociones/estados de ánimo
 - [ ] Smart VOC - Estado de foco: Solo aparece cuando uno selecciona la pregunta desde el navegador colapsable del costado izquierdo
 - [ ] Thank you: Inputs sin foco, como en casi todo el sistema
