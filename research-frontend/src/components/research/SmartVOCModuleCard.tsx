@@ -1,4 +1,5 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
 import { SmartVOCPreview } from './SmartVOCPreview';
@@ -28,6 +29,7 @@ interface SmartVOCModuleCardProps {
  */
 export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModuleCardProps>(
     ({ module, researchId, isActive = false }, ref) => {
+    const navigate = useNavigate();
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +89,16 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         setIsHidden(next);
     };
 
+    /**
+     * Handles clicking on the card to navigate to the module
+     * @param _e - Mouse event (unused, but needed for onClick handler)
+     */
+    const handleCardClick = (_e: React.MouseEvent<HTMLDivElement>): void => {
+        if (researchId) {
+            navigate(`/research/${researchId}/builder/module/${module.id}`);
+        }
+    };
+
     // Filter components for the editor: 
     // 1. Hide scale/range components if they have no options
     // 2. Explicitly hide scale/range components for NEV module (as it uses fixed 20 emotions)
@@ -108,7 +120,8 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         <div
             ref={cardRef}
             id={`module-${module.id}`}
-            className={`rounded-lg shadow-sm border bg-white transition-all pl-10 ${isActive ? 'border-blue-400 shadow-md' : 'border-gray-200'
+            onClick={handleCardClick}
+            className={`rounded-lg shadow-sm border bg-white transition-all pl-10 cursor-pointer ${isActive ? 'border-blue-400 shadow-md' : 'border-gray-200'
                 }`}
         >
             <div className="px-6 py-4 border-b border-gray-200 ">
@@ -119,23 +132,29 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                             <p className="text-sm text-gray-500 mt-1">{module.description}</p>
                         )}
                     </div>
-                    <div className="shrink-0 flex flex-col gap-2">
+                    <div className="shrink-0 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                         <Toggle
                             checked={isRequired}
-                            onChange={(e) => handleRequiredChange(Boolean(e.target.checked))}
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                handleRequiredChange(Boolean(e.target.checked));
+                            }}
                             label="Required"
                         />
                         {isLocalhost() && (
                             <Toggle
                                 checked={isHidden}
-                                onChange={(e) => handleHiddenChange(Boolean(e.target.checked))}
+                                onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleHiddenChange(Boolean(e.target.checked));
+                                }}
                                 label="Hide"
                             />
                         )}
                     </div>
                 </div>
             </div>
-            <div className="p-6">
+            <div className="p-6" onClick={(e) => e.stopPropagation()}>
                 {!isHidden && (
                     <>
                         <ModuleContentEditor
