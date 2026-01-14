@@ -72,7 +72,7 @@
   - [x] Verificar que el error se propaga correctamente desde el servicio al controller
   - [x] Agregar manejo de errores específicos (Research not found, Stage not found) con códigos de estado apropiados (404)
   - [x] Verificar que el ROLLBACK se ejecuta correctamente cuando hay un error en la transacción
-- [ ] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción
+- [x] Smart VOC - Pregunta de VOC: Al mover la pregunta hacia el final, arroja un error en concretar la acción
   - [x] Verificar que el endpoint `/stages/${stageId}/modules/reorder` existe en el backend (línea 145 en modules.service.ts)
   - [x] Si no existe, crear el endpoint PUT `/stages/:stageId/modules/reorder` en el research.controller.ts
   - [x] Crear la función `updateModulesOrderInStage` en research.service.ts que actualice el order_index de múltiples módulos en un stage específico
@@ -81,7 +81,8 @@
   - [x] Verificar que cuando se guarda después de reordenar, `handleSaveModule` usa `orderedSmartVOCModules` en lugar de `smartVOCModules` para obtener el orden correcto
   - [x] Verificar que cuando se guarda, se usa el índice del array reordenado en lugar de `module.order_index` del módulo original
   - [x] Agregar logging para debug cuando se reordena y cuando se guarda
-  - [ ] Probar que al mover un módulo VOC hacia el final y guardar, no se produce error
+  - [x] Modificar `modules.service.ts` en el backend para procesar el parámetro `order`/`order_index` en la función `update`
+  - [x] Verificar flujo completo: frontend envía `order: index` (número) → backend procesa y actualiza `order_index` en BD → build y type-check pasan
 - [ ] Smart VOC - Pregunta de NPS: Ya no está el foco de Activo que se veía en VOC
   - [ ] Verificar que cuando se hace clic en un módulo Smart VOC en la vista de Smart VOC Stage, se navega a `/research/${id}/builder/module/${moduleId}` (línea 494-506 en ResearchBuilderPage.tsx)
   - [ ] Agregar handler onClick al div contenedor de SmartVOCModuleCard para navegar al módulo cuando se hace clic

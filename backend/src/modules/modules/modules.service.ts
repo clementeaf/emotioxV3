@@ -19,9 +19,9 @@ export const create = async (researchId: string, data: Record<string, unknown>) 
 };
 
 export const update = async (moduleId: string, data: Record<string, unknown>) => {
-    const { name, description, config } = data;
+    const { name, description, config, order, order_index } = data;
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     if (name !== undefined) {
@@ -35,6 +35,10 @@ export const update = async (moduleId: string, data: Record<string, unknown>) =>
     if (config !== undefined) {
         updates.push(`config = $${paramIndex++}`);
         values.push(JSON.stringify(config));
+    }
+    if (order !== undefined || order_index !== undefined) {
+        updates.push(`order_index = $${paramIndex++}`);
+        values.push(order !== undefined ? order : order_index);
     }
 
     if (updates.length === 0) throw new Error('No fields to update');
