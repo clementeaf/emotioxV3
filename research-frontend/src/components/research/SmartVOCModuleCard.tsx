@@ -94,9 +94,15 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
      * @param _e - Mouse event (unused, but needed for onClick handler)
      */
     const handleCardClick = (_e: React.MouseEvent<HTMLDivElement>): void => {
-        if (researchId) {
-            navigate(`/research/${researchId}/builder/module/${module.id}`);
+        if (!researchId) {
+            console.error('[SmartVOCModuleCard] Cannot navigate: researchId is missing');
+            return;
         }
+        if (!module.id) {
+            console.error('[SmartVOCModuleCard] Cannot navigate: module.id is missing');
+            return;
+        }
+        navigate(`/research/${researchId}/builder/module/${module.id}`);
     };
 
     // Filter components for the editor: 
