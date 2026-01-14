@@ -103,7 +103,10 @@
 - [x] Smart VOC - Pregunta de CES: Ya no está el foco de Activo que se veía en VOC
   - [x] La solución implementada para NPS aplica automáticamente a CES ya que todos los módulos Smart VOC usan el mismo componente SmartVOCModuleCard
   - [x] El componente ya tiene isActive prop, handleCardClick para navegación, border-blue-400 shadow-md cuando está activo, cursor-pointer, y stopPropagation en elementos interactivos
-- [ ] Smart VOC - Pregunta de NEV: No se previsualizan las emociones/estados de ánimo
+- [x] Smart VOC - Pregunta de NEV: No se previsualizan las emociones/estados de ánimo
+  - [x] Actualizar SmartVOCPreview.tsx para mostrar las 20 emociones organizadas en 3 filas con sus colores
+  - [x] Implementar preview de emociones similar a EmotionSelector del participant frontend
+  - [x] Mostrar emociones positivas (verde claro), de atención (verde medio) y negativas (rojo claro)
 - [ ] Smart VOC - Estado de foco: Solo aparece cuando uno selecciona la pregunta desde el navegador colapsable del costado izquierdo
 - [ ] Thank you: Inputs sin foco, como en casi todo el sistema
 - [ ] Link Preview: El link generado de vista previa no funciona

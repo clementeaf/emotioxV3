@@ -226,12 +226,67 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                 );
             }
 
-            case 'NEV':
+            case 'NEV': {
+                // 20 emociones organizadas en 3 filas con sus colores (igual que en EmotionSelector)
+                const EMOTIONS: Array<Array<{ id: string; name: string; color: string }>> = [
+                    // Fila 1 - Emociones Positivas (7) - Verde Claro
+                    [
+                        { id: 'feliz', name: 'Feliz', color: '#86efac' },
+                        { id: 'satisfecho', name: 'Satisfecho', color: '#86efac' },
+                        { id: 'confiado', name: 'Confiado', color: '#86efac' },
+                        { id: 'valorado', name: 'Valorado', color: '#86efac' },
+                        { id: 'cuidado', name: 'Cuidado', color: '#86efac' },
+                        { id: 'seguro', name: 'Seguro', color: '#86efac' },
+                        { id: 'enfocado', name: 'Enfocado', color: '#86efac' },
+                    ],
+                    // Fila 2 - Emociones de Atención (6) - Verde Medio
+                    [
+                        { id: 'indulgente', name: 'Indulgente', color: '#bbf7d0' },
+                        { id: 'estimulado', name: 'Estimulado', color: '#bbf7d0' },
+                        { id: 'exploratorio', name: 'Exploratorio', color: '#bbf7d0' },
+                        { id: 'interesado', name: 'Interesado', color: '#bbf7d0' },
+                        { id: 'energico', name: 'Enérgico', color: '#bbf7d0' },
+                        { id: 'descontento', name: 'Descontento', color: '#bbf7d0' },
+                    ],
+                    // Fila 3 - Emociones Negativas (7) - Rojo Claro
+                    [
+                        { id: 'frustrado', name: 'Frustrado', color: '#fecaca' },
+                        { id: 'irritado', name: 'Irritado', color: '#fecaca' },
+                        { id: 'decepcion', name: 'Decepción', color: '#fecaca' },
+                        { id: 'estresado', name: 'Estresado', color: '#fecaca' },
+                        { id: 'infeliz', name: 'Infeliz', color: '#fecaca' },
+                        { id: 'desatendido', name: 'Desatendido', color: '#fecaca' },
+                        { id: 'apresurado', name: 'Apresurado', color: '#fecaca' },
+                    ],
+                ];
+
                 return (
-                    <div className="text-center text-xs text-gray-500 italic">
-                        Participants will select emotional values
+                    <div className="w-full space-y-2">
+                        {EMOTIONS.map((row, rowIndex) => (
+                            <div
+                                key={rowIndex}
+                                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5"
+                            >
+                                {row.map((emotion) => (
+                                    <div
+                                        key={emotion.id}
+                                        className="relative px-1 py-1.5 rounded-md border-2 text-[10px] sm:text-xs font-medium min-h-[36px] flex items-center justify-center text-center cursor-default"
+                                        style={{
+                                            backgroundColor: emotion.color,
+                                            borderColor: '#d1d5db',
+                                            color: '#1f2937',
+                                        }}
+                                    >
+                                        <span className="leading-tight break-words w-full">
+                                            {emotion.name}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 );
+            }
 
             case 'VOC':
                 return (
