@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -45,6 +45,7 @@ const isStageSingleModule = (stage: { name: string; stage_type?: string; modules
 export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarProps) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { moduleId } = useParams<{ moduleId?: string }>();
     const queryClient = useQueryClient();
     const toast = useToast();
     const logout = useAuthStore((state) => state.logout);
@@ -149,7 +150,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             // Check if the stage being deleted contains the active module
             const stageToDeleteData = activeResearch.stages?.find(s => s.id === stageToDelete.id);
             const modulesInStage = stageToDeleteData?.modules || [];
-            const activeModuleId = location.pathname.match(/\/module\/([^/]+)/)?.[1];
+            const activeModuleId = moduleId;
             const isActiveModuleInDeletedStage = activeModuleId && modulesInStage.some(m => m.id === activeModuleId);
             
             await researchService.deleteStage(activeResearch.id, stageToDelete.id);
@@ -248,7 +249,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         return null;
     }
 
-    const activeModuleId = location.pathname.match(/\/module\/([^/]+)/)?.[1];
+    const activeModuleId = moduleId;
     let activeModule: { id: string; name: string; stageId: string } | null = null;
     
     if (activeModuleId && activeResearch.stages) {
