@@ -111,5 +111,8 @@
   - [x] Cambiar de usar regex en location.pathname a useParams para obtener moduleId
   - [x] Esto hace que el componente sea más reactivo a los cambios de ruta cuando se hace clic en el card
   - [x] El activeModuleId ahora se obtiene directamente de useParams en lugar de location.pathname.match()
-- [ ] Thank you: Inputs sin foco, como en casi todo el sistema
+- [x] Thank you: Inputs sin foco, como en casi todo el sistema
+  - [x] Agregar estilos de foco visual (focus:ring-2 focus:ring-blue-500 focus:border-transparent) a Input.tsx
+  - [x] Agregar estilos de foco visual (focus:ring-2 focus:ring-blue-500 focus:border-transparent) a Textarea.tsx
+  - [x] Los inputs ahora muestran un anillo azul cuando tienen foco, consistente con el resto del sistema
 - [ ] Link Preview: El link generado de vista previa no funciona
