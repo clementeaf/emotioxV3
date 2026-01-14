@@ -92,7 +92,11 @@
   - [x] Verificar que el cursor cambia a pointer cuando se hace hover sobre el card para indicar que es clickeable
   - [x] Verificar que el foco de "Activo" (border-blue-400 shadow-md) aparece correctamente cuando activeModuleId === module.id
   - [x] Implementación completa: card clickeable, navegación funcional, stopPropagation en elementos interactivos, cursor pointer, foco visual implementado
-- [ ] Smart VOC - Pregunta de NPS: Debe tener placeholder "En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?"
+- [x] Smart VOC - Pregunta de NPS: Debe tener placeholder "En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?"
+  - [x] Actualizar placeholder en seed_nps_module.ts
+  - [x] Actualizar placeholder en seed_smart_voc_modules_from_md.ts
+  - [x] Crear script de migración update_nps_placeholder.ts para actualizar módulos existentes
+  - [ ] Ejecutar script de migración en producción para actualizar módulos NPS existentes
 - [ ] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC
 - [ ] Smart VOC - Pregunta de CES: Ya no está el foco de Activo que se veía en VOC
 - [ ] Smart VOC - Pregunta de NEV: No se previsualizan las emociones/estados de ánimo

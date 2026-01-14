@@ -30,7 +30,7 @@ async function seedNPSModule() {
                         label: 'Question',
                         placeholder: {
                             enabled: true,
-                            text: 'Type your question here...'
+                            text: 'En una escala del 0 al 10, ¿qué tan probable es que recomiendes [nuestra empresa/producto/servicio] a un amigo o familiar?'
                         },
                         required: true,
                         order: 1
