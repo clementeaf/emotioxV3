@@ -115,4 +115,8 @@
   - [x] Agregar estilos de foco visual (focus:ring-2 focus:ring-blue-500 focus:border-transparent) a Input.tsx
   - [x] Agregar estilos de foco visual (focus:ring-2 focus:ring-blue-500 focus:border-transparent) a Textarea.tsx
   - [x] Los inputs ahora muestran un anillo azul cuando tienen foco, consistente con el resto del sistema
-- [ ] Link Preview: El link generado de vista previa no funciona
+- [x] Link Preview: El link generado de vista previa no funciona
+  - [x] Agregar validación de URL antes de abrir en handleLinkPreview
+  - [x] Agregar verificación si window.open fue bloqueado por el navegador
+  - [x] Agregar mensajes de error informativos cuando la URL no se puede generar o abrir
+  - [x] Validar que la URL generada sea válida antes de intentar abrirla

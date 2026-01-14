@@ -266,8 +266,24 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
      */
     const handleLinkPreview = (): void => {
         const url = buildParticipantShareUrl();
-        if (!url) return;
-        window.open(url, '_blank', 'noopener,noreferrer');
+        if (!url || url.trim().length === 0) {
+            toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
+            console.error('[ResearchConfigurationModule] Cannot open preview: URL is empty or invalid');
+            return;
+        }
+        
+        try {
+            // Validate URL before opening
+            new URL(url);
+            const opened = window.open(url, '_blank', 'noopener,noreferrer');
+            if (!opened) {
+                toast.error('No se pudo abrir la ventana. Verifica que los pop-ups no estén bloqueados.');
+                console.error('[ResearchConfigurationModule] window.open was blocked by browser');
+            }
+        } catch (error) {
+            toast.error('La URL generada no es válida. Verifica la configuración.');
+            console.error('[ResearchConfigurationModule] Invalid URL generated:', url, error);
+        }
     };
 
     /**
