@@ -107,6 +107,9 @@
   - [x] Actualizar SmartVOCPreview.tsx para mostrar las 20 emociones organizadas en 3 filas con sus colores
   - [x] Implementar preview de emociones similar a EmotionSelector del participant frontend
   - [x] Mostrar emociones positivas (verde claro), de atención (verde medio) y negativas (rojo claro)
-- [ ] Smart VOC - Estado de foco: Solo aparece cuando uno selecciona la pregunta desde el navegador colapsable del costado izquierdo
+- [x] Smart VOC - Estado de foco: Solo aparece cuando uno selecciona la pregunta desde el navegador colapsable del costado izquierdo
+  - [x] Cambiar de usar regex en location.pathname a useParams para obtener moduleId
+  - [x] Esto hace que el componente sea más reactivo a los cambios de ruta cuando se hace clic en el card
+  - [x] El activeModuleId ahora se obtiene directamente de useParams en lugar de location.pathname.match()
 - [ ] Thank you: Inputs sin foco, como en casi todo el sistema
 - [ ] Link Preview: El link generado de vista previa no funciona

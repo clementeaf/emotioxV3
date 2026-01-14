@@ -22,7 +22,7 @@ import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, us
 import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 export const ResearchBuilderPage = () => {
-    const { id } = useParams<{ id: string }>();
+    const { id, moduleId } = useParams<{ id: string; moduleId?: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const toast = useToast();
@@ -33,8 +33,8 @@ export const ResearchBuilderPage = () => {
     // Type assertion para TypeScript
     const typedResearch = research as Research | null;
     const isSettings = location.pathname.endsWith('/settings');
-    const moduleMatch = location.pathname.match(/\/module\/([^/]+)/);
-    const activeModuleId = moduleMatch ? moduleMatch[1] : null;
+    // Use useParams for moduleId instead of regex for better reactivity
+    const activeModuleId = moduleId || null;
 
     const activeModule = activeModuleId && typedResearch && typedResearch.stages
         ? typedResearch.stages.flatMap((s: Stage) => s.modules || []).find((m: Module) => m.id === activeModuleId) || null
