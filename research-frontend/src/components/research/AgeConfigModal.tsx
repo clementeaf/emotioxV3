@@ -172,10 +172,10 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
 
   // 🎯 NUEVAS FUNCIONES PARA MANEJAR CUOTAS
   const handleAddQuota = () => {
-    // Solo permitir agregar cuotas para opciones que no están descalificando y que aún no tienen cuota
+    // Solo permitir agregar cuotas para opciones activas que no están descalificando y que aún no tienen cuota
     const agesWithQuotas = quotas.map(q => q.ageRange);
     const availableAges = ageOptions.filter(
-      option => !option.isDisqualifying && !agesWithQuotas.includes(option.label)
+      option => option.isEnabled && !option.isDisqualifying && !agesWithQuotas.includes(option.label)
     );
 
     if (availableAges.length === 0) {
@@ -466,11 +466,14 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                       const availableAges = ageOptions.filter(
                         option => option.isEnabled && !option.isDisqualifying && (!agesWithQuotas.includes(option.label) || option.label === quota.ageRange)
                       );
+                      const isOrphanQuota = quota.ageRange && !ageOptions.find(
+                        option => option.label === quota.ageRange && option.isEnabled
+                      );
 
                       return (
+                        <React.Fragment key={quota.id}>
                         <div
-                          key={quota.id}
-                          className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border"
+                          className={`flex items-center space-x-4 p-4 rounded-lg border ${isOrphanQuota ? 'bg-amber-50 border-amber-300' : 'bg-gray-50'}`}
                         >
                           <div className="flex-1 grid grid-cols-3 gap-4">
                             {/* Rango de edad */}
@@ -572,6 +575,12 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
                           <Trash2 size={16} />
                         </button>
                       </div>
+                      {isOrphanQuota && (
+                        <div className="mt-2 px-4 pb-2 text-sm text-amber-700">
+                          Este rango de edad está desactivado. Esta cuota no se aplicará hasta que el rango sea activado nuevamente.
+                        </div>
+                      )}
+                      </React.Fragment>
                       );
                     })}
                   </div>

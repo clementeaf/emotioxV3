@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -59,20 +59,16 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const [showQRModal, setShowQRModal] = useState(false);
     const [urlErrors, setUrlErrors] = useState<Record<string, string>>({});
 
-    const { validateUrl, extractParameters } = useUrlValidation();
+    const { validateUrl } = useUrlValidation();
     const toast = useToast();
 
 
     const demographics = (config.demographics || {}) as Record<string, any>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
     const backlinks = (config.backlinks || {}) as Record<string, string>;
-    const researchUrl = (config.researchUrl || '') as string;
     const participantLimit = (config.participantLimit || 50) as number;
     const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
     const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
-
-    // Extract URL parameters dynamically
-    const urlParameters = useMemo(() => extractParameters(researchUrl), [researchUrl, extractParameters]);
 
     /**
      * Loads participant base URL from /runtime-config.json when deployed (CloudFront).
@@ -167,45 +163,9 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     };
 
     /**
-     * Extracts a safe pathname/search/hash from a user-provided URL-like value.
-     * Accepts full URLs, host+path, or just path/query fragments.
-     * @param value - User-provided URL-like string (may omit protocol)
-     * @returns Parsed URL parts
-     */
-    const parseUrlParts = (value: string): { pathname: string; search: string; hash: string } => {
-        const trimmed = value.trim();
-        if (trimmed.length === 0) {
-            return { pathname: '/', search: '', hash: '' };
-        }
-
-        const normalizeForParsing = (input: string): string => {
-            if (input.startsWith('http://') || input.startsWith('https://')) {
-                return input;
-            }
-            // If it looks like it starts with a path, use a placeholder base.
-            if (input.startsWith('/')) {
-                return `https://placeholder.local${input}`;
-            }
-            // Try as host+path first.
-            return `https://${input}`;
-        };
-
-        try {
-            const u = new URL(normalizeForParsing(trimmed));
-            return { pathname: u.pathname || '/', search: u.search || '', hash: u.hash || '' };
-        } catch {
-            // Fallback: treat as a path fragment (e.g., "sysgd-jye746?respondent={your_id}")
-            const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-            const u = new URL(`https://placeholder.local${normalizedPath}`);
-            return { pathname: u.pathname || '/', search: u.search || '', hash: u.hash || '' };
-        }
-    };
-
-    /**
-     * Builds the participant-facing URL used for Preview/QR.
-     * If a custom Research URL is provided, it is used (with the participant base).
-     * Otherwise, falls back to /research/:id (legacy).
-     * @returns Full URL to open in participant app
+     * Builds the participant-facing URL for Preview/QR.
+     * Auto-generates URL based on environment: localhost or production.
+     * @returns Full URL to participant app with research ID
      */
     const buildParticipantShareUrl = (): string => {
         const baseUrl = resolveParticipantBaseUrl();
@@ -227,37 +187,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             base.protocol = 'https:';
         }
 
-        if (researchUrl && researchUrl.trim().length > 0) {
-            const parts = parseUrlParts(researchUrl);
-            const finalUrl = `${base.origin}${parts.pathname}${parts.search}${parts.hash}`;
-            // Validate URL before returning
-            try {
-                new URL(finalUrl);
-                return finalUrl;
-            } catch (error) {
-                console.error('[ResearchConfigurationModule] Invalid URL generated from researchUrl:', finalUrl, error);
-                // Fallback to researchId if URL is invalid
-                if (researchId) {
-                    return `${base.origin}/research/${researchId}`;
-                }
-                return '';
-            }
-        }
-
         if (!researchId) {
-            console.warn('[ResearchConfigurationModule] No researchId available for QR generation');
+            console.warn('[ResearchConfigurationModule] No researchId available for URL generation');
             return '';
         }
         
-        const finalUrl = `${base.origin}/research/${researchId}`;
-        // Validate URL before returning
-        try {
-            new URL(finalUrl);
-            return finalUrl;
-        } catch (error) {
-            console.error('[ResearchConfigurationModule] Invalid URL generated:', finalUrl, error);
-            return '';
-        }
+        return `${base.origin}/research/${researchId}`;
     };
 
     /**
@@ -283,36 +218,6 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         } catch (error) {
             toast.error('La URL generada no es válida. Verifica la configuración.');
             console.error('[ResearchConfigurationModule] Invalid URL generated:', url, error);
-        }
-    };
-
-    /**
-     * Copies the Research URL to clipboard with https:// prefix.
-     * @returns void
-     */
-    const handleCopyResearchUrl = async (): Promise<void> => {
-        const value = researchUrl.trim();
-        if (value.length === 0) return;
-        const fullUrl = value.startsWith('http://') || value.startsWith('https://') ? value : `https://${value}`;
-        try {
-            await navigator.clipboard.writeText(fullUrl);
-            toast.success('Research URL copied to clipboard');
-        } catch {
-            // Best-effort fallback
-            try {
-                const textarea = document.createElement('textarea');
-                textarea.value = fullUrl;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.focus();
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                toast.success('Research URL copied to clipboard');
-            } catch {
-                toast.error('Failed to copy URL to clipboard');
-            }
         }
     };
 
@@ -376,27 +281,6 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
-    const handleResearchUrlChange = (value: string) => {
-        // Validate URL if value is not empty
-        if (value.trim()) {
-            const { isValid, error } = validateUrl(value);
-            setUrlErrors(prev => ({
-                ...prev,
-                research: isValid ? '' : (error || 'Invalid URL'),
-            }));
-        } else {
-            setUrlErrors(prev => ({
-                ...prev,
-                research: '',
-            }));
-        }
-
-        onChange({
-            ...config,
-            researchUrl: value
-        });
-    };
-
     const handleParticipantLimitChange = (value: number) => {
         onChange({
             ...config,
@@ -442,7 +326,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                     }
                                     
                                     if (!isEnabled) {
-                                        handleDemographicChange(key, true);
+                                        handleDemographicChange(key, { enabled: true, validValues: [], disqualifications: [] });
                                     }
                                     
                                     setActiveConfigModal(key);
@@ -454,7 +338,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                     }
                                     
                                     if (!isEnabled) {
-                                        handleDemographicChange(key, true);
+                                        handleDemographicChange(key, { enabled: true, validValues: [], disqualifications: [] });
                                     }
                                     
                                     setActiveConfigModal(key);
@@ -462,16 +346,20 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
 
                                 const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
                                     e.stopPropagation();
-                                    handleDemographicChange(key, e.target.checked);
+                                    if (e.target.checked) {
+                                        handleDemographicChange(key, { enabled: true, validValues: [], disqualifications: [] });
+                                    } else {
+                                        handleDemographicChange(key, false);
+                                    }
                                 };
 
                                 return (
                                     <div 
                                         key={key} 
                                         onClick={handleRowClick}
-                                        className={`flex items-center justify-between p-3 border rounded-md cursor-pointer hover:bg-gray-50 transition-colors ${!demographicEnabled ? 'opacity-50' : ''}`}
+                                        className={`flex items-center justify-between p-3 border rounded-md transition-colors ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
                                     >
-                                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                        <label className={`flex items-center gap-2 text-sm ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                                             <input
                                                 type="checkbox"
                                                 checked={isEnabled}
@@ -481,7 +369,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                                 onClick={(e) => e.stopPropagation()}
                                             />
                                             <span 
-                                                className="capitalize cursor-pointer"
+                                                className={`capitalize ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                                                 onClick={handleLabelClick}
                                             >
                                                 {key === 'country' ? 'Country & Geography' :
@@ -636,24 +524,36 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                     <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-2">B. Research&apos;s link to share</h3>
                         <p className="text-xs text-gray-500 mb-4">
-                            Third-party invitation system should substitute your respondent id here parameter with individual respondent ID.
+                            Share this URL with participants. Third-party systems can append participant ID as a query parameter.
                         </p>
                     </div>
 
                     <div>
                         <label className="block text-sm text-gray-700 mb-2">Research URL</label>
                         <div className="flex gap-1 mb-2">
-                            <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
-                                https://
-                            </span>
                             <Input
-                                value={researchUrl}
-                                onChange={(e) => handleResearchUrlChange(e.target.value)}
-                                placeholder="www.useremotion.com/sysgd-jye746?respondent={your_id}"
-                                className="rounded-l-none"
-                                error={urlErrors.research}
+                                value={buildParticipantShareUrl()}
+                                readOnly
+                                className="bg-gray-50 cursor-default"
                             />
-                            <Button variant="ghost" size="sm" title="Copy" onClick={handleCopyResearchUrl}>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                title="Copy" 
+                                onClick={async () => {
+                                    const url = buildParticipantShareUrl();
+                                    if (!url) {
+                                        toast.error('No se pudo generar la URL.');
+                                        return;
+                                    }
+                                    try {
+                                        await navigator.clipboard.writeText(url);
+                                        toast.success('URL copiada al portapapeles');
+                                    } catch {
+                                        toast.error('Error al copiar la URL');
+                                    }
+                                }}
+                            >
                                 <Copy className="h-4 w-4" />
                             </Button>
                         </div>
@@ -678,33 +578,6 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 Generate QR
                             </Button>
                         </div>
-                    </div>
-                </div>
-
-                {/* C. Parameters */}
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-900 mb-2">C. Research&apos;s parameters detected</h3>
-                        <p className="text-xs text-gray-500 mb-4">
-                            Parameters detected in your research URL (use {'{parameter_name}'} in the URL above)
-                        </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                        {urlParameters.length > 0 ? (
-                            urlParameters.map((param) => (
-                                <span
-                                    key={param}
-                                    className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full"
-                                >
-                                    {param}
-                                </span>
-                            ))
-                        ) : (
-                            <p className="text-sm text-gray-500">
-                                No parameters detected. Use {'{parameter_name}'} in your URL to add dynamic parameters.
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>

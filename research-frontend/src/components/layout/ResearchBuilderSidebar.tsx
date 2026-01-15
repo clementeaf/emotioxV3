@@ -153,10 +153,11 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             const activeModuleId = moduleId;
             const isActiveModuleInDeletedStage = activeModuleId && modulesInStage.some(m => m.id === activeModuleId);
             
+            // 1. Critical operation (server)
             await researchService.deleteStage(activeResearch.id, stageToDelete.id);
             console.log('[ResearchBuilderSidebar] Stage deleted successfully');
             
-            // Remove the deleted stage from expandedStages
+            // 2. Local state update
             setExpandedStages(prev => {
                 const newSet = new Set(prev);
                 newSet.delete(stageToDelete.id);
@@ -169,13 +170,18 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 navigate(`/research/${activeResearch.id}/builder`);
             }
             
-            // Invalidate and refetch the research data
-            await invalidateActiveResearch(activeResearch.id);
-            await queryClient.refetchQueries({ queryKey: researchKeys.detail(activeResearch.id) });
-            
+            // 3. Notify user of success BEFORE cache refresh
             toast.success(`Stage "${stageToDelete.name}" deleted successfully`);
             setDeleteStageModalOpen(false);
             setStageToDelete(null);
+            
+            // 4. Cache synchronization (non-critical, can fail silently)
+            try {
+                await invalidateActiveResearch(activeResearch.id);
+                await queryClient.refetchQueries({ queryKey: researchKeys.detail(activeResearch.id) });
+            } catch (cacheError) {
+                console.warn('[ResearchBuilderSidebar] Cache refresh failed, data will sync on next navigation:', cacheError);
+            }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to delete stage';
             console.error('[ResearchBuilderSidebar] Error deleting stage:', error);

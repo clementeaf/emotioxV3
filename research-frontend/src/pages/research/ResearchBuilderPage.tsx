@@ -169,6 +169,11 @@ export const ResearchBuilderPage = () => {
 
                 await modulesService.updateModulesOrder(smartVOCStage.id, updates);
                 toast.success('Modules reordered successfully');
+                
+                // Invalidate and refetch research data to sync with backend
+                if (id) {
+                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+                }
             } catch (error) {
                 console.error('Error reordering modules:', error);
                 toast.error('Failed to save new order');
