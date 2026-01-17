@@ -14,7 +14,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({
     origin: function (origin, callback) {
         const allowedOrigins = [
-            'http://localhost:12500',  // research-frontend
+            'http://localhost:12800',  // research-frontend
+            'http://localhost:12500',  // research-frontend (legacy, mantener para compatibilidad)
             'http://localhost:12600',  // participant-frontend
             'http://localhost:3000',
             'http://localhost:5173',

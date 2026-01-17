@@ -8,7 +8,8 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
     // Incluye CloudFront URLs para research-frontend y participant-frontend
     const allowedOrigins = [
         // Development - Local
-        'http://localhost:12500',  // research-frontend local
+        'http://localhost:12800',  // research-frontend local (nuevo puerto)
+        'http://localhost:12500',  // research-frontend local (legacy, mantener para compatibilidad)
         'http://localhost:12600',  // participant-frontend local
         'http://localhost:3000',   // backend local / legacy
         'http://localhost:5173',   // vite default port
