@@ -5,7 +5,6 @@ import './index.css'
 import App from './App.tsx'
 import { configService } from './services/api/config.service'
 import apiClient from './services/api/client'
-import { useAuthStore } from './stores/auth.store'
 
 /**
  * Registra el Service Worker para caché offline
@@ -54,15 +53,12 @@ const BootstrapErrorScreen = (props: BootstrapErrorScreenProps): ReactElement =>
 // Initialize API configuration before rendering
 configService.init().then(async () => {
   apiClient.setBaseUrl(configService.getBaseUrl());
-  const path = typeof window !== 'undefined' ? window.location.pathname : '';
-  const shouldBootstrapAuth = path !== '/login' && path !== '/register';
-  if (shouldBootstrapAuth) {
-    await useAuthStore.getState().bootstrapSession();
-  }
 
   // Registrar Service Worker
   void registerServiceWorker();
   
+  // AuthProvider will handle bootstrapSession() via useEffect
+  // No need to call it here to avoid duplicate requests
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />

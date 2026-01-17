@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../stores/auth.store';
 
 /**
@@ -9,6 +9,8 @@ import { useAuthStore } from '../stores/auth.store';
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const bootstrapSession = useAuthStore((state) => state.bootstrapSession);
     const isLoading = useAuthStore((state) => state.isLoading);
+    const hasBootstrapped = useRef(false);
+
     // We only want to block rendering on the *initial* bootstrap
     // isLoading might be true for other reasons (login actions), so we might need a separate 'isBootstrapping' flag 
     // but looking at the store, isLoading is set to true during bootstrap.
@@ -18,7 +20,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // But for this specific requirement (prevent redirect on refresh), we MUST wait for bootstrapSession to finish.
 
     useEffect(() => {
-        bootstrapSession();
+        // Prevent duplicate calls in StrictMode (development)
+        // StrictMode runs effects twice, but we only want to bootstrap once
+        if (!hasBootstrapped.current) {
+            hasBootstrapped.current = true;
+            bootstrapSession();
+        }
     }, [bootstrapSession]);
 
     // Simple loading state for initial session check
