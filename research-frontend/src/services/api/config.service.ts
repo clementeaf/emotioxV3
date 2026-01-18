@@ -8,7 +8,8 @@ interface RuntimeConfig {
     apiBaseUrl: string;
 }
 
-const DEFAULT_LOCAL_API_BASE_URL = 'http://localhost:3000';
+// Backend production URL - Using API Gateway URL directly
+const DEFAULT_PRODUCTION_API_BASE_URL = 'https://3jczpvecma.execute-api.us-east-1.amazonaws.com/production';
 
 interface ApiEndpoints {
     auth: Record<string, string>;
@@ -81,17 +82,45 @@ class ConfigService {
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
         try {
-            const response = await fetch(`${baseUrl}/config`, {
+            const configUrl = `${baseUrl}/config`;
+            console.log('[ConfigService] Fetching config from:', configUrl);
+            
+            const response = await fetch(configUrl, {
                 signal: controller.signal,
             });
 
             if (!response.ok) {
+                const errorText = await response.text().catch(() => 'No error details');
+                console.error('[ConfigService] Config fetch failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    url: configUrl,
+                    error: errorText,
+                });
                 throw new Error(`Failed to fetch config: ${response.status} ${response.statusText}`);
             }
 
+            // Check content type to ensure we're getting JSON, not HTML
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('[ConfigService] Received non-JSON response from /config:', {
+                    url: configUrl,
+                    contentType,
+                    status: response.status,
+                    preview: text.substring(0, 500),
+                });
+                throw new Error(`Expected JSON from ${configUrl} but received ${contentType || 'unknown content type'}. The server may be returning HTML instead of JSON.`);
+            }
+
             const config = await response.json() as ApiConfig;
-            console.log('API configuration loaded:', config.version, config.environment);
+            console.log('[ConfigService] API configuration loaded:', config.version, config.environment);
             return config;
+        } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                throw new Error('Config fetch timeout after 10 seconds');
+            }
+            throw error;
         } finally {
             clearTimeout(timeoutId);
         }
@@ -99,26 +128,29 @@ class ConfigService {
 
     /**
      * Resolve the API base URL from environment or runtime config.
+     * Always uses AWS production backend (server.emotiox.org).
      * @returns API base URL without trailing slash
      */
     private async resolveApiBaseUrl(): Promise<string> {
-        // In dev (localhost), prefer runtime config to avoid stale VITE_API_URL values.
-        if (import.meta.env.DEV) {
-            const runtimeConfig = await this.fetchRuntimeConfigWithDevFallback();
-            return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
-        }
-
+        // Try environment variable first
         const envBaseUrl = this.getEnvApiBaseUrl();
         if (envBaseUrl) {
             return envBaseUrl;
         }
 
+        // In development, if no env var, use production URL directly
+        if (import.meta.env.DEV) {
+            return DEFAULT_PRODUCTION_API_BASE_URL;
+        }
+
+        // In production, try runtime-config.json
         const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
         return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
     }
 
     /**
      * Read API base URL from Vite env.
+     * Converts relative URLs (like /dev) to the production AWS URL.
      * @returns normalized base URL without trailing slash, or null if not set
      */
     private getEnvApiBaseUrl(): string | null {
@@ -130,26 +162,17 @@ class ConfigService {
         if (!trimmed) {
             return null;
         }
+
+        // If it's a relative URL (starts with /), it's likely a proxy path
+        // Since we're not using proxy, convert it to the production AWS URL
+        if (trimmed.startsWith('/')) {
+            console.warn('[ConfigService] Relative URL detected in VITE_API_URL, using production URL instead:', trimmed);
+            return DEFAULT_PRODUCTION_API_BASE_URL;
+        }
+
         return this.normalizeBaseUrl(trimmed);
     }
 
-    /**
-     * Load runtime configuration from the app's origin.
-     * This file can be injected/updated by deployment without rebuilding the frontend.
-     * @returns runtime config object
-     */
-    private async fetchRuntimeConfigWithDevFallback(): Promise<RuntimeConfig> {
-        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-        if (isLocalhost) {
-            const envBaseUrl = this.getEnvApiBaseUrl();
-            if (envBaseUrl) {
-                return { apiBaseUrl: envBaseUrl };
-            }
-            return { apiBaseUrl: DEFAULT_LOCAL_API_BASE_URL };
-        }
-
-        return await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
-    }
 
     private async fetchRuntimeConfigFromUrl(url: string): Promise<RuntimeConfig> {
         try {
@@ -160,6 +183,18 @@ class ConfigService {
                 throw new Error(
                     `API base URL is not configured. Provide /runtime-config.json or set VITE_API_URL. Failed to load: ${url} (${response.status} ${response.statusText})`
                 );
+            }
+
+            // Check content type to ensure we're getting JSON, not HTML
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('[ConfigService] Received non-JSON response:', {
+                    url,
+                    contentType,
+                    preview: text.substring(0, 200),
+                });
+                throw new Error(`Expected JSON but received ${contentType || 'unknown content type'}. The server may be returning HTML instead of JSON.`);
             }
 
             const data = await response.json() as unknown;

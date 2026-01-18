@@ -26,22 +26,15 @@ const injectCacheVersion = () => {
 export default defineConfig({
   plugins: [react(), injectCacheVersion()],
   server: {
-    port: 12500,
+    port: 12800,
     strictPort: true,
     hmr: {
       protocol: 'ws',
       host: 'localhost',
     },
-    proxy: {
-      '/dev': {
-        target: 'https://ro05auvmxc.execute-api.us-east-1.amazonaws.com',
-        changeOrigin: true,
-        secure: false,
-      },
-    },
   },
   preview: {
-    port: 12500,
+    port: 12800,
     strictPort: true,
   },
   css: {

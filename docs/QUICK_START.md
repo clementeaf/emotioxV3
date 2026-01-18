@@ -56,7 +56,7 @@ curl -X POST "${API_BASE_URL}/auth/register" \
 ```bash
 # research-frontend
 cd research-frontend
-npm run dev  # http://localhost:12500
+npm run dev  # http://localhost:12800
 
 # participant-frontend  
 cd participant-frontend

@@ -1,168 +1,137 @@
-// Service Worker para caché offline y mejor rendimiento
-// Dynamic cache version based on timestamp to ensure fresh deploys
-const CACHE_VERSION = '__CACHE_VERSION__'; // Will be replaced during build
-const CACHE_NAME = `emotiox-research-cache-${CACHE_VERSION}`;
-const RUNTIME_CACHE = `emotiox-research-runtime-${CACHE_VERSION}`;
+const CACHE_VERSION = '__CACHE_VERSION__';
+const CACHE_NAME = `app-shell-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
-// Instalar Service Worker
-self.addEventListener('install', (event) => {
-    // Skip waiting to activate immediately
-    self.skipWaiting();
-    console.log('Service Worker installing with cache version:', CACHE_VERSION);
-});
+self.addEventListener('install', (e) => self.skipWaiting());
 
-// Activar Service Worker
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames
-                    .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
-                    .map((name) => caches.delete(name))
-            );
-        })
+self.addEventListener('activate', (e) => {
+    e.waitUntil(
+        caches.keys().then((keys) =>
+            Promise.all(
+                keys.filter((k) => k !== CACHE_NAME && k !== RUNTIME_CACHE)
+                    .map((k) => caches.delete(k))
+            )
+        )
     );
     return self.clients.claim();
 });
 
-// Estrategia: Network First optimizada con cache inteligente
-self.addEventListener('fetch', (event) => {
-    // Only handle GET requests
-    if (event.request.method !== 'GET') {
-        return;
+self.addEventListener('fetch', (e) => {
+    if (e.request.method !== 'GET') return;
+
+    const url = new URL(e.request.url);
+    if (!['http:', 'https:'].includes(url.protocol)) return;
+
+    // Nunca cachear APIs externas
+    if (url.pathname.startsWith('/api/') ||
+        url.hostname.includes('execute-api') ||
+        url.hostname.includes('server.emotiox.org')) {
+        return e.respondWith(fetch(e.request));
     }
 
-    // Validate request scheme
-    try {
-        const requestUrl = new URL(event.request.url);
-        if (requestUrl.protocol !== 'http:' && requestUrl.protocol !== 'https:') {
-            return;
-        }
-    } catch (error) {
-        return;
+    // CRITICAL FIX: Verificar que el origen del cliente coincida con el origen del request
+    // Si el request es a portal.emotiox.org pero el cliente está en localhost, NO interceptar
+    const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    const isProductionDomain = url.hostname.includes('emotiox.org') || url.hostname.includes('useremotion.com');
+
+    // Si el request es a producción, NO interceptar (dejar que el navegador maneje la petición)
+    // Esto previene que un SW activo desde producción intercepte peticiones de localhost
+    if (isProductionDomain) {
+        return e.respondWith(fetch(e.request));
     }
 
-    const requestUrl = new URL(event.request.url);
-    const requestOrigin = requestUrl.origin;
-
-    // CRITICAL FIX: Skip external API domains - these should never be intercepted
-    const isExternalAPI = requestOrigin.includes('execute-api') || 
-                         requestOrigin.includes('server.emotiox.org') ||
-                         requestOrigin.includes('api.');
-    
-    if (isExternalAPI) {
-        // Let external API requests pass through without interception
-        return;
-    }
-
-    // CRITICAL FIX: Verify this is a same-origin request
-    // The service worker must only intercept requests from the same origin as the page
-    // Problem: If SW was registered from production (portal.emotiox.org) but page is localhost,
-    // we must not intercept localhost requests
-    // Solution: Check client origin and only intercept if it matches request origin
-    if (event.clientId) {
-        // Get client origin to verify it matches request origin
-        const clientPromise = self.clients.get(event.clientId);
-        
-        // Use event.respondWith with a promise that checks the client origin
-        // If origins don't match, we won't intercept (let the request pass through)
-        event.respondWith(
-            clientPromise.then((client) => {
+    // Si el request es a localhost, verificar que el cliente también esté en localhost
+    if (isLocalhost && e.clientId) {
+        e.respondWith(
+            self.clients.get(e.clientId).then((client) => {
                 if (client) {
                     try {
                         const clientUrl = new URL(client.url);
-                        const clientOrigin = clientUrl.origin;
-                        
-                        // If client origin doesn't match request origin, don't intercept
-                        // This prevents SW from production intercepting localhost requests
-                        if (clientOrigin !== requestOrigin) {
-                            // Return the original fetch - don't intercept
-                            return fetch(event.request);
+                        const clientIsLocalhost = clientUrl.hostname === 'localhost' || clientUrl.hostname === '127.0.0.1';
+                        const clientIsProduction = clientUrl.hostname.includes('emotiox.org') || clientUrl.hostname.includes('useremotion.com');
+
+                        // Si el cliente está en producción pero el request es a localhost, NO interceptar
+                        if (clientIsProduction && isLocalhost) {
+                            return fetch(e.request);
+                        }
+
+                        // Verificación adicional: orígenes deben coincidir
+                        if (clientUrl.origin !== url.origin) {
+                            return fetch(e.request);
                         }
                     } catch {
-                        // If URL parsing fails, continue with interception (fallback)
+                        // Si falla el parsing, continuar con interceptación (fallback)
                     }
                 }
-                
-                // Origins match (or no client) - proceed with normal interception logic
-                return handleRequest(event, requestUrl, requestOrigin);
+
+                // Orígenes coinciden - proceder con interceptación normal
+                return handleRequest(e, url);
             }).catch(() => {
-                // If we can't get client, proceed with interception (fallback)
-                return handleRequest(event, requestUrl, requestOrigin);
+                // Si no podemos obtener el cliente, proceder con interceptación (fallback)
+                return handleRequest(e, url);
             })
         );
-        return; // Exit early since we're handling the response above
+        return;
     }
-    
-    // No clientId (navigation request) - proceed with normal interception
-    handleRequest(event, requestUrl, requestOrigin);
+
+    // Sin clientId pero request es a localhost - proceder con interceptación
+    if (isLocalhost) {
+        e.respondWith(handleRequest(e, url));
+        return;
+    }
+
+    // Para cualquier otro caso, no interceptar
+    return e.respondWith(fetch(e.request));
 });
 
-/**
- * Handles the actual request interception logic
- * @param {FetchEvent} event - The fetch event
- * @param {URL} requestUrl - Parsed request URL
- * @param {string} requestOrigin - Request origin
- */
-function handleRequest(event, requestUrl, requestOrigin) {
-    // Don't cache API requests - let them pass through
-    if (event.request.url.includes('/api/')) {
-        return fetch(event.request);
-    }
-
-    const url = new URL(event.request.url);
-    const isAsset = url.pathname.match(/\.(js|css|mjs|json|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$/);
-    const isHTML = url.pathname.endsWith('.html') || url.pathname === '/';
-
-    // Network-first strategy for HTML to always get latest version
-    if (isHTML) {
-        return fetch(event.request)
-            .then((response) => {
-                // Cache the latest HTML for offline fallback
-                if (response.status === 200) {
-                    const responseToCache = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache).catch((error) => {
-                            console.debug('Cache put failed (non-critical):', error);
-                        });
-                    });
+function handleRequest(e, url) {
+    // HTML → network first + fallback a index.html
+    if (url.pathname === '/' || url.pathname.endsWith('.html')) {
+        return fetch(e.request)
+            .then((res) => {
+                // Cachear HTML exitoso para offline
+                if (res.ok) {
+                    const resClone = res.clone();
+                    caches.open(CACHE_NAME).then((cache) =>
+                        cache.put(e.request, resClone)
+                    );
                 }
-                return response;
+                return res;
             })
             .catch(() => {
-                // If fetch fails (offline), use cached version
-                return caches.match(event.request).then((cachedResponse) => {
-                    if (cachedResponse) {
-                        return cachedResponse;
-                    }
-                    // Use the request's origin to construct the index.html URL correctly
-                    const indexUrl = new URL('/index.html', requestOrigin);
-                    return caches.match(indexUrl.toString());
+                // Fallback: buscar en cache o index.html
+                return caches.match(e.request).then((cached) => {
+                    return cached || caches.match(new URL('/index.html', url.origin).toString());
                 });
             });
     }
-    // Network-first with cache fallback for assets
-    else if (isAsset) {
-        return fetch(event.request)
-            .then((response) => {
-                // Only cache successful responses
-                if (response.status === 200) {
-                    const responseToCache = response.clone();
-                    caches.open(RUNTIME_CACHE).then((cache) => {
-                        cache.put(event.request, responseToCache).catch((error) => {
-                            console.debug('Cache put failed (non-critical):', error);
-                        });
-                    });
+
+    // Assets → cache first + actualizar en background
+    return caches.match(e.request).then((cached) => {
+        if (cached) {
+            // Actualizar cache en background
+            fetch(e.request).then((res) => {
+                if (res.ok) {
+                    const resClone = res.clone();
+                    caches.open(RUNTIME_CACHE).then((cache) =>
+                        cache.put(e.request, resClone)
+                    );
                 }
-                return response;
-            })
-            .catch(() => {
-                // If fetch fails, try cache as fallback
-                return caches.match(event.request);
+            }).catch(() => {
+                // Ignorar errores de actualización en background
             });
-    }
-    // For other requests, just fetch without caching
-    else {
-        return fetch(event.request);
-    }
+            return cached;
+        }
+
+        // No hay cache - obtener de la red
+        return fetch(e.request).then((res) => {
+            if (res.ok) {
+                const resClone = res.clone();
+                caches.open(RUNTIME_CACHE).then((cache) =>
+                    cache.put(e.request, resClone)
+                );
+            }
+            return res;
+        });
+    });
 }

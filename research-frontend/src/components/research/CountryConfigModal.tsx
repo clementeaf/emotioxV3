@@ -1,5 +1,8 @@
 import { ChevronDown, ChevronRight, Edit2, Globe, Save, Search, Star, Target, Trash2, Users, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
+import { QuotasTab } from './demographic-config/QuotasTab';
+import { useQuotaManagement } from './demographic-config/useQuotaManagement';
+import type { BaseDemographicQuota } from './demographic-config/types';
 
 interface Country {
   id: string;
@@ -90,11 +93,26 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   const [continentSections, setContinentSections] = useState<ContinentSection[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCountry, setEditingCountry] = useState<string | null>(null);
-
-  // 🎯 NUEVOS ESTADOS PARA CUOTAS
-  const [quotas, setQuotas] = useState<CountryQuota[]>([]);
-  const [quotasEnabledState, setQuotasEnabledState] = useState(quotasEnabled);
   const [activeTab, setActiveTab] = useState<'options' | 'quotas'>('options');
+
+  // 🎯 USAR HOOK DE CUOTAS
+  const baseQuotas = useMemo(
+    () => initialQuotas.map(quota => ({
+      id: quota.id,
+      field: quota.country,
+      quota: quota.quota,
+      quotaType: quota.quotaType || 'absolute',
+      isActive: quota.isActive
+    } as BaseDemographicQuota<string>)),
+    [initialQuotas]
+  );
+
+  const quotaConfig = useQuotaManagement<BaseDemographicQuota<string>>(
+    baseQuotas,
+    quotasEnabled,
+    isOpen,
+    onQuotasToggle
+  );
 
   // Crear secciones de continentes con países
   const createContinentSections = useMemo(() => {
@@ -124,16 +142,8 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setContinentSections(createContinentSections);
-      // 🎯 INICIALIZAR CUOTAS con migración automática para retrocompatibilidad
-      const migratedQuotas = initialQuotas.map(quota => ({
-        ...quota,
-        // Migración: Si no tiene quotaType, asignar 'absolute' por defecto
-        quotaType: quota.quotaType || 'absolute'
-      }));
-      setQuotas(migratedQuotas);
-      setQuotasEnabledState(quotasEnabled);
     }
-  }, [isOpen, createContinentSections, initialQuotas, quotasEnabled]);
+  }, [isOpen, createContinentSections]);
 
   // Filtrar continentes y países por búsqueda
   const filteredSections = useMemo(() => {
@@ -193,8 +203,8 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
 
                 // Si se quita la prioridad, eliminar la cuota asociada
                 if (!newPriorityState) {
-                  setQuotas(prevQuotas =>
-                    prevQuotas.filter(quota => quota.country !== country.name)
+                  quotaConfig.setQuotas(prevQuotas =>
+                    prevQuotas.filter((quota: BaseDemographicQuota<string>) => quota.field !== country.name)
                   );
                 }
 
@@ -296,44 +306,15 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
       .filter(country => country.isPriority && !country.isDisqualifying);
   }, [continentSections]);
 
-  // 🎯 NUEVAS FUNCIONES PARA MANEJAR CUOTAS
-  const handleAddQuota = () => {
-    // Solo permitir agregar cuotas para países prioritarios que aún no tienen cuota
-    const countriesWithQuotas = quotas.map(q => q.country);
-    const availablePriorityCountries = priorityCountries.filter(
-      country => !countriesWithQuotas.includes(country.name)
-    );
-
-    if (availablePriorityCountries.length === 0) {
-      return; // No hay países prioritarios disponibles
-    }
-
-    const newQuota: CountryQuota = {
-      id: `quota-${Date.now()}`,
-      country: availablePriorityCountries[0].name,
-      quota: 1,
-      quotaType: 'absolute',
-      isActive: true
+  // 🎯 FUNCIONES DE MAPEO PARA CUOTAS
+  const mapBaseToCountryQuota = (quota: BaseDemographicQuota<string>): CountryQuota => {
+    return {
+      id: quota.id,
+      country: quota.field,
+      quota: quota.quota,
+      quotaType: quota.quotaType,
+      isActive: quota.isActive
     };
-    setQuotas(prev => [...prev, newQuota]);
-  };
-
-  const handleUpdateQuota = (id: string, field: keyof CountryQuota, value: any) => {
-    setQuotas(prev =>
-      prev.map(quota =>
-        quota.id === id ? { ...quota, [field]: value } : quota
-      )
-    );
-  };
-
-  const handleDeleteQuota = (id: string) => {
-    setQuotas(prev => prev.filter(quota => quota.id !== id));
-  };
-
-  const handleToggleQuotasEnabled = () => {
-    const newState = !quotasEnabledState;
-    setQuotasEnabledState(newState);
-    onQuotasToggle?.(newState);
   };
 
   const handleSave = () => {
@@ -354,8 +335,9 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
     onSave(validCountries, disqualifyingCountries, priorityCountries);
 
     // 🎯 GUARDAR CUOTAS SI ESTÁN HABILITADAS
-    if (quotasEnabledState && onQuotasSave) {
-      onQuotasSave(quotas);
+    if (quotaConfig.quotasEnabled && onQuotasSave) {
+      const countryQuotas = quotaConfig.quotas.map(mapBaseToCountryQuota);
+      onQuotasSave(countryQuotas);
     }
 
     onClose();
@@ -655,226 +637,50 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
             )}
           </>
         ) : (
-          <>
-            {/* 🎯 NUEVA SECCIÓN: CONFIGURACIÓN DE CUOTAS */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Sistema de Cuotas por País</h3>
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm text-gray-600">Habilitar cuotas</span>
-                  <button
-                    onClick={handleToggleQuotasEnabled}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${quotasEnabledState ? 'bg-blue-500' : 'bg-gray-300'
-                      }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${quotasEnabledState ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                    />
-                  </button>
-                </div>
+          <div className="p-6">
+            {priorityCountries.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Star className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <p className="font-medium mb-2">No hay países prioritarios seleccionados</p>
+                <p className="text-sm">Marca países como prioritarios en la pestaña "Opciones de País" para configurar sus cuotas</p>
               </div>
-
-              {quotasEnabledState ? (
-                <>
-                  {priorityCountries.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <Star className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <p className="font-medium mb-2">No hay países prioritarios seleccionados</p>
-                      <p className="text-sm">Marca países como prioritarios en la pestaña "Opciones de País" para configurar sus cuotas</p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-gray-600 mb-4">
-                        Configura cuotas específicas para los <strong>{priorityCountries.length} países prioritarios</strong> seleccionados.
-                        Cuando se alcance la cuota de un país, los participantes de ese país serán descalificados automáticamente.
-                      </p>
-
-                      {/* Lista de cuotas */}
-                      <div className="space-y-3 mb-4">
-                        {quotas.map((quota) => {
-                          const countriesWithQuotas = quotas.map(q => q.country);
-                          const availableCountries = priorityCountries.filter(
-                            country => !countriesWithQuotas.includes(country.name) || country.name === quota.country
-                          );
-
-                          return (
-                            <div
-                              key={quota.id}
-                              className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border"
-                            >
-                              <div className="flex-1 grid grid-cols-3 gap-4">
-                                {/* País */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    <Star size={14} className="inline text-purple-600 mr-1" fill="currentColor" />
-                                    País prioritario
-                                  </label>
-                                  <select
-                                    value={quota.country}
-                                    onChange={(e) => handleUpdateQuota(quota.id, 'country', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  >
-                                    <option value="">Seleccionar país</option>
-                                    {availableCountries.map(country => (
-                                      <option key={country.id} value={country.name}>
-                                        {country.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                {/* Tipo de cuota */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Tipo
-                                  </label>
-                                  <select
-                                    value={quota.quotaType}
-                                    onChange={(e) => {
-                                      const newType = e.target.value as 'absolute' | 'percentage';
-                                      handleUpdateQuota(quota.id, 'quotaType', newType);
-                                      // Si cambia a porcentaje y el valor es mayor a 100, ajustarlo
-                                      if (newType === 'percentage' && quota.quota > 100) {
-                                        handleUpdateQuota(quota.id, 'quota', 50);
-                                      }
-                                    }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  >
-                                    <option value="absolute">Número</option>
-                                    <option value="percentage">Porcentaje</option>
-                                  </select>
-                                </div>
-
-                                {/* Cuota */}
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    {quota.quotaType === 'percentage' ? 'Porcentaje (%)' : 'Cantidad'}
-                                  </label>
-                                  <div className="relative">
-                                    <input
-                                      type="number"
-                                      min={quota.quotaType === 'percentage' ? '0' : '1'}
-                                      max={quota.quotaType === 'percentage' ? '100' : undefined}
-                                      value={quota.quota}
-                                      onChange={(e) => {
-                                        let value = parseInt(e.target.value) || 1;
-                                        // Validar rangos según el tipo
-                                        if (quota.quotaType === 'percentage') {
-                                          value = Math.max(0, Math.min(100, value));
-                                        } else {
-                                          value = Math.max(1, value);
-                                        }
-                                        handleUpdateQuota(quota.id, 'quota', value);
-                                      }}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    {quota.quotaType === 'percentage' && (
-                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                                        %
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Estado activo/inactivo */}
-                              <div className="flex items-center space-x-2">
-                                <span className={`text-sm ${quota.isActive ? 'text-green-600' : 'text-gray-500'}`}>
-                                  {quota.isActive ? 'Activa' : 'Inactiva'}
-                                </span>
-                                <button
-                                  onClick={() => handleUpdateQuota(quota.id, 'isActive', !quota.isActive)}
-                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${quota.isActive ? 'bg-green-500' : 'bg-gray-300'
-                                    }`}
-                                >
-                                  <span
-                                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${quota.isActive ? 'translate-x-5' : 'translate-x-1'
-                                      }`}
-                                  />
-                                </button>
-                              </div>
-
-                              {/* Botón eliminar */}
-                              <button
-                                onClick={() => handleDeleteQuota(quota.id)}
-                                className="p-2 text-red-600 hover:text-red-800"
-                                title="Eliminar cuota"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Agregar nueva cuota */}
-                      <button
-                        onClick={handleAddQuota}
-                        disabled={quotas.length >= priorityCountries.length}
-                        className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-400 hover:text-purple-600 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-300 disabled:hover:text-gray-600"
-                        title={quotas.length >= priorityCountries.length ? 'Ya agregaste cuotas para todos los países prioritarios' : 'Agregar nueva cuota'}
-                      >
-                        <Star size={16} fill="currentColor" />
-                        <span>Agregar cuota para país prioritario</span>
-                      </button>
-
-                      {quotas.length >= priorityCountries.length && (
-                        <p className="text-center text-sm text-gray-500 mt-2">
-                          Has configurado cuotas para todos los países prioritarios
-                        </p>
-                      )}
-
-                      {/* Información sobre cuotas */}
-                      <div className="mt-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-purple-800 mb-2">
-                          <Star size={16} className="inline mr-1" fill="currentColor" />
-                          Cuotas para países prioritarios:
-                        </h4>
-                        <ul className="text-purple-700 text-sm space-y-1">
-                          <li>• Las cuotas solo se aplican a países marcados como prioritarios</li>
-                          <li>• Cada país puede tener su propia cuota (número absoluto o porcentaje)</li>
-                          <li>• <strong>Porcentajes:</strong> Se calculan sobre el total de participantes esperados</li>
-                          <li>• El sistema contará automáticamente los participantes que se registren por país</li>
-                          <li>• Cuando se alcance la cuota, nuevos participantes de ese país serán descalificados</li>
-                          <li>• <strong className="text-orange-800">⚠️ Países sin cuota asignada:</strong> Si un país prioritario no tiene cuota configurada, <strong>NO se le aplicará ningún límite</strong> y podrá recibir participantes sin restricción</li>
-                          <li>• Las cuotas inactivas no afectan la descalificación</li>
-                          <li>• Si quitas la prioridad de un país, su cuota se mantendrá pero no se aplicará</li>
-                        </ul>
-                      </div>
-                    </>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <Globe className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-gray-600 mb-4">Habilita el sistema de cuotas para configurar límites por país prioritario</p>
-
-                  {/* Mensaje informativo sobre caída natural */}
-                  <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-left max-w-2xl mx-auto">
-                    <h4 className="font-semibold text-amber-800 mb-2 flex items-center">
-                      <span className="mr-2">⚠️</span>
-                      Importante: Distribución por "caída natural"
-                    </h4>
-                    <p className="text-amber-700 text-sm space-y-2">
-                      <span className="block">
-                        Los <strong>filtros previos de país</strong> (países válidos y descalificantes) configurados en la pestaña
-                        "Opciones de País" <strong>seguirán activos</strong>.
-                      </span>
-                      <span className="block">
-                        Sin embargo, si <strong>no habilitas esta sección</strong>, la distribución de participantes
-                        <strong> dentro de los países válidos</strong> será por <strong>"caída natural"</strong> (orden de llegada),
-                        lo que <strong>no garantiza</strong> que se completen cuotas específicas por país.
-                      </span>
-                      <span className="block">
-                        Para asegurar una distribución controlada con cuotas específicas por país, habilita el sistema de cuotas dinámicas.
-                      </span>
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+            ) : (
+              <QuotasTab
+                options={priorityCountries.map(country => ({
+                  id: country.id,
+                  label: country.name,
+                  isQualified: true,
+                  isCustom: false
+                }))}
+                quotaConfig={quotaConfig}
+                quotasTitle="Sistema de Cuotas por País"
+                quotasDescription={`Configura cuotas específicas para los ${priorityCountries.length} países prioritarios seleccionados. Cuando se alcance la cuota de un país, los participantes de ese país serán descalificados automáticamente.`}
+                quotasInfoTitle="Cuotas para países prioritarios:"
+                quotasInfoItems={[
+                  'Las cuotas solo se aplican a países marcados como prioritarios',
+                  'Cada país puede tener su propia cuota (número absoluto o porcentaje)',
+                  'Porcentajes: Se calculan sobre el total de participantes esperados',
+                  'El sistema contará automáticamente los participantes que se registren por país',
+                  'Cuando se alcance la cuota, nuevos participantes de ese país serán descalificados',
+                  '⚠️ Países sin cuota asignada: Si un país prioritario no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
+                  'Las cuotas inactivas no afectan la descalificación',
+                  'Si quitas la prioridad de un país, su cuota se mantendrá pero no se aplicará'
+                ]}
+                quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por país prioritario"
+                quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+                quotasDisabledInfoText={[
+                  'Los filtros previos de país (países válidos y descalificantes) configurados en la pestaña "Opciones de País" seguirán activos.',
+                  'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los países válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por país.',
+                  'Para asegurar una distribución controlada con cuotas específicas por país, habilita el sistema de cuotas dinámicas.'
+                ]}
+                getAvailableOptions={(options) => options}
+                getQuotaFieldValue={(option) => option.label}
+                getQuotaFieldLabel={(field) => field}
+                fieldSelectLabel="País prioritario"
+                Icon={Globe}
+              />
+            )}
+          </div>
         )}
 
         {/* Botones de acción */}
