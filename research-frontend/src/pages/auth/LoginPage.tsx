@@ -45,8 +45,10 @@ export const LoginPage = () => {
     const handleGoogleLogin = async () => {
         try {
             const baseUrl = configService.getBaseUrl();
+            // Pass current origin as query parameter since browser doesn't send Origin header on navigation
+            const currentOrigin = encodeURIComponent(window.location.origin);
             // Redirect to Google OAuth endpoint
-            window.location.href = `${baseUrl}/auth/google`;
+            window.location.href = `${baseUrl}/auth/google?redirect_origin=${currentOrigin}`;
         } catch (error) {
             console.error('Error initiating Google login:', error);
         }

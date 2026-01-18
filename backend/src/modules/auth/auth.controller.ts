@@ -66,9 +66,9 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             } else if (requestContext.protocol && requestContext.protocol !== 'HTTP/1.1') {
                 protocol = requestContext.protocol;
             }
-            
+
             const domainName = requestContext.domainName;
-            
+
             // Custom domains (like server.emotiox.org) don't include stage in path
             // API Gateway URLs (like *.execute-api.*.amazonaws.com) do include stage
             if (domainName.includes('.execute-api.') || domainName.includes('.amazonaws.com')) {
@@ -94,14 +94,22 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
     };
 
     // Get frontend URL from SSM or use origin
-    const getFrontendUrl = async (): Promise<string> => {
+    const getFrontendUrl = async (overrideOrigin?: string | null): Promise<string> => {
+        // Use override origin if provided
+        const targetOrigin = overrideOrigin || origin;
+
         // First, try to use origin if available (most reliable)
-        if (origin) {
+        if (targetOrigin) {
+            // Keep localhost for development
+            if (targetOrigin.includes('localhost') || targetOrigin.includes('127.0.0.1')) {
+                return targetOrigin.replace(/\/$/, '');
+            }
+
             // If origin is a known frontend domain, use it
-            if (origin.includes('portal.emotiox.org') || origin.includes('app.emotiox.org') || 
-                origin.includes('research.emotiox.org') || origin.includes('participant.emotiox.org') ||
-                origin.includes('useremotion.com')) {
-                return origin.replace(/\/$/, '');
+            if (targetOrigin.includes('portal.emotiox.org') || targetOrigin.includes('app.emotiox.org') ||
+                targetOrigin.includes('research.emotiox.org') || targetOrigin.includes('participant.emotiox.org') ||
+                targetOrigin.includes('useremotion.com')) {
+                return targetOrigin.replace(/\/$/, '');
             }
         }
 
@@ -134,8 +142,8 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         }
 
         // Last resort: use origin if available, otherwise use production URL
-        if (origin) {
-            return origin.replace(/\/$/, '');
+        if (targetOrigin) {
+            return targetOrigin.replace(/\/$/, '');
         }
 
         // Default to production research frontend
@@ -238,11 +246,11 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 // Si el refresh token expiró o es inválido, devolver 401
                 const errorMessage = serviceError instanceof Error ? serviceError.message : 'Failed to refresh token';
                 const statusCode = (serviceError as Error & { statusCode?: number }).statusCode || 500;
-                
+
                 if (statusCode === 401 || errorMessage.includes('expired') || errorMessage.includes('invalid')) {
                     return error('Refresh token expired or invalid', 401, undefined, origin);
                 }
-                
+
                 return error(errorMessage, statusCode, undefined, origin);
             }
         }
@@ -331,9 +339,30 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             const encodedRedirectUri = encodeURIComponent(redirectUri);
 
             // Pass origin in state parameter so we can use it in callback
-            // Encode the origin to pass it through OAuth flow
-            const state = origin ? encodeURIComponent(origin) : '';
-            
+            // Priority: 1. redirect_origin query param (most reliable for browser navigation)
+            //           2. Origin header
+            //           3. Referer header
+            const queryParams = event.queryStringParameters || {};
+            let safeOrigin = queryParams.redirect_origin ? decodeURIComponent(queryParams.redirect_origin) : null;
+
+            if (!safeOrigin) {
+                safeOrigin = origin;
+            }
+
+            if (!safeOrigin) {
+                const referer = headers.Referer || headers.referer;
+                if (referer) {
+                    try {
+                        const refererUrl = new URL(referer);
+                        safeOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
+                    } catch (e) {
+                        // Invalid referer URL, ignore
+                    }
+                }
+            }
+
+            const state = safeOrigin ? encodeURIComponent(safeOrigin) : '';
+
             // Cognito Hosted UI URL with Google identity provider
             let cognitoUrl = `https://${cognitoDomain}/oauth2/authorize?` +
                 `identity_provider=Google&` +
@@ -341,7 +370,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 `response_type=CODE&` +
                 `client_id=${clientId}&` +
                 `scope=openid+email+profile`;
-            
+
             // Add state parameter if we have origin
             if (state) {
                 cognitoUrl += `&state=${state}`;
@@ -365,7 +394,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             const code = queryParams.code;
             const errorParam = queryParams.error;
             const state = queryParams.state;
-            
+
             // Try to get origin from state parameter (passed from initial OAuth request)
             // This is the most reliable way since Cognito redirects don't include Origin header
             let effectiveOrigin = origin;
@@ -376,7 +405,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                     console.warn('Failed to decode state parameter:', e);
                 }
             }
-            
+
             // Fallback: Try to get origin from Referer header if still not available
             if (!effectiveOrigin) {
                 const referer = headers.Referer || headers.referer;
@@ -394,7 +423,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 const errorDescription = queryParams.error_description || 'OAuth error';
                 // Redirect to frontend login page with error
                 // Use effectiveOrigin (from Origin or Referer) for getFrontendUrl
-                const frontendUrl = await getFrontendUrl();
+                const frontendUrl = await getFrontendUrl(effectiveOrigin);
                 return {
                     statusCode: 302,
                     headers: {
@@ -505,9 +534,9 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 // Decode ID token to get user info (without verification for now, will be verified by getMe)
                 // The ID token from Cognito is already verified by Cognito
                 const jwt = await import('jsonwebtoken');
-                const decodedToken = jwt.decode(idToken) as { 
-                    sub?: string; 
-                    email?: string; 
+                const decodedToken = jwt.decode(idToken) as {
+                    sub?: string;
+                    email?: string;
                     given_name?: string;
                     family_name?: string;
                     name?: string;
@@ -555,9 +584,25 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
                 // Redirect to frontend dashboard with success
                 // API Gateway requires multiValueHeaders for multiple Set-Cookie headers
-                const frontendUrl = await getFrontendUrl();
+                const frontendUrl = await getFrontendUrl(effectiveOrigin);
+
+                // For localhost, pass tokens in URL since cross-site cookies don't work with HTTP
+                // This is less secure but necessary for local development
+                const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
+                let redirectUrl = `${frontendUrl}/dashboard`;
+
+                if (isLocalhost) {
+                    // Pass tokens as URL parameters for localhost (will be captured by frontend)
+                    const params = new URLSearchParams();
+                    params.set('token', accessToken);
+                    if (refreshToken) {
+                        params.set('refreshToken', refreshToken);
+                    }
+                    redirectUrl = `${frontendUrl}/auth/callback?${params.toString()}`;
+                }
+
                 const responseHeaders: Record<string, string> = {
-                    'Location': `${frontendUrl}/dashboard`,
+                    'Location': redirectUrl,
                     'Access-Control-Allow-Origin': effectiveOrigin || origin || '*',
                     'Access-Control-Allow-Credentials': 'true',
                 };
@@ -569,6 +614,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 };
 
                 // Add cookies via multiValueHeaders for API Gateway
+                // For production (non-localhost), cookies will work properly
                 if (cookies.length > 0) {
                     response.multiValueHeaders = {
                         'Set-Cookie': cookies,
@@ -579,7 +625,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Failed to complete Google OAuth';
                 console.error('Google OAuth callback error:', err);
-                const frontendUrl = await getFrontendUrl();
+                const frontendUrl = await getFrontendUrl(effectiveOrigin);
                 return {
                     statusCode: 302,
                     headers: {

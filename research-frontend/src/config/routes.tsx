@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
+import { AuthCallbackPage } from '../pages/auth/AuthCallbackPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ErrorPage } from '../pages/ErrorPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
@@ -46,6 +47,12 @@ export const routesConfig: RouteConfig[] = [
         element: <RegisterPage />,
         layout: 'auth',
         errorBoundary: { context: 'auth', pageName: 'Register' },
+    },
+    {
+        path: '/auth/callback',
+        element: <AuthCallbackPage />,
+        layout: 'none',
+        errorBoundary: { context: 'auth', pageName: 'Auth Callback' },
     },
 
     // Public Admin Routes (No Auth)

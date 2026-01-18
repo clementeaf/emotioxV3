@@ -65,11 +65,15 @@ functions:
       - http:
           path: /{proxy+}
           method: ANY
-          cors: true
+      - http:
+          path: /{proxy+}
+          method: OPTIONS
       - http:
           path: /
           method: ANY
-          cors: true
+      - http:
+          path: /
+          method: OPTIONS
   monitor:
     handler: dist/modules/monitor/handler.handleSocket
     runtime: nodejs20.x
