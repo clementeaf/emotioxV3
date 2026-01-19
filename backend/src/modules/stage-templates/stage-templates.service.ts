@@ -26,6 +26,7 @@ export interface StageTemplateWithModules {
 }
 
 export const list = async (): Promise<StageTemplateWithModules[]> => {
+    // MySQL compatible: use subquery for JSON aggregation instead of FILTER
     const query = `
         SELECT 
             st.id,
@@ -36,25 +37,44 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
             st.created_at,
             st.updated_at,
             COALESCE(
-                json_agg(
-                    json_build_object(
-                        'id', mt.id,
-                        'name', mt.name,
-                        'description', mt.description,
-                        'display_order', stmt.display_order
-                    ) ORDER BY stmt.display_order
-                ) FILTER (WHERE mt.id IS NOT NULL),
-                '[]'
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', mt.id,
+                            'name', mt.name,
+                            'description', mt.description,
+                            'display_order', stmt.display_order
+                        )
+                        ORDER BY stmt.display_order
+                    )
+                    FROM stage_templates_module_templates stmt
+                    INNER JOIN module_templates mt ON stmt.module_template_id = mt.id
+                    WHERE stmt.stage_template_id = st.id AND mt.is_active = true
+                ),
+                JSON_ARRAY()
             ) as modules
         FROM stage_templates st
-        LEFT JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
-        LEFT JOIN module_templates mt ON stmt.module_template_id = mt.id AND mt.is_active = true
         WHERE st.is_active = true
-        GROUP BY st.id
         ORDER BY st.created_at DESC
     `;
     const result = await pool.query(query);
-    return result.rows as StageTemplateWithModules[];
+    
+    // Parse modules JSON if it's a string (MySQL may return JSON as string)
+    return result.rows.map((row: Record<string, unknown>) => {
+        let modules = row.modules;
+        if (typeof modules === 'string') {
+            try {
+                modules = JSON.parse(modules);
+            } catch (e) {
+                console.error('Error parsing modules JSON:', e);
+                modules = [];
+            }
+        }
+        return {
+            ...row,
+            modules: Array.isArray(modules) ? modules : []
+        };
+    }) as StageTemplateWithModules[];
 };
 
 export const create = async (data: StageTemplateData) => {
@@ -78,6 +98,7 @@ export const create = async (data: StageTemplateData) => {
 };
 
 export const getById = async (id: string): Promise<StageTemplateWithModules> => {
+    // MySQL compatible: use subquery for JSON aggregation instead of FILTER
     const query = `
         SELECT 
             st.id,
@@ -88,21 +109,24 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
             st.created_at,
             st.updated_at,
             COALESCE(
-                json_agg(
-                    json_build_object(
-                        'id', mt.id,
-                        'name', mt.name,
-                        'description', mt.description,
-                        'display_order', stmt.display_order
-                    ) ORDER BY stmt.display_order
-                ) FILTER (WHERE mt.id IS NOT NULL),
-                '[]'
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', mt.id,
+                            'name', mt.name,
+                            'description', mt.description,
+                            'display_order', stmt.display_order
+                        )
+                        ORDER BY stmt.display_order
+                    )
+                    FROM stage_templates_module_templates stmt
+                    INNER JOIN module_templates mt ON stmt.module_template_id = mt.id
+                    WHERE stmt.stage_template_id = st.id AND mt.is_active = true
+                ),
+                JSON_ARRAY()
             ) as modules
         FROM stage_templates st
-        LEFT JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
-        LEFT JOIN module_templates mt ON stmt.module_template_id = mt.id AND mt.is_active = true
         WHERE st.id = ? AND st.is_active = true
-        GROUP BY st.id
     `;
     const result = await pool.query(query, [id]);
 
@@ -110,7 +134,23 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
         throw new Error('Stage template not found');
     }
 
-    return result.rows[0] as StageTemplateWithModules;
+    const row = result.rows[0] as Record<string, unknown>;
+    
+    // Parse modules JSON if it's a string (MySQL may return JSON as string)
+    let modules = row.modules;
+    if (typeof modules === 'string') {
+        try {
+            modules = JSON.parse(modules);
+        } catch (e) {
+            console.error('Error parsing modules JSON:', e);
+            modules = [];
+        }
+    }
+
+    return {
+        ...row,
+        modules: Array.isArray(modules) ? modules : []
+    } as StageTemplateWithModules;
 };
 
 export const update = async (id: string, data: Partial<StageTemplateData>) => {
