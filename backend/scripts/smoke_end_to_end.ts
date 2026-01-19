@@ -36,7 +36,7 @@ const findModuleIds = async (researchId: string): Promise<SmokeModuleIds> => {
     const query = `
         SELECT id, name
         FROM modules
-        WHERE research_id = $1
+        WHERE research_id = ?
     `;
     const result = await pool.query(query, [researchId]);
     const rows = result.rows as Array<{ id: string; name: string }>;
@@ -64,39 +64,50 @@ const createSmokeResearch = async (): Promise<CreatedResearchContext> => {
     try {
         await client.query('BEGIN');
 
-        const userRes = await client.query(
-            `INSERT INTO users (email, cognito_sub, role)
-             VALUES ($1, $2, 'researcher')
-             ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-             RETURNING id`,
-            [`smoke_${Date.now()}@example.com`, `smoke-sub-${Date.now()}`]
-        );
-        const userId: string = userRes.rows[0].id as string;
+        // Generate unique IDs for MySQL (no RETURNING clause)
+        const smokeTime = Date.now();
+        const userEmail = `smoke_${smokeTime}@example.com`;
+        const cognitoSub = `smoke-sub-${smokeTime}`;
 
-        const researchRes = await client.query(
-            `INSERT INTO researches (user_id, name, description, status)
-             VALUES ($1, $2, $3, 'active')
-             RETURNING id`,
-            [userId, `Smoke Research ${Date.now()}`, 'CI smoke research']
-        );
-        const researchId: string = researchRes.rows[0].id as string;
-
-        const stagesRes = await client.query(
-            `INSERT INTO stages (research_id, name, description, order_index, stage_type)
-             VALUES
-               ($1, 'Smart VOC', 'Smoke stage', 1, 'module_collection'),
-               ($1, 'Cognitive Tasks', 'Smoke stage', 2, 'module_collection')
-             RETURNING id, name`,
-            [researchId]
+        // Check if user exists first, then insert or get existing
+        const existingUser = await client.query(
+            `SELECT id FROM users WHERE email = ?`,
+            [userEmail]
         );
 
-        const stageIdByName = new Map<string, string>();
-        (stagesRes.rows as Array<{ id: string; name: string }>).forEach((r) => stageIdByName.set(r.name, r.id));
-        const smartVocStageId = stageIdByName.get('Smart VOC');
-        const cognitiveStageId = stageIdByName.get('Cognitive Tasks');
-        if (!smartVocStageId || !cognitiveStageId) {
-            throw new Error('Failed to create smoke stages');
+        let userId: string;
+        if (existingUser.rows.length > 0) {
+            userId = existingUser.rows[0].id as string;
+        } else {
+            const userIdGenerated = `smoke-user-${smokeTime}`;
+            await client.query(
+                `INSERT INTO users (id, email, cognito_sub, role)
+                 VALUES (?, ?, ?, 'researcher')`,
+                [userIdGenerated, userEmail, cognitoSub]
+            );
+            userId = userIdGenerated;
         }
+
+        const researchId = `smoke-research-${smokeTime}`;
+        await client.query(
+            `INSERT INTO researches (id, user_id, name, description, status)
+             VALUES (?, ?, ?, ?, 'active')`,
+            [researchId, userId, `Smoke Research ${smokeTime}`, 'CI smoke research']
+        );
+
+        const smartVocStageId = `smoke-stage-smartvoc-${smokeTime}`;
+        const cognitiveStageId = `smoke-stage-cognitive-${smokeTime}`;
+
+        await client.query(
+            `INSERT INTO stages (id, research_id, name, description, order_index, stage_type)
+             VALUES (?, ?, 'Smart VOC', 'Smoke stage', 1, 'module_collection')`,
+            [smartVocStageId, researchId]
+        );
+        await client.query(
+            `INSERT INTO stages (id, research_id, name, description, order_index, stage_type)
+             VALUES (?, ?, 'Cognitive Tasks', 'Smoke stage', 2, 'module_collection')`,
+            [cognitiveStageId, researchId]
+        );
 
         const shortTextConfig = {
             structure: {
@@ -136,29 +147,35 @@ const createSmokeResearch = async (): Promise<CreatedResearchContext> => {
             },
         };
 
-        const modulesRes = await client.query(
-            `INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
-             VALUES
-               ($1, $2, 'Short Text', 'Smoke module', 1, false, $3::jsonb),
-               ($1, $4, 'Customer Satisfaction Score (CSAT)', 'Smoke module', 1, false, $5::jsonb),
-               ($1, $4, 'Net Emotional Value (NEV)', 'Smoke module', 2, false, $6::jsonb),
-               ($1, $4, 'Voice of Customer (VOC)', 'Smoke module', 3, false, $7::jsonb)
-             RETURNING id, name`,
-            [
-                researchId,
-                cognitiveStageId,
-                JSON.stringify(shortTextConfig),
-                smartVocStageId,
-                JSON.stringify(csatConfig),
-                JSON.stringify(nevConfig),
-                JSON.stringify(vocConfig),
-            ]
+        // Insert modules one by one for MySQL compatibility
+        const shortTextId = `smoke-module-shorttext-${smokeTime}`;
+        const csatId = `smoke-module-csat-${smokeTime}`;
+        const nevId = `smoke-module-nev-${smokeTime}`;
+        const vocId = `smoke-module-voc-${smokeTime}`;
+
+        await client.query(
+            `INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+             VALUES (?, ?, ?, 'Short Text', 'Smoke module', 1, false, ?)`,
+            [shortTextId, researchId, cognitiveStageId, JSON.stringify(shortTextConfig)]
         );
 
-        const moduleIdByName = new Map<string, string>();
-        (modulesRes.rows as Array<{ id: string; name: string }>).forEach((r) => moduleIdByName.set(r.name, r.id));
-        const shortTextId = moduleIdByName.get('Short Text');
-        if (!shortTextId) throw new Error('Failed to create Short Text module');
+        await client.query(
+            `INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+             VALUES (?, ?, ?, 'Customer Satisfaction Score (CSAT)', 'Smoke module', 1, false, ?)`,
+            [csatId, researchId, smartVocStageId, JSON.stringify(csatConfig)]
+        );
+
+        await client.query(
+            `INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+             VALUES (?, ?, ?, 'Net Emotional Value (NEV)', 'Smoke module', 2, false, ?)`,
+            [nevId, researchId, smartVocStageId, JSON.stringify(nevConfig)]
+        );
+
+        await client.query(
+            `INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+             VALUES (?, ?, ?, 'Voice of Customer (VOC)', 'Smoke module', 3, false, ?)`,
+            [vocId, researchId, smartVocStageId, JSON.stringify(vocConfig)]
+        );
 
         await client.query('COMMIT');
 
@@ -166,9 +183,9 @@ const createSmokeResearch = async (): Promise<CreatedResearchContext> => {
             researchId,
             moduleIds: {
                 shortText: shortTextId,
-                csat: moduleIdByName.get('Customer Satisfaction Score (CSAT)'),
-                nev: moduleIdByName.get('Net Emotional Value (NEV)'),
-                voc: moduleIdByName.get('Voice of Customer (VOC)'),
+                csat: csatId,
+                nev: nevId,
+                voc: vocId,
             },
         };
     } catch (err: unknown) {
@@ -187,7 +204,6 @@ const createSmokeResearch = async (): Promise<CreatedResearchContext> => {
 const main = async (): Promise<void> => {
     const configuredResearchId = process.env.RESEARCH_ID;
     const participantId = process.env.PARTICIPANT_ID ?? `smoke-${Date.now()}`;
-    const { default: pool } = await import('../src/config/database');
     const publicService = await import('../src/modules/public/public.service');
     const analyticsService = await import('../src/modules/analytics/analytics.service');
 
@@ -221,12 +237,15 @@ const main = async (): Promise<void> => {
     const moduleIds = configuredResearchId ? await findModuleIds(researchId) : context!.moduleIds;
     if (!moduleIds.shortText) exitWith('SMOKE FAIL: could not find "Short Text" module id', 1);
 
+    // TypeScript narrowing: after the check, shortText is guaranteed to be string
+    const shortTextModuleId: string = moduleIds.shortText;
+
     await publicService.saveParticipantResponses(researchId, {
         participantId,
-        moduleId: moduleIds.shortText,
+        moduleId: shortTextModuleId,
         responses: [
             {
-                moduleId: moduleIds.shortText,
+                moduleId: shortTextModuleId,
                 componentId: 'answer',
                 value: 'smoke text answer',
                 metadata: { timestamp: Date.now() },
@@ -284,7 +303,7 @@ const main = async (): Promise<void> => {
     }
 
     // 3) Analytics should see the cognitive text response
-    const textResults = await analyticsService.getTextResponses(researchId, moduleIds.shortText);
+    const textResults = await analyticsService.getTextResponses(researchId, shortTextModuleId);
     if (!textResults || typeof textResults.totalResponses !== 'number' || textResults.totalResponses < 1) {
         exitWith('SMOKE FAIL: analytics getTextResponses returned zero totalResponses', 1);
     }
@@ -305,5 +324,4 @@ main().catch((err: unknown) => {
     const message = err instanceof Error ? err.message : 'Unknown error';
     exitWith(`SMOKE FAIL: ${message}`, 1);
 });
-
 
