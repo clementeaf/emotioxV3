@@ -21,7 +21,7 @@ export const list = async (userId: string) => {
                rt.name as research_type_name
         FROM researches r
         LEFT JOIN research_types rt ON r.research_type_id = rt.id
-        WHERE r.user_id = ? AND r.deleted_at IS NULL
+        WHERE r.created_by = ? AND r.deleted_at IS NULL
         ORDER BY r.created_at DESC
       `;
         console.log('[Research Service] Executing query with userId:', userId);
@@ -93,7 +93,7 @@ export const create = async (userId: string, data: ResearchData) => {
         // MySQL uses 'config' instead of 'settings'
         const researchId = crypto.randomUUID();
         const researchQuery = `
-      INSERT INTO researches (id, user_id, name, description, research_type_id, research_technique_id, enterprise_id, config, status, created_at)
+      INSERT INTO researches (id, created_by, name, description, research_type_id, research_technique_id, enterprise_id, config, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', NOW())
     `;
         await client.query(researchQuery, [
@@ -789,7 +789,7 @@ export const update = async (researchId: string, userId: string, data: Partial<R
     const query = `
     UPDATE researches
     SET ${updates.join(', ')}
-    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
   `;
 
     const result = await pool.query(query, values);
@@ -827,7 +827,7 @@ export const updateStatus = async (researchId: string, userId: string, status: s
     const query = `
     UPDATE researches
     SET status = ?
-    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [status, researchId, userId]);
 
@@ -854,7 +854,7 @@ export const activate = async (researchId: string, userId: string) => {
     const query = `
     UPDATE researches
     SET status = 'active', updated_at = CURRENT_TIMESTAMP
-    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
 
@@ -878,7 +878,7 @@ export const deleteResearch = async (researchId: string, userId: string) => {
     const query = `
     UPDATE researches
     SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted'
-    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
 
@@ -908,7 +908,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
@@ -1041,7 +1041,7 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
@@ -1144,7 +1144,7 @@ export const updateModulesOrderInStage = async (
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
         if (researchCheck.rows.length === 0) {
@@ -1200,7 +1200,7 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
