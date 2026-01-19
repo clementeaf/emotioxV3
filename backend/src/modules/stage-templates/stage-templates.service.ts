@@ -13,7 +13,6 @@ export interface StageTemplateWithModules {
     id: string;
     name: string;
     description: string | null;
-    created_by: string | null;
     is_active: boolean;
     stage_type: StageType;
     created_at: Date;
@@ -32,7 +31,6 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
             st.id,
             st.name,
             st.description,
-            st.created_by,
             st.is_active,
             st.stage_type,
             st.created_at,
@@ -62,14 +60,21 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
 export const create = async (data: StageTemplateData) => {
     const { name, description, created_by, stage_type = 'module_collection' } = data;
 
+    // MySQL compatible: pre-generate UUID and no RETURNING
+    const stageTemplateId = crypto.randomUUID();
     const query = `
-        INSERT INTO stage_templates (name, description, created_by, stage_type)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, name, description, created_by, is_active, stage_type, created_at
+        INSERT INTO stage_templates (id, name, description, stage_type)
+        VALUES (?, ?, ?, ?)
     `;
 
-    const result = await pool.query(query, [name, description, created_by || null, stage_type]);
-    return result.rows[0];
+    await pool.query(query, [stageTemplateId, name, description, stage_type]);
+    
+    // Fetch created record
+    const selectResult = await pool.query(
+        'SELECT id, name, description, is_active, stage_type, created_at FROM stage_templates WHERE id = ?',
+        [stageTemplateId]
+    );
+    return selectResult.rows[0];
 };
 
 export const getById = async (id: string): Promise<StageTemplateWithModules> => {
@@ -78,7 +83,6 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
             st.id,
             st.name,
             st.description,
-            st.created_by,
             st.is_active,
             st.stage_type,
             st.created_at,
@@ -97,7 +101,7 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
         FROM stage_templates st
         LEFT JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
         LEFT JOIN module_templates mt ON stmt.module_template_id = mt.id AND mt.is_active = true
-        WHERE st.id = $1 AND st.is_active = true
+        WHERE st.id = ? AND st.is_active = true
         GROUP BY st.id
     `;
     const result = await pool.query(query, [id]);
@@ -112,16 +116,16 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
 export const update = async (id: string, data: Partial<StageTemplateData>) => {
     const { name, description } = data;
 
+    // MySQL compatible: use ? placeholders
     const updates: string[] = [];
     const values: Array<string | null | undefined> = [];
-    let paramIndex = 1;
 
     if (name !== undefined) {
-        updates.push(`name = $${paramIndex++}`);
+        updates.push('name = ?');
         values.push(name);
     }
     if (description !== undefined) {
-        updates.push(`description = $${paramIndex++}`);
+        updates.push('description = ?');
         values.push(description);
     }
 
@@ -129,35 +133,39 @@ export const update = async (id: string, data: Partial<StageTemplateData>) => {
         throw new Error('No fields to update');
     }
 
-    updates.push(`updated_at = NOW()`);
+    updates.push('updated_at = NOW()');
     values.push(id);
 
     const query = `
         UPDATE stage_templates
         SET ${updates.join(', ')}
-        WHERE id = $${paramIndex} AND is_active = true
-        RETURNING id, name, description, is_active, updated_at
+        WHERE id = ? AND is_active = true
     `;
 
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Stage template not found');
     }
 
-    return result.rows[0];
+    // Fetch updated record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query(
+        'SELECT id, name, description, is_active, updated_at FROM stage_templates WHERE id = ?',
+        [id]
+    );
+    return selectResult.rows[0];
 };
 
 export const deleteTemplate = async (id: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
         UPDATE stage_templates
         SET is_active = false
-        WHERE id = $1
-        RETURNING id
+        WHERE id = ?
     `;
     const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Stage template not found');
     }
 
@@ -167,29 +175,34 @@ export const deleteTemplate = async (id: string) => {
 export const addModule = async (stageId: string, moduleId: string, displayOrder?: number) => {
     const order = displayOrder ?? 0;
 
+    // MySQL compatible: use ON DUPLICATE KEY UPDATE instead of ON CONFLICT
     const query = `
         INSERT INTO stage_templates_module_templates 
         (stage_template_id, module_template_id, display_order)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (stage_template_id, module_template_id) 
-        DO UPDATE SET display_order = $3
-        RETURNING *
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE display_order = ?
     `;
 
-    const result = await pool.query(query, [stageId, moduleId, order]);
-    return result.rows[0];
+    await pool.query(query, [stageId, moduleId, order, order]);
+    
+    // Fetch inserted/updated record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query(
+        'SELECT * FROM stage_templates_module_templates WHERE stage_template_id = ? AND module_template_id = ?',
+        [stageId, moduleId]
+    );
+    return selectResult.rows[0];
 };
 
 export const removeModule = async (stageId: string, moduleId: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
         DELETE FROM stage_templates_module_templates
-        WHERE stage_template_id = $1 AND module_template_id = $2
-        RETURNING *
+        WHERE stage_template_id = ? AND module_template_id = ?
     `;
 
     const result = await pool.query(query, [stageId, moduleId]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Module not found in this stage');
     }
 

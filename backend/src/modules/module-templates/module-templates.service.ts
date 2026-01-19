@@ -13,7 +13,7 @@ export const list = async () => {
         CacheKeys.MODULE_TEMPLATES_LIST,
         async () => {
             const query = `
-            SELECT id, name, description, structure, created_by, is_active, created_at, updated_at
+            SELECT id, name, description, structure, is_active, created_at, updated_at
             FROM module_templates
             WHERE is_active = true
             ORDER BY created_at DESC
@@ -28,23 +28,29 @@ export const list = async () => {
 export const create = async (data: ModuleTemplateData) => {
     const { name, description, structure = [], created_by } = data;
 
+    // MySQL compatible: pre-generate UUID and no RETURNING
+    const templateId = crypto.randomUUID();
     const query = `
-    INSERT INTO module_templates (name, description, structure, created_by)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, name, description, structure, created_by, is_active, created_at
+    INSERT INTO module_templates (id, name, description, structure)
+    VALUES (?, ?, ?, ?)
   `;
 
-    const result = await pool.query(query, [
+    await pool.query(query, [
+        templateId,
         name,
         description,
-        JSON.stringify(structure),
-        created_by
+        JSON.stringify(structure)
     ]);
     
     // Invalidate cache
     cache.delete(CacheKeys.MODULE_TEMPLATES_LIST);
 
-    return result.rows[0];
+    // Fetch created record
+    const selectResult = await pool.query(
+        'SELECT id, name, description, structure, is_active, created_at FROM module_templates WHERE id = ?',
+        [templateId]
+    );
+    return selectResult.rows[0];
 };
 
 export const getById = async (id: string) => {
@@ -54,9 +60,9 @@ export const getById = async (id: string) => {
         cacheKey,
         async () => {
             const query = `
-            SELECT id, name, description, structure, created_by, is_active, created_at, updated_at
+            SELECT id, name, description, structure, is_active, created_at, updated_at
             FROM module_templates
-            WHERE id = $1 AND is_active = true
+            WHERE id = ? AND is_active = true
           `;
             const result = await pool.query(query, [id]);
 
@@ -77,16 +83,17 @@ export const update = async (id: string, data: Partial<ModuleTemplateData>) => {
     const values: any[] = [];
     let paramIndex = 1;
 
+    // MySQL compatible: use ? placeholders
     if (name !== undefined) {
-        updates.push(`name = $${paramIndex++}`);
+        updates.push('name = ?');
         values.push(name);
     }
     if (description !== undefined) {
-        updates.push(`description = $${paramIndex++}`);
+        updates.push('description = ?');
         values.push(description);
     }
     if (structure !== undefined) {
-        updates.push(`structure = $${paramIndex++}`);
+        updates.push('structure = ?');
         values.push(JSON.stringify(structure));
     }
 
@@ -99,13 +106,12 @@ export const update = async (id: string, data: Partial<ModuleTemplateData>) => {
     const query = `
     UPDATE module_templates
     SET ${updates.join(', ')}
-    WHERE id = $${paramIndex} AND is_active = true
-    RETURNING id, name, description, structure, is_active, updated_at
+    WHERE id = ? AND is_active = true
   `;
 
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Module template not found');
     }
     
@@ -113,19 +119,24 @@ export const update = async (id: string, data: Partial<ModuleTemplateData>) => {
     cache.delete(CacheKeys.MODULE_TEMPLATES_LIST);
     cache.delete(`${CacheKeys.MODULE_TEMPLATE}:${id}`);
 
-    return result.rows[0];
+    // Fetch updated record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query(
+        'SELECT id, name, description, structure, is_active, updated_at FROM module_templates WHERE id = ?',
+        [id]
+    );
+    return selectResult.rows[0];
 };
 
 export const deleteTemplate = async (id: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE module_templates
     SET is_active = false
-    WHERE id = $1
-    RETURNING id
+    WHERE id = ?
   `;
     const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Module template not found');
     }
     
@@ -141,7 +152,7 @@ export const getUsage = async (id: string) => {
         // First check if the template exists
         const templateQuery = `
             SELECT id FROM module_templates
-            WHERE id = $1 AND is_active = true
+            WHERE id = ? AND is_active = true
         `;
         const templateResult = await pool.query(templateQuery, [id]);
         
@@ -163,7 +174,7 @@ export const getUsage = async (id: string) => {
                 FROM stage_templates st
                 INNER JOIN stage_templates_module_templates stmt ON st.id = stmt.stage_template_id
                 WHERE st.name = s.name 
-                  AND stmt.module_template_id = $1
+                  AND stmt.module_template_id = ?
             )
             ORDER BY r.created_at DESC
         `;
