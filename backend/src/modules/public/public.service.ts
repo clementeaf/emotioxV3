@@ -218,7 +218,7 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
         try {
           // Step 1: Get all stages for this research
           const stagesQuery = `
-            SELECT id, name, description, display_order as order_index, type as stage_type
+            SELECT id, name, description, display_order as order_index, stage_type
             FROM stages
             WHERE research_id = ?
             ORDER BY display_order

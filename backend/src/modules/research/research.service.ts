@@ -645,7 +645,7 @@ export const getById = async (researchId: string, userId: string) => {
     // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
     // Step 1: Get all stages
     const stagesQuery = `
-      SELECT id, name, description, display_order as order_index, type as stage_type
+      SELECT id, name, description, display_order as order_index, stage_type
       FROM stages
       WHERE research_id = ?
       ORDER BY display_order
