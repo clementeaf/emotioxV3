@@ -11,9 +11,8 @@ export const list = async () => {
         CacheKeys.RESEARCH_TECHNIQUES_LIST,
         async () => {
             const query = `
-            SELECT id, name, description, created_by, is_active, created_at, updated_at
+            SELECT id, name, description, created_at, updated_at
             FROM research_techniques
-            WHERE is_active = true
             ORDER BY name
           `;
             const result = await pool.query(query);
@@ -30,9 +29,9 @@ export const getById = async (id: string) => {
         cacheKey,
         async () => {
             const query = `
-            SELECT id, name, description, created_by, is_active, created_at, updated_at
+            SELECT id, name, description, created_at, updated_at
             FROM research_techniques
-            WHERE id = $1
+            WHERE id = ?
           `;
             const result = await pool.query(query, [id]);
 
@@ -49,17 +48,23 @@ export const getById = async (id: string) => {
 export const create = async (data: ResearchTechniqueData, createdBy: string) => {
     const { name, description } = data;
 
+    // MySQL compatible: pre-generate UUID and no RETURNING
+    const techniqueId = crypto.randomUUID();
     const query = `
-    INSERT INTO research_techniques (name, description, created_by)
-    VALUES ($1, $2, $3)
-    RETURNING id, name, description, created_by, is_active, created_at, updated_at
+    INSERT INTO research_techniques (id, name, description)
+    VALUES (?, ?, ?)
   `;
-    const result = await pool.query(query, [name, description, createdBy]);
+    await pool.query(query, [techniqueId, name, description]);
     
     // Invalidate cache
     cache.delete(CacheKeys.RESEARCH_TECHNIQUES_LIST);
     
-    return result.rows[0];
+    // Fetch created record
+    const selectResult = await pool.query(
+        'SELECT id, name, description, created_at, updated_at FROM research_techniques WHERE id = ?',
+        [techniqueId]
+    );
+    return selectResult.rows[0];
 };
 
 export const update = async (id: string, data: Partial<ResearchTechniqueData>) => {
@@ -69,12 +74,13 @@ export const update = async (id: string, data: Partial<ResearchTechniqueData>) =
     const values: unknown[] = [];
     let paramIndex = 1;
 
+    // MySQL compatible: use ? placeholders
     if (name !== undefined) {
-        updates.push(`name = $${paramIndex++}`);
+        updates.push('name = ?');
         values.push(name);
     }
     if (description !== undefined) {
-        updates.push(`description = $${paramIndex++}`);
+        updates.push('description = ?');
         values.push(description);
     }
 
@@ -82,37 +88,44 @@ export const update = async (id: string, data: Partial<ResearchTechniqueData>) =
         throw new Error('No fields to update');
     }
 
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
     const query = `
     UPDATE research_techniques
     SET ${updates.join(', ')}
-    WHERE id = $${paramIndex}
-    RETURNING id, name, description, created_by, is_active, updated_at
+    WHERE id = ?
   `;
 
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research technique not found');
     }
 
-    return result.rows[0];
+    // Fetch updated record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query(
+        'SELECT id, name, description, created_at, updated_at FROM research_techniques WHERE id = ?',
+        [id]
+    );
+    return selectResult.rows[0];
 };
 
 export const deleteResearchTechnique = async (id: string) => {
+    // MySQL compatible: no RETURNING clause, no is_active column in current schema
     const query = `
-    UPDATE research_techniques
-    SET is_active = false, updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1
-    RETURNING id
+    DELETE FROM research_techniques
+    WHERE id = ?
   `;
     const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research technique not found');
     }
+
+    // Invalidate cache
+    cache.delete(CacheKeys.RESEARCH_TECHNIQUES_LIST);
+    cache.delete(`${CacheKeys.RESEARCH_TECHNIQUE}:${id}`);
 
     return { message: 'Research technique deleted successfully' };
 };
