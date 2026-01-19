@@ -372,7 +372,7 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
     const normalizedName = stageTemplateName === 'Cognitive Task' ? 'Cognitive Tasks' : stageTemplateName;
 
     // Find the stage template
-    const templateQuery = 'SELECT id, stage_type, description FROM stage_templates WHERE name = ? AND is_active = true';
+    const templateQuery = 'SELECT id, type as stage_type, description FROM stage_templates WHERE name = ? AND is_active = true';
     const templateResult = await client.query(templateQuery, [normalizedName]);
 
     if (templateResult.rows.length === 0) {
@@ -511,7 +511,7 @@ const addDefaultStage = async (client: PoolClient, researchId: string, _userId: 
     try {
         // Check if "Research Configuration" stage template exists
         const stageTemplateQuery = `
-            SELECT id, stage_type FROM stage_templates
+            SELECT id, type as stage_type FROM stage_templates
             WHERE name = 'Research Configuration' AND is_active = true
         `;
         const stageTemplateResult = await client.query(stageTemplateQuery);
@@ -645,7 +645,7 @@ export const getById = async (researchId: string, userId: string) => {
     // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
     // Step 1: Get all stages
     const stagesQuery = `
-      SELECT id, name, description, display_order as order_index, stage_type
+      SELECT id, name, description, display_order as order_index, type as stage_type
       FROM stages
       WHERE research_id = ?
       ORDER BY display_order
@@ -925,7 +925,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
 
         // Buscar el stage_template para obtener el stage_type y módulos asociados
         const templateResult = await client.query(
-            'SELECT id, stage_type FROM stage_templates WHERE name = ? AND is_active = true',
+            'SELECT id, type as stage_type FROM stage_templates WHERE name = ? AND is_active = true',
             [stageName]
         );
 

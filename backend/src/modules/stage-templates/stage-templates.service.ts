@@ -33,7 +33,7 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
             st.name,
             st.description,
             st.is_active,
-            st.stage_type,
+            st.type as stage_type,
             st.created_at,
             st.updated_at,
             COALESCE(
@@ -83,7 +83,7 @@ export const create = async (data: StageTemplateData) => {
     // MySQL compatible: pre-generate UUID and no RETURNING
     const stageTemplateId = crypto.randomUUID();
     const query = `
-        INSERT INTO stage_templates (id, name, description, stage_type)
+        INSERT INTO stage_templates (id, name, description, type)
         VALUES (?, ?, ?, ?)
     `;
 
@@ -91,7 +91,7 @@ export const create = async (data: StageTemplateData) => {
     
     // Fetch created record
     const selectResult = await pool.query(
-        'SELECT id, name, description, is_active, stage_type, created_at FROM stage_templates WHERE id = ?',
+        'SELECT id, name, description, is_active, type as stage_type, created_at FROM stage_templates WHERE id = ?',
         [stageTemplateId]
     );
     return selectResult.rows[0];
@@ -105,7 +105,7 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
             st.name,
             st.description,
             st.is_active,
-            st.stage_type,
+            st.type as stage_type,
             st.created_at,
             st.updated_at,
             COALESCE(
