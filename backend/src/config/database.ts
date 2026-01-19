@@ -29,7 +29,7 @@ type EventHandler = (...args: unknown[]) => void;
 /**
  * Convert PostgreSQL parameterized query syntax to MySQL syntax
  * PostgreSQL uses $1, $2, $3... while MySQL uses ?
- * Also handles some PostgreSQL-specific syntax
+ * Also handles some PostgreSQL-specific syntax and functions
  */
 const convertPgToMysql = (query: string): string => {
     // Replace $1, $2, $3... with ?
@@ -61,6 +61,28 @@ const convertPgToMysql = (query: string): string => {
     // Convert PostgreSQL array syntax ANY($1) to MySQL IN (?)
     // This is a simplified conversion - complex cases may need manual handling
     converted = converted.replace(/= ANY\s*\(\s*\?\s*\)/gi, 'IN (?)');
+
+    // Convert PostgreSQL JSON functions to MySQL equivalents
+    // JSON_BUILD_OBJECT('key1', val1, 'key2', val2) -> JSON_OBJECT('key1', val1, 'key2', val2)
+    converted = converted.replace(/\bJSON_BUILD_OBJECT\s*\(/gi, 'JSON_OBJECT(');
+
+    // JSON_AGG(expr ORDER BY ...) -> JSON_ARRAYAGG(expr ORDER BY ...)
+    // Note: MySQL 8.0.17+ supports ORDER BY in JSON_ARRAYAGG
+    converted = converted.replace(/\bJSON_AGG\s*\(/gi, 'JSON_ARRAYAGG(');
+
+    // COALESCE works the same in both, no conversion needed
+    // But we need to handle COALESCE with JSON_AGG -> COALESCE with JSON_ARRAYAGG (already handled above)
+
+    // PostgreSQL uuid_generate_v4() -> MySQL UUID()
+    converted = converted.replace(/\buuid_generate_v4\s*\(\s*\)/gi, 'UUID()');
+
+    // PostgreSQL NOW() works in MySQL too, no conversion needed
+    // PostgreSQL CURRENT_TIMESTAMP works in MySQL too, no conversion needed
+
+    // Column name mapping: stages table uses display_order in MySQL but code uses order_index
+    // This handles s.order_index, stages.order_index, and just order_index in context of stages
+    converted = converted.replace(/\bs\.order_index\b/g, 's.display_order');
+    converted = converted.replace(/\bstages\.order_index\b/g, 'stages.display_order');
 
     return converted;
 };
