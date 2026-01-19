@@ -22,7 +22,11 @@ CREATE TABLE IF NOT EXISTS stages (
 -- ==========================================
 -- 2. ADD stage_id COLUMN TO MODULES
 -- ==========================================
-ALTER TABLE modules ADD COLUMN IF NOT EXISTS stage_id CHAR(36);
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'modules' AND COLUMN_NAME = 'stage_id');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE modules ADD COLUMN stage_id CHAR(36)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ==========================================
 -- 3. CREATE DEFAULT STAGE FOR EXISTING MODULES
@@ -30,7 +34,7 @@ ALTER TABLE modules ADD COLUMN IF NOT EXISTS stage_id CHAR(36);
 -- For each research that has modules without stage_id, create a default stage
 INSERT INTO stages (id, research_id, name, description, order_index, stage_type)
 SELECT UUID(), research_id, 'Default Stage', 'Auto-created stage for existing modules', 1, 'custom'
-FROM modules 
+FROM modules
 WHERE stage_id IS NULL
 GROUP BY research_id
 ON DUPLICATE KEY UPDATE id=id;
@@ -44,11 +48,17 @@ WHERE m.stage_id IS NULL;
 -- ==========================================
 -- 4. ADD FOREIGN KEY CONSTRAINT
 -- ==========================================
-ALTER TABLE modules 
-ADD CONSTRAINT IF NOT EXISTS modules_stage_id_fkey 
-FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE;
+SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'modules' AND CONSTRAINT_NAME = 'modules_stage_id_fkey');
+SET @sql = IF(@fk_exists = 0, 'ALTER TABLE modules ADD CONSTRAINT modules_stage_id_fkey FOREIGN KEY (stage_id) REFERENCES stages(id) ON DELETE CASCADE', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- ==========================================
 -- 5. CREATE INDEX FOR stage_id
 -- ==========================================
-CREATE INDEX IF NOT EXISTS idx_modules_stage_id ON modules(stage_id);
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'modules' AND INDEX_NAME = 'idx_modules_stage_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_modules_stage_id ON modules(stage_id)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

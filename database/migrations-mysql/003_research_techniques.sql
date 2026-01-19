@@ -22,7 +22,24 @@ CREATE TABLE IF NOT EXISTS research_techniques (
 -- ==========================================
 -- UPDATE RESEARCH TYPES TABLE
 -- ==========================================
-ALTER TABLE research_types
-ADD COLUMN IF NOT EXISTS research_technique_id CHAR(36),
-ADD INDEX IF NOT EXISTS idx_research_types_technique_id (research_technique_id),
-ADD FOREIGN KEY IF NOT EXISTS (research_technique_id) REFERENCES research_techniques(id) ON DELETE SET NULL;
+
+-- Add column if it doesn't exist
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'research_types' AND COLUMN_NAME = 'research_technique_id');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE research_types ADD COLUMN research_technique_id CHAR(36)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add index if it doesn't exist
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'research_types' AND INDEX_NAME = 'idx_research_types_technique_id');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_research_types_technique_id ON research_types(research_technique_id)', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add foreign key if it doesn't exist
+SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'research_types' AND CONSTRAINT_NAME = 'fk_research_types_technique');
+SET @sql = IF(@fk_exists = 0, 'ALTER TABLE research_types ADD CONSTRAINT fk_research_types_technique FOREIGN KEY (research_technique_id) REFERENCES research_techniques(id) ON DELETE SET NULL', 'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
