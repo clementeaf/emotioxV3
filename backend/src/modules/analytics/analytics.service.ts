@@ -14,7 +14,7 @@ export const getCognitiveTaskResults = async (researchId: string) => {
   const modulesQuery = `
     SELECT id, name, description
     FROM modules
-    WHERE research_id = $1
+    WHERE research_id = ?
     ORDER BY order_index
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
@@ -45,8 +45,8 @@ export const getNavigationFlowResults = async (researchId: string, moduleId: str
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 
-      AND r.module_id = $2
+    WHERE r.research_id = ? 
+      AND r.module_id = ?
       AND r.component_id = 'navigation-flow'
     ORDER BY r.created_at ASC
   `;
@@ -105,8 +105,8 @@ export const getPreferenceTestResults = async (researchId: string, moduleId: str
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 
-      AND r.module_id = $2
+    WHERE r.research_id = ? 
+      AND r.module_id = ?
       AND r.component_id = 'preference-test'
     ORDER BY r.created_at ASC
   `;
@@ -168,8 +168,8 @@ export const getTextResponses = async (researchId: string, moduleId: string) => 
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 
-      AND r.module_id = $2
+    WHERE r.research_id = ? 
+      AND r.module_id = ?
       AND r.component_id = 'answer'
     ORDER BY r.created_at DESC
   `;
@@ -201,8 +201,8 @@ export const getChoiceResponses = async (researchId: string, moduleId: string) =
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 
-      AND r.module_id = $2
+    WHERE r.research_id = ? 
+      AND r.module_id = ?
       AND r.component_id = 'choice'
     ORDER BY r.created_at ASC
   `;
@@ -260,8 +260,8 @@ export const getScaleResponses = async (researchId: string, moduleId: string) =>
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 
-      AND r.module_id = $2
+    WHERE r.research_id = ? 
+      AND r.module_id = ?
       AND r.component_id = 'scale'
     ORDER BY r.created_at ASC
   `;
@@ -310,8 +310,8 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 
-      AND r.module_id = $2
+    WHERE r.research_id = ? 
+      AND r.module_id = ?
       AND r.component_id = 'ranking'
     ORDER BY r.created_at ASC
   `;
@@ -371,7 +371,7 @@ const getModuleResponses = async (researchId: string, moduleId: string) => {
       r.created_at,
       r.participant_id
     FROM responses r
-    WHERE r.research_id = $1 AND r.module_id = $2
+    WHERE r.research_id = ? AND r.module_id = ?
     ORDER BY r.created_at ASC
   `;
 
@@ -389,15 +389,15 @@ export const getSmartVOCResults = async (researchId: string) => {
     SELECT DISTINCT m.id, m.name
     FROM modules m
     LEFT JOIN stages s ON s.id = m.stage_id
-    WHERE m.research_id = $1 
+    WHERE m.research_id = ? 
       AND (
-        s.name ILIKE '%smart voc%'
-        OR m.name ILIKE '%csat%'
-        OR m.name ILIKE '%nps%'
-        OR m.name ILIKE '%ces%'
-        OR m.name ILIKE '%cv%'
-        OR m.name ILIKE '%nev%'
-        OR m.name ILIKE '%voc%'
+        s.name LIKE '%smart voc%'
+        OR m.name LIKE '%csat%'
+        OR m.name LIKE '%nps%'
+        OR m.name LIKE '%ces%'
+        OR m.name LIKE '%cv%'
+        OR m.name LIKE '%nev%'
+        OR m.name LIKE '%voc%'
       )
     ORDER BY m.name
   `;
@@ -416,15 +416,15 @@ export const getSmartVOCResults = async (researchId: string) => {
     FROM responses r
     INNER JOIN modules m ON r.module_id = m.id
     LEFT JOIN stages s ON s.id = m.stage_id
-    WHERE r.research_id = $1 
+    WHERE r.research_id = ? 
       AND (
-        s.name ILIKE '%smart voc%'
-        OR m.name ILIKE '%csat%'
-        OR m.name ILIKE '%nps%'
-        OR m.name ILIKE '%ces%'
-        OR m.name ILIKE '%cv%'
-        OR m.name ILIKE '%nev%'
-        OR m.name ILIKE '%voc%'
+        s.name LIKE '%smart voc%'
+        OR m.name LIKE '%csat%'
+        OR m.name LIKE '%nps%'
+        OR m.name LIKE '%ces%'
+        OR m.name LIKE '%cv%'
+        OR m.name LIKE '%nev%'
+        OR m.name LIKE '%voc%'
       )
     ORDER BY r.created_at ASC
   `;

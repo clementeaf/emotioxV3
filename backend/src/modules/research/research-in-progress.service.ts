@@ -9,7 +9,7 @@ import pool from '../../config/database';
 export const getOverviewMetrics = async (researchId: string, userId: string) => {
     // Verificar que el research existe y pertenece al usuario
     const researchCheck = await pool.query(
-        'SELECT id, status FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+        'SELECT id, status FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
         [researchId, userId]
     );
 
@@ -23,7 +23,7 @@ export const getOverviewMetrics = async (researchId: string, userId: string) => 
 export const getOverviewMetricsInternal = async (researchId: string) => {
     // Verifying research existence
     const researchCheck = await pool.query(
-        'SELECT id, status FROM researches WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT id, status FROM researches WHERE id = ? AND deleted_at IS NULL',
         [researchId]
     );
 
@@ -39,12 +39,12 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
         WITH participant_stats AS (
             SELECT DISTINCT participant_id
             FROM responses
-            WHERE research_id = $1
+            WHERE research_id = ?
         ),
         participants_with_responses AS (
             SELECT DISTINCT participant_id
             FROM responses
-            WHERE research_id = $1
+            WHERE research_id = ?
             GROUP BY participant_id
             HAVING COUNT(*) > 0
         )
@@ -52,7 +52,7 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
             (SELECT COUNT(*) FROM participant_stats) as total_participants,
             (SELECT COUNT(*) FROM participants_with_responses) as participants_with_responses
     `;
-    const participantsResult = await pool.query(participantsQuery, [researchId]);
+    const participantsResult = await pool.query(participantsQuery, [researchId, researchId]);
     const totalParticipants = parseInt(participantsResult.rows[0]?.total_participants || '0', 10);
     const participantsWithResponses = parseInt(participantsResult.rows[0]?.participants_with_responses || '0', 10);
 
@@ -62,27 +62,27 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
             SELECT 
                 participant_id,
                 COUNT(DISTINCT module_id) as completed_modules,
-                (SELECT COUNT(DISTINCT id) FROM modules WHERE research_id = $1) as total_modules
+                (SELECT COUNT(DISTINCT id) FROM modules WHERE research_id = ?) as total_modules
             FROM responses
-            WHERE research_id = $1
+            WHERE research_id = ?
             GROUP BY participant_id
         )
         SELECT 
             AVG(CASE 
                 WHEN total_modules > 0 
-                THEN (completed_modules::float / total_modules::float) * 100 
+                THEN (completed_modules / total_modules) * 100 
                 ELSE 0 
             END) as avg_progress
         FROM participant_progress
     `;
-    const progressResult = await pool.query(progressQuery, [researchId]);
+    const progressResult = await pool.query(progressQuery, [researchId, researchId]);
     const avgProgress = parseFloat(progressResult.rows[0]?.avg_progress || '0');
 
     // Calcular tasa de completitud
     const totalModulesQuery = `
         SELECT COUNT(DISTINCT id) as total_modules
         FROM modules
-        WHERE research_id = $1
+        WHERE research_id = ?
     `;
     const totalModulesResult = await pool.query(totalModulesQuery, [researchId]);
     const totalModules = parseInt(totalModulesResult.rows[0]?.total_modules || '0', 10);
@@ -95,9 +95,9 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
     const timeQuery = `
         WITH participant_durations AS (
             SELECT 
-                EXTRACT(EPOCH FROM (MAX(created_at) - MIN(created_at))) as duration_seconds
+                TIMESTAMPDIFF(SECOND, MIN(created_at), MAX(created_at)) as duration_seconds
             FROM responses
-            WHERE research_id = $1
+            WHERE research_id = ?
             GROUP BY participant_id
         )
         SELECT AVG(duration_seconds) as avg_duration_seconds
@@ -151,7 +151,7 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
 export const getParticipantsWithStatusInternal = async (researchId: string) => {
     // Verificar que el research existe
     const researchCheck = await pool.query(
-        'SELECT id FROM researches WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT id FROM researches WHERE id = ? AND deleted_at IS NULL',
         [researchId]
     );
 
@@ -169,18 +169,18 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
                 MAX(created_at) as last_response,
                 COUNT(*) as total_responses
             FROM responses
-            WHERE research_id = $1
+            WHERE research_id = ?
             GROUP BY participant_id
         ),
         total_modules AS (
             SELECT COUNT(DISTINCT id) as total
             FROM modules
-            WHERE research_id = $1
+            WHERE research_id = ?
         )
         SELECT 
             ps.participant_id as id,
-            COALESCE(ps.participant_id::text, 'Unknown') as name,
-            COALESCE(ps.participant_id::text, 'unknown@example.com') as email,
+            COALESCE(CAST(ps.participant_id AS CHAR), 'Unknown') as name,
+            COALESCE(CAST(ps.participant_id AS CHAR), 'unknown@example.com') as email,
             CASE 
                 WHEN ps.completed_modules >= tm.total THEN 'Completado'
                 WHEN ps.completed_modules > 0 THEN 'En proceso'
@@ -188,21 +188,21 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
             END as status,
             CASE 
                 WHEN tm.total > 0 
-                THEN ROUND((ps.completed_modules::float / tm.total::float) * 100)
+                THEN ROUND((ps.completed_modules / tm.total) * 100)
                 ELSE 0 
             END as progress,
             CASE 
                 WHEN ps.last_response IS NOT NULL AND ps.first_response IS NOT NULL
-                THEN EXTRACT(EPOCH FROM (ps.last_response - ps.first_response))
+                THEN TIMESTAMPDIFF(SECOND, ps.first_response, ps.last_response)
                 ELSE 0
             END as duration_seconds,
             ps.last_response as last_activity
         FROM participant_stats ps
         CROSS JOIN total_modules tm
-        ORDER BY ps.last_response DESC NULLS LAST
+        ORDER BY ps.last_response IS NULL, ps.last_response DESC
     `;
 
-    const result = await pool.query(participantsQuery, [researchId]);
+    const result = await pool.query(participantsQuery, [researchId, researchId]);
 
     const participants = result.rows.map(row => {
         const durationSeconds = parseFloat(row.duration_seconds || '0');
@@ -237,7 +237,7 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
 export const getParticipantsWithStatus = async (researchId: string, userId: string) => {
     // Verificar que el research existe y pertenece al usuario
     const researchCheck = await pool.query(
-        'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+        'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
         [researchId, userId]
     );
 
@@ -259,7 +259,7 @@ export const getParticipantsWithStatus = async (researchId: string, userId: stri
 export const getParticipantDetails = async (researchId: string, participantId: string, userId: string) => {
     // Verificar que el research existe y pertenece al usuario
     const researchCheck = await pool.query(
-        'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+        'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
         [researchId, userId]
     );
 
@@ -277,18 +277,18 @@ export const getParticipantDetails = async (researchId: string, participantId: s
                 MAX(created_at) as last_response,
                 COUNT(*) as total_responses
             FROM responses
-            WHERE research_id = $1 AND participant_id = $2
+            WHERE research_id = ? AND participant_id = ?
             GROUP BY participant_id
         ),
         total_modules AS (
             SELECT COUNT(DISTINCT id) as total
             FROM modules
-            WHERE research_id = $1
+            WHERE research_id = ?
         )
         SELECT 
             ps.participant_id as id,
-            COALESCE(ps.participant_id::text, 'Unknown') as name,
-            COALESCE(ps.participant_id::text, 'unknown@example.com') as email,
+            COALESCE(CAST(ps.participant_id AS CHAR), 'Unknown') as name,
+            COALESCE(CAST(ps.participant_id AS CHAR), 'unknown@example.com') as email,
             CASE 
                 WHEN ps.completed_modules >= tm.total THEN 'Completado'
                 WHEN ps.completed_modules > 0 THEN 'En proceso'
@@ -296,12 +296,12 @@ export const getParticipantDetails = async (researchId: string, participantId: s
             END as status,
             CASE 
                 WHEN tm.total > 0 
-                THEN ROUND((ps.completed_modules::float / tm.total::float) * 100)
+                THEN ROUND((ps.completed_modules / tm.total) * 100)
                 ELSE 0 
             END as progress,
             CASE 
                 WHEN ps.last_response IS NOT NULL AND ps.first_response IS NOT NULL
-                THEN EXTRACT(EPOCH FROM (ps.last_response - ps.first_response))
+                THEN TIMESTAMPDIFF(SECOND, ps.first_response, ps.last_response)
                 ELSE 0
             END as duration_seconds,
             ps.last_response as last_activity,
@@ -311,7 +311,7 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         CROSS JOIN total_modules tm
     `;
 
-    const result = await pool.query(participantQuery, [researchId, participantId]);
+    const result = await pool.query(participantQuery, [researchId, participantId, researchId]);
 
     if (result.rows.length === 0) {
         throw new Error('Participant not found');
@@ -338,7 +338,7 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         FROM responses r
         LEFT JOIN modules m ON r.module_id = m.id
         LEFT JOIN questions q ON r.question_id = q.id
-        WHERE r.research_id = $1 AND r.participant_id = $2
+        WHERE r.research_id = ? AND r.participant_id = ?
         ORDER BY r.created_at ASC
     `;
 
@@ -383,7 +383,7 @@ export const deleteParticipant = async (researchId: string, participantId: strin
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
@@ -393,7 +393,7 @@ export const deleteParticipant = async (researchId: string, participantId: strin
 
         // Verificar que el participante tiene respuestas
         const participantCheck = await client.query(
-            'SELECT COUNT(*) as count FROM responses WHERE research_id = $1 AND participant_id = $2',
+            'SELECT COUNT(*) as count FROM responses WHERE research_id = ? AND participant_id = ?',
             [researchId, participantId]
         );
 
@@ -403,7 +403,7 @@ export const deleteParticipant = async (researchId: string, participantId: strin
 
         // Eliminar todas las respuestas del participante
         await client.query(
-            'DELETE FROM responses WHERE research_id = $1 AND participant_id = $2',
+            'DELETE FROM responses WHERE research_id = ? AND participant_id = ?',
             [researchId, participantId]
         );
 
@@ -424,7 +424,7 @@ const getLastActivityText = async (researchId: string): Promise<string> => {
     const query = `
         SELECT MAX(created_at) as last_activity
         FROM responses
-        WHERE research_id = $1
+        WHERE research_id = ?
     `;
     const result = await pool.query(query, [researchId]);
 
