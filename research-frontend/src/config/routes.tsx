@@ -191,14 +191,14 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'dashboard', pageName: 'Edit Research Technique' },
     },
 
-    // Default redirect
+    // Default redirect (must be before catch-all)
     {
         path: '/',
         element: <Navigate to="/dashboard" replace />,
         layout: 'none',
     },
 
-    // 404 error route
+    // 404 error route (must be last)
     {
         path: '*',
         element: <ErrorPage />,

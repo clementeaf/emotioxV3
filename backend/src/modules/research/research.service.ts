@@ -13,16 +13,55 @@ export interface ResearchData {
 }
 
 export const list = async (userId: string) => {
-    const query = `
-    SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.settings, r.created_at, r.updated_at,
-           rt.name as research_type_name
-    FROM researches r
-    LEFT JOIN research_types rt ON r.research_type_id = rt.id
-    WHERE r.user_id = $1 AND r.deleted_at IS NULL
-    ORDER BY r.created_at DESC
-  `;
-    const result = await pool.query(query, [userId]);
-    return result.rows;
+    try {
+        console.log('[Research Service] list() called for userId:', userId);
+        const query = `
+        SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.settings, r.created_at, r.updated_at,
+               rt.name as research_type_name
+        FROM researches r
+        LEFT JOIN research_types rt ON r.research_type_id = rt.id
+        WHERE r.user_id = ? AND r.deleted_at IS NULL
+        ORDER BY r.created_at DESC
+      `;
+        console.log('[Research Service] Executing query with userId:', userId);
+        const result = await pool.query(query, [userId]);
+        console.log('[Research Service] Query result:', {
+            rowCount: result.rowCount,
+            rowsLength: result.rows.length,
+            firstRow: result.rows[0] || null
+        });
+        
+        // Ensure each research has an empty stages array if not present
+        // Also parse settings if it's a string (MySQL JSON fields can come as strings)
+        const researches = result.rows.map((research: Record<string, unknown>) => {
+            let settings = research.settings;
+            if (typeof settings === 'string') {
+                try {
+                    settings = JSON.parse(settings);
+                } catch (parseError) {
+                    console.warn('[Research Service] Failed to parse settings JSON:', parseError);
+                    settings = {};
+                }
+            }
+            
+            return {
+                ...research,
+                settings: settings || {},
+                stages: research.stages || []
+            };
+        });
+        
+        return researches;
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('[Research Service] Error in list():', {
+            userId,
+            error: errorMessage,
+            stack: errorStack
+        });
+        throw error;
+    }
 };
 
 export const create = async (userId: string, data: ResearchData) => {
@@ -38,20 +77,21 @@ export const create = async (userId: string, data: ResearchData) => {
 
         // If description is not provided and we have a technique, try to get it from the technique
         if (!description && research_technique_id) {
-            const techniqueQuery = 'SELECT description FROM research_techniques WHERE id = $1';
+            const techniqueQuery = 'SELECT description FROM research_techniques WHERE id = ?';
             const techniqueResult = await client.query(techniqueQuery, [research_technique_id]);
             if (techniqueResult.rows.length > 0) {
                 description = techniqueResult.rows[0].description;
             }
         }
 
-        // Create research
+        // Create research (MySQL compatible - pre-generate UUID)
+        const researchId = crypto.randomUUID();
         const researchQuery = `
-      INSERT INTO researches (user_id, name, description, research_type_id, research_technique_id, enterprise_id, settings, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
-      RETURNING id, name, description, status, research_type_id, research_technique_id, enterprise_id, settings, created_at
+      INSERT INTO researches (id, user_id, name, description, research_type_id, research_technique_id, enterprise_id, settings, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', NOW())
     `;
-        const researchResult = await client.query(researchQuery, [
+        await client.query(researchQuery, [
+            researchId,
             userId,
             name,
             description,
@@ -61,7 +101,13 @@ export const create = async (userId: string, data: ResearchData) => {
             JSON.stringify(settings),
         ]);
 
-        const research = researchResult.rows[0];
+        // Fetch the created research (MySQL doesn't support RETURNING)
+        const selectResult = await client.query(
+            `SELECT id, name, description, status, research_type_id, research_technique_id, enterprise_id, settings, created_at
+             FROM researches WHERE id = ?`,
+            [researchId]
+        );
+        const research = selectResult.rows[0];
 
         // Automatically add "Research Configuration" stage to all new researches FIRST
         await addDefaultStage(client, research.id, userId);
@@ -79,7 +125,7 @@ export const create = async (userId: string, data: ResearchData) => {
                 console.log(`[Research Service] Using provided module names:`, modulesToCreate);
             } else {
                 // Get all default modules from research type
-                const typeQuery = 'SELECT default_modules FROM research_types WHERE id = $1';
+                const typeQuery = 'SELECT default_modules FROM research_types WHERE id = ?';
                 const typeResult = await client.query(typeQuery, [research_type_id]);
                 
                 if (typeResult.rows.length > 0 && typeResult.rows[0].default_modules) {
@@ -149,24 +195,25 @@ export const create = async (userId: string, data: ResearchData) => {
  */
 const createDefaultModulesStage = async (client: PoolClient, researchId: string, researchTypeId: string): Promise<{ id: string; name: string }> => {
     // Get research type name for stage name
-    const typeQuery = 'SELECT name FROM research_types WHERE id = $1';
+    const typeQuery = 'SELECT name FROM research_types WHERE id = ?';
     const typeResult = await client.query(typeQuery, [researchTypeId]);
     const typeName = typeResult.rows[0]?.name || 'Default Modules';
 
-    // Get the maximum order_index for this research
+    // Get the maximum display_order for this research (MySQL: stages uses display_order not order_index)
     const maxOrderResult = await client.query(
-        'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+        'SELECT COALESCE(MAX(display_order), 0) as max_order FROM stages WHERE research_id = ?',
         [researchId]
     );
     const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
 
-    // Create the stage
+    // Create the stage (MySQL compatible - pre-generate UUID)
+    const stageId = crypto.randomUUID();
     const stageQuery = `
-        INSERT INTO stages (research_id, name, description, order_index, stage_type)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, name, description, order_index, stage_type
+        INSERT INTO stages (id, research_id, name, description, display_order, stage_type)
+        VALUES (?, ?, ?, ?, ?, ?)
     `;
-    const stageResult = await client.query(stageQuery, [
+    await client.query(stageQuery, [
+        stageId,
         researchId,
         typeName,
         `Default modules for ${typeName}`,
@@ -174,14 +221,14 @@ const createDefaultModulesStage = async (client: PoolClient, researchId: string,
         'module_collection'
     ]);
 
-    return stageResult.rows[0] as { id: string; name: string };
+    return { id: stageId, name: typeName };
 };
 
 const cloneTemplateModulesInternal = async (client: PoolClient, researchId: string, researchTypeId: string, moduleNames: string[], stageId: string) => {
     console.log(`[cloneTemplateModulesInternal] Called with stageId: ${stageId}, moduleNames:`, moduleNames);
     
     // Get research type with default_modules
-    const typeQuery = 'SELECT default_modules FROM research_types WHERE id = $1';
+    const typeQuery = 'SELECT default_modules FROM research_types WHERE id = ?';
     const typeResult = await client.query(typeQuery, [researchTypeId]);
 
     if (typeResult.rows.length === 0) {
@@ -219,7 +266,7 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
                 .join(' ');
             
             // Try exact match first, then case-insensitive match
-            let templateQuery = 'SELECT structure FROM module_templates WHERE name = $1 AND is_active = true';
+            let templateQuery = 'SELECT structure FROM module_templates WHERE name = ? AND is_active = true';
             let templateResult = await client.query(templateQuery, [templateModule.name]);
             
             if (templateResult.rows.length === 0 && normalizedName !== templateModule.name) {
@@ -230,7 +277,7 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
             // If still not found, try case-insensitive search
             if (templateResult.rows.length === 0) {
                 console.log(`[cloneTemplateModulesInternal] Trying case-insensitive search`);
-                templateQuery = 'SELECT structure FROM module_templates WHERE LOWER(name) = LOWER($1) AND is_active = true';
+                templateQuery = 'SELECT structure FROM module_templates WHERE LOWER(name) = LOWER(?) AND is_active = true';
                 templateResult = await client.query(templateQuery, [templateModule.name]);
             }
             
@@ -261,12 +308,14 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
             }
         }
         
+        // MySQL compatible - pre-generate UUID
+        const moduleId = crypto.randomUUID();
         const moduleQuery = `
-      INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
-      VALUES ($1, $2, $3, $4, $5, true, $6)
-      RETURNING id
+      INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+      VALUES (?, ?, ?, ?, ?, ?, true, ?)
     `;
-        const moduleResult = await client.query(moduleQuery, [
+        await client.query(moduleQuery, [
+            moduleId,
             researchId,
             stageId,
             templateModule.name,
@@ -274,8 +323,6 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
             templateModule.order,
             JSON.stringify(moduleConfig),
         ]);
-
-        const moduleId = moduleResult.rows[0].id;
         console.log(`[cloneTemplateModulesInternal] Created module ${templateModule.name} with ID: ${moduleId} in stage ${stageId}`);
 
         // Create questions for this module
@@ -285,7 +332,7 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
                 const q = templateModule.questions[i];
                 const questionQuery = `
           INSERT INTO questions (module_id, question_type, question_text, order_index, config, validation, required)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
                 await client.query(questionQuery, [
                     moduleId,
@@ -310,42 +357,43 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
 const createStageFromTemplateInternal = async (client: PoolClient, researchId: string, stageTemplateName: string): Promise<void> => {
     // Normalize stage name (handle "Cognitive Task" vs "Cognitive Tasks")
     const normalizedName = stageTemplateName === 'Cognitive Task' ? 'Cognitive Tasks' : stageTemplateName;
-    
+
     // Find the stage template
-    const templateQuery = 'SELECT id, stage_type, description FROM stage_templates WHERE name = $1 AND is_active = true';
+    const templateQuery = 'SELECT id, stage_type, description FROM stage_templates WHERE name = ? AND is_active = true';
     const templateResult = await client.query(templateQuery, [normalizedName]);
-    
+
     if (templateResult.rows.length === 0) {
         console.warn(`[createStageFromTemplateInternal] Stage template "${normalizedName}" not found`);
         return;
     }
-    
+
     const stageTemplate = templateResult.rows[0];
     const stageTemplateId = stageTemplate.id;
     const stageType = stageTemplate.stage_type || 'module_collection';
     const stageDescription = stageTemplate.description || `Default modules for ${normalizedName}`;
-    
-    // Get the maximum order_index for this research
+
+    // Get the maximum display_order for this research (MySQL: stages uses display_order)
     const maxOrderResult = await client.query(
-        'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+        'SELECT COALESCE(MAX(display_order), 0) as max_order FROM stages WHERE research_id = ?',
         [researchId]
     );
     const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
-    
-    // Create the stage
+
+    // Create the stage (MySQL compatible - pre-generate UUID)
+    const newStageId = crypto.randomUUID();
     const stageQuery = `
-        INSERT INTO stages (research_id, name, description, order_index, stage_type)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, name, description, order_index, stage_type
+        INSERT INTO stages (id, research_id, name, description, display_order, stage_type)
+        VALUES (?, ?, ?, ?, ?, ?)
     `;
-    const stageResult = await client.query(stageQuery, [
+    await client.query(stageQuery, [
+        newStageId,
         researchId,
         normalizedName,
         stageDescription,
         nextOrder,
         stageType
     ]);
-    const newStage = stageResult.rows[0] as { id: string };
+    const newStage = { id: newStageId };
     
     console.log(`[createStageFromTemplateInternal] Created stage "${normalizedName}" with ID: ${newStage.id}`);
     
@@ -354,7 +402,7 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
         SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
         FROM stage_templates_module_templates stmt
         JOIN module_templates mt ON stmt.module_template_id = mt.id
-        WHERE stmt.stage_template_id = $1 AND mt.is_active = true
+        WHERE stmt.stage_template_id = ? AND mt.is_active = true
         ORDER BY stmt.display_order
     `;
     let modulesResult = await client.query(modulesQuery, [stageTemplateId]);
@@ -372,14 +420,16 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
             'Navigation Flow',
             'Preference Test'
         ];
-        
+
+        // MySQL compatible: use IN with FIELD() for ordering instead of array_position
         modulesQuery = `
             SELECT id, name, description, structure
             FROM module_templates
-            WHERE name = ANY($1) AND is_active = true
-            ORDER BY array_position($1, name)
+            WHERE name IN (${cognitiveTaskModuleNames.map(() => '?').join(',')}) AND is_active = true
+            ORDER BY FIELD(name, ${cognitiveTaskModuleNames.map(() => '?').join(',')})
         `;
-        modulesResult = await client.query(modulesQuery, [cognitiveTaskModuleNames]);
+        // Need to pass the array twice: once for IN, once for FIELD
+        modulesResult = await client.query(modulesQuery, [...cognitiveTaskModuleNames, ...cognitiveTaskModuleNames]);
         
         if (modulesResult.rows.length > 0) {
             console.log(`[createStageFromTemplateInternal] Found ${modulesResult.rows.length} Cognitive Tasks modules by name`);
@@ -413,13 +463,15 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
         const config = {
             structure: structure
         };
-        
+
+        // MySQL compatible - pre-generate UUID (no RETURNING support)
+        const newModuleId = crypto.randomUUID();
         const moduleQuery = `
-            INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
-            VALUES ($1, $2, $3, $4, $5, true, $6)
-            RETURNING id
+            INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+            VALUES (?, ?, ?, ?, ?, ?, true, ?)
         `;
         await client.query(moduleQuery, [
+            newModuleId,
             researchId,
             newStage.id,
             templateModule.name,
@@ -427,7 +479,7 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
             templateModule.display_order,
             JSON.stringify(config),
         ]);
-        
+
         console.log(`[createStageFromTemplateInternal] Created module "${templateModule.name}" for stage "${normalizedName}"`);
     }
     
@@ -442,11 +494,11 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
  * @param researchId - ID of the research
  * @param userId - ID of the user (for createStage)
  */
-const addDefaultStage = async (client: PoolClient, researchId: string, userId: string): Promise<{ id: string } | null> => {
+const addDefaultStage = async (client: PoolClient, researchId: string, _userId: string): Promise<{ id: string } | null> => {
     try {
         // Check if "Research Configuration" stage template exists
         const stageTemplateQuery = `
-            SELECT id, stage_type FROM stage_templates 
+            SELECT id, stage_type FROM stage_templates
             WHERE name = 'Research Configuration' AND is_active = true
         `;
         const stageTemplateResult = await client.query(stageTemplateQuery);
@@ -459,34 +511,35 @@ const addDefaultStage = async (client: PoolClient, researchId: string, userId: s
         const stageTemplateId = stageTemplateResult.rows[0].id;
         const stageType = stageTemplateResult.rows[0].stage_type || 'single_module';
 
-        // Get the maximum order_index for this research
+        // Get the maximum display_order for this research (MySQL: stages uses display_order)
         const maxOrderResult = await client.query(
-            'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+            'SELECT COALESCE(MAX(display_order), 0) as max_order FROM stages WHERE research_id = ?',
             [researchId]
         );
         const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
 
-        // Create the stage
+        // Create the stage (MySQL compatible - pre-generate UUID)
+        const newStageId = crypto.randomUUID();
         const stageQuery = `
-            INSERT INTO stages (research_id, name, description, order_index, stage_type)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, name, description, order_index, stage_type
+            INSERT INTO stages (id, research_id, name, description, display_order, stage_type)
+            VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const stageResult = await client.query(stageQuery, [
+        await client.query(stageQuery, [
+            newStageId,
             researchId,
             'Research Configuration',
             'Research settings and recruitment configuration',
             nextOrder,
             stageType
         ]);
-        const newStage = stageResult.rows[0] as { id: string };
+        const newStage = { id: newStageId };
 
         // Get modules associated with this stage template
         const modulesQuery = `
             SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
             FROM stage_templates_module_templates stmt
             JOIN module_templates mt ON stmt.module_template_id = mt.id
-            WHERE stmt.stage_template_id = $1 AND mt.is_active = true
+            WHERE stmt.stage_template_id = ? AND mt.is_active = true
             ORDER BY stmt.display_order
         `;
         const modulesResult = await client.query(modulesQuery, [stageTemplateId]);
@@ -514,12 +567,14 @@ const addDefaultStage = async (client: PoolClient, researchId: string, userId: s
                 structure: structure
             };
 
+            // MySQL compatible - pre-generate UUID (no RETURNING support)
+            const newModuleId = crypto.randomUUID();
             const moduleQuery = `
-                INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
-                VALUES ($1, $2, $3, $4, $5, true, $6)
-                RETURNING id
+                INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+                VALUES (?, ?, ?, ?, ?, ?, true, ?)
             `;
             await client.query(moduleQuery, [
+                newModuleId,
                 researchId,
                 newStage.id,
                 templateModule.name,
@@ -548,7 +603,7 @@ export const getById = async (researchId: string, userId: string) => {
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
-    WHERE r.id = $1 AND r.user_id = $2 AND r.deleted_at IS NULL
+    WHERE r.id = ? AND r.user_id = ? AND r.deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
 
@@ -558,61 +613,119 @@ export const getById = async (researchId: string, userId: string) => {
 
     const research = result.rows[0];
 
-    // Get stages with modules and questions
+    // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
+    // Step 1: Get all stages
     const stagesQuery = `
-    SELECT s.id, s.name, s.description, s.order_index, s.stage_type,
-           COALESCE(json_agg(
-             json_build_object(
-               'id', m.id,
-               'name', m.name,
-               'description', m.description,
-               'order_index', m.order_index,
-               'is_from_template', m.is_from_template,
-               'config', m.config,
-               'questions', (
-                 SELECT COALESCE(json_agg(
-                   json_build_object(
-                     'id', q.id,
-                     'type', q.question_type,
-                     'text', q.question_text,
-                     'order', q.order_index,
-                     'config', q.config,
-                     'validation', q.validation,
-                     'required', q.required
-                   ) ORDER BY q.order_index
-                 ), '[]'::json)
-                 FROM questions q WHERE q.module_id = m.id
-               )
-             ) ORDER BY m.order_index
-           ) FILTER (WHERE m.id IS NOT NULL), '[]'::json) as modules
-    FROM stages s
-    LEFT JOIN modules m ON s.id = m.stage_id
-    WHERE s.research_id = $1
-    GROUP BY s.id
-    ORDER BY s.order_index
-  `;
+      SELECT id, name, description, display_order as order_index, stage_type
+      FROM stages
+      WHERE research_id = ?
+      ORDER BY display_order
+    `;
     const stagesResult = await pool.query(stagesQuery, [researchId]);
 
-    // Parsear el config de cada módulo para asegurar que sea un objeto
-    research.stages = stagesResult.rows.map((row: any) => ({
-        ...row,
-        modules: (row.modules || []).map((module: any) => {
-            // Asegurar que config sea un objeto parseado
-            let config = module.config;
-            if (typeof config === 'string') {
-                try {
-                    config = JSON.parse(config);
-                } catch (e) {
-                    console.error('Error parsing module config:', e);
-                    config = {};
-                }
+    if (stagesResult.rows.length === 0) {
+        research.stages = [];
+    } else {
+        // Step 2: Get all modules for these stages
+        const stageIds = stagesResult.rows.map((s: Record<string, unknown>) => s.id);
+        const modulesQuery = `
+          SELECT id, stage_id, name, description, order_index, is_from_template, config
+          FROM modules
+          WHERE stage_id IN (${stageIds.map(() => '?').join(',')})
+          ORDER BY order_index
+        `;
+        const modulesResult = await pool.query(modulesQuery, stageIds);
+
+        // Step 3: Get all questions for these modules
+        const moduleIds = modulesResult.rows.map((m: Record<string, unknown>) => m.id);
+        let questionsResult: { rows: Array<Record<string, unknown>> } = { rows: [] };
+        if (moduleIds.length > 0) {
+            const questionsQuery = `
+              SELECT id, module_id, question_type, question_text, order_index, config, validation, required
+              FROM questions
+              WHERE module_id IN (${moduleIds.map(() => '?').join(',')})
+              ORDER BY order_index
+            `;
+            questionsResult = await pool.query(questionsQuery, moduleIds);
+        }
+
+        // Group questions by module_id
+        const questionsByModule = new Map<string, Array<Record<string, unknown>>>();
+        for (const q of questionsResult.rows) {
+            const moduleId = q.module_id as string;
+            if (!questionsByModule.has(moduleId)) {
+                questionsByModule.set(moduleId, []);
             }
+            questionsByModule.get(moduleId)!.push(q);
+        }
+
+        // Group modules by stage_id
+        const modulesByStage = new Map<string, Array<Record<string, unknown>>>();
+        for (const m of modulesResult.rows) {
+            const stageId = m.stage_id as string;
+            if (!modulesByStage.has(stageId)) {
+                modulesByStage.set(stageId, []);
+            }
+            modulesByStage.get(stageId)!.push(m);
+        }
+
+        // Assemble the structure
+        research.stages = stagesResult.rows.map((stage: Record<string, unknown>) => {
+            const stageId = stage.id as string;
+            const stageModules = modulesByStage.get(stageId) || [];
+
             return {
-                ...module,
-                config: config || {}
+                id: stageId,
+                name: stage.name,
+                description: stage.description,
+                order_index: stage.order_index,
+                stage_type: stage.stage_type,
+                modules: stageModules.map((mod: Record<string, unknown>) => {
+                    const modId = mod.id as string;
+                    const modQuestions = questionsByModule.get(modId) || [];
+
+                    // Parse config safely - MySQL may return JSON as string
+                    let config = mod.config;
+                    if (typeof config === 'string') {
+                        try {
+                            config = JSON.parse(config);
+                        } catch (e) {
+                            console.error('Error parsing module config:', e);
+                            config = {};
+                        }
+                    }
+
+                    return {
+                        id: modId,
+                        name: mod.name,
+                        description: mod.description,
+                        order_index: mod.order_index,
+                        is_from_template: mod.is_from_template,
+                        config: config || {},
+                        questions: modQuestions.map((q: Record<string, unknown>) => {
+                            let qConfig = q.config;
+                            let qValidation = q.validation;
+                            if (typeof qConfig === 'string') {
+                                try { qConfig = JSON.parse(qConfig); } catch (_e) { qConfig = {}; }
+                            }
+                            if (typeof qValidation === 'string') {
+                                try { qValidation = JSON.parse(qValidation); } catch (_e) { qValidation = {}; }
+                            }
+                            return {
+                                id: q.id,
+                                type: q.question_type,
+                                text: q.question_text,
+                                order: q.order_index,
+                                config: qConfig,
+                                validation: qValidation,
+                                required: q.required
+                            };
+                        })
+                    };
+                })
             };
-        })
-    }));
+        });
+    }
 
     return research;
 };
@@ -620,20 +733,20 @@ export const getById = async (researchId: string, userId: string) => {
 export const update = async (researchId: string, userId: string, data: Partial<ResearchData>) => {
     const { name, description, settings } = data;
 
+    // MySQL compatible: use ? placeholders directly
     const updates: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
+    const values: unknown[] = [];
 
     if (name !== undefined) {
-        updates.push(`name = $${paramIndex++}`);
+        updates.push('name = ?');
         values.push(name);
     }
     if (description !== undefined) {
-        updates.push(`description = $${paramIndex++}`);
+        updates.push('description = ?');
         values.push(description);
     }
     if (settings !== undefined) {
-        updates.push(`settings = $${paramIndex++}`);
+        updates.push('settings = ?');
         values.push(JSON.stringify(settings));
     }
 
@@ -646,33 +759,42 @@ export const update = async (researchId: string, userId: string, data: Partial<R
     const query = `
     UPDATE researches
     SET ${updates.join(', ')}
-    WHERE id = $${paramIndex} AND user_id = $${paramIndex + 1} AND deleted_at IS NULL
-    RETURNING id, name, description, status, settings, updated_at
+    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
   `;
 
     const result = await pool.query(query, values);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research not found');
     }
 
-    return result.rows[0];
+    // Fetch updated record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query(
+        'SELECT id, name, description, status, settings, updated_at FROM researches WHERE id = ?',
+        [researchId]
+    );
+    return selectResult.rows[0];
 };
 
 export const updateStatus = async (researchId: string, userId: string, status: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
-    SET status = $1
-    WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL
-    RETURNING id, name, status, updated_at
+    SET status = ?
+    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [status, researchId, userId]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research not found');
     }
 
-    return result.rows[0];
+    // Fetch updated record
+    const selectResult = await pool.query(
+        'SELECT id, name, status, updated_at FROM researches WHERE id = ?',
+        [researchId]
+    );
+    return selectResult.rows[0];
 };
 
 /**
@@ -682,37 +804,42 @@ export const updateStatus = async (researchId: string, userId: string, status: s
  * @returns Investigación actualizada
  */
 export const activate = async (researchId: string, userId: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
     SET status = 'active', updated_at = CURRENT_TIMESTAMP
-    WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
-    RETURNING id, name, status, updated_at
+    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research not found');
     }
-    
+
     // Invalidate public cache for this research
     cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
 
-    return result.rows[0];
+    // Fetch updated record
+    const selectResult = await pool.query(
+        'SELECT id, name, status, updated_at FROM researches WHERE id = ?',
+        [researchId]
+    );
+    return selectResult.rows[0];
 };
 
 export const deleteResearch = async (researchId: string, userId: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
     SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted'
-    WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
-    RETURNING id
+    WHERE id = ? AND user_id = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research not found');
     }
-    
+
     // Invalidate public cache for this research
     cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
 
@@ -735,7 +862,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
@@ -743,19 +870,19 @@ export const createStage = async (researchId: string, userId: string, stageName:
             throw new Error('Research not found');
         }
 
-        // Obtener el máximo order_index para este research
+        // Obtener el máximo display_order para este research (MySQL: stages uses display_order)
         const maxOrderResult = await client.query(
-            'SELECT COALESCE(MAX(order_index), 0) as max_order FROM stages WHERE research_id = $1',
+            'SELECT COALESCE(MAX(display_order), 0) as max_order FROM stages WHERE research_id = ?',
             [researchId]
         );
         const nextOrder = (maxOrderResult.rows[0].max_order || 0) + 1;
 
         // Buscar el stage_template para obtener el stage_type y módulos asociados
         const templateResult = await client.query(
-            'SELECT id, stage_type FROM stage_templates WHERE name = $1 AND is_active = true',
+            'SELECT id, stage_type FROM stage_templates WHERE name = ? AND is_active = true',
             [stageName]
         );
-        
+
         let stageType: 'single_module' | 'module_collection' = 'module_collection';
         let stageTemplateId: string | null = null;
         let modulesToClone: Array<{ id: string; name: string; description: string; structure: Record<string, unknown>; display_order: number }> = [];
@@ -769,34 +896,35 @@ export const createStage = async (researchId: string, userId: string, stageName:
                 `SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
                  FROM stage_templates_module_templates stmt
                  JOIN module_templates mt ON stmt.module_template_id = mt.id
-                 WHERE stmt.stage_template_id = $1 AND mt.is_active = true
+                 WHERE stmt.stage_template_id = ? AND mt.is_active = true
                  ORDER BY stmt.display_order`,
                 [stageTemplateId]
             );
             modulesToClone = modulesResult.rows as Array<{ id: string; name: string; description: string; structure: Record<string, unknown>; display_order: number }>;
         }
 
-        // Crear el stage con el stage_type del template
+        // Crear el stage con el stage_type del template (MySQL compatible - pre-generate UUID)
+        const newStageId = crypto.randomUUID();
         const stageQuery = `
-            INSERT INTO stages (research_id, name, description, order_index, stage_type)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, name, description, order_index, stage_type, created_at, updated_at
+            INSERT INTO stages (id, research_id, name, description, display_order, stage_type)
+            VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const stageResult = await client.query(stageQuery, [
-            researchId, 
-            stageName, 
-            description || null, 
+        await client.query(stageQuery, [
+            newStageId,
+            researchId,
+            stageName,
+            description || null,
             nextOrder,
             stageType
         ]);
-        const newStage = stageResult.rows[0] as { id: string };
+        const newStage = { id: newStageId };
 
         // Si hay módulos asociados, clonarlos
         if (modulesToClone.length > 0) {
             for (const templateModule of modulesToClone) {
                 // Parse structure si es string, o usar directamente si es objeto
                 let structure = templateModule.structure;
-                
+
                 // Si es string, parsearlo
                 if (typeof structure === 'string') {
                     try {
@@ -806,24 +934,26 @@ export const createStage = async (researchId: string, userId: string, stageName:
                         structure = {};
                     }
                 }
-                
+
                 // Si no es un objeto válido, usar objeto vacío
                 if (!structure || typeof structure !== 'object' || Array.isArray(structure)) {
                     structure = {};
                 }
-                
+
                 // El config debe tener la estructura { structure: { components: [...] } }
                 // para que el frontend lo encuentre correctamente
                 const config = {
                     structure: structure
                 };
-                
+
+                // MySQL compatible - pre-generate UUID (no RETURNING support)
+                const newModuleId = crypto.randomUUID();
                 const moduleQuery = `
-                    INSERT INTO modules (research_id, stage_id, name, description, order_index, is_from_template, config)
-                    VALUES ($1, $2, $3, $4, $5, true, $6)
-                    RETURNING id
+                    INSERT INTO modules (id, research_id, stage_id, name, description, order_index, is_from_template, config)
+                    VALUES (?, ?, ?, ?, ?, ?, true, ?)
                 `;
                 await client.query(moduleQuery, [
+                    newModuleId,
                     researchId,
                     newStage.id,
                     templateModule.name,
@@ -831,7 +961,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
                     templateModule.display_order,
                     JSON.stringify(config),
                 ]);
-                
+
                 console.log(`✓ Created module "${templateModule.name}" for stage "${stageName}"`);
             }
         } else {
@@ -865,7 +995,7 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
@@ -876,7 +1006,7 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
 
         // Verificar que el stage existe y pertenece al research
         const stageCheck = await client.query(
-            'SELECT id, name FROM stages WHERE id = $1 AND research_id = $2',
+            'SELECT id, name FROM stages WHERE id = ? AND research_id = ?',
             [stageId, researchId]
         );
 
@@ -890,14 +1020,14 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
 
         // Verificar si hay módulos asociados (para logging)
         const modulesCheck = await client.query(
-            'SELECT COUNT(*) as count FROM modules WHERE stage_id = $1',
+            'SELECT COUNT(*) as count FROM modules WHERE stage_id = ?',
             [stageId]
         );
         const moduleCount = parseInt(modulesCheck.rows[0].count || '0', 10);
         console.log('[ResearchService] Modules to be deleted (CASCADE):', { stageId, moduleCount });
 
         // Eliminar el stage (CASCADE eliminará automáticamente los módulos asociados)
-        const deleteResult = await client.query('DELETE FROM stages WHERE id = $1', [stageId]);
+        const deleteResult = await client.query('DELETE FROM stages WHERE id = ?', [stageId]);
         
         if (deleteResult.rowCount === 0) {
             console.error('[ResearchService] No rows deleted:', { stageId });
@@ -956,7 +1086,7 @@ export const updateModulesOrderInStage = async (
 
         // Verificar que el stage existe y obtener el research_id
         const stageCheck = await client.query(
-            'SELECT id, research_id FROM stages WHERE id = $1',
+            'SELECT id, research_id FROM stages WHERE id = ?',
             [stageId]
         );
         if (stageCheck.rows.length === 0) {
@@ -968,7 +1098,7 @@ export const updateModulesOrderInStage = async (
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
         if (researchCheck.rows.length === 0) {
@@ -978,9 +1108,10 @@ export const updateModulesOrderInStage = async (
 
         // Verificar que todos los módulos pertenecen al stage
         const moduleIds = updates.map(u => u.moduleId);
+        // MySQL compatible: use IN with dynamic placeholders instead of ANY($1)
         const modulesCheck = await client.query(
-            'SELECT id FROM modules WHERE id = ANY($1) AND stage_id = $2',
-            [moduleIds, stageId]
+            `SELECT id FROM modules WHERE id IN (${moduleIds.map(() => '?').join(',')}) AND stage_id = ?`,
+            [...moduleIds, stageId]
         );
         if (modulesCheck.rows.length !== moduleIds.length) {
             console.warn(`[updateModulesOrderInStage] Some modules do not belong to stage ${stageId}`);
@@ -990,7 +1121,7 @@ export const updateModulesOrderInStage = async (
         // Actualizar el order_index de cada módulo
         for (const { moduleId, order_index } of updates) {
             await client.query(
-                'UPDATE modules SET order_index = $1 WHERE id = $2 AND stage_id = $3',
+                'UPDATE modules SET order_index = ? WHERE id = ? AND stage_id = ?',
                 [order_index, moduleId, stageId]
             );
             console.log(`[updateModulesOrderInStage] Updated module ${moduleId} to order_index ${order_index}`);
@@ -1023,7 +1154,7 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
 
         // Verificar que el research existe y pertenece al usuario
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL',
+            'SELECT id FROM researches WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
             [researchId, userId]
         );
 
@@ -1033,7 +1164,7 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
 
         // Verificar que el módulo existe y pertenece al research
         const moduleCheck = await client.query(
-            'SELECT id FROM modules WHERE id = $1 AND research_id = $2',
+            'SELECT id FROM modules WHERE id = ? AND research_id = ?',
             [moduleId, researchId]
         );
 
@@ -1042,7 +1173,7 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
         }
 
         // Eliminar el módulo (CASCADE eliminará automáticamente las questions asociadas)
-        await client.query('DELETE FROM modules WHERE id = $1', [moduleId]);
+        await client.query('DELETE FROM modules WHERE id = ?', [moduleId]);
 
         await client.query('COMMIT');
         return { message: 'Module deleted successfully' };

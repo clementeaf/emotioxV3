@@ -105,7 +105,11 @@ const layoutsConfig: Record<string, LayoutConfig> = {
 const generateRoutes = (): ReactElement[] => {
     const routesByLayout = new Map<string, RouteConfig[]>();
 
-    routesConfig.forEach((route) => {
+    // Separate catch-all route to ensure it's processed last
+    const catchAllRoute = routesConfig.find(route => route.path === '*');
+    const otherRoutes = routesConfig.filter(route => route.path !== '*');
+
+    otherRoutes.forEach((route) => {
         const layout = route.layout || 'none';
         if (!routesByLayout.has(layout)) {
             routesByLayout.set(layout, []);
@@ -119,6 +123,12 @@ const generateRoutes = (): ReactElement[] => {
         const layoutConfig = layoutsConfig[layoutKey] || layoutsConfig.none;
         routes.push(...layoutConfig.renderRoutes(routesInLayout));
     });
+
+    // Add catch-all route at the end to ensure it's processed last
+    if (catchAllRoute) {
+        const layoutConfig = layoutsConfig[catchAllRoute.layout || 'none'] || layoutsConfig.none;
+        routes.push(...layoutConfig.renderRoutes([catchAllRoute]));
+    }
 
     return routes;
 };
