@@ -1,15 +1,17 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { Pool } from 'pg';
+import { createPool, Pool } from 'mysql2/promise';
+import { randomUUID } from 'crypto';
 
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const pool = new Pool({
+const pool = createPool({
     host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
+    port: parseInt(process.env.DB_PORT || '3306'),
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    connectionLimit: 10,
 });
 
 /**
@@ -17,47 +19,22 @@ const pool = new Pool({
  * Consta de un input para "Title" y un textarea para "Message"
  */
 const seedThankYouScreenModule = async () => {
-    const client = await pool.connect();
+    const connection = await pool.getConnection();
     try {
         console.log('Starting seed for Thank You Screen module...');
-        await client.query('BEGIN');
-
-        // Get a user ID to use as created_by
-        const userRes = await client.query('SELECT id FROM users LIMIT 1');
-        const userId = userRes.rows[0]?.id;
-
-        if (!userId) {
-            console.log('No users found. Cannot seed module without a creator.');
-            await client.query('ROLLBACK');
-            return;
-        }
+        await connection.beginTransaction();
 
         // Check if module already exists
-        const checkModule = await client.query(
-            'SELECT id FROM module_templates WHERE name = $1',
+        const [checkModuleRows] = await connection.query(
+            'SELECT id FROM module_templates WHERE name = ?',
             ['Thank You Screen']
-        );
+        ) as any[];
 
-        if (checkModule.rows.length > 0) {
+        if (checkModuleRows.length > 0) {
             console.log('Thank You Screen module already exists. Skipping...');
-            await client.query('ROLLBACK');
+            await connection.rollback();
             return;
         }
-
-        // Create the Thank You Screen module
-        const moduleRes = await client.query(
-            `INSERT INTO module_templates (name, description, is_active, created_at, updated_at, created_by)
-             VALUES ($1, $2, true, NOW(), NOW(), $3)
-             RETURNING id`,
-            [
-                'Thank You Screen',
-                'Completion screen with title and message',
-                userId
-            ]
-        );
-
-        const moduleId = moduleRes.rows[0].id;
-        console.log(`✓ Created module: Thank You Screen (${moduleId})`);
 
         // Define the module structure with components
         const structure = {
@@ -96,24 +73,34 @@ const seedThankYouScreenModule = async () => {
             ]
         };
 
-        // Update the module with the structure
-        await client.query(
-            `UPDATE module_templates SET structure = $1 WHERE id = $2`,
-            [JSON.stringify(structure), moduleId]
+        // Generate UUID for the module
+        const moduleId = randomUUID();
+
+        // Create the Thank You Screen module
+        await connection.query(
+            `INSERT INTO module_templates (id, name, description, structure, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, true, NOW(), NOW())`,
+            [
+                moduleId,
+                'Thank You Screen',
+                'Completion screen with title and message',
+                JSON.stringify(structure)
+            ]
         );
+        console.log(`✓ Created module: Thank You Screen (${moduleId})`);
 
         console.log('  ✓ Added 2 components:');
         console.log('    - Title (input)');
         console.log('    - Message (textarea)');
 
-        await client.query('COMMIT');
+        await connection.commit();
         console.log('\n✅ Thank You Screen module created successfully!');
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        await connection.rollback();
         console.error('❌ Seed failed:', error);
     } finally {
-        client.release();
+        connection.release();
         await pool.end();
     }
 };

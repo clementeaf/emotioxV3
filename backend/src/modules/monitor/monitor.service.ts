@@ -23,11 +23,12 @@ export class MonitorService {
      * Registers a new connection
      */
     async registerConnection(connectionId: string, researchId: string, userId?: string) {
+        // MySQL compatible: use ON DUPLICATE KEY UPDATE instead of ON CONFLICT
         const query = `
             INSERT INTO monitoring_connections (connection_id, research_id, user_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (connection_id) DO UPDATE 
-            SET research_id = EXCLUDED.research_id, user_id = EXCLUDED.user_id, last_ping_at = NOW()
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE 
+            research_id = VALUES(research_id), user_id = VALUES(user_id), last_ping_at = NOW()
         `;
         await pool.query(query, [connectionId, researchId, userId || null]);
     }
@@ -36,7 +37,7 @@ export class MonitorService {
      * Removes a connection
      */
     async removeConnection(connectionId: string) {
-        await pool.query('DELETE FROM monitoring_connections WHERE connection_id = $1', [connectionId]);
+        await pool.query('DELETE FROM monitoring_connections WHERE connection_id = ?', [connectionId]);
     }
 
     /**
@@ -44,7 +45,7 @@ export class MonitorService {
      */
     async getConnections(researchId: string) {
         const result = await pool.query(
-            'SELECT connection_id FROM monitoring_connections WHERE research_id = $1',
+            'SELECT connection_id FROM monitoring_connections WHERE research_id = ?',
             [researchId]
         );
         return result.rows.map(row => row.connection_id);

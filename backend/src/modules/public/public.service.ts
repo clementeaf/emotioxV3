@@ -108,7 +108,7 @@ export const getParticipantCount = async (researchId: string): Promise<number> =
   const query = `
     SELECT COUNT(DISTINCT participant_id) as participant_count
     FROM responses
-    WHERE research_id = $1
+    WHERE research_id = ?
   `;
   const result = await pool.query(query, [researchId]);
   return parseInt(result.rows[0].participant_count) || 0;
@@ -124,7 +124,7 @@ export const getResearchConfiguration = async (researchId: string): Promise<Reco
   const modulesQuery = `
     SELECT m.id, m.name, m.config
     FROM modules m
-    WHERE m.research_id = $1
+    WHERE m.research_id = ?
     ORDER BY m.order_index
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
@@ -158,7 +158,7 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
         const researchQuery = `
           SELECT id, name, description, status
           FROM researches
-          WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
+          WHERE id = ? AND status = 'active' AND deleted_at IS NULL
         `;
         const researchResult = await pool.query(researchQuery, [researchId]);
 
@@ -167,7 +167,7 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
           const checkQuery = `
             SELECT id, name, status, deleted_at
             FROM researches
-            WHERE id = $1
+            WHERE id = ?
           `;
           const checkResult = await pool.query(checkQuery, [researchId]);
           
@@ -188,42 +188,125 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
 
         const researchRow: DbResearchRow = researchResult.rows[0] as DbResearchRow;
 
-        // Get stages with modules + questions (mirrors authenticated /research/:id payload shape)
-        let stagesResult;
+        // Get stages with modules + questions (MySQL-compatible approach)
+        // Split into multiple simpler queries instead of complex nested JSON aggregation
+        let stagesData: Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          order_index: number;
+          stage_type: string | null;
+          modules: Array<{
+            id: string;
+            name: string;
+            description: string | null;
+            order_index: number;
+            is_from_template: boolean | null;
+            config: unknown;
+            questions: Array<{
+              id: string;
+              type: string;
+              text: string;
+              order: number;
+              config: unknown;
+              validation: unknown;
+              required: boolean;
+            }>;
+          }>;
+        }> = [];
+
         try {
+          // Step 1: Get all stages for this research
           const stagesQuery = `
-          SELECT s.id, s.name, s.description, s.order_index, s.stage_type,
-                 COALESCE(json_agg(
-                   json_build_object(
-                     'id', m.id,
-                     'name', m.name,
-                     'description', m.description,
-                     'order_index', m.order_index,
-                     'is_from_template', m.is_from_template,
-                     'config', COALESCE(m.config, '{}'::jsonb),
-                     'questions', (
-                       SELECT COALESCE(json_agg(
-                         json_build_object(
-                           'id', q.id,
-                           'type', q.question_type,
-                           'text', q.question_text,
-                           'order', q.order_index,
-                           'config', COALESCE(q.config, '{}'::jsonb),
-                           'validation', COALESCE(q.validation, '{}'::jsonb),
-                           'required', COALESCE(q.required, false)
-                         ) ORDER BY q.order_index
-                       ), '[]'::json)
-                       FROM questions q WHERE q.module_id = m.id
-                     )
-                   ) ORDER BY m.order_index
-                 ) FILTER (WHERE m.id IS NOT NULL), '[]'::json) as modules
-          FROM stages s
-          LEFT JOIN modules m ON s.id = m.stage_id
-          WHERE s.research_id = $1
-          GROUP BY s.id, s.name, s.description, s.order_index, s.stage_type
-          ORDER BY s.order_index
+            SELECT id, name, description, display_order as order_index, type as stage_type
+            FROM stages
+            WHERE research_id = ?
+            ORDER BY display_order
           `;
-          stagesResult = await pool.query(stagesQuery, [researchId]);
+          const stagesResult = await pool.query(stagesQuery, [researchId]);
+
+          if (stagesResult.rows.length === 0) {
+            stagesData = [];
+          } else {
+            // Step 2: Get all modules for these stages
+            const stageIds = stagesResult.rows.map((s: Record<string, unknown>) => s.id);
+            const modulesQuery = `
+              SELECT id, stage_id, name, description, order_index, is_from_template, config
+              FROM modules
+              WHERE stage_id IN (${stageIds.map(() => '?').join(',')})
+              ORDER BY order_index
+            `;
+            const modulesResult = await pool.query(modulesQuery, stageIds);
+
+            // Step 3: Get all questions for these modules
+            const moduleIds = modulesResult.rows.map((m: Record<string, unknown>) => m.id);
+            let questionsResult: { rows: Array<Record<string, unknown>> } = { rows: [] };
+            if (moduleIds.length > 0) {
+              const questionsQuery = `
+                SELECT id, module_id, question_type, question_text, order_index, config, validation, required
+                FROM questions
+                WHERE module_id IN (${moduleIds.map(() => '?').join(',')})
+                ORDER BY order_index
+              `;
+              questionsResult = await pool.query(questionsQuery, moduleIds);
+            }
+
+            // Group questions by module_id
+            const questionsByModule = new Map<string, Array<Record<string, unknown>>>();
+            for (const q of questionsResult.rows) {
+              const moduleId = q.module_id as string;
+              if (!questionsByModule.has(moduleId)) {
+                questionsByModule.set(moduleId, []);
+              }
+              questionsByModule.get(moduleId)!.push(q);
+            }
+
+            // Group modules by stage_id
+            const modulesByStage = new Map<string, Array<Record<string, unknown>>>();
+            for (const m of modulesResult.rows) {
+              const stageId = m.stage_id as string;
+              if (!modulesByStage.has(stageId)) {
+                modulesByStage.set(stageId, []);
+              }
+              modulesByStage.get(stageId)!.push(m);
+            }
+
+            // Assemble the final structure
+            stagesData = stagesResult.rows.map((stage: Record<string, unknown>) => {
+              const stageId = stage.id as string;
+              const stageModules = modulesByStage.get(stageId) || [];
+
+              return {
+                id: stageId,
+                name: stage.name as string,
+                description: stage.description as string | null,
+                order_index: stage.order_index as number,
+                stage_type: stage.stage_type as string | null,
+                modules: stageModules.map((mod: Record<string, unknown>) => {
+                  const moduleId = mod.id as string;
+                  const moduleQuestions = questionsByModule.get(moduleId) || [];
+
+                  return {
+                    id: moduleId,
+                    name: mod.name as string,
+                    description: mod.description as string | null,
+                    order_index: mod.order_index as number,
+                    is_from_template: mod.is_from_template as boolean | null,
+                    config: mod.config || {},
+                    questions: moduleQuestions.map((q: Record<string, unknown>) => ({
+                      id: q.id as string,
+                      type: q.question_type as string,
+                      text: q.question_text as string,
+                      order: q.order_index as number,
+                      config: q.config || {},
+                      validation: q.validation || {},
+                      required: (q.required as boolean) || false,
+                    })),
+                  };
+                }),
+              };
+            });
+          }
         } catch (queryError: unknown) {
           console.error('Error executing stages query:', queryError);
           console.error('Research ID:', researchId);
@@ -234,7 +317,7 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
         }
 
         // Handle case when no stages exist
-        if (!stagesResult || !stagesResult.rows || stagesResult.rows.length === 0) {
+        if (stagesData.length === 0) {
           console.log(`[getResearch] No stages found for research: ${researchId}`);
           return {
             id: researchRow.id,
@@ -247,85 +330,64 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
           };
         }
 
-        const stages: PublicStageDto[] = (stagesResult.rows as Array<Record<string, unknown>>).map(
-        (row: Record<string, unknown>): PublicStageDto => {
-          const stageId: string = typeof row.id === 'string' ? row.id : '';
-          const stageName: string = typeof row.name === 'string' ? row.name : '';
-          const stageDescriptionRaw: unknown = row.description;
-          const stageDescription: string = typeof stageDescriptionRaw === 'string' ? stageDescriptionRaw : '';
-          const stageOrderIndex: number = typeof row.order_index === 'number' ? row.order_index : 0;
-          const stageType: string | null = typeof row.stage_type === 'string' ? row.stage_type : null;
-
-          const rawModules: unknown = row.modules;
-          const modulesArray: unknown[] = Array.isArray(rawModules) ? rawModules : [];
-
-          const modules: PublicModuleDto[] = modulesArray
-            .map((moduleValue: unknown): PublicModuleDto | null => {
-              if (!isRecord(moduleValue)) return null;
-              const moduleId: string = typeof moduleValue.id === 'string' ? moduleValue.id : '';
-              const moduleName: string = typeof moduleValue.name === 'string' ? moduleValue.name : '';
-              const moduleDescriptionRaw: unknown = moduleValue.description;
-              const moduleDescription: string = typeof moduleDescriptionRaw === 'string' ? moduleDescriptionRaw : '';
-              const moduleOrderIndex: number = typeof moduleValue.order_index === 'number' ? moduleValue.order_index : 0;
-
-              // Parse config safely - PostgreSQL may return JSON as string
-              let moduleConfigRaw = moduleValue.config;
-              if (typeof moduleConfigRaw === 'string') {
-                try {
-                  moduleConfigRaw = JSON.parse(moduleConfigRaw);
-                } catch (e) {
-                  console.error('Error parsing module config string:', e);
-                  moduleConfigRaw = {};
-                }
+        // Transform stagesData to PublicStageDto format
+        const stages: PublicStageDto[] = stagesData.map((stageRow) => {
+          const modules: PublicModuleDto[] = stageRow.modules.map((mod) => {
+            // Parse config safely - MySQL may return JSON as string
+            let moduleConfigRaw: unknown = mod.config;
+            if (typeof moduleConfigRaw === 'string') {
+              try {
+                moduleConfigRaw = JSON.parse(moduleConfigRaw);
+              } catch (e) {
+                console.error('Error parsing module config string:', e);
+                moduleConfigRaw = {};
               }
-              const moduleConfig: Record<string, unknown> = parseJsonRecord(moduleConfigRaw);
-              const structure: PublicModuleStructureDto = extractStructure(moduleConfig);
+            }
+            const moduleConfig: Record<string, unknown> = parseJsonRecord(moduleConfigRaw);
+            const structure: PublicModuleStructureDto = extractStructure(moduleConfig);
 
-              const rawQuestions: unknown = moduleValue.questions;
-              const questionsArray: unknown[] = Array.isArray(rawQuestions) ? rawQuestions : [];
-              const questions: PublicQuestionDto[] = questionsArray
-                .map((qValue: unknown): PublicQuestionDto | null => {
-                  if (!isRecord(qValue)) return null;
-                  const qId: string = typeof qValue.id === 'string' ? qValue.id : '';
-                  const qType: string = typeof qValue.type === 'string' ? qValue.type : '';
-                  const qText: string = typeof qValue.text === 'string' ? qValue.text : '';
-                  const qOrder: number = typeof qValue.order === 'number' ? qValue.order : 0;
-                  const qRequired: boolean = typeof qValue.required === 'boolean' ? qValue.required : false;
-                  return {
-                    id: qId,
-                    type: qType,
-                    text: qText,
-                    order: qOrder,
-                    config: qValue.config,
-                    validation: qValue.validation,
-                    required: qRequired,
-                  };
-                })
-                .filter((q: PublicQuestionDto | null): q is PublicQuestionDto => q !== null);
-
+            // Parse questions - config/validation may be strings from MySQL
+            const questions: PublicQuestionDto[] = mod.questions.map((q) => {
+              let qConfig: unknown = q.config;
+              let qValidation: unknown = q.validation;
+              if (typeof qConfig === 'string') {
+                try { qConfig = JSON.parse(qConfig); } catch (_e) { qConfig = {}; }
+              }
+              if (typeof qValidation === 'string') {
+                try { qValidation = JSON.parse(qValidation); } catch (_e) { qValidation = {}; }
+              }
               return {
-                id: moduleId,
-                name: moduleName,
-                description: moduleDescription,
-                order_index: moduleOrderIndex,
-                is_from_template: typeof moduleValue.is_from_template === 'boolean' ? moduleValue.is_from_template : undefined,
-                config: moduleConfig,
-                structure,
-                questions,
+                id: q.id,
+                type: q.type,
+                text: q.text,
+                order: q.order,
+                config: qConfig,
+                validation: qValidation,
+                required: q.required,
               };
-            })
-            .filter((m: PublicModuleDto | null): m is PublicModuleDto => m !== null);
+            });
+
+            return {
+              id: mod.id,
+              name: mod.name,
+              description: mod.description ?? '',
+              order_index: mod.order_index,
+              is_from_template: mod.is_from_template ?? undefined,
+              config: moduleConfig,
+              structure,
+              questions,
+            };
+          });
 
           return {
-            id: stageId,
-            name: stageName,
-            description: stageDescription,
-            order_index: stageOrderIndex,
-            stage_type: stageType,
+            id: stageRow.id,
+            name: stageRow.name,
+            description: stageRow.description ?? '',
+            order_index: stageRow.order_index,
+            stage_type: stageRow.stage_type,
             modules,
           };
-        }
-      );
+        });
 
         const flattenedModules: PublicModuleDto[] = stages.flatMap((stage: PublicStageDto) => stage.modules);
 
@@ -407,12 +469,14 @@ export const saveResponse = async (data: Record<string, unknown>) => {
     console.warn('[Turnstile] No token provided in metadata (legacy endpoint). This might be a preview mode request or development environment.');
   }
 
+  // Generate UUID for the new response (MySQL compatible)
+  const responseId = crypto.randomUUID();
   const query = `
-    INSERT INTO responses (research_id, participant_id, module_id, question_id, value, metadata)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING id, created_at
+    INSERT INTO responses (id, research_id, participant_id, module_id, question_id, value, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
   `;
-  const result = await pool.query(query, [
+  await pool.query(query, [
+    responseId,
     research_id,
     participant_id,
     module_id,
@@ -420,7 +484,13 @@ export const saveResponse = async (data: Record<string, unknown>) => {
     JSON.stringify(answer),
     JSON.stringify(metadata),
   ]);
-  return result.rows[0];
+
+  // Return the created record (MySQL doesn't support RETURNING)
+  const selectResult = await pool.query(
+    'SELECT id, created_at FROM responses WHERE id = ?',
+    [responseId]
+  );
+  return selectResult.rows[0];
 };
 
 interface ParticipantResponsePayload {
@@ -643,7 +713,7 @@ export const saveParticipantResponses = async (
   // Validate research exists and is active
   const researchQuery = `
     SELECT id FROM researches
-    WHERE id = $1 AND status = 'active' AND deleted_at IS NULL
+    WHERE id = ? AND status = 'active' AND deleted_at IS NULL
   `;
   const researchResult = await pool.query(researchQuery, [researchId]);
   if (researchResult.rows.length === 0) {
@@ -674,12 +744,13 @@ export const saveParticipantResponses = async (
 
   const moduleNameById: Map<string, string> = new Map();
   if (uniqueModuleIds.length > 0) {
+    // MySQL compatible: use IN (?, ?, ...) instead of ANY($1::uuid[])
     const modulesLookupQuery = `
       SELECT id, name
       FROM modules
-      WHERE id = ANY($1::uuid[])
+      WHERE id IN (${uniqueModuleIds.map(() => '?').join(',')})
     `;
-    const modulesLookupResult = await pool.query(modulesLookupQuery, [uniqueModuleIds]);
+    const modulesLookupResult = await pool.query(modulesLookupQuery, uniqueModuleIds);
     (modulesLookupResult.rows as Array<{ id: string; name: string }>).forEach((row) => {
       if (row && typeof row.id === 'string' && typeof row.name === 'string') {
         moduleNameById.set(row.id, row.name);
@@ -704,8 +775,21 @@ export const saveParticipantResponses = async (
       const normalizedComponentId = normalizeComponentId(response.componentId, moduleName);
       const originalComponentId = response.componentId.trim();
 
+      const responseMetadata: Record<string, unknown> = {
+        ...(response.metadata ?? {}),
+        ...(normalizedComponentId !== originalComponentId ? { originalComponentId } : {}),
+        moduleMetadata: metadata,
+      };
+
+      const valueJson = toJsonText(response.value);
+      const metadataJson = JSON.stringify(responseMetadata);
+
+      // MySQL compatible: use INSERT ... ON DUPLICATE KEY UPDATE instead of ON CONFLICT
+      // Also generate a UUID for new records
+      const responseId = crypto.randomUUID();
       const query = `
         INSERT INTO responses (
+          id,
           research_id,
           participant_id,
           module_id,
@@ -714,32 +798,31 @@ export const saveParticipantResponses = async (
           metadata,
           created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-        ON CONFLICT (research_id, participant_id, module_id, component_id)
-        DO UPDATE SET
-          value = EXCLUDED.value,
-          metadata = EXCLUDED.metadata,
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE
+          value = VALUES(value),
+          metadata = VALUES(metadata),
           updated_at = NOW()
-        RETURNING id, created_at, updated_at
       `;
 
-      const responseMetadata: Record<string, unknown> = {
-        ...(response.metadata ?? {}),
-        ...(normalizedComponentId !== originalComponentId ? { originalComponentId } : {}),
-        moduleMetadata: metadata,
-      };
-
-      const result = await client.query(query, [
+      await client.query(query, [
+        responseId,
         researchId,
         participantId,
         response.moduleId,
         normalizedComponentId,
-        // Ensure JSON text for json/jsonb column, while preserving already-stringified JSON payloads
-        toJsonText(response.value),
-        JSON.stringify(responseMetadata),
+        valueJson,
+        metadataJson,
       ]);
 
-      savedResponses.push(result.rows[0]);
+      // Fetch the inserted/updated record (MySQL doesn't support RETURNING)
+      const selectResult = await client.query(
+        `SELECT id, created_at, updated_at FROM responses
+         WHERE research_id = ? AND participant_id = ? AND module_id = ? AND component_id = ?`,
+        [researchId, participantId, response.moduleId, normalizedComponentId]
+      );
+
+      savedResponses.push(selectResult.rows[0]);
     }
 
     // If this is a demographics module, increment quotas

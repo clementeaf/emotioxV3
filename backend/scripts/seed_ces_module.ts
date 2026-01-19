@@ -1,16 +1,17 @@
-import { Pool } from 'pg';
+import { createPool, Pool } from 'mysql2/promise';
 import dotenv from 'dotenv';
 import path from 'path';
 
 // Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const pool = new Pool({
+const pool = createPool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
-    port: parseInt(process.env.DB_PORT || '5432'),
+    port: parseInt(process.env.DB_PORT || '3306'),
+    connectionLimit: 10,
 });
 
 async function seedCESModule() {
@@ -94,21 +95,21 @@ async function seedCESModule() {
         };
 
         // Check if module already exists
-        const checkRes = await pool.query(
-            'SELECT id FROM module_templates WHERE name = $1',
+        const [checkRows] = await pool.query(
+            'SELECT id FROM module_templates WHERE name = ?',
             [moduleData.name]
-        );
+        ) as any[];
 
-        if (checkRes.rows.length > 0) {
+        if (checkRows.length > 0) {
             console.log('⚠️ CES Module already exists. Updating...');
             await pool.query(
-                'UPDATE module_templates SET description = $1, structure = $2, updated_at = NOW() WHERE name = $3',
-                [moduleData.description, moduleData.structure, moduleData.name]
+                'UPDATE module_templates SET description = ?, structure = ?, updated_at = NOW() WHERE name = ?',
+                [moduleData.description, JSON.stringify(moduleData.structure), moduleData.name]
             );
         } else {
             await pool.query(
-                'INSERT INTO module_templates (name, description, structure) VALUES ($1, $2, $3)',
-                [moduleData.name, moduleData.description, moduleData.structure]
+                'INSERT INTO module_templates (id, name, description, structure, is_active, created_at, updated_at) VALUES (UUID(), ?, ?, ?, true, NOW(), NOW())',
+                [moduleData.name, moduleData.description, JSON.stringify(moduleData.structure)]
             );
         }
 

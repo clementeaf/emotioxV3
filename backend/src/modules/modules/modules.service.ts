@@ -4,18 +4,25 @@ export const create = async (researchId: string, data: Record<string, unknown>) 
     const { name, description, order_index, config = {} } = data;
 
     // Check if research exists and is not deleted
-    const researchCheck = await pool.query('SELECT id FROM researches WHERE id = $1 AND deleted_at IS NULL', [researchId]);
+    const researchCheck = await pool.query('SELECT id FROM researches WHERE id = ? AND deleted_at IS NULL', [researchId]);
     if (researchCheck.rows.length === 0) {
         throw new Error('Research not found or deleted');
     }
 
+    // MySQL compatible: pre-generate UUID and no RETURNING
+    const moduleId = crypto.randomUUID();
     const query = `
-    INSERT INTO modules (research_id, name, description, order_index, config)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id, research_id, name, description, order_index, is_from_template, config, created_at
+    INSERT INTO modules (id, research_id, name, description, order_index, config)
+    VALUES (?, ?, ?, ?, ?, ?)
   `;
-    const result = await pool.query(query, [researchId, name, description, order_index, JSON.stringify(config)]);
-    return result.rows[0];
+    await pool.query(query, [moduleId, researchId, name, description, order_index, JSON.stringify(config)]);
+    
+    // Fetch created record
+    const selectResult = await pool.query(
+        'SELECT id, research_id, name, description, order_index, is_from_template, config, created_at FROM modules WHERE id = ?',
+        [moduleId]
+    );
+    return selectResult.rows[0];
 };
 
 export const update = async (moduleId: string, data: Record<string, unknown>) => {
@@ -24,36 +31,41 @@ export const update = async (moduleId: string, data: Record<string, unknown>) =>
     const values: unknown[] = [];
     let paramIndex = 1;
 
+    // MySQL compatible: use ? placeholders
     if (name !== undefined) {
-        updates.push(`name = $${paramIndex++}`);
+        updates.push('name = ?');
         values.push(name);
     }
     if (description !== undefined) {
-        updates.push(`description = $${paramIndex++}`);
+        updates.push('description = ?');
         values.push(description);
     }
     if (config !== undefined) {
-        updates.push(`config = $${paramIndex++}`);
+        updates.push('config = ?');
         values.push(JSON.stringify(config));
     }
     if (order !== undefined || order_index !== undefined) {
-        updates.push(`order_index = $${paramIndex++}`);
+        updates.push('order_index = ?');
         values.push(order !== undefined ? order : order_index);
     }
 
     if (updates.length === 0) throw new Error('No fields to update');
 
     values.push(moduleId);
-    const query = `UPDATE modules SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+    const query = `UPDATE modules SET ${updates.join(', ')} WHERE id = ?`;
     const result = await pool.query(query, values);
-    if (result.rows.length === 0) throw new Error('Module not found');
-    return result.rows[0];
+    if (result.rowCount === 0) throw new Error('Module not found');
+    
+    // Fetch updated record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query('SELECT * FROM modules WHERE id = ?', [moduleId]);
+    return selectResult.rows[0];
 };
 
 export const deleteModule = async (moduleId: string) => {
-    const query = `DELETE FROM modules WHERE id = $1 RETURNING id`;
+    // MySQL compatible: no RETURNING clause
+    const query = `DELETE FROM modules WHERE id = ?`;
     const result = await pool.query(query, [moduleId]);
-    if (result.rows.length === 0) throw new Error('Module not found');
+    if (result.rowCount === 0) throw new Error('Module not found');
     return { message: 'Module deleted successfully' };
 };
 
@@ -62,7 +74,7 @@ export const reorder = async (researchId: string, moduleOrders: { id: string; or
     try {
         await client.query('BEGIN');
         for (const { id, order } of moduleOrders) {
-            await client.query('UPDATE modules SET order_index = $1 WHERE id = $2 AND research_id = $3', [order, id, researchId]);
+            await client.query('UPDATE modules SET order_index = ? WHERE id = ? AND research_id = ?', [order, id, researchId]);
         }
         await client.query('COMMIT');
         return { message: 'Modules reordered successfully' };

@@ -16,7 +16,7 @@ export const analyzeQuestion = async (questionId: string, moduleType: string) =>
     const query = `
     SELECT r.answer, r.metadata, r.created_at, r.participant_id
     FROM responses r
-    WHERE r.question_id = $1
+    WHERE r.question_id = ?
     ORDER BY r.created_at ASC
   `;
     const result = await pool.query(query, [questionId]);

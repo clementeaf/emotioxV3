@@ -46,7 +46,7 @@ export async function syncQuotasFromConfig(
         const existingQuotas = await client.query(
             `SELECT id, demographic_type, quota_value 
              FROM demographic_quotas 
-             WHERE research_id = $1`,
+             WHERE research_id = ?`,
             [researchId]
         );
 
@@ -73,8 +73,8 @@ export async function syncQuotasFromConfig(
                     // Update existing quota
                     await client.query(
                         `UPDATE demographic_quotas 
-                         SET quota_limit = $1, enabled = true, updated_at = CURRENT_TIMESTAMP
-                         WHERE id = $2`,
+                         SET quota_limit = ?, enabled = true, updated_at = CURRENT_TIMESTAMP
+                         WHERE id = ?`,
                         [quota.limit, existingMap.get(key)]
                     );
                 } else {
@@ -82,7 +82,7 @@ export async function syncQuotasFromConfig(
                     await client.query(
                         `INSERT INTO demographic_quotas 
                          (research_id, demographic_type, quota_value, quota_limit, enabled)
-                         VALUES ($1, $2, $3, $4, true)`,
+                         VALUES (?, ?, ?, ?, true)`,
                         [researchId, demographicType, quota.value, quota.limit]
                     );
                 }
@@ -93,7 +93,7 @@ export async function syncQuotasFromConfig(
         for (const [key, id] of existingMap.entries()) {
             if (!configuredQuotas.has(key)) {
                 await client.query(
-                    'UPDATE demographic_quotas SET enabled = false WHERE id = $1',
+                    'UPDATE demographic_quotas SET enabled = false WHERE id = ?',
                     [id]
                 );
             }
@@ -220,7 +220,7 @@ export async function checkQuotaAvailability(
         const quotaChecks = await client.query(
             `SELECT demographic_type, quota_value, quota_limit, current_count
              FROM demographic_quotas
-             WHERE research_id = $1 AND enabled = true`,
+             WHERE research_id = ? AND enabled = true`,
             [researchId]
         );
 
@@ -257,12 +257,12 @@ export async function incrementQuota(
 ): Promise<void> {
     // Save participant demographics
     for (const [type, value] of Object.entries(demographicAnswers)) {
+        // MySQL compatible: use ON DUPLICATE KEY UPDATE instead of ON CONFLICT
         await client.query(
             `INSERT INTO participant_demographics 
              (research_id, participant_id, demographic_type, demographic_value)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (research_id, participant_id, demographic_type)
-             DO UPDATE SET demographic_value = EXCLUDED.demographic_value`,
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE demographic_value = VALUES(demographic_value)`,
             [researchId, participantId, type, value]
         );
     }
@@ -271,7 +271,7 @@ export async function incrementQuota(
     const quotas = await client.query(
         `SELECT id, demographic_type, quota_value 
          FROM demographic_quotas
-         WHERE research_id = $1 AND enabled = true
+         WHERE research_id = ? AND enabled = true
          FOR UPDATE`,
         [researchId]
     );
@@ -285,7 +285,7 @@ export async function incrementQuota(
             await client.query(
                 `UPDATE demographic_quotas 
                  SET current_count = current_count + 1, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = $1`,
+                 WHERE id = ?`,
                 [quota.id]
             );
         }
@@ -299,7 +299,7 @@ export async function getQuotaStatus(researchId: string) {
     const result = await pool.query(
         `SELECT demographic_type, quota_value, quota_limit, current_count, enabled
          FROM demographic_quotas
-         WHERE research_id = $1
+         WHERE research_id = ?
          ORDER BY demographic_type, quota_value`,
         [researchId]
     );

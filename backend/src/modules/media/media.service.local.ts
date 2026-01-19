@@ -81,13 +81,15 @@ export const saveMetadata = async (
     
     const stats = fs.statSync(filePath);
     
+    // MySQL compatible: pre-generate UUID and no RETURNING
+    const mediaId = crypto.randomUUID();
     const query = `
-        INSERT INTO media (research_id, question_id, s3_key, s3_bucket, file_name, file_type, file_size, metadata)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING *
+        INSERT INTO media (id, research_id, question_id, s3_key, s3_bucket, file_name, file_type, file_size, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     
-    const result = await pool.query(query, [
+    await pool.query(query, [
+        mediaId,
         researchId,
         questionId,
         validatedPath, // Usar como s3_key para compatibilidad
@@ -98,14 +100,16 @@ export const saveMetadata = async (
         JSON.stringify(metadata),
     ]);
     
-    return result.rows[0];
+    // Fetch created record (MySQL doesn't support RETURNING)
+    const selectResult = await pool.query('SELECT * FROM media WHERE id = ?', [mediaId]);
+    return selectResult.rows[0];
 };
 
 /**
  * Obtiene la URL de un archivo por ID
  */
 export const getMediaUrlById = async (mediaId: string): Promise<{ url: string; expires_in: number }> => {
-    const query = `SELECT s3_key, s3_bucket FROM media WHERE id = $1`;
+    const query = `SELECT s3_key, s3_bucket FROM media WHERE id = ?`;
     const result = await pool.query(query, [mediaId]);
     
     if (result.rows.length === 0) {
@@ -130,7 +134,7 @@ export const getMediaUrlById = async (mediaId: string): Promise<{ url: string; e
 export const getMediaUrlByPath = async (rawPath: string): Promise<MediaUrlResult> => {
     const mediaPath = validateMediaPath(rawPath);
     
-    const query = `SELECT id, s3_key, s3_bucket, file_type FROM media WHERE s3_key = $1`;
+    const query = `SELECT id, s3_key, s3_bucket, file_type FROM media WHERE s3_key = ?`;
     const result = await pool.query(query, [mediaPath]);
     
     if (result.rows.length > 0) {
@@ -158,7 +162,7 @@ export const getMediaUrlByPath = async (rawPath: string): Promise<MediaUrlResult
  * Elimina un archivo de media
  */
 export const deleteMedia = async (mediaId: string): Promise<{ message: string }> => {
-    const query = `SELECT s3_key, s3_bucket FROM media WHERE id = $1`;
+    const query = `SELECT s3_key, s3_bucket FROM media WHERE id = ?`;
     const result = await pool.query(query, [mediaId]);
     
     if (result.rows.length === 0) {
@@ -176,7 +180,7 @@ export const deleteMedia = async (mediaId: string): Promise<{ message: string }>
     }
     
     // Eliminar de DB
-    await pool.query('DELETE FROM media WHERE id = $1', [mediaId]);
+    await pool.query('DELETE FROM media WHERE id = ?', [mediaId]);
     
     return { message: 'Media deleted successfully' };
 };

@@ -282,15 +282,15 @@ export const updateUser = async (userSub: string, data: UpdateUserData): Promise
         let idx = 1;
         
         if (data.first_name !== undefined) {
-            fields.push(`first_name = $${idx++}`);
+            fields.push('first_name = ?');
             values.push(data.first_name);
         }
         if (data.last_name !== undefined) {
-            fields.push(`last_name = $${idx++}`);
+            fields.push('last_name = ?');
             values.push(data.last_name);
         }
         if (data.email !== undefined) {
-            fields.push(`email = $${idx++}`);
+            fields.push('email = ?');
             values.push(data.email);
         }
         
@@ -597,7 +597,6 @@ export const getOrCreateGoogleUser = async (googleUser: GoogleUserData): Promise
         const insertQuery = `
             INSERT INTO users (email, cognito_sub, role, first_name, last_name, metadata)
             VALUES (?, ?, ?, ?, ?, ?)
-            RETURNING id, email, cognito_sub, role, first_name, last_name, created_at, updated_at
         `;
         
         await pool.query(insertQuery, [
@@ -609,7 +608,7 @@ export const getOrCreateGoogleUser = async (googleUser: GoogleUserData): Promise
             JSON.stringify(metadata),
         ]);
         
-        // Obtener el usuario creado
+        // Obtener el usuario creado (MySQL doesn't support RETURNING)
         const getUserQuery = `
             SELECT id, email, cognito_sub, role, first_name, last_name, created_at, updated_at
             FROM users

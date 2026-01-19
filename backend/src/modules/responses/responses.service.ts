@@ -1,12 +1,14 @@
 import pool from '../../config/database';
 
 export const save = async (researchId: string, participantId: string, moduleId: string, questionId: string, answer: unknown, metadata: Record<string, unknown> = {}) => {
+  // MySQL compatible: pre-generate UUID and no RETURNING
+  const responseId = crypto.randomUUID();
   const query = `
-    INSERT INTO responses (research_id, participant_id, module_id, question_id, value, metadata)
-    VALUES ($1, $2, $3, $4, $5, $6)
-    RETURNING *
+    INSERT INTO responses (id, research_id, participant_id, module_id, question_id, value, metadata, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
   `;
-  const result = await pool.query(query, [
+  await pool.query(query, [
+    responseId,
     researchId,
     participantId,
     moduleId,
@@ -14,6 +16,10 @@ export const save = async (researchId: string, participantId: string, moduleId: 
     JSON.stringify(answer),
     JSON.stringify(metadata),
   ]);
+  
+  // Fetch created record (MySQL doesn't support RETURNING)
+  const selectResult = await pool.query('SELECT * FROM responses WHERE id = ?', [responseId]);
+  const result = { rows: selectResult.rows };
   /* 
     Logic to trigger real-time updates via WebSocket.
     We fetch the updated metrics (using internal method to bypass user check) and send them to connected clients.
@@ -78,7 +84,7 @@ export const getByResearch = async (researchId: string) => {
     FROM responses r
     LEFT JOIN questions q ON r.question_id = q.id
     LEFT JOIN modules m ON r.module_id = m.id
-    WHERE r.research_id = $1
+    WHERE r.research_id = ?
     ORDER BY r.created_at DESC
   `;
   const result = await pool.query(query, [researchId]);
@@ -105,7 +111,7 @@ export const getByParticipant = async (researchId: string, participantId: string
     FROM responses r
     LEFT JOIN questions q ON r.question_id = q.id
     LEFT JOIN modules m ON r.module_id = m.id
-    WHERE r.research_id = $1 AND r.participant_id = $2
+    WHERE r.research_id = ? AND r.participant_id = ?
     ORDER BY r.created_at ASC
   `;
   const result = await pool.query(query, [researchId, participantId]);

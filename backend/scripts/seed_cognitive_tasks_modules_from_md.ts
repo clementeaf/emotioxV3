@@ -15,16 +15,18 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import { Pool } from 'pg';
+import { createPool, Pool } from 'mysql2/promise';
+import { randomUUID } from 'crypto';
 
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const pool = new Pool({
+const pool = createPool({
     host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
+    port: parseInt(process.env.DB_PORT || '3306'),
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    connectionLimit: 10,
 });
 
 interface ModuleDefinition {
@@ -583,27 +585,18 @@ const cognitiveTasksModules: ModuleDefinition[] = [
 ];
 
 const seedCognitiveTasksModules = async () => {
-    const client = await pool.connect();
+    const connection = await pool.getConnection();
     try {
         console.log('🌱 Starting seed for Cognitive Tasks modules (based on COGNITIVE_TASKS_MODULES.md)...\n');
-        await client.query('BEGIN');
+        await connection.beginTransaction();
 
-        // Get a user ID to use as created_by
-        const userRes = await client.query('SELECT id FROM users LIMIT 1');
-        const userId = userRes.rows[0]?.id;
-
-        if (!userId) {
-            console.log('❌ No users found. Cannot seed modules without a creator.');
-            await client.query('ROLLBACK');
-            return;
-        }
 
         // Get the Cognitive Tasks stage template ID (if exists)
-        const stageTemplateRes = await client.query(
-            'SELECT id FROM stage_templates WHERE name = $1 AND is_active = true',
+        const [stageTemplateRows] = await connection.query(
+            'SELECT id FROM stage_templates WHERE name = ? AND is_active = true',
             ['Cognitive Tasks']
-        );
-        const stageTemplateId = stageTemplateRes.rows.length > 0 ? stageTemplateRes.rows[0].id : null;
+        ) as any[];
+        const stageTemplateId = stageTemplateRows.length > 0 ? stageTemplateRows[0].id : null;
 
         let createdCount = 0;
         let updatedCount = 0;
@@ -612,10 +605,10 @@ const seedCognitiveTasksModules = async () => {
         for (let index = 0; index < cognitiveTasksModules.length; index++) {
             const moduleDef = cognitiveTasksModules[index];
             // Check if module already exists
-            const checkRes = await client.query(
-                'SELECT id FROM module_templates WHERE name = $1',
+            const [checkRows] = await connection.query(
+                'SELECT id FROM module_templates WHERE name = ?',
                 [moduleDef.name]
-            );
+            ) as any[];
 
             const structure = {
                 components: moduleDef.components
@@ -623,26 +616,25 @@ const seedCognitiveTasksModules = async () => {
 
             let moduleId: string;
 
-            if (checkRes.rows.length > 0) {
+            if (checkRows.length > 0) {
                 // Update existing module
-                moduleId = checkRes.rows[0].id;
-                await client.query(
+                moduleId = checkRows[0].id;
+                await connection.query(
                     `UPDATE module_templates 
-                     SET description = $1, structure = $2, updated_at = NOW() 
-                     WHERE id = $3`,
+                     SET description = ?, structure = ?, updated_at = NOW() 
+                     WHERE id = ?`,
                     [moduleDef.description, JSON.stringify(structure), moduleId]
                 );
                 updatedCount++;
                 console.log(`✓ Updated: ${moduleDef.name} (${moduleDef.components.length} components)`);
             } else {
                 // Create new module
-                const insertRes = await client.query(
-                    `INSERT INTO module_templates (name, description, structure, is_active, created_at, updated_at, created_by)
-                     VALUES ($1, $2, $3, true, NOW(), NOW(), $4)
-                     RETURNING id`,
-                    [moduleDef.name, moduleDef.description, JSON.stringify(structure), userId]
+                moduleId = randomUUID();
+                await connection.query(
+                    `INSERT INTO module_templates (id, name, description, structure, is_active, created_at, updated_at)
+                     VALUES (?, ?, ?, ?, true, NOW(), NOW())`,
+                    [moduleId, moduleDef.name, moduleDef.description, JSON.stringify(structure)]
                 );
-                moduleId = insertRes.rows[0].id;
                 createdCount++;
                 console.log(`✓ Created: ${moduleDef.name} (${moduleDef.components.length} components)`);
             }
@@ -650,17 +642,16 @@ const seedCognitiveTasksModules = async () => {
             // Associate with Cognitive Tasks stage template if it exists
             if (stageTemplateId) {
                 // Use the index as display_order to maintain the order from the array
-                await client.query(
-                    `INSERT INTO stage_templates_module_templates (stage_template_id, module_template_id, display_order)
-                     VALUES ($1, $2, $3)
-                     ON CONFLICT (stage_template_id, module_template_id) 
-                     DO UPDATE SET display_order = $3`,
-                    [stageTemplateId, moduleId, index]
+                await connection.query(
+                    `INSERT INTO stage_templates_module_templates (id, stage_template_id, module_template_id, display_order)
+                     VALUES (UUID(), ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE display_order = ?`,
+                    [stageTemplateId, moduleId, index, index]
                 );
             }
         }
 
-        await client.query('COMMIT');
+        await connection.commit();
         console.log(`\n✅ Cognitive Tasks modules seed completed!`);
         console.log(`   Created: ${createdCount}`);
         console.log(`   Updated: ${updatedCount}`);
@@ -672,11 +663,11 @@ const seedCognitiveTasksModules = async () => {
         }
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        await connection.rollback();
         console.error('❌ Seed failed:', error);
         throw error;
     } finally {
-        client.release();
+        connection.release();
         await pool.end();
     }
 };

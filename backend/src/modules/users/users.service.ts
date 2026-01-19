@@ -37,7 +37,7 @@ export const getUserById = async (id: string) => {
         const query = `
             SELECT id, email, first_name, last_name, role, created_at, updated_at, cognito_sub
             FROM users
-            WHERE id = $1 AND deleted_at IS NULL
+            WHERE id = ? AND deleted_at IS NULL
         `;
         const result = await pool.query(query, [id]);
         if (result.rows.length === 0) {
@@ -72,20 +72,21 @@ export const updateUser = async (id: string, data: UpdateUserData) => {
         const values: (string | undefined)[] = [];
         let idx = 1;
 
+        // MySQL compatible: use ? placeholders
         if (data.first_name !== undefined) {
-            fields.push(`first_name = $${idx++}`);
+            fields.push('first_name = ?');
             values.push(data.first_name);
         }
         if (data.last_name !== undefined) {
-            fields.push(`last_name = $${idx++}`);
+            fields.push('last_name = ?');
             values.push(data.last_name);
         }
         if (data.email !== undefined) {
-            fields.push(`email = $${idx++}`);
+            fields.push('email = ?');
             values.push(data.email);
         }
         if (data.role !== undefined) {
-            fields.push(`role = $${idx++}`);
+            fields.push('role = ?');
             values.push(data.role);
         }
 
@@ -97,17 +98,21 @@ export const updateUser = async (id: string, data: UpdateUserData) => {
         const query = `
             UPDATE users 
             SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = $${idx} 
-            RETURNING id, email, first_name, last_name, role, created_at, updated_at
+            WHERE id = ?
         `;
 
         const result = await pool.query(query, values);
 
-        if (result.rows.length === 0) {
+        if (result.rowCount === 0) {
             throw new Error('User not found');
         }
 
-        return result.rows[0];
+        // Fetch updated record (MySQL doesn't support RETURNING)
+        const selectResult = await pool.query(
+            'SELECT id, email, first_name, last_name, role, created_at, updated_at FROM users WHERE id = ?',
+            [id]
+        );
+        return selectResult.rows[0];
     } catch (error) {
         console.error('UpdateUser error:', error);
         throw new Error(error instanceof Error ? error.message : 'Failed to update user');
@@ -116,15 +121,15 @@ export const updateUser = async (id: string, data: UpdateUserData) => {
 
 export const deleteUser = async (id: string) => {
     try {
+        // MySQL compatible: no RETURNING clause
         const query = `
             UPDATE users
             SET deleted_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND deleted_at IS NULL
-            RETURNING id
+            WHERE id = ? AND deleted_at IS NULL
         `;
         const result = await pool.query(query, [id]);
 
-        if (result.rows.length === 0) {
+        if (result.rowCount === 0) {
             throw new Error('User not found or already deleted');
         }
 

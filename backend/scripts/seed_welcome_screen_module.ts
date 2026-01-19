@@ -1,59 +1,49 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { Pool } from 'pg';
+import { createPool, Pool } from 'mysql2/promise';
+import { randomUUID } from 'crypto';
 
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const pool = new Pool({
+const pool = createPool({
     host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
+    port: parseInt(process.env.DB_PORT || '3306'),
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    connectionLimit: 10,
 });
 
 const seedWelcomeScreenModule = async () => {
-    const client = await pool.connect();
+    const connection = await pool.getConnection();
     try {
         console.log('Starting seed for Welcome Screen module...');
-        await client.query('BEGIN');
+        await connection.beginTransaction();
 
         // Get a user ID to use as created_by
-        const userRes = await client.query('SELECT id FROM users LIMIT 1');
-        const userId = userRes.rows[0]?.id;
+        const [userRows] = await connection.query('SELECT id FROM users LIMIT 1') as any[];
+        const userId = userRows[0]?.id;
 
         if (!userId) {
             console.log('No users found. Cannot seed module without a creator.');
-            await client.query('ROLLBACK');
+            await connection.rollback();
             return;
         }
 
         // Check if module already exists
-        const checkModule = await client.query(
-            'SELECT id FROM module_templates WHERE name = $1',
+        const [checkRows] = await connection.query(
+            'SELECT id FROM module_templates WHERE name = ?',
             ['Welcome Screen']
-        );
+        ) as any[];
 
-        if (checkModule.rows.length > 0) {
+        if (checkRows.length > 0) {
             console.log('Welcome Screen module already exists. Skipping...');
-            await client.query('ROLLBACK');
+            await connection.rollback();
             return;
         }
 
-        // Create the Welcome Screen module
-        const moduleRes = await client.query(
-            `INSERT INTO module_templates (name, description, is_active, created_at, updated_at, created_by)
-             VALUES ($1, $2, true, NOW(), NOW(), $3)
-             RETURNING id`,
-            [
-                'Welcome Screen',
-                'Initial welcome screen with title, message, and start button',
-                userId
-            ]
-        );
-
-        const moduleId = moduleRes.rows[0].id;
-        console.log(`✓ Created module: Welcome Screen (${moduleId})`);
+        // Generate UUID for the module
+        const moduleId = randomUUID();
 
         // Define the module structure with components
         const structure = {
@@ -106,25 +96,32 @@ const seedWelcomeScreenModule = async () => {
             ]
         };
 
-        // Update the module with the structure
-        await client.query(
-            `UPDATE module_templates SET structure = $1 WHERE id = $2`,
-            [JSON.stringify(structure), moduleId]
+        // Create the Welcome Screen module
+        await connection.query(
+            `INSERT INTO module_templates (id, name, description, structure, is_active, created_at, updated_at)
+             VALUES (?, ?, ?, ?, true, NOW(), NOW())`,
+            [
+                moduleId,
+                'Welcome Screen',
+                'Initial welcome screen with title, message, and start button',
+                JSON.stringify(structure)
+            ]
         );
+        console.log(`✓ Created module: Welcome Screen (${moduleId})`);
 
         console.log('  ✓ Added 3 components:');
         console.log('    - Title (text_input)');
         console.log('    - Message (textarea)');
         console.log('    - Start button text (text_input)');
 
-        await client.query('COMMIT');
+        await connection.commit();
         console.log('\n✅ Welcome Screen module created successfully!');
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        await connection.rollback();
         console.error('❌ Seed failed:', error);
     } finally {
-        client.release();
+        connection.release();
         await pool.end();
     }
 };

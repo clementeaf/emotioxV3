@@ -1,23 +1,25 @@
 // Script to create Research Configuration module template and stage template
-import { Pool } from 'pg';
+import { createPool, Pool } from 'mysql2/promise';
 import * as dotenv from 'dotenv';
 import path from 'path';
+import { randomUUID } from 'crypto';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const pool = new Pool({
+const pool = createPool({
     host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT || '5432'),
+    port: parseInt(process.env.DB_PORT || '3306'),
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    connectionLimit: 10,
 });
 
 async function seedResearchConfigurationModule() {
-    const client = await pool.connect();
+    const connection = await pool.getConnection();
     try {
         console.log('🌱 Creating Research Configuration module and stage...');
-        await client.query('BEGIN');
+        await connection.beginTransaction();
 
         // 1. Create Module Template for Research Configuration
         const moduleStructure = {
@@ -136,101 +138,101 @@ async function seedResearchConfigurationModule() {
         };
 
         // Check if module template already exists
-        const checkModule = await client.query(
-            'SELECT id FROM module_templates WHERE name = $1',
+        const [checkModuleRows] = await connection.query(
+            'SELECT id FROM module_templates WHERE name = ?',
             ['Research Configuration']
-        );
+        ) as any[];
 
         let moduleId: string;
 
-        if (checkModule.rows.length > 0) {
+        if (checkModuleRows.length > 0) {
             console.log('⚠️  Module template "Research Configuration" already exists. Updating...');
-            const updateRes = await client.query(
-                'UPDATE module_templates SET structure = $1, description = $2, updated_at = NOW() WHERE name = $3 RETURNING id',
+            moduleId = checkModuleRows[0].id;
+            await connection.query(
+                'UPDATE module_templates SET structure = ?, description = ?, updated_at = NOW() WHERE name = ?',
                 [
                     JSON.stringify(moduleStructure),
                     'Research settings and recruitment configuration',
                     'Research Configuration'
                 ]
             );
-            moduleId = updateRes.rows[0].id;
         } else {
             console.log('✨ Creating module template "Research Configuration"...');
-            const insertRes = await client.query(
-                `INSERT INTO module_templates (name, description, structure, is_active, created_at)
-                 VALUES ($1, $2, $3, true, NOW())
-                 RETURNING id`,
+            moduleId = randomUUID();
+            await connection.query(
+                `INSERT INTO module_templates (id, name, description, structure, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, true, NOW(), NOW())`,
                 [
+                    moduleId,
                     'Research Configuration',
                     'Research settings and recruitment configuration',
                     JSON.stringify(moduleStructure)
                 ]
             );
-            moduleId = insertRes.rows[0].id;
         }
 
         console.log(`✓ Module template created/updated: ${moduleId}`);
 
         // 2. Create Stage Template for Research Configuration
-        const checkStage = await client.query(
-            'SELECT id FROM stage_templates WHERE name = $1',
+        const [checkStageRows] = await connection.query(
+            'SELECT id FROM stage_templates WHERE name = ?',
             ['Research Configuration']
-        );
+        ) as any[];
 
         let stageId: string;
 
-        if (checkStage.rows.length > 0) {
+        if (checkStageRows.length > 0) {
             console.log('⚠️  Stage template "Research Configuration" already exists. Updating...');
-            const updateRes = await client.query(
-                'UPDATE stage_templates SET description = $1, stage_type = $2, updated_at = NOW() WHERE name = $3 RETURNING id',
+            stageId = checkStageRows[0].id;
+            await connection.query(
+                'UPDATE stage_templates SET description = ?, type = ?, updated_at = NOW() WHERE name = ?',
                 [
                     'Research settings and recruitment configuration',
                     'single_module',
                     'Research Configuration'
                 ]
             );
-            stageId = updateRes.rows[0].id;
 
             // Clear existing module associations
-            await client.query(
-                'DELETE FROM stage_templates_module_templates WHERE stage_template_id = $1',
+            await connection.query(
+                'DELETE FROM stage_templates_module_templates WHERE stage_template_id = ?',
                 [stageId]
             );
         } else {
             console.log('✨ Creating stage template "Research Configuration"...');
-            const insertRes = await client.query(
-                `INSERT INTO stage_templates (name, description, stage_type, is_active, created_at)
-                 VALUES ($1, $2, $3, true, NOW())
-                 RETURNING id`,
+            stageId = randomUUID();
+            await connection.query(
+                `INSERT INTO stage_templates (id, name, description, type, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, true, NOW(), NOW())`,
                 [
+                    stageId,
                     'Research Configuration',
                     'Research settings and recruitment configuration',
                     'single_module'
                 ]
             );
-            stageId = insertRes.rows[0].id;
         }
 
         console.log(`✓ Stage template created/updated: ${stageId}`);
 
         // 3. Associate module with stage
-        await client.query(
-            `INSERT INTO stage_templates_module_templates (stage_template_id, module_template_id, display_order)
-             VALUES ($1, $2, 0)
-             ON CONFLICT (stage_template_id, module_template_id) DO NOTHING`,
+        await connection.query(
+            `INSERT INTO stage_templates_module_templates (id, stage_template_id, module_template_id, display_order)
+             VALUES (UUID(), ?, ?, 0)
+             ON DUPLICATE KEY UPDATE id=id`,
             [stageId, moduleId]
         );
 
         console.log('✓ Module associated with stage template');
 
-        await client.query('COMMIT');
+        await connection.commit();
         console.log('✅ Research Configuration module and stage created successfully!');
     } catch (err) {
-        await client.query('ROLLBACK');
+        await connection.rollback();
         console.error('❌ Error creating Research Configuration:', err);
         throw err;
     } finally {
-        client.release();
+        connection.release();
         await pool.end();
     }
 }
