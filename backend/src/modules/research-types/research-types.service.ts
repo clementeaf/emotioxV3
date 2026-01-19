@@ -43,13 +43,14 @@ export const create = async (data: ResearchTypeData, createdBy: string | null) =
     try {
         await client.query('BEGIN');
 
-        // Create research type
+        // Create research type (MySQL compatible: pre-generate UUID and no RETURNING)
+        const researchTypeId = crypto.randomUUID();
         const query = `
-            INSERT INTO research_types (name, description, default_modules, settings, created_by)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, name, description, default_modules, settings, is_active, created_at
+            INSERT INTO research_types (id, name, description, default_modules, settings, created_by)
+            VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const result = await client.query(query, [
+        await client.query(query, [
+            researchTypeId,
             name,
             description,
             JSON.stringify(default_modules),
@@ -57,17 +58,23 @@ export const create = async (data: ResearchTypeData, createdBy: string | null) =
             createdBy,
         ]);
 
-        const researchType = result.rows[0];
+        // Fetch created record
+        const selectResult = await client.query(
+            'SELECT id, name, description, default_modules, settings, is_active, created_at FROM research_types WHERE id = ?',
+            [researchTypeId]
+        );
+        const researchType = selectResult.rows[0];
         
         // Invalidate cache
         cache.delete(CacheKeys.RESEARCH_TYPES_LIST);
 
         // Associate techniques in the junction table
         if (research_technique_ids && research_technique_ids.length > 0) {
+            // MySQL compatible: use ON DUPLICATE KEY UPDATE instead of ON CONFLICT
             const junctionQuery = `
                 INSERT INTO research_types_techniques (research_type_id, research_technique_id)
-                VALUES ($1, $2)
-                ON CONFLICT (research_type_id, research_technique_id) DO NOTHING
+                VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE research_type_id = research_type_id
             `;
 
             for (const techId of research_technique_ids) {
@@ -106,7 +113,7 @@ export const getById = async (id: string) => {
                 rt.created_at, 
                 rt.updated_at
             FROM research_types rt
-            WHERE rt.id = $1
+            WHERE rt.id = ?
           `;
             const result = await pool.query(query, [id]);
 
@@ -121,7 +128,7 @@ export const getById = async (id: string) => {
                 SELECT rt.id, rt.name, rt.description
                 FROM research_techniques rt
                 INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_technique_id
-                WHERE rtt.research_type_id = $1 AND rt.is_active = true
+                WHERE rtt.research_type_id = ?
             `;
             const techniquesResult = await pool.query(techniquesQuery, [id]);
 
@@ -145,20 +152,21 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
         const values: unknown[] = [];
         let paramIndex = 1;
 
+        // MySQL compatible: use ? placeholders
         if (name !== undefined) {
-            updates.push(`name = $${paramIndex++}`);
+            updates.push('name = ?');
             values.push(name);
         }
         if (description !== undefined) {
-            updates.push(`description = $${paramIndex++}`);
+            updates.push('description = ?');
             values.push(description);
         }
         if (default_modules !== undefined) {
-            updates.push(`default_modules = $${paramIndex++}`);
+            updates.push('default_modules = ?');
             values.push(JSON.stringify(default_modules));
         }
         if (settings !== undefined) {
-            updates.push(`settings = $${paramIndex++}`);
+            updates.push('settings = ?');
             values.push(JSON.stringify(settings));
         }
 
@@ -167,12 +175,11 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
             const query = `
                 UPDATE research_types
                 SET ${updates.join(', ')}
-                WHERE id = $${paramIndex}
-                RETURNING id, name, description, default_modules, settings, is_active, updated_at
+                WHERE id = ?
             `;
             const result = await client.query(query, values);
 
-            if (result.rows.length === 0) {
+            if (result.rowCount === 0) {
                 throw new Error('Research type not found');
             }
         }
@@ -180,14 +187,15 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
         // Update techniques if provided
         if (research_technique_ids !== undefined) {
             // First delete existing associations
-            await client.query('DELETE FROM research_types_techniques WHERE research_type_id = $1', [id]);
+            await client.query('DELETE FROM research_types_techniques WHERE research_type_id = ?', [id]);
 
             // Then insert new ones
             if (research_technique_ids.length > 0) {
+                // MySQL compatible: use ON DUPLICATE KEY UPDATE instead of ON CONFLICT
                 const junctionQuery = `
                     INSERT INTO research_types_techniques (research_type_id, research_technique_id)
-                    VALUES ($1, $2)
-                    ON CONFLICT (research_type_id, research_technique_id) DO NOTHING
+                    VALUES (?, ?)
+                    ON DUPLICATE KEY UPDATE research_type_id = research_type_id
                 `;
 
                 for (const techId of research_technique_ids) {
@@ -213,15 +221,15 @@ export const update = async (id: string, data: Partial<ResearchTypeData>) => {
 };
 
 export const deleteResearchType = async (id: string) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE research_types
     SET is_active = false
-    WHERE id = $1
-    RETURNING id
+    WHERE id = ?
   `;
     const result = await pool.query(query, [id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research type not found');
     }
     
@@ -233,19 +241,24 @@ export const deleteResearchType = async (id: string) => {
 };
 
 export const updateModules = async (id: string, modules: Record<string, unknown>[]) => {
+    // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE research_types
-    SET default_modules = $1
-    WHERE id = $2
-    RETURNING id, name, default_modules, updated_at
+    SET default_modules = ?
+    WHERE id = ?
   `;
     const result = await pool.query(query, [JSON.stringify(modules), id]);
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
         throw new Error('Research type not found');
     }
 
-    return result.rows[0];
+    // Fetch updated record
+    const selectResult = await pool.query(
+        'SELECT id, name, default_modules, updated_at FROM research_types WHERE id = ?',
+        [id]
+    );
+    return selectResult.rows[0];
 };
 
 /**
@@ -259,13 +272,11 @@ export const getTechniquesByType = async (researchTypeId: string) => {
         rt.id,
         rt.name,
         rt.description,
-        rt.created_by,
-        rt.is_active,
         rt.created_at,
         rt.updated_at
     FROM research_techniques rt
     INNER JOIN research_types_techniques rtt ON rt.id = rtt.research_technique_id
-    WHERE rtt.research_type_id = $1 AND rt.is_active = true
+    WHERE rtt.research_type_id = ?
     ORDER BY rt.name
   `;
     const result = await pool.query(query, [researchTypeId]);
@@ -284,13 +295,12 @@ export const getModulesByType = async (researchTypeId: string) => {
         mt.name,
         mt.description,
         mt.structure,
-        mt.created_by,
         mt.is_active,
         mt.created_at,
         mt.updated_at
     FROM module_templates mt
     INNER JOIN research_types_module_templates rtmt ON mt.id = rtmt.module_template_id
-    WHERE rtmt.research_type_id = $1 AND mt.is_active = true
+    WHERE rtmt.research_type_id = ? AND mt.is_active = true
     ORDER BY mt.name
   `;
     const result = await pool.query(query, [researchTypeId]);
@@ -309,16 +319,17 @@ export const updateModuleAssignments = async (researchTypeId: string, moduleTemp
         await client.query('BEGIN');
 
         // First delete existing associations
-        await client.query('DELETE FROM research_types_module_templates WHERE research_type_id = $1', [
+        await client.query('DELETE FROM research_types_module_templates WHERE research_type_id = ?', [
             researchTypeId,
         ]);
 
         // Then insert new associations
         if (moduleTemplateIds && moduleTemplateIds.length > 0) {
+            // MySQL compatible: use ON DUPLICATE KEY UPDATE instead of ON CONFLICT
             const junctionQuery = `
                 INSERT INTO research_types_module_templates (research_type_id, module_template_id)
-                VALUES ($1, $2)
-                ON CONFLICT (research_type_id, module_template_id) DO NOTHING
+                VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE research_type_id = research_type_id
             `;
 
             for (const moduleId of moduleTemplateIds) {
