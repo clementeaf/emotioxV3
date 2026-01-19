@@ -26,6 +26,45 @@ interface PoolClient {
 
 type EventHandler = (...args: unknown[]) => void;
 
+/**
+ * Convert PostgreSQL parameterized query syntax to MySQL syntax
+ * PostgreSQL uses $1, $2, $3... while MySQL uses ?
+ * Also handles some PostgreSQL-specific syntax
+ */
+const convertPgToMysql = (query: string): string => {
+    // Replace $1, $2, $3... with ?
+    // Must handle cases like $1, $10, $100 correctly (replace larger numbers first)
+    let converted = query;
+
+    // Find all $N patterns and replace with ?
+    // Use regex to find the highest number first to avoid $1 replacing part of $10
+    const matches = query.match(/\$\d+/g);
+    if (matches) {
+        // Sort by number descending to replace $10 before $1
+        const uniqueMatches = [...new Set(matches)].sort((a, b) => {
+            const numA = parseInt(a.slice(1));
+            const numB = parseInt(b.slice(1));
+            return numB - numA;
+        });
+
+        for (const match of uniqueMatches) {
+            converted = converted.split(match).join('?');
+        }
+    }
+
+    // Remove PostgreSQL type casts like ::jsonb, ::text, ::uuid, etc.
+    converted = converted.replace(/::(jsonb|json|text|varchar|uuid|int|integer|boolean|timestamp|date|numeric|float|double precision)/gi, '');
+
+    // Convert PostgreSQL ILIKE to MySQL LIKE (MySQL LIKE is case-insensitive by default with utf8_general_ci)
+    converted = converted.replace(/\bILIKE\b/gi, 'LIKE');
+
+    // Convert PostgreSQL array syntax ANY($1) to MySQL IN (?)
+    // This is a simplified conversion - complex cases may need manual handling
+    converted = converted.replace(/= ANY\s*\(\s*\?\s*\)/gi, 'IN (?)');
+
+    return converted;
+};
+
 let realPool: Pool | null = null;
 let poolPromise: Promise<Pool> | null = null;
 const pendingEventHandlers: Array<{ event: string; handler: EventHandler }> = [];
@@ -168,13 +207,15 @@ const convertResult = <T extends QueryResultRow = QueryResultRow>(
 const pool = {
     /**
      * Run a SQL query.
+     * Automatically converts PostgreSQL syntax ($1, $2, ::type) to MySQL syntax (?)
      */
     async query<R extends QueryResultRow = QueryResultRow>(
         queryTextOrConfig: string | QueryConfig,
         values?: ReadonlyArray<unknown>
     ): Promise<QueryResult<R>> {
         const p = await ensurePool();
-        const result = await p.query(queryTextOrConfig as string, values as unknown[]);
+        const convertedQuery = convertPgToMysql(queryTextOrConfig as string);
+        const result = await p.query(convertedQuery, values as unknown[]);
         return convertResult<R>(result);
     },
 
@@ -190,7 +231,8 @@ const pool = {
                 queryText: string,
                 queryValues?: unknown[]
             ): Promise<QueryResult<R>> => {
-                const result = await connection.query(queryText, queryValues as unknown[]);
+                const convertedQuery = convertPgToMysql(queryText);
+                const result = await connection.query(convertedQuery, queryValues as unknown[]);
                 return convertResult<R>(result);
             },
             release: () => {

@@ -76,20 +76,17 @@ jobs:
         working-directory: participant-frontend
         run: npm run type-check
 
-      # TODO: Re-enable after migrating all backend queries from PostgreSQL ($1) to MySQL (?) syntax
-      # The backend services still use PostgreSQL parameterized query syntax ($1, $2, etc.)
-      # which is incompatible with MySQL. This requires updating ~152 query occurrences.
-      # - name: Run end-to-end smoke
-      #   working-directory: backend
-      #   env:
-      #     DB_HOST: 127.0.0.1
-      #     DB_PORT: "3306"
-      #     DB_NAME: emotiox_ci
-      #     DB_USER: emotiox
-      #     DB_PASSWORD: password
-      #     DB_SSL: "false"
-      #     API_STAGE: ci
-      #     SSM_PREFIX: /emotioxv3/ci
-      #     AWS_REGION: us-east-1
-      #   run: npx --yes tsx scripts/smoke_end_to_end.ts
+      - name: Run end-to-end smoke
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3306"
+          DB_NAME: emotiox_ci
+          DB_USER: emotiox
+          DB_PASSWORD: password
+          DB_SSL: "false"
+          API_STAGE: ci
+          SSM_PREFIX: /emotioxv3/ci
+          AWS_REGION: us-east-1
+        run: npx --yes tsx scripts/smoke_end_to_end.ts
 
