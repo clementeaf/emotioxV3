@@ -15,8 +15,9 @@ export interface ResearchData {
 export const list = async (userId: string) => {
     try {
         console.log('[Research Service] list() called for userId:', userId);
+        // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
         const query = `
-        SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.settings, r.created_at, r.updated_at,
+        SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.config, r.created_at, r.updated_at,
                rt.name as research_type_name
         FROM researches r
         LEFT JOIN research_types rt ON r.research_type_id = rt.id
@@ -32,20 +33,24 @@ export const list = async (userId: string) => {
         });
         
         // Ensure each research has an empty stages array if not present
-        // Also parse settings if it's a string (MySQL JSON fields can come as strings)
+        // Map 'config' to 'settings' for frontend compatibility (MySQL uses 'config', frontend expects 'settings')
+        // Also parse config/settings if it's a string (MySQL JSON fields can come as strings)
         const researches = result.rows.map((research: Record<string, unknown>) => {
-            let settings = research.settings;
+            let settings = research.config || research.settings;
             if (typeof settings === 'string') {
                 try {
                     settings = JSON.parse(settings);
                 } catch (parseError) {
-                    console.warn('[Research Service] Failed to parse settings JSON:', parseError);
+                    console.warn('[Research Service] Failed to parse config/settings JSON:', parseError);
                     settings = {};
                 }
             }
             
+            // Remove 'config' from response and use 'settings' instead for frontend compatibility
+            const { config, ...researchWithoutConfig } = research;
+            
             return {
-                ...research,
+                ...researchWithoutConfig,
                 settings: settings || {},
                 stages: research.stages || []
             };
@@ -85,9 +90,10 @@ export const create = async (userId: string, data: ResearchData) => {
         }
 
         // Create research (MySQL compatible - pre-generate UUID)
+        // MySQL uses 'config' instead of 'settings'
         const researchId = crypto.randomUUID();
         const researchQuery = `
-      INSERT INTO researches (id, user_id, name, description, research_type_id, research_technique_id, enterprise_id, settings, status, created_at)
+      INSERT INTO researches (id, user_id, name, description, research_type_id, research_technique_id, enterprise_id, config, status, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', NOW())
     `;
         await client.query(researchQuery, [
@@ -102,15 +108,22 @@ export const create = async (userId: string, data: ResearchData) => {
         ]);
 
         // Fetch the created research (MySQL doesn't support RETURNING)
+        // Map 'config' to 'settings' for frontend compatibility
         const selectResult = await client.query(
-            `SELECT id, name, description, status, research_type_id, research_technique_id, enterprise_id, settings, created_at
+            `SELECT id, name, description, status, research_type_id, research_technique_id, enterprise_id, config, created_at
              FROM researches WHERE id = ?`,
             [researchId]
         );
-        const research = selectResult.rows[0];
+        const rawResearch = selectResult.rows[0] as Record<string, unknown>;
+        // Map config to settings for frontend compatibility
+        const { config, ...researchWithoutConfig } = rawResearch;
+        const research = {
+            ...researchWithoutConfig,
+            settings: typeof config === 'string' ? JSON.parse(config) : (config || {})
+        } as typeof rawResearch & { settings: Record<string, unknown>; id: string };
 
         // Automatically add "Research Configuration" stage to all new researches FIRST
-        await addDefaultStage(client, research.id, userId);
+        await addDefaultStage(client, research.id as string, userId);
 
         // Clone modules from template if requested and associate them to a stage
         if (research_type_id) {
@@ -162,15 +175,15 @@ export const create = async (userId: string, data: ResearchData) => {
                 // Create stages from stage templates first (these will create their own modules)
                 for (const stageName of stagesToCreate) {
                     console.log(`[Research Service] Creating stage from template: ${stageName}`);
-                    await createStageFromTemplateInternal(client, research.id, stageName);
+                    await createStageFromTemplateInternal(client, research.id as string, stageName);
                 }
                 
                 // Then create any remaining individual modules in a default stage
                 if (individualModules.length > 0) {
-                    const defaultModulesStage = await createDefaultModulesStage(client, research.id, research_type_id);
+                    const defaultModulesStage = await createDefaultModulesStage(client, research.id as string, research_type_id);
                     console.log(`[Research Service] Created default modules stage:`, defaultModulesStage.id, defaultModulesStage.name);
                     console.log(`[Research Service] Creating ${individualModules.length} individual modules in stage ${defaultModulesStage.id}:`, individualModules);
-                    await cloneTemplateModulesInternal(client, research.id, research_type_id, individualModules, defaultModulesStage.id);
+                    await cloneTemplateModulesInternal(client, research.id as string, research_type_id, individualModules, defaultModulesStage.id);
                     console.log(`[Research Service] Successfully cloned ${individualModules.length} individual modules in stage ${defaultModulesStage.id}`);
                 } else {
                     console.log(`[Research Service] No individual modules to create (all were stages)`);
@@ -596,8 +609,9 @@ const addDefaultStage = async (client: PoolClient, researchId: string, _userId: 
 };
 
 export const getById = async (researchId: string, userId: string) => {
+    // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
     const query = `
-    SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.settings, r.created_at, r.updated_at,
+    SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.config, r.created_at, r.updated_at,
            rt.name as research_type_name,
            rtech.name as research_technique_name
     FROM researches r
@@ -611,7 +625,22 @@ export const getById = async (researchId: string, userId: string) => {
         throw new Error('Research not found');
     }
 
-    const research = result.rows[0];
+    const rawResearch = result.rows[0] as Record<string, unknown>;
+    // Map config to settings for frontend compatibility
+    let settings = rawResearch.config;
+    if (typeof settings === 'string') {
+        try {
+            settings = JSON.parse(settings);
+        } catch (parseError) {
+            console.warn('[Research Service] Failed to parse config JSON in getById:', parseError);
+            settings = {};
+        }
+    }
+    const { config, ...researchWithoutConfig } = rawResearch;
+    const research = {
+        ...researchWithoutConfig,
+        settings: settings || {}
+    } as typeof rawResearch & { settings: Record<string, unknown> };
 
     // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
     // Step 1: Get all stages
@@ -746,7 +775,8 @@ export const update = async (researchId: string, userId: string, data: Partial<R
         values.push(description);
     }
     if (settings !== undefined) {
-        updates.push('settings = ?');
+        // MySQL uses 'config' instead of 'settings'
+        updates.push('config = ?');
         values.push(JSON.stringify(settings));
     }
 
@@ -769,11 +799,27 @@ export const update = async (researchId: string, userId: string, data: Partial<R
     }
 
     // Fetch updated record (MySQL doesn't support RETURNING)
+    // Map 'config' to 'settings' for frontend compatibility
     const selectResult = await pool.query(
-        'SELECT id, name, description, status, settings, updated_at FROM researches WHERE id = ?',
+        'SELECT id, name, description, status, config, updated_at FROM researches WHERE id = ?',
         [researchId]
     );
-    return selectResult.rows[0];
+    const rawResearch = selectResult.rows[0] as Record<string, unknown>;
+    // Map config to settings for frontend compatibility
+    let parsedSettings = rawResearch.config;
+    if (typeof parsedSettings === 'string') {
+        try {
+            parsedSettings = JSON.parse(parsedSettings);
+        } catch (parseError) {
+            console.warn('[Research Service] Failed to parse config JSON in update:', parseError);
+            parsedSettings = {};
+        }
+    }
+    const { config, ...researchWithoutConfig } = rawResearch;
+    return {
+        ...researchWithoutConfig,
+        settings: parsedSettings || {}
+    } as typeof rawResearch & { settings: Record<string, unknown> };
 };
 
 export const updateStatus = async (researchId: string, userId: string, status: string) => {
