@@ -99,12 +99,12 @@ const createSmokeResearch = async (): Promise<CreatedResearchContext> => {
         const cognitiveStageId = `smoke-stage-cognitive-${smokeTime}`;
 
         await client.query(
-            `INSERT INTO stages (id, research_id, name, description, order_index, stage_type)
+            `INSERT INTO stages (id, research_id, name, description, display_order, stage_type)
              VALUES (?, ?, 'Smart VOC', 'Smoke stage', 1, 'module_collection')`,
             [smartVocStageId, researchId]
         );
         await client.query(
-            `INSERT INTO stages (id, research_id, name, description, order_index, stage_type)
+            `INSERT INTO stages (id, research_id, name, description, display_order, stage_type)
              VALUES (?, ?, 'Cognitive Tasks', 'Smoke stage', 2, 'module_collection')`,
             [cognitiveStageId, researchId]
         );
