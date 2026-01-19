@@ -617,7 +617,7 @@ export const getById = async (researchId: string, userId: string) => {
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
-    WHERE r.id = ? AND r.user_id = ? AND r.deleted_at IS NULL
+    WHERE r.id = ? AND r.created_by = ? AND r.deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
 
