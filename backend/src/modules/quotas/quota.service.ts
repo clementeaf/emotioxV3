@@ -1,5 +1,5 @@
 import pool from '../../config/database';
-import type { PoolClient } from 'pg';
+import type { PoolClient } from '../../config/database';
 
 /**
  * Demographic Quota Service

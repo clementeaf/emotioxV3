@@ -130,7 +130,7 @@ function App() {
         <ErrorBoundary>
             <QueryProvider>
                 <ToastProvider>
-                    <BrowserRouter>
+                    <BrowserRouter basename="/research">
                         <AuthProvider>
                             <Routes>{routes}</Routes>
                         </AuthProvider>

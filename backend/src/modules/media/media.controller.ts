@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { isAuthError, requireAuth } from '../../utils/auth';
-import * as mediaService from './media.service';
+import { isAuthError, requireAuth } from '../../utils/auth.local';
+import * as mediaService from './media.service.local';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -18,24 +18,29 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
         }
 
         if (path === '/media' && httpMethod === 'POST') {
-            const { research_id, question_id, s3_key, metadata } = body;
-            const media = await mediaService.saveMetadata(research_id, question_id, s3_key, metadata);
+            const { research_id, question_id, media_path, s3_key, metadata } = body;
+            // Compatibilidad: aceptar s3_key o media_path
+            const pathToUse = media_path || s3_key;
+            if (!pathToUse) {
+                return error('media_path or s3_key is required', 400, undefined, origin);
+            }
+            const media = await mediaService.saveMetadata(research_id, question_id, pathToUse, metadata);
             return success({ media }, 201, undefined, origin);
         }
 
         if (path === '/media/by-key' && httpMethod === 'GET') {
-            const s3Key = event.queryStringParameters?.s3_key;
-            if (!s3Key) {
-                return error('s3_key query parameter is required', 400, undefined, origin);
+            const mediaPath = event.queryStringParameters?.media_path || event.queryStringParameters?.s3_key;
+            if (!mediaPath) {
+                return error('media_path or s3_key query parameter is required', 400, undefined, origin);
             }
-            const result = await mediaService.getMediaUrlByS3Key(s3Key);
+            const result = await mediaService.getMediaUrlByPath(mediaPath);
             return success(result, 200, undefined, origin);
         }
 
         const getMatch = path.match(/^\/media\/([^\/]+)$/);
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
-            const result = await mediaService.getMediaUrl(id);
+            const result = await mediaService.getMediaUrlById(id);
             return success(result, 200, undefined, origin);
         }
 

@@ -8,8 +8,8 @@ interface RuntimeConfig {
     apiBaseUrl: string;
 }
 
-// Backend production URL - Using API Gateway URL directly
-const DEFAULT_PRODUCTION_API_BASE_URL = 'https://3jczpvecma.execute-api.us-east-1.amazonaws.com/production';
+// Backend production URL - cPanel
+const DEFAULT_PRODUCTION_API_BASE_URL = 'https://emotio.cx/api';
 
 interface ApiEndpoints {
     auth: Record<string, string>;
@@ -132,20 +132,33 @@ class ConfigService {
      * @returns API base URL without trailing slash
      */
     private async resolveApiBaseUrl(): Promise<string> {
-        // Try environment variable first
-        const envBaseUrl = this.getEnvApiBaseUrl();
-        if (envBaseUrl) {
-            return envBaseUrl;
+        // In production, try runtime-config.json FIRST (highest priority)
+        // This allows runtime configuration without rebuilding
+        // Try /research/runtime-config.json first (for cPanel deployment)
+        // Fallback to /runtime-config.json for root deployment
+        try {
+            const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/research/runtime-config.json');
+            console.log('[ConfigService] Using runtime-config.json from /research/runtime-config.json');
+            return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
+        } catch (error) {
+            console.warn('[ConfigService] Failed to load /research/runtime-config.json, trying root:', error);
+            try {
+                const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
+                console.log('[ConfigService] Using runtime-config.json from /runtime-config.json');
+                return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
+            } catch (rootError) {
+                console.warn('[ConfigService] Failed to load /runtime-config.json, trying VITE_API_URL:', rootError);
+                // Fallback to environment variable if runtime-config.json is not available
+                const envBaseUrl = this.getEnvApiBaseUrl();
+                if (envBaseUrl) {
+                    console.log('[ConfigService] Using VITE_API_URL from environment');
+                    return envBaseUrl;
+                }
+                // Final fallback to default production URL
+                console.warn('[ConfigService] Using default production URL');
+                return DEFAULT_PRODUCTION_API_BASE_URL;
+            }
         }
-
-        // In development, if no env var, use production URL directly
-        if (import.meta.env.DEV) {
-            return DEFAULT_PRODUCTION_API_BASE_URL;
-        }
-
-        // In production, try runtime-config.json
-        const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
-        return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
     }
 
     /**
@@ -164,9 +177,14 @@ class ConfigService {
         }
 
         // If it's a relative URL (starts with /), it's likely a proxy path
-        // Since we're not using proxy, convert it to the production AWS URL
+        // For cPanel, relative URLs should be resolved relative to current origin
         if (trimmed.startsWith('/')) {
-            console.warn('[ConfigService] Relative URL detected in VITE_API_URL, using production URL instead:', trimmed);
+            // In production, resolve relative to current origin
+            if (typeof window !== 'undefined') {
+                const baseUrl = `${window.location.protocol}//${window.location.host}`;
+                return this.normalizeBaseUrl(`${baseUrl}${trimmed}`);
+            }
+            // Fallback for server-side
             return DEFAULT_PRODUCTION_API_BASE_URL;
         }
 
@@ -178,7 +196,9 @@ class ConfigService {
         try {
             // Add cache buster to bypass browser/intermediate caches
             const cacheBuster = `?t=${Date.now()}`;
-            const response = await fetch(`${url}${cacheBuster}`, { cache: 'no-store' });
+            const fullUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+            console.log('[ConfigService] Fetching runtime config from:', fullUrl);
+            const response = await fetch(`${fullUrl}${cacheBuster}`, { cache: 'no-store' });
             if (!response.ok) {
                 throw new Error(
                     `API base URL is not configured. Provide /runtime-config.json or set VITE_API_URL. Failed to load: ${url} (${response.status} ${response.statusText})`
@@ -190,7 +210,7 @@ class ConfigService {
             if (!contentType || !contentType.includes('application/json')) {
                 const text = await response.text();
                 console.error('[ConfigService] Received non-JSON response:', {
-                    url,
+                    url: fullUrl,
                     contentType,
                     preview: text.substring(0, 200),
                 });
@@ -198,6 +218,7 @@ class ConfigService {
             }
 
             const data = await response.json() as unknown;
+            console.log('[ConfigService] Loaded runtime config:', data);
             if (!this.isRuntimeConfig(data)) {
                 throw new Error(`Invalid runtime config format from ${url}. Expected {"apiBaseUrl":"https://..."}`);
             }

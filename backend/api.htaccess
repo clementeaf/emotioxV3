@@ -1,0 +1,17 @@
+# Backend API - Proxy to Node.js server
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Proxy all requests to Node.js backend on port 3000
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ http://localhost:3000/$1 [P,L]
+</IfModule>
+
+# Security headers
+# NOTA: No establecer Access-Control-Allow-Origin aquí
+# El backend Node.js maneja CORS dinámicamente
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    # NO establecer Access-Control-* aquí - el backend lo maneja
+</IfModule>

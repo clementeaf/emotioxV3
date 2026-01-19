@@ -18,6 +18,11 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
         // Production - Domains (new subdomain structure)
         'https://portal.emotiox.org',      // research-frontend production
         'https://app.emotiox.org',         // participant-frontend production
+        
+        // Production - cPanel
+        'https://emotio.cx',               // cPanel domain
+        'https://emotio.cx/research',      // research-frontend cPanel
+        'https://emotio.cx/participant',   // participant-frontend cPanel
 
         // Production - Domains (legacy)
         'https://research.useremotion.com',
@@ -33,11 +38,12 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
     ];
 
     // Si hay un origen y está en la lista permitida, usarlo
-    // También aceptar cualquier subdominio de emotiox.org o useremotion.com
+    // También aceptar cualquier subdominio de emotiox.org, useremotion.com, o emotio.cx
     let allowedOrigin: string;
     if (origin && (allowedOrigins.includes(origin) ||
                    origin.endsWith('.emotiox.org') ||
-                   origin.endsWith('.useremotion.com'))) {
+                   origin.endsWith('.useremotion.com') ||
+                   origin.includes('emotio.cx'))) {
         allowedOrigin = origin;
     } else {
         allowedOrigin = allowedOrigins[0];
@@ -115,16 +121,12 @@ export const createCookie = (
     }
 
     // Establecer domain para compartir cookies entre subdominios
-    // Si no se especifica domain explícitamente, usar .emotiox.org para producción
-    // Esto permite que las cookies funcionen entre portal.emotiox.org, app.emotiox.org, server.emotiox.org, etc.
+    // Si no se especifica domain explícitamente, detectar del contexto
     if (domain) {
         cookie += `; Domain=${domain}`;
-    } else if (secure && sameSite === 'None') {
-        // Solo establecer domain compartido en producción (HTTPS + SameSite=None)
-        // Esto permite compartir cookies entre subdominios de emotiox.org
-        cookie += `; Domain=.emotiox.org`;
     }
-    // En localhost, no establecer domain para que funcione correctamente
+    // No establecer Domain para permitir que el navegador lo establezca automáticamente
+    // Esto funciona mejor para emotio.cx donde API y frontend están en el mismo dominio
 
     if (httpOnly) {
         cookie += '; HttpOnly';

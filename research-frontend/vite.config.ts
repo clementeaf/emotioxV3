@@ -25,6 +25,7 @@ const injectCacheVersion = () => {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), injectCacheVersion()],
+  base: '/research/',
   server: {
     port: 12800,
     strictPort: true,

@@ -55,8 +55,8 @@ export const list = async (): Promise<StageTemplateWithModules[]> => {
         GROUP BY st.id
         ORDER BY st.created_at DESC
     `;
-    const result = await pool.query<StageTemplateWithModules>(query);
-    return result.rows;
+    const result = await pool.query(query);
+    return result.rows as StageTemplateWithModules[];
 };
 
 export const create = async (data: StageTemplateData) => {
@@ -100,13 +100,13 @@ export const getById = async (id: string): Promise<StageTemplateWithModules> => 
         WHERE st.id = $1 AND st.is_active = true
         GROUP BY st.id
     `;
-    const result = await pool.query<StageTemplateWithModules>(query, [id]);
+    const result = await pool.query(query, [id]);
 
     if (result.rows.length === 0) {
         throw new Error('Stage template not found');
     }
 
-    return result.rows[0];
+    return result.rows[0] as StageTemplateWithModules;
 };
 
 export const update = async (id: string, data: Partial<StageTemplateData>) => {

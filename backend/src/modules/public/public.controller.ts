@@ -66,7 +66,7 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
                 const s3Key = decodeURIComponent(rawS3Key);
                 
                 console.log(`[Public API] Getting media URL for s3_key: ${s3Key}`);
-                const result = await mediaService.getMediaUrlByS3Key(s3Key);
+                const result = await mediaService.getMediaUrlByPath(s3Key);
                 console.log(`[Public API] Successfully generated media URL for s3_key: ${s3Key}`);
                 return success(result, 200, undefined, origin);
             } catch (serviceError: unknown) {

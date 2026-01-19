@@ -2,9 +2,8 @@ node_modules
 dist
 .serverless
 # Environment files
-.env
+# .env - REMOVED: Now tracked for cPanel deployment
 .env.local
-.env.production
 .env.*.local
 *.log
 .DS_Store

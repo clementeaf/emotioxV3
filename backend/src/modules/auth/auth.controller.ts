@@ -1,7 +1,8 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
-import { isAuthError, requireAuth } from '../../utils/auth';
-import * as authService from './auth.service';
+import { isAuthError, requireAuth } from '../../utils/auth.local';
+import * as authService from './auth.service.local';
+import type { SignOptions } from 'jsonwebtoken';
 
 type CookieSameSite = 'Lax' | 'None';
 
@@ -21,6 +22,12 @@ const resolveCookieAttributes = (origin: string | null): { secure: boolean; same
 
     if (isLocal) {
         return { secure: false, sameSite: 'Lax' };
+    }
+
+    // Para emotio.cx, usar Lax porque frontend y API están en el mismo dominio
+    // SameSite=None solo es necesario para cross-site requests
+    if (raw.includes('emotio.cx')) {
+        return { secure: true, sameSite: 'Lax' };
     }
 
     return { secure: true, sameSite: 'None' };
@@ -110,6 +117,11 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 targetOrigin.includes('research.emotiox.org') || targetOrigin.includes('participant.emotiox.org') ||
                 targetOrigin.includes('useremotion.com')) {
                 return targetOrigin.replace(/\/$/, '');
+            }
+
+            // For emotio.cx (cPanel), use FRONTEND_URL since app is under /research
+            if (targetOrigin.includes('emotio.cx')) {
+                return process.env.FRONTEND_URL || process.env.RESEARCH_FRONTEND_URL || 'https://emotio.cx/research';
             }
         }
 
@@ -261,9 +273,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 const decoded = await requireAuth(event);
                 // Token decoded successfully, proceeding with request
 
-                const username = decoded['cognito:username'] || decoded.sub;
-                const email = decoded.email;
-                const user = await authService.getMe(decoded.sub, username, email);
+                const user = await authService.getMe(decoded.sub);
                 return success({ user }, 200, undefined, origin);
             } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -299,93 +309,88 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
         // GET /auth/google - Initiate Google OAuth flow
         if (path === '/auth/google' && httpMethod === 'GET') {
-            // Build Cognito Hosted UI URL with Google as identity provider
-            // This requires Google to be configured as an Identity Provider in Cognito User Pool
-            let cognitoDomain = process.env.COGNITO_DOMAIN;
-            const clientId = process.env.COGNITO_CLIENT_ID;
-
-            // Try to load COGNITO_DOMAIN from SSM if not in environment
-            if (!cognitoDomain) {
-                try {
-                    const { loadSsmParameters } = await import('../../config/ssm');
-                    const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
-                    const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
-
-                    const ssmParams = await loadSsmParameters({
-                        names: ['COGNITO_DOMAIN'],
-                        prefix: ssmPrefix,
-                        region: ssmRegion
-                    });
-
-                    cognitoDomain = ssmParams.COGNITO_DOMAIN;
-                } catch (error) {
-                    console.warn('Failed to load COGNITO_DOMAIN from SSM:', error);
+            try {
+                const { OAuth2Client } = await import('google-auth-library');
+                const fs = await import('fs');
+                const path = await import('path');
+                
+                // Cargar credenciales de Google
+                const credentialsPath = process.env.GOOGLE_CREDENTIALS_PATH || 
+                    path.join(process.cwd(), 'google-credentials.json');
+                
+                let clientId: string;
+                let clientSecret: string;
+                
+                if (fs.existsSync(credentialsPath)) {
+                    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+                    clientId = credentials.web?.client_id || '';
+                    clientSecret = credentials.web?.client_secret || '';
+                } else {
+                    clientId = process.env.GOOGLE_CLIENT_ID || '';
+                    clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
                 }
-            }
-
-            if (!cognitoDomain || !clientId) {
-                return error(
-                    'Google OAuth not configured. Please set COGNITO_DOMAIN and COGNITO_CLIENT_ID in SSM Parameter Store.',
-                    500,
-                    undefined,
-                    origin
-                );
-            }
-
-            // Build redirect URI - must match exactly what's configured in Cognito
-            // Use the API Gateway base URL for the callback
-            const apiBaseUrl = await getApiBaseUrl();
-            const redirectUri = `${apiBaseUrl}/auth/google/callback`;
-            const encodedRedirectUri = encodeURIComponent(redirectUri);
-
-            // Pass origin in state parameter so we can use it in callback
-            // Priority: 1. redirect_origin query param (most reliable for browser navigation)
-            //           2. Origin header
-            //           3. Referer header
-            const queryParams = event.queryStringParameters || {};
-            let safeOrigin = queryParams.redirect_origin ? decodeURIComponent(queryParams.redirect_origin) : null;
-
-            if (!safeOrigin) {
-                safeOrigin = origin;
-            }
-
-            if (!safeOrigin) {
-                const referer = headers.Referer || headers.referer;
-                if (referer) {
-                    try {
-                        const refererUrl = new URL(referer);
-                        safeOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
-                    } catch (e) {
-                        // Invalid referer URL, ignore
+                
+                if (!clientId || !clientSecret) {
+                    return error(
+                        'Google OAuth not configured. Please set GOOGLE_CREDENTIALS_PATH or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.',
+                        500,
+                        undefined,
+                        origin
+                    );
+                }
+                
+                // Build redirect URI
+                const apiBaseUrl = await getApiBaseUrl();
+                const redirectUri = `${apiBaseUrl}/auth/google/callback`;
+                
+                // Get origin for state parameter
+                const queryParams = event.queryStringParameters || {};
+                let safeOrigin = queryParams.redirect_origin ? decodeURIComponent(queryParams.redirect_origin) : null;
+                
+                if (!safeOrigin) {
+                    safeOrigin = origin;
+                }
+                
+                if (!safeOrigin) {
+                    const referer = headers.Referer || headers.referer;
+                    if (referer) {
+                        try {
+                            const refererUrl = new URL(referer);
+                            safeOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
+                        } catch (e) {
+                            // Invalid referer URL, ignore
+                        }
                     }
                 }
+                
+                const state = safeOrigin ? encodeURIComponent(safeOrigin) : '';
+                
+                // Crear cliente OAuth2
+                const client = new OAuth2Client(clientId, clientSecret, redirectUri);
+                
+                // Generar URL de autorización
+                const authUrl = client.generateAuthUrl({
+                    access_type: 'offline',
+                    scope: ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile'],
+                    state: state,
+                    prompt: 'consent', // Para obtener refresh token
+                });
+                
+                // Return redirect response
+                return {
+                    statusCode: 302,
+                    headers: {
+                        'Location': authUrl,
+                        'Access-Control-Allow-Origin': origin || '*',
+                        'Access-Control-Allow-Credentials': 'true',
+                    },
+                    body: '',
+                };
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to initiate Google OAuth';
+                console.error('Google OAuth initiation error:', err);
+                return error(errorMessage, 500, undefined, origin);
             }
-
-            const state = safeOrigin ? encodeURIComponent(safeOrigin) : '';
-
-            // Cognito Hosted UI URL with Google identity provider
-            let cognitoUrl = `https://${cognitoDomain}/oauth2/authorize?` +
-                `identity_provider=Google&` +
-                `redirect_uri=${encodedRedirectUri}&` +
-                `response_type=CODE&` +
-                `client_id=${clientId}&` +
-                `scope=openid+email+profile`;
-
-            // Add state parameter if we have origin
-            if (state) {
-                cognitoUrl += `&state=${state}`;
-            }
-
-            // Return redirect response
-            return {
-                statusCode: 302,
-                headers: {
-                    'Location': cognitoUrl,
-                    'Access-Control-Allow-Origin': origin || '*',
-                    'Access-Control-Allow-Credentials': 'true',
-                },
-                body: '',
-            };
         }
 
         // GET /auth/google/callback - Handle Google OAuth callback
@@ -395,8 +400,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             const errorParam = queryParams.error;
             const state = queryParams.state;
 
-            // Try to get origin from state parameter (passed from initial OAuth request)
-            // This is the most reliable way since Cognito redirects don't include Origin header
+            // Try to get origin from state parameter
             let effectiveOrigin = origin;
             if (!effectiveOrigin && state) {
                 try {
@@ -406,7 +410,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 }
             }
 
-            // Fallback: Try to get origin from Referer header if still not available
+            // Fallback: Try to get origin from Referer header
             if (!effectiveOrigin) {
                 const referer = headers.Referer || headers.referer;
                 if (referer) {
@@ -421,8 +425,6 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
             if (errorParam) {
                 const errorDescription = queryParams.error_description || 'OAuth error';
-                // Redirect to frontend login page with error
-                // Use effectiveOrigin (from Origin or Referer) for getFrontendUrl
                 const frontendUrl = await getFrontendUrl(effectiveOrigin);
                 return {
                     statusCode: 302,
@@ -438,166 +440,80 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 return error('Authorization code not provided', 400, undefined, origin);
             }
 
-            // Exchange authorization code for tokens using Cognito
+            // Exchange authorization code for tokens using Google OAuth directly
             try {
-                let cognitoDomain = process.env.COGNITO_DOMAIN;
-                const clientId = process.env.COGNITO_CLIENT_ID;
-
-                // Try to load COGNITO_DOMAIN from SSM if not in environment
-                if (!cognitoDomain) {
-                    try {
-                        const { loadSsmParameters } = await import('../../config/ssm');
-                        const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
-                        const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
-
-                        const ssmParams = await loadSsmParameters({
-                            names: ['COGNITO_DOMAIN'],
-                            prefix: ssmPrefix,
-                            region: ssmRegion
-                        });
-
-                        cognitoDomain = ssmParams.COGNITO_DOMAIN;
-                    } catch (error) {
-                        console.warn('Failed to load COGNITO_DOMAIN from SSM:', error);
-                    }
-                }
-
-                if (!cognitoDomain || !clientId) {
-                    return error('Cognito not configured', 500, undefined, origin);
-                }
-
-                // Get client secret from SSM if app client requires it
-                let clientSecret: string | undefined;
-                try {
-                    const { loadSsmParameters } = await import('../../config/ssm');
-                    const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
-                    const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
-
-                    const ssmParams = await loadSsmParameters({
-                        names: ['COGNITO_CLIENT_SECRET'],
-                        prefix: ssmPrefix,
-                        region: ssmRegion
-                    });
-
-                    clientSecret = ssmParams.COGNITO_CLIENT_SECRET;
-                } catch (error) {
-                    // Client secret is optional - only needed if app client requires secret
-                    console.log('COGNITO_CLIENT_SECRET not found in SSM, assuming app client does not require secret');
-                }
-
-                // Build redirect URI - must match exactly what was used in authorization
                 const apiBaseUrl = await getApiBaseUrl();
                 const redirectUri = `${apiBaseUrl}/auth/google/callback`;
-
-                // Exchange code for tokens
-                const tokenUrl = `https://${cognitoDomain}/oauth2/token`;
-                const tokenParams = new URLSearchParams({
-                    grant_type: 'authorization_code',
-                    client_id: clientId,
-                    code: code,
-                    redirect_uri: redirectUri,
-                });
-
-                // Add client_secret only if app client requires it
-                if (clientSecret) {
-                    tokenParams.append('client_secret', clientSecret);
-                }
-
-                const tokenResponse = await fetch(tokenUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: tokenParams.toString(),
-                });
-
-                if (!tokenResponse.ok) {
-                    const errorText = await tokenResponse.text();
-                    console.error('Token exchange failed:', errorText);
-                    throw new Error('Failed to exchange authorization code for tokens');
-                }
-
-                const tokenData = await tokenResponse.json() as {
-                    access_token?: string;
-                    id_token?: string;
-                    refresh_token?: string;
-                    expires_in?: number;
-                };
-                const accessToken = tokenData.access_token;
-                const idToken = tokenData.id_token;
-                const refreshToken = tokenData.refresh_token;
-
-                if (!accessToken || !idToken) {
-                    throw new Error('Tokens not received from Cognito');
-                }
-
-                // Decode ID token to get user info (without verification for now, will be verified by getMe)
-                // The ID token from Cognito is already verified by Cognito
-                const jwt = await import('jsonwebtoken');
-                const decodedToken = jwt.decode(idToken) as {
-                    sub?: string;
-                    email?: string;
-                    given_name?: string;
-                    family_name?: string;
-                    name?: string;
-                    preferred_username?: string;
-                } | null;
-
-                if (!decodedToken || !decodedToken.sub) {
-                    throw new Error('Invalid ID token: missing sub claim');
-                }
-
-                const cognitoSub = decodedToken.sub;
-                const email = decodedToken.email;
-                const firstName = decodedToken.given_name;
-                const lastName = decodedToken.family_name;
-                const username = decodedToken.preferred_username;
-
+                
+                // Exchange code for tokens and get user info
+                const { user: googleUser, tokens: googleTokens } = await authService.exchangeGoogleCode(code, redirectUri);
+                
                 // Get or create user in database
-                // Pass email, username, firstName, and lastName from token to enable automatic user creation
-                const user = await authService.getMe(cognitoSub, username, email, firstName, lastName);
-
+                const user = await authService.getOrCreateGoogleUser(googleUser);
+                
+                // Generate JWT tokens for our system
+                const jwtPayload = {
+                    sub: user.cognito_sub,
+                    email: user.email,
+                    role: user.role,
+                };
+                
+                const jwtModule = await import('jsonwebtoken');
+                const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
+                const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production';
+                const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+                const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+                
+                const signOptions = {
+                    expiresIn: JWT_EXPIRES_IN,
+                } as SignOptions;
+                
+                const accessToken = jwtModule.default.sign(jwtPayload, JWT_SECRET, signOptions);
+                
+                const refreshTokenOptions = {
+                    expiresIn: JWT_REFRESH_EXPIRES_IN,
+                } as SignOptions;
+                
+                const refreshToken = jwtModule.default.sign({ sub: user.cognito_sub }, JWT_REFRESH_SECRET, refreshTokenOptions);
+                
                 // Create cookies for tokens
                 const { createCookie } = await import('../../utils/response');
                 const cookies: string[] = [];
                 const cookieAttrs = resolveCookieAttributes(effectiveOrigin || origin);
-
-                // Access token cookie (24 hours = 86400 seconds)
+                
+                // Calcular expiresIn en segundos
+                const expiresInSeconds = JWT_EXPIRES_IN.includes('h')
+                    ? parseInt(JWT_EXPIRES_IN) * 3600
+                    : parseInt(JWT_EXPIRES_IN) * 60;
+                
+                // Access token cookie
                 cookies.push(createCookie('accessToken', accessToken, {
-                    maxAge: tokenData.expires_in || 86400,
+                    maxAge: expiresInSeconds,
                     httpOnly: true,
                     secure: cookieAttrs.secure,
                     sameSite: cookieAttrs.sameSite,
                     path: '/',
                 }));
 
-                // Refresh token cookie (if provided) - 2 days (48 hours) to match Cognito configuration
-                if (refreshToken) {
-                    cookies.push(createCookie('refreshToken', refreshToken, {
-                        maxAge: 2 * 24 * 60 * 60, // 2 days (48 hours) - matches Cognito RefreshTokenValidity
-                        httpOnly: true,
-                        secure: cookieAttrs.secure,
-                        sameSite: cookieAttrs.sameSite,
-                        path: '/',
-                    }));
-                }
+                // Refresh token cookie
+                cookies.push(createCookie('refreshToken', refreshToken, {
+                    maxAge: 7 * 24 * 60 * 60, // 7 days
+                    httpOnly: true,
+                    secure: cookieAttrs.secure,
+                    sameSite: cookieAttrs.sameSite,
+                    path: '/',
+                }));
 
-                // Redirect to frontend dashboard with success
-                // API Gateway requires multiValueHeaders for multiple Set-Cookie headers
+                // Redirect to frontend dashboard
                 const frontendUrl = await getFrontendUrl(effectiveOrigin);
-
-                // For localhost, pass tokens in URL since cross-site cookies don't work with HTTP
-                // This is less secure but necessary for local development
                 const isLocalhost = frontendUrl.includes('localhost') || frontendUrl.includes('127.0.0.1');
                 let redirectUrl = `${frontendUrl}/dashboard`;
 
                 if (isLocalhost) {
-                    // Pass tokens as URL parameters for localhost (will be captured by frontend)
+                    // Pass tokens as URL parameters for localhost
                     const params = new URLSearchParams();
                     params.set('token', accessToken);
-                    if (refreshToken) {
-                        params.set('refreshToken', refreshToken);
-                    }
+                    params.set('refreshToken', refreshToken);
                     redirectUrl = `${frontendUrl}/auth/callback?${params.toString()}`;
                 }
 
@@ -613,8 +529,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                     body: '',
                 };
 
-                // Add cookies via multiValueHeaders for API Gateway
-                // For production (non-localhost), cookies will work properly
+                // Add cookies via multiValueHeaders
                 if (cookies.length > 0) {
                     response.multiValueHeaders = {
                         'Set-Cookie': cookies,

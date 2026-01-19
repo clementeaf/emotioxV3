@@ -114,7 +114,7 @@ const initialState = {
     user: null,
     token: null, // Token en memoria solo para la sesión actual
     rememberMe: false,
-    isLoading: false,
+    isLoading: true, // Start as true to wait for session bootstrap
     error: null,
 };
 

@@ -1,5 +1,5 @@
 import pool from '../../config/database';
-import type { PoolClient } from 'pg';
+import type { PoolClient } from '../../config/database';
 import cache, { CacheKeys } from '../../config/cache';
 
 export interface ResearchData {
@@ -174,7 +174,7 @@ const createDefaultModulesStage = async (client: PoolClient, researchId: string,
         'module_collection'
     ]);
 
-    return stageResult.rows[0];
+    return stageResult.rows[0] as { id: string; name: string };
 };
 
 const cloneTemplateModulesInternal = async (client: PoolClient, researchId: string, researchTypeId: string, moduleNames: string[], stageId: string) => {
@@ -345,7 +345,7 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
         nextOrder,
         stageType
     ]);
-    const newStage = stageResult.rows[0];
+    const newStage = stageResult.rows[0] as { id: string };
     
     console.log(`[createStageFromTemplateInternal] Created stage "${normalizedName}" with ID: ${newStage.id}`);
     
@@ -479,7 +479,7 @@ const addDefaultStage = async (client: PoolClient, researchId: string, userId: s
             nextOrder,
             stageType
         ]);
-        const newStage = stageResult.rows[0];
+        const newStage = stageResult.rows[0] as { id: string };
 
         // Get modules associated with this stage template
         const modulesQuery = `
@@ -773,7 +773,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
                  ORDER BY stmt.display_order`,
                 [stageTemplateId]
             );
-            modulesToClone = modulesResult.rows;
+            modulesToClone = modulesResult.rows as Array<{ id: string; name: string; description: string; structure: Record<string, unknown>; display_order: number }>;
         }
 
         // Crear el stage con el stage_type del template
@@ -789,7 +789,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
             nextOrder,
             stageType
         ]);
-        const newStage = stageResult.rows[0];
+        const newStage = stageResult.rows[0] as { id: string };
 
         // Si hay módulos asociados, clonarlos
         if (modulesToClone.length > 0) {

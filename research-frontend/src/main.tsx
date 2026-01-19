@@ -12,8 +12,8 @@ import apiClient from './services/api/client'
 const registerServiceWorker = async (): Promise<void> => {
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/',
+      const registration = await navigator.serviceWorker.register('/research/sw.js', {
+        scope: '/research/',
       });
       console.log('Service Worker registered:', registration.scope);
     } catch (error) {

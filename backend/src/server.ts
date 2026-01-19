@@ -1,11 +1,30 @@
 import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { route } from './router';
 import cache from './config/cache';
 
-dotenv.config({ path: '../.env' });
+// Try multiple .env paths for different environments
+const envPaths = [
+    path.join(__dirname, '../.env'),  // Relative to compiled file (cPanel)
+    path.join(process.cwd(), '.env'),  // Current working directory
+    '.env',                            // Same directory
+    '../.env',                         // Parent directory (local development)
+];
+for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath });
+        console.log(`✓ Loaded .env from: ${envPath}`);
+        break;
+    }
+}
+// Fallback: try default .env in current directory
+if (!process.env.DB_HOST) {
+    dotenv.config();
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
