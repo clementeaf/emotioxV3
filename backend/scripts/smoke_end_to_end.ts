@@ -90,7 +90,7 @@ const createSmokeResearch = async (): Promise<CreatedResearchContext> => {
 
         const researchId = `smoke-research-${smokeTime}`;
         await client.query(
-            `INSERT INTO researches (id, user_id, name, description, status)
+            `INSERT INTO researches (id, created_by, name, description, status)
              VALUES (?, ?, ?, ?, 'active')`,
             [researchId, userId, `Smoke Research ${smokeTime}`, 'CI smoke research']
         );
