@@ -19,13 +19,14 @@ cleanup_ssh() {
 }
 trap cleanup_ssh EXIT
 
-# Verificar si la clave está en ssh-agent, si no, intentar agregarla
+# Verificar si la clave está en ssh-agent, si no, agregarla automáticamente
 if ! ssh-add -l 2>/dev/null | grep -q "cpanel"; then
     echo "🔑 Agregando clave SSH al agente..."
     SSH_KEY="$HOME/.ssh/cpanel_cursor"
+    SSH_PASSPHRASE="clemente"
     if [ -f "$SSH_KEY" ]; then
-        # Intentar agregar la clave (puede pedir passphrase una vez)
-        ssh-add "$SSH_KEY" 2>/dev/null || {
+        # Usar sshpass para agregar la clave automáticamente
+        SSHPASS="$SSH_PASSPHRASE" sshpass -P "passphrase" -e ssh-add "$SSH_KEY" 2>/dev/null || {
             echo "⚠️  No se pudo agregar la clave automáticamente."
             echo "   Ejecuta manualmente: ssh-add ~/.ssh/cpanel_cursor"
         }

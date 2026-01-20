@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import path from 'path';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const pool = new Pool({
     host: process.env.DB_HOST,
@@ -11,6 +11,7 @@ const pool = new Pool({
     database: process.env.DB_NAME,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
+    ssl: { rejectUnauthorized: false }
 });
 
 async function seedStages() {
