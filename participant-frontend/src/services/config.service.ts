@@ -97,6 +97,32 @@ class ConfigService {
     }
 
     /**
+     * Get the base path for the application (e.g., /participant/)
+     * @returns Base path with leading and trailing slashes
+     */
+    private getAppBasePath(): string {
+        // Try to get from Vite's BASE_URL first
+        if (import.meta.env.BASE_URL && import.meta.env.BASE_URL !== '/') {
+            return import.meta.env.BASE_URL.endsWith('/') 
+                ? import.meta.env.BASE_URL 
+                : `${import.meta.env.BASE_URL}/`;
+        }
+        
+        // Fallback: determine from current pathname
+        if (typeof window !== 'undefined') {
+            const pathname = window.location.pathname;
+            // If we're at /participant/ or /participant/research/..., extract base
+            const match = pathname.match(/^(\/participant\/)/);
+            if (match) {
+                return match[1];
+            }
+        }
+        
+        // Default fallback
+        return '/participant/';
+    }
+
+    /**
      * Resolve the API base URL from environment or runtime config.
      * @returns API base URL without trailing slash
      */
@@ -112,7 +138,10 @@ class ConfigService {
             return envBaseUrl;
         }
 
-        const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
+        // Use app base path to construct runtime config path
+        const basePath = this.getAppBasePath();
+        const configPath = `${basePath}runtime-config.json`;
+        const runtimeConfig = await this.fetchRuntimeConfigFromUrl(configPath);
         return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
     }
 
@@ -139,7 +168,10 @@ class ConfigService {
      */
     private async fetchRuntimeConfigWithDevFallback(): Promise<RuntimeConfig> {
         try {
-            return await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
+            // Use app base path to construct runtime config path
+            const basePath = this.getAppBasePath();
+            const configPath = `${basePath}runtime-config.json`;
+            return await this.fetchRuntimeConfigFromUrl(configPath);
         } catch (error: unknown) {
             const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
             if (!isLocalhost) {
