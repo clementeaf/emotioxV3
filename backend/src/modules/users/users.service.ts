@@ -97,7 +97,7 @@ export const updateUser = async (id: string, data: UpdateUserData) => {
         values.push(id);
         const query = `
             UPDATE users 
-            SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP 
+            SET ${fields.join(', ')}, updated_at = NOW() 
             WHERE id = ?
         `;
 
@@ -124,7 +124,7 @@ export const deleteUser = async (id: string) => {
         // MySQL compatible: no RETURNING clause
         const query = `
             UPDATE users
-            SET deleted_at = CURRENT_TIMESTAMP
+            SET deleted_at = NOW()
             WHERE id = ? AND deleted_at IS NULL
         `;
         const result = await pool.query(query, [id]);

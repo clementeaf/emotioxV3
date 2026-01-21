@@ -48,27 +48,139 @@ export const useResearchForm = () => {
     const loadResearchTypes = async (): Promise<void> => {
         setLoadingResearchTypes(true);
         try {
+            console.log('[useResearchForm] Loading research types...');
             const response = await researchTypesService.list();
-            setResearchTypes(response.researchTypes.map((rt) => ({ id: rt.id, name: rt.name, default_modules: rt.default_modules })));
+            console.log('[useResearchForm] Received research types:', response.researchTypes?.length || 0);
+            
+            // Filter to ensure we only show active types (backend should already filter, but double-check)
+            const activeTypes = (response.researchTypes || []).filter((rt: { is_active?: boolean }) => {
+                // If is_active is undefined, assume it's active (for backwards compatibility)
+                return rt.is_active !== false;
+            });
+            
+            console.log('[useResearchForm] Active research types after filtering:', activeTypes.length);
+            
+            // Parse and validate default_modules to ensure it's always an array or undefined
+            const normalizedTypes = activeTypes.map((rt: { id: string; name: string; default_modules?: any }) => {
+                let defaultModules: any[] | undefined = undefined;
+                
+                if (rt.default_modules) {
+                    // If it's a string, try to parse it as JSON
+                    if (typeof rt.default_modules === 'string') {
+                        try {
+                            const parsed = JSON.parse(rt.default_modules);
+                            defaultModules = Array.isArray(parsed) ? parsed : undefined;
+                        } catch (e) {
+                            console.warn('[useResearchForm] Failed to parse default_modules as JSON:', rt.default_modules, e);
+                            defaultModules = undefined;
+                        }
+                    } 
+                    // If it's already an array, use it
+                    else if (Array.isArray(rt.default_modules)) {
+                        defaultModules = rt.default_modules;
+                    }
+                    // Otherwise, ignore it
+                    else {
+                        console.warn('[useResearchForm] default_modules is not an array or string:', typeof rt.default_modules, rt.default_modules);
+                        defaultModules = undefined;
+                    }
+                }
+                
+                return {
+                    id: rt.id,
+                    name: rt.name,
+                    default_modules: defaultModules
+                };
+            });
+            
+            console.log('[useResearchForm] Normalized research types:', normalizedTypes.map(rt => ({ 
+                id: rt.id, 
+                name: rt.name, 
+                hasDefaultModules: !!rt.default_modules,
+                defaultModulesCount: rt.default_modules?.length || 0
+            })));
+            
+            setResearchTypes(normalizedTypes);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to load research types';
+            console.error('[useResearchForm] Error loading research types:', error);
             setSubmitError(errorMessage);
+            setResearchTypes([]);
         } finally {
             setLoadingResearchTypes(false);
         }
     };
 
     const loadTechniquesForType = async (researchTypeId: string): Promise<void> => {
+        if (!researchTypeId || researchTypeId.trim() === '') {
+            console.warn('[useResearchForm] loadTechniquesForType called with empty researchTypeId');
+            setAvailableTechniques([]);
+            setFormData((prev) => ({ ...prev, researchTechniqueId: '' }));
+            return;
+        }
+        
+        // Verify that the research type is in our list of active types
+        const selectedType = researchTypes.find(rt => rt.id === researchTypeId);
+        if (!selectedType) {
+            console.warn('[useResearchForm] Selected research type not found in active types list:', researchTypeId);
+            console.warn('[useResearchForm] Available research types:', researchTypes.map(rt => ({ id: rt.id, name: rt.name })));
+            setSubmitError('Selected research type is not available');
+            setAvailableTechniques([]);
+            setFormData((prev) => ({ ...prev, researchTechniqueId: '', researchTypeId: '' }));
+            return;
+        }
+        
         setLoadingTechniquesForType(true);
         setFormData((prev) => ({ ...prev, researchTechniqueId: '' }));
+        setSubmitError(''); // Clear any previous errors
+        
         try {
+            console.log('[useResearchForm] Loading techniques for research type:', researchTypeId, selectedType.name);
+            console.log('[useResearchForm] Making API call to getTechniquesByType...');
+            
             const techniques = await researchTypesService.getTechniquesByType(researchTypeId);
-            setAvailableTechniques(techniques);
+            
+            console.log('[useResearchForm] API call successful, received:', techniques);
+            console.log('[useResearchForm] Techniques type:', typeof techniques, 'isArray:', Array.isArray(techniques));
+            
+            // Ensure techniques is an array
+            if (Array.isArray(techniques)) {
+                console.log('[useResearchForm] Setting availableTechniques with', techniques.length, 'techniques');
+                setAvailableTechniques(techniques);
+                if (techniques.length === 0) {
+                    console.warn('[useResearchForm] No techniques found for research type:', researchTypeId);
+                }
+            } else {
+                console.error('[useResearchForm] Techniques is not an array:', techniques);
+                console.error('[useResearchForm] Techniques value:', JSON.stringify(techniques, null, 2));
+                setAvailableTechniques([]);
+            }
         } catch (error: unknown) {
+            console.error('[useResearchForm] ERROR in loadTechniquesForType:', error);
+            console.error('[useResearchForm] Error type:', typeof error);
+            console.error('[useResearchForm] Error constructor:', error?.constructor?.name);
+            
+            if (error instanceof Error) {
+                console.error('[useResearchForm] Error message:', error.message);
+                console.error('[useResearchForm] Error stack:', error.stack);
+            }
+            
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { status?: number; data?: unknown; statusText?: string } };
+                console.error('[useResearchForm] Axios error response:', {
+                    status: axiosError.response?.status,
+                    statusText: axiosError.response?.statusText,
+                    data: axiosError.response?.data,
+                });
+            }
+            
             const errorMessage = error instanceof Error ? error.message : 'Failed to load research techniques';
-            setSubmitError(errorMessage);
+            console.error('[useResearchForm] Setting submitError with message:', errorMessage);
+            setSubmitError(`Failed to load techniques: ${errorMessage}`);
             setAvailableTechniques([]);
+            // Don't clear the researchTypeId on error, let user try again
         } finally {
+            console.log('[useResearchForm] loadTechniquesForType completed, setting loading to false');
             setLoadingTechniquesForType(false);
         }
     };
@@ -161,13 +273,33 @@ export const useResearchForm = () => {
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
                 research_type_id: formData.researchTypeId,
-                research_technique_id: formData.researchTechniqueId,
+                research_technique_id: formData.researchTechniqueId || undefined,
             };
+            
+            // Clean up data: remove undefined, null, or empty string values
+            // research_technique_id should only be sent if it has a valid value
+            if (createData.research_technique_id === '' || createData.research_technique_id === undefined) {
+                delete createData.research_technique_id;
+            }
+            
+            // Remove other undefined or empty values
+            Object.keys(createData).forEach(key => {
+                if (createData[key] === undefined || createData[key] === null || createData[key] === '') {
+                    delete createData[key];
+                }
+            });
 
             if (formData.useDefaultModules && selectedType?.default_modules) {
-                const moduleNames = selectedType.default_modules.map((m: any) => m.name);
-                if (moduleNames.length > 0) {
-                    createData.use_default_modules = moduleNames;
+                // Ensure default_modules is an array before mapping
+                if (Array.isArray(selectedType.default_modules)) {
+                    const moduleNames = selectedType.default_modules
+                        .map((m: any) => m?.name)
+                        .filter((name: string | undefined) => name !== undefined && name !== null);
+                    if (moduleNames.length > 0) {
+                        createData.use_default_modules = moduleNames;
+                    }
+                } else {
+                    console.warn('[useResearchForm] default_modules is not an array:', selectedType.default_modules);
                 }
             }
 

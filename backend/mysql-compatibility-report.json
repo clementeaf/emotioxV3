@@ -1,0 +1,548 @@
+[
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 31,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 35,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 36,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 40,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 43,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 61,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 76,
+    "type": "function",
+    "description": "uuid_generate_v4() is PostgreSQL specific. Use UUID() or crypto.randomUUID() for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/config/database.ts",
+    "line": 232,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/analysis/analysis.service.ts",
+    "line": 7,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/auth/auth.service.local.ts",
+    "line": 303,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/auth/auth.service.local.ts",
+    "line": 330,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/auth/auth.service.local.ts",
+    "line": 550,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/auth/auth.service.local.ts",
+    "line": 571,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/auth/auth.service.local.ts",
+    "line": 611,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/enterprises/enterprises.service.ts",
+    "line": 36,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/enterprises/enterprises.service.ts",
+    "line": 87,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/enterprises/enterprises.service.ts",
+    "line": 96,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/media/media.service.local.ts",
+    "line": 84,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/media/media.service.local.ts",
+    "line": 103,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 18,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 31,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 65,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 109,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 122,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 131,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/module-templates/module-templates.service.ts",
+    "line": 155,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/modules/modules.service.ts",
+    "line": 12,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/modules/modules.service.ts",
+    "line": 59,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/modules/modules.service.ts",
+    "line": 65,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/public/public.service.ts",
+    "line": 488,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/public/public.service.ts",
+    "line": 747,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/public/public.service.ts",
+    "line": 818,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/questions/questions.service.ts",
+    "line": 11,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/questions/questions.service.ts",
+    "line": 70,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/questions/questions.service.ts",
+    "line": 76,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/quotas/quota.service.ts",
+    "line": 76,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/quotas/quota.service.ts",
+    "line": 223,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/quotas/quota.service.ts",
+    "line": 274,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/quotas/quota.service.ts",
+    "line": 287,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 118,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 479,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 541,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 616,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 644,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 876,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 901,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 928,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 931,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 952,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 1025,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 1075,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research/research.service.ts",
+    "line": 1237,
+    "type": "syntax",
+    "description": "PostgreSQL parameter syntax ($1, $2) detected. Use ? placeholders for MySQL.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-techniques/research-techniques.service.ts",
+    "line": 51,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-techniques/research-techniques.service.ts",
+    "line": 106,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-techniques/research-techniques.service.ts",
+    "line": 115,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.controller.ts",
+    "line": 44,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.controller.ts",
+    "line": 108,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.controller.ts",
+    "line": 125,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.service.ts",
+    "line": 86,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.service.ts",
+    "line": 287,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.service.ts",
+    "line": 307,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/research-types/research-types.service.ts",
+    "line": 410,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/responses/responses.service.ts",
+    "line": 4,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/responses/responses.service.ts",
+    "line": 20,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 52,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 57,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 83,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 124,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 129,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 182,
+    "type": "boolean",
+    "description": "Boolean literals in WHERE clauses. MySQL uses 1/0 or true/false as strings. Verify correct usage.",
+    "severity": "warning"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 191,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 200,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 228,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/stage-templates/stage-templates.service.ts",
+    "line": 237,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/users/users.service.ts",
+    "line": 100,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/users/users.service.ts",
+    "line": 110,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/users/users.service.ts",
+    "line": 124,
+    "type": "syntax",
+    "description": "RETURNING clause is not supported in MySQL. Use separate SELECT query instead.",
+    "severity": "error"
+  },
+  {
+    "file": "/Users/clementefalcone/Desktop/personal/emotioxV3/backend/src/modules/users/users.service.ts",
+    "line": 127,
+    "type": "timestamp",
+    "description": "Consider using NOW() instead of CURRENT_TIMESTAMP in SET clauses for MySQL compatibility",
+    "severity": "info"
+  }
+]

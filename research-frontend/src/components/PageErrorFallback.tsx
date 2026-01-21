@@ -25,9 +25,7 @@ interface PageErrorFallbackPropsWithHooks extends Omit<PageErrorFallbackProps, '
 /**
  * Fallback component for page errors
  */
-const PageErrorFallback: React.FC<PageErrorFallbackPropsWithHooks> = ({ error, pageName, onReset, navigate }) => {
-    const isDevelopment = import.meta.env.DEV;
-
+const PageErrorFallback: React.FC<PageErrorFallbackPropsWithHooks> = ({ error, errorInfo, pageName, onReset, navigate }) => {
     return (
         <div className="min-h-[400px] flex items-center justify-center px-4 py-12">
             <div className="max-w-xl w-full">
@@ -60,11 +58,27 @@ const PageErrorFallback: React.FC<PageErrorFallbackPropsWithHooks> = ({ error, p
                         </Button>
                     </div>
 
-                    {isDevelopment && error && (
+                    {error && (
                         <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded-md">
                             <h3 className="text-sm font-semibold text-red-800 mb-2">Error details:</h3>
                             <pre className="text-xs text-red-700 overflow-auto max-h-48">
                                 <code>{error.toString()}</code>
+                            </pre>
+                            {error.stack && (
+                                <details className="mt-2">
+                                    <summary className="text-xs text-red-600 cursor-pointer">Stack trace</summary>
+                                    <pre className="text-xs text-red-600 overflow-auto max-h-32 mt-1">
+                                        <code>{error.stack}</code>
+                                    </pre>
+                                </details>
+                            )}
+                        </div>
+                    )}
+                    {errorInfo && (
+                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <h3 className="text-sm font-semibold text-yellow-800 mb-2">Component stack:</h3>
+                            <pre className="text-xs text-yellow-700 overflow-auto max-h-32">
+                                <code>{errorInfo.componentStack}</code>
                             </pre>
                         </div>
                     )}

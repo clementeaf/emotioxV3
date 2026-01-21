@@ -25,18 +25,37 @@ export const useResearches = () => {
         queryKey: researchKeys.list(),
         queryFn: async () => {
             try {
+                console.log('[useResearches] Query function called');
                 const response = await researchService.list();
-                console.log('[useResearches] API Response:', response);
+                console.log('[useResearches] API Response received:', response);
+                console.log('[useResearches] Researches count:', response?.researches?.length || 0);
+                
+                if (!response || !response.researches) {
+                    console.error('[useResearches] Invalid response structure:', response);
+                    throw new Error('Invalid response from server');
+                }
+                
                 return response.researches;
             } catch (error) {
+                console.error('[useResearches] ERROR in query function:', error);
+                console.error('[useResearches] Error type:', typeof error);
+                console.error('[useResearches] Error constructor:', error?.constructor?.name);
+                
+                if (error instanceof Error) {
+                    console.error('[useResearches] Error message:', error.message);
+                    console.error('[useResearches] Error stack:', error.stack);
+                }
+                
                 const errorMessage = error instanceof Error ? error.message : 'Failed to load researches';
-                console.error('Failed to load researches:', error);
+                console.error('[useResearches] Showing toast with error:', errorMessage);
                 toast.error(errorMessage);
                 throw error;
             }
         },
         staleTime: 5 * 60 * 1000, // 5 minutos
         gcTime: 10 * 60 * 1000, // 10 minutos
+        retry: 1, // Solo reintentar una vez
+        retryDelay: 1000, // Esperar 1 segundo antes de reintentar
     });
 };
 
@@ -61,7 +80,10 @@ export const useResearch = (id: string | null) => {
                 } catch (error) {
                     const errorMessage = error instanceof Error ? error.message : 'Failed to load research';
                     console.error('[useResearch] Failed to load research:', id, error);
-                    toast.error(errorMessage);
+                    // Only show toast once, not on every retry
+                    if (!(error instanceof Error && errorMessage.includes('retry'))) {
+                        toast.error(errorMessage);
+                    }
                     throw error;
                 }
             });
@@ -69,6 +91,8 @@ export const useResearch = (id: string | null) => {
         enabled: !!id,
         staleTime: 5 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
+        retry: false, // Disable retry to prevent loops on persistent errors
+        refetchOnWindowFocus: false, // Disable refetch on window focus to prevent loops
     });
 };
 

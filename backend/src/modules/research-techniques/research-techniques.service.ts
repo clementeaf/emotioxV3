@@ -88,7 +88,7 @@ export const update = async (id: string, data: Partial<ResearchTechniqueData>) =
         throw new Error('No fields to update');
     }
 
-    updates.push('updated_at = CURRENT_TIMESTAMP');
+    updates.push('updated_at = NOW()');
     values.push(id);
 
     const query = `

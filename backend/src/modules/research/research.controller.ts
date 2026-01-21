@@ -46,8 +46,16 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const getMatch = path.match(/^\/research\/([^\/]+)$/);
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
-            const research = await researchService.getById(id, user.id);
-            return success({ research }, 200, undefined, origin);
+            try {
+                const research = await researchService.getById(id, user.id);
+                return success({ research }, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('Research not found')) {
+                    return error('Research not found', 404, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // PUT /research/:id
@@ -167,16 +175,32 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const metricsMatch = path.match(/^\/research\/([^\/]+)\/metrics$/);
         if (metricsMatch && httpMethod === 'GET') {
             const researchId = metricsMatch[1];
-            const metrics = await researchInProgressService.getOverviewMetrics(researchId, user.id);
-            return success(metrics, 200, undefined, origin);
+            try {
+                const metrics = await researchInProgressService.getOverviewMetrics(researchId, user.id);
+                return success(metrics, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('Research not found')) {
+                    return error('Research not found', 404, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // GET /research/:id/participants/status
         const participantsStatusMatch = path.match(/^\/research\/([^\/]+)\/participants\/status$/);
         if (participantsStatusMatch && httpMethod === 'GET') {
             const researchId = participantsStatusMatch[1];
-            const participants = await researchInProgressService.getParticipantsWithStatus(researchId, user.id);
-            return success(participants, 200, undefined, origin);
+            try {
+                const participants = await researchInProgressService.getParticipantsWithStatus(researchId, user.id);
+                return success(participants, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('Research not found')) {
+                    return error('Research not found', 404, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // GET /research/:id/participants/:participantId

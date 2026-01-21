@@ -4,6 +4,7 @@ import { isAuthError, requireAuth } from '../../utils/auth';
 import * as researchTypesService from './research-types.service';
 import * as authService from '../auth/auth.service';
 import { getRequestOrigin } from '../../utils/request';
+import cache, { CacheKeys } from '../../config/cache';
 
 export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
@@ -25,8 +26,26 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
 
         // GET /research-types
         if (path === '/research-types' && httpMethod === 'GET') {
+            // Force cache invalidation first to ensure fresh data
+            cache.delete(CacheKeys.RESEARCH_TYPES_LIST);
+            
             const types = await researchTypesService.list();
-            return success({ researchTypes: types }, 200, undefined, origin);
+            // Double-check: filter out any inactive types (shouldn't happen, but safety check)
+            // MySQL returns 1/0 for boolean, handle both true/1 and false/0/null
+            const activeTypes = Array.isArray(types) ? types.filter((rt: Record<string, unknown>) => {
+                const isActive = rt.is_active;
+                // Consider active if: true, 1, '1', or undefined (for backwards compatibility)
+                // Consider inactive if: false, 0, '0', null
+                if (isActive === false || isActive === 0 || isActive === '0' || isActive === null) {
+                    return false;
+                }
+                return true; // true, 1, '1', undefined all count as active
+            }) : [];
+            console.log(`[Research Types Controller] Returning ${activeTypes.length} active research types (filtered from ${Array.isArray(types) ? types.length : 0} total)`);
+            if (activeTypes.length !== 4) {
+                console.warn(`[Research Types Controller] WARNING: Expected 4 active types, got ${activeTypes.length}`);
+            }
+            return success({ researchTypes: activeTypes }, 200, undefined, origin);
         }
 
         // POST /research-types
@@ -40,8 +59,16 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         const getMatch = path.match(/^\/research-types\/([^\/]+)$/);
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
-            const type = await researchTypesService.getById(id);
-            return success({ researchType: type }, 200, undefined, origin);
+            try {
+                const type = await researchTypesService.getById(id);
+                return success({ researchType: type }, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('not found')) {
+                    return error('Research type not found', 404, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // PUT /research-types/:id
@@ -74,8 +101,38 @@ export const handleResearchTypesRoutes = async (event: APIGatewayProxyEvent): Pr
         const techniquesMatch = path.match(/^\/research-types\/([^\/]+)\/techniques$/);
         if (techniquesMatch && httpMethod === 'GET') {
             const id = techniquesMatch[1];
-            const techniques = await researchTypesService.getTechniquesByType(id);
-            return success({ researchTechniques: techniques }, 200, undefined, origin);
+            console.log(`[Research Types Controller] GET /research-types/${id}/techniques - Request received`);
+            console.log(`[Research Types Controller] Request origin: ${origin}`);
+            console.log(`[Research Types Controller] Request headers:`, JSON.stringify(event.headers || {}, null, 2));
+            
+            try {
+                console.log(`[Research Types Controller] Calling getTechniquesByType for id: ${id}`);
+                const techniques = await researchTypesService.getTechniquesByType(id);
+                console.log(`[Research Types Controller] getTechniquesByType returned:`, techniques);
+                console.log(`[Research Types Controller] Techniques type:`, typeof techniques, 'isArray:', Array.isArray(techniques));
+                
+                // Ensure we always return an array
+                const techniquesArray = Array.isArray(techniques) ? techniques : [];
+                console.log(`[Research Types Controller] Returning ${techniquesArray.length} techniques for type ${id}`);
+                console.log(`[Research Types Controller] Response data:`, JSON.stringify({ researchTechniques: techniquesArray }, null, 2));
+                
+                const response = success({ researchTechniques: techniquesArray }, 200, undefined, origin);
+                console.log(`[Research Types Controller] Success response created, statusCode: ${response.statusCode}`);
+                return response;
+            } catch (techError) {
+                console.error(`[Research Types Controller] ERROR getting techniques for type ${id}:`, techError);
+                console.error(`[Research Types Controller] Error type:`, typeof techError);
+                console.error(`[Research Types Controller] Error constructor:`, techError?.constructor?.name);
+                
+                if (techError instanceof Error) {
+                    console.error(`[Research Types Controller] Error message:`, techError.message);
+                    console.error(`[Research Types Controller] Error stack:`, techError.stack);
+                }
+                
+                // Return empty array instead of error to prevent frontend crash
+                console.log(`[Research Types Controller] Returning empty array due to error`);
+                return success({ researchTechniques: [] }, 200, undefined, origin);
+            }
         }
 
         // GET /research-types/:id/module-assignments

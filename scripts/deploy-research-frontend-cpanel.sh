@@ -49,7 +49,8 @@ cd "$LOCAL_RESEARCH_DIR"
 echo "1. Configurando runtime-config.json..."
 cat > public/runtime-config.json << 'EOF'
 {
-  "apiBaseUrl": "https://emotio.cx/api"
+  "apiBaseUrl": "https://emotio.cx/api",
+  "participantBaseUrl": "https://emotio.cx/participant"
 }
 EOF
 echo "   ✅ runtime-config.json actualizado"

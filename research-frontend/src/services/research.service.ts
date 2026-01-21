@@ -87,12 +87,47 @@ class ResearchService {
      */
     async list(): Promise<ResearchListResponse> {
         try {
+            console.log('[ResearchService] list() called');
             const endpoint = configService.getEndpoint('research', 'list');
-            console.log('[ResearchService] Fetching list from:', endpoint);
+            console.log('[ResearchService] Fetching list from endpoint:', endpoint);
+            console.log('[ResearchService] API base URL:', apiClient.getInstance().defaults.baseURL);
+            
             const response = await apiClient.get<ResearchListResponse>(endpoint);
-            console.log('[ResearchService] Raw response:', response);
+            console.log('[ResearchService] Raw response received:', response);
+            console.log('[ResearchService] Response type:', typeof response);
+            console.log('[ResearchService] Response has researches:', 'researches' in response);
+            
+            if (!response) {
+                console.error('[ResearchService] Empty response received');
+                throw new Error('Empty response from server');
+            }
+            
+            if (!response.researches) {
+                console.error('[ResearchService] Response missing researches property:', response);
+                throw new Error('Invalid response format: missing researches property');
+            }
+            
+            console.log('[ResearchService] Returning', response.researches.length, 'researches');
             return response;
         } catch (error: unknown) {
+            console.error('[ResearchService] ERROR in list():', error);
+            console.error('[ResearchService] Error type:', typeof error);
+            console.error('[ResearchService] Error constructor:', error?.constructor?.name);
+            
+            if (error instanceof Error) {
+                console.error('[ResearchService] Error message:', error.message);
+                console.error('[ResearchService] Error stack:', error.stack);
+            }
+            
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { status?: number; data?: unknown; statusText?: string } };
+                console.error('[ResearchService] Axios error details:', {
+                    status: axiosError.response?.status,
+                    statusText: axiosError.response?.statusText,
+                    data: axiosError.response?.data,
+                });
+            }
+            
             throw this.handleError(error, 'Failed to fetch researches');
         }
     }

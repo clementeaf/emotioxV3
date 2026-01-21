@@ -31,7 +31,9 @@ export const ResearchFormStep2 = ({
     onToggleDefaultModules,
 }: ResearchFormStep2Props) => {
     const selectedResearchType = researchTypes.find(rt => rt.id === researchTypeId);
-    const hasDefaultModules = selectedResearchType?.default_modules && selectedResearchType.default_modules.length > 0;
+    // Safely check if default_modules exists and is an array with length
+    const hasDefaultModules = Array.isArray(selectedResearchType?.default_modules) && 
+                          selectedResearchType.default_modules.length > 0;
 
     return (
         <div className="space-y-6">
@@ -96,7 +98,14 @@ export const ResearchFormStep2 = ({
                         </label>
                         <div className="flex-1 min-w-0">
                             <p className="text-xs text-blue-700 mb-1.5">
-                                This research type includes these modules: {selectedResearchType?.default_modules?.map((m: { name: string }) => m.name).join(', ')}
+                                This research type includes these modules: {
+                                    Array.isArray(selectedResearchType?.default_modules)
+                                        ? selectedResearchType.default_modules
+                                            .map((m: { name?: string }) => m?.name || 'Unknown')
+                                            .filter((name: string) => name !== 'Unknown')
+                                            .join(', ')
+                                        : 'None'
+                                }
                             </p>
                             <p className="text-xs text-blue-600">
                                 Uncheck to start with an empty configuration.

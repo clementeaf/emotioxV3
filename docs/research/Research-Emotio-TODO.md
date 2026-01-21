@@ -96,7 +96,7 @@
   - [x] Actualizar placeholder en seed_nps_module.ts
   - [x] Actualizar placeholder en seed_smart_voc_modules_from_md.ts
   - [x] Crear script de migración update_nps_placeholder.ts para actualizar módulos existentes
-  - [ ] Ejecutar script de migración en producción para actualizar módulos NPS existentes
+  - [x] Ejecutar script de migración en producción para actualizar módulos NPS existentes (3 módulos actualizados - 2026-01-20)
 - [x] Smart VOC - Pregunta de CSAT: Ya no está el foco de Activo que se veía en VOC
   - [x] La solución implementada para NPS aplica automáticamente a CSAT ya que todos los módulos Smart VOC usan el mismo componente SmartVOCModuleCard
   - [x] El componente ya tiene isActive prop, handleCardClick para navegación, border-blue-400 shadow-md cuando está activo, cursor-pointer, y stopPropagation en elementos interactivos

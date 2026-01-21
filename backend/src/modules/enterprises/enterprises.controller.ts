@@ -40,8 +40,16 @@ export const handleEnterprisesRoutes = async (event: APIGatewayProxyEvent): Prom
         const getMatch = path.match(/^\/enterprises\/([^\/]+)$/);
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
-            const enterprise = await enterprisesService.getById(id);
-            return success({ enterprise }, 200, undefined, origin);
+            try {
+                const enterprise = await enterprisesService.getById(id);
+                return success({ enterprise }, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('not found')) {
+                    return error('Enterprise not found', 404, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // PUT /enterprises/:id

@@ -78,13 +78,21 @@ export const create = async (userId: string, data: ResearchData) => {
 
         let { description } = data;
         const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
-        console.log('[Research Service] Extracted values - research_type_id:', research_type_id, 'use_default_modules:', use_default_modules);
+        console.log('[Research Service] Extracted values - research_type_id:', research_type_id, 'research_technique_id:', research_technique_id, 'use_default_modules:', use_default_modules);
 
-        // If description is not provided and we have a technique, try to get it from the technique
-        if (!description && research_technique_id) {
-            const techniqueQuery = 'SELECT description FROM research_techniques WHERE id = ?';
-            const techniqueResult = await client.query(techniqueQuery, [research_technique_id]);
-            if (techniqueResult.rows.length > 0) {
+        // Validate research_technique_id exists if provided
+        let validatedTechniqueId: string | null = null;
+        if (research_technique_id && research_technique_id.trim() !== '') {
+            // Check if technique exists
+            const techniqueQuery = 'SELECT id, description FROM research_techniques WHERE id = ?';
+            const techniqueResult = await client.query(techniqueQuery, [research_technique_id.trim()]);
+            if (techniqueResult.rows.length === 0) {
+                throw new Error(`Research technique with id ${research_technique_id} not found`);
+            }
+            validatedTechniqueId = research_technique_id.trim();
+            
+            // If description is not provided, use the technique's description
+            if (!description && techniqueResult.rows[0].description) {
                 description = techniqueResult.rows[0].description;
             }
         }
@@ -100,9 +108,9 @@ export const create = async (userId: string, data: ResearchData) => {
             researchId,
             userId,
             name,
-            description,
+            description || null,
             research_type_id || null,
-            research_technique_id || null,
+            validatedTechniqueId,
             enterprise_id || null,
             JSON.stringify(settings),
         ]);
@@ -142,9 +150,31 @@ export const create = async (userId: string, data: ResearchData) => {
                 const typeResult = await client.query(typeQuery, [research_type_id]);
                 
                 if (typeResult.rows.length > 0 && typeResult.rows[0].default_modules) {
-                    const defaultModules = typeResult.rows[0].default_modules || [];
-                    modulesToCreate = defaultModules.map((m: any) => m.name);
-                    console.log(`[Research Service] Auto-detected default modules from research type:`, modulesToCreate);
+                    let defaultModules: any[] = [];
+                    const rawDefaultModules = typeResult.rows[0].default_modules;
+                    
+                    // Parse JSON if it's a string (MySQL stores JSON as string)
+                    if (typeof rawDefaultModules === 'string') {
+                        try {
+                            const parsed = JSON.parse(rawDefaultModules);
+                            defaultModules = Array.isArray(parsed) ? parsed : [];
+                        } catch (e) {
+                            console.warn(`[Research Service] Failed to parse default_modules JSON for research type ${research_type_id}:`, e);
+                            defaultModules = [];
+                        }
+                    } else if (Array.isArray(rawDefaultModules)) {
+                        defaultModules = rawDefaultModules;
+                    } else {
+                        console.warn(`[Research Service] default_modules is not an array or string for research type ${research_type_id}:`, typeof rawDefaultModules);
+                        defaultModules = [];
+                    }
+                    
+                    if (defaultModules.length > 0) {
+                        modulesToCreate = defaultModules.map((m: any) => m?.name).filter((name: string | undefined) => name !== undefined && name !== null);
+                        console.log(`[Research Service] Auto-detected default modules from research type:`, modulesToCreate);
+                    } else {
+                        console.log(`[Research Service] No default modules found in research type ${research_type_id}`);
+                    }
                 }
             }
             
@@ -197,6 +227,16 @@ export const create = async (userId: string, data: ResearchData) => {
         return research;
     } catch (error) {
         await client.query('ROLLBACK');
+        console.error('[Research Service] Error creating research:', error);
+        // Provide more helpful error messages
+        if (error instanceof Error) {
+            if (error.message.includes('foreign key constraint') || error.message.includes('1452')) {
+                throw new Error('Invalid research type, technique, or enterprise ID. Please verify your selections.');
+            }
+            if (error.message.includes('Duplicate entry')) {
+                throw new Error('A research with this name already exists.');
+            }
+        }
         throw error;
     } finally {
         client.release();
@@ -248,12 +288,33 @@ const cloneTemplateModulesInternal = async (client: PoolClient, researchId: stri
         throw new Error('Research type not found');
     }
 
-    const defaultModules = typeResult.rows[0].default_modules || [];
+    // Parse default_modules from JSON string if needed
+    let defaultModules: any[] = [];
+    const rawDefaultModules = typeResult.rows[0].default_modules;
+    
+    if (rawDefaultModules) {
+        // Parse JSON if it's a string (MySQL stores JSON as string)
+        if (typeof rawDefaultModules === 'string') {
+            try {
+                const parsed = JSON.parse(rawDefaultModules);
+                defaultModules = Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                console.warn(`[cloneTemplateModulesInternal] Failed to parse default_modules JSON for research type ${researchTypeId}:`, e);
+                defaultModules = [];
+            }
+        } else if (Array.isArray(rawDefaultModules)) {
+            defaultModules = rawDefaultModules;
+        } else {
+            console.warn(`[cloneTemplateModulesInternal] default_modules is not an array or string for research type ${researchTypeId}:`, typeof rawDefaultModules);
+            defaultModules = [];
+        }
+    }
+    
     console.log(`[cloneTemplateModulesInternal] Found ${defaultModules.length} default modules in research type`);
     console.log(`[cloneTemplateModulesInternal] Requested module names:`, moduleNames);
 
     // Filter modules by names
-    const modulesToClone = defaultModules.filter((m: any) => moduleNames.includes(m.name));
+    const modulesToClone = defaultModules.filter((m: any) => moduleNames.includes(m?.name));
     console.log(`[cloneTemplateModulesInternal] Filtered to ${modulesToClone.length} modules to clone:`, modulesToClone.map((m: any) => m.name));
 
     if (modulesToClone.length === 0) {
@@ -643,13 +704,27 @@ export const getById = async (researchId: string, userId: string) => {
     } as typeof rawResearch & { settings: Record<string, unknown> };
 
     // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
-    // Step 1: Get all stages
-    const stagesQuery = `
-      SELECT id, name, description, display_order as order_index, stage_type
-      FROM stages
-      WHERE research_id = ?
-      ORDER BY display_order
+    // Step 1: Check if stage_type column exists
+    const columnCheckQuery = `
+      SELECT COUNT(*) as count
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'stages'
+      AND COLUMN_NAME = 'stage_type'
     `;
+    const columnCheckResult = await pool.query(columnCheckQuery);
+    const hasStageTypeColumn = (columnCheckResult.rows[0] as { count: number }).count > 0;
+    
+    // Step 2: Get all stages (with or without stage_type depending on column existence)
+    const stagesQuery = hasStageTypeColumn
+        ? `SELECT id, name, description, display_order as order_index, stage_type
+           FROM stages
+           WHERE research_id = ?
+           ORDER BY display_order`
+        : `SELECT id, name, description, display_order as order_index, 'module_collection' as stage_type
+           FROM stages
+           WHERE research_id = ?
+           ORDER BY display_order`;
     const stagesResult = await pool.query(stagesQuery, [researchId]);
 
     if (stagesResult.rows.length === 0) {
@@ -853,7 +928,7 @@ export const activate = async (researchId: string, userId: string) => {
     // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
-    SET status = 'active', updated_at = CURRENT_TIMESTAMP
+    SET status = 'active', updated_at = NOW()
     WHERE id = ? AND created_by = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);
@@ -875,9 +950,12 @@ export const activate = async (researchId: string, userId: string) => {
 
 export const deleteResearch = async (researchId: string, userId: string) => {
     // MySQL compatible: no RETURNING clause
+    // Note: MySQL CHECK constraint only allows: 'draft','active','paused','completed','archived'
+    // We use 'archived' instead of 'deleted' to comply with the constraint
+    // The deleted_at timestamp is the actual indicator of deletion
     const query = `
     UPDATE researches
-    SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted'
+    SET deleted_at = NOW(), status = 'archived'
     WHERE id = ? AND created_by = ? AND deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, userId]);

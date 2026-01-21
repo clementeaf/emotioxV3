@@ -36,6 +36,13 @@ export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErr
     }
 
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+        console.error(`[PageErrorBoundary] [${this.props.pageName || 'unknown'}] ERROR CAUGHT:`, error);
+        console.error(`[PageErrorBoundary] Error message:`, error.message);
+        console.error(`[PageErrorBoundary] Error stack:`, error.stack);
+        console.error(`[PageErrorBoundary] Error name:`, error.name);
+        console.error(`[PageErrorBoundary] ErrorInfo:`, errorInfo);
+        console.error(`[PageErrorBoundary] Component stack:`, errorInfo.componentStack);
+        
         this.setState({
             error,
             errorInfo,
@@ -44,8 +51,6 @@ export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErr
         if (this.props.onError) {
             this.props.onError(error, errorInfo);
         }
-
-        console.error(`PageErrorBoundary [${this.props.pageName || 'unknown'}] caught an error:`, error, errorInfo);
     }
 
     handleReset = (): void => {

@@ -153,7 +153,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             return `https://${url}`;
         }
         
-        // Priority 3: Fallback to participant.emotiox.org if on research.emotiox.org
+        // Priority 3: Fallback for emotio.cx (production domain)
+        if (host === 'emotio.cx' || host.includes('emotio.cx')) {
+            return 'https://emotio.cx/participant';
+        }
+        
+        // Priority 4: Fallback to participant.emotiox.org if on research.emotiox.org
         if (host === 'research.emotiox.org' || host.includes('emotiox.org')) {
             return 'https://participant.emotiox.org';
         }

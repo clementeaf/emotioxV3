@@ -145,10 +145,55 @@ class ResearchTypesService {
      * @returns Lista de técnicas de investigación
      */
     async getTechniquesByType(id: string): Promise<ResearchTechnique[]> {
-        const response = await apiClient.get<{ researchTechniques: ResearchTechnique[] }>(
-            `/research-types/${id}/techniques`
-        );
-        return response.researchTechniques;
+        try {
+            console.log('[ResearchTypesService] getTechniquesByType called with id:', id);
+            console.log('[ResearchTypesService] Making GET request to:', `/research-types/${id}/techniques`);
+            
+            const response = await apiClient.get<{ researchTechniques: ResearchTechnique[] }>(
+                `/research-types/${id}/techniques`
+            );
+            
+            console.log('[ResearchTypesService] Received response:', response);
+            console.log('[ResearchTypesService] Response type:', typeof response);
+            console.log('[ResearchTypesService] Response isArray:', Array.isArray(response));
+            
+            // Ensure we always return an array, even if the response structure is different
+            if (!response) {
+                console.warn('[ResearchTypesService] Empty response from getTechniquesByType');
+                return [];
+            }
+            if (Array.isArray(response)) {
+                // If response is directly an array (shouldn't happen, but handle it)
+                console.log('[ResearchTypesService] Response is directly an array, returning as-is');
+                return response;
+            }
+            if (response.researchTechniques && Array.isArray(response.researchTechniques)) {
+                console.log('[ResearchTypesService] Found researchTechniques array with', response.researchTechniques.length, 'items');
+                return response.researchTechniques;
+            }
+            console.warn('[ResearchTypesService] Unexpected response format from getTechniquesByType:', response);
+            console.warn('[ResearchTypesService] Response keys:', Object.keys(response));
+            return [];
+        } catch (error: unknown) {
+            console.error('[ResearchTypesService] ERROR in getTechniquesByType:', error);
+            console.error('[ResearchTypesService] Error type:', typeof error);
+            
+            if (error instanceof Error) {
+                console.error('[ResearchTypesService] Error message:', error.message);
+                console.error('[ResearchTypesService] Error stack:', error.stack);
+            }
+            
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { status?: number; data?: unknown; statusText?: string } };
+                console.error('[ResearchTypesService] Axios error details:', {
+                    status: axiosError.response?.status,
+                    statusText: axiosError.response?.statusText,
+                    data: axiosError.response?.data,
+                });
+            }
+            
+            throw this.handleError(error, 'Failed to fetch research techniques');
+        }
     }
 
     /**

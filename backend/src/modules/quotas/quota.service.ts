@@ -73,7 +73,7 @@ export async function syncQuotasFromConfig(
                     // Update existing quota
                     await client.query(
                         `UPDATE demographic_quotas 
-                         SET quota_limit = ?, enabled = true, updated_at = CURRENT_TIMESTAMP
+                         SET quota_limit = ?, enabled = true, updated_at = NOW()
                          WHERE id = ?`,
                         [quota.limit, existingMap.get(key)]
                     );
@@ -284,7 +284,7 @@ export async function incrementQuota(
         if (matchesQuotaValue(answer, quota.quota_value, quota.demographic_type)) {
             await client.query(
                 `UPDATE demographic_quotas 
-                 SET current_count = current_count + 1, updated_at = CURRENT_TIMESTAMP
+                 SET current_count = current_count + 1, updated_at = NOW()
                  WHERE id = ?`,
                 [quota.id]
             );

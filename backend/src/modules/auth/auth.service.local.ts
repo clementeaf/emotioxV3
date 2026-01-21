@@ -300,7 +300,7 @@ export const updateUser = async (userSub: string, data: UpdateUserData): Promise
         
         values.push(userSub);
         const query = `
-            UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+            UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
             WHERE cognito_sub = ?
         `;
         await pool.query(query, values);
@@ -327,7 +327,7 @@ export const deleteAccount = async (userSub: string): Promise<{ message: string 
     try {
         const query = `
             UPDATE users
-            SET deleted_at = CURRENT_TIMESTAMP
+            SET deleted_at = NOW()
             WHERE cognito_sub = ? AND deleted_at IS NULL
         `;
         await pool.query(query, [userSub]);
@@ -547,7 +547,7 @@ export const getOrCreateGoogleUser = async (googleUser: GoogleUserData): Promise
             if (user.cognito_sub !== googleUser.sub) {
                 const updateQuery = `
                     UPDATE users
-                    SET cognito_sub = ?, updated_at = CURRENT_TIMESTAMP
+                    SET cognito_sub = ?, updated_at = NOW()
                     WHERE id = ?
                 `;
                 await pool.query(updateQuery, [googleUser.sub, user.id]);
@@ -568,7 +568,7 @@ export const getOrCreateGoogleUser = async (googleUser: GoogleUserData): Promise
                     updateValues.push(user.id);
                     const updateQuery = `
                         UPDATE users
-                        SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+                        SET ${updateFields.join(', ')}, updated_at = NOW()
                         WHERE id = ?
                     `;
                     await pool.query(updateQuery, updateValues);

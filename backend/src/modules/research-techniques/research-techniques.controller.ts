@@ -40,8 +40,16 @@ export const handleResearchTechniquesRoutes = async (event: APIGatewayProxyEvent
         const getMatch = path.match(/^\/research-techniques\/([^\/]+)$/);
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
-            const technique = await researchTechniquesService.getById(id);
-            return success({ researchTechnique: technique }, 200, undefined, origin);
+            try {
+                const technique = await researchTechniquesService.getById(id);
+                return success({ researchTechnique: technique }, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('not found')) {
+                    return error('Research technique not found', 404, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // PUT /research-techniques/:id
