@@ -32,7 +32,9 @@ const router = createBrowserRouter([
       </Suspense>
     ),
   },
-]);
+], {
+  basename: '/participant',
+});
 
 function App() {
   return (

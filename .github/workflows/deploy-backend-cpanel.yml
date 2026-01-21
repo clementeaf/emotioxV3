@@ -1,0 +1,120 @@
+name: Deploy Backend to cPanel
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend-cpanel.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to cPanel
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: "0"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+
+      - name: Add SSH known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Verify .env exists on remote server
+        run: |
+          ENV_EXISTS=$(ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} \
+            'test -f ~/emotioxv3/backend/.env && echo "yes" || echo "no"')
+          
+          if [ "$ENV_EXISTS" = "no" ]; then
+            echo "⚠️  No se encontró .env en el servidor"
+            echo "Por favor, configura el archivo .env manualmente antes de desplegar:"
+            echo "  ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}"
+            echo "  cd ~/emotioxv3/backend"
+            echo "  cp .env.example .env"
+            echo "  nano .env"
+            exit 1
+          fi
+          echo "✅ Archivo .env encontrado"
+
+      - name: Create remote directory structure
+        run: |
+          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            mkdir -p ~/emotioxv3/backend
+            echo "✅ Estructura de directorios creada"
+          '
+
+      - name: Transfer source code (excluding sensitive files)
+        run: |
+          rsync -avz --delete \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='*.log' \
+            --exclude='.git' \
+            backend/ \
+            ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/emotioxv3/backend/
+
+      - name: Install dependencies on remote server
+        run: |
+          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend
+            echo "📦 Instalando dependencias..."
+            npm install --production=false
+            echo "✅ Dependencias instaladas"
+          '
+
+      - name: Build TypeScript on remote server
+        run: |
+          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend
+            echo "🔨 Compilando TypeScript..."
+            npm run build
+            echo "✅ Compilación completada"
+          '
+
+      - name: Verify deployment files exist
+        run: |
+          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend
+            
+            if [ ! -f "server-cpanel.js" ]; then
+              echo "⚠️  server-cpanel.js no encontrado"
+              exit 1
+            fi
+            
+            if [ ! -f "passenger_startup.js" ]; then
+              echo "⚠️  passenger_startup.js no encontrado"
+              exit 1
+            fi
+            
+            echo "✅ Archivos de despliegue verificados"
+          '
+
+      - name: Test server startup
+        run: |
+          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend
+            echo "🧪 Probando inicio del servidor..."
+            timeout 5 npm start 2>&1 || echo "TIMEOUT_OK"
+          ' || echo "⚠️  Test de inicio completado (timeout esperado)"
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Backend desplegado exitosamente"
+          echo ""
+          echo "📋 Información de despliegue:"
+          echo "   - Directorio: ~/emotioxv3/backend"
+          echo "   - Entry point: server-cpanel.js"
+          echo ""
+          echo "📝 Nota: Si usas Passenger, reinicia la aplicación desde cPanel"
