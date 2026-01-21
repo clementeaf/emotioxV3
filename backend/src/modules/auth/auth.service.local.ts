@@ -407,7 +407,7 @@ export const deleteAccount = async (userSub: string): Promise<{ message: string 
  */
 const getGoogleOAuthClient = (): OAuth2Client => {
     const credentialsPath = process.env.GOOGLE_CREDENTIALS_PATH || 
-        path.join(process.cwd(), 'google-credentials.json');
+        path.join(__dirname, '../../google-credentials.json');
     
     let credentials: { web?: { client_id?: string; client_secret?: string; redirect_uris?: string[] } };
     

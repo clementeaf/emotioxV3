@@ -39,11 +39,6 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
     // Build API base URL from request context or environment
     const getApiBaseUrl = async (): Promise<string> => {
-        console.log('[getApiBaseUrl] Determining API base URL...');
-        console.log('[getApiBaseUrl] API_BASE_URL env:', process.env.API_BASE_URL || 'not set');
-        console.log('[getApiBaseUrl] requestContext:', JSON.stringify(requestContext || {}));
-        console.log('[getApiBaseUrl] origin:', origin);
-        
         // Try to get from SSM Parameter Store first
         try {
             const { loadSsmParameters } = await import('../../config/ssm');
@@ -57,16 +52,14 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             });
 
             if (ssmParams.API_BASE_URL) {
-                console.log('[getApiBaseUrl] Using SSM value:', ssmParams.API_BASE_URL);
                 return ssmParams.API_BASE_URL;
             }
         } catch (error) {
-            console.warn('[getApiBaseUrl] Failed to load API_BASE_URL from SSM:', error);
+            console.warn('Failed to load API_BASE_URL from SSM:', error);
         }
 
         // Fallback to environment variable
         if (process.env.API_BASE_URL) {
-            console.log('[getApiBaseUrl] Using API_BASE_URL env:', process.env.API_BASE_URL);
             return process.env.API_BASE_URL;
         }
 
@@ -88,49 +81,23 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             if (domainName.includes('.execute-api.') || domainName.includes('.amazonaws.com')) {
                 // API Gateway URL - include stage
                 if (requestContext.stage) {
-                    const url = `${protocol}://${domainName}/${requestContext.stage}`;
-                    console.log('[getApiBaseUrl] Using API Gateway URL:', url);
-                    return url;
+                    return `${protocol}://${domainName}/${requestContext.stage}`;
                 }
             }
             // Custom domain - don't include stage
-            const url = `${protocol}://${domainName}`;
-            console.log('[getApiBaseUrl] Using custom domain URL:', url);
-            return url;
+            return `${protocol}://${domainName}`;
         }
 
-        // Fallback to origin if available (for cPanel)
+        // Fallback to origin if available
         if (origin) {
-            // For cPanel, origin might be the frontend URL, need to construct API URL
-            try {
-                const originUrl = new URL(origin);
-                // If origin is emotio.cx, API is at /api
-                if (originUrl.hostname === 'emotio.cx' || originUrl.hostname.includes('emotio.cx')) {
-                    const apiUrl = `${originUrl.protocol}//${originUrl.hostname}/api`;
-                    console.log('[getApiBaseUrl] Using cPanel API URL from origin:', apiUrl);
-                    return apiUrl;
-                }
-                // Otherwise use origin as-is
-                const cleaned = origin.replace(/\/$/, '');
-                console.log('[getApiBaseUrl] Using origin as API URL:', cleaned);
-                return cleaned;
-            } catch (e) {
-                console.warn('[getApiBaseUrl] Failed to parse origin:', origin);
-            }
+            return origin.replace(/\/$/, '');
         }
 
-        // Last resort: construct from environment or use default for cPanel
-        if (process.env.CPANEL_DOMAIN) {
-            const cpanelUrl = `https://${process.env.CPANEL_DOMAIN}/api`;
-            console.log('[getApiBaseUrl] Using CPANEL_DOMAIN:', cpanelUrl);
-            return cpanelUrl;
-        }
-
+        // Last resort: construct from environment
         const region = process.env.APP_AWS_REGION || 'us-east-1';
         const stage = process.env.API_STAGE || 'dev';
-        const fallback = `https://api.execute-api.${region}.amazonaws.com/${stage}`;
-        console.log('[getApiBaseUrl] Using fallback URL:', fallback);
-        return fallback;
+        // This is a fallback and may not be accurate
+        return `https://api.execute-api.${region}.amazonaws.com/${stage}`;
     };
 
     // Get frontend URL from SSM or use origin
@@ -351,29 +318,19 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 const credentialsPath = process.env.GOOGLE_CREDENTIALS_PATH || 
                     path.join(process.cwd(), 'google-credentials.json');
                 
-                console.log('[Google OAuth] Looking for credentials at:', credentialsPath);
-                console.log('[Google OAuth] process.cwd():', process.cwd());
-                console.log('[Google OAuth] GOOGLE_CREDENTIALS_PATH:', process.env.GOOGLE_CREDENTIALS_PATH || 'not set');
-                console.log('[Google OAuth] File exists:', fs.existsSync(credentialsPath));
-                
                 let clientId: string;
                 let clientSecret: string;
                 
                 if (fs.existsSync(credentialsPath)) {
-                    console.log('[Google OAuth] Loading credentials from file');
                     const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
                     clientId = credentials.web?.client_id || '';
                     clientSecret = credentials.web?.client_secret || '';
                 } else {
-                    console.log('[Google OAuth] File not found, trying environment variables');
                     clientId = process.env.GOOGLE_CLIENT_ID || '';
                     clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
-                    console.log('[Google OAuth] GOOGLE_CLIENT_ID:', clientId ? 'set' : 'not set');
-                    console.log('[Google OAuth] GOOGLE_CLIENT_SECRET:', clientSecret ? 'set' : 'not set');
                 }
                 
                 if (!clientId || !clientSecret) {
-                    console.error('[Google OAuth] Configuration error: Missing credentials');
                     return error(
                         'Google OAuth not configured. Please set GOOGLE_CREDENTIALS_PATH or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.',
                         500,
@@ -382,13 +339,9 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                     );
                 }
                 
-                console.log('[Google OAuth] Credentials loaded successfully');
-                
                 // Build redirect URI
                 const apiBaseUrl = await getApiBaseUrl();
                 const redirectUri = `${apiBaseUrl}/auth/google/callback`;
-                console.log('[Google OAuth] API Base URL:', apiBaseUrl);
-                console.log('[Google OAuth] Redirect URI:', redirectUri);
                 
                 // Get origin for state parameter
                 const queryParams = event.queryStringParameters || {};
