@@ -39,6 +39,11 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
 
     // Build API base URL from request context or environment
     const getApiBaseUrl = async (): Promise<string> => {
+        console.log('[getApiBaseUrl] Determining API base URL...');
+        console.log('[getApiBaseUrl] API_BASE_URL env:', process.env.API_BASE_URL || 'not set');
+        console.log('[getApiBaseUrl] requestContext:', JSON.stringify(requestContext || {}));
+        console.log('[getApiBaseUrl] origin:', origin);
+        
         // Try to get from SSM Parameter Store first
         try {
             const { loadSsmParameters } = await import('../../config/ssm');
@@ -52,14 +57,16 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             });
 
             if (ssmParams.API_BASE_URL) {
+                console.log('[getApiBaseUrl] Using SSM value:', ssmParams.API_BASE_URL);
                 return ssmParams.API_BASE_URL;
             }
         } catch (error) {
-            console.warn('Failed to load API_BASE_URL from SSM:', error);
+            console.warn('[getApiBaseUrl] Failed to load API_BASE_URL from SSM:', error);
         }
 
         // Fallback to environment variable
         if (process.env.API_BASE_URL) {
+            console.log('[getApiBaseUrl] Using API_BASE_URL env:', process.env.API_BASE_URL);
             return process.env.API_BASE_URL;
         }
 
@@ -81,23 +88,49 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
             if (domainName.includes('.execute-api.') || domainName.includes('.amazonaws.com')) {
                 // API Gateway URL - include stage
                 if (requestContext.stage) {
-                    return `${protocol}://${domainName}/${requestContext.stage}`;
+                    const url = `${protocol}://${domainName}/${requestContext.stage}`;
+                    console.log('[getApiBaseUrl] Using API Gateway URL:', url);
+                    return url;
                 }
             }
             // Custom domain - don't include stage
-            return `${protocol}://${domainName}`;
+            const url = `${protocol}://${domainName}`;
+            console.log('[getApiBaseUrl] Using custom domain URL:', url);
+            return url;
         }
 
-        // Fallback to origin if available
+        // Fallback to origin if available (for cPanel)
         if (origin) {
-            return origin.replace(/\/$/, '');
+            // For cPanel, origin might be the frontend URL, need to construct API URL
+            try {
+                const originUrl = new URL(origin);
+                // If origin is emotio.cx, API is at /api
+                if (originUrl.hostname === 'emotio.cx' || originUrl.hostname.includes('emotio.cx')) {
+                    const apiUrl = `${originUrl.protocol}//${originUrl.hostname}/api`;
+                    console.log('[getApiBaseUrl] Using cPanel API URL from origin:', apiUrl);
+                    return apiUrl;
+                }
+                // Otherwise use origin as-is
+                const cleaned = origin.replace(/\/$/, '');
+                console.log('[getApiBaseUrl] Using origin as API URL:', cleaned);
+                return cleaned;
+            } catch (e) {
+                console.warn('[getApiBaseUrl] Failed to parse origin:', origin);
+            }
         }
 
-        // Last resort: construct from environment
+        // Last resort: construct from environment or use default for cPanel
+        if (process.env.CPANEL_DOMAIN) {
+            const cpanelUrl = `https://${process.env.CPANEL_DOMAIN}/api`;
+            console.log('[getApiBaseUrl] Using CPANEL_DOMAIN:', cpanelUrl);
+            return cpanelUrl;
+        }
+
         const region = process.env.APP_AWS_REGION || 'us-east-1';
         const stage = process.env.API_STAGE || 'dev';
-        // This is a fallback and may not be accurate
-        return `https://api.execute-api.${region}.amazonaws.com/${stage}`;
+        const fallback = `https://api.execute-api.${region}.amazonaws.com/${stage}`;
+        console.log('[getApiBaseUrl] Using fallback URL:', fallback);
+        return fallback;
     };
 
     // Get frontend URL from SSM or use origin
@@ -354,6 +387,8 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 // Build redirect URI
                 const apiBaseUrl = await getApiBaseUrl();
                 const redirectUri = `${apiBaseUrl}/auth/google/callback`;
+                console.log('[Google OAuth] API Base URL:', apiBaseUrl);
+                console.log('[Google OAuth] Redirect URI:', redirectUri);
                 
                 // Get origin for state parameter
                 const queryParams = event.queryStringParameters || {};
