@@ -48,7 +48,7 @@ jobs:
 
       - name: Create remote directory structure
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             mkdir -p ~/emotioxv3/backend
             echo "✅ Estructura de directorios creada"
           '
