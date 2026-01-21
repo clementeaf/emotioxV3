@@ -1,3 +1,4 @@
 {
-  "apiBaseUrl": "https://emotio.cx/api"
+  "apiBaseUrl": "https://emotio.cx/api",
+  "participantBaseUrl": "https://emotio.cx/participant"
 }

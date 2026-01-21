@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -90,7 +90,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         let cancelled = false;
         void (async (): Promise<void> => {
             try {
-                const response = await fetch('/runtime-config.json', { cache: 'no-store' });
+                const configPath = `${import.meta.env.BASE_URL}runtime-config.json`;
+                const response = await fetch(configPath, { cache: 'no-store' });
                 if (!response.ok) {
                     console.warn('[ResearchConfigurationModule] Failed to fetch runtime-config.json:', response.status, response.statusText);
                     return;
@@ -197,15 +198,21 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             return '';
         }
         
-        return `${base.origin}/research/${researchId}`;
+        // Use the full baseUrl (including path like /participant) instead of just origin
+        return `${baseUrl}/research/${researchId}`;
     };
+
+    /**
+     * Memoized participant share URL that updates when dependencies change
+     */
+    const participantShareUrl = useMemo(() => buildParticipantShareUrl(), [runtimeParticipantBaseUrl, researchId]);
 
     /**
      * Opens the participant-facing URL in a new tab.
      * @returns void
      */
     const handleLinkPreview = (): void => {
-        const url = buildParticipantShareUrl();
+        const url = participantShareUrl;
         if (!url || url.trim().length === 0) {
             toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
             console.error('[ResearchConfigurationModule] Cannot open preview: URL is empty or invalid');
@@ -537,7 +544,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         <label className="block text-sm text-gray-700 mb-2">Research URL</label>
                         <div className="flex gap-1 mb-2">
                             <Input
-                                value={buildParticipantShareUrl()}
+                                value={participantShareUrl}
                                 readOnly
                                 className="bg-gray-50 cursor-default"
                             />
@@ -546,7 +553,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 size="sm" 
                                 title="Copy" 
                                 onClick={async () => {
-                                    const url = buildParticipantShareUrl();
+                                    const url = participantShareUrl;
                                     if (!url) {
                                         toast.error('No se pudo generar la URL.');
                                         return;
@@ -571,7 +578,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 variant="primary"
                                 size="sm"
                                 onClick={() => {
-                                    const url = buildParticipantShareUrl();
+                                    const url = participantShareUrl;
                                     if (!url || url.trim().length === 0) {
                                         toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
                                         return;
@@ -592,7 +599,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             <QRCodeModal
                 isOpen={showQRModal}
                 onClose={() => setShowQRModal(false)}
-                url={buildParticipantShareUrl()}
+                url={participantShareUrl}
                 title="Research link QR Code"
                 description="This is your Public QR Code"
                 downloadFileName="research-qr-code.png"
