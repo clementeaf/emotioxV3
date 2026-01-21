@@ -12,7 +12,8 @@
     "deploy": "serverless deploy",
     "start": "node server-cpanel.js",
     "start:ts": "tsx src/server.ts",
-    "start:passenger": "node passenger_startup.js"
+    "start:passenger": "node passenger_startup.js",
+    "test:endpoints:cpanel": "tsx scripts/test-all-endpoints-cpanel.ts"
   },
   "keywords": [],
   "author": "",
@@ -44,6 +45,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^1.4.13",
     "@types/uuid": "^10.0.0",
+    "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
