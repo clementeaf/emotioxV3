@@ -318,19 +318,29 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 const credentialsPath = process.env.GOOGLE_CREDENTIALS_PATH || 
                     path.join(process.cwd(), 'google-credentials.json');
                 
+                console.log('[Google OAuth] Looking for credentials at:', credentialsPath);
+                console.log('[Google OAuth] process.cwd():', process.cwd());
+                console.log('[Google OAuth] GOOGLE_CREDENTIALS_PATH:', process.env.GOOGLE_CREDENTIALS_PATH || 'not set');
+                console.log('[Google OAuth] File exists:', fs.existsSync(credentialsPath));
+                
                 let clientId: string;
                 let clientSecret: string;
                 
                 if (fs.existsSync(credentialsPath)) {
+                    console.log('[Google OAuth] Loading credentials from file');
                     const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
                     clientId = credentials.web?.client_id || '';
                     clientSecret = credentials.web?.client_secret || '';
                 } else {
+                    console.log('[Google OAuth] File not found, trying environment variables');
                     clientId = process.env.GOOGLE_CLIENT_ID || '';
                     clientSecret = process.env.GOOGLE_CLIENT_SECRET || '';
+                    console.log('[Google OAuth] GOOGLE_CLIENT_ID:', clientId ? 'set' : 'not set');
+                    console.log('[Google OAuth] GOOGLE_CLIENT_SECRET:', clientSecret ? 'set' : 'not set');
                 }
                 
                 if (!clientId || !clientSecret) {
+                    console.error('[Google OAuth] Configuration error: Missing credentials');
                     return error(
                         'Google OAuth not configured. Please set GOOGLE_CREDENTIALS_PATH or GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.',
                         500,
@@ -338,6 +348,8 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                         origin
                     );
                 }
+                
+                console.log('[Google OAuth] Credentials loaded successfully');
                 
                 // Build redirect URI
                 const apiBaseUrl = await getApiBaseUrl();
