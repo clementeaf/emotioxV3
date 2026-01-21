@@ -59,11 +59,11 @@ jobs:
       - name: Add SSH known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT || '22' }} -H ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create backup on remote server
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             REMOTE_DIR="$HOME/public_html/research"
             if [ -d "$REMOTE_DIR" ]; then
               BACKUP_DIR="${REMOTE_DIR}.backup.$(date +%Y%m%d_%H%M%S)"
@@ -77,7 +77,7 @@ jobs:
 
       - name: Clean remote directory
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             REMOTE_DIR="$HOME/public_html/research"
             cd "$REMOTE_DIR" || exit 1
             find . -mindepth 1 ! -name ".well-known" -exec rm -rf {} + 2>/dev/null || true
@@ -86,7 +86,7 @@ jobs:
 
       - name: Deploy files to cPanel
         run: |
-          rsync -avz --delete \
+          rsync -avz --delete -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }}" \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='src' \
@@ -105,12 +105,12 @@ jobs:
 
       - name: Deploy runtime-config.json
         run: |
-          scp research-frontend/public/runtime-config.json \
+          scp -P ${{ secrets.CPANEL_SSH_PORT || '22' }} research-frontend/public/runtime-config.json \
             ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/public_html/research/runtime-config.json
 
       - name: Verify deployment
         run: |
-          REMOTE_FILES=$(ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} 'ls -1 "$HOME/public_html/research" 2>/dev/null | wc -l')
+          REMOTE_FILES=$(ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} 'ls -1 "$HOME/public_html/research" 2>/dev/null | wc -l')
           echo "Archivos en remoto: $REMOTE_FILES"
           if [ "$REMOTE_FILES" -gt 0 ]; then
             echo "✅ Despliegue exitoso"

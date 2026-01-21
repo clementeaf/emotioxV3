@@ -28,17 +28,17 @@ jobs:
       - name: Add SSH known hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT || '22' }} -H ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Verify .env exists on remote server
         run: |
-          ENV_EXISTS=$(ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} \
+          ENV_EXISTS=$(ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} \
             'test -f ~/emotioxv3/backend/.env && echo "yes" || echo "no"')
           
           if [ "$ENV_EXISTS" = "no" ]; then
             echo "⚠️  No se encontró .env en el servidor"
             echo "Por favor, configura el archivo .env manualmente antes de desplegar:"
-            echo "  ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}"
+            echo "  ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}"
             echo "  cd ~/emotioxv3/backend"
             echo "  cp .env.example .env"
             echo "  nano .env"
@@ -55,7 +55,7 @@ jobs:
 
       - name: Transfer source code (excluding sensitive files)
         run: |
-          rsync -avz --delete \
+          rsync -avz --delete -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }}" \
             --exclude='node_modules' \
             --exclude='dist' \
             --exclude='.env' \
@@ -67,7 +67,7 @@ jobs:
 
       - name: Install dependencies on remote server
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             cd ~/emotioxv3/backend
             echo "📦 Instalando dependencias..."
             npm install --production=false
@@ -76,7 +76,7 @@ jobs:
 
       - name: Build TypeScript on remote server
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             cd ~/emotioxv3/backend
             echo "🔨 Compilando TypeScript..."
             npm run build
@@ -85,7 +85,7 @@ jobs:
 
       - name: Verify deployment files exist
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             cd ~/emotioxv3/backend
             
             if [ ! -f "server-cpanel.js" ]; then
@@ -103,7 +103,7 @@ jobs:
 
       - name: Test server startup
         run: |
-          ssh ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
             cd ~/emotioxv3/backend
             echo "🧪 Probando inicio del servidor..."
             timeout 5 npm start 2>&1 || echo "TIMEOUT_OK"
