@@ -170,8 +170,23 @@ export const login = async (data: LoginData) => {
         }
         
         const user = userResult.rows[0];
-        const metadata = (user.metadata as Record<string, unknown>) || {};
-        const passwordHash = metadata.password_hash as string;
+        
+        // Parse metadata - MySQL may return JSON as string
+        let metadata: Record<string, unknown> = {};
+        if (user.metadata) {
+            if (typeof user.metadata === 'string') {
+                try {
+                    metadata = JSON.parse(user.metadata) as Record<string, unknown>;
+                } catch (e) {
+                    console.error('Failed to parse user metadata:', e);
+                    metadata = {};
+                }
+            } else if (typeof user.metadata === 'object' && user.metadata !== null) {
+                metadata = user.metadata as Record<string, unknown>;
+            }
+        }
+        
+        const passwordHash = metadata.password_hash as string | undefined;
         
         if (!passwordHash) {
             throw new Error('User account not configured for local authentication');
