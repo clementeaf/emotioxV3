@@ -24,17 +24,30 @@ const injectCacheVersion = () => {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/participant/',
   plugins: [
     react(), 
     injectCacheVersion(),
     // Inject build time as env variable
     {
       name: 'inject-build-time',
+      buildEnd() {
+        // Inject build time after build completes
+        const indexPath = resolve(__dirname, 'dist/index.html');
+        try {
+          let content = readFileSync(indexPath, 'utf-8');
+          content = content.replace(
+            '<head>',
+            `<head><script>window.__BUILD_TIME__ = ${Date.now()};</script>`
+          );
+          writeFileSync(indexPath, content);
+        } catch (error) {
+          console.error('Failed to inject build time:', error);
+        }
+      },
       transformIndexHtml(html) {
-        return html.replace(
-          '<head>',
-          `<head><script>window.__BUILD_TIME__ = ${Date.now()};</script>`
-        );
+        // This runs during build, but we'll inject in buildEnd instead
+        return html;
       }
     }
   ],
