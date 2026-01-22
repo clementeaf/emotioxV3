@@ -19,9 +19,14 @@ interface ParticipantState {
   sessionCount: number;
   participantId: string | null;
 
+  // Turnstile verification (persisted)
+  turnstileVerifiedAt: number | null;
+
   // Actions - Navegación
   setCurrentStep: (step: string) => void;
   setParticipantId: (id: string | null) => void;
+  setTurnstileVerified: () => void;
+  clearTurnstileVerified: () => void;
 
   // Actions - Respuestas
   saveResponse: (moduleId: string, componentId: string, value: ResponseValue, metadata?: ResponseMetadata) => void;
@@ -78,6 +83,7 @@ export const useParticipantStore = create<ParticipantState>()(
       sessionStartTime: Date.now(),
       sessionCount: 1,
       participantId: null,
+      turnstileVerifiedAt: null,
 
       /**
        * Establece el ID del participante
@@ -85,6 +91,20 @@ export const useParticipantStore = create<ParticipantState>()(
        */
       setParticipantId: (id: string | null) => {
         set({ participantId: id });
+      },
+
+      /**
+       * Marca que el participante completó la verificación de Turnstile
+       */
+      setTurnstileVerified: () => {
+        set({ turnstileVerifiedAt: Date.now() });
+      },
+
+      /**
+       * Limpia la verificación de Turnstile
+       */
+      clearTurnstileVerified: () => {
+        set({ turnstileVerifiedAt: null });
       },
 
       /**
@@ -210,6 +230,7 @@ export const useParticipantStore = create<ParticipantState>()(
         sessionStartTime: state.sessionStartTime,
         sessionCount: state.sessionCount,
         participantId: state.participantId,
+        turnstileVerifiedAt: state.turnstileVerifiedAt,
       }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as {
@@ -219,6 +240,7 @@ export const useParticipantStore = create<ParticipantState>()(
           sessionStartTime?: number;
           sessionCount?: number;
           participantId?: string;
+          turnstileVerifiedAt?: number | null;
         };
         return {
           ...currentState,
@@ -228,6 +250,7 @@ export const useParticipantStore = create<ParticipantState>()(
           sessionStartTime: persisted.sessionStartTime ?? currentState.sessionStartTime,
           sessionCount: persisted.sessionCount ?? currentState.sessionCount,
           participantId: persisted.participantId ?? currentState.participantId,
+          turnstileVerifiedAt: persisted.turnstileVerifiedAt ?? currentState.turnstileVerifiedAt,
         };
       },
     }

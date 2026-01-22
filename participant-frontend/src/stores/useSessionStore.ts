@@ -9,12 +9,14 @@ interface SessionState {
     interactions: UserInteraction[];
     turnstileToken: string | null;
     turnstileVerified: boolean;
+    turnstileTokenUsed: boolean;
 
     setConfig: (config: ResearchConfig) => void;
     setDeviceInfo: (info: DeviceInfo) => void;
     setLocation: (location: LocationInfo) => void;
     setTurnstileToken: (token: string) => void;
     clearTurnstileToken: () => void;
+    markTurnstileTokenUsed: () => void;
     startSession: () => void;
     endSession: () => void;
     trackInteraction: (interaction: Omit<UserInteraction, 'timestamp'>) => void;
@@ -46,6 +48,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     interactions: [],
     turnstileToken: null,
     turnstileVerified: false,
+    turnstileTokenUsed: false,
 
     setConfig: (config) => set({ config }),
 
@@ -53,9 +56,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     setLocation: (location) => set({ location }),
 
-    setTurnstileToken: (token) => set({ turnstileToken: token, turnstileVerified: true }),
+    setTurnstileToken: (token) => set({ turnstileToken: token, turnstileVerified: true, turnstileTokenUsed: false }),
 
-    clearTurnstileToken: () => set({ turnstileToken: null, turnstileVerified: false }),
+    clearTurnstileToken: () => set({ turnstileToken: null, turnstileVerified: false, turnstileTokenUsed: false }),
+
+    markTurnstileTokenUsed: () => set({ turnstileTokenUsed: true }),
     
     startSession: () => {
         const startTime = Date.now();
