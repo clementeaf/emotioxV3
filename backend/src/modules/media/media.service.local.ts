@@ -61,7 +61,7 @@ export const generateUploadUrl = async (researchId: string, fileName: string, co
     
     return {
         upload_url: uploadUrl,
-        media_path: relativePath,
+        s3_key: relativePath,
         expires_in: 3600,
     };
 };
