@@ -38,6 +38,15 @@ export const getMediaPath = (relativePath: string): string => {
 export const getMediaUrl = (relativePath: string): string => {
     // Normalizar separadores de ruta
     const normalizedPath = relativePath.replace(/\\/g, '/');
+    
+    // Si MEDIA_PUBLIC_URL ya incluye el dominio completo, usarlo
+    if (MEDIA_PUBLIC_URL.startsWith('http://') || MEDIA_PUBLIC_URL.startsWith('https://')) {
+        return `${MEDIA_PUBLIC_URL}/${normalizedPath}`;
+    }
+    
+    // Para cPanel: el backend está en /api, pero los archivos se sirven en /media
+    // Las URLs relativas funcionan porque Express sirve los archivos estáticos
+    // La URL será /media/research/... y el middleware de Express la servirá
     return `${MEDIA_PUBLIC_URL}/${normalizedPath}`;
 };
 

@@ -7,6 +7,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 const { route } = require('./dist/router');
 const cache = require('./dist/config/cache').default;
 
@@ -58,6 +60,72 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Serve media files statically (for Cognitive Tasks images, etc.)
+// This replaces S3 presigned URLs with direct file serving
+const MEDIA_BASE_DIR = process.env.MEDIA_BASE_DIR || path.join(__dirname, 'media');
+const MEDIA_PUBLIC_URL = process.env.MEDIA_PUBLIC_URL || '/media';
+
+// Ensure media directory exists
+if (!fs.existsSync(MEDIA_BASE_DIR)) {
+    fs.mkdirSync(MEDIA_BASE_DIR, { recursive: true });
+    console.log(`✓ Media directory created: ${MEDIA_BASE_DIR}`);
+}
+
+// Serve media files at /media/* or /api/media/*
+// This allows URLs like /media/research/123/image.jpg to work
+app.use('/media', express.static(MEDIA_BASE_DIR, {
+    setHeaders: (res, filePath) => {
+        // Set appropriate content type based on file extension
+        const ext = path.extname(filePath).toLowerCase();
+        const contentTypes = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml',
+            '.pdf': 'application/pdf',
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+        };
+        if (contentTypes[ext]) {
+            res.setHeader('Content-Type', contentTypes[ext]);
+        }
+        // Cache control for images (1 hour)
+        if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+    },
+    dotfiles: 'deny', // Don't serve dotfiles
+    index: false, // Don't serve directory listings
+}));
+
+// Also serve at /api/media for compatibility
+app.use('/api/media', express.static(MEDIA_BASE_DIR, {
+    setHeaders: (res, filePath) => {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentTypes = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml',
+            '.pdf': 'application/pdf',
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+        };
+        if (contentTypes[ext]) {
+            res.setHeader('Content-Type', contentTypes[ext]);
+        }
+        if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+    },
+    dotfiles: 'deny',
+    index: false,
+}));
 
 // Convert Express request to Lambda event format (for compatibility)
 app.use(async (req, res) => {
