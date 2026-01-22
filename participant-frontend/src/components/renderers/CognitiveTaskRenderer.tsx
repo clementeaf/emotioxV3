@@ -189,6 +189,18 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         label: getComponentText(c)
                     }));
             }
+            
+            // Last resort: if ranking-slider exists but has no items, check if it's a select with options
+            // that should be converted to ranking items
+            if (items.length === 0 && itemsComponent && itemsComponent.type === 'select') {
+                // If it's a select component, it might have options that should be used as items
+                if (itemsComponent.options && Array.isArray(itemsComponent.options) && itemsComponent.options.length > 0) {
+                    items = itemsComponent.options.map((opt, index) => ({
+                        id: opt.value || opt.label || `item-${index}`,
+                        label: opt.label || opt.value || `Item ${index + 1}`
+                    }));
+                }
+            }
 
             // Debug: log structure to help diagnose
             if (items.length === 0) {
