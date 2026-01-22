@@ -25,6 +25,9 @@ import { responseService } from '../services/response.service';
 import { getComponentText } from '../utils/moduleComponent';
 import type { ModuleStructure, ModuleComponent } from '../types/module';
 
+// Turnstile temporarily disabled - will be re-enabled when TURNSTILE_SECRET_KEY is configured
+const TURNSTILE_ENABLED = false;
+
 /**
  * Checks whether a value is a plain object record.
  * @param value - Unknown value
@@ -192,7 +195,11 @@ export const ResearchPage = () => {
     if (!storedParticipantId || storedParticipantId !== participantId) {
       console.log('[ResearchPage] New or changed participant, resetting session');
       clearAllResponses();
+      // Clear Turnstile token, but if Turnstile is disabled, auto-verify immediately
       useSessionStore.getState().clearTurnstileToken();
+      if (!TURNSTILE_ENABLED) {
+        useSessionStore.getState().setTurnstileToken('disabled');
+      }
       startNewSession();
       // Reset to the first step (welcome)
       useParticipantStore.getState().setCurrentStep('welcome');
@@ -204,6 +211,16 @@ export const ResearchPage = () => {
 
   // Initialize session timer
   useSessionTimer();
+
+  // Auto-initialize Turnstile when disabled
+  useEffect(() => {
+    if (!TURNSTILE_ENABLED) {
+      const { turnstileVerified, turnstileToken } = useSessionStore.getState();
+      if (!turnstileVerified || !turnstileToken) {
+        useSessionStore.getState().setTurnstileToken('disabled');
+      }
+    }
+  }, []);
 
   // Load research configuration
   useEffect(() => {
@@ -542,17 +559,18 @@ export const ResearchPage = () => {
       clearAllResponses();
       // Clear Turnstile token to force re-verification
       useSessionStore.getState().clearTurnstileToken();
+      // If Turnstile is disabled, auto-verify immediately
+      if (!TURNSTILE_ENABLED) {
+        useSessionStore.getState().setTurnstileToken('disabled');
+      }
       // Reset to first step
       useParticipantStore.getState().setCurrentStep('welcome');
       setShowRestartOption(false);
       return;
     }
 
-    // Turnstile verification temporarily disabled
-    // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
-    const TURNSTILE_ENABLED = false;
-    
     // Verify Turnstile token on welcome step (only in participant mode)
+    // Note: TURNSTILE_ENABLED is defined at module level
     if (TURNSTILE_ENABLED && currentStep === 'welcome' && !isPreviewMode) {
       const { turnstileVerified, turnstileToken } = useSessionStore.getState();
       if (!turnstileVerified || !turnstileToken) {
@@ -583,11 +601,8 @@ export const ResearchPage = () => {
 
     // In participant mode, send data to backend
     if (participantId && researchId && currentModule) {
-      // Turnstile verification temporarily disabled
-      // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
-      const TURNSTILE_ENABLED = false;
-      
       // Verify Turnstile token before submitting (required for anti-bot protection)
+      // Note: TURNSTILE_ENABLED is defined at module level
       // Skip verification in development (localhost) or if using test site key
       const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const { turnstileToken, turnstileVerified, turnstileTokenUsed } = useSessionStore.getState();
