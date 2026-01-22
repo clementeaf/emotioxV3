@@ -212,14 +212,20 @@ class ResponseService {
             return null;
         }
 
-        // Get Turnstile token from session store (if available)
+        // Turnstile temporarily disabled
+        // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
+        const TURNSTILE_ENABLED = false;
+        
+        // Get Turnstile token from session store (if available and enabled)
         let turnstileToken: string | undefined;
-        try {
-            const token = useSessionStore.getState().turnstileToken;
-            turnstileToken = token || undefined;
-        } catch {
-            // If store is not available, token will be undefined
-            console.warn('[ResponseService] Could not get Turnstile token for flushModule');
+        if (TURNSTILE_ENABLED) {
+            try {
+                const token = useSessionStore.getState().turnstileToken;
+                turnstileToken = token || undefined;
+            } catch {
+                // If store is not available, token will be undefined
+                console.warn('[ResponseService] Could not get Turnstile token for flushModule');
+            }
         }
 
         const payload: ModuleResponsePayload = {
