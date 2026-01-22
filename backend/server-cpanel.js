@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 const { route } = require('./dist/router');
 const cache = require('./dist/config/cache').default;
 
@@ -60,6 +61,50 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Configure multer for file uploads (memory storage for direct processing)
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB max file size
+    },
+});
+
+// Handle direct file upload endpoint (multipart/form-data)
+// This must be before the Lambda router to handle multipart properly
+app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        const { research_id, question_id, media_path } = req.body;
+        if (!research_id || !media_path) {
+            return res.status(400).json({ error: 'research_id and media_path are required' });
+        }
+
+        // Import the handler function
+        const { handleDirectUpload } = require('./dist/modules/media/media.controller.local');
+        
+        // Call the handler with the uploaded file and optional media_path
+        const result = await handleDirectUpload(
+            research_id,
+            question_id || null,
+            {
+                name: req.file.originalname,
+                data: req.file.buffer,
+                mimetype: req.file.mimetype,
+            },
+            media_path // Pass media_path if provided
+        );
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Upload error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+        res.status(500).json({ error: errorMessage });
+    }
+});
 
 // Serve media files statically (for Cognitive Tasks images, etc.)
 // This replaces S3 presigned URLs with direct file serving
