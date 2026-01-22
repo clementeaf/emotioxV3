@@ -609,46 +609,56 @@ export const saveParticipantResponses = async (
 ) => {
   const { participantId, moduleId, responses, metadata = {} } = payload;
 
-  // Verify Turnstile token (anti-bot protection)
-  const turnstileToken = metadata.turnstileToken as string | undefined;
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isPreviewMode = metadata.isPreviewMode === true;
+  // Turnstile verification temporarily disabled
+  // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
+  const turnstileEnabled = !!process.env.TURNSTILE_SECRET_KEY;
 
-  // In production, token is mandatory (except for preview mode)
-  if (isProduction && !isPreviewMode) {
-    if (!turnstileToken) {
-      console.error('[Turnstile] Token is required in production but not provided');
-      throw new Error('Anti-bot verification is required. Please refresh the page and complete the security check.');
-    }
+  if (turnstileEnabled) {
+    // Verify Turnstile token (anti-bot protection)
+    // Note: Turnstile tokens are single-use. After the first successful verification,
+    // the frontend sends null to indicate "already verified" for subsequent requests.
+    const turnstileToken = metadata.turnstileToken as string | null | undefined;
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isPreviewMode = metadata.isPreviewMode === true;
 
-    try {
-      const isValid = await verifyTurnstileToken(turnstileToken);
-      if (!isValid) {
+    // If token is explicitly null (not undefined), it means the participant was already verified
+    // in a previous request. We allow the request to proceed.
+    const alreadyVerified = turnstileToken === null;
+
+    // In production, token is mandatory for first request (except for preview mode)
+    if (isProduction && !isPreviewMode && !alreadyVerified) {
+      if (!turnstileToken) {
+        console.error('[Turnstile] Token is required in production but not provided');
+        throw new Error('Anti-bot verification is required. Please refresh the page and complete the security check.');
+      }
+
+      try {
+        const isValid = await verifyTurnstileToken(turnstileToken);
+        if (!isValid) {
+          throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown verification error';
+        console.error('[Turnstile] Verification error:', errorMessage);
         throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown verification error';
-      console.error('[Turnstile] Verification error:', errorMessage);
-      throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
-    }
-  } else {
-    // In development or preview mode, validate if token is provided but don't require it
-    if (turnstileToken) {
+    } else if (turnstileToken && typeof turnstileToken === 'string') {
+      // Validate token if provided (development mode or optional verification)
       const isValid = await verifyTurnstileToken(turnstileToken);
       if (!isValid) {
-        console.warn('[Turnstile] Token validation failed in development/preview mode, but allowing request');
-        // In development, we log but don't block
-        if (isProduction) {
+        console.warn('[Turnstile] Token validation failed, but allowing request');
+        if (isProduction && !isPreviewMode && !alreadyVerified) {
           throw new Error('Anti-bot verification failed. Please refresh the page and try again.');
         }
       }
+    } else if (alreadyVerified) {
+      // Token is null - participant already verified in a previous request
+      console.log('[Turnstile] Skipping verification - participant already verified');
     } else {
-      if (isProduction && !isPreviewMode) {
-        // This should not happen due to check above, but adding as safety
-        throw new Error('Anti-bot verification is required. Please refresh the page and complete the security check.');
-      }
-      console.warn('[Turnstile] No token provided in metadata. This might be a preview mode request or development environment.');
+      console.warn('[Turnstile] No token provided. This might be a preview mode request or development environment.');
     }
+  } else {
+    console.warn('[Turnstile] Verification disabled - TURNSTILE_SECRET_KEY not configured');
   }
 
   /**

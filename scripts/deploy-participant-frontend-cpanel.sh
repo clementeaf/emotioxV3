@@ -136,6 +136,9 @@ ssh $SSH_OPTS "$SSH_HOST" "cat > $REMOTE_PARTICIPANT_DIR/.htaccess" << 'HTACCESS
   # Handle React Router - redirect all requests to index.html
   # except for files that actually exist
   
+  # Explicitly allow .json files (like runtime-config.json)
+  RewriteRule \.json$ - [L]
+  
   # If the requested file exists, serve it
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
