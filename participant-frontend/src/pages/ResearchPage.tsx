@@ -319,6 +319,9 @@ export const ResearchPage = () => {
           };
         }
 
+        // Track if welcome screen is configured
+        let hasWelcomeScreen = false;
+
         stages.forEach(stage => {
           const modules = stage.modules || [];
           modules.forEach(module => {
@@ -327,6 +330,7 @@ export const ResearchPage = () => {
               if (isModuleHidden(normalizedModule)) return;
               const stepId = getStepIdFromModuleName(normalizedModule.name);
               if (!stepId) return;
+              if (stepId === 'welcome') hasWelcomeScreen = true;
               modulesMap[stepId] = normalizedModule;
             } catch (error: unknown) {
               console.error('Error normalizing module:', error, module);
@@ -334,7 +338,36 @@ export const ResearchPage = () => {
           });
         });
 
+        // If no Welcome Screen is configured and we're not in preview mode,
+        // create a virtual welcome step to show Turnstile verification
+        if (!hasWelcomeScreen && !isPreviewMode) {
+          modulesMap['welcome'] = {
+            id: 'welcome',
+            name: 'Welcome Screen',
+            description: 'Welcome',
+            structure: { components: [] },
+            config: {}
+          };
+        }
+
         setModules(modulesMap);
+
+        // Determine the first available step and set it as current
+        const STEPS_ORDER = [
+          'welcome', 'demographics',
+          'csat', 'nps', 'ces', 'cv', 'nev', 'voc',
+          'short-text', 'long-text', 'single-choice', 'multiple-choice',
+          'linear-scale', 'ranking', 'navigation-flow', 'preference-test',
+          'thank-you'
+        ];
+        const enabledSteps = STEPS_ORDER.filter((stepId) => Boolean(modulesMap[stepId]));
+        const firstStep = enabledSteps.length > 0 ? enabledSteps[0] : 'welcome';
+
+        // Only set the first step if the user hasn't progressed yet
+        const storedStep = useParticipantStore.getState().currentStep;
+        if (!storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
+          useParticipantStore.getState().setCurrentStep(firstStep);
+        }
 
         // Set session configuration
         setConfig({
@@ -358,7 +391,7 @@ export const ResearchPage = () => {
     };
 
     void loadResearch();
-  }, [researchId, setConfig]);
+  }, [researchId, setConfig, isPreviewMode]);
 
   // Check if we're in development mode
   const isDev = useMemo(() => import.meta.env.DEV, []);
@@ -515,8 +548,12 @@ export const ResearchPage = () => {
       return;
     }
 
+    // Turnstile verification temporarily disabled
+    // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
+    const TURNSTILE_ENABLED = false;
+    
     // Verify Turnstile token on welcome step (only in participant mode)
-    if (currentStep === 'welcome' && !isPreviewMode) {
+    if (TURNSTILE_ENABLED && currentStep === 'welcome' && !isPreviewMode) {
       const { turnstileVerified, turnstileToken } = useSessionStore.getState();
       if (!turnstileVerified || !turnstileToken) {
         alert('Por favor, completa la verificación de seguridad antes de continuar.');
@@ -546,20 +583,34 @@ export const ResearchPage = () => {
 
     // In participant mode, send data to backend
     if (participantId && researchId && currentModule) {
+      // Turnstile verification temporarily disabled
+      // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
+      const TURNSTILE_ENABLED = false;
+      
       // Verify Turnstile token before submitting (required for anti-bot protection)
       // Skip verification in development (localhost) or if using test site key
       const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const { turnstileToken, turnstileVerified } = useSessionStore.getState();
-      
-      if (!isDevelopment && (!turnstileVerified || !turnstileToken)) {
+      const { turnstileToken, turnstileVerified, turnstileTokenUsed } = useSessionStore.getState();
+      const { turnstileVerifiedAt } = useParticipantStore.getState();
+
+      // Check if participant was already verified (persisted from previous session)
+      const wasAlreadyVerified = turnstileVerifiedAt !== null;
+
+      // Only require token verification if Turnstile is enabled and not already verified
+      if (TURNSTILE_ENABLED && !isDevelopment && !turnstileTokenUsed && !wasAlreadyVerified && (!turnstileVerified || !turnstileToken)) {
         alert('La verificación de seguridad es requerida. Por favor, recarga la página y completa la verificación.');
         return;
       }
-      
-      // In development, use a mock token if not available
-      const finalToken = isDevelopment && (!turnstileToken || !turnstileVerified) 
-        ? 'dev-mock-token' 
-        : turnstileToken;
+
+      // Only send token if Turnstile is enabled and it hasn't been used yet
+      // After first use or if previously verified, send null to indicate already verified
+      const finalToken = TURNSTILE_ENABLED
+        ? ((turnstileTokenUsed || wasAlreadyVerified)
+          ? null
+          : (isDevelopment && (!turnstileToken || !turnstileVerified)
+            ? 'dev-mock-token'
+            : turnstileToken))
+        : null; // Don't send token when Turnstile is disabled
 
       // Get all responses for current module
       const moduleResponses = getResponsesByModule(currentModule.id).map((response) => ({
@@ -589,7 +640,13 @@ export const ResearchPage = () => {
             },
           });
 
-          // Removed excessive logging for production
+          // Mark token as used after first successful submission
+          // Turnstile tokens are single-use, so we don't send it again
+          if (!turnstileTokenUsed && finalToken) {
+            useSessionStore.getState().markTurnstileTokenUsed();
+            // Also persist verification in participant store for future sessions
+            useParticipantStore.getState().setTurnstileVerified();
+          }
         } catch (error: unknown) {
           console.error('Error submitting responses:', error);
 

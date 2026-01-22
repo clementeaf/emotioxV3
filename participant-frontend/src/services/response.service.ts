@@ -61,13 +61,19 @@ class ResponseService {
             const endpoint = `/public/research/${researchId}/responses`;
             const url = `${this.baseUrl}${endpoint}`;
 
-            // Get Turnstile token from session store (if available)
+            // Turnstile temporarily disabled
+            // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
+            const TURNSTILE_ENABLED = false;
+            
+            // Get Turnstile token from session store (if available and enabled)
             let turnstileToken: string | undefined;
-            try {
-                const token = useSessionStore.getState().turnstileToken;
-                turnstileToken = token || undefined;
-            } catch {
-                console.warn('[ResponseService] Could not get Turnstile token for submitResponse');
+            if (TURNSTILE_ENABLED) {
+                try {
+                    const token = useSessionStore.getState().turnstileToken;
+                    turnstileToken = token || undefined;
+                } catch {
+                    console.warn('[ResponseService] Could not get Turnstile token for submitResponse');
+                }
             }
 
             const payload = {
