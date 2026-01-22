@@ -96,12 +96,59 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         // Ranking
         if (isRanking) {
-            const items = module.structure.components
-                .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
-                .map(c => ({
-                    id: c.id,
-                    label: getComponentText(c)
-                }));
+            // Support both formats:
+            // 1. New format: component with id 'items' (has items in settings or value)
+            // 2. Old format: multiple components with isChoice or choice- in id
+            let items: Array<{ id: string; label: string }> = [];
+            
+            // Try new format first (component with id 'items')
+            const itemsComponent = module.structure.components.find(c => c.id === 'items');
+            
+            if (itemsComponent) {
+                // Extract items from settings.items array
+                if (itemsComponent.settings?.items && Array.isArray(itemsComponent.settings.items)) {
+                    items = itemsComponent.settings.items.map((item: { id?: string; label?: string; value?: string }, index: number) => ({
+                        id: item.id || item.value || `item-${index}`,
+                        label: item.label || item.value || item.id || `Item ${index + 1}`
+                    }));
+                } else {
+                    // Fallback: try to extract from component value/text
+                    const componentText = getComponentText(itemsComponent);
+                    if (componentText) {
+                        try {
+                            const parsed = JSON.parse(componentText);
+                            if (Array.isArray(parsed)) {
+                                items = parsed.map((item: string | { id?: string; label?: string; value?: string }, index: number) => {
+                                    if (typeof item === 'string') {
+                                        return { id: `item-${index}`, label: item };
+                                    }
+                                    return {
+                                        id: item.id || item.value || `item-${index}`,
+                                        label: item.label || item.value || item.id || `Item ${index + 1}`
+                                    };
+                                });
+                            }
+                        } catch {
+                            // Not JSON, treat as newline-separated list
+                            const lines = componentText.split('\n').filter(line => line.trim());
+                            items = lines.map((line, index) => ({
+                                id: `item-${index}`,
+                                label: line.trim()
+                            }));
+                        }
+                    }
+                }
+            }
+            
+            // If no items found in new format, try old format
+            if (items.length === 0) {
+                items = module.structure.components
+                    .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
+                    .map(c => ({
+                        id: c.id,
+                        label: getComponentText(c)
+                    }));
+            }
 
             return (
                 <RankingQuestion
