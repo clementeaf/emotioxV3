@@ -337,8 +337,6 @@ export const ResearchPage = () => {
         }
 
         // Track if welcome screen is configured
-        let hasWelcomeScreen = false;
-
         stages.forEach(stage => {
           const modules = stage.modules || [];
           modules.forEach(module => {
@@ -347,7 +345,6 @@ export const ResearchPage = () => {
               if (isModuleHidden(normalizedModule)) return;
               const stepId = getStepIdFromModuleName(normalizedModule.name);
               if (!stepId) return;
-              if (stepId === 'welcome') hasWelcomeScreen = true;
               modulesMap[stepId] = normalizedModule;
             } catch (error: unknown) {
               console.error('Error normalizing module:', error, module);
@@ -355,17 +352,8 @@ export const ResearchPage = () => {
           });
         });
 
-        // If no Welcome Screen is configured and we're not in preview mode,
-        // create a virtual welcome step to show Turnstile verification
-        if (!hasWelcomeScreen && !isPreviewMode) {
-          modulesMap['welcome'] = {
-            id: 'welcome',
-            name: 'Welcome Screen',
-            description: 'Welcome',
-            structure: { components: [] },
-            config: {}
-          };
-        }
+        // If no Welcome Screen is configured, skip welcome step
+        // (Turnstile verification is now disabled, so no need for virtual welcome)
 
         setModules(modulesMap);
 
@@ -378,6 +366,7 @@ export const ResearchPage = () => {
           'thank-you'
         ];
         const enabledSteps = STEPS_ORDER.filter((stepId) => Boolean(modulesMap[stepId]));
+        // If no steps are enabled, default to welcome (shouldn't happen, but safety check)
         const firstStep = enabledSteps.length > 0 ? enabledSteps[0] : 'welcome';
 
         // Only set the first step if the user hasn't progressed yet
