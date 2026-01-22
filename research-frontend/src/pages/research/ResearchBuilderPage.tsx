@@ -304,7 +304,9 @@ export const ResearchBuilderPage = () => {
 
                     const updatedComponents = currentComponents.map(comp => ({
                         ...comp,
-                        value: currentComponentValues[comp.id] || comp.value
+                        value: comp.type === 'file-upload'
+                            ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
+                            : (currentComponentValues[comp.id] || comp.value)
                     }));
 
                     const configWithStructure = {

@@ -17,6 +17,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const isAsset = url.pathname.match(/\.(js|css|mjs|json|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$/);
   const isHTML = url.pathname.endsWith('.html') || url.pathname === '/';
+  
+  // Exclude API media requests from caching - these are dynamic files served by backend
+  // They should always be fetched fresh from the server
+  const isApiMedia = url.pathname.startsWith('/api/media/') || url.pathname.startsWith('/media/');
 
   // Network-first strategy for HTML to always get latest version
   if (isHTML) {
@@ -37,6 +41,11 @@ self.addEventListener('fetch', (event) => {
           });
         })
     );
+  }
+  // For API media requests, always fetch from network without caching
+  // These are dynamic files that should always be fresh
+  else if (isApiMedia) {
+    event.respondWith(fetch(event.request));
   }
   // Network-first with cache fallback for assets (JS, CSS, images, fonts)
   else if (isAsset) {

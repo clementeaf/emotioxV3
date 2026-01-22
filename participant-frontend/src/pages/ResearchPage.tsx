@@ -66,6 +66,164 @@ const isModuleHidden = (module: Module): boolean => {
 };
 
 /**
+ * Determines whether a module has been configured with content from research-frontend.
+ * Modules that only have default template values are considered not configured.
+ * @param module - Module payload from backend
+ * @returns true when module has configured content
+ */
+const isModuleConfigured = (module: Module): boolean => {
+  // Welcome and Thank You screens are always considered configured if they exist
+  if (module.name === 'Welcome Screen' || module.name === 'Thank You Screen' || module.name === 'Thank you screen') {
+    return true;
+  }
+
+  // Research Configuration is not shown to participants
+  if (module.name === 'Research Configuration') {
+    return false;
+  }
+
+  const components = module.structure?.components || [];
+
+  // For Navigation Flow: requires file-upload component with images
+  if (module.name === 'Navigation Flow') {
+    const fileUploadComponent = components.find(c => c.type === 'file-upload');
+    if (!fileUploadComponent) return false;
+    
+    // Check if file-upload has value (images uploaded)
+    if (fileUploadComponent.value) {
+      try {
+        const parsed = typeof fileUploadComponent.value === 'string' 
+          ? JSON.parse(fileUploadComponent.value) 
+          : fileUploadComponent.value;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Check if at least one image has s3Key or url
+          const hasValidImage = parsed.some((img: unknown) => {
+            if (typeof img === 'object' && img !== null) {
+              const imgObj = img as { s3Key?: string; url?: string };
+              return Boolean(imgObj.s3Key || imgObj.url);
+            }
+            return false;
+          });
+          return hasValidImage;
+        }
+      } catch {
+        // Invalid JSON, consider not configured
+      }
+    }
+    return false;
+  }
+
+  // For Preference Test: requires file-upload component with images
+  if (module.name === 'Preference Test') {
+    const fileUploadComponent = components.find(c => c.type === 'file-upload');
+    if (!fileUploadComponent) return false;
+    
+    // Check if file-upload has value (images uploaded)
+    if (fileUploadComponent.value) {
+      try {
+        const parsed = typeof fileUploadComponent.value === 'string' 
+          ? JSON.parse(fileUploadComponent.value) 
+          : fileUploadComponent.value;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Check if at least one image has s3Key or url
+          const hasValidImage = parsed.some((img: unknown) => {
+            if (typeof img === 'object' && img !== null) {
+              const imgObj = img as { s3Key?: string; url?: string };
+              return Boolean(imgObj.s3Key || imgObj.url);
+            }
+            return false;
+          });
+          return hasValidImage;
+        }
+      } catch {
+        // Invalid JSON, consider not configured
+      }
+    }
+    return false;
+  }
+
+  // For Ranking: requires items component with items configured
+  if (module.name === 'Ranking') {
+    const itemsComponent = components.find(c => 
+      c.id === 'items' || (c.id === 'ranking-slider' && c.type === 'select')
+    );
+    if (!itemsComponent) return false;
+    
+    // Check if items component has value with actual items
+    if (itemsComponent.value) {
+      try {
+        const parsed = typeof itemsComponent.value === 'string' 
+          ? JSON.parse(itemsComponent.value) 
+          : itemsComponent.value;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Check if items have labels (not just default template values)
+          const hasConfiguredItems = parsed.some((item: unknown) => {
+            if (typeof item === 'object' && item !== null) {
+              const itemObj = item as { label?: string; id?: string };
+              return Boolean(itemObj.label && itemObj.label.trim() && itemObj.label !== 'Item 1' && itemObj.label !== 'Item 2' && itemObj.label !== 'Item 3');
+            }
+            return false;
+          });
+          return hasConfiguredItems;
+        }
+      } catch {
+        // Invalid JSON, check if it's a string with content
+        if (typeof itemsComponent.value === 'string' && itemsComponent.value.trim().length > 0) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // For other Cognitive Tasks: require at least title or description configured
+  const cognitiveTaskNames = ['Short Text', 'Long Text', 'Single Choice', 'Multiple Choice', 'Linear Scale'];
+  if (cognitiveTaskNames.includes(module.name)) {
+    const titleComponent = components.find(c => c.id.includes('title') || c.id.includes('question-title'));
+    const descriptionComponent = components.find(c => c.id.includes('description') || c.id.includes('question-description'));
+    
+    // Check if title has configured value (not just empty or default)
+    const hasTitle: boolean = Boolean(
+      titleComponent && 
+      titleComponent.value && 
+      typeof titleComponent.value === 'string' && 
+      titleComponent.value.trim().length > 0
+    );
+    
+    // Check if description has configured value
+    const hasDescription: boolean = Boolean(
+      descriptionComponent && 
+      descriptionComponent.value && 
+      typeof descriptionComponent.value === 'string' && 
+      descriptionComponent.value.trim().length > 0
+    );
+    
+    // For choice questions, also check if choices are configured
+    if (module.name === 'Single Choice' || module.name === 'Multiple Choice') {
+      const choiceComponents = components.filter(c => c.settings?.isChoice || c.id.includes('choice-'));
+      const hasConfiguredChoices = choiceComponents.some((c): boolean => {
+        const text = getComponentText(c);
+        return Boolean(text && text.trim().length > 0);
+      });
+      return hasTitle || hasDescription || hasConfiguredChoices;
+    }
+    
+    return hasTitle || hasDescription;
+  }
+
+  // For SmartVOC modules, always consider configured if they exist
+  // (they typically have default configurations)
+  const smartVOCNames = ['CSAT', 'NPS', 'CES', 'CV', 'NEV', 'VOC'];
+  if (smartVOCNames.some(name => module.name.includes(name))) {
+    return true;
+  }
+
+  // Default: consider configured if module exists
+  // (for unknown module types, show them to avoid breaking the flow)
+  return true;
+};
+
+/**
  * Finds linkConfig within the "Research Configuration" module, if present.
  * @param research - Research payload from public API
  * @returns Boolean map with link configuration flags
@@ -365,6 +523,7 @@ export const ResearchPage = () => {
               }
               
               if (isModuleHidden(normalizedModule)) return;
+              if (!isModuleConfigured(normalizedModule)) return;
               const stepId = getStepIdFromModuleName(normalizedModule.name);
               if (!stepId) return;
               modulesMap[stepId] = normalizedModule;
