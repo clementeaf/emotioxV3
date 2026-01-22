@@ -106,26 +106,50 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             
             if (itemsComponent) {
                 // First try: component.options array
-                if (itemsComponent.options && Array.isArray(itemsComponent.options)) {
+                if (itemsComponent.options && Array.isArray(itemsComponent.options) && itemsComponent.options.length > 0) {
                     items = itemsComponent.options.map((opt, index) => ({
                         id: opt.value || opt.label || `item-${index}`,
                         label: opt.label || opt.value || `Item ${index + 1}`
                     }));
                 }
                 // Second try: settings.items array
-                else if (itemsComponent.settings?.items && Array.isArray(itemsComponent.settings.items)) {
+                else if (itemsComponent.settings?.items && Array.isArray(itemsComponent.settings.items) && itemsComponent.settings.items.length > 0) {
                     items = itemsComponent.settings.items.map((item: { id?: string; label?: string; value?: string }, index: number) => ({
                         id: item.id || item.value || `item-${index}`,
                         label: item.label || item.value || item.id || `Item ${index + 1}`
                     }));
                 }
-                // Third try: parse from component value/text (JSON or newline-separated)
-                else {
+                // Third try: parse from component.value directly (may be object/array)
+                else if (itemsComponent.value) {
+                    try {
+                        let parsed: unknown = itemsComponent.value;
+                        // If value is a string, try to parse as JSON
+                        if (typeof parsed === 'string') {
+                            parsed = JSON.parse(parsed);
+                        }
+                        // If parsed is an array, use it
+                        if (Array.isArray(parsed)) {
+                            items = parsed.map((item: string | { id?: string; label?: string; value?: string }, index: number) => {
+                                if (typeof item === 'string') {
+                                    return { id: `item-${index}`, label: item };
+                                }
+                                return {
+                                    id: item.id || item.value || `item-${index}`,
+                                    label: item.label || item.value || item.id || `Item ${index + 1}`
+                                };
+                            });
+                        }
+                    } catch {
+                        // Not JSON or not parseable, continue to next try
+                    }
+                }
+                // Fourth try: parse from component text/value using getComponentText (JSON or newline-separated)
+                if (items.length === 0) {
                     const componentText = getComponentText(itemsComponent);
                     if (componentText) {
                         try {
                             const parsed = JSON.parse(componentText);
-                            if (Array.isArray(parsed)) {
+                            if (Array.isArray(parsed) && parsed.length > 0) {
                                 items = parsed.map((item: string | { id?: string; label?: string; value?: string }, index: number) => {
                                     if (typeof item === 'string') {
                                         return { id: `item-${index}`, label: item };
