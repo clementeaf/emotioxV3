@@ -70,8 +70,9 @@ const upload = multer({
     },
 });
 
-// Handle direct file upload endpoint (multipart/form-data)
+// Handle direct file upload endpoint (multipart/form-data or PUT with raw file)
 // This must be before the Lambda router to handle multipart properly
+// Supports both POST (multipart/form-data) and PUT (raw file) for compatibility
 app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
@@ -96,6 +97,55 @@ app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => 
                 mimetype: req.file.mimetype,
             },
             media_path // Pass media_path if provided
+        );
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error('Upload error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
+// Also support PUT method for raw file uploads (S3-compatible)
+// This matches the frontend behavior which uses PUT with file in body
+app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+    try {
+        // For PUT, we need to get research_id and media_path from query params or headers
+        // The frontend should send these, but if not, we'll try to extract from the upload_url context
+        const research_id = req.query.research_id || req.headers['x-research-id'];
+        const question_id = req.query.question_id || req.headers['x-question-id'] || null;
+        const media_path = req.query.media_path || req.headers['x-media-path'];
+        
+        if (!research_id || !media_path) {
+            return res.status(400).json({ 
+                error: 'research_id and media_path are required. Send as query params: ?research_id=...&media_path=...' 
+            });
+        }
+
+        if (!req.body || req.body.length === 0) {
+            return res.status(400).json({ error: 'No file data provided' });
+        }
+
+        // Get content type from headers
+        const contentType = req.headers['content-type'] || 'application/octet-stream';
+        
+        // Import the handler function
+        const { handleDirectUpload } = require('./dist/modules/media/media.controller.local');
+        
+        // Extract filename from media_path or use default
+        const fileName = media_path.split('/').pop() || 'uploaded-file';
+        
+        // Call the handler with the uploaded file data
+        const result = await handleDirectUpload(
+            research_id,
+            question_id || null,
+            {
+                name: fileName,
+                data: Buffer.from(req.body),
+                mimetype: contentType,
+            },
+            media_path
         );
 
         res.status(200).json(result);

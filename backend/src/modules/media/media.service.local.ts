@@ -55,8 +55,12 @@ export const generateUploadUrl = async (researchId: string, fileName: string, co
     const safeFileName = fileName.replace(/[^A-Za-z0-9._-]/g, '_');
     const relativePath = `research/${researchId}/${timestamp}-${safeFileName}`;
     
+    // Include research_id and media_path in the URL for PUT requests
+    // This allows the frontend to use PUT without needing to send additional params
+    const uploadUrl = `/api/media/upload-direct?research_id=${encodeURIComponent(researchId)}&media_path=${encodeURIComponent(relativePath)}`;
+    
     return {
-        upload_url: `/api/media/upload-direct`, // Endpoint para upload directo
+        upload_url: uploadUrl,
         media_path: relativePath,
         expires_in: 3600,
     };
