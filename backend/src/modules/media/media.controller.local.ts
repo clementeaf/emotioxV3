@@ -75,8 +75,13 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
 
         // Guardar metadata después de upload
         if (routePath === '/media' && httpMethod === 'POST') {
-            const { research_id, question_id, media_path, metadata } = body;
-            const media = await mediaService.saveMetadata(research_id, question_id, media_path, metadata);
+            const { research_id, question_id, media_path, s3_key, metadata } = body;
+            // Compatibilidad: aceptar s3_key o media_path
+            const pathToUse = media_path || s3_key;
+            if (!pathToUse) {
+                return error('media_path or s3_key is required', 400, undefined, origin);
+            }
+            const media = await mediaService.saveMetadata(research_id, question_id, pathToUse, metadata);
             return success({ media }, 201, undefined, origin);
         }
 
