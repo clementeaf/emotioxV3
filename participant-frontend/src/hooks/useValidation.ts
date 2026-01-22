@@ -51,6 +51,21 @@ export const useValidation = () => {
                 const rankingResponse = responses.get(rankingResponseId);
                 if (rankingResponse) {
                     stepResponses.set('ranking', rankingResponse.value);
+                    // Debug log
+                    console.log('[Ranking Validation] Found ranking response:', {
+                        responseId: rankingResponseId,
+                        value: rankingResponse.value,
+                        valueType: typeof rankingResponse.value,
+                        isArray: Array.isArray(rankingResponse.value),
+                        arrayLength: Array.isArray(rankingResponse.value) ? rankingResponse.value.length : 'N/A'
+                    });
+                } else {
+                    // Debug log when no response found
+                    console.warn('[Ranking Validation] No ranking response found:', {
+                        responseId: rankingResponseId,
+                        moduleId: module.id,
+                        allResponseIds: Array.from(responses.keys())
+                    });
                 }
             }
             

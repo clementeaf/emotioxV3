@@ -30,10 +30,17 @@ export const RankingQuestion = ({
     useEffect(() => {
         // Save ranking as array of IDs
         const ranking = rankedItems.map(item => item.id);
+        console.log('[RankingQuestion] Saving ranking:', {
+            moduleId,
+            componentId,
+            itemsCount: rankedItems.length,
+            ranking,
+            rankedItems: rankedItems.map(item => ({ id: item.id, label: item.label }))
+        });
         save(ranking, {
             itemCount: rankedItems.length,
         });
-    }, [rankedItems, save]);
+    }, [rankedItems, save, moduleId, componentId]);
 
     const handleDragStart = (index: number) => {
         setDraggedIndex(index);
