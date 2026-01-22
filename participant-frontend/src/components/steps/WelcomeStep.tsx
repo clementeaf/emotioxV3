@@ -1,6 +1,8 @@
-import React from 'react';
-import { TurnstileWidget } from '../security/TurnstileWidget';
+import React, { useEffect } from 'react';
 import { useSessionStore } from '../../stores/useSessionStore';
+
+// Turnstile temporarily disabled - will be re-enabled when TURNSTILE_SECRET_KEY is configured
+const TURNSTILE_ENABLED = false;
 
 interface WelcomeStepProps {
     title?: string;
@@ -13,14 +15,12 @@ export const WelcomeStep: React.FC<WelcomeStepProps> = ({
 }) => {
     const { setTurnstileToken, turnstileVerified } = useSessionStore();
 
-    const handleTurnstileSuccess = (token: string) => {
-        console.log('[WelcomeStep] Turnstile verification successful');
-        setTurnstileToken(token);
-    };
-
-    const handleTurnstileError = (error: Error) => {
-        console.error('[WelcomeStep] Turnstile verification failed:', error);
-    };
+    // Auto-verify when Turnstile is disabled
+    useEffect(() => {
+        if (!TURNSTILE_ENABLED && !turnstileVerified) {
+            setTurnstileToken('disabled');
+        }
+    }, [turnstileVerified, setTurnstileToken]);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6 px-4">
@@ -47,23 +47,6 @@ export const WelcomeStep: React.FC<WelcomeStepProps> = ({
             <p className="text-lg text-gray-600 max-w-2xl">
                 {message}
             </p>
-
-            {/* Anti-bot verification */}
-            <div className="mt-6">
-                <TurnstileWidget
-                    onSuccess={handleTurnstileSuccess}
-                    onError={handleTurnstileError}
-                />
-            </div>
-
-            {turnstileVerified && (
-                <div className="flex items-center gap-2 text-sm text-green-600">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Verificación completada
-                </div>
-            )}
         </div>
     );
 };
