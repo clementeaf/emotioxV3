@@ -59,6 +59,16 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         }, 200, undefined, origin);
     }
 
+    // Debug endpoint for ranking module (temporary)
+    if (path === '/debug/ranking-module' && httpMethod === 'GET') {
+        const { handleDebugRoutes } = await import('./modules/debug/debug.controller');
+        const normalizedEvent: APIGatewayProxyEvent = {
+            ...event,
+            path,
+        };
+        return await handleDebugRoutes(normalizedEvent);
+    }
+
     // Config endpoint (public - no auth required)
     if (path === '/config' && httpMethod === 'GET') {
         const { handleConfigRoutes } = await import('./modules/config/config.controller');
@@ -183,6 +193,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         if (path.startsWith('/cache')) {
             const { handleCacheRoutes } = await import('./modules/cache/cache.controller');
             return await handleCacheRoutes(normalizedEvent);
+        }
+
+        // Debug routes (temporary - remove in production)
+        if (path.startsWith('/debug')) {
+            const { handleDebugRoutes } = await import('./modules/debug/debug.controller');
+            return await handleDebugRoutes(normalizedEvent);
         }
 
         // 404 Not Found
