@@ -98,11 +98,17 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
         if (isRanking) {
             // Support multiple formats:
             // 1. Component with id 'items' - check options, settings.items, or value
-            // 2. Old format: multiple components with isChoice or choice- in id
+            // 2. Component with type 'ranking-list' (any id)
+            // 3. Old format: multiple components with isChoice or choice- in id
             let items: Array<{ id: string; label: string }> = [];
             
-            // Try new format first (component with id 'items')
-            const itemsComponent = module.structure.components.find(c => c.id === 'items');
+            // Try new format first (component with id 'items' or type 'ranking-list')
+            // Also check for ranking-slider which might contain items in options
+            const itemsComponent = module.structure.components.find(c => 
+                c.id === 'items' || 
+                (c.type as string) === 'ranking-list' ||
+                (c.id === 'ranking-slider' && c.options && Array.isArray(c.options) && c.options.length > 0)
+            );
             
             if (itemsComponent) {
                 // First try: component.options array
