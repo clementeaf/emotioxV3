@@ -202,6 +202,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         hasValue: !!c.value,
                         value: c.value,
                         valueType: typeof c.value,
+                        valueStringified: c.value ? JSON.stringify(c.value, null, 2) : null,
                         hasDefaultValue: !!c.defaultValue,
                         defaultValue: c.defaultValue,
                         hasSettingsDefaultValue: !!c.settings?.defaultValue,
@@ -209,8 +210,24 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         isChoice: c.settings?.isChoice,
                         settings: c.settings,
                         text: getComponentText(c),
-                        fullComponent: c
+                        fullComponent: JSON.parse(JSON.stringify(c)) // Deep clone to avoid circular refs
                     }))
+                });
+                
+                // Also log each component separately for easier inspection
+                module.structure.components.forEach((c, index) => {
+                    console.log(`[Ranking] Component ${index + 1} (${c.id}):`, {
+                        id: c.id,
+                        type: c.type,
+                        label: c.label,
+                        value: c.value,
+                        valueType: typeof c.value,
+                        valueStringified: c.value ? JSON.stringify(c.value, null, 2) : null,
+                        options: c.options,
+                        settings: c.settings,
+                        defaultValue: c.defaultValue,
+                        fullComponent: JSON.parse(JSON.stringify(c))
+                    });
                 });
             }
 
