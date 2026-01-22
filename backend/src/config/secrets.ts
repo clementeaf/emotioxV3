@@ -13,7 +13,9 @@ let cachedSecrets: SecretsConfig | null = null;
 let secretsPromise: Promise<SecretsConfig> | null = null;
 
 /**
- * Loads runtime secrets from SSM (cached across invocations in a warm Lambda).
+ * Loads runtime secrets from environment variables (cPanel) or SSM (AWS Lambda).
+ * For cPanel: uses DB_* environment variables directly (no AWS required).
+ * For AWS Lambda: uses SSM Parameter Store if SSM_PREFIX is configured.
  * @returns Secrets configuration
  */
 export const getSecrets = async (): Promise<SecretsConfig> => {
@@ -22,27 +24,28 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
 
     secretsPromise = (async (): Promise<SecretsConfig> => {
         const prefix = process.env.SSM_PREFIX;
-        const region = process.env.SSM_REGION || process.env.AWS_REGION || process.env.APP_AWS_REGION || 'us-east-1';
-
-        // If SSM_PREFIX is not configured, use environment variables directly (e.g., in CI)
+        
+        // For cPanel/local deployments: use environment variables directly (no AWS)
+        // Only use SSM if explicitly configured (for AWS Lambda deployments)
         if (!prefix) {
             const dbPassword = process.env.DB_PASSWORD;
             if (!dbPassword) {
-                throw new Error('DB_PASSWORD not found in environment variables and SSM_PREFIX is not configured');
+                throw new Error('DB_PASSWORD not found in environment variables. For cPanel, configure DB_* variables in .env file.');
             }
             cachedSecrets = {
                 dbPassword,
-                dbHost: process.env.DB_HOST,
-                dbPort: process.env.DB_PORT,
+                dbHost: process.env.DB_HOST || 'localhost',
+                dbPort: process.env.DB_PORT || '3306',
                 dbName: process.env.DB_NAME,
                 dbUser: process.env.DB_USER,
-                dbSsl: process.env.DB_SSL,
+                dbSsl: process.env.DB_SSL || 'false',
             };
             return cachedSecrets;
         }
 
-        // Try to load from SSM, but fallback to environment variables if SSM is not available
+        // Only try SSM if SSM_PREFIX is explicitly set (AWS Lambda deployments)
         try {
+            const region = process.env.SSM_REGION || process.env.AWS_REGION || process.env.APP_AWS_REGION || 'us-east-1';
             const values = await loadSsmParameters({
                 prefix,
                 region,
@@ -64,7 +67,7 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
             };
             return cachedSecrets;
         } catch (ssmError) {
-            // If SSM fails (e.g., in CI without AWS credentials), fallback to environment variables
+            // If SSM fails, fallback to environment variables
             console.warn('Failed to load secrets from SSM, using environment variables:', ssmError);
             const dbPassword = process.env.DB_PASSWORD;
             if (!dbPassword) {
@@ -72,11 +75,11 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
             }
             cachedSecrets = {
                 dbPassword,
-                dbHost: process.env.DB_HOST,
-                dbPort: process.env.DB_PORT,
+                dbHost: process.env.DB_HOST || 'localhost',
+                dbPort: process.env.DB_PORT || '3306',
                 dbName: process.env.DB_NAME,
                 dbUser: process.env.DB_USER,
-                dbSsl: process.env.DB_SSL,
+                dbSsl: process.env.DB_SSL || 'false',
             };
             return cachedSecrets;
         }

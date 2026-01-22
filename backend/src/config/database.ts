@@ -122,7 +122,9 @@ const shouldUseSSL = (): SslOptions | undefined => {
 };
 
 /**
- * Ensures the MySQL Pool is initialized. In AWS, it loads DB_PASSWORD from SSM at runtime.
+ * Ensures the MySQL Pool is initialized.
+ * For cPanel: uses DB_* environment variables directly (no AWS required).
+ * For AWS Lambda: loads from SSM if SSM_PREFIX is configured.
  * @returns Initialized MySQL Pool
  */
 const ensurePool = async (): Promise<Pool> => {
@@ -130,17 +132,16 @@ const ensurePool = async (): Promise<Pool> => {
     if (poolPromise) return poolPromise;
 
     poolPromise = (async (): Promise<Pool> => {
-        // Always load database config from SSM to ensure we use the correct values
-        // SSM is the source of truth, environment variables are fallback
+        // Load database config (from env vars for cPanel, or SSM for AWS Lambda)
         const secrets = await getSecrets();
         
-        // Always use SSM values if available, fallback to env vars
+        // Use secrets values (from env vars or SSM) with fallbacks
         process.env.DB_PASSWORD = secrets.dbPassword || process.env.DB_PASSWORD || '';
-        process.env.DB_HOST = secrets.dbHost || process.env.DB_HOST || '';
+        process.env.DB_HOST = secrets.dbHost || process.env.DB_HOST || 'localhost';
         process.env.DB_PORT = secrets.dbPort || process.env.DB_PORT || '3306';
         process.env.DB_NAME = secrets.dbName || process.env.DB_NAME || '';
         process.env.DB_USER = secrets.dbUser || process.env.DB_USER || '';
-        process.env.DB_SSL = secrets.dbSsl || process.env.DB_SSL || '';
+        process.env.DB_SSL = secrets.dbSsl || process.env.DB_SSL || 'false';
 
         const pool = createPool({
             host: process.env.DB_HOST,
