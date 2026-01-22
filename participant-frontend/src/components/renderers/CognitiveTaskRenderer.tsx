@@ -168,16 +168,24 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     components: module.structure.components.map(c => ({
                         id: c.id,
                         type: c.type,
+                        label: c.label,
                         hasOptions: !!c.options,
+                        options: c.options,
                         optionsLength: c.options?.length || 0,
                         hasSettingsItems: !!c.settings?.items,
+                        settingsItems: c.settings?.items,
                         settingsItemsLength: Array.isArray(c.settings?.items) ? c.settings.items.length : 0,
                         hasValue: !!c.value,
+                        value: c.value,
                         valueType: typeof c.value,
                         hasDefaultValue: !!c.defaultValue,
+                        defaultValue: c.defaultValue,
                         hasSettingsDefaultValue: !!c.settings?.defaultValue,
+                        settingsDefaultValue: c.settings?.defaultValue,
                         isChoice: c.settings?.isChoice,
-                        text: getComponentText(c)
+                        settings: c.settings,
+                        text: getComponentText(c),
+                        fullComponent: c
                     }))
                 });
             }
