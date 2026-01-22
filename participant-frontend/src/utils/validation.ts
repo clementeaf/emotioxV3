@@ -108,6 +108,16 @@ export const validateModule = (
         })();
 
         if (!hasValidRankingValue) {
+            // Debug: log validation failure
+            console.warn('[Ranking Validation] Ranking value invalid:', {
+                rankingValue,
+                rankingValueType: typeof rankingValue,
+                isArray: Array.isArray(rankingValue),
+                arrayLength: Array.isArray(rankingValue) ? rankingValue.length : 'N/A',
+                moduleId: module.id,
+                moduleName: module.name
+            });
+
             // Only show error if module has required components (excluding display-only components)
             const hasRequiredComponent = module.structure.components.some(comp => {
                 // Skip display-only components that don't require user input

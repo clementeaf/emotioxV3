@@ -96,8 +96,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         // Ranking
         if (isRanking) {
-            // Support both formats:
-            // 1. New format: component with id 'items' (has items in settings or value)
+            // Support multiple formats:
+            // 1. Component with id 'items' - check options, settings.items, or value
             // 2. Old format: multiple components with isChoice or choice- in id
             let items: Array<{ id: string; label: string }> = [];
             
@@ -105,14 +105,22 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             const itemsComponent = module.structure.components.find(c => c.id === 'items');
             
             if (itemsComponent) {
-                // Extract items from settings.items array
-                if (itemsComponent.settings?.items && Array.isArray(itemsComponent.settings.items)) {
+                // First try: component.options array
+                if (itemsComponent.options && Array.isArray(itemsComponent.options)) {
+                    items = itemsComponent.options.map((opt, index) => ({
+                        id: opt.value || opt.label || `item-${index}`,
+                        label: opt.label || opt.value || `Item ${index + 1}`
+                    }));
+                }
+                // Second try: settings.items array
+                else if (itemsComponent.settings?.items && Array.isArray(itemsComponent.settings.items)) {
                     items = itemsComponent.settings.items.map((item: { id?: string; label?: string; value?: string }, index: number) => ({
                         id: item.id || item.value || `item-${index}`,
                         label: item.label || item.value || item.id || `Item ${index + 1}`
                     }));
-                } else {
-                    // Fallback: try to extract from component value/text
+                }
+                // Third try: parse from component value/text (JSON or newline-separated)
+                else {
                     const componentText = getComponentText(itemsComponent);
                     if (componentText) {
                         try {
@@ -131,10 +139,12 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         } catch {
                             // Not JSON, treat as newline-separated list
                             const lines = componentText.split('\n').filter(line => line.trim());
-                            items = lines.map((line, index) => ({
-                                id: `item-${index}`,
-                                label: line.trim()
-                            }));
+                            if (lines.length > 0) {
+                                items = lines.map((line, index) => ({
+                                    id: `item-${index}`,
+                                    label: line.trim()
+                                }));
+                            }
                         }
                     }
                 }
@@ -148,6 +158,28 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         id: c.id,
                         label: getComponentText(c)
                     }));
+            }
+
+            // Debug: log structure to help diagnose
+            if (items.length === 0) {
+                console.warn('[Ranking] No items found. Module structure:', {
+                    moduleId: module.id,
+                    moduleName: module.name,
+                    components: module.structure.components.map(c => ({
+                        id: c.id,
+                        type: c.type,
+                        hasOptions: !!c.options,
+                        optionsLength: c.options?.length || 0,
+                        hasSettingsItems: !!c.settings?.items,
+                        settingsItemsLength: Array.isArray(c.settings?.items) ? c.settings.items.length : 0,
+                        hasValue: !!c.value,
+                        valueType: typeof c.value,
+                        hasDefaultValue: !!c.defaultValue,
+                        hasSettingsDefaultValue: !!c.settings?.defaultValue,
+                        isChoice: c.settings?.isChoice,
+                        text: getComponentText(c)
+                    }))
+                });
             }
 
             return (
