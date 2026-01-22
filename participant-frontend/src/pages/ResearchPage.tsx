@@ -342,6 +342,28 @@ export const ResearchPage = () => {
           modules.forEach(module => {
             try {
               const normalizedModule = normalizeModule(module);
+              
+              // Debug: Log Ranking module structure from API
+              if (normalizedModule.name === 'Ranking' && normalizedModule.id === '1ff3e347-85bb-47fb-8fa6-fdfeb8fff37b') {
+                console.log('[ResearchPage] Ranking module from API:', {
+                  id: normalizedModule.id,
+                  name: normalizedModule.name,
+                  description: normalizedModule.description,
+                  structure: normalizedModule.structure,
+                  config: normalizedModule.config,
+                  rawModule: module,
+                  components: normalizedModule.structure.components.map(c => ({
+                    id: c.id,
+                    type: c.type,
+                    label: c.label,
+                    value: c.value,
+                    options: c.options,
+                    settings: c.settings,
+                    defaultValue: c.defaultValue
+                  }))
+                });
+              }
+              
               if (isModuleHidden(normalizedModule)) return;
               const stepId = getStepIdFromModuleName(normalizedModule.name);
               if (!stepId) return;
