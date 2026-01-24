@@ -17,7 +17,7 @@ import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
-import { withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
+import { hasModuleConfiguredValues, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
@@ -252,7 +252,6 @@ export const ResearchBuilderPage = () => {
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
-                    const hidden = moduleRef.getHidden();
 
                     // Update components with new values
                     const updatedComponents = currentComponents.map(comp => ({
@@ -271,7 +270,14 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
+                    // Automatically set hidden based on whether module has configured values
+                    // If module has values → show to participants (hidden: false)
+                    // If module has no values → hide from participants (hidden: true)
+                    // This allows researchers to configure modules later and they'll automatically show
+                    const hasConfiguredValues = hasModuleConfiguredValues(updatedComponents);
+                    const finalHidden = !hasConfiguredValues;
+
+                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), finalHidden);
 
                     return modulesService.update(module.id, {
                         config,
@@ -300,7 +306,6 @@ export const ResearchBuilderPage = () => {
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
-                    const hidden = moduleRef.getHidden();
 
                     const updatedComponents = currentComponents.map(comp => ({
                         ...comp,
@@ -317,7 +322,14 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
+                    // Automatically set hidden based on whether module has configured values
+                    // If module has values → show to participants (hidden: false)
+                    // If module has no values → hide from participants (hidden: true)
+                    // This allows researchers to configure modules later and they'll automatically show
+                    const hasConfiguredValues = hasModuleConfiguredValues(updatedComponents);
+                    const finalHidden = !hasConfiguredValues;
+
+                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), finalHidden);
 
                     return modulesService.update(module.id, {
                         config,

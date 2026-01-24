@@ -54,4 +54,64 @@ export const withModuleHidden = (
     };
 };
 
+/**
+ * Checks if a component has a configured value (not empty or default).
+ * @param component - Component configuration
+ * @returns true if component has a configured value
+ */
+const hasComponentValue = (component: { value?: string; type?: string; settings?: { readonly?: boolean; defaultValue?: string; [key: string]: unknown } }): boolean => {
+    // For file-upload components, check if value contains valid files
+    if (component.type === 'file-upload' && component.value) {
+        try {
+            const parsed = typeof component.value === 'string' 
+                ? JSON.parse(component.value) 
+                : component.value;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                // Check if at least one file has s3Key or url
+                return parsed.some((file: unknown) => {
+                    if (typeof file === 'object' && file !== null) {
+                        const fileObj = file as { s3Key?: string; url?: string };
+                        return Boolean(fileObj.s3Key || fileObj.url);
+                    }
+                    return false;
+                });
+            }
+        } catch {
+            // Invalid JSON, consider not configured
+        }
+        return false;
+    }
+
+    // For readonly components, check defaultValue
+    if (component.settings?.readonly === true) {
+        const defaultValue = component.settings.defaultValue;
+        if (defaultValue && typeof defaultValue === 'string' && defaultValue.trim().length > 0) {
+            return true;
+        }
+        return false;
+    }
+
+    // For other components, check value
+    if (component.value && typeof component.value === 'string' && component.value.trim().length > 0) {
+        return true;
+    }
+
+    return false;
+};
+
+/**
+ * Determines if a module has configured values.
+ * A module is considered configured if at least one component has a non-empty value.
+ * @param components - Array of component configurations
+ * @returns true if module has at least one configured component
+ */
+export const hasModuleConfiguredValues = (components: Array<{ value?: string; type?: string; settings?: { readonly?: boolean; defaultValue?: string; [key: string]: unknown } }>): boolean => {
+    if (!components || components.length === 0) {
+        return false;
+    }
+
+    // Check if at least one component has a configured value
+    return components.some(component => hasComponentValue(component));
+};
+
 
