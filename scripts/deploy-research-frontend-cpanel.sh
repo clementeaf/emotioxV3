@@ -127,9 +127,101 @@ scp $SSH_OPTS "$LOCAL_RESEARCH_DIR/public/runtime-config.json" "$SSH_HOST:$REMOT
 
 echo "   ✅ Archivos copiados"
 
+# 7. Configurar .htaccess para cache busting
+echo ""
+echo "7. Configurando .htaccess con cache control..."
+ssh $SSH_OPTS "$SSH_HOST" "cat > $REMOTE_RESEARCH_DIR/.htaccess" << 'HTACCESS_EOF'
+# Apache configuration for React Router (SPA)
+# Redirects all requests to index.html except for existing files
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # Handle React Router - redirect all requests to index.html
+  # except for files that actually exist
+  
+  # Explicitly allow .json files (like runtime-config.json)
+  RewriteRule \.json$ - [L]
+  
+  # If the requested file exists, serve it
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  
+  # Otherwise, redirect to index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+  # Prevent clickjacking
+  Header always set X-Frame-Options "SAMEORIGIN"
+  
+  # XSS Protection
+  Header always set X-XSS-Protection "1; mode=block"
+  
+  # Content type options
+  Header always set X-Content-Type-Options "nosniff"
+  
+  # Referrer policy
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Cache control for static assets - AGGRESSIVE CACHE BUSTING
+<IfModule mod_expires.c>
+  ExpiresActive On
+  
+  # Images - cache for 1 year (immutable with hashes)
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  
+  # Fonts - cache for 1 year (immutable with hashes)
+  ExpiresByType font/woff "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType font/otf "access plus 1 year"
+  
+  # CSS and JavaScript - cache for 1 year (Vite uses content hashes)
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  
+  # HTML - NO CACHE (always fetch fresh)
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+# Additional cache control headers to prevent browser/proxy caching of HTML
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+  
+  # JSON files (like runtime-config.json) should also not be cached
+  <FilesMatch "\.(json)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+  </FilesMatch>
+  
+  # Hashed assets can be cached aggressively
+  <FilesMatch "\.(js|css|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# Gzip compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+HTACCESS_EOF
+
+echo "   ✅ .htaccess configurado con cache busting agresivo"
+
 # 8. Verificar despliegue
 echo ""
-echo "7. Verificando despliegue..."
+echo "8. Verificando despliegue..."
 REMOTE_FILES=$(ssh $SSH_OPTS "$SSH_HOST" 'ls -1 "$HOME/public_html/research" 2>/dev/null | wc -l')
 echo "   Archivos en remoto: $REMOTE_FILES"
 

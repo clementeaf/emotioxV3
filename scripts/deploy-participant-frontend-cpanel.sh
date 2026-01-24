@@ -163,29 +163,48 @@ ssh $SSH_OPTS "$SSH_HOST" "cat > $REMOTE_PARTICIPANT_DIR/.htaccess" << 'HTACCESS
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
-# Cache control for static assets
+# Cache control for static assets - AGGRESSIVE CACHE BUSTING
 <IfModule mod_expires.c>
   ExpiresActive On
   
-  # Images
+  # Images - cache for 1 year (immutable with hashes)
   ExpiresByType image/jpeg "access plus 1 year"
   ExpiresByType image/png "access plus 1 year"
   ExpiresByType image/gif "access plus 1 year"
   ExpiresByType image/svg+xml "access plus 1 year"
   ExpiresByType image/webp "access plus 1 year"
   
-  # Fonts
+  # Fonts - cache for 1 year (immutable with hashes)
   ExpiresByType font/woff "access plus 1 year"
   ExpiresByType font/woff2 "access plus 1 year"
   ExpiresByType font/ttf "access plus 1 year"
   ExpiresByType font/otf "access plus 1 year"
   
-  # CSS and JavaScript (hashed files can be cached)
+  # CSS and JavaScript - cache for 1 year (Vite uses content hashes)
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
   
-  # HTML should not be cached
+  # HTML - NO CACHE (always fetch fresh)
   ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+# Additional cache control headers to prevent browser/proxy caching of HTML
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+  
+  # JSON files (like runtime-config.json) should also not be cached
+  <FilesMatch "\.(json)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate, max-age=0"
+  </FilesMatch>
+  
+  # Hashed assets can be cached aggressively
+  <FilesMatch "\.(js|css|woff|woff2|ttf|eot|otf|svg|png|jpg|jpeg|gif|webp|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
 </IfModule>
 
 # Gzip compression
@@ -194,7 +213,7 @@ ssh $SSH_OPTS "$SSH_HOST" "cat > $REMOTE_PARTICIPANT_DIR/.htaccess" << 'HTACCESS
 </IfModule>
 HTACCESS_EOF
 
-echo "   ✅ .htaccess configurado"
+echo "   ✅ .htaccess configurado con cache busting agresivo"
 
 # 8. Verificar despliegue
 echo ""
