@@ -196,7 +196,10 @@ export const create = async (userId: string, data: ResearchData) => {
                     }
                     
                     if (stageTemplateNames.includes(name) || stageTemplateNames.includes(normalizedName)) {
-                        stagesToCreate.push(normalizedName); // Use normalized name
+                        // Only add if not already in stagesToCreate (prevent duplicates)
+                        if (!stagesToCreate.includes(normalizedName)) {
+                            stagesToCreate.push(normalizedName); // Use normalized name
+                        }
                     } else {
                         individualModules.push(name);
                     }

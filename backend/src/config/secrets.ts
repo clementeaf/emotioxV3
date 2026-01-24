@@ -13,9 +13,49 @@ let cachedSecrets: SecretsConfig | null = null;
 let secretsPromise: Promise<SecretsConfig> | null = null;
 
 /**
+ * Detects if running in development or production environment
+ * Based on the origin header from requests
+ * @returns 'development' or 'production'
+ */
+const detectEnvironment = (): 'development' | 'production' => {
+    // Check if NODE_ENV is explicitly set
+    if (process.env.NODE_ENV === 'development') {
+        return 'development';
+    }
+    if (process.env.NODE_ENV === 'production') {
+        return 'production';
+    }
+    
+    // Default to production for safety
+    return 'production';
+};
+
+/**
+ * Gets the appropriate database name based on environment
+ * @param baseName - Base database name from .env
+ * @returns Database name with environment suffix
+ */
+const getDatabaseName = (baseName: string | undefined): string => {
+    if (!baseName) {
+        throw new Error('DB_NAME not configured in environment variables');
+    }
+    
+    const env = detectEnvironment();
+    
+    // If already has _dev or _prod suffix, return as is
+    if (baseName.endsWith('_dev') || baseName.endsWith('_prod')) {
+        return baseName;
+    }
+    
+    // Add environment suffix
+    return env === 'development' ? `${baseName}_dev` : baseName;
+};
+
+/**
  * Loads runtime secrets from environment variables (cPanel) or SSM (AWS Lambda).
  * For cPanel: uses DB_* environment variables directly (no AWS required).
  * For AWS Lambda: uses SSM Parameter Store if SSM_PREFIX is configured.
+ * Automatically selects development or production database based on NODE_ENV.
  * @returns Secrets configuration
  */
 export const getSecrets = async (): Promise<SecretsConfig> => {
@@ -32,11 +72,17 @@ export const getSecrets = async (): Promise<SecretsConfig> => {
             if (!dbPassword) {
                 throw new Error('DB_PASSWORD not found in environment variables. For cPanel, configure DB_* variables in .env file.');
             }
+            
+            const baseName = process.env.DB_NAME;
+            const dbName = getDatabaseName(baseName);
+            
+            console.log(`[Database] Using database: ${dbName} (${detectEnvironment()})`);
+            
             cachedSecrets = {
                 dbPassword,
                 dbHost: process.env.DB_HOST || 'localhost',
                 dbPort: process.env.DB_PORT || '3306',
-                dbName: process.env.DB_NAME,
+                dbName,
                 dbUser: process.env.DB_USER,
                 dbSsl: process.env.DB_SSL || 'false',
             };

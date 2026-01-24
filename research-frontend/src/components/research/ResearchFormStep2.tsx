@@ -98,14 +98,14 @@ export const ResearchFormStep2 = ({
                         </label>
                         <div className="flex-1 min-w-0">
                             <p className="text-xs text-blue-700 mb-1.5">
-                                This research type includes these modules: {
+                                Includes: Welcome screen, Research Configuration, {
                                     Array.isArray(selectedResearchType?.default_modules)
                                         ? selectedResearchType.default_modules
                                             .map((m: { name?: string }) => m?.name || 'Unknown')
                                             .filter((name: string) => name !== 'Unknown')
                                             .join(', ')
                                         : 'None'
-                                }
+                                }, Thank you screen
                             </p>
                             <p className="text-xs text-blue-600">
                                 Uncheck to start with an empty configuration.

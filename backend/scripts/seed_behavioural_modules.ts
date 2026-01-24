@@ -31,14 +31,14 @@ const defaultModules = [
         questions: []
     },
     {
-        name: 'Cognitive Task',
+        name: 'Cognitive Tasks',
         description: 'Cognitive performance task',
         order: 3,
         config: {},
         questions: []
     },
     {
-        name: 'Thank you screen',
+        name: 'Thank You Screen',
         description: 'End of research message',
         order: 4,
         config: {},
