@@ -65,6 +65,13 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [loadingStages, setLoadingStages] = useState(false);
     const [pendingStageNameToExpand, setPendingStageNameToExpand] = useState<string | null>(null);
 
+    // Reset available stages when research changes to ensure fresh filtering
+    useEffect(() => {
+        if (activeResearch) {
+            setAvailableStages([]);
+        }
+    }, [activeResearch?.id]);
+
     useEffect((): void => {
         if (!pendingStageNameToExpand) return;
         if (!activeResearch?.stages) return;
@@ -76,17 +83,32 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         setPendingStageNameToExpand(null);
     }, [activeResearch, pendingStageNameToExpand]);
 
+    // Reset available stages when research changes to ensure fresh filtering
+    useEffect(() => {
+        if (activeResearch) {
+            setAvailableStages([]);
+        }
+    }, [activeResearch?.id]);
+
     const invalidateActiveResearch = async (id: string): Promise<void> => {
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
     };
 
     const loadStageTemplates = async () => {
-        if (availableStages.length > 0) return;
-        
         try {
             setLoadingStages(true);
-            const stages = await stageTemplatesService.getAll();
-            setAvailableStages(stages);
+            const allStages = await stageTemplatesService.getAll();
+            
+            // Filter out stages that already exist in the research
+            const existingStageNames = new Set(
+                (activeResearch?.stages || []).map(stage => stage.name)
+            );
+            
+            const availableStagesFiltered = allStages.filter(
+                stage => !existingStageNames.has(stage.name)
+            );
+            
+            setAvailableStages(availableStagesFiltered);
         } catch (error: unknown) {
             console.error('Failed to load stage templates', error);
             if (error instanceof Error && ('code' in error && error.code === 'ERR_NETWORK' || error.message?.includes('ERR_CONNECTION_REFUSED'))) {
@@ -339,6 +361,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         <button
                             onClick={() => {
                                 setShowStageSelector(true);
+                                // Reset available stages to force reload with current research state
+                                setAvailableStages([]);
                                 void loadStageTemplates();
                             }}
                             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
