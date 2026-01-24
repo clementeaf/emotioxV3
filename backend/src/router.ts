@@ -30,6 +30,11 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
     const path = normalizePath(rawPath, stage);
 
     console.log(`${httpMethod} ${rawPath} -> ${path}${stage ? ` (stage: ${stage})` : ''}`);
+    
+    // Debug logging for add-welcome-thankyou endpoint
+    if (path.includes('add-welcome-thankyou')) {
+        console.log('[Router] add-welcome-thankyou request detected:', { httpMethod, rawPath, path, stage });
+    }
 
     const origin = event.headers.Origin || event.headers.origin || null;
 
