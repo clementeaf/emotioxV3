@@ -75,6 +75,14 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success(result, 200, undefined, origin);
         }
 
+        // POST /research/:id/add-welcome-thankyou (must be before other /research/:id/* routes)
+        const addWelcomeThankYouMatch = path.match(/^\/research\/([^\/]+)\/add-welcome-thankyou$/);
+        if (addWelcomeThankYouMatch && httpMethod === 'POST') {
+            const id = addWelcomeThankYouMatch[1];
+            const result = await researchService.addWelcomeAndThankYouStages(id, user.id);
+            return success({ result }, 200, undefined, origin);
+        }
+
         // PATCH /research/:id/status
         const statusMatch = path.match(/^\/research\/([^\/]+)\/status$/);
         if (statusMatch && httpMethod === 'PATCH') {
@@ -90,14 +98,6 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = activateMatch[1];
             const research = await researchService.activate(id, user.id);
             return success({ research }, 200, undefined, origin);
-        }
-
-        // POST /research/:id/add-welcome-thankyou (must be before /stages to avoid route conflicts)
-        const addWelcomeThankYouMatch = path.match(/^\/research\/([^\/]+)\/add-welcome-thankyou$/);
-        if (addWelcomeThankYouMatch && httpMethod === 'POST') {
-            const id = addWelcomeThankYouMatch[1];
-            const result = await researchService.addWelcomeAndThankYouStages(id, user.id);
-            return success({ result }, 200, undefined, origin);
         }
 
         // POST /research/:id/stages
