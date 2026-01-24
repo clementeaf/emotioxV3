@@ -87,27 +87,33 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
     // Automatically add Welcome Screen and Thank You Screen if they're missing
     useEffect(() => {
-        if (!activeResearch || loadingResearch || hasCheckedWelcomeThankYou) {
+        if (!activeResearch || loadingResearch || hasCheckedWelcomeThankYou || !activeResearch.stages) {
             return;
         }
 
-        const { hasWelcome, hasThankYou } = hasWelcomeAndThankYou();
+        // Check if Welcome Screen and Thank You Screen exist
+        const allModules = activeResearch.stages.flatMap(s => s.modules || []);
+        const hasWelcome = allModules.some(m => m.name === 'Welcome Screen');
+        const hasThankYou = allModules.some(m => m.name === 'Thank You Screen');
         
         if (!hasWelcome || !hasThankYou) {
             setHasCheckedWelcomeThankYou(true);
             void (async () => {
                 try {
+                    console.log('[ResearchBuilderSidebar] Automatically adding Welcome/Thank You stages');
                     await researchService.addWelcomeAndThankYouStages(activeResearch.id);
-                    await invalidateActiveResearch(activeResearch.id);
+                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(activeResearch.id) });
+                    console.log('[ResearchBuilderSidebar] Successfully added Welcome/Thank You stages');
                 } catch (error: unknown) {
-                    console.error('Error automatically adding Welcome/Thank You stages:', error);
-                    // Silently fail - don't show error to user for automatic operation
+                    console.error('[ResearchBuilderSidebar] Error automatically adding Welcome/Thank You stages:', error);
+                    // Reset flag on error so it can retry
+                    setHasCheckedWelcomeThankYou(false);
                 }
             })();
         } else {
             setHasCheckedWelcomeThankYou(true);
         }
-    }, [activeResearch, loadingResearch, hasCheckedWelcomeThankYou]);
+    }, [activeResearch, loadingResearch, hasCheckedWelcomeThankYou, queryClient]);
 
     const invalidateActiveResearch = async (id: string): Promise<void> => {
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
@@ -284,20 +290,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
     };
 
-    /**
-     * Checks if Welcome Screen and Thank You Screen exist in the research
-     */
-    const hasWelcomeAndThankYou = (): { hasWelcome: boolean; hasThankYou: boolean } => {
-        if (!activeResearch?.stages) {
-            return { hasWelcome: false, hasThankYou: false };
-        }
-
-        const allModules = activeResearch.stages.flatMap(s => s.modules || []);
-        const hasWelcome = allModules.some(m => m.name === 'Welcome Screen');
-        const hasThankYou = allModules.some(m => m.name === 'Thank You Screen');
-
-        return { hasWelcome, hasThankYou };
-    };
 
     if (loadingResearch) {
         return (
