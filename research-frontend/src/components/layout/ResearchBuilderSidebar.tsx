@@ -104,6 +104,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         });
         
         if (!hasWelcome || !hasThankYou) {
+            // Set flag immediately to prevent multiple attempts
             setHasCheckedWelcomeThankYou(true);
             void (async () => {
                 try {
@@ -116,8 +117,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 } catch (error: unknown) {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                     console.error('[ResearchBuilderSidebar] Error automatically adding Welcome/Thank You stages:', errorMessage, error);
-                    // Reset flag on error so it can retry
-                    setHasCheckedWelcomeThankYou(false);
+                    // Don't reset flag on error to prevent infinite loop
+                    // The flag stays true so we don't retry indefinitely
                 }
             })();
         } else {
