@@ -15,3 +15,10 @@
     Header set X-Content-Type-Options "nosniff"
     # NO establecer Access-Control-* aquí - el backend lo maneja
 </IfModule>
+
+# Disable mod_security for this directory (if available)
+# This is necessary because mod_security blocks certain words in URLs like "add", "welcome", "activate"
+# The backend Node.js handles security and authentication
+<IfModule mod_security.c>
+    SecRuleEngine Off
+</IfModule>
