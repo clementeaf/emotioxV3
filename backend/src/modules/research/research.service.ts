@@ -1308,3 +1308,69 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
         client.release();
     }
 };
+
+/**
+ * Adds Welcome Screen and Thank You Screen to an existing research if they don't exist
+ * @param researchId - ID of the research
+ * @param userId - ID of the user
+ * @returns Object with information about what was added
+ */
+export const addWelcomeAndThankYouStages = async (researchId: string, userId: string): Promise<{ added: string[]; alreadyExists: string[] }> => {
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Verify that the research exists and belongs to the user
+        const researchCheck = await client.query(
+            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
+            [researchId, userId]
+        );
+
+        if (researchCheck.rows.length === 0) {
+            throw new Error('Research not found');
+        }
+
+        const added: string[] = [];
+        const alreadyExists: string[] = [];
+
+        // Check and add Welcome Screen
+        const welcomeCheck = await client.query(
+            `SELECT s.id FROM stages s
+             JOIN modules m ON m.stage_id = s.id
+             WHERE s.research_id = ? AND m.name = 'Welcome Screen'`,
+            [researchId]
+        );
+
+        if (welcomeCheck.rows.length === 0) {
+            await createStageFromTemplateInternal(client, researchId, 'Welcome Screen');
+            added.push('Welcome Screen');
+        } else {
+            alreadyExists.push('Welcome Screen');
+        }
+
+        // Check and add Thank You Screen
+        const thankYouCheck = await client.query(
+            `SELECT s.id FROM stages s
+             JOIN modules m ON m.stage_id = s.id
+             WHERE s.research_id = ? AND m.name = 'Thank You Screen'`,
+            [researchId]
+        );
+
+        if (thankYouCheck.rows.length === 0) {
+            await createStageFromTemplateInternal(client, researchId, 'Thank You Screen');
+            added.push('Thank You Screen');
+        } else {
+            alreadyExists.push('Thank You Screen');
+        }
+
+        await client.query('COMMIT');
+        return { added, alreadyExists };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('[Research Service] Error adding Welcome/Thank You stages:', error);
+        throw error;
+    } finally {
+        client.release();
+    }
+};

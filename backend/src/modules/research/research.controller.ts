@@ -104,6 +104,14 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ stage }, 201, undefined, origin);
         }
 
+        // POST /research/:id/add-welcome-thankyou
+        const addWelcomeThankYouMatch = path.match(/^\/research\/([^\/]+)\/add-welcome-thankyou$/);
+        if (addWelcomeThankYouMatch && httpMethod === 'POST') {
+            const id = addWelcomeThankYouMatch[1];
+            const result = await researchService.addWelcomeAndThankYouStages(id, user.id);
+            return success({ result }, 200, undefined, origin);
+        }
+
         // DELETE /research/:id/stages/:stageId
         const deleteStageMatch = path.match(/^\/research\/([^\/]+)\/stages\/([^\/]+)$/);
         if (deleteStageMatch && httpMethod === 'DELETE') {

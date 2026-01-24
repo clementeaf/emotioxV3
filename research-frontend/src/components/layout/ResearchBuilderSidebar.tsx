@@ -64,6 +64,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
     const [pendingStageNameToExpand, setPendingStageNameToExpand] = useState<string | null>(null);
+    const [isAddingWelcomeThankYou, setIsAddingWelcomeThankYou] = useState(false);
 
     // Reset available stages when research changes to ensure fresh filtering
     useEffect(() => {
@@ -265,6 +266,48 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
     };
 
+    /**
+     * Checks if Welcome Screen and Thank You Screen exist in the research
+     */
+    const hasWelcomeAndThankYou = (): { hasWelcome: boolean; hasThankYou: boolean } => {
+        if (!activeResearch?.stages) {
+            return { hasWelcome: false, hasThankYou: false };
+        }
+
+        const allModules = activeResearch.stages.flatMap(s => s.modules || []);
+        const hasWelcome = allModules.some(m => m.name === 'Welcome Screen');
+        const hasThankYou = allModules.some(m => m.name === 'Thank You Screen');
+
+        return { hasWelcome, hasThankYou };
+    };
+
+    /**
+     * Adds Welcome Screen and Thank You Screen to the research
+     */
+    const handleAddWelcomeAndThankYou = async () => {
+        if (!activeResearch) return;
+
+        try {
+            setIsAddingWelcomeThankYou(true);
+            const result = await researchService.addWelcomeAndThankYouStages(activeResearch.id);
+            
+            if (result.result.added.length > 0) {
+                toast.success(`Added: ${result.result.added.join(', ')}`);
+            }
+            if (result.result.alreadyExists.length > 0) {
+                toast.info(`Already exists: ${result.result.alreadyExists.join(', ')}`);
+            }
+
+            await invalidateActiveResearch(activeResearch.id);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Failed to add Welcome and Thank You stages';
+            console.error('Error adding Welcome/Thank You stages:', error);
+            toast.error(errorMessage);
+        } finally {
+            setIsAddingWelcomeThankYou(false);
+        }
+    };
+
     if (loadingResearch) {
         return (
             <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg items-center justify-center">
@@ -370,6 +413,37 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             + Add Stage
                         </button>
                     </div>
+                    {(() => {
+                        const { hasWelcome, hasThankYou } = hasWelcomeAndThankYou();
+                        const missingBoth = !hasWelcome && !hasThankYou;
+                        const missingOne = (!hasWelcome || !hasThankYou) && !missingBoth;
+
+                        if (missingBoth || missingOne) {
+                            return (
+                                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                                    <div className="text-yellow-800 mb-2">
+                                        {missingBoth ? 'Missing Welcome Screen and Thank You Screen' : 
+                                         !hasWelcome ? 'Missing Welcome Screen' : 'Missing Thank You Screen'}
+                                    </div>
+                                    <Button
+                                        onClick={handleAddWelcomeAndThankYou}
+                                        disabled={isAddingWelcomeThankYou}
+                                        className="w-full text-xs py-1 h-auto"
+                                    >
+                                        {isAddingWelcomeThankYou ? (
+                                            <>
+                                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                                Adding...
+                                            </>
+                                        ) : (
+                                            'Add Welcome & Thank You Screens'
+                                        )}
+                                    </Button>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
                     <div className="space-y-2 mt-2">
                         {activeResearch.stages && activeResearch.stages.length > 0 ? (
                             activeResearch.stages

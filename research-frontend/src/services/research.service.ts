@@ -274,6 +274,22 @@ class ResearchService {
         }
     }
 
+    /**
+     * Agrega Welcome Screen y Thank You Screen a un research si no existen
+     * @param researchId - ID del research
+     * @returns Información sobre qué stages se agregaron
+     * @throws ApiErrorResponse si falla la operación
+     */
+    async addWelcomeAndThankYouStages(researchId: string): Promise<{ result: { added: string[]; alreadyExists: string[] } }> {
+        try {
+            return await apiClient.post<{ result: { added: string[]; alreadyExists: string[] } }>(
+                `/research/${researchId}/add-welcome-thankyou`
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to add Welcome and Thank You stages');
+        }
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;
