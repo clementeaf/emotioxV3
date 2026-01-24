@@ -20,6 +20,12 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             headers: Object.keys(event.headers || {}),
             body: event.body ? 'present' : 'missing'
         });
+        console.log('[Research Controller] Testing match:', {
+            path,
+            httpMethod,
+            matchPattern: '/^\\/research\\/([^\\/]+)\\/add-welcome-thankyou$/',
+            willMatch: /^\/research\/([^\/]+)\/add-welcome-thankyou$/.test(path)
+        });
     }
 
     try {
@@ -88,6 +94,12 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
 
         // POST /research/:id/add-welcome-thankyou (must be before other /research/:id/* routes)
         const addWelcomeThankYouMatch = path.match(/^\/research\/([^\/]+)\/add-welcome-thankyou$/);
+        console.log('[Research Controller] Checking add-welcome-thankyou:', {
+            path,
+            httpMethod,
+            match: addWelcomeThankYouMatch,
+            willExecute: addWelcomeThankYouMatch && httpMethod === 'POST'
+        });
         if (addWelcomeThankYouMatch && httpMethod === 'POST') {
             const id = addWelcomeThankYouMatch[1];
             console.log('[Research Controller] POST /research/:id/add-welcome-thankyou - Research ID:', id, 'User ID:', user.id);
