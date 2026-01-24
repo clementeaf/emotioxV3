@@ -428,7 +428,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                     <Button
                                         onClick={handleAddWelcomeAndThankYou}
                                         disabled={isAddingWelcomeThankYou}
-                                        className="w-full text-xs py-1 h-auto"
+                                        className="w-full text-xs py-1.5 h-auto whitespace-normal"
                                     >
                                         {isAddingWelcomeThankYou ? (
                                             <>
@@ -436,7 +436,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                                 Adding...
                                             </>
                                         ) : (
-                                            'Add Welcome & Thank You Screens'
+                                            'Add Welcome & Thank You'
                                         )}
                                     </Button>
                                 </div>
