@@ -230,6 +230,16 @@ app.use(async (req, res) => {
         path = path.substring(4) || '/';
     }
     
+    // Debug logging for add-welcome-thankyou endpoint
+    if (path.includes('add-welcome-thankyou')) {
+        console.log('[server-cpanel] add-welcome-thankyou request:', {
+            method: req.method,
+            originalPath: req.path,
+            processedPath: path,
+            url: req.url
+        });
+    }
+    
     const event = {
         httpMethod: req.method,
         path: path,
