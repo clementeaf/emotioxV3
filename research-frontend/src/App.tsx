@@ -135,12 +135,15 @@ const generateRoutes = (): ReactElement[] => {
 
 function App() {
     const routes = generateRoutes();
+    
+    // Use different basename for development vs production
+    const basename = import.meta.env.DEV ? '/' : '/research';
 
     return (
         <ErrorBoundary>
             <QueryProvider>
                 <ToastProvider>
-                    <BrowserRouter basename="/research">
+                    <BrowserRouter basename={basename}>
                         <AuthProvider>
                             <Routes>{routes}</Routes>
                         </AuthProvider>

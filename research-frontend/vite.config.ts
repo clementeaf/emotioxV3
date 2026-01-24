@@ -23,9 +23,9 @@ const injectCacheVersion = () => {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), injectCacheVersion()],
-  base: '/research/',
+  base: mode === 'development' ? '/' : '/research/',
   server: {
     port: 12800,
     strictPort: true,
@@ -64,4 +64,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
   },
-})
+}))

@@ -87,7 +87,6 @@ export const LoginPage = () => {
                 <Checkbox
                     id="rememberMe"
                     label="Remember me"
-                    description="Stay signed in on this device"
                     {...register('rememberMe')}
                 />
 

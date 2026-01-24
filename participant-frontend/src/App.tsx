@@ -15,6 +15,9 @@ const PageLoader = () => (
   </div>
 );
 
+// Use different basename for development vs production
+const basename = import.meta.env.DEV ? '/' : '/participant';
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -33,7 +36,7 @@ const router = createBrowserRouter([
     ),
   },
 ], {
-  basename: '/participant',
+  basename,
 });
 
 function App() {

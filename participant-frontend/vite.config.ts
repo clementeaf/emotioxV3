@@ -23,8 +23,8 @@ const injectCacheVersion = () => {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/participant/',
+export default defineConfig(({ mode }) => ({
+  base: mode === 'development' ? '/' : '/participant/',
   plugins: [
     react(), 
     injectCacheVersion(),
@@ -100,4 +100,4 @@ export default defineConfig({
   esbuild: {
     sourcemap: false,
   },
-})
+}))
