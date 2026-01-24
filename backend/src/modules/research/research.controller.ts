@@ -10,6 +10,11 @@ import { getRequestOrigin } from '../../utils/request';
 export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
     const origin = getRequestOrigin(event);
+    
+    // Debug logging for add-welcome-thankyou endpoint
+    if (path.includes('add-welcome-thankyou')) {
+        console.log('[Research Controller] Received request:', { httpMethod, path, rawPath: event.path });
+    }
 
     try {
         let decoded;
@@ -79,8 +84,16 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const addWelcomeThankYouMatch = path.match(/^\/research\/([^\/]+)\/add-welcome-thankyou$/);
         if (addWelcomeThankYouMatch && httpMethod === 'POST') {
             const id = addWelcomeThankYouMatch[1];
-            const result = await researchService.addWelcomeAndThankYouStages(id, user.id);
-            return success({ result }, 200, undefined, origin);
+            console.log('[Research Controller] POST /research/:id/add-welcome-thankyou - Research ID:', id, 'User ID:', user.id);
+            try {
+                const result = await researchService.addWelcomeAndThankYouStages(id, user.id);
+                console.log('[Research Controller] Successfully added Welcome/Thank You stages:', result);
+                return success({ result }, 200, undefined, origin);
+            } catch (error: unknown) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                console.error('[Research Controller] Error adding Welcome/Thank You stages:', errorMessage, error);
+                throw error;
+            }
         }
 
         // PATCH /research/:id/status
