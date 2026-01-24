@@ -64,12 +64,13 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
     const [pendingStageNameToExpand, setPendingStageNameToExpand] = useState<string | null>(null);
-    const [isAddingWelcomeThankYou, setIsAddingWelcomeThankYou] = useState(false);
+    const [hasCheckedWelcomeThankYou, setHasCheckedWelcomeThankYou] = useState(false);
 
     // Reset available stages when research changes to ensure fresh filtering
     useEffect(() => {
         if (activeResearch) {
             setAvailableStages([]);
+            setHasCheckedWelcomeThankYou(false);
         }
     }, [activeResearch?.id]);
 
@@ -84,12 +85,29 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         setPendingStageNameToExpand(null);
     }, [activeResearch, pendingStageNameToExpand]);
 
-    // Reset available stages when research changes to ensure fresh filtering
+    // Automatically add Welcome Screen and Thank You Screen if they're missing
     useEffect(() => {
-        if (activeResearch) {
-            setAvailableStages([]);
+        if (!activeResearch || loadingResearch || hasCheckedWelcomeThankYou) {
+            return;
         }
-    }, [activeResearch?.id]);
+
+        const { hasWelcome, hasThankYou } = hasWelcomeAndThankYou();
+        
+        if (!hasWelcome || !hasThankYou) {
+            setHasCheckedWelcomeThankYou(true);
+            void (async () => {
+                try {
+                    await researchService.addWelcomeAndThankYouStages(activeResearch.id);
+                    await invalidateActiveResearch(activeResearch.id);
+                } catch (error: unknown) {
+                    console.error('Error automatically adding Welcome/Thank You stages:', error);
+                    // Silently fail - don't show error to user for automatic operation
+                }
+            })();
+        } else {
+            setHasCheckedWelcomeThankYou(true);
+        }
+    }, [activeResearch, loadingResearch, hasCheckedWelcomeThankYou]);
 
     const invalidateActiveResearch = async (id: string): Promise<void> => {
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
@@ -281,33 +299,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         return { hasWelcome, hasThankYou };
     };
 
-    /**
-     * Adds Welcome Screen and Thank You Screen to the research
-     */
-    const handleAddWelcomeAndThankYou = async () => {
-        if (!activeResearch) return;
-
-        try {
-            setIsAddingWelcomeThankYou(true);
-            const result = await researchService.addWelcomeAndThankYouStages(activeResearch.id);
-            
-            if (result.result.added.length > 0) {
-                toast.success(`Added: ${result.result.added.join(', ')}`);
-            }
-            if (result.result.alreadyExists.length > 0) {
-                toast.info(`Already exists: ${result.result.alreadyExists.join(', ')}`);
-            }
-
-            await invalidateActiveResearch(activeResearch.id);
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to add Welcome and Thank You stages';
-            console.error('Error adding Welcome/Thank You stages:', error);
-            toast.error(errorMessage);
-        } finally {
-            setIsAddingWelcomeThankYou(false);
-        }
-    };
-
     if (loadingResearch) {
         return (
             <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg items-center justify-center">
@@ -413,37 +404,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             + Add Stage
                         </button>
                     </div>
-                    {(() => {
-                        const { hasWelcome, hasThankYou } = hasWelcomeAndThankYou();
-                        const missingBoth = !hasWelcome && !hasThankYou;
-                        const missingOne = (!hasWelcome || !hasThankYou) && !missingBoth;
-
-                        if (missingBoth || missingOne) {
-                            return (
-                                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                                    <div className="text-yellow-800 mb-2">
-                                        {missingBoth ? 'Missing Welcome Screen and Thank You Screen' : 
-                                         !hasWelcome ? 'Missing Welcome Screen' : 'Missing Thank You Screen'}
-                                    </div>
-                                    <Button
-                                        onClick={handleAddWelcomeAndThankYou}
-                                        disabled={isAddingWelcomeThankYou}
-                                        className="w-full text-xs py-1.5 h-auto whitespace-normal"
-                                    >
-                                        {isAddingWelcomeThankYou ? (
-                                            <>
-                                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                                Adding...
-                                            </>
-                                        ) : (
-                                            'Add Welcome & Thank You'
-                                        )}
-                                    </Button>
-                                </div>
-                            );
-                        }
-                        return null;
-                    })()}
                     <div className="space-y-2 mt-2">
                         {activeResearch.stages && activeResearch.stages.length > 0 ? (
                             activeResearch.stages
