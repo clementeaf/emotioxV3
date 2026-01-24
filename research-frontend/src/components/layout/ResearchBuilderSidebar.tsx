@@ -4,8 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
     ArrowLeft,
     Loader2,
-    ChevronDown,
-    ChevronRight,
     Trash2,
     BarChart3,
     TrendingUp,
@@ -25,6 +23,29 @@ import { useAuthStore } from '../../stores/auth.store';
 interface ResearchBuilderSidebarProps {
     researchId: string;
 }
+
+/**
+ * Sorts stages in the correct order:
+ * 1. Welcome Screen (first)
+ * 2. Research Configuration (second)
+ * 3. Other stages (middle, in their original order)
+ * 4. Thank You Screen (last)
+ */
+const sortStages = <T extends { name: string }>(stages: T[]): T[] => {
+    const getStageOrder = (name: string): number => {
+        const lowerName = name.toLowerCase();
+        if (lowerName === 'welcome screen') return 0;
+        if (lowerName === 'research configuration') return 1;
+        if (lowerName === 'thank you screen') return 999;
+        return 2; // All other stages go in the middle
+    };
+
+    return [...stages].sort((a, b) => {
+        const orderA = getStageOrder(a.name);
+        const orderB = getStageOrder(b.name);
+        return orderA - orderB;
+    });
+};
 
 /**
  * Determines if a stage is a single module or a collection of modules
@@ -53,17 +74,14 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
     const [showStageSelector, setShowStageSelector] = useState(false);
     const [isAddingStage, setIsAddingStage] = useState(false);
-    const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+    const { stageId: activeStageId } = useParams<{ stageId?: string }>();
     const [deleteStageModalOpen, setDeleteStageModalOpen] = useState(false);
-    const [deleteModuleModalOpen, setDeleteModuleModalOpen] = useState(false);
     const [stageToDelete, setStageToDelete] = useState<{ id: string; name: string } | null>(null);
-    const [moduleToDelete, setModuleToDelete] = useState<{ id: string; name: string; stageId: string } | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
-    const [pendingStageNameToExpand, setPendingStageNameToExpand] = useState<string | null>(null);
     const [hasCheckedWelcomeThankYou, setHasCheckedWelcomeThankYou] = useState(false);
 
     // Reset available stages when research changes to ensure fresh filtering
@@ -73,17 +91,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             setHasCheckedWelcomeThankYou(false);
         }
     }, [activeResearch?.id]);
-
-    useEffect((): void => {
-        if (!pendingStageNameToExpand) return;
-        if (!activeResearch?.stages) return;
-
-        const newStage = activeResearch.stages.find((s) => s.name === pendingStageNameToExpand);
-        if (newStage?.modules && newStage.modules.length > 0) {
-            setExpandedStages((prev) => new Set([...prev, newStage.id]));
-        }
-        setPendingStageNameToExpand(null);
-    }, [activeResearch, pendingStageNameToExpand]);
 
     // Automatically add Welcome Screen and Thank You Screen if they're missing
     useEffect(() => {
@@ -157,18 +164,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
     };
 
-    const toggleStageExpansion = (stageId: string): void => {
-        setExpandedStages(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(stageId)) {
-                newSet.delete(stageId);
-            } else {
-                newSet.add(stageId);
-            }
-            return newSet;
-        });
-    };
-
     const handleAddStage = async (stageName: string): Promise<void> => {
         if (!activeResearch) return;
 
@@ -177,7 +172,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             await researchService.addStage(activeResearch.id, stageName);
             toast.success(`Stage "${stageName}" added successfully`);
             setShowStageSelector(false);
-            setPendingStageNameToExpand(stageName);
             await invalidateActiveResearch(activeResearch.id);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to add stage';
@@ -214,14 +208,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             // 1. Critical operation (server)
             await researchService.deleteStage(activeResearch.id, stageToDelete.id);
             console.log('[ResearchBuilderSidebar] Stage deleted successfully');
-            
-            // 2. Local state update
-            setExpandedStages(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(stageToDelete.id);
-                return newSet;
-            });
-            
+
             // If the active module was in the deleted stage, navigate to builder root
             if (isActiveModuleInDeletedStage) {
                 console.log('[ResearchBuilderSidebar] Active module was in deleted stage, navigating to builder root');
@@ -243,31 +230,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to delete stage';
             console.error('[ResearchBuilderSidebar] Error deleting stage:', error);
-            toast.error(errorMessage);
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
-    const handleDeleteModuleClick = (e: React.MouseEvent, moduleId: string, moduleName: string, stageId: string) => {
-        e.stopPropagation();
-        setModuleToDelete({ id: moduleId, name: moduleName, stageId });
-        setDeleteModuleModalOpen(true);
-    };
-
-    const handleConfirmDeleteModule = async () => {
-        if (!activeResearch || !moduleToDelete) return;
-
-        try {
-            setIsDeleting(true);
-            await researchService.deleteModule(activeResearch.id, moduleToDelete.id);
-            toast.success(`Module "${moduleToDelete.name}" deleted successfully`);
-            await invalidateActiveResearch(activeResearch.id);
-            setDeleteModuleModalOpen(false);
-            setModuleToDelete(null);
-        } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to delete module';
-            console.error('Error deleting module:', error);
             toast.error(errorMessage);
         } finally {
             setIsDeleting(false);
@@ -315,21 +277,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     }
 
     const activeModuleId = moduleId;
-    let activeModule: { id: string; name: string; stageId: string } | null = null;
-    
-    if (activeModuleId && activeResearch.stages) {
-        for (const stage of activeResearch.stages) {
-            const foundModule = stage.modules?.find(m => m.id === activeModuleId);
-            if (foundModule) {
-                activeModule = {
-                    id: foundModule.id,
-                    name: foundModule.name,
-                    stageId: stage.id
-                };
-                break;
-            }
-        }
-    }
 
     return (
         <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg transition-all duration-300">
@@ -409,11 +356,10 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </div>
                     <div className="space-y-2 mt-2">
                         {activeResearch.stages && activeResearch.stages.length > 0 ? (
-                            activeResearch.stages
+                            sortStages(activeResearch.stages)
                                 .filter((stage) => stage.description !== 'Automatically created during migration')
                                 .map((stage) => {
                                     const isSingleModule = isStageSingleModule(stage);
-                                    const isExpanded = expandedStages.has(stage.id);
                                     let singleModule = isSingleModule && stage.modules?.[0] ? stage.modules[0] : null;
 
                                     if (isSingleModule && !singleModule && activeResearch.stages) {
@@ -421,132 +367,59 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                         singleModule = allModules.find(m => m.name.toLowerCase() === stage.name.toLowerCase()) || null;
                                     }
 
-                                    const modules = !isSingleModule 
-                                        ? (stage.modules || []).sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-                                        : [];
-
-                                    const hasActiveModule = modules.some(m => m.id === activeModuleId) || (singleModule && singleModule.id === activeModuleId);
-                                    let isStageActive = hasActiveModule || (activeModule && activeModule.stageId === stage.id);
-
-                                    if (!isStageActive && activeModule && activeModuleId) {
-                                        if (activeModule.name.toLowerCase() === stage.name.toLowerCase()) {
-                                            isStageActive = true;
-                                        }
-                                    }
+                                    // Check if this stage is active (either by stageId URL param or by containing active module)
+                                    const isStageActiveByUrl = activeStageId === stage.id;
+                                    const hasActiveModule = (stage.modules || []).some(m => m.id === activeModuleId);
+                                    const isStageActive = isStageActiveByUrl || hasActiveModule || (singleModule && singleModule.id === activeModuleId);
 
                                     return (
-                                        <div key={stage.id} className="space-y-1">
+                                        <div key={stage.id} className="flex items-center group">
                                             {isSingleModule ? (
                                                 singleModule ? (
-                                                    <div className="flex items-center group">
-                                                        <Link
-                                                            to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
-                                                            className={cn(
-                                                                'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
-                                                                isStageActive
-                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                    : 'text-gray-700 hover:bg-gray-50'
-                                                            )}
-                                                        >
-                                                            <div className="flex-1">
-                                                                <div className="font-medium">{stage.name}</div>
-                                                                {stage.description && (
-                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
-                                                                )}
-                                                            </div>
-                                                        </Link>
-                                                        <button
-                                                            onClick={(e) => handleDeleteStageClick(e, stage.id, stage.name)}
-                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
-                                                            title="Delete stage"
-                                                        >
-                                                            <Trash2 className="h-3 w-3" />
-                                                        </button>
-                                                    </div>
+                                                    <Link
+                                                        to={`/research/${activeResearch.id}/builder/module/${singleModule.id}`}
+                                                        className={cn(
+                                                            'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                                            isStageActive
+                                                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                                                : 'text-gray-700 hover:bg-gray-50'
+                                                        )}
+                                                    >
+                                                        <div className="font-medium">{stage.name}</div>
+                                                    </Link>
                                                 ) : (
                                                     <div
                                                         className={cn(
-                                                            'flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
+                                                            'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
                                                             isStageActive
                                                                 ? 'bg-blue-50 text-blue-600 font-medium'
                                                                 : 'text-gray-700'
                                                         )}
                                                     >
-                                                        <div className="flex-1">
-                                                            <div className="font-medium">{stage.name}</div>
-                                                            {stage.description && (
-                                                                <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
-                                                            )}
-                                                            <div className="text-xs text-gray-400 italic mt-1">Creating module...</div>
-                                                        </div>
+                                                        <div className="font-medium">{stage.name}</div>
+                                                        <div className="text-xs text-gray-400 italic">Creating...</div>
                                                     </div>
                                                 )
                                             ) : (
-                                                <div>
-                                                    <div className="flex items-center group">
-                                                        <button
-                                                            onClick={() => toggleStageExpansion(stage.id)}
-                                                            className={cn(
-                                                                'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors',
-                                                                isStageActive
-                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                    : 'text-gray-700 hover:bg-gray-50'
-                                                            )}
-                                                        >
-                                                            <div className="flex-1 text-left">
-                                                                <div className="font-medium">{stage.name}</div>
-                                                                {stage.description && (
-                                                                    <div className="text-xs text-gray-500 mt-0.5">{stage.description}</div>
-                                                                )}
-                                                            </div>
-                                                            {modules.length > 0 && (
-                                                                isExpanded ? (
-                                                                    <ChevronDown className="h-4 w-4 text-gray-400" />
-                                                                ) : (
-                                                                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                                                                )
-                                                            )}
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => handleDeleteStageClick(e, stage.id, stage.name)}
-                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
-                                                            title="Delete stage"
-                                                        >
-                                                            <Trash2 className="h-3 w-3" />
-                                                        </button>
-                                                    </div>
-
-                                                    {isExpanded && modules.length > 0 && (
-                                                        <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
-                                                            {modules.map((module) => {
-                                                                const isModuleActive = module.id === activeModuleId;
-                                                                return (
-                                                                    <div key={module.id} className="flex items-center group">
-                                                                        <Link
-                                                                            to={`/research/${activeResearch.id}/builder/module/${module.id}`}
-                                                                            className={cn(
-                                                                                'flex-1 block px-2 py-1.5 text-xs rounded transition-colors',
-                                                                                isModuleActive
-                                                                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                                                                    : 'text-gray-600 hover:bg-gray-50'
-                                                                            )}
-                                                                        >
-                                                                            {module.name}
-                                                                        </Link>
-                                                                        <button
-                                                                            onClick={(e) => handleDeleteModuleClick(e, module.id, module.name, stage.id)}
-                                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
-                                                                            title="Delete module"
-                                                                        >
-                                                                            <Trash2 className="h-3 w-3" />
-                                                                        </button>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
+                                                <Link
+                                                    to={`/research/${activeResearch.id}/builder/stage/${stage.id}`}
+                                                    className={cn(
+                                                        'flex-1 flex items-center justify-between px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                                        isStageActive
+                                                            ? 'bg-blue-50 text-blue-600 font-medium'
+                                                            : 'text-gray-700 hover:bg-gray-50'
                                                     )}
-                                                </div>
+                                                >
+                                                    <div className="font-medium">{stage.name}</div>
+                                                </Link>
                                             )}
+                                            <button
+                                                onClick={(e) => handleDeleteStageClick(e, stage.id, stage.name)}
+                                                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
+                                                title="Delete stage"
+                                            >
+                                                <Trash2 className="h-3 w-3" />
+                                            </button>
                                         </div>
                                     );
                                 })
@@ -628,18 +501,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         ? `Are you sure you want to delete the stage "${stageToDelete.name}"? This will also delete all modules in this stage. This action cannot be undone.\n\nNote: You can safely delete this stage if you only want to use Smart VOC modules in your research.`
                         : `Are you sure you want to delete the stage "${stageToDelete?.name}"? This will also delete all modules in this stage. This action cannot be undone.`
                 }
-                confirmText="Delete"
-                cancelText="Cancel"
-                variant="danger"
-                isLoading={isDeleting}
-            />
-
-            <ConfirmationModal
-                isOpen={deleteModuleModalOpen}
-                onClose={() => setDeleteModuleModalOpen(false)}
-                onConfirm={handleConfirmDeleteModule}
-                title="Delete Module"
-                message={`Are you sure you want to delete the module "${moduleToDelete?.name}"? This action cannot be undone.`}
                 confirmText="Delete"
                 cancelText="Cancel"
                 variant="danger"

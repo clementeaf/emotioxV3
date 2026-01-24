@@ -15,6 +15,7 @@ import { ResearchConfigurationModule } from '../../components/research/ResearchC
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
+import { Select } from '../../components/ui/Select';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { hasModuleConfiguredValues, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
@@ -22,7 +23,7 @@ import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, us
 import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 export const ResearchBuilderPage = () => {
-    const { id, moduleId } = useParams<{ id: string; moduleId?: string }>();
+    const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const toast = useToast();
@@ -36,12 +37,25 @@ export const ResearchBuilderPage = () => {
     // Use useParams for moduleId instead of regex for better reactivity
     const activeModuleId = moduleId || null;
 
+    // Find the active stage by stageId from URL params
+    const activeStageFromUrl = stageId && typedResearch?.stages
+        ? typedResearch.stages.find((s: Stage) => s.id === stageId) || null
+        : null;
+
     const activeModule = activeModuleId && typedResearch && typedResearch.stages
         ? typedResearch.stages.flatMap((s: Stage) => s.modules || []).find((m: Module) => m.id === activeModuleId) || null
         : null;
 
     const smartVOCStage = useMemo((): Stage | null => {
         if (!typedResearch?.stages) return null;
+
+        // Check if activeStageFromUrl is Smart VOC
+        if (activeStageFromUrl && (
+            activeStageFromUrl.name.toLowerCase().includes('smart voc') ||
+            activeStageFromUrl.name.toLowerCase() === 'smart voc'
+        )) {
+            return activeStageFromUrl;
+        }
 
         let stage = typedResearch.stages.find((s: Stage) =>
             s.name.toLowerCase().includes('smart voc') ||
@@ -56,7 +70,7 @@ export const ResearchBuilderPage = () => {
         }
 
         return stage || null;
-    }, [typedResearch, activeModule]);
+    }, [typedResearch, activeModule, activeStageFromUrl]);
 
     const smartVOCModules = useMemo((): Module[] => {
         if (!smartVOCStage || !smartVOCStage.modules) return [];
@@ -66,6 +80,7 @@ export const ResearchBuilderPage = () => {
     }, [smartVOCStage]);
 
     const isSmartVOCStage = smartVOCStage !== null && (
+        (stageId && smartVOCStage.id === stageId) ||
         !activeModuleId ||
         smartVOCModules.some(m => m.id === activeModuleId)
     );
@@ -73,6 +88,14 @@ export const ResearchBuilderPage = () => {
     // Cognitive Tasks stage logic (same structure as Smart VOC)
     const cognitiveTasksStage = useMemo((): Stage | null => {
         if (!typedResearch?.stages) return null;
+
+        // Check if activeStageFromUrl is Cognitive Tasks
+        if (activeStageFromUrl && (
+            activeStageFromUrl.name.toLowerCase().includes('cognitive task') ||
+            activeStageFromUrl.name.toLowerCase() === 'cognitive tasks'
+        )) {
+            return activeStageFromUrl;
+        }
 
         let stage = typedResearch.stages.find((s: Stage) =>
             s.name.toLowerCase().includes('cognitive task') ||
@@ -87,7 +110,7 @@ export const ResearchBuilderPage = () => {
         }
 
         return stage || null;
-    }, [typedResearch, activeModule]);
+    }, [typedResearch, activeModule, activeStageFromUrl]);
 
     const cognitiveTaskModules = useMemo((): Module[] => {
         if (!cognitiveTasksStage || !cognitiveTasksStage.modules) return [];
@@ -95,6 +118,7 @@ export const ResearchBuilderPage = () => {
     }, [cognitiveTasksStage]);
 
     const isCognitiveTasksStage = cognitiveTasksStage !== null && (
+        (stageId && cognitiveTasksStage.id === stageId) ||
         !activeModuleId ||
         cognitiveTaskModules.some(m => m.id === activeModuleId)
     );
@@ -120,6 +144,19 @@ export const ResearchBuilderPage = () => {
 
     // Refs for Cognitive Task module cards to access their component values
     const cognitiveTaskModuleRefs = useRef<Map<string, CognitiveTaskModuleCardRef>>(new Map());
+
+    // Refs for DOM elements to scroll to modules
+    const smartVOCModuleElementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const cognitiveTaskModuleElementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+    // Function to scroll to a specific module
+    const scrollToModule = useCallback((moduleId: string, type: 'smartvoc' | 'cognitive') => {
+        const refs = type === 'smartvoc' ? smartVOCModuleElementRefs : cognitiveTaskModuleElementRefs;
+        const element = refs.current.get(moduleId);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, []);
 
     useWelcomeScreenRedirect(typedResearch, loading, activeModuleId, isSettings, id);
 
@@ -493,11 +530,21 @@ export const ResearchBuilderPage = () => {
                 {/* Smart VOC Stage: Show all modules in the same view with drag & drop */}
                 {isSmartVOCStage && smartVOCModules.length > 0 && (
                     <div className="space-y-6">
-                    <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Smart VOC - All Questions</h2>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Configure all Smart VOC questions in this unified view. Drag the handle to reorder.
-                        </p>
+                    <div className="mb-4 flex items-start justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Smart VOC - All Questions</h2>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Configure all Smart VOC questions in this unified view. Drag the handle to reorder.
+                            </p>
+                        </div>
+                        <div className="flex-shrink-0 w-48">
+                            <Select
+                                placeholder="Jump to module..."
+                                options={orderedSmartVOCModules.map(m => ({ value: m.id, label: m.name }))}
+                                onChange={(e) => scrollToModule(e.target.value, 'smartvoc')}
+                                value=""
+                            />
+                        </div>
                     </div>
                     <DndContext
                         sensors={sensors}
@@ -509,21 +556,32 @@ export const ResearchBuilderPage = () => {
                             strategy={verticalListSortingStrategy}
                         >
                             {orderedSmartVOCModules.map((module) => (
-                                <SortableSmartVOCCard key={module.id} module={module}>
-                                    <SmartVOCModuleCard
-                                        ref={(ref) => {
-                                            if (ref) {
-                                                smartVOCModuleRefs.current.set(module.id, ref);
-                                            } else {
-                                                smartVOCModuleRefs.current.delete(module.id);
-                                            }
-                                        }}
-                                        module={module}
-                                        researchId={id!}
-                                        onSave={handleSaveModule}
-                                        isActive={activeModuleId === module.id}
-                                    />
-                                </SortableSmartVOCCard>
+                                <div
+                                    key={module.id}
+                                    ref={(el) => {
+                                        if (el) {
+                                            smartVOCModuleElementRefs.current.set(module.id, el);
+                                        } else {
+                                            smartVOCModuleElementRefs.current.delete(module.id);
+                                        }
+                                    }}
+                                >
+                                    <SortableSmartVOCCard module={module}>
+                                        <SmartVOCModuleCard
+                                            ref={(ref) => {
+                                                if (ref) {
+                                                    smartVOCModuleRefs.current.set(module.id, ref);
+                                                } else {
+                                                    smartVOCModuleRefs.current.delete(module.id);
+                                                }
+                                            }}
+                                            module={module}
+                                            researchId={id!}
+                                            onSave={handleSaveModule}
+                                            isActive={activeModuleId === module.id}
+                                        />
+                                    </SortableSmartVOCCard>
+                                </div>
                             ))}
                         </SortableContext>
                     </DndContext>
@@ -542,27 +600,47 @@ export const ResearchBuilderPage = () => {
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
                 {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
                     <div className="space-y-6">
-                    <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Cognitive Tasks - All Tasks</h2>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Configure all Cognitive Task modules in this unified view
-                        </p>
+                    <div className="mb-4 flex items-start justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Cognitive Tasks - All Tasks</h2>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Configure all Cognitive Task modules in this unified view
+                            </p>
+                        </div>
+                        <div className="flex-shrink-0 w-48">
+                            <Select
+                                placeholder="Jump to module..."
+                                options={cognitiveTaskModules.map(m => ({ value: m.id, label: m.name }))}
+                                onChange={(e) => scrollToModule(e.target.value, 'cognitive')}
+                                value=""
+                            />
+                        </div>
                     </div>
                     {cognitiveTaskModules.map((module) => (
-                        <CognitiveTaskModuleCard
+                        <div
                             key={module.id}
-                            ref={(ref) => {
-                                if (ref) {
-                                    cognitiveTaskModuleRefs.current.set(module.id, ref);
+                            ref={(el) => {
+                                if (el) {
+                                    cognitiveTaskModuleElementRefs.current.set(module.id, el);
                                 } else {
-                                    cognitiveTaskModuleRefs.current.delete(module.id);
+                                    cognitiveTaskModuleElementRefs.current.delete(module.id);
                                 }
                             }}
-                            module={module}
-                            researchId={id!}
-                            onSave={handleSaveModule}
-                            isActive={activeModuleId === module.id}
-                        />
+                        >
+                            <CognitiveTaskModuleCard
+                                ref={(ref) => {
+                                    if (ref) {
+                                        cognitiveTaskModuleRefs.current.set(module.id, ref);
+                                    } else {
+                                        cognitiveTaskModuleRefs.current.delete(module.id);
+                                    }
+                                }}
+                                module={module}
+                                researchId={id!}
+                                onSave={handleSaveModule}
+                                isActive={activeModuleId === module.id}
+                            />
+                        </div>
                     ))}
                     </div>
                 )}
