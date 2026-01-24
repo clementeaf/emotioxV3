@@ -13,7 +13,13 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
     
     // Debug logging for add-welcome-thankyou endpoint
     if (path.includes('add-welcome-thankyou')) {
-        console.log('[Research Controller] Received request:', { httpMethod, path, rawPath: event.path });
+        console.log('[Research Controller] Received request:', { 
+            httpMethod, 
+            path, 
+            rawPath: event.path,
+            headers: Object.keys(event.headers || {}),
+            body: event.body ? 'present' : 'missing'
+        });
     }
 
     try {
