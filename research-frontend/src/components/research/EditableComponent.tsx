@@ -165,15 +165,17 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                 ? String(component.settings.defaultValue)
                 : '';
             return (
-                <Input
-                    id={`module-${component.id}`}
-                    label={component.label}
-                    value={value || defaultValue}
-                    onChange={(e) => onChange(e.target.value)}
-                    placeholder={placeholder}
-                    disabled={!!isReadonly}
-                    readOnly={!!isReadonly}
-                />
+                <div className="max-w-2xl">
+                    <Input
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        value={value || defaultValue}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder={placeholder}
+                        disabled={!!isReadonly}
+                        readOnly={!!isReadonly}
+                    />
+                </div>
             );
         }
 
@@ -227,14 +229,16 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
 
         case 'textarea':
             return (
-                <Textarea
-                    id={`module-${component.id}`}
-                    label={component.label}
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    placeholder={placeholder}
-                    rows={4}
-                />
+                <div className="max-w-2xl">
+                    <Textarea
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder={placeholder}
+                        rows={4}
+                    />
+                </div>
             );
 
         case 'checkbox':
