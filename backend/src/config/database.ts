@@ -23,18 +23,14 @@ export const detectEnvironmentFromOrigin = (origin?: string): 'development' | 'p
 };
 
 /**
- * Gets database name based on request origin
- * @param baseName - Base database name
+ * Gets table prefix based on request origin
+ * Since we can't create databases via SSH, we use table prefixes instead
  * @param origin - Request origin
- * @returns Database name with environment suffix
+ * @returns Table prefix ('dev_' for development, '' for production)
  */
-export const getDatabaseNameForRequest = (baseName: string, origin?: string): string => {
-    if (baseName.endsWith('_dev') || baseName.endsWith('_prod')) {
-        return baseName;
-    }
-    
+export const getTablePrefixForRequest = (origin?: string): string => {
     const env = detectEnvironmentFromOrigin(origin);
-    return env === 'development' ? `${baseName}_dev` : baseName;
+    return env === 'development' ? 'dev_' : '';
 };
 
 /**
@@ -267,7 +263,7 @@ const pool = {
     /**
      * Run a SQL query.
      * Automatically converts PostgreSQL syntax ($1, $2, ::type) to MySQL syntax (?)
-     * Dynamically selects database based on request origin
+     * Adds table prefix based on request origin (dev_ for development)
      */
     async query<R extends QueryResultRow = QueryResultRow>(
         queryTextOrConfig: string | QueryConfig,
@@ -275,24 +271,25 @@ const pool = {
     ): Promise<QueryResult<R>> {
         const p = await ensurePool();
         
-        // Get request context to determine database
+        // Get request context to add table prefix
         const context = requestContext.getStore();
-        const origin = context?.origin;
+        const prefix = getTablePrefixForRequest(context?.origin);
         
-        // Switch database based on origin if needed
-        if (origin) {
-            const secrets = await getSecrets();
-            const baseName = secrets.dbName || process.env.DB_NAME || '';
-            const targetDb = getDatabaseNameForRequest(baseName, origin);
-            const currentDb = secrets.dbName;
-            
-            if (targetDb !== currentDb) {
-                // Use correct database for this request
-                await p.query(`USE \`${targetDb}\``);
-            }
+        // Add prefix to table names in query if in development
+        let query = queryTextOrConfig as string;
+        if (prefix) {
+            // Replace table names with prefixed versions
+            // This is a simple implementation - might need refinement for complex queries
+            const tables = ['researches', 'stages', 'modules', 'users', 'research_types', 'research_techniques', 
+                           'stage_templates', 'module_templates', 'enterprises', 'media', 'analysis_modules',
+                           'sessions', 'responses', 'quotas', 'monitoring_connections'];
+            tables.forEach(table => {
+                const regex = new RegExp(`\\b${table}\\b`, 'gi');
+                query = query.replace(regex, `${prefix}${table}`);
+            });
         }
         
-        const convertedQuery = convertPgToMysql(queryTextOrConfig as string);
+        const convertedQuery = convertPgToMysql(query);
         const result = await p.query(convertedQuery, values as unknown[]);
         return convertResult<R>(result);
     },
