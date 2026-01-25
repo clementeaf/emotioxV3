@@ -1,6 +1,10 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+
+// Global set to track which researches have been checked for Welcome/Thank You
+// This persists across StrictMode remounts and component unmounts
+const checkedResearchIds = new Set<string>();
 import {
     ArrowLeft,
     Loader2,
@@ -82,29 +86,41 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
-    const [hasCheckedWelcomeThankYou, setHasCheckedWelcomeThankYou] = useState(false);
+
+    // Use ref to track if we're currently adding stages (prevents race conditions)
+    const isAddingStagesRef = useRef(false);
 
     // Reset available stages when research changes to ensure fresh filtering
     useEffect(() => {
         if (activeResearch) {
             setAvailableStages([]);
-            setHasCheckedWelcomeThankYou(false);
         }
     }, [activeResearch?.id]);
 
     // Automatically add Welcome Screen and Thank You Screen if they're missing
     useEffect(() => {
-        if (!activeResearch || loadingResearch || hasCheckedWelcomeThankYou) {
+        if (!activeResearch || loadingResearch) {
+            return;
+        }
+
+        const researchId = activeResearch.id;
+
+        // Skip if already checked this research (persists across StrictMode remounts)
+        if (checkedResearchIds.has(researchId)) {
+            return;
+        }
+
+        // Skip if currently adding stages (prevents race condition)
+        if (isAddingStagesRef.current) {
             return;
         }
 
         // Check if Welcome Screen and Thank You Screen STAGES exist (not modules)
-        // This is more robust because stages are always created, but modules might have different names
         const stages = activeResearch.stages || [];
         const hasWelcomeStage = stages.some(s => s.name === 'Welcome Screen');
         const hasThankYouStage = stages.some(s => s.name === 'Thank You Screen');
 
-        // Also check modules as fallback (in case stage name is different)
+        // Also check modules as fallback
         const allModules = stages.flatMap(s => s.modules || []);
         const hasWelcomeModule = allModules.some(m => m.name === 'Welcome Screen');
         const hasThankYouModule = allModules.some(m => m.name === 'Thank You Screen');
@@ -119,30 +135,34 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             hasThankYouModule,
             hasWelcome,
             hasThankYou,
-            researchId: activeResearch.id,
+            researchId,
             stagesCount: stages.length,
-            stageNames: stages.map(s => s.name)
+            stageNames: stages.map(s => s.name),
+            alreadyChecked: checkedResearchIds.has(researchId)
         });
 
-        // Always set flag to true to prevent multiple attempts, regardless of outcome
-        setHasCheckedWelcomeThankYou(true);
+        // Mark as checked BEFORE any async operation
+        checkedResearchIds.add(researchId);
 
         if (!hasWelcome || !hasThankYou) {
+            isAddingStagesRef.current = true;
             void (async () => {
                 try {
-                    console.log('[ResearchBuilderSidebar] Automatically adding Welcome/Thank You stages for research:', activeResearch.id);
-                    const result = await researchService.addWelcomeAndThankYouStages(activeResearch.id);
+                    console.log('[ResearchBuilderSidebar] Automatically adding Welcome/Thank You stages for research:', researchId);
+                    const result = await researchService.addWelcomeAndThankYouStages(researchId);
                     console.log('[ResearchBuilderSidebar] Add result:', result);
-                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(activeResearch.id) });
-                    await queryClient.refetchQueries({ queryKey: researchKeys.detail(activeResearch.id) });
+                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(researchId) });
+                    await queryClient.refetchQueries({ queryKey: researchKeys.detail(researchId) });
                     console.log('[ResearchBuilderSidebar] Successfully added Welcome/Thank You stages');
                 } catch (error: unknown) {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                     console.error('[ResearchBuilderSidebar] Error automatically adding Welcome/Thank You stages:', errorMessage, error);
+                } finally {
+                    isAddingStagesRef.current = false;
                 }
             })();
         }
-    }, [activeResearch?.id, loadingResearch, hasCheckedWelcomeThankYou, queryClient]);
+    }, [activeResearch, loadingResearch, queryClient]);
 
     const invalidateActiveResearch = async (id: string): Promise<void> => {
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
