@@ -98,21 +98,36 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             return;
         }
 
-        // Check if Welcome Screen and Thank You Screen exist
-        const allModules = (activeResearch.stages || []).flatMap(s => s.modules || []);
-        const hasWelcome = allModules.some(m => m.name === 'Welcome Screen');
-        const hasThankYou = allModules.some(m => m.name === 'Thank You Screen');
-        
-        console.log('[ResearchBuilderSidebar] Checking Welcome/Thank You:', { 
-            hasWelcome, 
-            hasThankYou, 
+        // Check if Welcome Screen and Thank You Screen STAGES exist (not modules)
+        // This is more robust because stages are always created, but modules might have different names
+        const stages = activeResearch.stages || [];
+        const hasWelcomeStage = stages.some(s => s.name === 'Welcome Screen');
+        const hasThankYouStage = stages.some(s => s.name === 'Thank You Screen');
+
+        // Also check modules as fallback (in case stage name is different)
+        const allModules = stages.flatMap(s => s.modules || []);
+        const hasWelcomeModule = allModules.some(m => m.name === 'Welcome Screen');
+        const hasThankYouModule = allModules.some(m => m.name === 'Thank You Screen');
+
+        const hasWelcome = hasWelcomeStage || hasWelcomeModule;
+        const hasThankYou = hasThankYouStage || hasThankYouModule;
+
+        console.log('[ResearchBuilderSidebar] Checking Welcome/Thank You:', {
+            hasWelcomeStage,
+            hasWelcomeModule,
+            hasThankYouStage,
+            hasThankYouModule,
+            hasWelcome,
+            hasThankYou,
             researchId: activeResearch.id,
-            stagesCount: activeResearch.stages?.length || 0
+            stagesCount: stages.length,
+            stageNames: stages.map(s => s.name)
         });
-        
+
+        // Always set flag to true to prevent multiple attempts, regardless of outcome
+        setHasCheckedWelcomeThankYou(true);
+
         if (!hasWelcome || !hasThankYou) {
-            // Set flag immediately to prevent multiple attempts
-            setHasCheckedWelcomeThankYou(true);
             void (async () => {
                 try {
                     console.log('[ResearchBuilderSidebar] Automatically adding Welcome/Thank You stages for research:', activeResearch.id);
@@ -124,12 +139,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 } catch (error: unknown) {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                     console.error('[ResearchBuilderSidebar] Error automatically adding Welcome/Thank You stages:', errorMessage, error);
-                    // Don't reset flag on error to prevent infinite loop
-                    // The flag stays true so we don't retry indefinitely
                 }
             })();
-        } else {
-            setHasCheckedWelcomeThankYou(true);
         }
     }, [activeResearch?.id, loadingResearch, hasCheckedWelcomeThankYou, queryClient]);
 

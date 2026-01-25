@@ -1338,11 +1338,15 @@ export const addWelcomeAndThankYouStages = async (researchId: string, userId: st
         const alreadyExists: string[] = [];
 
         // Check and add Welcome Screen
+        // Check by STAGE name first (more reliable), then by module name as fallback
         const welcomeCheck = await client.query(
             `SELECT s.id FROM stages s
+             WHERE s.research_id = ? AND s.name = 'Welcome Screen'
+             UNION
+             SELECT s.id FROM stages s
              JOIN modules m ON m.stage_id = s.id
              WHERE s.research_id = ? AND m.name = 'Welcome Screen'`,
-            [researchId]
+            [researchId, researchId]
         );
 
         if (welcomeCheck.rows.length === 0) {
@@ -1353,11 +1357,15 @@ export const addWelcomeAndThankYouStages = async (researchId: string, userId: st
         }
 
         // Check and add Thank You Screen
+        // Check by STAGE name first (more reliable), then by module name as fallback
         const thankYouCheck = await client.query(
             `SELECT s.id FROM stages s
+             WHERE s.research_id = ? AND s.name = 'Thank You Screen'
+             UNION
+             SELECT s.id FROM stages s
              JOIN modules m ON m.stage_id = s.id
              WHERE s.research_id = ? AND m.name = 'Thank You Screen'`,
-            [researchId]
+            [researchId, researchId]
         );
 
         if (thankYouCheck.rows.length === 0) {
