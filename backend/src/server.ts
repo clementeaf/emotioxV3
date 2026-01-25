@@ -68,52 +68,50 @@ app.use(cors({
 
 app.use(express.json());
 
-// Middleware to capture request origin for database selection
-app.use((req, res, next) => {
+// Convert Express request to Lambda event format and handle with context
+app.use(async (req, res) => {
+    // Capture origin for database routing
     const origin = req.get('origin') || req.get('referer');
     console.log('[DB Router] Origin:', origin, '| Referer:', req.get('referer'), '| Host:', req.get('host'));
-    requestContext.run({ origin }, () => {
-        next();
-    });
-});
+    
+    // Run entire handler in AsyncLocalStorage context
+    await requestContext.run({ origin }, async () => {
+        const event: APIGatewayProxyEvent = {
+            httpMethod: req.method,
+            path: req.path,
+            headers: req.headers as Record<string, string>,
+            multiValueHeaders: {},
+            body: req.body ? JSON.stringify(req.body) : null,
+            isBase64Encoded: false,
+            pathParameters: null,
+            queryStringParameters: (req.query as Record<string, string>) || null,
+            multiValueQueryStringParameters: null,
+            stageVariables: null,
+            requestContext: {} as APIGatewayProxyEvent['requestContext'],
+            resource: req.path,
+        };
 
-// Convert Express request to Lambda event format
-app.use(async (req, res) => {
-    const event: APIGatewayProxyEvent = {
-        httpMethod: req.method,
-        path: req.path,
-        headers: req.headers as Record<string, string>,
-        multiValueHeaders: {},
-        body: req.body ? JSON.stringify(req.body) : null,
-        isBase64Encoded: false,
-        pathParameters: null,
-        queryStringParameters: (req.query as Record<string, string>) || null,
-        multiValueQueryStringParameters: null,
-        stageVariables: null,
-        requestContext: {} as APIGatewayProxyEvent['requestContext'],
-        resource: req.path,
-    };
+        try {
+            const result = await route(event);
 
-    try {
-        const result = await route(event);
+            // Set headers
+            if (result.headers) {
+                const headers = result.headers;
+                Object.keys(headers).forEach((key) => {
+                    const value = headers[key];
+                    if (value && typeof value === 'string') {
+                        res.setHeader(key, value);
+                    }
+                });
+            }
 
-        // Set headers
-        if (result.headers) {
-            const headers = result.headers;
-            Object.keys(headers).forEach((key) => {
-                const value = headers[key];
-                if (value && typeof value === 'string') {
-                    res.setHeader(key, value);
-                }
-            });
+            // Send response
+            res.status(result.statusCode).send(result.body);
+        } catch (error) {
+            console.error('Server error:', error);
+            res.status(500).json({ error: 'Internal server error' });
         }
-
-        // Send response
-        res.status(result.statusCode).send(result.body);
-    } catch (error) {
-        console.error('Server error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    });
 });
 
 app.listen(PORT, () => {
