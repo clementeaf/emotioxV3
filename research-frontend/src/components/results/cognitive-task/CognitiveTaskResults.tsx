@@ -163,9 +163,9 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
     }
   };
 
-  // Filter modules to show only cognitive tasks
-  const shouldShowModule = (moduleName: string): boolean => {
-    const normalized = moduleName.toLowerCase();
+  // Filter modules to show only cognitive tasks that have actual responses
+  const shouldShowModule = (module: ModuleData): boolean => {
+    const normalized = module.moduleName.toLowerCase();
 
     // Explicit exclusions (System & Smart VOC)
     if (
@@ -184,7 +184,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
     }
 
     // Explicit inclusions (Cognitive Tasks)
-    if (
+    const isCognitiveTask = 
       normalized.includes('navigation flow') ||
       normalized.includes('preference test') ||
       normalized.includes('short text') ||
@@ -192,15 +192,13 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
       normalized.includes('single choice') ||
       normalized.includes('multiple choice') ||
       normalized.includes('linear scale') ||
-      normalized.includes('ranking')
-    ) {
-      return true;
-    }
+      normalized.includes('ranking');
 
-    return false;
+    // Only show if it's a cognitive task AND has responses
+    return isCognitiveTask && module.totalResponses > 0;
   };
 
-  const filteredModules = data?.modules?.filter(m => shouldShowModule(m.moduleName)) || [];
+  const filteredModules = data?.modules?.filter(m => shouldShowModule(m)) || [];
 
   return (
     <ResultsStateHandler
@@ -234,8 +232,18 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             {filteredModules.length > 0 ? (
               filteredModules.map((module, index) => renderModuleResults(module, index))
             ) : (
-              <Card className="p-8 text-center">
-                <p className="text-gray-500">No cognitive task modules found for this research.</p>
+              <Card className="p-12 text-center bg-gray-50">
+                <div className="flex items-center justify-center mb-4">
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-gray-700 font-medium mb-2">No cognitive task data available yet</p>
+                <p className="text-gray-500 text-sm">
+                  Cognitive task results will appear here once participants complete the tasks.
+                </p>
               </Card>
             )}
           </div>
