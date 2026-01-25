@@ -6,7 +6,10 @@
 import jwt from 'jsonwebtoken';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
+// Read JWT_SECRET lazily to ensure dotenv has loaded
+const getJwtSecret = (): string => {
+    return process.env.JWT_SECRET || 'change-this-secret-in-production';
+};
 
 export type AuthErrorCode = 'NO_TOKEN' | 'INVALID_TOKEN';
 
@@ -41,7 +44,7 @@ export interface DecodedToken {
 export const verifyToken = (token: string): Promise<DecodedToken> => {
     return new Promise((resolve, reject) => {
         try {
-            const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+            const decoded = jwt.verify(token, getJwtSecret()) as DecodedToken;
             resolve(decoded);
         } catch (error) {
             reject(error instanceof Error ? error : new Error('Error verificando token'));

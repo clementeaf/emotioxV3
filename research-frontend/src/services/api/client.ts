@@ -45,8 +45,13 @@ class ApiClient {
         this.client.interceptors.request.use(
             async (config: InternalAxiosRequestConfig) => {
                 const state = useAuthStore.getState();
+                console.log('[ApiClient] Request to:', config.url);
+                console.log('[ApiClient] Token in store:', state.token ? `${state.token.substring(0, 30)}...` : 'NONE');
                 if (state.token && config.headers) {
                     config.headers.Authorization = `Bearer ${state.token}`;
+                    console.log('[ApiClient] Authorization header set');
+                } else {
+                    console.warn('[ApiClient] No token available for request');
                 }
                 // También intentar enviar cookies (withCredentials: true)
                 return config;

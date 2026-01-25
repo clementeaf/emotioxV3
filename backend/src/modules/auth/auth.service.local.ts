@@ -11,11 +11,12 @@ import { OAuth2Client } from 'google-auth-library';
 import fs from 'fs';
 import path from 'path';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
-const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '10');
+// Read secrets lazily to ensure dotenv has loaded
+const getJwtSecret = (): string => process.env.JWT_SECRET || 'change-this-secret-in-production';
+const getJwtRefreshSecret = (): string => process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production';
+const getJwtExpiresIn = (): string => process.env.JWT_EXPIRES_IN || '24h';
+const getJwtRefreshExpiresIn = (): string => process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const getBcryptRounds = (): number => parseInt(process.env.BCRYPT_ROUNDS || '10');
 
 export interface RegisterData {
     email: string;
@@ -69,7 +70,7 @@ export const register = async (data: RegisterData) => {
         const existingUserResult = await pool.query(existingUserQuery, [email]);
         
         // Hash password
-        const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+        const hashedPassword = await bcrypt.hash(password, getBcryptRounds());
         
         if (existingUserResult.rows.length > 0) {
             // Usuario existe, verificar si tiene password_hash
@@ -205,18 +206,19 @@ export const login = async (data: LoginData) => {
             role: user.role,
         };
         
-        const accessToken = jwt.sign(payload, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
+        const accessToken = jwt.sign(payload, getJwtSecret(), {
+            expiresIn: getJwtExpiresIn(),
         } as jwt.SignOptions);
-        
-        const refreshToken = jwt.sign({ sub: user.cognito_sub }, JWT_REFRESH_SECRET, {
-            expiresIn: JWT_REFRESH_EXPIRES_IN,
+
+        const refreshToken = jwt.sign({ sub: user.cognito_sub }, getJwtRefreshSecret(), {
+            expiresIn: getJwtRefreshExpiresIn(),
         } as jwt.SignOptions);
-        
+
         // Calcular expiresIn en segundos
-        const expiresInSeconds = JWT_EXPIRES_IN.includes('h')
-            ? parseInt(JWT_EXPIRES_IN) * 3600
-            : parseInt(JWT_EXPIRES_IN) * 60;
+        const jwtExpiresIn = getJwtExpiresIn();
+        const expiresInSeconds = jwtExpiresIn.includes('h')
+            ? parseInt(jwtExpiresIn) * 3600
+            : parseInt(jwtExpiresIn) * 60;
         
         return {
             accessToken,
@@ -276,28 +278,29 @@ export const refreshToken = async (data: RefreshTokenData) => {
     
     try {
         // Verificar refresh token
-        const decoded = jwt.verify(token, JWT_REFRESH_SECRET) as { sub: string };
-        
+        const decoded = jwt.verify(token, getJwtRefreshSecret()) as { sub: string };
+
         // Obtener usuario
         const user = await getMe(decoded.sub);
-        
+
         // Usar decoded.sub como cognito_sub (es el mismo valor)
         const cognitoSub = decoded.sub;
-        
+
         // Generar nuevo access token
         const payload = {
             sub: cognitoSub,
             email: user.email,
             role: user.role,
         };
-        
-        const accessToken = jwt.sign(payload, JWT_SECRET, {
-            expiresIn: JWT_EXPIRES_IN,
+
+        const accessToken = jwt.sign(payload, getJwtSecret(), {
+            expiresIn: getJwtExpiresIn(),
         } as jwt.SignOptions);
-        
-        const expiresInSeconds = JWT_EXPIRES_IN.includes('h')
-            ? parseInt(JWT_EXPIRES_IN) * 3600
-            : parseInt(JWT_EXPIRES_IN) * 60;
+
+        const jwtExpiresIn = getJwtExpiresIn();
+        const expiresInSeconds = jwtExpiresIn.includes('h')
+            ? parseInt(jwtExpiresIn) * 3600
+            : parseInt(jwtExpiresIn) * 60;
         
         return {
             accessToken,

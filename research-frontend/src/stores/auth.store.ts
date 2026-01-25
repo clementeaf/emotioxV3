@@ -134,13 +134,16 @@ export const useAuthStore = create<AuthState>()((set) => ({
             // También guardar en storage como fallback temporal hasta que las cookies funcionen
             const token = loginResponse.token || null;
             const refreshToken = loginResponse.refreshToken || null;
+            console.log('[AuthStore] Login response received, token:', token ? `${token.substring(0, 30)}...` : 'NONE');
             // TODO: Una vez que API Gateway pase cookies correctamente, eliminar esta línea
             saveTokenToStorage(token, refreshToken, rememberMe);
             set({ token, rememberMe });
+            console.log('[AuthStore] Token saved to store, calling getMe()...');
 
             // Fetch user profile usando las cookies
             try {
                 const userResponse = await authService.getMe();
+                console.log('[AuthStore] getMe() successful');
                 set({
                     user: userResponse.user,
                     isLoading: false,

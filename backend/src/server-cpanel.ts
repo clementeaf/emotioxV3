@@ -3,10 +3,15 @@
  * This will be compiled to dist/server-cpanel.js for Passenger
  */
 
+// IMPORTANT: Load environment variables FIRST, before any other imports
+// that might depend on process.env values
 import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Now import modules that depend on process.env
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import crypto from 'crypto';
@@ -15,9 +20,6 @@ import cache from './config/cache';
 import { monitorSSEService } from './modules/monitor/monitor-sse.service';
 import { verifyToken } from './utils/auth.local';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
-
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 
@@ -213,6 +215,36 @@ app.use('/api/media', express.static(MEDIA_BASE_DIR, {
     index: false,
 }));
 
+// Debug endpoint to verify JWT token
+// GET /api/debug/verify-token?token=xxx
+app.get('/api/debug/verify-token', async (req: Request, res: Response) => {
+    const { token } = req.query;
+
+    console.log('[DEBUG] JWT_SECRET configured:', process.env.JWT_SECRET ? 'YES (custom)' : 'NO (using default)');
+    console.log('[DEBUG] JWT_SECRET value preview:', process.env.JWT_SECRET ? process.env.JWT_SECRET.substring(0, 10) + '...' : 'default');
+
+    if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: 'Token required', jwtSecretConfigured: !!process.env.JWT_SECRET });
+    }
+
+    try {
+        const decoded = await verifyToken(token);
+        res.json({
+            valid: true,
+            decoded,
+            jwtSecretConfigured: !!process.env.JWT_SECRET
+        });
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        res.status(401).json({
+            valid: false,
+            error: errorMessage,
+            jwtSecretConfigured: !!process.env.JWT_SECRET,
+            jwtSecretPreview: process.env.JWT_SECRET ? process.env.JWT_SECRET.substring(0, 10) + '...' : 'using default'
+        });
+    }
+});
+
 // SSE endpoint for real-time monitoring
 // GET /api/monitor/events/:researchId?token=xxx
 app.get('/api/monitor/events/:researchId', async (req: Request, res: Response) => {
@@ -220,13 +252,18 @@ app.get('/api/monitor/events/:researchId', async (req: Request, res: Response) =
         const { researchId } = req.params;
         const { token } = req.query;
 
+        console.log('[SSE] Connection attempt for research:', researchId);
+        console.log('[SSE] Token received:', token ? `${String(token).substring(0, 50)}...` : 'NONE');
+
         if (!token || typeof token !== 'string') {
+            console.log('[SSE] No token provided');
             return res.status(401).json({ error: 'Authentication token is required' });
         }
 
         try {
             const decoded = await verifyToken(token);
             const userId = decoded.sub;
+            console.log('[SSE] Token verified successfully, userId:', userId);
 
             // Generate unique connection ID
             const connectionId = crypto.randomUUID();
@@ -237,8 +274,11 @@ app.get('/api/monitor/events/:researchId', async (req: Request, res: Response) =
             console.log(`SSE connection established: ${connectionId} for research ${researchId}`);
 
         } catch (authError) {
-            console.error('SSE auth failed:', authError);
-            return res.status(401).json({ error: 'Invalid or expired token' });
+            const errorMessage = authError instanceof Error ? authError.message : 'Unknown error';
+            console.error('[SSE] Auth failed:', errorMessage);
+            console.error('[SSE] Token length:', token.length);
+            console.error('[SSE] JWT_SECRET configured:', process.env.JWT_SECRET ? 'YES' : 'NO (using default)');
+            return res.status(401).json({ error: 'Invalid or expired token', details: errorMessage });
         }
     } catch (error) {
         console.error('SSE connection error:', error);
