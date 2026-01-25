@@ -336,17 +336,47 @@ const pool = {
 
     /**
      * Acquire a client from the pool.
+     * Applies the same dev_ table prefix logic as pool.query() for development environment.
      */
     async connect(): Promise<PoolClient> {
         const p = await ensurePool();
         const connection = await p.getConnection();
-        
+
+        // Capture context at connection time to use in subsequent queries
+        const context = requestContext.getStore();
+        const env = detectEnvironmentFromOrigin(context?.origin);
+
         return {
             query: async <R extends QueryResultRow = QueryResultRow>(
                 queryText: string,
                 queryValues?: unknown[]
             ): Promise<QueryResult<R>> => {
-                const convertedQuery = convertPgToMysql(queryText);
+                let query = queryText;
+
+                // Add table prefix for development (same logic as pool.query)
+                if (env === 'development') {
+                    console.log('[DB Router] connect().query: Adding dev_ prefix to tables');
+                    const tables = [
+                        'researches', 'stages', 'modules', 'questions', 'responses',
+                        'users', 'enterprises', 'media',
+                        'research_types', 'research_techniques', 'research_types_techniques',
+                        'stage_templates', 'module_templates', 'stage_templates_module_templates',
+                        'analysis_modules', 'quotas', 'monitoring_connections'
+                    ];
+
+                    tables.forEach(table => {
+                        const backtick = '`';
+                        const regex = new RegExp(`(\\b|${backtick})${table}(\\b|${backtick})`, 'gi');
+                        query = query.replace(regex, (match) => {
+                            if (match.startsWith(backtick)) {
+                                return `${backtick}dev_${table}${backtick}`;
+                            }
+                            return `dev_${table}`;
+                        });
+                    });
+                }
+
+                const convertedQuery = convertPgToMysql(query);
                 const result = await connection.query(convertedQuery, queryValues as unknown[]);
                 return convertResult<R>(result);
             },
