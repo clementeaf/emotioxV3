@@ -6,6 +6,7 @@ import fs from 'fs';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { route } from './router';
 import cache from './config/cache';
+import { requestContext } from './config/database';
 
 // Try multiple .env paths for different environments
 const envPaths = [
@@ -66,6 +67,14 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Middleware to capture request origin for database selection
+app.use((req, res, next) => {
+    const origin = req.get('origin') || req.get('referer');
+    requestContext.run({ origin }, () => {
+        next();
+    });
+});
 
 // Convert Express request to Lambda event format
 app.use(async (req, res) => {

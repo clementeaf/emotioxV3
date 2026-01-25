@@ -1,5 +1,41 @@
 import { createPool, type Pool, type ResultSetHeader, type RowDataPacket, type FieldPacket, type SslOptions } from 'mysql2/promise';
 import { getSecrets } from './secrets';
+import { AsyncLocalStorage } from 'async_hooks';
+
+// AsyncLocalStorage to track request context
+export const requestContext = new AsyncLocalStorage<{ origin?: string }>();
+
+/**
+ * Detects environment based on request origin
+ * @param origin - Request origin header
+ * @returns 'development' or 'production'
+ */
+export const detectEnvironmentFromOrigin = (origin?: string): 'development' | 'production' => {
+    if (!origin) return 'production';
+    
+    // localhost:12800 = development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return 'development';
+    }
+    
+    // emotio.cx = production
+    return 'production';
+};
+
+/**
+ * Gets database name based on request origin
+ * @param baseName - Base database name
+ * @param origin - Request origin
+ * @returns Database name with environment suffix
+ */
+export const getDatabaseNameForRequest = (baseName: string, origin?: string): string => {
+    if (baseName.endsWith('_dev') || baseName.endsWith('_prod')) {
+        return baseName;
+    }
+    
+    const env = detectEnvironmentFromOrigin(origin);
+    return env === 'development' ? `${baseName}_dev` : baseName;
+};
 
 /**
  * MySQL connection pool configuration
@@ -231,12 +267,31 @@ const pool = {
     /**
      * Run a SQL query.
      * Automatically converts PostgreSQL syntax ($1, $2, ::type) to MySQL syntax (?)
+     * Dynamically selects database based on request origin
      */
     async query<R extends QueryResultRow = QueryResultRow>(
         queryTextOrConfig: string | QueryConfig,
         values?: ReadonlyArray<unknown>
     ): Promise<QueryResult<R>> {
         const p = await ensurePool();
+        
+        // Get request context to determine database
+        const context = requestContext.getStore();
+        const origin = context?.origin;
+        
+        // Switch database based on origin if needed
+        if (origin) {
+            const secrets = await getSecrets();
+            const baseName = secrets.dbName || process.env.DB_NAME || '';
+            const targetDb = getDatabaseNameForRequest(baseName, origin);
+            const currentDb = secrets.dbName;
+            
+            if (targetDb !== currentDb) {
+                // Use correct database for this request
+                await p.query(`USE \`${targetDb}\``);
+            }
+        }
+        
         const convertedQuery = convertPgToMysql(queryTextOrConfig as string);
         const result = await p.query(convertedQuery, values as unknown[]);
         return convertResult<R>(result);
