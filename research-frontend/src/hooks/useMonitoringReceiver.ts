@@ -45,35 +45,36 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
     });
 
     /**
-     * Obtiene la URL del SSE endpoint desde la configuración
-     * Funciona tanto en desarrollo local como en producción
-     * @returns URL completa del SSE endpoint o null si no está disponible
+     * Obtiene la URL base de la API para construir el endpoint SSE
+     * SSE siempre usa el mismo servidor que la API REST (cPanel)
+     * @returns URL base de la API
      */
     const getSSEUrl = async (): Promise<string | null> => {
-        // Priority 1: Allow override via environment variable
+        // Priority 1: Environment variable override
         if (import.meta.env.VITE_API_URL) {
             return import.meta.env.VITE_API_URL;
         }
 
-        // Priority 2: Try to get from config service
+        // Priority 2: Get API base URL from config service
+        // This returns the same base URL used for all API calls (cPanel)
         try {
             await configService.init();
-            // Get base URL from configService directly (it resolves apiBaseUrl internally)
             return configService.getBaseUrl();
         } catch (error) {
-            console.warn('Failed to get API URL from config service, using fallback', error);
+            console.warn('Failed to get API base URL, using fallback', error);
         }
 
-        // Priority 3: Fallback based on environment
-        const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-        if (isLocalhost) {
-            return 'http://localhost:3000';
-        }
-
-        // Last resort: construct from current origin
+        // Priority 3: Production fallback - use same origin as frontend
         const protocol = window.location.protocol;
         const host = window.location.host;
-        return `${protocol}//${host}/api`;
+        
+        // If on emotio.cx domain, API is at /api path
+        if (host.includes('emotio.cx')) {
+            return `${protocol}//${host}/api`;
+        }
+
+        // Development fallback
+        return 'http://localhost:3000';
     };
 
     // Event handlers
