@@ -34,36 +34,9 @@ export const handleConfigRoutes = async (
  * Provides API routes, feature flags, and environment settings
  */
 const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> => {
-    // Get WebSocket API URL from SSM Parameter Store or environment
-    let websocketApiUrl: string | null = null;
-
-    try {
-        // Try to get from SSM Parameter Store first
-        const ssmPrefix = process.env.SSM_PREFIX || `/emotioxv3/${process.env.API_STAGE || 'dev'}`;
-        const ssmRegion = process.env.SSM_REGION || process.env.AWS_REGION || 'us-east-1';
-
-        const ssmParams = await loadSsmParameters({
-            names: ['WEBSOCKET_API_ENDPOINT'],
-            prefix: ssmPrefix,
-            region: ssmRegion
-        });
-
-        if (ssmParams.WEBSOCKET_API_ENDPOINT) {
-            websocketApiUrl = ssmParams.WEBSOCKET_API_ENDPOINT.replace(/^https:\/\//, 'wss://');
-        }
-    } catch (error) {
-        console.warn('Failed to load WEBSOCKET_API_ENDPOINT from SSM:', error);
-    }
-
-    // Fallback to environment variable if SSM didn't work
-    if (!websocketApiUrl && process.env.WEBSOCKET_API_ENDPOINT) {
-        websocketApiUrl = process.env.WEBSOCKET_API_ENDPOINT.replace(/^https:\/\//, 'wss://');
-    }
-
-    // If still not available, log warning (frontend will use fallback)
-    if (!websocketApiUrl) {
-        console.warn('WEBSOCKET_API_ENDPOINT not configured. WebSocket will not be available until configured in SSM Parameter Store.');
-    }
+    // WebSocket API is deprecated - SSE is now used for real-time monitoring
+    // Frontend should use /api/monitor/events/:researchId endpoint instead
+    const websocketApiUrl: string | null = null;
 
     const config = {
         // API version
@@ -72,7 +45,8 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
         // Environment
         environment: process.env.API_STAGE || 'development',
 
-        // WebSocket API URL (full URL for WebSocket connections)
+        // WebSocket API URL (deprecated - use SSE endpoint instead)
+        // Frontend will use /api/monitor/events/:researchId for real-time monitoring
         websocketApiUrl: websocketApiUrl,
 
         // API endpoints (relative paths - frontend will use same domain)
