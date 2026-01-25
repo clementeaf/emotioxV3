@@ -306,15 +306,11 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Left Panel - Recruitment Link */}
             <div className="space-y-6">
-                <h2 className="text-base font-semibold text-gray-900">Recruitment link</h2>
 
                 {/* Demographic Questions */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-900">Demographic questions</h3>
-                            <p className="text-xs text-gray-500 mt-1">Please select</p>
-                        </div>
+                        <h3 className="text-sm font-medium text-gray-900">Demographic questions</h3>
                         <input
                             type="checkbox"
                             checked={demographicEnabled}
@@ -414,10 +410,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 {/* Link Configuration */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-900">Link configuration</h3>
-                            <p className="text-xs text-gray-500 mt-1">Please select</p>
-                        </div>
+                        <h3 className="text-sm font-medium text-gray-900">Link configuration</h3>
                         <input
                             type="checkbox"
                             checked={linkConfigEnabled}
@@ -463,10 +456,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 {/* Participant Limit */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-900">Limit number of participants</h3>
-                            <p className="text-xs text-gray-500 mt-1">Please select</p>
-                        </div>
+                        <h3 className="text-sm font-medium text-gray-900">Limit number of participants</h3>
                         <input
                             type="checkbox"
                             checked={participantLimitEnabled}
@@ -479,27 +469,20 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         <p className="text-sm text-gray-600 mb-2">
                             Stop accepting responses after this number of participants.
                         </p>
-                        <div className="flex items-center gap-2">
-                            <Input
-                                type="number"
-                                value={participantLimit}
-                                onChange={(e) => handleParticipantLimitChange(parseInt(e.target.value) || 50)}
-                                className="w-24"
-                                min={1}
-                                disabled={!participantLimitEnabled}
-                            />
-                            <span className="text-sm text-gray-500">
-                                You will receive 0 more responses.
-                            </span>
-                        </div>
+                        <Input
+                            type="number"
+                            value={participantLimit}
+                            onChange={(e) => handleParticipantLimitChange(parseInt(e.target.value) || 50)}
+                            className="w-24"
+                            min={1}
+                            disabled={!participantLimitEnabled}
+                        />
                     </div>
                 </div>
             </div>
 
             {/* Right Panel - Research Configuration */}
             <div className="space-y-6">
-                <h2 className="text-base font-semibold text-gray-900">Research configuration</h2>
-
                 {/* A. Backlinks */}
                 <div className="space-y-4">
                     <div>
