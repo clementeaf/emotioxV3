@@ -11,14 +11,21 @@ export const requestContext = new AsyncLocalStorage<{ origin?: string }>();
  * @returns 'development' or 'production'
  */
 export const detectEnvironmentFromOrigin = (origin?: string): 'development' | 'production' => {
-    if (!origin) return 'production';
+    if (!origin) {
+        console.log('[DB Router] No origin, defaulting to production');
+        return 'production';
+    }
+    
+    console.log('[DB Router] Checking origin:', origin);
     
     // localhost:12800 = development
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        console.log('[DB Router] DEVELOPMENT detected');
         return 'development';
     }
     
     // emotio.cx = production
+    console.log('[DB Router] PRODUCTION detected');
     return 'production';
 };
 
@@ -30,7 +37,9 @@ export const detectEnvironmentFromOrigin = (origin?: string): 'development' | 'p
  */
 export const getTablePrefixForRequest = (origin?: string): string => {
     const env = detectEnvironmentFromOrigin(origin);
-    return env === 'development' ? 'dev_' : '';
+    const prefix = env === 'development' ? 'dev_' : '';
+    console.log('[DB Router] Using prefix:', prefix || '(none)');
+    return prefix;
 };
 
 /**

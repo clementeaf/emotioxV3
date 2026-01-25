@@ -71,6 +71,7 @@ app.use(express.json());
 // Middleware to capture request origin for database selection
 app.use((req, res, next) => {
     const origin = req.get('origin') || req.get('referer');
+    console.log('[DB Router] Origin:', origin, '| Referer:', req.get('referer'), '| Host:', req.get('host'));
     requestContext.run({ origin }, () => {
         next();
     });
