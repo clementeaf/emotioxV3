@@ -48,7 +48,7 @@ export const MOCK_SMARTVOC_MODULES: Record<string, ModuleConfig> = {
                     label: 'Display Type',
                     defaultValue: 'stars', // 'stars' or 'numbers'
                     options: [
-                        { value: 'stars', label: 'Stars (⭐⭐⭐⭐⭐)' },
+                        { value: 'stars', label: 'Stars' },
                         { value: 'numbers', label: 'Numbers (1-5)' }
                     ],
                     required: true,

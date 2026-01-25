@@ -9,18 +9,14 @@ import { ResearchBuilderHeader } from '../../components/research/ResearchBuilder
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
 import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
-import { SortableSmartVOCCard } from '../../components/research/SortableSmartVOCCard';
 import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
-import { Select } from '../../components/ui/Select';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { hasModuleConfiguredValues, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
-import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 
 export const ResearchBuilderPage = () => {
     const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
@@ -81,7 +77,7 @@ export const ResearchBuilderPage = () => {
 
     const isSmartVOCStage = smartVOCStage !== null && (
         (stageId && smartVOCStage.id === stageId) ||
-        !activeModuleId ||
+        (!stageId && !activeModuleId) ||
         smartVOCModules.some(m => m.id === activeModuleId)
     );
 
@@ -119,7 +115,7 @@ export const ResearchBuilderPage = () => {
 
     const isCognitiveTasksStage = cognitiveTasksStage !== null && (
         (stageId && cognitiveTasksStage.id === stageId) ||
-        !activeModuleId ||
+        (!stageId && !activeModuleId && !isSmartVOCStage) ||
         cognitiveTaskModules.some(m => m.id === activeModuleId)
     );
 
@@ -165,60 +161,6 @@ export const ResearchBuilderPage = () => {
     // State for module template selection modal
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-
-    // State for locally ordered Smart VOC modules (for drag & drop)
-    const [orderedSmartVOCModules, setOrderedSmartVOCModules] = useState<Module[]>(smartVOCModules);
-
-    // Update ordered modules when smartVOCModules changes (e.g., after save)
-    useEffect(() => {
-        setOrderedSmartVOCModules(smartVOCModules);
-    }, [smartVOCModules]);
-
-    // Configure sensors for drag & drop
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
-
-    // Handle drag end for Smart VOC modules reordering
-    const handleDragEnd = async (event: DragEndEvent) => {
-        const { active, over } = event;
-
-        if (!over || active.id === over.id) return;
-
-        const oldIndex = orderedSmartVOCModules.findIndex(m => m.id === active.id);
-        const newIndex = orderedSmartVOCModules.findIndex(m => m.id === over.id);
-
-        if (oldIndex === -1 || newIndex === -1) return;
-
-        const reordered = arrayMove(orderedSmartVOCModules, oldIndex, newIndex);
-        setOrderedSmartVOCModules(reordered);
-
-        // Update order_index in backend
-        if (smartVOCStage) {
-            try {
-                const updates = reordered.map((module, index) => ({
-                    moduleId: module.id,
-                    order_index: index,
-                }));
-
-                await modulesService.updateModulesOrder(smartVOCStage.id, updates);
-                toast.success('Modules reordered successfully');
-                
-                // Invalidate and refetch research data to sync with backend
-                if (id) {
-                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
-                }
-            } catch (error) {
-                console.error('Error reordering modules:', error);
-                toast.error('Failed to save new order');
-                // Revert to original order
-                setOrderedSmartVOCModules(smartVOCModules);
-            }
-        }
-    };
 
     /**
      * Safely extracts a string from an unknown value.
@@ -271,17 +213,16 @@ export const ResearchBuilderPage = () => {
         try {
             setIsSaving(true);
 
-            if (isSmartVOCStage && orderedSmartVOCModules.length > 0) {
+            if (isSmartVOCStage && smartVOCModules.length > 0) {
                 // Save all Smart VOC modules with their current component values
-                // Use orderedSmartVOCModules instead of smartVOCModules to preserve the reordered state
-                const updatePromises = orderedSmartVOCModules.map((module, index) => {
+                const updatePromises = smartVOCModules.map((module) => {
                     const moduleRef = smartVOCModuleRefs.current.get(module.id);
                     if (!moduleRef) {
                         console.warn(`No ref found for module ${module.id}`);
                         // Fallback: use existing config if ref not available
                         return modulesService.update(module.id, {
                             config: module.config,
-                            order: index // Use the index from the reordered array
+                            order: module.order_index
                         });
                     }
 
@@ -318,11 +259,11 @@ export const ResearchBuilderPage = () => {
 
                     return modulesService.update(module.id, {
                         config,
-                        order: index // Use the index from the reordered array instead of module.order_index
+                        order: module.order_index
                     });
                 });
                 await Promise.all(updatePromises);
-                toast.success(`Saved ${orderedSmartVOCModules.length} Smart VOC module(s) successfully`);
+                toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
                 
                 // Invalidate and refetch research data to update the UI
                 if (id) {
@@ -520,6 +461,14 @@ export const ResearchBuilderPage = () => {
                     smartVOCStageName={smartVOCStage?.name}
                     isCognitiveTasksStage={isCognitiveTasksStage}
                     cognitiveTasksStageName={cognitiveTasksStage?.name}
+                    modules={isSmartVOCStage ? smartVOCModules : isCognitiveTasksStage ? cognitiveTaskModules : []}
+                    onModuleJump={(moduleId) => {
+                        if (isSmartVOCStage) {
+                            scrollToModule(moduleId, 'smartvoc');
+                        } else if (isCognitiveTasksStage) {
+                            scrollToModule(moduleId, 'cognitive');
+                        }
+                    }}
                 />
             </div>
 
@@ -527,64 +476,35 @@ export const ResearchBuilderPage = () => {
             <div className="flex-1 min-h-0 overflow-auto">
                 {isSettings && <ResearchSettingsView research={typedResearch} />}
 
-                {/* Smart VOC Stage: Show all modules in the same view with drag & drop */}
+                {/* Smart VOC Stage: Show all modules in the same view */}
                 {isSmartVOCStage && smartVOCModules.length > 0 && (
                     <div className="space-y-6">
-                    <div className="mb-4 flex items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">Smart VOC - All Questions</h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Configure all Smart VOC questions in this unified view. Drag the handle to reorder.
-                            </p>
-                        </div>
-                        <div className="flex-shrink-0 w-48">
-                            <Select
-                                placeholder="Jump to module..."
-                                options={orderedSmartVOCModules.map(m => ({ value: m.id, label: m.name }))}
-                                onChange={(e) => scrollToModule(e.target.value, 'smartvoc')}
-                                value=""
+                    {smartVOCModules.map((module) => (
+                        <div
+                            key={module.id}
+                            ref={(el) => {
+                                if (el) {
+                                    smartVOCModuleElementRefs.current.set(module.id, el);
+                                } else {
+                                    smartVOCModuleElementRefs.current.delete(module.id);
+                                }
+                            }}
+                        >
+                            <SmartVOCModuleCard
+                                ref={(ref) => {
+                                    if (ref) {
+                                        smartVOCModuleRefs.current.set(module.id, ref);
+                                    } else {
+                                        smartVOCModuleRefs.current.delete(module.id);
+                                    }
+                                }}
+                                module={module}
+                                researchId={id!}
+                                onSave={handleSaveModule}
+                                isActive={activeModuleId === module.id}
                             />
                         </div>
-                    </div>
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
-                    >
-                        <SortableContext
-                            items={orderedSmartVOCModules.map(m => m.id)}
-                            strategy={verticalListSortingStrategy}
-                        >
-                            {orderedSmartVOCModules.map((module) => (
-                                <div
-                                    key={module.id}
-                                    ref={(el) => {
-                                        if (el) {
-                                            smartVOCModuleElementRefs.current.set(module.id, el);
-                                        } else {
-                                            smartVOCModuleElementRefs.current.delete(module.id);
-                                        }
-                                    }}
-                                >
-                                    <SortableSmartVOCCard module={module}>
-                                        <SmartVOCModuleCard
-                                            ref={(ref) => {
-                                                if (ref) {
-                                                    smartVOCModuleRefs.current.set(module.id, ref);
-                                                } else {
-                                                    smartVOCModuleRefs.current.delete(module.id);
-                                                }
-                                            }}
-                                            module={module}
-                                            researchId={id!}
-                                            onSave={handleSaveModule}
-                                            isActive={activeModuleId === module.id}
-                                        />
-                                    </SortableSmartVOCCard>
-                                </div>
-                            ))}
-                        </SortableContext>
-                    </DndContext>
+                    ))}
                     </div>
                 )}
 
@@ -600,22 +520,6 @@ export const ResearchBuilderPage = () => {
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
                 {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
                     <div className="space-y-6">
-                    <div className="mb-4 flex items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">Cognitive Tasks - All Tasks</h2>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Configure all Cognitive Task modules in this unified view
-                            </p>
-                        </div>
-                        <div className="flex-shrink-0 w-48">
-                            <Select
-                                placeholder="Jump to module..."
-                                options={cognitiveTaskModules.map(m => ({ value: m.id, label: m.name }))}
-                                onChange={(e) => scrollToModule(e.target.value, 'cognitive')}
-                                value=""
-                            />
-                        </div>
-                    </div>
                     {cognitiveTaskModules.map((module) => (
                         <div
                             key={module.id}

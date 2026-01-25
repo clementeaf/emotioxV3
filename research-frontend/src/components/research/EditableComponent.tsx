@@ -217,14 +217,16 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                 );
             }
             return (
-                <CustomSelect
-                    id={`module-${component.id}`}
-                    label={component.label}
-                    value={value}
-                    onChange={onChange}
-                    options={component.options || []}
-                    placeholder="Select an option"
-                />
+                <div className="max-w-md">
+                    <CustomSelect
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        value={value}
+                        onChange={onChange}
+                        options={component.options || []}
+                        placeholder="Select an option"
+                    />
+                </div>
             );
 
         case 'textarea':

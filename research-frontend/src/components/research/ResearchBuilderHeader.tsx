@@ -1,5 +1,6 @@
 import { Settings, Boxes, Save } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Select } from '../ui/Select';
 import type { Research, Module } from '../../services/research.service';
 
 interface ResearchBuilderHeaderProps {
@@ -12,6 +13,8 @@ interface ResearchBuilderHeaderProps {
     smartVOCStageName?: string;
     isCognitiveTasksStage?: boolean;
     cognitiveTasksStageName?: string;
+    modules?: Module[];
+    onModuleJump?: (moduleId: string) => void;
 }
 
 /**
@@ -28,6 +31,8 @@ export const ResearchBuilderHeader = ({
     smartVOCStageName,
     isCognitiveTasksStage = false,
     cognitiveTasksStageName,
+    modules = [],
+    onModuleJump,
 }: ResearchBuilderHeaderProps) => {
     return (
         <div className="mb-8 border-b border-gray-200 pb-4">
@@ -70,7 +75,17 @@ export const ResearchBuilderHeader = ({
                                         : 'Research Builder'}
                     </p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex items-center gap-3">
+                    {(isSmartVOCStage || isCognitiveTasksStage) && modules.length > 0 && onModuleJump && (
+                        <div className="w-48">
+                            <Select
+                                placeholder="Jump to module..."
+                                options={modules.map(m => ({ value: m.id, label: m.name }))}
+                                onChange={(e) => onModuleJump(e.target.value)}
+                                value=""
+                            />
+                        </div>
+                    )}
                     {(activeModule || isSmartVOCStage || isCognitiveTasksStage) && (
                         <Button onClick={onSave} isLoading={isSaving} disabled={isSaving}>
                             <Save className="h-4 w-4 mr-2" />
