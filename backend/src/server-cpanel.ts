@@ -1,20 +1,23 @@
 /**
- * Server entry point for cPanel/Passenger
- * This is the compiled version that Passenger will execute
+ * Server entry point for cPanel/Passenger (TypeScript version)
+ * This will be compiled to dist/server-cpanel.js for Passenger
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+import dotenv from 'dotenv';
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import multer from 'multer';
+import crypto from 'crypto';
+import { route } from './router';
+import cache from './config/cache';
+import { monitorSSEService } from './modules/monitor/monitor-sse.service';
+import { verifyToken } from './utils/auth.local';
+import type { APIGatewayProxyEvent } from 'aws-lambda';
 
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
-const crypto = require('crypto');
-const { route } = require('./dist/router');
-const cache = require('./dist/config/cache').default;
-const { monitorSSEService } = require('./dist/modules/monitor/monitor-sse.service');
-const { verifyToken } = require('./dist/utils/auth.local');
+// Load environment variables
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 
@@ -36,7 +39,7 @@ const allowedOrigins = [
     process.env.CORS_ORIGIN,
     process.env.RESEARCH_FRONTEND_URL,
     process.env.PARTICIPANT_FRONTEND_URL,
-].filter(Boolean);
+].filter(Boolean) as string[];
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -73,10 +76,8 @@ const upload = multer({
     },
 });
 
-// Handle direct file upload endpoint (multipart/form-data or PUT with raw file)
-// This must be before the Lambda router to handle multipart properly
-// Supports both POST (multipart/form-data) and PUT (raw file) for compatibility
-app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => {
+// Handle direct file upload endpoint (multipart/form-data)
+app.post('/api/media/upload-direct', upload.single('file'), async (req: Request, res: Response) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
@@ -87,10 +88,8 @@ app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => 
             return res.status(400).json({ error: 'research_id and media_path are required' });
         }
 
-        // Import the handler function
-        const { handleDirectUpload } = require('./dist/modules/media/media.controller.local');
+        const { handleDirectUpload } = await import('./modules/media/media.controller.local');
         
-        // Call the handler with the uploaded file and optional media_path
         const result = await handleDirectUpload(
             research_id,
             question_id || null,
@@ -99,7 +98,7 @@ app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => 
                 data: req.file.buffer,
                 mimetype: req.file.mimetype,
             },
-            media_path // Pass media_path if provided
+            media_path
         );
 
         res.status(200).json(result);
@@ -111,14 +110,11 @@ app.post('/api/media/upload-direct', upload.single('file'), async (req, res) => 
 });
 
 // Also support PUT method for raw file uploads (S3-compatible)
-// This matches the frontend behavior which uses PUT with file in body
-app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }), async (req, res) => {
+app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }), async (req: Request, res: Response) => {
     try {
-        // For PUT, we need to get research_id and media_path from query params or headers
-        // The frontend should send these, but if not, we'll try to extract from the upload_url context
-        const research_id = req.query.research_id || req.headers['x-research-id'];
-        const question_id = req.query.question_id || req.headers['x-question-id'] || null;
-        const media_path = req.query.media_path || req.headers['x-media-path'];
+        const research_id = (req.query.research_id as string) || (req.headers['x-research-id'] as string);
+        const question_id = (req.query.question_id as string) || (req.headers['x-question-id'] as string) || null;
+        const media_path = (req.query.media_path as string) || (req.headers['x-media-path'] as string);
         
         if (!research_id || !media_path) {
             return res.status(400).json({ 
@@ -126,26 +122,22 @@ app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }),
             });
         }
 
-        if (!req.body || req.body.length === 0) {
+        if (!req.body || (req.body as Buffer).length === 0) {
             return res.status(400).json({ error: 'No file data provided' });
         }
 
-        // Get content type from headers
         const contentType = req.headers['content-type'] || 'application/octet-stream';
         
-        // Import the handler function
-        const { handleDirectUpload } = require('./dist/modules/media/media.controller.local');
+        const { handleDirectUpload } = await import('./modules/media/media.controller.local');
         
-        // Extract filename from media_path or use default
         const fileName = media_path.split('/').pop() || 'uploaded-file';
         
-        // Call the handler with the uploaded file data
         const result = await handleDirectUpload(
             research_id,
             question_id || null,
             {
                 name: fileName,
-                data: Buffer.from(req.body),
+                data: Buffer.from(req.body as Buffer),
                 mimetype: contentType,
             },
             media_path
@@ -159,9 +151,8 @@ app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }),
     }
 });
 
-// Serve media files statically (for Cognitive Tasks images, etc.)
-// This replaces S3 presigned URLs with direct file serving
-const MEDIA_BASE_DIR = process.env.MEDIA_BASE_DIR || path.join(__dirname, 'media');
+// Serve media files statically
+const MEDIA_BASE_DIR = process.env.MEDIA_BASE_DIR || path.join(__dirname, '../media');
 const MEDIA_PUBLIC_URL = process.env.MEDIA_PUBLIC_URL || '/media';
 
 // Ensure media directory exists
@@ -170,13 +161,11 @@ if (!fs.existsSync(MEDIA_BASE_DIR)) {
     console.log(`✓ Media directory created: ${MEDIA_BASE_DIR}`);
 }
 
-// Serve media files at /media/* or /api/media/*
-// This allows URLs like /media/research/123/image.jpg to work
+// Serve media files at /media/*
 app.use('/media', express.static(MEDIA_BASE_DIR, {
-    setHeaders: (res, filePath) => {
-        // Set appropriate content type based on file extension
+    setHeaders: (res: Response, filePath: string) => {
         const ext = path.extname(filePath).toLowerCase();
-        const contentTypes = {
+        const contentTypes: Record<string, string> = {
             '.jpg': 'image/jpeg',
             '.jpeg': 'image/jpeg',
             '.png': 'image/png',
@@ -190,20 +179,19 @@ app.use('/media', express.static(MEDIA_BASE_DIR, {
         if (contentTypes[ext]) {
             res.setHeader('Content-Type', contentTypes[ext]);
         }
-        // Cache control for images (1 hour)
         if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
             res.setHeader('Cache-Control', 'public, max-age=3600');
         }
     },
-    dotfiles: 'deny', // Don't serve dotfiles
-    index: false, // Don't serve directory listings
+    dotfiles: 'deny',
+    index: false,
 }));
 
 // Also serve at /api/media for compatibility
 app.use('/api/media', express.static(MEDIA_BASE_DIR, {
-    setHeaders: (res, filePath) => {
+    setHeaders: (res: Response, filePath: string) => {
         const ext = path.extname(filePath).toLowerCase();
-        const contentTypes = {
+        const contentTypes: Record<string, string> = {
             '.jpg': 'image/jpeg',
             '.jpeg': 'image/jpeg',
             '.png': 'image/png',
@@ -227,16 +215,15 @@ app.use('/api/media', express.static(MEDIA_BASE_DIR, {
 
 // SSE endpoint for real-time monitoring
 // GET /api/monitor/events/:researchId?token=xxx
-app.get('/api/monitor/events/:researchId', async (req, res) => {
+app.get('/api/monitor/events/:researchId', async (req: Request, res: Response) => {
     try {
         const { researchId } = req.params;
         const { token } = req.query;
 
-        if (!token) {
+        if (!token || typeof token !== 'string') {
             return res.status(401).json({ error: 'Authentication token is required' });
         }
 
-        // Verify token
         try {
             const decoded = await verifyToken(token);
             const userId = decoded.sub;
@@ -261,36 +248,36 @@ app.get('/api/monitor/events/:researchId', async (req, res) => {
 });
 
 // Convert Express request to Lambda event format (for compatibility)
-app.use(async (req, res) => {
+app.use(async (req: Request, res: Response) => {
     // Remove /api prefix if present (cPanel serves app at /api)
-    let path = req.path;
-    if (path.startsWith('/api')) {
-        path = path.substring(4) || '/';
+    let requestPath = req.path;
+    if (requestPath.startsWith('/api')) {
+        requestPath = requestPath.substring(4) || '/';
     }
     
     // Debug logging for add-welcome-thankyou endpoint
-    if (path.includes('add-welcome-thankyou')) {
+    if (requestPath.includes('add-welcome-thankyou')) {
         console.log('[server-cpanel] add-welcome-thankyou request:', {
             method: req.method,
             originalPath: req.path,
-            processedPath: path,
+            processedPath: requestPath,
             url: req.url
         });
     }
     
-    const event = {
+    const event: APIGatewayProxyEvent = {
         httpMethod: req.method,
-        path: path,
-        headers: req.headers,
+        path: requestPath,
+        headers: req.headers as Record<string, string>,
         multiValueHeaders: {},
         body: req.body ? JSON.stringify(req.body) : null,
         isBase64Encoded: false,
         pathParameters: null,
-        queryStringParameters: req.query || null,
+        queryStringParameters: req.query as Record<string, string> || null,
         multiValueQueryStringParameters: null,
         stageVariables: null,
-        requestContext: {},
-        resource: path,
+        requestContext: {} as any,
+        resource: requestPath,
     };
 
     try {
@@ -298,7 +285,7 @@ app.use(async (req, res) => {
 
         if (result.headers) {
             Object.keys(result.headers).forEach((key) => {
-                const value = result.headers[key];
+                const value = result.headers![key];
                 if (value && typeof value === 'string') {
                     res.setHeader(key, value);
                 }
@@ -308,17 +295,17 @@ app.use(async (req, res) => {
         // Handle multiValueHeaders (for Set-Cookie)
         if (result.multiValueHeaders) {
             Object.keys(result.multiValueHeaders).forEach((key) => {
-                const values = result.multiValueHeaders[key];
+                const values = result.multiValueHeaders![key];
                 if (Array.isArray(values)) {
                     values.forEach((value) => {
-                        res.append(key, value);
+                        res.append(key, String(value));
                     });
                 }
             });
         }
 
         // Parse body if it's a JSON string and send as JSON
-        let bodyToSend = result.body;
+        let bodyToSend: string | object = result.body;
         if (typeof result.body === 'string') {
             try {
                 const parsed = JSON.parse(result.body);
@@ -338,7 +325,6 @@ app.use(async (req, res) => {
 });
 
 // Start server only if not running under Passenger
-// Passenger provides its own server, so we only listen if PORT is explicitly set
 if (process.env.PASSENGER_APP_ENV !== 'production' && !process.env.PASSENGER_BASE_URI) {
     app.listen(PORT, () => {
         console.log(`\n✓ Server running on port ${PORT}`);
@@ -354,4 +340,4 @@ if (process.env.PASSENGER_APP_ENV !== 'production' && !process.env.PASSENGER_BAS
 }
 
 // Export for Passenger (required)
-module.exports = app;
+export = app;
