@@ -5,6 +5,10 @@ import { AsyncLocalStorage } from 'async_hooks';
 // AsyncLocalStorage to track request context
 export const requestContext = new AsyncLocalStorage<{ origin?: string }>();
 
+// Two connection pools: production and development
+let productionPool: Pool | null = null;
+let developmentPool: Pool | null = null;
+
 /**
  * Detects environment based on request origin
  * @param origin - Request origin header
@@ -30,16 +34,29 @@ export const detectEnvironmentFromOrigin = (origin?: string): 'development' | 'p
 };
 
 /**
- * Gets table prefix based on request origin
- * Since we can't create databases via SSH, we use table prefixes instead
- * @param origin - Request origin
- * @returns Table prefix ('dev_' for development, '' for production)
+ * Gets the appropriate pool based on request context
+ * Since we can't create separate databases in cPanel, we use table prefixes
+ * But we still use the same pool and manually prefix table names
  */
-export const getTablePrefixForRequest = (origin?: string): string => {
-    const env = detectEnvironmentFromOrigin(origin);
-    const prefix = env === 'development' ? 'dev_' : '';
-    console.log('[DB Router] Using prefix:', prefix || '(none)');
-    return prefix;
+const getPoolForRequest = async (): Promise<Pool> => {
+    // Always use production pool (same database)
+    if (!productionPool) {
+        const secrets = await getSecrets();
+        const dbConfig = {
+            host: secrets.dbHost || 'localhost',
+            port: parseInt(secrets.dbPort || '3306', 10),
+            user: secrets.dbUser,
+            password: secrets.dbPassword,
+            database: secrets.dbName, // Always use same database
+            ssl: secrets.dbSsl === 'true' ? ({ rejectUnauthorized: false } as SslOptions) : undefined,
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0,
+        };
+        console.log('[DB Router] Creating pool for database:', dbConfig.database);
+        productionPool = createPool(dbConfig);
+    }
+    return productionPool;
 };
 
 /**
@@ -272,29 +289,43 @@ const pool = {
     /**
      * Run a SQL query.
      * Automatically converts PostgreSQL syntax ($1, $2, ::type) to MySQL syntax (?)
-     * Adds table prefix based on request origin (dev_ for development)
+     * Uses table prefixes (dev_) for development environment
      */
     async query<R extends QueryResultRow = QueryResultRow>(
         queryTextOrConfig: string | QueryConfig,
         values?: ReadonlyArray<unknown>
     ): Promise<QueryResult<R>> {
-        const p = await ensurePool();
-        
-        // Get request context to add table prefix
-        const context = requestContext.getStore();
-        const prefix = getTablePrefixForRequest(context?.origin);
-        
-        // Add prefix to table names in query if in development
+        const p = await getPoolForRequest();
         let query = queryTextOrConfig as string;
-        if (prefix) {
-            // Replace table names with prefixed versions
-            // This is a simple implementation - might need refinement for complex queries
-            const tables = ['researches', 'stages', 'modules', 'users', 'research_types', 'research_techniques', 
-                           'stage_templates', 'module_templates', 'enterprises', 'media', 'analysis_modules',
-                           'sessions', 'responses', 'quotas', 'monitoring_connections'];
+        
+        // Add table prefix for development
+        const context = requestContext.getStore();
+        const env = detectEnvironmentFromOrigin(context?.origin);
+        
+        if (env === 'development') {
+            console.log('[DB Router] Adding dev_ prefix to tables');
+            // List of all tables that need prefixing
+            const tables = [
+                'researches', 'stages', 'modules', 'questions', 'responses',
+                'users', 'enterprises', 'media',
+                'research_types', 'research_techniques', 'research_types_techniques',
+                'stage_templates', 'module_templates', 'stage_templates_module_templates',
+                'analysis_modules', 'quotas', 'monitoring_connections'
+            ];
+            
+            // Replace table names with dev_ prefix
+            // Use word boundaries to avoid partial matches
             tables.forEach(table => {
-                const regex = new RegExp(`\\b${table}\\b`, 'gi');
-                query = query.replace(regex, `${prefix}${table}`);
+                // Match table name with optional backticks and word boundaries
+                const backtick = '`';
+                const regex = new RegExp(`(\\b|${backtick})${table}(\\b|${backtick})`, 'gi');
+                query = query.replace(regex, (match) => {
+                    // Preserve backticks if they exist
+                    if (match.startsWith(backtick)) {
+                        return `${backtick}dev_${table}${backtick}`;
+                    }
+                    return `dev_${table}`;
+                });
             });
         }
         
