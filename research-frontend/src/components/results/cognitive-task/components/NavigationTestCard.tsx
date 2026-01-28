@@ -44,7 +44,7 @@ export const NavigationTestCard = ({
   className
 }: NavigationTestCardProps) => {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([1]));
-  const [activeTab, setActiveTab] = useState('navigation');
+  const [activeTab, setActiveTab] = useState('heat-click-map');
 
   const toggleStep = (stepNumber: number) => {
     const newExpanded = new Set(expandedSteps);
@@ -170,38 +170,109 @@ export const NavigationTestCard = ({
 
                   {/* Content Area */}
                   <div className="p-4">
-                    {/* Heatmap/Image Placeholder */}
-                    {step.imageUrl && (
-                      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
-                        <HeatmapRenderer
-                          imageUrl={step.imageUrl}
-                          data={step.heatmapData || []}
-                          className="w-full"
-                        />
-                        {/* Overlay hitZones on top of heatmap */}
-                        {step.hitZones && step.hitZones.length > 0 && (
-                          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                            {step.hitZones.map((hz, idx) => (
-                              <rect
-                                key={idx}
-                                x={hz.x}
-                                y={hz.y}
-                                width={hz.width}
-                                height={hz.height}
-                                fill="rgba(59, 130, 246, 0.15)"
-                                stroke="#3B82F6"
-                                strokeWidth="0.5"
-                                strokeDasharray="2,2"
-                              />
-                            ))}
-                          </svg>
+                    {/* Heat Click Map Tab - Shows heatmap with clicks colored by correctness */}
+                    {activeTab === 'heat-click-map' && (
+                      <>
+                        {step.imageUrl ? (
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
+                            <HeatmapRenderer
+                              imageUrl={step.imageUrl}
+                              data={step.heatmapData || []}
+                              className="w-full"
+                            />
+                            {/* Overlay hitZones on top of heatmap */}
+                            {step.hitZones && step.hitZones.length > 0 && (
+                              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                {step.hitZones.map((hz, idx) => (
+                                  <rect
+                                    key={idx}
+                                    x={hz.x}
+                                    y={hz.y}
+                                    width={hz.width}
+                                    height={hz.height}
+                                    fill="rgba(59, 130, 246, 0.15)"
+                                    stroke="#3B82F6"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="2,2"
+                                  />
+                                ))}
+                              </svg>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mb-4 rounded-lg overflow-hidden bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 h-64 flex items-center justify-center">
+                            <span className="text-white font-semibold text-lg">Heatmap (No Image Available)</span>
+                          </div>
                         )}
-                      </div>
+                      </>
                     )}
 
-                    {!step.imageUrl && (
-                      <div className="mb-4 rounded-lg overflow-hidden bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 h-64 flex items-center justify-center">
-                        <span className="text-white font-semibold text-lg">Heatmap (No Image Available)</span>
+                    {/* Click Map Tab - Shows individual clicks as dots */}
+                    {activeTab === 'click-map' && (
+                      <>
+                        {step.imageUrl ? (
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
+                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto" />
+                            {/* Render individual clicks as dots */}
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              {(step.heatmapData || []).map((click, idx) => (
+                                <circle
+                                  key={idx}
+                                  cx={click.x}
+                                  cy={click.y}
+                                  r="0.8"
+                                  fill={click.isCorrect ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)'}
+                                  stroke={click.isCorrect ? '#22C55E' : '#EF4444'}
+                                  strokeWidth="0.2"
+                                />
+                              ))}
+                            </svg>
+                            {/* Overlay hitZones */}
+                            {step.hitZones && step.hitZones.length > 0 && (
+                              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                {step.hitZones.map((hz, idx) => (
+                                  <rect
+                                    key={idx}
+                                    x={hz.x}
+                                    y={hz.y}
+                                    width={hz.width}
+                                    height={hz.height}
+                                    fill="rgba(59, 130, 246, 0.1)"
+                                    stroke="#3B82F6"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="2,2"
+                                  />
+                                ))}
+                              </svg>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mb-4 rounded-lg overflow-hidden bg-gray-200 h-64 flex items-center justify-center">
+                            <span className="text-gray-500 font-semibold text-lg">No Image Available</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Image Tab - Shows only the image */}
+                    {activeTab === 'image' && (
+                      <>
+                        {step.imageUrl ? (
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100">
+                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto" />
+                          </div>
+                        ) : (
+                          <div className="mb-4 rounded-lg overflow-hidden bg-gray-200 h-64 flex items-center justify-center">
+                            <span className="text-gray-500 font-semibold text-lg">No Image Available</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Other tabs - Placeholder */}
+                    {!['heat-click-map', 'click-map', 'image'].includes(activeTab) && (
+                      <div className="mb-4 rounded-lg border bg-gray-50 h-64 flex items-center justify-center">
+                        <span className="text-gray-500">Tab content under development: {activeTab}</span>
                       </div>
                     )}
 
