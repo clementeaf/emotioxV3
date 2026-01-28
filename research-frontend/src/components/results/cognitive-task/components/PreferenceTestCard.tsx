@@ -10,6 +10,7 @@ interface PreferenceStep {
   participantCount: number;
   selectionCount?: number;
   progressColor?: string;
+  imageUrl?: string;
 }
 
 interface PreferenceTestCardProps {
@@ -85,8 +86,16 @@ export const PreferenceTestCard = ({
               {/* Step Row */}
               <div className="p-4 flex items-center gap-4">
                 {/* Step thumbnail */}
-                <div className="w-16 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-semibold text-blue-700">Step {step.stepNumber}</span>
+                <div className="w-16 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded overflow-hidden flex items-center justify-center flex-shrink-0">
+                  {step.imageUrl ? (
+                    <img 
+                      src={step.imageUrl} 
+                      alt={step.title || `Step ${step.stepNumber}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs font-semibold text-blue-700">Step {step.stepNumber}</span>
+                  )}
                 </div>
 
                 {/* Progress info */}
@@ -119,13 +128,27 @@ export const PreferenceTestCard = ({
                 </button>
               </div>
 
-              {/* Expanded Content - Placeholder */}
+              {/* Expanded Content */}
               {isExpanded && (
                 <div className="border-t bg-gray-50 p-6">
-                  <div className="text-center text-gray-500 py-8">
-                    <p className="font-medium">Step {step.stepNumber} Details</p>
-                    <p className="text-sm mt-2">Preference analysis content would be displayed here</p>
-                  </div>
+                  {step.imageUrl ? (
+                    <div className="max-w-2xl mx-auto">
+                      <img 
+                        src={step.imageUrl} 
+                        alt={step.title || `Step ${step.stepNumber}`}
+                        className="w-full rounded-lg shadow-lg"
+                      />
+                      <div className="mt-4 text-center">
+                        <p className="font-medium text-gray-700">{step.title || `Image ${step.stepNumber}`}</p>
+                        <p className="text-sm text-gray-500 mt-1">Selected by {step.completionRate}% of participants</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 py-8">
+                      <p className="font-medium">Step {step.stepNumber} Details</p>
+                      <p className="text-sm mt-2">No image available for this preference test option</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
