@@ -19,8 +19,9 @@ interface NavigationStep {
   participantCount: number;
   aois?: AOI[];
   hasHeatmap?: boolean;
-  heatmapData?: Array<{ x: number; y: number; value?: number }>;
+  heatmapData?: Array<{ x: number; y: number; value?: number; isCorrect?: boolean; timestamp?: number }>;
   imageUrl?: string;
+  hitZones?: Array<{ x: number; y: number; width: number; height: number }>;
 }
 
 interface NavigationTestCardProps {
@@ -171,12 +172,30 @@ export const NavigationTestCard = ({
                   <div className="p-4">
                     {/* Heatmap/Image Placeholder */}
                     {step.imageUrl && (
-                      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100">
+                      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
                         <HeatmapRenderer
                           imageUrl={step.imageUrl}
                           data={step.heatmapData || []}
                           className="w-full"
                         />
+                        {/* Overlay hitZones on top of heatmap */}
+                        {step.hitZones && step.hitZones.length > 0 && (
+                          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            {step.hitZones.map((hz, idx) => (
+                              <rect
+                                key={idx}
+                                x={hz.x}
+                                y={hz.y}
+                                width={hz.width}
+                                height={hz.height}
+                                fill="rgba(59, 130, 246, 0.15)"
+                                stroke="#3B82F6"
+                                strokeWidth="0.5"
+                                strokeDasharray="2,2"
+                              />
+                            ))}
+                          </svg>
+                        )}
                       </div>
                     )}
 

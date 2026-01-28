@@ -110,60 +110,36 @@ export const NavigationFlowResultsWrapper = ({
 
     // Extract image URL and HitZones from module config components
     let imageUrl = '';
-    // heatmapData was unused here, removing it to satisfy linter
-    // const heatmapData = data.heatmapData || [];
-
+    let hitZones: Array<{ x: number; y: number; width: number; height: number }> = [];
+    
     if (module?.config && typeof module.config === 'object') {
         const config = module.config as any;
         // Check if components exist in structure
         const components = config.structure?.components || [];
-
+    
         // Find file-upload component
         const fileUploadComponent = components.find((c: any) => c.type === 'file-upload');
-
-        if (fileUploadComponent) {
-            // value is stored in componentValues or directly in the component if it's a default/preview
-            // In the saved module, the value might be in a separate 'values' map or the component itself might have a value property if it was saved that way.
-            // However, based on the builder, the value is passed to EditableComponent. 
-            // We need to check where the actual filled value is stored in the module response.
-            // Looking at the potential structure: module.config.components might have the definition, but where is the 'value' (the uploaded file)?
-
-            // If it's a configured module, the 'value' might be embedded in the component definition in some implementations, 
-            // OR we need to look for a default value if it's a template? 
-            // But this is a configured instance. Let's check if 'value' is on the component.
-
-            // Wait, looking at ModuleBuilderPage, 'components' state holds the configuration. 
-            // When saving, it saves { structure: { components } }. 
-            // And EditableComponent receives 'value' from 'componentValues'.
-            // But where are componentValues saved?
-            // In ModuleBuilderPage, it seems values might not be saved in the structure?
-            // Let's look at ModuleContentEditor usage in ResearchBuilderPage... 
-
-            // Actually, for a *configured* research module (not just a template), the "answer" or "configuration" 
-            // (like the image to show) must be saved somewhere.
-            // If it's a Cognitive Task "Navigation Flow", the user "uploads" an image as part of *designing* the task.
-            // So that image array must be saved in the module's config.
-
-            // Let's fallback to checking if the component has a 'value' property or if we can find it in settings.
-            // Re-reading EditableComponent: value determines the files.
-            // Re-reading ModuleBuilderPage: it saves `structure: { components }`.
-            // So if the user uploaded a file in the builder, it must be saved into the component's `value` property 
-            // OR the component's `defaultValue`?
-
-            // Let's blindly try to find a 'value' property on the component that parses to a file list.
-
-            if (fileUploadComponent.value) {
-                try {
-                    const files = JSON.parse(fileUploadComponent.value);
-                    if (Array.isArray(files) && files.length > 0) {
-                        imageUrl = files[0].url;
+    
+        if (fileUploadComponent?.value) {
+            try {
+                const files = JSON.parse(fileUploadComponent.value);
+                if (Array.isArray(files) && files.length > 0) {
+                    imageUrl = files[0].url;
+                    // Extract hitZones from the uploaded file
+                    if (files[0].hitZones && Array.isArray(files[0].hitZones)) {
+                        hitZones = files[0].hitZones.map((hz: any) => ({
+                            x: hz.region?.x || 0,
+                            y: hz.region?.y || 0,
+                            width: hz.region?.width || 0,
+                            height: hz.region?.height || 0,
+                        }));
                     }
-                } catch (e) {
-                    // ignore
                 }
+            } catch (e) {
+                console.error('Error parsing file-upload component value:', e);
             }
         }
-
+    
         // Fallback: check top-level config just in case (legacy)
         if (!imageUrl) {
             imageUrl = (config.image_url || config.imageUrl || '') as string;
@@ -178,8 +154,9 @@ export const NavigationFlowResultsWrapper = ({
         completionRate: Math.round(data.completionRate),
         participantCount: data.totalResponses,
         hasHeatmap: data.heatmapData.length > 0,
-        heatmapData: data.heatmapData, // Pass the raw heatmap data
+        heatmapData: data.heatmapData, // Pass the raw heatmap data with isCorrect info
         imageUrl: imageUrl, // Pass the background image
+        hitZones: hitZones, // Pass hitZones for overlay rendering
         aois: [] // TODO: Extract AOIs from hitZones if needed
     }];
 
