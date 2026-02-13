@@ -270,6 +270,20 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                 />
             );
 
+        case 'ranking': {
+            const items = component.rankingConfig?.items || [];
+            return (
+                <div className="space-y-2">
+                    {items.map((item, index) => (
+                        <div key={item.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded border">
+                            <span className="text-sm font-medium text-gray-500">{index + 1}.</span>
+                            <span className="text-sm">{item.label}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
         case 'file-upload': {
             const FileUploadEditor = () => {
                 const [files, setFiles] = useState<UploadedFile[]>([]);

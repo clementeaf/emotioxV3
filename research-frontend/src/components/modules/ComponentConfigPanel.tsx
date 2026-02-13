@@ -3,7 +3,7 @@ import { Toggle } from '../ui/Toggle';
 import { CustomSelect } from '../ui/CustomSelect';
 import { Button } from '../ui/Button';
 import { Trash2, Plus } from 'lucide-react';
-import type { ComponentConfig, SelectRangeConfig, ChoiceOption } from '../../types/moduleBuilder.types';
+import type { ComponentConfig, SelectRangeConfig, ChoiceOption, RankingItem } from '../../types/moduleBuilder.types';
 
 interface ComponentConfigPanelProps {
     component: ComponentConfig;
@@ -254,7 +254,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                 />
                 <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700">
-                        Choices (Press ENTER for new line or paste a list)
+                        Choices
                     </h4>
                     {choicesConfig.choices.map((choice, index) => {
                         const canDelete = choicesConfig.choices.length > 2;
@@ -323,6 +323,106 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                     >
                         <Plus className="h-4 w-4 mr-2" />
                         Add another choice
+                    </Button>
+                </div>
+            </div>
+        );
+    };
+
+    // Ranking: Configuration for ranking component
+    const renderRankingConfig = () => {
+        const rankingConfig = component.rankingConfig || {
+            required: false,
+            items: [
+                { id: crypto.randomUUID(), label: 'Item 1' },
+                { id: crypto.randomUUID(), label: 'Item 2' },
+            ],
+        };
+
+        const handleItemLabelChange = (itemId: string, label: string): void => {
+            const updatedItems = rankingConfig.items.map((item) =>
+                item.id === itemId ? { ...item, label } : item
+            );
+            onUpdate({
+                rankingConfig: {
+                    ...rankingConfig,
+                    items: updatedItems,
+                },
+            });
+        };
+
+        const handleAddItem = (): void => {
+            const newItem: RankingItem = {
+                id: crypto.randomUUID(),
+                label: `Item ${rankingConfig.items.length + 1}`,
+            };
+            onUpdate({
+                rankingConfig: {
+                    ...rankingConfig,
+                    items: [...rankingConfig.items, newItem],
+                },
+            });
+        };
+
+        const handleDeleteItem = (itemId: string): void => {
+            const updatedItems = rankingConfig.items.filter((item) => item.id !== itemId);
+            onUpdate({
+                rankingConfig: {
+                    ...rankingConfig,
+                    items: updatedItems,
+                },
+            });
+        };
+
+        return (
+            <div className="space-y-4">
+                <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700">
+                        Ranking Items
+                    </h4>
+                    {rankingConfig.items.map((item, index) => {
+                        const canDelete = rankingConfig.items.length > 2;
+                        return (
+                            <div key={item.id} className="flex items-end gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <Input
+                                        id={`ranking-item-${item.id}-label`}
+                                        label=""
+                                        value={item.label}
+                                        onChange={(e) => handleItemLabelChange(item.id, e.target.value)}
+                                        placeholder={`Item ${index + 1}`}
+                                    />
+                                </div>
+                                <div className="mb-2.5 flex-shrink-0">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteItem(item.id)}
+                                        disabled={!canDelete}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:text-gray-400"
+                                        title={!canDelete ? 'Ranking requires a minimum of 2 items' : 'Delete item'}
+                                    >
+                                        <Trash2 className="h-4 w-4 mr-1" />
+                                        Delete
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {rankingConfig.items.length === 2 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm text-blue-700">
+                                Ranking requires a minimum of 2 items. You cannot delete more items.
+                            </p>
+                        </div>
+                    )}
+                    <Button
+                        onClick={handleAddItem}
+                        variant="outline"
+                        className="w-full"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add another item
                     </Button>
                 </div>
             </div>
@@ -405,6 +505,7 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
         const canEditSelectRange = !component.editableFields || component.editableFields.includes('selectRange');
         const canEditFileUpload = !component.editableFields || component.editableFields.includes('fileUpload');
         const canEditChoices = !component.editableFields || component.editableFields.includes('choicesConfig');
+        const canEditRanking = !component.editableFields || component.editableFields.includes('rankingConfig');
 
         switch (component.type) {
             case 'input':
@@ -416,6 +517,8 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                 return canEditFileUpload ? renderFileUploadConfig() : null;
             case 'choices':
                 return canEditChoices ? renderChoicesConfig() : null;
+            case 'ranking':
+                return canEditRanking ? renderRankingConfig() : null;
             default:
                 return null;
         }

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { BarChart3, Brain } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
 import { CognitiveTaskResults } from '../../components/results/cognitive-task/CognitiveTaskResults';
+import { useResearch } from '../../hooks/useResearchQuery';
 
 /**
  * Research Results Page
@@ -10,7 +11,20 @@ import { CognitiveTaskResults } from '../../components/results/cognitive-task/Co
  */
 export const ResearchResultsPage = () => {
     const { id } = useParams<{ id: string }>();
+    const { data: research } = useResearch(id || null);
     const [activeTab, setActiveTab] = useState<'smart-voc' | 'cognitive-task'>('smart-voc');
+    const [tabInitialized, setTabInitialized] = useState(false);
+
+    useEffect(() => {
+        if (!research || tabInitialized) return;
+        const hasSmartVOC = research.stages?.some((s: { name: string }) =>
+            s.name.toLowerCase().includes('smart voc') || s.name.toLowerCase() === 'smart voc'
+        );
+        if (!hasSmartVOC) {
+            setActiveTab('cognitive-task');
+        }
+        setTabInitialized(true);
+    }, [research, tabInitialized]);
 
     if (!id) {
         return (

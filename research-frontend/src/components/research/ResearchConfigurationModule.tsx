@@ -69,6 +69,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const participantLimit = (config.participantLimit || 50) as number;
     const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
     const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
+    const [runtimeConfigLoaded, setRuntimeConfigLoaded] = useState(false);
 
     /**
      * Loads participant base URL from /runtime-config.json when deployed (CloudFront).
@@ -78,6 +79,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         const isLocal = host === 'localhost' || host === '127.0.0.1';
         if (isLocal) {
             setRuntimeParticipantBaseUrl(null);
+            setRuntimeConfigLoaded(true);
             return;
         }
 
@@ -94,6 +96,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 const response = await fetch(configPath, { cache: 'no-store' });
                 if (!response.ok) {
                     console.warn('[ResearchConfigurationModule] Failed to fetch runtime-config.json:', response.status, response.statusText);
+                    setRuntimeConfigLoaded(true);
                     return;
                 }
                 const data = (await response.json()) as unknown;
@@ -104,12 +107,15 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         ? participantUrl
                         : `https://${participantUrl}`;
                     setRuntimeParticipantBaseUrl(normalizedUrl);
+                    setRuntimeConfigLoaded(true);
                     console.log('[ResearchConfigurationModule] Loaded participantBaseUrl from runtime-config.json:', normalizedUrl);
                 } else if (!cancelled) {
                     console.warn('[ResearchConfigurationModule] runtime-config.json does not contain valid participantBaseUrl');
+                    setRuntimeConfigLoaded(true);
                 }
             } catch (error) {
                 console.warn('[ResearchConfigurationModule] Error loading runtime-config.json, falling back to env config:', error);
+                setRuntimeConfigLoaded(true);
                 // Fallback handled in resolveParticipantBaseUrl
             }
         })();
@@ -133,7 +139,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         }
         
         // Priority 1: Use runtimeParticipantBaseUrl from runtime-config.json
-        if (runtimeParticipantBaseUrl && runtimeParticipantBaseUrl.trim().length > 0) {
+        if (runtimeConfigLoaded && runtimeParticipantBaseUrl && runtimeParticipantBaseUrl.trim().length > 0) {
             // Ensure it uses https in production
             const url = runtimeParticipantBaseUrl.trim();
             if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -205,7 +211,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     /**
      * Memoized participant share URL that updates when dependencies change
      */
-    const participantShareUrl = useMemo(() => buildParticipantShareUrl(), [runtimeParticipantBaseUrl, researchId]);
+    const participantShareUrl = useMemo(() => buildParticipantShareUrl(), [runtimeParticipantBaseUrl, runtimeConfigLoaded, researchId]);
 
     /**
      * Opens the participant-facing URL in a new tab.

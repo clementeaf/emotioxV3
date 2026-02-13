@@ -13,8 +13,9 @@ interface CognitiveTaskRendererProps {
 export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ module, onComplete }) => {
 
     // Extract common components
-    const titleComponent = module.structure.components.find(c => c.id.includes('title'));
-    const descriptionComponent = module.structure.components.find(c => c.id.includes('description'));
+    const components = module.structure?.components || [];
+    const titleComponent = components.find(c => c.id.includes('title'));
+    const descriptionComponent = components.find(c => c.id.includes('description'));
     const titleText = getComponentText(titleComponent) || module.name;
     const descriptionText = getComponentText(descriptionComponent) || module.description;
 
@@ -29,9 +30,13 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     const isPreferenceTest = module.name === 'Preference Test';
 
     const renderInteractiveComponent = () => {
+        if (components.length === 0) {
+            return <div className="text-gray-400 text-center py-4">Este módulo no tiene contenido configurado.</div>;
+        }
+
         // Text Questions
         if (isShortText || isLongText) {
-            const placeholderComp = module.structure.components.find(c => c.id.includes('placeholder'));
+            const placeholderComp = components.find(c => c.id.includes('placeholder'));
             return (
                 <TextQuestion
                     key={`${module.id}-answer`}
@@ -47,7 +52,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         // Choice Questions
         if (isSingleChoice || isMultipleChoice) {
-            const choices = module.structure.components
+            const choices = components
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
@@ -69,10 +74,10 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         // Linear Scale
         if (isLinearScale) {
-            const startValueComp = module.structure.components.find(c => c.id.includes('start-value'));
-            const endValueComp = module.structure.components.find(c => c.id.includes('end-value'));
-            const startLabelComp = module.structure.components.find(c => c.id.includes('start-label'));
-            const endLabelComp = module.structure.components.find(c => c.id.includes('end-label'));
+            const startValueComp = components.find(c => c.id.includes('start-value'));
+            const endValueComp = components.find(c => c.id.includes('end-value'));
+            const startLabelComp = components.find(c => c.id.includes('start-label'));
+            const endLabelComp = components.find(c => c.id.includes('end-label'));
 
             const minSource = getComponentText(startValueComp);
             const maxSource = getComponentText(endValueComp);
@@ -104,7 +109,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             
             // Try new format first (component with id 'items' or type 'ranking-list')
             // Also check for ranking-slider which might contain items in options
-            const itemsComponent = module.structure.components.find(c => 
+            const itemsComponent = components.find(c => 
                 c.id === 'items' || 
                 (c.type as string) === 'ranking-list' ||
                 (c.id === 'ranking-slider' && c.options && Array.isArray(c.options) && c.options.length > 0)
@@ -182,7 +187,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             
             // If no items found in new format, try old format
             if (items.length === 0) {
-                items = module.structure.components
+                items = components
                     .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                     .map(c => ({
                         id: c.id,
@@ -207,7 +212,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 console.warn('[Ranking] No items found. Module structure:', {
                     moduleId: module.id,
                     moduleName: module.name,
-                    components: module.structure.components.map(c => ({
+                    components: components.map(c => ({
                         id: c.id,
                         type: c.type,
                         label: c.label,
@@ -233,7 +238,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                 });
                 
                 // Also log each component separately for easier inspection
-                module.structure.components.forEach((c, index) => {
+                components.forEach((c, index) => {
                     console.log(`[Ranking] Component ${index + 1} (${c.id}):`, {
                         id: c.id,
                         type: c.type,
@@ -262,7 +267,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         if (isNavigationFlow) {
             // Extract images from file-upload component
-            const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
+            const imageComponent = components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<{ x: number; y: number; width: number; height: number; label?: string; }> }> = [];
 
             const rawImagesJson = getComponentText(imageComponent);
@@ -303,7 +308,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         if (isPreferenceTest) {
             // Extract images from file-upload component
-            const imageComponent = module.structure.components.find(c => c.type === 'file-upload');
+            const imageComponent = components.find(c => c.type === 'file-upload');
             let images: Array<{ id: string; name?: string; s3Key?: string; url?: string }> = [];
 
             const rawImagesJson = getComponentText(imageComponent);

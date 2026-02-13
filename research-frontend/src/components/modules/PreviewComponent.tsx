@@ -8,6 +8,7 @@ import { HorizontalSlider } from '../ui/HorizontalSlider';
 import { Checkbox } from '../ui/Checkbox';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { LocalHitzoneEditor, type HitzoneArea } from '../ui/LocalHitzoneEditor';
+import { GripVertical } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 
 interface PreviewComponentProps {
@@ -235,6 +236,21 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
             };
 
             return <ChoicesPreview />;
+        }
+
+        case 'ranking': {
+            const items = component.rankingConfig?.items || [];
+            return (
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">{component.label}</label>
+                    {items.map((item) => (
+                        <div key={item.id} className="flex items-center gap-3 px-4 py-3 rounded-lg border-2 border-gray-200 bg-white">
+                            <GripVertical className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">{item.label}</span>
+                        </div>
+                    ))}
+                </div>
+            );
         }
 
         case 'file-upload': {

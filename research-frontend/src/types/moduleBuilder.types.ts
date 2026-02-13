@@ -32,6 +32,16 @@ export interface ChoicesConfig {
     disqualifyRedirectUrl?: string;
 }
 
+export interface RankingItem {
+    id: string;
+    label: string;
+}
+
+export interface RankingConfig {
+    required: boolean;
+    items: RankingItem[];
+}
+
 export interface ValidationRule {
     type: 'required' | 'minLength' | 'maxLength' | 'pattern' | 'minFiles' | 'maxFiles';
     value?: string | number | boolean;
@@ -42,7 +52,7 @@ export interface ValidationConfig {
     rules: ValidationRule[];
 }
 
-export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices';
+export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices' | 'ranking';
 
 /**
  * Configuración adicional del componente almacenada en settings
@@ -72,6 +82,7 @@ export interface ComponentConfig {
     selectRange?: SelectRangeConfig;
     fileUpload?: FileUploadConfig;
     choicesConfig?: ChoicesConfig;
+    rankingConfig?: RankingConfig;
     options?: { label: string; value: string }[];
     editableFields?: string[];
     hidden?: boolean;
