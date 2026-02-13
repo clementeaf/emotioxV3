@@ -253,6 +253,30 @@ export const PreviewComponent = memo(({ component }: PreviewComponentProps) => {
             );
         }
 
+        case 'checkbox-list':
+        case 'option-list': {
+            let choices: Array<{ id: string; label: string }> = [];
+            try {
+                const parsed = JSON.parse(component.value || '[]');
+                if (Array.isArray(parsed)) {
+                    choices = parsed.map((c: { id?: string; label?: string }, i: number) => ({
+                        id: c.id || `opt-${i}`,
+                        label: c.label || `Option ${i + 1}`,
+                    }));
+                }
+            } catch { /* empty */ }
+            return (
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">{component.label}</label>
+                    {choices.map((choice) => (
+                        <div key={choice.id} className="w-full text-left px-4 py-3 rounded-lg border-2 border-gray-200 bg-white">
+                            <span className="text-sm">{choice.label}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
         case 'file-upload': {
             const FileUploadPreview = () => {
                 const [files, setFiles] = useState<UploadedFile[]>([]);

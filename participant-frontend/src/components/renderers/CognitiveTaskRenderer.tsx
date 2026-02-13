@@ -52,12 +52,36 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         // Choice Questions
         if (isSingleChoice || isMultipleChoice) {
-            const choices = components
+            // Try current format: individual components marked as choices
+            let choices = components
                 .filter(c => c.settings?.isChoice || c.id.includes('choice-'))
                 .map(c => ({
                     id: c.id,
                     label: getComponentText(c)
                 }));
+
+            // Fallback: parse choices from 'options' component value (checkbox-list/option-list format)
+            if (choices.length === 0) {
+                const optionsComp = components.find(c =>
+                    c.id === 'options' ||
+                    (c.type as string) === 'checkbox-list' ||
+                    (c.type as string) === 'option-list'
+                );
+                if (optionsComp) {
+                    const raw = getComponentText(optionsComp);
+                    if (raw) {
+                        try {
+                            const parsed = JSON.parse(raw);
+                            if (Array.isArray(parsed)) {
+                                choices = parsed.map((item: { id?: string; label?: string }, i: number) => ({
+                                    id: item.id || `choice-${i}`,
+                                    label: item.label || `Option ${i + 1}`,
+                                }));
+                            }
+                        } catch { /* not JSON */ }
+                    }
+                }
+            }
 
             return (
                 <ChoiceQuestion

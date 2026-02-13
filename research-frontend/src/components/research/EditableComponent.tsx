@@ -284,6 +284,16 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
             );
         }
 
+        case 'checkbox-list':
+        case 'option-list':
+            return (
+                <RadioChoicesEditor
+                    component={component}
+                    value={value}
+                    onChange={onChange}
+                />
+            );
+
         case 'file-upload': {
             const FileUploadEditor = () => {
                 const [files, setFiles] = useState<UploadedFile[]>([]);
