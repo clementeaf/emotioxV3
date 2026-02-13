@@ -1,3 +1,4 @@
+import { Trash2, Plus } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { EditableComponent } from './EditableComponent';
 
@@ -5,6 +6,8 @@ interface ModuleContentEditorProps {
     components: ComponentConfig[];
     componentValues: Record<string, string>;
     onValueChange: (componentId: string, value: string) => void;
+    onAddChoiceComponent?: (groupLabel: string, siblingComponent: ComponentConfig) => void;
+    onRemoveChoiceComponent?: (componentId: string) => void;
     researchId?: string; // For S3 upload in file-upload components
 }
 
@@ -16,6 +19,8 @@ export const ModuleContentEditor = ({
     components,
     componentValues,
     onValueChange,
+    onAddChoiceComponent,
+    onRemoveChoiceComponent,
     researchId,
 }: ModuleContentEditorProps) => {
     const visibleComponents = components
@@ -73,6 +78,7 @@ export const ModuleContentEditor = ({
         <div className="space-y-6">
             {processedComponents.map((item, index) => {
                 if (item.type === 'group' && item.components) {
+                    const canModifyChoices = !!onAddChoiceComponent && !!onRemoveChoiceComponent;
                     return (
                         <div key={`group-${index}`} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                             <label className="block text-sm font-medium text-gray-700 mb-4">
@@ -82,15 +88,36 @@ export const ModuleContentEditor = ({
                                 {item.components.map((component) => {
                                     const componentValue = componentValues[component.id] || '';
                                     return (
-                                        <EditableComponent
-                                            key={component.id}
-                                            component={component}
-                                            value={componentValue}
-                                            onChange={(value) => onValueChange(component.id, value)}
-                                            researchId={researchId}
-                                        />
+                                        <div key={component.id} className="flex items-start gap-2">
+                                            <div className="flex-1">
+                                                <EditableComponent
+                                                    component={component}
+                                                    value={componentValue}
+                                                    onChange={(value) => onValueChange(component.id, value)}
+                                                    researchId={researchId}
+                                                />
+                                            </div>
+                                            {canModifyChoices && item.components.length > 1 && (
+                                                <button
+                                                    onClick={() => onRemoveChoiceComponent(component.id)}
+                                                    className="mt-1 p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                    title="Remove option"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                        </div>
                                     );
                                 })}
+                                {canModifyChoices && (
+                                    <button
+                                        onClick={() => onAddChoiceComponent(item.groupLabel, item.components[item.components.length - 1])}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:text-gray-700 transition-colors"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add another choice
+                                    </button>
+                                )}
                             </div>
                         </div>
                     );

@@ -6,6 +6,7 @@ import type { ModuleTemplate } from '../services/moduleTemplates.service';
 
 interface UseModuleComponentsResult {
     components: ComponentConfig[];
+    setComponents: React.Dispatch<React.SetStateAction<ComponentConfig[]>>;
     componentValues: Record<string, string>;
     setComponentValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
 }
@@ -157,20 +158,20 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
     const prevContentKey = useRef(resolvedContentKey);
 
     useEffect(() => {
-        // Always keep components in sync (lightweight — just a reference swap)
-        setComponents(resolvedComponents);
-
-        // Only reset componentValues when the underlying data actually changed
+        // Only reset components and componentValues when the underlying data actually changed
         // (e.g. first load, module switch, or post-save refetch with new values).
-        // Prevents React Query background refetches from wiping unsaved edits.
+        // Prevents React Query background refetches from wiping unsaved edits
+        // or user-added/removed choice components.
         if (prevContentKey.current !== resolvedContentKey) {
             prevContentKey.current = resolvedContentKey;
+            setComponents(resolvedComponents);
             setComponentValues(buildInitialComponentValues(resolvedComponents));
         }
     }, [resolvedComponents, resolvedContentKey]);
 
     return {
         components,
+        setComponents,
         componentValues,
         setComponentValues,
     };

@@ -27,7 +27,7 @@ interface CognitiveTaskModuleCardProps {
  */
 export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
     ({ module, researchId, isActive = false }, ref) => {
-    const { components, componentValues, setComponentValues } = useModuleComponents(module);
+    const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
     // Derive initial values from props
@@ -68,6 +68,34 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
             ...prev,
             [componentId]: value,
         }));
+    };
+
+    const handleAddChoiceComponent = (groupLabel: string, siblingComponent: ComponentConfig): void => {
+        const newId = `choice-${Date.now()}`;
+        const siblingOrder = siblingComponent.order ?? 0;
+        const newComponent: ComponentConfig = {
+            id: newId,
+            type: 'input',
+            label: '',
+            settings: {
+                ...siblingComponent.settings,
+                isChoice: true,
+                groupLabel,
+            },
+            placeholder: siblingComponent.placeholder,
+            order: siblingOrder + 0.5,
+        };
+        setComponents(prev => [...prev, newComponent]);
+        setComponentValues(prev => ({ ...prev, [newId]: '' }));
+    };
+
+    const handleRemoveChoiceComponent = (componentId: string): void => {
+        setComponents(prev => prev.filter(c => c.id !== componentId));
+        setComponentValues(prev => {
+            const next = { ...prev };
+            delete next[componentId];
+            return next;
+        });
     };
 
     /**
@@ -123,6 +151,8 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                         components={components}
                         componentValues={componentValues}
                         onValueChange={handleComponentValueChange}
+                        onAddChoiceComponent={handleAddChoiceComponent}
+                        onRemoveChoiceComponent={handleRemoveChoiceComponent}
                         researchId={researchId}
                     />
                 )}
