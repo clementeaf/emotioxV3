@@ -26,8 +26,29 @@ type ChoiceItem = {
  * Editor especial para componentes radio con choices array
  */
 const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorProps) => {
-    const initialChoices: ChoiceItem[] = component.settings?.choices ?? [];
-    const [localChoices, setLocalChoices] = useState<ChoiceItem[]>(initialChoices);
+    // Build sensible initial choices: from saved value, settings.choices, or seed defaults
+    const buildInitialChoices = (): ChoiceItem[] => {
+        // 1. Try parsing saved value
+        if (value) {
+            try {
+                const parsed = JSON.parse(value);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed as ChoiceItem[];
+            } catch { /* not JSON */ }
+        }
+        // 2. Try settings.choices (legacy)
+        if (Array.isArray(component.settings?.choices) && component.settings.choices.length > 0) {
+            return component.settings.choices as ChoiceItem[];
+        }
+        // 3. Seed with minOptions empty choices so the editor is not blank
+        const min = (component.settings?.minOptions as number) || 2;
+        const defaults: ChoiceItem[] = [];
+        for (let i = 0; i < min; i++) {
+            defaults.push({ id: `choice-${i + 1}`, label: '', value: `option-${i + 1}`, eligibility: 'Qualify' });
+        }
+        return defaults;
+    };
+
+    const [localChoices, setLocalChoices] = useState<ChoiceItem[]>(buildInitialChoices);
 
     // Sync with external value changes
     useEffect(() => {
@@ -40,8 +61,6 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
             } catch {
                 // Invalid JSON, keep current state
             }
-        } else if (initialChoices.length > 0) {
-            setLocalChoices(initialChoices);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);

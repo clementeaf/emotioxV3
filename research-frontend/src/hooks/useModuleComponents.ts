@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import type { ComponentConfig } from '../types/moduleBuilder.types';
 import type { Module } from '../services/research.service';
 import { useModuleTemplates } from './useModuleTemplatesQuery';
@@ -148,10 +148,26 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
         return [];
     }, [activeModule, templates]);
 
+    // Stable content key: only reset state when component data actually changes,
+    // not when React Query returns a new object reference with identical content.
+    const resolvedContentKey = useMemo(
+        () => JSON.stringify(resolvedComponents.map(c => ({ id: c.id, value: c.value }))),
+        [resolvedComponents]
+    );
+    const prevContentKey = useRef(resolvedContentKey);
+
     useEffect(() => {
+        // Always keep components in sync (lightweight — just a reference swap)
         setComponents(resolvedComponents);
-        setComponentValues(buildInitialComponentValues(resolvedComponents));
-    }, [resolvedComponents]);
+
+        // Only reset componentValues when the underlying data actually changed
+        // (e.g. first load, module switch, or post-save refetch with new values).
+        // Prevents React Query background refetches from wiping unsaved edits.
+        if (prevContentKey.current !== resolvedContentKey) {
+            prevContentKey.current = resolvedContentKey;
+            setComponentValues(buildInitialComponentValues(resolvedComponents));
+        }
+    }, [resolvedComponents, resolvedContentKey]);
 
     return {
         components,
