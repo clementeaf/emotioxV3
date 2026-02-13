@@ -155,7 +155,7 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
         () => JSON.stringify(resolvedComponents.map(c => ({ id: c.id, value: c.value }))),
         [resolvedComponents]
     );
-    const prevContentKey = useRef(resolvedContentKey);
+    const prevContentKey = useRef('');
 
     useEffect(() => {
         // Only reset components and componentValues when the underlying data actually changed
