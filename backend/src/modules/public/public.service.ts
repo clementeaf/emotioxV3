@@ -146,35 +146,34 @@ export const getResearchConfiguration = async (researchId: string): Promise<Reco
  * @param researchId - Research ID
  * @returns Research DTO
  */
-export const getResearch = async (researchId: string): Promise<PublicResearchDto> => {
+export const getResearch = async (researchId: string, preview: boolean = false): Promise<PublicResearchDto> => {
   const cacheKey = `${CacheKeys.PUBLIC_RESEARCH}:${researchId}`;
 
-  try {
-    return await cache.getOrSet(
-      cacheKey,
-      async () => {
+  const fetchResearch = async (): Promise<PublicResearchDto> => {
         try {
-        // Check if research is active
+        // Check if research is active (or draft in preview mode)
+        const allowedStatuses = preview ? ['active', 'draft'] : ['active'];
+        const statusPlaceholders = allowedStatuses.map(() => '?').join(',');
         const researchQuery = `
           SELECT id, name, description, status
           FROM researches
-          WHERE id = ? AND status = 'active' AND deleted_at IS NULL
+          WHERE id = ? AND status IN (${statusPlaceholders}) AND deleted_at IS NULL
         `;
-        const researchResult = await pool.query(researchQuery, [researchId]);
+        const researchResult = await pool.query(researchQuery, [researchId, ...allowedStatuses]);
 
         if (researchResult.rows.length === 0) {
-          // Check if research exists but is not active
+          // Check if research exists but is not in an allowed status
           const checkQuery = `
             SELECT id, name, status, deleted_at
             FROM researches
             WHERE id = ?
           `;
           const checkResult = await pool.query(checkQuery, [researchId]);
-          
+
           if (checkResult.rows.length === 0) {
             throw new Error(`Research not found: ${researchId}`);
           }
-          
+
           const research = checkResult.rows[0];
           if (research.deleted_at) {
             throw new Error(`Research has been deleted: ${researchId}`);
@@ -182,7 +181,7 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
           if (research.status !== 'active') {
             throw new Error(`Research is not active (status: ${research.status}): ${researchId}`);
           }
-          
+
           throw new Error(`Research not found or not active: ${researchId}`);
         }
 
@@ -408,7 +407,18 @@ export const getResearch = async (researchId: string): Promise<PublicResearchDto
         }
         throw error;
       }
-      },
+  };
+
+  // Preview mode: skip cache (draft content changes frequently)
+  if (preview) {
+    return fetchResearch();
+  }
+
+  // Normal mode: use cache
+  try {
+    return await cache.getOrSet(
+      cacheKey,
+      fetchResearch,
       CacheTTL.SHORT // Cache for 1 minute (frequently changing)
     );
   } catch (error: unknown) {

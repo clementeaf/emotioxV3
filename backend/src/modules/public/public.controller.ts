@@ -14,8 +14,9 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
         if (researchMatch && httpMethod === 'GET') {
             const researchId = researchMatch[1];
             try {
-                console.log(`[Public API] Fetching research: ${researchId}`);
-                const research = await publicService.getResearch(researchId);
+                const preview = event.queryStringParameters?.preview === 'true';
+                console.log(`[Public API] Fetching research: ${researchId}${preview ? ' (preview mode)' : ''}`);
+                const research = await publicService.getResearch(researchId, preview);
                 console.log(`[Public API] Successfully fetched research: ${researchId}`);
                 return success({ research }, 200, undefined, origin);
             } catch (serviceError: unknown) {

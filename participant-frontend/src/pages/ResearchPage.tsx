@@ -392,7 +392,7 @@ export const ResearchPage = () => {
         setShowRestartOption(false);
 
         // Fetch research data from backend
-        const research = await publicService.getResearch(researchId);
+        const research = await publicService.getResearch(researchId, isPreviewMode);
         // Removed excessive logging for production
 
         // Log Welcome Screen module details if it exists

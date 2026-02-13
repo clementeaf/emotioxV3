@@ -63,11 +63,11 @@ class PublicService {
      * @param researchId - Research ID
      * @returns Research data with stages and modules
      */
-    async getResearch(researchId: string): Promise<ResearchData> {
+    async getResearch(researchId: string, preview?: boolean): Promise<ResearchData> {
         try {
             const baseUrl = configService.getBaseUrl();
             const endpoint = configService.getEndpoint('public', 'research', { id: researchId });
-            const url = `${baseUrl}${endpoint}`;
+            const url = preview ? `${baseUrl}${endpoint}?preview=true` : `${baseUrl}${endpoint}`;
 
             const response = await fetch(url, {
                 method: 'GET',

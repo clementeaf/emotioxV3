@@ -205,7 +205,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         }
         
         // Use the full baseUrl (including path like /participant) instead of just origin
-        return `${baseUrl}/research/${researchId}`;
+        return `${baseUrl}/research/${researchId}?preview=true`;
     };
 
     /**
