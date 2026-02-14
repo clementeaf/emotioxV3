@@ -97,7 +97,9 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                 {component.label}
             </label>
             <div className="space-y-3">
-                {localChoices.map((choice) => (
+                {localChoices.map((choice) => {
+                    const canDelete = localChoices.length > 2;
+                    return (
                     <div key={choice.id} className="flex items-start gap-3">
                         <div className="flex-1">
                             <Input
@@ -122,13 +124,15 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                         </div>
                         <button
                             onClick={() => handleDeleteChoice(choice.id)}
-                            className="mt-6 p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Delete option"
+                            disabled={!canDelete}
+                            className={`mt-6 p-2 rounded transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed opacity-50'}`}
+                            title={canDelete ? 'Delete option' : 'Minimum 2 options required'}
                         >
                             <Trash2 className="h-4 w-4" />
                         </button>
                     </div>
-                ))}
+                    );
+                })}
                 <Button
                     onClick={handleAddChoice}
                     variant="outline"
