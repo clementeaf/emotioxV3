@@ -294,17 +294,98 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
             );
 
         case 'ranking': {
-            const items = component.rankingConfig?.items || [];
-            return (
-                <div className="space-y-2">
-                    {items.map((item, index) => (
-                        <div key={item.id} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded border">
-                            <span className="text-sm font-medium text-gray-500">{index + 1}.</span>
-                            <span className="text-sm">{item.label}</span>
+            const RankingEditor = () => {
+                const buildInitialItems = () => {
+                    if (value) {
+                        try {
+                            const parsed = JSON.parse(value);
+                            if (Array.isArray(parsed) && parsed.length > 0) return parsed as { id: string; label: string }[];
+                        } catch { /* not JSON */ }
+                    }
+                    const items = component.rankingConfig?.items;
+                    if (items && items.length > 0) return items;
+                    return [
+                        { id: `item-${crypto.randomUUID()}`, label: 'Item 1' },
+                        { id: `item-${crypto.randomUUID()}`, label: 'Item 2' },
+                        { id: `item-${crypto.randomUUID()}`, label: 'Item 3' },
+                    ];
+                };
+
+                const [localItems, setLocalItems] = useState<{ id: string; label: string }[]>(buildInitialItems);
+
+                useEffect(() => {
+                    if (value) {
+                        try {
+                            const parsed = JSON.parse(value);
+                            if (Array.isArray(parsed)) setLocalItems(parsed);
+                        } catch { /* keep current */ }
+                    }
+                }, [value]);
+
+                const handleLabelChange = (itemId: string, label: string) => {
+                    const updated = localItems.map(item => item.id === itemId ? { ...item, label } : item);
+                    setLocalItems(updated);
+                    onChange(JSON.stringify(updated));
+                };
+
+                const handleAdd = () => {
+                    const newItem = { id: `item-${crypto.randomUUID()}`, label: `Item ${localItems.length + 1}` };
+                    const updated = [...localItems, newItem];
+                    setLocalItems(updated);
+                    onChange(JSON.stringify(updated));
+                };
+
+                const handleDelete = (itemId: string) => {
+                    const updated = localItems.filter(item => item.id !== itemId);
+                    setLocalItems(updated);
+                    onChange(JSON.stringify(updated));
+                };
+
+                return (
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium text-gray-700">
+                            {component.label}
+                        </label>
+                        <div className="space-y-3">
+                            {localItems.map((item, index) => {
+                                const canDelete = localItems.length > 2;
+                                return (
+                                    <div key={item.id} className="flex items-start gap-3">
+                                        <span className="mt-2.5 text-sm font-medium text-gray-500 w-6 text-right">{index + 1}.</span>
+                                        <div className="flex-1">
+                                            <Input
+                                                id={`ranking-${item.id}-label`}
+                                                label=""
+                                                value={item.label}
+                                                onChange={(e) => handleLabelChange(item.id, e.target.value)}
+                                                placeholder={`Item ${index + 1}`}
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={() => handleDelete(item.id)}
+                                            disabled={!canDelete}
+                                            className={`mt-1.5 p-2 rounded transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed opacity-50'}`}
+                                            title={canDelete ? 'Delete item' : 'Minimum 2 items required'}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            <Button
+                                onClick={handleAdd}
+                                variant="outline"
+                                className="w-full"
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add another item
+                            </Button>
                         </div>
-                    ))}
-                </div>
-            );
+                    </div>
+                );
+            };
+
+            return <RankingEditor />;
         }
 
         case 'checkbox-list':

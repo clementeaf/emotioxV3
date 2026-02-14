@@ -97,7 +97,7 @@ export const ModuleContentEditor = ({
                                                     researchId={researchId}
                                                 />
                                             </div>
-                                            {canModifyChoices && item.components.length > 1 && (
+                                            {canModifyChoices && item.components.length > 2 && (
                                                 <button
                                                     onClick={() => onRemoveChoiceComponent(component.id)}
                                                     className="mt-1 p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
