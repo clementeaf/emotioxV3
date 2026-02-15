@@ -26,6 +26,7 @@ interface AgeQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface AgeConfigModalProps {
@@ -55,7 +56,8 @@ function mapAgeQuotaToBase(quota: AgeQuota): BaseDemographicQuota<string> {
     field: quota.ageRange,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -65,7 +67,8 @@ function mapBaseToAgeQuota(quota: BaseDemographicQuota<string>): AgeQuota {
     ageRange: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

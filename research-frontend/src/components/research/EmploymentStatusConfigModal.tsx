@@ -26,6 +26,7 @@ interface EmploymentStatusQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface EmploymentStatusConfigModalProps {
@@ -71,7 +72,8 @@ function mapEmploymentQuotaToBase(quota: EmploymentStatusQuota): BaseDemographic
     field: quota.employmentStatus,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -81,7 +83,8 @@ function mapBaseToEmploymentQuota(quota: BaseDemographicQuota<string>): Employme
     employmentStatus: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

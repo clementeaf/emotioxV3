@@ -20,6 +20,7 @@ interface CountryQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface Continent {
@@ -313,7 +314,8 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
       country: quota.field,
       quota: quota.quota,
       quotaType: quota.quotaType,
-      isActive: quota.isActive
+      isActive: quota.isActive,
+      enforcementMode: quota.enforcementMode
     };
   };
 

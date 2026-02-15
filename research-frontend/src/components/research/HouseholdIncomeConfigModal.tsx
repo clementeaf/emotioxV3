@@ -26,6 +26,7 @@ interface HouseholdIncomeQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface HouseholdIncomeConfigModalProps {
@@ -72,7 +73,8 @@ function mapIncomeQuotaToBase(quota: HouseholdIncomeQuota): BaseDemographicQuota
     field: quota.incomeLevel,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -82,7 +84,8 @@ function mapBaseToIncomeQuota(quota: BaseDemographicQuota<string>): HouseholdInc
     incomeLevel: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

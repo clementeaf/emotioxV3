@@ -26,6 +26,7 @@ interface DailyHoursOnlineQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface DailyHoursOnlineConfigModalProps {
@@ -72,7 +73,8 @@ function mapHoursQuotaToBase(quota: DailyHoursOnlineQuota): BaseDemographicQuota
     field: quota.hoursRange,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -82,7 +84,8 @@ function mapBaseToHoursQuota(quota: BaseDemographicQuota<string>): DailyHoursOnl
     hoursRange: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

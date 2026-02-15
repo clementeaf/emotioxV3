@@ -120,7 +120,7 @@ export function QuotasTab<
                     key={quota.id}
                     className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border"
                   >
-                    <div className="flex-1 grid grid-cols-3 gap-4">
+                    <div className="flex-1 grid grid-cols-4 gap-4">
                       {/* Field Select */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -196,6 +196,23 @@ export function QuotasTab<
                             </span>
                           )}
                         </div>
+                      </div>
+
+                      {/* Enforcement Mode */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Aplicación
+                        </label>
+                        <select
+                          value={quota.enforcementMode || 'immediate'}
+                          onChange={(e) =>
+                            handleUpdateQuota(quota.id, 'enforcementMode', e.target.value as 'immediate' | 'post_collection')
+                          }
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="immediate">Descarte inmediato</option>
+                          <option value="post_collection">Filtro posterior</option>
+                        </select>
                       </div>
                     </div>
 

@@ -58,7 +58,17 @@ export const update = async (moduleId: string, data: Record<string, unknown>) =>
     
     // Fetch updated record (MySQL doesn't support RETURNING)
     const selectResult = await pool.query('SELECT * FROM modules WHERE id = ?', [moduleId]);
-    return selectResult.rows[0];
+    const updatedModule = selectResult.rows[0];
+
+    if (updatedModule.name === 'Research Configuration' && config !== undefined) {
+        const parsedConfig = typeof config === 'string' ? JSON.parse(config) : config;
+        if (parsedConfig.demographics) {
+            const { syncQuotasFromConfig } = await import('../quotas/quota.service');
+            await syncQuotasFromConfig(updatedModule.research_id, parsedConfig.demographics);
+        }
+    }
+
+    return updatedModule;
 };
 
 export const deleteModule = async (moduleId: string) => {

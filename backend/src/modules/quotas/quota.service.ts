@@ -11,6 +11,7 @@ interface QuotaConfig {
     value: string; // e.g., '18-25', 'Male', 'Chile'
     limit: number;
     enabled: boolean;
+    enforcementMode?: 'immediate' | 'post_collection';
 }
 
 interface DemographicConfig {
@@ -69,21 +70,23 @@ export async function syncQuotasFromConfig(
                 const key = `${demographicType}:${quota.value}`;
                 configuredQuotas.add(key);
 
+                const enforcementMode = quota.enforcementMode || 'immediate';
+
                 if (existingMap.has(key)) {
                     // Update existing quota
                     await client.query(
-                        `UPDATE demographic_quotas 
-                         SET quota_limit = ?, enabled = true, updated_at = NOW()
+                        `UPDATE demographic_quotas
+                         SET quota_limit = ?, enabled = true, enforcement_mode = ?, updated_at = NOW()
                          WHERE id = ?`,
-                        [quota.limit, existingMap.get(key)]
+                        [quota.limit, enforcementMode, existingMap.get(key)]
                     );
                 } else {
                     // Insert new quota
                     await client.query(
-                        `INSERT INTO demographic_quotas 
-                         (research_id, demographic_type, quota_value, quota_limit, enabled)
-                         VALUES (?, ?, ?, ?, true)`,
-                        [researchId, demographicType, quota.value, quota.limit]
+                        `INSERT INTO demographic_quotas
+                         (research_id, demographic_type, quota_value, quota_limit, enabled, enforcement_mode)
+                         VALUES (?, ?, ?, ?, true, ?)`,
+                        [researchId, demographicType, quota.value, quota.limit, enforcementMode]
                     );
                 }
             }
@@ -214,11 +217,11 @@ export async function checkQuotaAvailability(
         };
     }
 
-    // Check quota availability
+    // Check quota availability (only immediate enforcement blocks in real-time)
     const client = await pool.connect();
     try {
         const quotaChecks = await client.query(
-            `SELECT demographic_type, quota_value, quota_limit, current_count
+            `SELECT demographic_type, quota_value, quota_limit, current_count, enforcement_mode
              FROM demographic_quotas
              WHERE research_id = ? AND enabled = true`,
             [researchId]
@@ -227,6 +230,9 @@ export async function checkQuotaAvailability(
         for (const quota of quotaChecks.rows) {
             const answer = demographicAnswers[quota.demographic_type];
             if (!answer) continue;
+
+            // post_collection quotas are never enforced in real-time
+            if (quota.enforcement_mode === 'post_collection') continue;
 
             if (matchesQuotaValue(answer, quota.quota_value, quota.demographic_type)) {
                 if (quota.current_count >= quota.quota_limit) {
@@ -297,7 +303,7 @@ export async function incrementQuota(
  */
 export async function getQuotaStatus(researchId: string) {
     const result = await pool.query(
-        `SELECT demographic_type, quota_value, quota_limit, current_count, enabled
+        `SELECT demographic_type, quota_value, quota_limit, current_count, enabled, enforcement_mode
          FROM demographic_quotas
          WHERE research_id = ?
          ORDER BY demographic_type, quota_value`,

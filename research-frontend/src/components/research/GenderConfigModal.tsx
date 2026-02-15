@@ -25,6 +25,7 @@ interface GenderQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface GenderConfigModalProps {
@@ -78,7 +79,8 @@ function mapGenderQuotaToBase(quota: GenderQuota): BaseDemographicQuota<string> 
     field: quota.gender,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -91,7 +93,8 @@ function mapBaseToGenderQuota(quota: BaseDemographicQuota<string>): GenderQuota 
     gender: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

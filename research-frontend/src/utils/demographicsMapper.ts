@@ -9,6 +9,7 @@ interface BackendQuotaConfig {
     value: string;
     limit: number;
     enabled: boolean;
+    enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface BackendDisqualification {
@@ -38,6 +39,7 @@ interface ModalAgeQuota {
     quota: number;
     quotaType: 'absolute' | 'percentage';
     isActive: boolean;
+    enforcementMode?: 'immediate' | 'post_collection';
 }
 
 interface ModalCountryQuota {
@@ -46,6 +48,7 @@ interface ModalCountryQuota {
     quota: number;
     quotaType: 'absolute' | 'percentage';
     isActive: boolean;
+    enforcementMode?: 'immediate' | 'post_collection';
 }
 
 interface ModalGenderQuota {
@@ -54,6 +57,7 @@ interface ModalGenderQuota {
     quota: number;
     quotaType: 'absolute' | 'percentage';
     isActive: boolean;
+    enforcementMode?: 'immediate' | 'post_collection';
 }
 
 interface ModalGenericOption {
@@ -88,7 +92,8 @@ export function mapAgeConfigToBackend(
             id: q.id,
             value: q.ageRange,
             limit: q.quotaType === 'percentage' ? q.quota : q.quota, // Backend handles both as limits
-            enabled: true
+            enabled: true,
+            enforcementMode: q.enforcementMode || 'immediate'
         }));
 
     // Extract min/max from age ranges if possible
@@ -143,7 +148,8 @@ export function mapCountryConfigToBackend(
             id: q.id,
             value: q.country,
             limit: q.quota,
-            enabled: true
+            enabled: true,
+            enforcementMode: q.enforcementMode || 'immediate'
         }));
 
     return {
@@ -180,7 +186,8 @@ export function mapGenderConfigToBackend(
             id: q.id,
             value: q.gender,
             limit: q.quota,
-            enabled: true
+            enabled: true,
+            enforcementMode: q.enforcementMode || 'immediate'
         }));
 
     const validValues = options
@@ -221,7 +228,8 @@ export function mapGenericOptionsToBackend(
             id: q.id,
             value: q.value || '',
             limit: q.quota,
-            enabled: true
+            enabled: true,
+            enforcementMode: (q as any).enforcementMode || 'immediate'
         }));
 
     const validValues = options

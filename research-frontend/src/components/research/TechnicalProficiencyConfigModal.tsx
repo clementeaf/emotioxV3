@@ -26,6 +26,7 @@ interface TechnicalProficiencyQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface TechnicalProficiencyConfigModalProps {
@@ -71,7 +72,8 @@ function mapProficiencyQuotaToBase(quota: TechnicalProficiencyQuota): BaseDemogr
     field: quota.proficiencyLevel,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -81,7 +83,8 @@ function mapBaseToProficiencyQuota(quota: BaseDemographicQuota<string>): Technic
     proficiencyLevel: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

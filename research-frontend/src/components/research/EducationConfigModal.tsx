@@ -26,6 +26,7 @@ interface EducationLevelQuota {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 interface EducationConfigModalProps {
@@ -72,7 +73,8 @@ function mapEducationQuotaToBase(quota: EducationLevelQuota): BaseDemographicQuo
     field: quota.educationLevel,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 
@@ -82,7 +84,8 @@ function mapBaseToEducationQuota(quota: BaseDemographicQuota<string>): Education
     educationLevel: quota.field,
     quota: quota.quota,
     quotaType: quota.quotaType,
-    isActive: quota.isActive
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
   };
 }
 

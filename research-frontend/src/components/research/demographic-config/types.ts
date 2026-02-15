@@ -25,6 +25,7 @@ export interface BaseDemographicQuota<TField = string> {
   quota: number;
   quotaType: 'absolute' | 'percentage';
   isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
 }
 
 /**
