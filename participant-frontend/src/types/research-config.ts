@@ -17,6 +17,8 @@ export interface ResearchConfig {
         enabled: boolean;
         value: number;
     };
+    // Backlink URLs for redirects (complete, disqualified, overquota)
+    backlinks?: Record<string, string>;
 }
 
 export interface DeviceInfo {

@@ -566,6 +566,7 @@ export const ResearchPage = () => {
             enableInteractionTracking: true,
           },
           linkConfig: linkConfig,
+          backlinks: researchBacklinks,
         });
 
         // Removed excessive logging for production

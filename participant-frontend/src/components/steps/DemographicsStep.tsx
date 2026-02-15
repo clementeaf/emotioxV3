@@ -3,6 +3,7 @@ import type { ModuleConfig } from '../../types/module';
 import { Button } from '../ui/Button';
 import { CHILE_REGIONS } from '../../data/chile-geography';
 import { useSessionStore } from '../../stores/useSessionStore';
+import { useParticipantStore } from '../../stores/useParticipantStore';
 import { publicService } from '../../services/public.service';
 
 interface DemographicsStepProps {
@@ -14,6 +15,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module, onCo
     // Config comes from the synthetic module injected in ResearchPage
     const config = (module.config?.demographics || {}) as Record<string, any>;
     const { config: sessionConfig } = useSessionStore();
+    const { updateResponse } = useParticipantStore();
 
 
 
@@ -80,7 +82,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module, onCo
             const result = await publicService.validateDemographics(researchId, answers);
 
             if (!result.valid) {
-                const backlinks = (sessionConfig?.settings as any)?.backlinks || {};
+                const backlinks = sessionConfig?.backlinks || {};
 
                 if (result.reason === 'QUOTA_FULL') {
                     console.warn('Quota full:', result.details);
@@ -99,6 +101,11 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module, onCo
                 }
                 return;
             }
+
+            // Persist answers so handleNext picks them up via getResponsesByModule
+            Object.entries(answers).forEach(([key, value]) => {
+                updateResponse(module.id, key, value);
+            });
 
             // If valid, proceed
             onComplete();
