@@ -55,7 +55,14 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const { id: researchId } = useParams<{ id: string }>();
     const [demographicEnabled, setDemographicEnabled] = useState(true);
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
-    const [participantLimitEnabled, setParticipantLimitEnabled] = useState(true);
+    const savedParticipantLimit = config.participantLimit as { enabled: boolean; value: number } | number | undefined;
+    const [participantLimitEnabled, setParticipantLimitEnabled] = useState(() => {
+        if (typeof savedParticipantLimit === 'object' && savedParticipantLimit !== null) {
+            return savedParticipantLimit.enabled;
+        }
+        // Legacy: if it's a plain number, assume enabled
+        return typeof savedParticipantLimit === 'number';
+    });
     const [showQRModal, setShowQRModal] = useState(false);
     const [urlErrors, setUrlErrors] = useState<Record<string, string>>({});
 
@@ -66,7 +73,9 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const demographics = (config.demographics || {}) as Record<string, any>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
     const backlinks = (config.backlinks || {}) as Record<string, string>;
-    const participantLimit = (config.participantLimit || 50) as number;
+    const participantLimit = typeof savedParticipantLimit === 'object' && savedParticipantLimit !== null
+        ? savedParticipantLimit.value
+        : (typeof savedParticipantLimit === 'number' ? savedParticipantLimit : 50);
     const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
     const [quotasEnabledState, setQuotasEnabledState] = useState<Record<string, boolean>>({});
     const pendingQuotasRef = useRef<{ key: string; quotas: any[] } | null>(null);
@@ -367,10 +376,18 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
+    const handleParticipantLimitEnabledChange = (enabled: boolean) => {
+        setParticipantLimitEnabled(enabled);
+        onChange({
+            ...config,
+            participantLimit: { enabled, value: participantLimit }
+        });
+    };
+
     const handleParticipantLimitChange = (value: number) => {
         onChange({
             ...config,
-            participantLimit: value
+            participantLimit: { enabled: participantLimitEnabled, value }
         });
     };
 
@@ -534,7 +551,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         <input
                             type="checkbox"
                             checked={participantLimitEnabled}
-                            onChange={(e) => setParticipantLimitEnabled(e.target.checked)}
+                            onChange={(e) => handleParticipantLimitEnabledChange(e.target.checked)}
                             className="rounded border-gray-300"
                         />
                     </div>
