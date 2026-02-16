@@ -4,7 +4,7 @@ import mysql from 'mysql2/promise';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const CORRECT_RANKING_COMPONENTS = [
     { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Rank the following items' }, required: true, order: 1 },
