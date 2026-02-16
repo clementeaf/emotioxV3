@@ -52,7 +52,7 @@ export interface ValidationConfig {
     rules: ValidationRule[];
 }
 
-export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices' | 'ranking' | 'checkbox-list' | 'option-list';
+export type ComponentType = 'input' | 'textarea' | 'select' | 'checkbox' | 'radio' | 'file-upload' | 'choices' | 'ranking' | 'ranking-list' | 'checkbox-list' | 'option-list';
 
 /**
  * Configuración adicional del componente almacenada en settings
