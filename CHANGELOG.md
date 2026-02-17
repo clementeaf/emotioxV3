@@ -1,409 +1,433 @@
 # CHANGELOG
 
-## [0.1.0] Foundation - 2025-11-20 to 2025-11-21
-
-### Added
-- Initial monorepo setup with backend (Node.js/Express) and two frontends (research-frontend, participant-frontend)
-- Dynamic JSON-based architecture documentation with research types and comprehensive examples
-- AWS setup script and environment configuration (EC2, S3, RDS)
-- PostgreSQL database migrations and setup scripts
-- Complete backend implementation with REST API, services, and controllers
-- Research-frontend initialization with strict TypeScript, Husky pre-commit hooks
-- API services architecture with ErrorBoundaries in research-frontend
-- Research page with tabs and dashboard layout structure
-- Routing system with iterable layouts config and Sidebar navigation
-
-### Changed
-- Configured specific ports for each frontend service
-- Applied clean CSS design with light blue aesthetic
-- Simplified App.tsx routing and removed TopBar component
-- Translated all Spanish text to English in research-frontend
-
-### Fixed
-- Research technique linking, lint errors, and build setup issues
+> **533 commits** | **Nov 20 2025 → Feb 17 2026** | Monorepo: research-frontend (196 files) · participant-frontend (67 files) · backend (60 files)
 
 ---
 
-## [0.2.0] Research Type Builder & Module System - 2025-11-22 to 2025-11-23
+## Current State Summary (as of 2026-02-17)
 
-### Added
-- Research Type Builder with refactored ResearchPage
-- Module builder with component-specific configurations
-- Module preview modal for researcher view (full-screen with React Portal)
-- Full authentication system with Cognito auto-confirmation
-- Reusable ConfirmationModal component (replaced window.confirm)
-- Research types and techniques structure with assignment functionality
-- Separate module template assignment page
-- Card/list view toggle on Modules page
-- Module assignment backend functionality
-- Search and filter functionality for modules
-- Smart VOC module seeds: CES, CSAT, CV, NEV, NPS, VOC
-- Welcome Screen module template with configurable start button text
-- Hidden property for ComponentConfig
+### research-frontend (https://emotio.cx/research)
+- **Dashboard**: Research list with status, type, technique, participant count. Skeleton loader.
+- **Research Builder**: Multi-stage editor (Welcome Screen → Research Configuration → Smart VOC → Cognitive Tasks → Thank You). Save Changes per stage. Module reordering for Smart VOC.
+- **Research Configuration**: Participant limit, backlinks, demographics with quotas (Age Range, Gender, etc.), QR code generation, link preview.
+- **Smart VOC Modules**: NPS (0-10 scale), CSAT (star rating), CES, CV, NEV (20 emotions), VOC (open text). Each with question title, description, and specific configuration. Visual focus and clickable navigation between modules.
+- **Cognitive Task Modules**: Short Text, Long Text, Single Choice (option-list + eligibility), Multiple Choice (checkbox-list + eligibility), Linear Scale, Ranking (ranking-list with add/remove items), Navigation Flow (file upload + hitzones), Preference Test (file upload + A/B comparison).
+- **Module Editors**: RadioChoicesEditor for Single/Multiple Choice with dynamic add/remove and min 2 enforcement. RankingItemsEditor for Ranking with numbered inputs and min 2 enforcement. FileUploadAdvanced with hitzone editor for Navigation Flow.
+- **Results**: SmartVOC results (TrustFlowChart, CPVCard, QuestionCards for CSAT/CES/CV, NEV card, NPS component, VOC component). Cognitive Task results (Choice, LinearScale, Ranking with segmented bar chart, Navigation Flow with heat/click map tabs and hitzone overlay, Preference Test with image rendering).
+- **Auth**: Google OAuth login. Session persistence with 24h tokens and auto-refresh.
+- **Deployment**: Build locally → rsync to cPanel ~/public_html/research via SSH. Aggressive cache busting for HTML/JSON, immutable hashes for assets. GitHub Actions workflow available.
 
-### Fixed
-- Module_templates.created_by made nullable to avoid foreign key constraint
-- Invalid date display in research types list
-- Module structure parsing in frontend and ModulePreviewModal
-- Module template structures for CSAT, CES, CV corrected
+### participant-frontend (https://emotio.cx/participant)
+- **Research Flow**: Welcome Screen → Smart VOC modules → Cognitive Tasks → Thank You Screen. Step-by-step navigation with validation.
+- **Smart VOC Renderers**: ScaleSelector (NPS, CES, CV), StarSelector (CSAT), EmotionSelector (NEV with 20 emotions), VOC open text. Auto-advance for SingleChoice. Validation per module type including edge cases (0 values, emotions arrays).
+- **Cognitive Task Renderers**: TextQuestion (Short/Long Text with key prop to prevent state sharing), ChoiceSelector (Single/Multiple), LinearScale (slider variant), Ranking (vertical drag reordering), Navigation Flow (iframe + hitzone click detection), Preference Test (A/B image selection).
+- **Data Collection**: Location, device, session metadata. Demographic quotas enforcement.
+- **Response Submission**: Real-time capture, unified store (Zustand), flush on completion.
+- **Preview Mode**: Draft research preview allowed for researchers.
+- **DevSidebar**: Module navigation grouped by stage, responsive with burger menu on mobile.
+- **Security**: Turnstile disabled for cPanel environment.
+- **Deployment**: Build locally → rsync to cPanel ~/public_html/participant. GitHub Actions workflow available.
 
----
+### backend (https://emotio.cx/api)
+- **Database**: MySQL on cPanel (emotvehe_emotiox). Auto-converts PostgreSQL syntax to MySQL ($1→?, ::jsonb removal, JSON_BUILD_OBJECT→JSON_OBJECT, etc.). Environment-aware routing with dev_ table prefixes.
+- **Auth**: Local JWT authentication (24h access, 7d refresh). Google OAuth with automatic user registration. No AWS Cognito dependency.
+- **API Modules**: research, modules, module-templates, questions, responses, stage-templates, research-types, research-techniques, analytics, media, enterprises, users, quotas, monitor, public, debug, cache, config.
+- **Media**: Local file storage on cPanel (~/emotioxv3/media). Upload-direct endpoint for multipart. Static file serving for Cognitive Tasks images. Presigned URL fallback for S3 compatibility.
+- **Analytics**: Ranking responses aggregation (mean position). SmartVOC and Cognitive Task analytics endpoints.
+- **Monitoring**: SSE-based real-time monitoring (migrated from WebSocket for cPanel compatibility).
+- **Seeds**: Module templates for all Smart VOC and Cognitive Task types. Research types and techniques. Stage templates.
+- **Deployment**: Express app on cPanel via Passenger (Node.js 24.12.0). SSH deploy scripts available. GitHub Actions workflow available.
 
-## [0.3.0] Stage System & Research Builder - 2025-11-24 to 2025-11-28
-
-### Added
-- Stage system for organizing module templates (Smart VOC, Cognitive Tasks)
-- Stage_type support with improved research builder
-- Research creation redirect with dynamic sidebar
-- Delete functionality for research projects with stage highlighting
-- Thank You Screen module template
-- Cognitive Task modules 3.1 and 3.2 with corrected labels
-- Smart VOC and Cognitive Tasks seed scripts from .md documentation
-- File Upload with multiple file support and hitzone editor for Navigation Flow
-- Cognitive Tasks and Smart VOC added to stage selection modal
-- Research activation functionality
-- Enhanced Module Management with advanced features
-- Module-templates usage endpoint
-- MCP tools for database optimization and analysis
-
-### Changed
-- Optimized ResearchBuilderPage with separated components and hooks
-- Improved Sidebar structure
-- Removed 'No modules' text and improved stage accordion UI
-- Updated Multiple Choice module to use 3 individual input components grouped under CHOICES
-
-### Fixed
-- Thank You Screen module components loading and stage type issues
-- Shared apiClient used for stage templates authentication
-- TypeScript errors and dependency updates
+### Known Issues / Technical Debt
+- ~42 ESLint warnings across research-frontend (mostly `@typescript-eslint/no-explicit-any` and unused variables)
+- ~8 ESLint warnings in participant-frontend (similar `any` types and missing hook deps)
+- SSH key to cPanel requires passphrase (`sshpass` used in deploy scripts)
+- Service worker registration disabled to prevent caching issues
+- `rankingConfig.items` not synced on save (items stored in `comp.value` only — works but `rankingConfig` becomes stale)
+- Some Spanish text remaining in code comments and variable names
 
 ---
 
-## [0.4.0] Backend Caching & Module Configuration - 2025-12-01 to 2025-12-02
+## [0.13.0] Results Visualization & Module Editors — 2026-01-28 to 2026-02-17
 
-### Added
-- Backend caching system for improved performance
-- Choices component with complete configuration and preview
-- Image selection toggle for participant in File Upload
-- Remember Me functionality with refresh token
-- Unified Smart VOC view with module configurations
+### research-frontend
+- Added image rendering in Preference Test results
+- Added HitZones overlay and click correctness visualization in Navigation Flow results
+- Added tab navigation with Heat Click Map, Click Map, and Image views in Navigation Flow results
+- Added functional Ranking builder with numbered item inputs
+- Added dynamic add/remove choices for Multiple Choice module editor
+- Added checkbox-list/option-list type support with choice fallback parsing
+- Added draft research preview capability
+- Extracted RankingItemsEditor as standalone component (fixed React anti-pattern of inline component definition)
+- Added `ranking-list` to ComponentType union and EditableComponent switch
+- Fixed URL preview race condition in Research Configuration
+- Fixed CognitiveTask null-safety across results wrappers
+- Fixed vite.svg 404 by replacing missing favicon with inline empty icon
+- Fixed Multiple Choice choices reset on React Query background refetch (prevContentKey initialization)
+- Fixed RadioChoicesEditor delete button disabled when only 2 choices remain
+- Fixed quota sync and backlink URL normalization in Research Configuration
+- Fixed participantLimit persistence (saved as {enabled, value} for backend)
+
+### participant-frontend
+- Added checkbox-list/option-list support in renderers
+- Fixed backlinks delivery and demographics persistence
+- Fixed vite.svg 404 with inline empty favicon
+
+### backend
+- Added DB migration script (fix_ranking_module_config_mysql.ts) to update 24 existing Ranking modules with correct `ranking-list` structure
+- Fixed dotenv path in migration script (../../.env → ../.env for cPanel)
+- Fixed quota sync endpoints
+
+---
+
+## [0.12.0] Migration to cPanel & MySQL — 2026-01-18 to 2026-01-25
+
+### backend
+- Replaced AWS Cognito with local JWT authentication (bcrypt + jsonwebtoken)
+- Implemented PostgreSQL-to-MySQL auto-conversion layer (convertPgToMysql) handling: $N→? placeholders, type casts removal, ILIKE→LIKE, JSON function mapping, column name remapping
+- Added environment-aware database routing with dev_ table prefixes based on request origin
+- Added upload-direct endpoint for multipart file uploads (replacing S3 presigned URLs)
+- Added static file serving for media files stored on cPanel disk
+- Migrated real-time monitoring from WebSocket to SSE for cPanel compatibility
+- Added Welcome/Thank You screen creation endpoint for existing researches
+- Added mod_security disable for API directory (.htaccess) to prevent URL filtering
+- Fixed MySQL column compatibility: settings→config, user_id→created_by, stage_type→type
+- Fixed PostgreSQL json_agg FILTER to MySQL JSON_ARRAYAGG subquery conversion
+- Fixed auth: password_hash update for existing users, JSON metadata parsing from MySQL
+- Fixed media endpoint: s3_key/media_path compatibility layer
+- Removed backend-graphql service (replaced by REST)
+- Removed all AWS dependencies for runtime (Cognito, S3 upload, SSM)
+
+### research-frontend
+- Updated API client configuration for cPanel backend
+- Added Welcome/Thank You screen auto-addition for new researches
+- Fixed duplicate Welcome/Thank You prevention (stage name check, React StrictMode)
+- Fixed OAuth callback routing for local development
+- Migrated monitoring from WebSocket to SSE
+- Standardized padding across SmartVOC and CognitiveTask module cards
+- Cleaned up Research Configuration UI labels
+- Limited Welcome Screen input widths and disabled textarea resize
+
+### participant-frontend
+- Completely disabled Turnstile verification for cPanel environment
+- Fixed runtime-config.json path for /participant/ base
+- Moved build time injection to buildEnd hook
+- Fixed navigation skip for virtual welcome step when not configured
+- Added ranking-list format support with items extraction from multiple component types
+
+### infrastructure
+- Added GitHub Actions workflows for cPanel deployments (backend, research-frontend, participant-frontend)
+- Added SSH port support in deployment workflows
+- Migrated CI from PostgreSQL to MySQL
+- Improved deploy scripts with aggressive cache busting for HTML/JSON
+- Migrated seed scripts to work with both PostgreSQL and MySQL
+
+---
+
+## [0.11.0] Research Builder Refinements & Smart VOC Focus — 2026-01-09 to 2026-01-17
+
+### research-frontend
+- Added NEV emotions preview in Smart VOC module editor
+- Added visual focus styles for Input and Textarea components
+- Added Link Preview validation and error handling in Research Configuration
+- Added clickable navigation between Smart VOC modules with visual focus indicator
+- Fixed Age Range modal opening and row click behavior
+- Fixed Age Range toggle enable/disable functionality
+- Fixed QR code URL generation for production
+- Fixed stage deletion in ResearchBuilderSidebar
+- Fixed Smart VOC module reordering (drag & drop)
+- Fixed useParams consistency across sidebar components
+- Fixed duplicate bootstrapSession calls
+- Fixed service worker cross-origin interception issue
+
+### backend
+- Added automatic user registration on Google OAuth login
+- Fixed NPS question placeholder updated per PDF specification
+- Fixed module order parameter processing in backend updates
+- Fixed stage deletion error handling
+- Fixed Smart VOC module reordering endpoint
+- Added localhost:12800 to CORS allowed origins
+- Enabled Google OAuth for localhost development
+
+---
+
+## [0.10.0] Demographics, Custom Domains & Dashboard Polish — 2025-12-29 to 2026-01-04
+
+### research-frontend
+- Added demographic quotas system with specific config modals (Age Range, Gender, Location, Education, Occupation, Income)
+- Added demographics mapper for transforming modal data to backend format
+- Added skeleton loader for dashboard
+- Added collapsible sidebar with toggle button
+- Added automatic redirect to builder after research creation
+- Fixed dashboard layout, column widths, and empty state centering
+- Fixed Research Types page layout
+- Fixed query invalidation after saving modules to update UI
+- Fixed cache synchronization between list and detail views
+
+### participant-frontend
+- Added SingleChoice auto-advance behavior
+- Removed ThankYou button, replaced with close window message
+- Fixed step reset to welcome for new participants
+- Fixed sidebar step numbering
+- Fixed NEV special validation for emotions array
+- Fixed scale selector layout split into two rows
+- Improved validation and Turnstile handling
+
+### backend
+- Added demographic quotas endpoints and database support
+- Added Public User Management system
+- Extended token expiration to 24 hours
+- Fixed automatic token refresh without session logout
+- Fixed refresh token cookie maxAge aligned with Cognito (2 days)
+- Fixed API Gateway path normalization (stage prefix removal)
+- Fixed error handling for media filenames with spaces
+- Fixed Cognitive Tasks module association to correct stage template
+- Fixed default module creation on research creation
+
+### infrastructure
+- Configured custom domains: emotiox.org for frontends, api.emotiox.org for backend
+- Added domain configuration scripts and DNS setup
+
+---
+
+## [0.9.0] Security, Monitoring & UX Improvements — 2025-12-20 to 2025-12-26
+
+### research-frontend
+- Added Google login button with OAuth integration
+- Added default modules toggle to research creation flow
+- Added compact research type cards with resizable table
+- Improved research builder UX and module management
+- Extracted UI components to separate files for maintainability
+- Optimized Sidebar component
+- Removed unused examples and consolidated duplicate code
+- Fixed session bootstrapping with AuthProvider
+- Fixed Research Config componentValues initialization from nested config
+
+### participant-frontend
+- Added Cloudflare Turnstile anti-bot CAPTCHA protection
+- Extracted UI state screens (bootstrap error, loading) to separate components
+- Fixed BootstrapErrorScreen moved to separate file (Fast Refresh warning)
+
+### backend
+- Implemented real-time monitoring system (WebSocket-based)
+- Fixed WebSocket connection and monitoring endpoint improvements
+- Consolidated env variables into backend, removed root env files
+- Fixed ESLint warnings and React hooks errors across projects
+
+---
+
+## [0.8.0] Production Stabilization & AWS Fixes — 2025-12-09 to 2025-12-19
+
+### research-frontend
+- Added Save Changes button to Cognitive Tasks stage
+- Added module hide flag toggle (local-only)
+- Added link preview using participant CloudFront URL
+- Optimized caching strategy for instant updates (network-first for HTML, immutable for hashed assets)
+- Fixed presigned URL usage for S3 image uploads
+
+### participant-frontend
+- Added auto-navigation on NavigationFlow completion
+- Added dynamic button text based on module type (Continue / Next / Submit)
+- Added auto-advance modules with hidden buttons and instruction texts
+- Added configurable start button text from Welcome Screen module
+- Added responsive DevSidebar with burger menu on mobile
+- Added emergency cache clear page for service worker issues
+- Fixed module state persistence and Service Worker chrome-extension filter
+- Fixed hitzone click detection for object-contain images
+- Fixed Navigation Flow display component validation
+- Fixed NPS scale numbers made circular with proper spacing
+- Fixed scale validation for all SmartVOC modules (CSAT, NPS, CES, CV) including 0-value edge cases
+- Fixed stale closure prevention using getState() in validation
+- Fixed specific validation for VOC and NEV modules
+- Fixed TextQuestion state sharing between Short/Long Text modules (key prop)
+- Fixed start_button_text filtering with multiple layers of protection
+- Updated service worker to network-first strategy
+- Enforced runtime-config.json over VITE_API_URL
+
+### backend
+- Added SSM Parameter Store for secrets management
+- Added CORS middleware
+- Fixed participant public research stages and responses endpoints
+- Fixed npm ci by pinning serverless-offline to v13
+- Fixed participant flow, runtime config, and media presigned URLs
+- Fixed auth 401 handling with refresh and rememberMe
+- Fixed Serverless dotenv path and SSM variable resolution
+- Added module hide flag persistence and participant-side skip logic
+
+### infrastructure
+- Fixed CI workflow: check-changes job, paths-filter, workflow-success conditions
+- Fixed CloudFront invalidation wait for deployment completion
+- Fixed S3 bucket cleaned before deployment to remove stale assets
+- Fixed Content-Type headers for JS files in S3 deployment
+- Added CloudFront URLs to CORS allowed origins
+- Disabled service worker registration to prevent caching issues
+
+---
+
+## [0.7.0] AWS Production Deployment — 2025-12-05 to 2025-12-07
+
+### research-frontend
+- Implemented service discovery pattern for environment-agnostic backend consumption (runtime-config.json)
+- Major performance optimizations (code splitting, lazy loading)
+
+### participant-frontend
+- Added interactive question components for all module types
+- Added real-time participant response capture and submission
+- Handled legacy module structure with data format spec
+- Major performance optimizations
+
+### backend
+- Complete AWS deployment: Lambda, API Gateway, S3, CloudFront
+- RDS database setup with SSL, data migration from development
+- Database connection timeout and Lambda resources increased
+- Complete analytics visualization endpoints with database migration
+
+### infrastructure
+- Added complete AWS production deployment infrastructure (GitHub Actions)
+- Added Cognito configuration and test scripts
+- Added workflow_dispatch for manual deployment triggers
+- Added CloudFront permissions fix script for S3 buckets
+- Fixed legacy-peer-deps for npm ci in deployment
+
+---
+
+## [0.6.0] Dashboard, Results & Analytics — 2025-12-05
+
+### research-frontend
+- Added Research Configuration stage as default for all researches
+- Added QR Code modal functionality in Research Configuration
+- Added comprehensive Dashboard page with research list, status indicators, and management actions
+- Added Results section in sidebar navigation
+- Added SmartVOC Results: TrustFlowChart (NPS/NEV dual visualization), CPVCard with wave pattern, QuestionCard format for CSAT/CES/CV, NEV Question Card, NPS component, VOC component
+- Added Cognitive Task Results: Choice, LinearScale, Ranking, Navigation Test, and Preference Test cards with Filters sidebar
+- Implemented SmartVOC calculation formulas (CPV = CSAT/CES)
+- Interactive charts using Recharts library
+- Fixed dashboard layout, duplicate filters, and PreferenceTestCard progress bars
+
+### participant-frontend
+- Added preview mode for researchers to test survey flow
+- Added QR generator with participant-frontend URL
+
+### backend
+- Added Research Configuration stage creation as default
+- Added participantId validation for response submission
+- Added analytics endpoints for SmartVOC and Cognitive Task results
+
+---
+
+## [0.5.0] Participant Frontend — 2025-12-04
+
+### participant-frontend
+- Implemented complete participant survey experience from scratch
+- Basic responsive layout and styles
+- Conditional data collection (location, device, session metadata)
+- Development sidebar for module navigation with stage grouping
+- Dynamic module system with display-only content rendering
+- SmartVOC renderer supporting all module types: NPS (ScaleSelector), CSAT (StarSelector), CES/CV (ScaleSelector), NEV (EmotionSelector with 20 emotions), VOC (open text)
+- Cognitive Tasks renderer with ChoiceSelector for Single/Multiple Choice
+- Slider variant for Linear Scale
+- Ranking module with vertical drag-and-drop reordering
+- Navigation Flow with iframe and hitzone tracking
+- Preference Test with A/B image comparison
+- Unified store (Zustand) for responses and navigation
+- Clean user tracking system
+
+### research-frontend
+- Added module save functionality for persisting researcher configurations
+
+---
+
+## [0.4.0] Backend Caching & Module Configuration — 2025-12-01 to 2025-12-02
+
+### backend
+- Implemented caching system for improved API performance
+- Added module-templates usage endpoint
+- Fixed SQL errors in getUsage endpoint (500 errors, missing created_at)
+- Fixed stage ordering
+
+### research-frontend
+- Added Choices component with complete configuration and preview
+- Added image selection toggle for participant in File Upload
+- Implemented unified Smart VOC view with module configurations
 - Smart VOC previews with fixed NPS range (0-10)
-
-### Changed
-- Service layers updated with caching improvements
-- LivePreviewPanel simplified
-- Removed `any` types and improved TypeScript typing in research-frontend
-- Smart VOC modules translated to English
-
-### Fixed
-- Overflow and scrollbars in Create New Module
-- Toggles corrected and Validation Rules removed from ComponentConfigPanel
-- Module name and description restored in preview
-- SQL errors in getUsage endpoint (500 errors, missing created_at)
-- Form field id/name attributes added for accessibility and CSP issues
-- NEV range selector visibility
-- Remember Me token refresh issue
-- Stage ordering
-
-### Performance
+- Added Remember Me functionality with refresh token
+- Simplified LivePreviewPanel
+- Removed `any` types and improved TypeScript typing
+- Translated Smart VOC modules to English
+- Fixed overflow and scrollbars in Create New Module
+- Fixed toggles and removed Validation Rules from ComponentConfigPanel
+- Fixed module name and description in preview
+- Fixed form field id/name attributes for accessibility
+- Fixed NEV range selector visibility
 - Optimized usage data loading on ModulesPage
 
 ---
 
-## [0.5.0] Participant Frontend - 2025-12-04
+## [0.3.0] Stage System & Research Builder — 2025-11-24 to 2025-11-28
 
-### Added
-- Basic responsive layout and styles for participant-frontend
-- Conditional data collection (location, device, session metadata)
-- Development sidebar for module navigation with stage grouping
-- Dynamic module system with display-only content rendering
-- SmartVOC renderer supporting all module types (NPS, CSAT, CES, CV, NEV, VOC)
-- Reusable ScaleSelector component for SmartVOC modules
-- StarSelector component for CSAT star rating
-- EmotionSelector component for NEV with 20 emotions
-- Cognitive Tasks renderer with ChoiceSelector
-- Slider variant for Linear Scale
-- Ranking module with vertical drag reordering
-- Navigation Flow and Preference Test modules with advanced features
-- Unified store for responses and navigation
-- Clean user tracking system
-- Module save functionality in research-frontend
+### research-frontend
+- Added stage system UI for organizing module templates (Smart VOC, Cognitive Tasks)
+- Research creation redirect with dynamic sidebar
+- Delete functionality for research projects with stage highlighting
+- Cognitive Tasks and Smart VOC added to stage selection modal
+- Research activation functionality
+- Enhanced Module Management with advanced features
+- File Upload with multiple file support and hitzone editor for Navigation Flow
+- Optimized ResearchBuilderPage with separated components and hooks
+- Improved Sidebar structure and stage accordion UI
 
-### Changed
-- Simplified navigation architecture and improved sidebar UI
-
-### Fixed
-- DynamicStep syntax and sidebar cognitive tasks integration
-- Type errors in mock cognitive modules
-- Navigation Flow and Preference Test added to DynamicStep detection
-- Components made more compact and responsive
-- Missing 'name' property in CognitiveTaskRenderer fallback objects
+### backend
+- Added stage system with stage_type support
+- Added Thank You Screen module template
+- Added Cognitive Task modules 3.1 and 3.2 with corrected labels
+- Added Smart VOC and Cognitive Tasks seed scripts
+- Added module-templates usage endpoint
+- Added MCP tools for database optimization and analysis
+- Updated Multiple Choice module to use 3 individual input components grouped under CHOICES
+- Fixed Thank You Screen module components loading and stage type issues
 
 ---
 
-## [0.6.0] Dashboard, Results & Analytics - 2025-12-05
+## [0.2.0] Research Type Builder & Module System — 2025-11-22 to 2025-11-23
 
-### Added
-- Research Configuration stage as default for all researches
-- QR Code modal functionality in Research Configuration
-- Comprehensive Dashboard page with research management
-- Results section in sidebar navigation
-- Results architecture for SmartVOC and Cognitive Task analytics
-- Interactive charts using Recharts library
-- SmartVOC Results: TrustFlowChart (NPS/NEV dual visualization), CPVCard with wave pattern, shared QuestionCard format for CSAT/CES/CV, NEV Question Card, NPS Question component, VOC Question component
-- Cognitive Task Results: Choice, LinearScale, Ranking, Navigation Test, and Preference Test cards with Filters sidebar
-- SmartVOC calculation formulas (CPV = CSAT/CES)
-- Preview mode in participant-frontend
-- ParticipantId validation in backend
-- QR generator with participant-frontend URL
+### research-frontend
+- Implemented Research Type Builder with refactored ResearchPage
+- Module builder with component-specific configurations
+- Module preview modal (full-screen with React Portal)
+- Reusable ConfirmationModal component
+- Research types and techniques structure with assignment functionality
+- Separate module template assignment page
+- Card/list view toggle and search/filter on Modules page
+- Hidden property for ComponentConfig
+- Fixed module structure parsing in ModulePreviewModal
 
-### Fixed
-- Dashboard layout and removed duplicate filters
-- Checkboxes disabled instead of hidden when parent is unchecked
-- PreferenceTestCard progress bars and layout
-- CPVCard equation styling
-
-### Changed
-- Removed EmotionalStates and VOCComments from SmartVOC results
+### backend
+- Full authentication system with Cognito auto-confirmation
+- Module assignment functionality
+- Smart VOC module seeds: CES, CSAT, CV, NEV, NPS, VOC
+- Welcome Screen module template with configurable start button text
+- Fixed module_templates.created_by made nullable
+- Fixed invalid date display in research types list
 
 ---
 
-## [0.7.0] AWS Production Deployment - 2025-12-05 to 2025-12-07
+## [0.1.0] Foundation — 2025-11-20 to 2025-11-21
 
-### Added
-- Complete AWS production deployment infrastructure (Lambda, API Gateway, S3, CloudFront)
-- Service discovery pattern for environment-agnostic backend consumption
-- GitHub Actions secrets setup script
-- Cognito configuration and test scripts
-- Workflow_dispatch for manual deployment triggers
-- CloudFront permissions fix script for S3 buckets
-- Real-time participant response capture and submission
-- Complete analytics visualization with database migration
-- Interactive question components in participant-frontend
-- Legacy module structure handling with data format spec
+### backend
+- Initial monorepo setup with Express backend
+- Complete REST API implementation with services and controllers
+- PostgreSQL database migrations and setup scripts
 
-### Fixed
-- Legacy-peer-deps for npm ci in deployment
-- Database connection timeout and Lambda resources increased
-- SSL enabled for RDS database connections
-- Service worker syntax error and refresh token handling
-- TypeScript warnings and type safety improvements
-- Filters component prop typing
-- @types/react-dom version pinned
+### research-frontend
+- Project initialization with strict TypeScript and Husky pre-commit hooks
+- API services architecture with ErrorBoundaries
+- Research page with tabs and dashboard layout structure
+- Routing system with iterable layouts config and Sidebar navigation
+- Clean CSS design with light blue aesthetic
 
-### Performance
-- Major performance optimizations for research-frontend
-- Major performance optimizations for participant-frontend
+### participant-frontend
+- Project initialization and port configuration
 
----
-
-## [0.8.0] Production Stabilization & AWS Fixes - 2025-12-09 to 2025-12-19
-
-### Added
-- CORS middleware for backend server
-- SSM Parameter Store for backend secrets management
-- Module hide flag with participant-side skip logic
-- Auto-navigation on NavigationFlow completion
-- Dynamic button text based on module type
-- Auto-advance modules with hidden buttons and instruction texts
-- Configurable start button text in Welcome Screen
-- Responsive DevSidebar with burger menu on mobile
-- Optimized caching strategies for both frontends (instant updates)
-- Emergency cache clear page for service worker issues
-
-### Fixed
-- Module state persistence and Service Worker chrome-extension filter
-- Presigned URL usage for S3 image uploads
-- Save Changes button added to Cognitive Tasks stage
-- Participant public research stages and responses
-- Backend npm ci by pinning serverless-offline to v13
-- Participant flow, runtime config, and media presigned URLs
-- Auth 401 handling with refresh and rememberMe
-- Serverless dotenv path and SSM variable resolution
-- Link preview using participant CloudFront URL via runtime-config
-- Hitzone click detection for object-contain images
-- Validation for Navigation Flow display components
-- NPS scale numbers made circular with proper spacing
-- Scale validation for all SmartVOC modules (CSAT, NPS, CES, CV) handling edge cases including 0 values
-- Stale closure prevention using getState() in validation
-- Specific validation for VOC and NEV modules
-- TextQuestion state sharing between Short/Long Text modules prevented with key prop
-- Start_button_text filtering with multiple layers of protection
-- CloudFront invalidation wait for deployment completion
-- Service worker updated to network-first strategy
-- S3 bucket cleaned before deployment to remove stale assets
-- Runtime-config.json enforced over VITE_API_URL
-- CloudFront URLs added to CORS allowed origins
-- Content-Type headers for JS files in S3 deployment
-
-### Changed
-- CI workflow improvements: check-changes job, paths-filter, workflow-success conditions
-- Service worker registration disabled to prevent caching issues
-
----
-
-## [0.9.0] Security, Monitoring & UX Improvements - 2025-12-20 to 2025-12-26
-
-### Added
-- Cloudflare Turnstile anti-bot CAPTCHA protection
-- Real-time monitoring system (WebSocket-based)
-- Google login button with OAuth integration
-- Default modules toggle in research creation flow
-- Compact research type cards with resizable table
-
-### Changed
-- Research builder UX improvements and module management
-- Extracted UI state screens to separate components (participant-frontend)
-- Extracted UI components to separate files for maintainability
-- Optimized Sidebar component
-- Organized project structure (docs and scripts directories)
-- Consolidated env variables into backend, removed root env files
-- Removed unused examples and consolidated duplicate code
-
-### Fixed
-- BootstrapErrorScreen moved to separate file (Fast Refresh warning)
-- ESLint warnings and React hooks errors
-- WebSocket connection and monitoring improvements
-- Session bootstrapping with AuthProvider
-- Research Config componentValues initialization from nested config
-
----
-
-## [0.10.0] Demographics, Custom Domains & Dashboard Polish - 2025-12-29 to 2026-01-04
-
-### Added
-- Demographic quotas system with specific config modals (Age Range, Gender, etc.)
-- Demographics mapper for modal-to-backend data transformation
-- Custom domains: emotiox.org for frontends, api.emotiox.org for backend
-- Skeleton loader for dashboard
-- SingleChoice auto-advance behavior
-- ThankYou screen: removed button, added close window message
-- Public User Management system
-- Collapsible sidebar with toggle button
-- Automatic redirect to builder after research creation
-- Token expiration extended to 24 hours
-
-### Fixed
-- Session persistence, mobile layout, NEV auto-advance
-- Heatmap image loading and S3 URL expiration
-- Dashboard and research builder page layouts
-- Step reset to welcome for new participants and sidebar step numbering
-- NEV special validation for emotions array
-- Default module creation on research creation
-- Cache synchronization between views
-- Dashboard column widths and empty state centering
-- Cognitive Tasks module association to correct stage template
-- Research Types page layout
-- Query invalidation after saving modules
-- Refresh token cookie maxAge aligned with Cognito (2 days)
-- Automatic token refresh without session logout
-- API Gateway path normalization (stage prefix removal)
-- Backend error handling for media filenames with spaces
-- Participant-frontend validation and Turnstile handling
-
----
-
-## [0.11.0] Research Builder Refinements & Smart VOC Focus - 2026-01-09 to 2026-01-17
-
-### Added
-- Automatic user registration on Google OAuth login
-- NEV emotions preview in Smart VOC module
-- Visual focus styles for Input and Textarea components
-- Link Preview validation and error handling in Research Configuration
-
-### Fixed
-- Age Range modal opening and row click behavior
-- Age Range toggle enable/disable functionality
-- QR code URL generation for production
-- Stage deletion in ResearchBuilderSidebar
-- Stage deletion error handling in backend
-- Smart VOC module reordering (backend + frontend)
-- Clickable navigation and visual focus for Smart VOC modules
-- NPS question placeholder updated per PDF specification
-- Module order parameter processing in backend updates
-- useParams consistency in ResearchBuilderSidebar
-- Duplicate bootstrapSession calls eliminated
-- Service worker cross-origin interception issue
-- Google OAuth enabled for localhost development
-- CORS: localhost:12800 added to allowed origins
-
-### Changed
-- Reorganized project documentation structure
-
----
-
-## [0.12.0] Migration to cPanel & MySQL - 2026-01-18 to 2026-01-25
-
-### Added
-- cPanel deployment support with local authentication (replacing AWS Cognito)
-- GitHub Actions workflows for cPanel deployments (backend, research-frontend, participant-frontend)
-- Auto-convert PostgreSQL query syntax to MySQL (JSON functions, column names)
-- Stage_templates_module_templates junction table migration
-- Static file serving for Cognitive Tasks images in cPanel
-- Upload-direct endpoint for multipart file uploads (cPanel)
-- All-endpoints cPanel testing script
-- Auto-hide unconfigured modules
-- Welcome/Thank You screens as defaults for all researches
-- Endpoint and UI to add Welcome/Thank You screens to existing researches
-- Environment-aware database routing with dev_ table prefixes
-- Real-time monitoring migrated from WebSocket to SSE for cPanel compatibility
-
-### Changed
-- Removed backend-graphql service
-- Optimized config for cPanel with no AWS dependencies
-- Migrated seed scripts to work with both PostgreSQL and MySQL
-- Improved deploy scripts with aggressive cache busting
-- Standardized padding across SmartVOC and CognitiveTask module cards
-- Cleaned up Research Configuration UI labels
-
-### Fixed
-- MySQL compatibility: column renames (settings->config, user_id->created_by, stage_type->type), removed non-existent columns
-- PostgreSQL json_agg FILTER converted to MySQL JSON_ARRAYAGG subquery
-- MySQL-compatible syntax for conditional DDL in migrations
-- CI migrated from PostgreSQL to MySQL
-- Auth: password_hash update for existing users, JSON metadata parsing from MySQL
-- Runtime-config.json path for /participant/ base
-- Build time injection moved to buildEnd hook
-- SSH port support in cPanel deployment workflows
-- Google OAuth credentials path for cPanel
-- Turnstile completely disabled for cPanel environment
-- Ranking module: support for ranking-list format, items extraction from multiple component types
-- Navigation skip for virtual welcome step when not configured
-- Media endpoint: s3_key/media_path compatibility
-- Welcome/Thank You duplicate prevention (stage name check, StrictMode handling)
-- mod_security disabled for API directory (endpoint URL filtering)
-- OAuth callback routing for local development
-- Welcome Screen input widths and textarea resize limited
-- Smart VOC header removed, Cognitive Tasks stage detection fixed
-- Local auth implementation and API client configuration updated
-- Results showing only components with data in SmartVOC and Cognitive Tasks
-
----
-
-## [0.13.0] Results Visualization & Module Editors - 2026-01-28 to 2026-02-17
-
-### Added
-- Image rendering in Preference Test results
-- HitZones overlay and click correctness visualization in Navigation Flow results
-- Tab navigation with Heat Click Map, Click Map, and Image views in Navigation Flow results
-- Ranking builder with functional editor
-- Dynamic add/remove choices for Multiple Choice module editor
-- Checkbox-list/option-list support with choice fallback parsing
-- Draft research preview from participant-frontend
-- Functional Ranking editor with minimum 2 items enforcement across modules
-- DB migration script for fixing existing Ranking module configs
-
-### Fixed
-- URL preview race condition in Research Configuration
-- CognitiveTask null-safety improvements
-- Misleading text corrections in UI
-- Vite.svg 404 replaced with inline empty favicon
-- Multiple Choice choices reset on React Query refetch
-- Initial component load by initializing prevContentKey as empty string
-- RadioChoicesEditor delete button disabled when only 2 choices remain
-- Quota sync and backlink URL normalization in Research Configuration
-- Backlinks delivery and demographics persistence in participant-frontend
-- ParticipantLimit persistence (saved as {enabled, value} for backend)
-- Ranking module: `ranking-list` component type handling, extracted RankingItemsEditor as standalone component (fixed React anti-pattern)
-- Dotenv path in ranking migration script
-- 24 existing Ranking modules in production DB updated with correct config structure
+### infrastructure
+- AWS setup script and environment configuration (EC2, S3, RDS)
+- Dynamic JSON-based architecture documentation
