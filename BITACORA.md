@@ -5,7 +5,29 @@
 
 ---
 
-## Última actualización: 2026-02-17 (sesión 2)
+## Última actualización: 2026-02-17 (sesión 3)
+
+---
+
+## Sesión 3: 17 de febrero de 2026 — Fix preview mode (step reset + sidebar)
+
+### Cambios realizados
+
+#### Fix: Preview mode mostraba el último step visitado
+**Problema:** Al acceder a una URL de preview (`?preview=true`), el participant-frontend mostraba el último step que el usuario había visitado previamente (ej. Thank You) en lugar del primero (Welcome). Causado por:
+- `useParticipantStore` persiste `currentStep` en localStorage
+- El efecto de reset de participante hace early return cuando `participantId` es null (preview mode)
+- La lógica de reset solo reseteaba si el step guardado no existía en la lista de steps habilitados
+
+**Fix:** En `ResearchPage.tsx`, agregar `isPreviewMode` a la condición de reset: cuando es preview, siempre se resetea al primer step disponible.
+
+#### Fix: Sidebar no visible en producción para preview mode
+**Problema:** El `DevSidebar` solo se renderizaba cuando `import.meta.env.DEV === true`. En producción (cPanel), los investigadores no podían navegar entre módulos al hacer preview.
+
+**Fix:** Cambiar condición de `isDev` a `isDev || isPreviewMode` para que el sidebar sea visible para investigadores en preview.
+
+### Deploy
+- participant-frontend desplegado a producción (cPanel)
 
 ---
 

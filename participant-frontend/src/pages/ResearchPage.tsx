@@ -550,9 +550,10 @@ export const ResearchPage = () => {
         // If no steps are enabled, default to welcome (shouldn't happen, but safety check)
         const firstStep = enabledSteps.length > 0 ? enabledSteps[0] : 'welcome';
 
-        // Only set the first step if the user hasn't progressed yet
+        // In preview mode, always reset to the first step
+        // In participant mode, only reset if user hasn't progressed yet
         const storedStep = useParticipantStore.getState().currentStep;
-        if (!storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
+        if (isPreviewMode || !storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
           useParticipantStore.getState().setCurrentStep(firstStep);
         }
 
@@ -900,8 +901,8 @@ export const ResearchPage = () => {
 
   return (
     <>
-      {/* Development Sidebar */}
-      {isDev && (
+      {/* Development Sidebar — also visible in preview mode for researchers */}
+      {(isDev || isPreviewMode) && (
         <DevSidebar
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}

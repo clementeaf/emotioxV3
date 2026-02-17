@@ -46,6 +46,14 @@
 
 ---
 
+## [0.14.1] Fix preview mode: step reset & sidebar visibility — 2026-02-17
+
+### participant-frontend
+- Fixed preview mode showing last visited step instead of first: added `isPreviewMode` condition to always reset `currentStep` to the first available step when `?preview=true`
+- Fixed DevSidebar not visible in production for preview mode: changed render condition from `isDev` to `isDev || isPreviewMode` so researchers can navigate between modules
+
+---
+
 ## [0.14.0] Technical Debt Resolution — 2026-02-17
 
 ### research-frontend
