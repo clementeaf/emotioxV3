@@ -12,6 +12,22 @@ interface MediaUrlResponse {
     id?: string;
 }
 
+/**
+ * Resolves a relative media URL against the backend origin.
+ */
+function resolveMediaUrl(url: string): string {
+    if (!url || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+        return url;
+    }
+    try {
+        const baseUrl = configService.getBaseUrl();
+        const origin = new URL(baseUrl).origin;
+        return `${origin}${url}`;
+    } catch {
+        return url;
+    }
+}
+
 class MediaService {
     private urlCache: Map<string, { url: string; expiresAt: number }> = new Map();
 
@@ -44,12 +60,13 @@ class MediaService {
             }
 
             const data = await response.json() as MediaUrlResponse;
-            
+            const resolvedUrl = resolveMediaUrl(data.url);
+
             // Cache the URL (expires in expires_in seconds - 5 minutes buffer)
             const expiresAt = Date.now() + ((data.expires_in - 300) * 1000);
-            this.urlCache.set(s3Key, { url: data.url, expiresAt });
+            this.urlCache.set(s3Key, { url: resolvedUrl, expiresAt });
 
-            return data.url;
+            return resolvedUrl;
         } catch (error) {
             console.error('Error fetching media URL:', error);
             throw error;
