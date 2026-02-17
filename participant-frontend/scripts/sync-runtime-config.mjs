@@ -10,7 +10,7 @@ function resolveSourceUrl() {
     return explicitUrl.trim();
   }
 
-  const base = process.env.DEPLOYED_PARTICIPANT_FRONTEND_URL || 'https://d2am10cly7c9kf.cloudfront.net';
+  const base = process.env.DEPLOYED_PARTICIPANT_FRONTEND_URL || 'https://emotio.cx/participant';
   return `${String(base).replace(/\/+$/, '')}/runtime-config.json`;
 }
 
