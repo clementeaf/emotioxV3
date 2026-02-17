@@ -6,7 +6,6 @@ import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { Toggle } from '../ui/Toggle';
 import { getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
-import { isLocalhost } from '../../utils/localOnlyModuleFlags';
 
 export interface SmartVOCModuleCardRef {
     getComponentValues: () => Record<string, string>;
@@ -125,13 +124,11 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                             onChange={(e) => handleRequiredChange(Boolean(e.target.checked))}
                             label="Required"
                         />
-                        {isLocalhost() && (
-                            <Toggle
-                                checked={isHidden}
-                                onChange={(e) => handleHiddenChange(Boolean(e.target.checked))}
-                                label="Hide"
-                            />
-                        )}
+                        <Toggle
+                            checked={isHidden}
+                            onChange={(e) => handleHiddenChange(Boolean(e.target.checked))}
+                            label="Hide"
+                        />
                     </div>
                 </div>
             </div>

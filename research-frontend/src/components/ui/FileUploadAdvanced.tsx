@@ -307,10 +307,8 @@ export const FileUploadAdvanced = ({
                 content_type: contentType,
             });
 
-            // 2. Upload file to S3 using presigned URL
-            // IMPORTANT: El Content-Type debe coincidir exactamente con el usado en la generación del presignedUrl
-            // No incluir headers adicionales que no estén en la firma del presignedUrl
-            // No usar credentials: 'include' ya que puede causar problemas de CORS con presignedUrls
+            // 2. Upload file using the URL from backend
+            // upload_url is already resolved to absolute by mediaService.generateUploadUrl
             let uploadResponse: Response;
             try {
                 uploadResponse = await fetch(upload_url, {

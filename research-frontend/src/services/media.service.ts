@@ -1,5 +1,24 @@
 import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
+import { configService } from './api/config.service';
+
+/**
+ * Resolves a relative media URL against the backend origin.
+ * Backend returns paths like /api/media/research/... which need the backend origin prepended
+ * when the frontend runs on a different origin (e.g. localhost dev).
+ */
+function resolveMediaUrl(url: string): string {
+    if (!url || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+        return url;
+    }
+    try {
+        const baseUrl = configService.getBaseUrl(); // e.g. https://emotio.cx/api
+        const origin = new URL(baseUrl).origin;     // e.g. https://emotio.cx
+        return `${origin}${url}`;
+    } catch {
+        return url;
+    }
+}
 
 export interface Media {
     id: string;
@@ -60,7 +79,9 @@ class MediaService {
      */
     async generateUploadUrl(data: GenerateUploadUrlData): Promise<UploadUrlResponse> {
         try {
-            return await apiClient.post<UploadUrlResponse>('/media/upload', data);
+            const result = await apiClient.post<UploadUrlResponse>('/media/upload', data);
+            result.upload_url = resolveMediaUrl(result.upload_url);
+            return result;
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to generate upload URL');
         }
@@ -88,7 +109,9 @@ class MediaService {
      */
     async getMediaUrl(id: string): Promise<MediaUrlResponse> {
         try {
-            return await apiClient.get<MediaUrlResponse>(`/media/${id}`);
+            const result = await apiClient.get<MediaUrlResponse>(`/media/${id}`);
+            result.url = resolveMediaUrl(result.url);
+            return result;
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to get media URL');
         }
@@ -102,7 +125,9 @@ class MediaService {
      */
     async getMediaUrlByS3Key(s3Key: string): Promise<MediaUrlResponse> {
         try {
-            return await apiClient.get<MediaUrlResponse>(`/media/by-key?s3_key=${encodeURIComponent(s3Key)}`);
+            const result = await apiClient.get<MediaUrlResponse>(`/media/by-key?s3_key=${encodeURIComponent(s3Key)}`);
+            result.url = resolveMediaUrl(result.url);
+            return result;
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to get media URL by s3Key');
         }

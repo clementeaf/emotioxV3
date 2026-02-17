@@ -16,7 +16,7 @@ import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
-import { hasModuleConfiguredValues, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
+import { withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 
 export const ResearchBuilderPage = () => {
     const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
@@ -248,14 +248,10 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    // Automatically set hidden based on whether module has configured values
-                    // If module has values → show to participants (hidden: false)
-                    // If module has no values → hide from participants (hidden: true)
-                    // This allows researchers to configure modules later and they'll automatically show
-                    const hasConfiguredValues = hasModuleConfiguredValues(updatedComponents);
-                    const finalHidden = !hasConfiguredValues;
+                    // Use the researcher's explicit hidden toggle value
+                    const hidden = moduleRef.getHidden();
 
-                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), finalHidden);
+                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
 
                     return modulesService.update(module.id, {
                         config,
@@ -300,14 +296,10 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    // Automatically set hidden based on whether module has configured values
-                    // If module has values → show to participants (hidden: false)
-                    // If module has no values → hide from participants (hidden: true)
-                    // This allows researchers to configure modules later and they'll automatically show
-                    const hasConfiguredValues = hasModuleConfiguredValues(updatedComponents);
-                    const finalHidden = !hasConfiguredValues;
+                    // Use the researcher's explicit hidden toggle value
+                    const hidden = moduleRef.getHidden();
 
-                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), finalHidden);
+                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
 
                     return modulesService.update(module.id, {
                         config,
