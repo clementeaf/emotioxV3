@@ -8,7 +8,7 @@ interface RuntimeConfig {
     apiBaseUrl: string;
 }
 
-const DEFAULT_LOCAL_API_BASE_URL = 'http://localhost:3000';
+const DEFAULT_LOCAL_API_BASE_URL = 'https://emotio.cx/api';
 
 interface ApiEndpoints {
     auth: Record<string, string>;
@@ -167,23 +167,25 @@ class ConfigService {
      * @returns runtime config object
      */
     private async fetchRuntimeConfigWithDevFallback(): Promise<RuntimeConfig> {
-        try {
-            // Use app base path to construct runtime config path
-            const basePath = this.getAppBasePath();
-            const configPath = `${basePath}runtime-config.json`;
-            return await this.fetchRuntimeConfigFromUrl(configPath);
-        } catch (error: unknown) {
-            const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-            if (!isLocalhost) {
-                throw error;
-            }
+        // In dev, Vite serves public/ files at root, so try /runtime-config.json first
+        const paths = import.meta.env.DEV
+            ? ['/runtime-config.json', `${this.getAppBasePath()}runtime-config.json`]
+            : [`${this.getAppBasePath()}runtime-config.json`, '/runtime-config.json'];
 
-            const envBaseUrl = this.getEnvApiBaseUrl();
-            if (envBaseUrl) {
-                return { apiBaseUrl: envBaseUrl };
+        for (const configPath of paths) {
+            try {
+                return await this.fetchRuntimeConfigFromUrl(configPath);
+            } catch {
+                // Try next path
             }
-            return { apiBaseUrl: DEFAULT_LOCAL_API_BASE_URL };
         }
+
+        // All paths failed — fallback
+        const envBaseUrl = this.getEnvApiBaseUrl();
+        if (envBaseUrl) {
+            return { apiBaseUrl: envBaseUrl };
+        }
+        return { apiBaseUrl: DEFAULT_LOCAL_API_BASE_URL };
     }
 
     private async fetchRuntimeConfigFromUrl(url: string): Promise<RuntimeConfig> {

@@ -15,7 +15,7 @@ export const BootstrapErrorScreen = (props: BootstrapErrorScreenProps): ReactEle
     <div style={{ fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', padding: 24 }}>
       <h1 style={{ fontSize: 18, margin: 0, marginBottom: 8 }}>Initialization failed</h1>
       <p style={{ margin: 0, marginBottom: 12, color: '#444' }}>
-        The app could not load API configuration. This build is configured to always use the AWS backend.
+        The app could not load API configuration.
       </p>
       <pre style={{ background: '#f6f6f6', padding: 12, borderRadius: 6, whiteSpace: 'pre-wrap' }}>
         {message}
