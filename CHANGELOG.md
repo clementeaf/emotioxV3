@@ -12,7 +12,7 @@
 - **Research Configuration**: Participant limit, backlinks, demographics with quotas (Age Range, Gender, etc.), QR code generation, link preview.
 - **Smart VOC Modules**: NPS (0-10 scale), CSAT (star rating), CES, CV, NEV (20 emotions), VOC (open text). Each with question title, description, and specific configuration. Visual focus and clickable navigation between modules.
 - **Cognitive Task Modules**: Short Text, Long Text, Single Choice (option-list + eligibility), Multiple Choice (checkbox-list + eligibility), Linear Scale, Ranking (ranking-list with add/remove items), Navigation Flow (file upload + hitzones), Preference Test (file upload + A/B comparison).
-- **Module Editors**: RadioChoicesEditor for Single/Multiple Choice with dynamic add/remove and min 2 enforcement. RankingItemsEditor for Ranking with numbered inputs and min 2 enforcement. FileUploadAdvanced with hitzone editor for Navigation Flow.
+- **Module Editors**: RadioChoicesEditor for Single/Multiple Choice with dynamic add/remove and min 2 enforcement. RankingItemsEditor for Ranking with numbered inputs and min 2 enforcement. FileUploadEditorComponent (standalone) with hitzone editor for Navigation Flow. All editors extracted as standalone components to prevent re-mount on sibling state changes.
 - **Results**: SmartVOC results (TrustFlowChart, CPVCard, QuestionCards for CSAT/CES/CV, NEV card, NPS component, VOC component). Cognitive Task results (Choice, LinearScale, Ranking with segmented bar chart, Navigation Flow with heat/click map tabs and hitzone overlay, Preference Test with image rendering).
 - **Auth**: Google OAuth login. Session persistence with 24h tokens and auto-refresh.
 - **Deployment**: Build locally → rsync to cPanel ~/public_html/research via SSH. Aggressive cache busting for HTML/JSON, immutable hashes for assets. GitHub Actions workflow available.
@@ -32,7 +32,7 @@
 - **Database**: MySQL on cPanel (emotvehe_emotiox). Auto-converts PostgreSQL syntax to MySQL ($1→?, ::jsonb removal, JSON_BUILD_OBJECT→JSON_OBJECT, etc.). Environment-aware routing with dev_ table prefixes.
 - **Auth**: Local JWT authentication (24h access, 7d refresh). Google OAuth with automatic user registration. No AWS Cognito dependency.
 - **API Modules**: research, modules, module-templates, questions, responses, stage-templates, research-types, research-techniques, analytics, media, enterprises, users, quotas, monitor, public, debug, cache, config.
-- **Media**: Local file storage on cPanel (~/emotioxv3/media). Upload-direct endpoint for multipart. Static file serving for Cognitive Tasks images. Presigned URL fallback for S3 compatibility.
+- **Media**: Local file storage on cPanel (~/emotioxv3/media). Upload-direct endpoint for multipart. Static file serving at /api/media for Cognitive Tasks images. Presigned URL fallback for S3 compatibility. Frontend resolves relative media URLs against backend origin for cross-origin compatibility.
 - **Analytics**: Ranking responses aggregation (mean position). SmartVOC and Cognitive Task analytics endpoints.
 - **Monitoring**: SSE-based real-time monitoring (migrated from WebSocket for cPanel compatibility).
 - **Seeds**: Module templates for all Smart VOC and Cognitive Task types. Research types and techniques. Stage templates.
@@ -44,6 +44,7 @@
 - SSH key to cPanel requires passphrase (`sshpass` used in deploy scripts)
 - Service worker registration disabled to prevent caching issues
 - `rankingConfig.items` not synced on save (items stored in `comp.value` only — works but `rankingConfig` becomes stale)
+- Ranking module seed template includes `image-upload` component not yet supported in editor (silently hidden via `return null` in default case)
 - Some Spanish text remaining in code comments and variable names
 
 ---
@@ -59,7 +60,13 @@
 - Added checkbox-list/option-list type support with choice fallback parsing
 - Added draft research preview capability
 - Extracted RankingItemsEditor as standalone component (fixed React anti-pattern of inline component definition)
+- Extracted FileUploadEditorComponent as standalone component (fixed same anti-pattern causing file-upload re-mount on every sibling keystroke)
 - Added `ranking-list` to ComponentType union and EditableComponent switch
+- Unsupported component types (e.g. image-upload) now silently return null instead of showing error message
+- Fixed module Hide auto-override: save now uses researcher's explicit Hide toggle instead of auto-computing `hidden` based on whether module has values (was locking unconfigured modules after save)
+- Fixed Hide toggle only visible on localhost — now visible in all environments
+- Fixed media URL resolution: `resolveMediaUrl()` in media.service.ts converts relative backend URLs to absolute (enables cross-origin media loading from localhost dev)
+- Fixed upload URL resolution: `generateUploadUrl` result now resolved to absolute URL
 - Fixed URL preview race condition in Research Configuration
 - Fixed CognitiveTask null-safety across results wrappers
 - Fixed vite.svg 404 by replacing missing favicon with inline empty icon
@@ -75,6 +82,8 @@
 
 ### backend
 - Added DB migration script (fix_ranking_module_config_mysql.ts) to update 24 existing Ranking modules with correct `ranking-list` structure
+- Fixed Ranking module config in production DB: replaced image-upload with question-description component for consistency with other modules
+- Fixed hidden=true on Navigation Flow/Preference Test modules set by auto-compute logic
 - Fixed dotenv path in migration script (../../.env → ../.env for cPanel)
 - Fixed quota sync endpoints
 
