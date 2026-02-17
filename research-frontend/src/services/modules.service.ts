@@ -89,7 +89,7 @@ class ModulesService {
                 try {
                     const fallbackEndpoint = `/research/${researchId}/modules/${id}`;
                     return await apiClient.get<ModuleResponse>(fallbackEndpoint);
-                } catch (fallbackError) {
+                } catch {
                     // Si también falla, lanzamos el error original
                     throw this.handleError(error, 'Failed to fetch module');
                 }

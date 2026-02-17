@@ -11,6 +11,25 @@ interface PreferenceTestResultsWrapperProps {
     questionNumber: string;
 }
 
+interface ModuleComponent {
+    type: string;
+    value?: string;
+    [key: string]: unknown;
+}
+
+interface ModuleConfigStructure {
+    structure?: {
+        components?: ModuleComponent[];
+    };
+}
+
+interface UploadedFileData {
+    id?: string;
+    url?: string;
+    s3Key?: string;
+    name?: string;
+}
+
 interface ImageData {
     id: string;
     url: string;
@@ -47,9 +66,9 @@ export const PreferenceTestResultsWrapper = ({
                 if (foundModule) {
                     // Extract images from file-upload component
                     if (foundModule.config && typeof foundModule.config === 'object') {
-                        const config = foundModule.config as any;
+                        const config = foundModule.config as ModuleConfigStructure;
                         const components = config.structure?.components || [];
-                        const fileUploadComponent = components.find((c: any) => c.type === 'file-upload');
+                        const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
 
                         if (fileUploadComponent?.value) {
                             try {
@@ -57,7 +76,7 @@ export const PreferenceTestResultsWrapper = ({
                                 if (Array.isArray(files) && files.length > 0) {
                                     // Resolve URLs for all images
                                     const resolvedImages = await Promise.all(
-                                        files.map(async (file: any, index: number) => {
+                                        files.map(async (file: UploadedFileData, index: number) => {
                                             let url = file.url;
                                             
                                             // Refresh URL if s3Key exists

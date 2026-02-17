@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { researchTypesService } from '../services/researchTypes.service';
+import { researchTypesService, type ModuleTemplateRef } from '../services/researchTypes.service';
 import { type ResearchTechnique } from '../services/researchTechniques.service';
 import { useCreateResearch } from './useResearchQuery';
+import type { CreateResearchData } from '../services/research.service';
 
 interface CreateResearchFormData {
     name: string;
@@ -30,7 +31,7 @@ export const useResearchForm = () => {
         useDefaultModules: true,
     });
     const [currentStep, setCurrentStep] = useState<number>(0);
-    const [researchTypes, setResearchTypes] = useState<Array<{ id: string; name: string; default_modules?: any[] }>>([]);
+    const [researchTypes, setResearchTypes] = useState<Array<{ id: string; name: string; default_modules?: ModuleTemplateRef[] }>>([]);
     const [loadingResearchTypes, setLoadingResearchTypes] = useState<boolean>(false);
     const [availableTechniques, setAvailableTechniques] = useState<ResearchTechnique[]>([]);
     const [loadingTechniquesForType, setLoadingTechniquesForType] = useState<boolean>(false);
@@ -61,8 +62,8 @@ export const useResearchForm = () => {
             console.log('[useResearchForm] Active research types after filtering:', activeTypes.length);
             
             // Parse and validate default_modules to ensure it's always an array or undefined
-            const normalizedTypes = activeTypes.map((rt: { id: string; name: string; default_modules?: any }) => {
-                let defaultModules: any[] | undefined = undefined;
+            const normalizedTypes = activeTypes.map((rt: { id: string; name: string; default_modules?: ModuleTemplateRef[] | string }) => {
+                let defaultModules: ModuleTemplateRef[] | undefined = undefined;
                 
                 if (rt.default_modules) {
                     // If it's a string, try to parse it as JSON
@@ -269,19 +270,19 @@ export const useResearchForm = () => {
         try {
             // Extract default modules if enabled
             const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
-            const createData: any = {
+            const createData: CreateResearchData & Record<string, unknown> = {
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
                 research_type_id: formData.researchTypeId,
                 research_technique_id: formData.researchTechniqueId || undefined,
             };
-            
+
             // Clean up data: remove undefined, null, or empty string values
             // research_technique_id should only be sent if it has a valid value
             if (createData.research_technique_id === '' || createData.research_technique_id === undefined) {
                 delete createData.research_technique_id;
             }
-            
+
             // Remove other undefined or empty values
             Object.keys(createData).forEach(key => {
                 if (createData[key] === undefined || createData[key] === null || createData[key] === '') {
@@ -293,7 +294,7 @@ export const useResearchForm = () => {
                 // Ensure default_modules is an array before mapping
                 if (Array.isArray(selectedType.default_modules)) {
                     const moduleNames = selectedType.default_modules
-                        .map((m: any) => m?.name)
+                        .map((m: ModuleTemplateRef) => m?.name)
                         .filter((name: string | undefined) => name !== undefined && name !== null);
                     if (moduleNames.length > 0) {
                         createData.use_default_modules = moduleNames;

@@ -51,7 +51,6 @@ export function QuotasTab<
   quotasDisabledInfoText = [],
   getAvailableOptions,
   getQuotaFieldValue,
-  getQuotaFieldLabel: _getQuotaFieldLabel,
   fieldSelectLabel = 'Seleccionar opción',
   Icon = Users
 }: QuotasTabProps<TOption, TQuota>): React.ReactElement {

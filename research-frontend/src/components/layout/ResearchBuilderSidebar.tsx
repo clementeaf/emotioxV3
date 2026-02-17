@@ -92,7 +92,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
     // Reset available stages when research changes to ensure fresh filtering
     useEffect(() => {
-        if (activeResearch) {
+        if (activeResearch?.id) {
             setAvailableStages([]);
         }
     }, [activeResearch?.id]);
@@ -289,7 +289,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         try {
             await logout();
             navigate('/login');
-        } catch (error) {
+        } catch {
             toast.error('Error al cerrar sesión');
         }
     };

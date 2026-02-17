@@ -1,12 +1,13 @@
 import { CustomSelect } from '../ui/CustomSelect';
 import { type ResearchTechnique } from '../../services/researchTechniques.service';
+import type { ModuleTemplateRef } from '../../services/researchTypes.service';
 
 interface ResearchFormStep2Props {
     researchTypeId: string;
     researchTechniqueId: string;
     researchTypeError?: string;
     researchTechniqueError?: string;
-    researchTypes: Array<{ id: string; name: string; default_modules?: any[] }>;
+    researchTypes: Array<{ id: string; name: string; default_modules?: ModuleTemplateRef[] }>;
     availableTechniques: ResearchTechnique[];
     loadingResearchTypes: boolean;
     loadingTechniques: boolean;

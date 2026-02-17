@@ -877,7 +877,7 @@ export const ResearchPage = () => {
         setShowRestartOption(true);
       }
     }
-  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep]);
+  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks.complete]);
 
   if (!researchId) {
     return <InvalidResearchScreen />;

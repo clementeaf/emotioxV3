@@ -3,11 +3,17 @@ import { configService } from './api/config.service';
 import type { ApiErrorResponse } from './api/types';
 import type { ResearchTechnique } from './researchTechniques.service';
 
+export interface ModuleTemplateRef {
+    name: string;
+    id?: string;
+    [key: string]: unknown;
+}
+
 export interface ResearchType {
     id: string;
     name: string;
     description?: string;
-    default_modules?: any[];
+    default_modules?: ModuleTemplateRef[];
     created_at: string;
     updated_at: string;
     created_by?: string;

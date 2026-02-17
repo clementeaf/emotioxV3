@@ -5,11 +5,56 @@
 
 ---
 
-## Última actualización: 2026-02-17 13:15 CLT
+## Última actualización: 2026-02-17 (sesión 2)
 
 ---
 
-## Sesión: 17 de febrero de 2026
+## Sesión 2: 17 de febrero de 2026 — Resolución de deuda técnica
+
+### Cambios realizados
+
+#### Fase 1: Variables no usadas + directivas ESLint obsoletas
+- Eliminados catch variables no usados en `ResearchBuilderSidebar.tsx`, `StandardSidebar.tsx`, `UserManagementPage.tsx`, `modules.service.ts`
+- Eliminadas props destructuradas no usadas en `DemographicConfigModalBase.tsx` (4 props) y `QuotasTab.tsx` (1 prop)
+- Eliminados 2 comentarios `eslint-disable-next-line` obsoletos en `EditableComponent.tsx`
+
+#### Fase 2: Reemplazar `any` con tipos propios
+- Creada interfaz `ModuleTemplateRef` en `researchTypes.service.ts`
+- Tipados `useResearchForm.ts`, `ResearchFormStep2.tsx` con `ModuleTemplateRef`
+- Creadas interfaces `ModuleComponent`, `ModuleConfigStructure`, `HitzoneRegion` en `NavigationFlowResultsWrapper.tsx`
+- Creadas interfaces `ModuleComponent`, `ModuleConfigStructure`, `UploadedFileData` en `PreferenceTestResultsWrapper.tsx`
+- Creada interfaz `BackendQuota` en `ResearchConfigurationModule.tsx`
+- Tipados `demographicsMapper.ts` (enforcementMode union)
+- Tipados `DemographicsStep.tsx` y `DemographicsStep.test.tsx` en participant-frontend
+- Casos donde `Record<string, any>` es genuinamente necesario (demographics config dinámico) marcados con `eslint-disable`
+
+#### Fase 3: Sync rankingConfig.items al guardar
+- Agregada función `syncRankingConfig` en `ResearchBuilderPage.tsx`
+- Aplicada en los 3 handlers de save (Smart VOC, Cognitive Tasks, módulo activo)
+
+#### Fase 4: Eliminar image-upload muerto de seeds
+- Eliminado componente `image-upload` de 6 templates de Cognitive Tasks en `seed_all_module_templates_pg.ts`
+- Creado script de migración `remove_image_upload_from_modules.ts` (pendiente de ejecutar en producción)
+
+#### Fase 5: Hooks de React — exhaustive-deps
+- Fix `ResearchBuilderSidebar.tsx`: condición alineada con dep array (`activeResearch?.id`)
+- Fix `ResearchConfigurationModule.tsx`: inlineado `buildParticipantShareUrl` en useMemo, eliminadas funciones muertas
+- Suprimido warning en useEffect de flush demográfico (agregar deps causaría loop infinito)
+- Agregado `backlinks.complete` a useCallback en `ResearchPage.tsx`
+
+### Resultado
+- **research-frontend**: 0 errors, 0 warnings (lint + build)
+- **participant-frontend**: 0 errors, 0 warnings (lint + build)
+- **backend**: type-check OK
+- Pre-commit hooks: pendiente de verificar en commit
+
+### Pendientes
+- Ejecutar migración `remove_image_upload_from_modules.ts` en producción (BD)
+- Deploy a producción (opcional, no hay cambios funcionales visibles)
+
+---
+
+## Sesión 1: 17 de febrero de 2026
 
 > ~5 horas (08:00 – 13:15 CLT)
 > 10 commits (`eb56965`..`3b2ed0e`) · 12 archivos modificados · 2 deploys a producción · 3 migraciones en BD
@@ -94,8 +139,5 @@ El módulo **Ranking** en Cognitive Tasks no funcionaba correctamente: mostraba 
 - **backend**: API estable en cPanel, media serving funcional, analytics endpoints operativos.
 
 ### Problemas conocidos pendientes
-- ~42 ESLint warnings en research-frontend (mayormente `any` types)
-- ~8 ESLint warnings en participant-frontend
-- `rankingConfig.items` no se sincroniza en save (items se guardan en `comp.value`, funciona pero `rankingConfig` queda stale)
-- Seed template de Ranking incluye `image-upload` que no se renderiza en el editor (retorna null silenciosamente)
 - Textos en español en algunos comentarios y variables del código
+- Migración BD pendiente: `remove_image_upload_from_modules.ts` (limpiar image-upload de módulos existentes)

@@ -209,7 +209,7 @@ export function mapGenderConfigToBackend(
 export function mapGenericOptionsToBackend(
     options: ModalGenericOption[],
     disqualified: string[],
-    quotas?: Array<{ id: string; value?: string; quota: number; quotaType: string; isActive: boolean }>
+    quotas?: Array<{ id: string; value?: string; quota: number; quotaType: string; isActive: boolean; enforcementMode?: 'immediate' | 'post_collection' }>
 ): BackendDemographicConfig {
     // Convert disqualified options to disqualifications
     const disqualifications: BackendDisqualification[] = disqualified.map(id => {
@@ -229,7 +229,7 @@ export function mapGenericOptionsToBackend(
             value: q.value || '',
             limit: q.quota,
             enabled: true,
-            enforcementMode: (q as any).enforcementMode || 'immediate'
+            enforcementMode: (q.enforcementMode || 'immediate') as 'immediate' | 'post_collection'
         }));
 
     const validValues = options

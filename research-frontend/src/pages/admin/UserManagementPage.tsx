@@ -83,7 +83,7 @@ export const UserManagementPage = () => {
             await usersService.deleteUser(deleteId);
             success('Usuario eliminado');
             loadUsers();
-        } catch (err) {
+        } catch {
             error('Error al eliminar usuario');
         } finally {
             setDeleteId(null);

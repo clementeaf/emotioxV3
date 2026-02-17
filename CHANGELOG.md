@@ -39,13 +39,32 @@
 - **Deployment**: Express app on cPanel via Passenger (Node.js 24.12.0). SSH deploy scripts available. GitHub Actions workflow available.
 
 ### Known Issues / Technical Debt
-- ~42 ESLint warnings across research-frontend (mostly `@typescript-eslint/no-explicit-any` and unused variables)
-- ~8 ESLint warnings in participant-frontend (similar `any` types and missing hook deps)
 - SSH key to cPanel requires passphrase (`sshpass` used in deploy scripts)
 - Service worker registration disabled to prevent caching issues
-- `rankingConfig.items` not synced on save (items stored in `comp.value` only — works but `rankingConfig` becomes stale)
-- Ranking module seed template includes `image-upload` component not yet supported in editor (silently hidden via `return null` in default case)
 - Some Spanish text remaining in code comments and variable names
+- DB migration pending: `remove_image_upload_from_modules.ts` (clean up image-upload from existing modules)
+
+---
+
+## [0.14.0] Technical Debt Resolution — 2026-02-17
+
+### research-frontend
+- Eliminated all ~42 ESLint warnings (0 errors, 0 warnings)
+- Created typed interfaces replacing `any`: `ModuleTemplateRef`, `BackendQuota`, `ModuleComponent`, `ModuleConfigStructure`, `HitzoneRegion`, `UploadedFileData`
+- Added `syncRankingConfig` helper to sync `rankingConfig.items` from `comp.value` on every save (Smart VOC, Cognitive Tasks, active module)
+- Inlined `buildParticipantShareUrl` into useMemo, removed dead helper functions
+- Fixed `ResearchBuilderSidebar` useEffect dependency alignment
+- Removed unused catch variables, destructured props, and obsolete eslint-disable directives
+- Removed `image-upload` component from all 6 Cognitive Task seed templates
+
+### participant-frontend
+- Eliminated all ~8 ESLint warnings (0 errors, 0 warnings)
+- Replaced `as any` casts with proper types in `DemographicsStep.tsx` and test file
+- Added `backlinks.complete` to useCallback dependency in `ResearchPage.tsx`
+- Replaced `delete (window as any).location` with `Object.defineProperty` in tests
+
+### backend
+- Created DB migration script `remove_image_upload_from_modules.ts` for cleaning existing modules
 
 ---
 

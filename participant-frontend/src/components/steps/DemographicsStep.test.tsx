@@ -29,15 +29,17 @@ vi.mock('../../services/public.service', () => ({
 
 // Mock window.location
 const mockLocation = { href: '', pathname: '/research/test-research-id/step/1' };
-delete (window as any).location;
-window.location = mockLocation as any;
+Object.defineProperty(window, 'location', {
+    writable: true,
+    value: mockLocation,
+});
 
 describe('DemographicsStep - Backend Validation', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockLocation.href = '';
         // Default valid response
-        (publicService.validateDemographics as any).mockResolvedValue({ valid: true });
+        vi.mocked(publicService.validateDemographics).mockResolvedValue({ valid: true });
     });
 
     const mockModule: ModuleConfig = {
@@ -79,7 +81,7 @@ describe('DemographicsStep - Backend Validation', () => {
     });
 
     it('should redirect to disqualified URL if backend returns disqualified', async () => {
-        (publicService.validateDemographics as any).mockResolvedValue({
+        vi.mocked(publicService.validateDemographics).mockResolvedValue({
             valid: false,
             reason: 'DISQUALIFIED',
             details: 'Age too low'
@@ -101,7 +103,7 @@ describe('DemographicsStep - Backend Validation', () => {
     });
 
     it('should redirect to overquota URL if backend returns quota full', async () => {
-        (publicService.validateDemographics as any).mockResolvedValue({
+        vi.mocked(publicService.validateDemographics).mockResolvedValue({
             valid: false,
             reason: 'QUOTA_FULL',
             details: 'Age group 18-25 full'

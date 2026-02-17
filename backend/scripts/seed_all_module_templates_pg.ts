@@ -138,8 +138,7 @@ const moduleTemplates: ModuleTemplate[] = [
         structure: {
             components: [
                 { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Enter your question' }, required: true, order: 1 },
-                { id: 'question-image', type: 'image-upload', label: 'Image (optional)', required: false, order: 2 },
-                { id: 'response', type: 'input', label: 'Response', placeholder: { enabled: true, text: 'Short answer' }, required: true, order: 3, settings: { maxLength: 255 } }
+                { id: 'response', type: 'input', label: 'Response', placeholder: { enabled: true, text: 'Short answer' }, required: true, order: 2, settings: { maxLength: 255 } }
             ]
         }
     },
@@ -150,8 +149,7 @@ const moduleTemplates: ModuleTemplate[] = [
         structure: {
             components: [
                 { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Enter your question' }, required: true, order: 1 },
-                { id: 'question-image', type: 'image-upload', label: 'Image (optional)', required: false, order: 2 },
-                { id: 'response', type: 'textarea', label: 'Response', placeholder: { enabled: true, text: 'Detailed answer' }, required: true, order: 3, settings: { maxLength: 2000, autosize: true } }
+                { id: 'response', type: 'textarea', label: 'Response', placeholder: { enabled: true, text: 'Detailed answer' }, required: true, order: 2, settings: { maxLength: 2000, autosize: true } }
             ]
         }
     },
@@ -162,8 +160,7 @@ const moduleTemplates: ModuleTemplate[] = [
         structure: {
             components: [
                 { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Enter your question' }, required: true, order: 1 },
-                { id: 'question-image', type: 'image-upload', label: 'Image (optional)', required: false, order: 2 },
-                { id: 'options', type: 'option-list', label: 'Options', required: true, order: 3, settings: { minOptions: 2, maxOptions: 10, allowOther: true } }
+                { id: 'options', type: 'option-list', label: 'Options', required: true, order: 2, settings: { minOptions: 2, maxOptions: 10, allowOther: true } }
             ]
         }
     },
@@ -174,8 +171,7 @@ const moduleTemplates: ModuleTemplate[] = [
         structure: {
             components: [
                 { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Enter your question' }, required: true, order: 1 },
-                { id: 'question-image', type: 'image-upload', label: 'Image (optional)', required: false, order: 2 },
-                { id: 'options', type: 'checkbox-list', label: 'Options', required: true, order: 3, settings: { minOptions: 2, maxOptions: 10, minSelections: 1, maxSelections: null } }
+                { id: 'options', type: 'checkbox-list', label: 'Options', required: true, order: 2, settings: { minOptions: 2, maxOptions: 10, minSelections: 1, maxSelections: null } }
             ]
         }
     },
@@ -186,8 +182,7 @@ const moduleTemplates: ModuleTemplate[] = [
         structure: {
             components: [
                 { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Enter your question' }, required: true, order: 1 },
-                { id: 'question-image', type: 'image-upload', label: 'Image (optional)', required: false, order: 2 },
-                { id: 'scale', type: 'linear-scale', label: 'Scale', required: true, order: 3, settings: { min: 1, max: 10, minLabel: '', maxLabel: '' } }
+                { id: 'scale', type: 'linear-scale', label: 'Scale', required: true, order: 2, settings: { min: 1, max: 10, minLabel: '', maxLabel: '' } }
             ]
         }
     },
@@ -198,8 +193,7 @@ const moduleTemplates: ModuleTemplate[] = [
         structure: {
             components: [
                 { id: 'question-title', type: 'input', label: 'Question', placeholder: { enabled: true, text: 'Rank the following items' }, required: true, order: 1 },
-                { id: 'question-image', type: 'image-upload', label: 'Image (optional)', required: false, order: 2 },
-                { id: 'items', type: 'ranking-list', label: 'Items to rank', required: true, order: 3, settings: { minItems: 2, maxItems: 10 } }
+                { id: 'items', type: 'ranking-list', label: 'Items to rank', required: true, order: 2, settings: { minItems: 2, maxItems: 10 } }
             ]
         }
     },

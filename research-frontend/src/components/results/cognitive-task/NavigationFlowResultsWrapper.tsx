@@ -4,6 +4,25 @@ import { NavigationTestCard } from './components/NavigationTestCard';
 import { researchService, type Module } from '../../../services/research.service';
 import { mediaService } from '../../../services/media.service';
 
+interface ModuleComponent {
+    id?: string;
+    type: string;
+    value?: string;
+    [key: string]: unknown;
+}
+
+interface ModuleConfigStructure {
+    structure?: {
+        components?: ModuleComponent[];
+    };
+    image_url?: string;
+    imageUrl?: string;
+}
+
+interface HitzoneRegion {
+    region?: { x: number; y: number; width: number; height: number };
+}
+
 interface NavigationFlowResultsWrapperProps {
     researchId: string;
     moduleId: string;
@@ -41,10 +60,10 @@ export const NavigationFlowResultsWrapper = ({
                     console.log('ResultsWrapper: Found module:', foundModule.id);
                     // Check for file-upload component and resolve URL if needed (URL is stripped on save)
                     if (foundModule.config && typeof foundModule.config === 'object') {
-                        const config = foundModule.config as any;
+                        const config = foundModule.config as ModuleConfigStructure;
                         const components = config.structure?.components || [];
                         console.log('ResultsWrapper: Config components:', components);
-                        const fileUploadComponent = components.find((c: any) => c.type === 'file-upload');
+                        const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
 
                         if (fileUploadComponent) {
                             console.log('ResultsWrapper: Found file upload component:', fileUploadComponent);
@@ -113,12 +132,12 @@ export const NavigationFlowResultsWrapper = ({
     let hitZones: Array<{ x: number; y: number; width: number; height: number }> = [];
     
     if (module?.config && typeof module.config === 'object') {
-        const config = module.config as any;
+        const config = module.config as ModuleConfigStructure;
         // Check if components exist in structure
         const components = config.structure?.components || [];
-    
+
         // Find file-upload component
-        const fileUploadComponent = components.find((c: any) => c.type === 'file-upload');
+        const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
     
         if (fileUploadComponent?.value) {
             try {
@@ -127,7 +146,7 @@ export const NavigationFlowResultsWrapper = ({
                     imageUrl = files[0].url;
                     // Extract hitZones from the uploaded file
                     if (files[0].hitZones && Array.isArray(files[0].hitZones)) {
-                        hitZones = files[0].hitZones.map((hz: any) => ({
+                        hitZones = files[0].hitZones.map((hz: HitzoneRegion) => ({
                             x: hz.region?.x || 0,
                             y: hz.region?.y || 0,
                             width: hz.region?.width || 0,

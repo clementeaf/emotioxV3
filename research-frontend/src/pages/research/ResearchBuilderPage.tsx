@@ -207,6 +207,19 @@ export const ResearchBuilderPage = () => {
         }
     };
 
+    /** Sync rankingConfig.items from comp.value for ranking/ranking-list components */
+    const syncRankingConfig = <T extends { type: string; value?: string; rankingConfig?: { items?: unknown[] } }>(comp: T): T => {
+        if ((comp.type === 'ranking' || comp.type === 'ranking-list') && comp.value) {
+            try {
+                const parsed = JSON.parse(comp.value);
+                if (Array.isArray(parsed)) {
+                    return { ...comp, rankingConfig: { ...comp.rankingConfig, items: parsed } };
+                }
+            } catch { /* keep original */ }
+        }
+        return comp;
+    };
+
     const handleSaveModule = async (): Promise<void> => {
         if (!id) return;
 
@@ -232,7 +245,7 @@ export const ResearchBuilderPage = () => {
                     const required = moduleRef.getRequired();
 
                     // Update components with new values
-                    const updatedComponents = currentComponents.map(comp => ({
+                    const updatedComponents = currentComponents.map(comp => syncRankingConfig({
                         ...comp,
                         value: comp.type === 'file-upload'
                             ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
@@ -281,7 +294,7 @@ export const ResearchBuilderPage = () => {
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
 
-                    const updatedComponents = currentComponents.map(comp => ({
+                    const updatedComponents = currentComponents.map(comp => syncRankingConfig({
                         ...comp,
                         value: comp.type === 'file-upload'
                             ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
@@ -332,7 +345,7 @@ export const ResearchBuilderPage = () => {
                     toast.success('Research Configuration saved successfully');
                 } else {
                     // Update components with new values while preserving structure
-                    const updatedComponents = components.map(comp => ({
+                    const updatedComponents = components.map(comp => syncRankingConfig({
                         ...comp,
                         // Update default value or value from componentValues
                         ...(comp.settings?.readonly
@@ -573,7 +586,7 @@ export const ResearchBuilderPage = () => {
                                 onChange={(newConfig) => {
                                     Object.keys(newConfig).forEach(key => {
                                         if (key === 'demographics') {
-                                            Object.entries(newConfig[key] as Record<string, any>).forEach(([subKey, val]) => {
+                                            Object.entries(newConfig[key] as Record<string, unknown>).forEach(([subKey, val]) => {
                                                 const valueToSave = typeof val === 'object' ? JSON.stringify(val) : String(val);
                                                 handleComponentValueChange(subKey, valueToSave);
                                             });
@@ -638,7 +651,7 @@ const transformResearchConfigComponentValues = (values: Record<string, string>):
     Object.entries(values).forEach(([key, value]) => {
         // Handle demographics
         if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key)) {
-            (config.demographics as Record<string, any>)[key] = tryParse(value);
+            (config.demographics as Record<string, unknown>)[key] = tryParse(value);
         }
         // Handle link configuration
         else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
@@ -666,7 +679,7 @@ const flattenResearchConfig = (config: Record<string, unknown>): Record<string, 
     const values: Record<string, string> = {};
 
     if (config.demographics) {
-        Object.entries(config.demographics as Record<string, any>).forEach(([key, value]) => {
+        Object.entries(config.demographics as Record<string, unknown>).forEach(([key, value]) => {
             if (typeof value === 'object' && value !== null) {
                 values[key] = JSON.stringify(value);
             } else {

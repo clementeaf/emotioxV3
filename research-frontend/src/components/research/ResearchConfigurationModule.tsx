@@ -16,6 +16,14 @@ import DailyHoursOnlineConfigModal from './DailyHoursOnlineConfigModal';
 import TechnicalProficiencyConfigModal from './TechnicalProficiencyConfigModal';
 import { useToast } from '../../hooks/useToast';
 
+interface BackendQuota {
+    id: string;
+    value: string;
+    limit: number;
+    enabled: boolean;
+    enforcementMode?: string;
+}
+
 
 interface BacklinkInputProps {
     label: string;
@@ -70,6 +78,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     const toast = useToast();
 
 
+    // Demographics config is genuinely dynamic — each key (age, gender, etc.) has a different shape
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const demographics = (config.demographics || {}) as Record<string, any>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
     const backlinks = (config.backlinks || {}) as Record<string, string>;
@@ -78,6 +88,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         : (typeof savedParticipantLimit === 'number' ? savedParticipantLimit : 50);
     const [activeConfigModal, setActiveConfigModal] = useState<string | null>(null);
     const [quotasEnabledState, setQuotasEnabledState] = useState<Record<string, boolean>>({});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pendingQuotasRef = useRef<{ key: string; quotas: any[] } | null>(null);
     const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
     const [runtimeConfigLoaded, setRuntimeConfigLoaded] = useState(false);
@@ -127,7 +138,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             } catch (error) {
                 console.warn('[ResearchConfigurationModule] Error loading runtime-config.json, falling back to env config:', error);
                 setRuntimeConfigLoaded(true);
-                // Fallback handled in resolveParticipantBaseUrl
+                // Fallback handled in participantShareUrl useMemo
             }
         })();
 
@@ -137,92 +148,45 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
     }, []);
 
     /**
-     * Resolves the participant-frontend base URL for the current environment.
-     * - Localhost: uses participant dev server
-     * - Deployed: uses runtime-config.json participantBaseUrl (CloudFront), or VITE_PARTICIPANT_FRONTEND_URL if provided
-     * @returns Participant app base URL (origin)
+     * Memoized participant share URL that updates when dependencies change.
+     * Inlined to satisfy exhaustive-deps — all reactive values are in the dep array.
      */
-    const resolveParticipantBaseUrl = (): string => {
+    const participantShareUrl = useMemo(() => {
+        // Resolve participant base URL (inlined from resolveParticipantBaseUrl)
         const host = window.location.hostname;
         const isLocal = host === 'localhost' || host === '127.0.0.1';
+        let baseUrl = '';
+
         if (isLocal) {
-            return 'http://localhost:12600';
-        }
-        
-        // Priority 1: Use runtimeParticipantBaseUrl from runtime-config.json
-        if (runtimeConfigLoaded && runtimeParticipantBaseUrl && runtimeParticipantBaseUrl.trim().length > 0) {
-            // Ensure it uses https in production
+            baseUrl = 'http://localhost:12600';
+        } else if (runtimeConfigLoaded && runtimeParticipantBaseUrl && runtimeParticipantBaseUrl.trim().length > 0) {
             const url = runtimeParticipantBaseUrl.trim();
-            if (url.startsWith('http://') || url.startsWith('https://')) {
-                return url;
+            baseUrl = (url.startsWith('http://') || url.startsWith('https://')) ? url : `https://${url}`;
+        } else {
+            const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
+            if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
+                const url = envUrl.trim();
+                baseUrl = (url.startsWith('http://') || url.startsWith('https://')) ? url : `https://${url}`;
+            } else if (host === 'emotio.cx' || host.includes('emotio.cx')) {
+                baseUrl = 'https://emotio.cx/participant';
+            } else if (host === 'research.emotiox.org' || host.includes('emotiox.org')) {
+                baseUrl = 'https://participant.emotiox.org';
             }
-            // If no protocol, assume https for production
-            return `https://${url}`;
         }
-        
-        // Priority 2: Use environment variable
-        const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
-        if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
-            const url = envUrl.trim();
-            if (url.startsWith('http://') || url.startsWith('https://')) {
-                return url;
-            }
-            // If no protocol, assume https for production
-            return `https://${url}`;
-        }
-        
-        // Priority 3: Fallback for emotio.cx (production domain)
-        if (host === 'emotio.cx' || host.includes('emotio.cx')) {
-            return 'https://emotio.cx/participant';
-        }
-        
-        // Priority 4: Fallback to participant.emotiox.org if on research.emotiox.org
-        if (host === 'research.emotiox.org' || host.includes('emotiox.org')) {
-            return 'https://participant.emotiox.org';
-        }
-        
-        // Last resort: return empty string (will be handled by buildParticipantShareUrl)
-        return '';
-    };
 
-    /**
-     * Builds the participant-facing URL for Preview/QR.
-     * Auto-generates URL based on environment: localhost or production.
-     * @returns Full URL to participant app with research ID
-     */
-    const buildParticipantShareUrl = (): string => {
-        const baseUrl = resolveParticipantBaseUrl();
-        if (!baseUrl || baseUrl.trim().length === 0) {
-            console.warn('[ResearchConfigurationModule] No participant base URL available for QR generation');
-            return '';
-        }
-        
-        let base: URL;
+        if (!baseUrl || !researchId) return '';
+
         try {
-            base = new URL(baseUrl);
-        } catch (error) {
-            console.error('[ResearchConfigurationModule] Invalid participant base URL:', baseUrl, error);
+            const base = new URL(baseUrl);
+            if (base.protocol !== 'https:' && base.hostname !== 'localhost' && !base.hostname.includes('127.0.0.1')) {
+                base.protocol = 'https:';
+            }
+        } catch {
             return '';
         }
 
-        // Ensure https in production
-        if (base.protocol !== 'https:' && base.hostname !== 'localhost' && !base.hostname.includes('127.0.0.1')) {
-            base.protocol = 'https:';
-        }
-
-        if (!researchId) {
-            console.warn('[ResearchConfigurationModule] No researchId available for URL generation');
-            return '';
-        }
-        
-        // Use the full baseUrl (including path like /participant) instead of just origin
         return `${baseUrl}/research/${researchId}?preview=true`;
-    };
-
-    /**
-     * Memoized participant share URL that updates when dependencies change
-     */
-    const participantShareUrl = useMemo(() => buildParticipantShareUrl(), [runtimeParticipantBaseUrl, runtimeConfigLoaded, researchId]);
+    }, [runtimeParticipantBaseUrl, runtimeConfigLoaded, researchId]);
 
     /**
      * Opens the participant-facing URL in a new tab.
@@ -250,6 +214,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleDemographicChange = (key: string, value: any) => {
         onChange({
             ...config,
@@ -286,6 +251,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleQuotasSave = (_demographicKey: string, quotas: any[]) => {
         // Store pending quotas — they'll be flushed when the modal closes
         // to avoid a race condition with handleSaveDemographicConfig
@@ -302,6 +268,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         pendingQuotasRef.current = null;
 
         // Convert modal-format quotas to backend format
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const backendQuotas = quotas.map((q: any) => ({
             id: q.id,
             value: q.ageRange || q.country || q.gender || q.educationLevel ||
@@ -319,15 +286,17 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 [key]: { ...current, quotas: backendQuotas }
             }
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeConfigModal]);
 
     const handleQuotasToggle = (demographicKey: string, enabled: boolean) => {
         setQuotasEnabledState(prev => ({ ...prev, [demographicKey]: enabled }));
     };
 
-    const mapBackendQuotasToModal = (quotas: any[] | undefined, fieldName: string): any[] => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mapBackendQuotasToModal = (quotas: BackendQuota[] | undefined, fieldName: string): any[] => {
         if (!quotas || !Array.isArray(quotas)) return [];
-        return quotas.map((q: any) => ({
+        return quotas.map((q: BackendQuota) => ({
             id: q.id,
             [fieldName]: q.value,
             quota: q.limit,

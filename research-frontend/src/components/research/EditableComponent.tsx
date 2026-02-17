@@ -62,7 +62,6 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                 // Invalid JSON, keep current state
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);
 
     const handleChoiceChange = (choiceId: string, field: 'label' | 'eligibility', newValue: string) => {
@@ -186,7 +185,6 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
                 if (Array.isArray(parsed)) setLocalItems(parsed);
             } catch { /* keep current */ }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);
 
     const handleLabelChange = (itemId: string, label: string) => {

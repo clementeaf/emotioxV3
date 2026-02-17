@@ -13,7 +13,7 @@ interface DemographicsStepProps {
 
 export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module, onComplete }) => {
     // Config comes from the synthetic module injected in ResearchPage
-    const config = (module.config?.demographics || {}) as Record<string, any>;
+    const config = (module.config?.demographics || {}) as Record<string, unknown>;
     const { config: sessionConfig } = useSessionStore();
     const { updateResponse } = useParticipantStore();
 
@@ -21,7 +21,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module, onCo
 
     const isEnabled = (key: string) => {
         const val = config[key];
-        return val === true || (typeof val === 'object' && val?.enabled === true);
+        return val === true || (typeof val === 'object' && val !== null && (val as Record<string, unknown>).enabled === true);
     };
 
     // State
@@ -70,7 +70,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module, onCo
             // Extract research ID from URL or session config
             // URL format: /research/:id/...
             const match = window.location.pathname.match(/\/research\/([^/]+)/);
-            const researchId = match ? match[1] : (sessionConfig as any)?.id;
+            const researchId = match?.[1] ?? sessionConfig?.id;
 
             if (!researchId) {
                 console.error('Research ID not found');
