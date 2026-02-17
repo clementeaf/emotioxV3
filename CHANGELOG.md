@@ -77,6 +77,11 @@
 
 ### participant-frontend
 - Added checkbox-list/option-list support in renderers
+- Fixed media URL resolution: `resolveMediaUrl()` in media.service.ts converts relative backend URLs to absolute (enables cross-origin image loading from localhost dev for Navigation Flow / Preference Test)
+- Fixed config service initialization in dev mode: tries `/runtime-config.json` first (Vite serves `public/` at root), then `/participant/runtime-config.json`, with fallback to `https://emotio.cx/api`
+- Fixed sync-runtime-config script: updated default URL from CloudFront (AWS) to `https://emotio.cx/participant`
+- Fixed default API base URL from `localhost:3000` to `https://emotio.cx/api` (no local backend)
+- Removed stale "AWS backend" text from bootstrap error screen
 - Fixed backlinks delivery and demographics persistence
 - Fixed vite.svg 404 with inline empty favicon
 
