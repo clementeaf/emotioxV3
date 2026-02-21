@@ -21,6 +21,7 @@ interface SmartVOCModuleCardProps {
     researchId?: string;
     onSave?: () => void;
     isActive?: boolean;
+    conditionalityDisabled?: boolean;
 }
 
 /**
@@ -28,7 +29,7 @@ interface SmartVOCModuleCardProps {
  * Muestra el módulo con su editor de contenido
  */
 export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModuleCardProps>(
-    ({ module, researchId, isActive = false }, ref) => {
+    ({ module, researchId, isActive = false, conditionalityDisabled = false }, ref) => {
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -147,6 +148,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                             checked={isConditionality}
                             onChange={(e) => handleConditionalityChange(Boolean(e.target.checked))}
                             label="Show conditionality"
+                            disabled={conditionalityDisabled}
                         />
                     </div>
                 </div>

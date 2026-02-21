@@ -119,6 +119,47 @@ export const ResearchBuilderPage = () => {
         cognitiveTaskModules.some(m => m.id === activeModuleId)
     );
 
+    // Check if demographics are configured in Research Configuration
+    const hasDemographics = useMemo((): boolean => {
+        if (!typedResearch?.stages) return false;
+        for (const stage of typedResearch.stages) {
+            for (const mod of stage.modules || []) {
+                if (mod.name === 'Research Configuration' && mod.config?.demographics) {
+                    const demographics = mod.config.demographics as Record<string, unknown>;
+                    return Object.values(demographics).some((v) => {
+                        if (typeof v === 'object' && v !== null && 'enabled' in v) {
+                            return (v as { enabled: boolean }).enabled === true;
+                        }
+                        return false;
+                    });
+                }
+            }
+        }
+        return false;
+    }, [typedResearch]);
+
+    // Find the first module of the first optional stage (post Research Configuration)
+    const firstOptionalModuleId = useMemo((): string | null => {
+        if (!typedResearch?.stages) return null;
+        const sortedStages = [...typedResearch.stages].sort((a, b) => {
+            const getPriority = (s: Stage) => {
+                const name = s.name.toLowerCase();
+                if (name.includes('welcome')) return 0;
+                if (name.includes('research configuration')) return 1;
+                if (name.includes('thank you') || name.includes('thankyou')) return 999;
+                return 2;
+            };
+            return getPriority(a) - getPriority(b);
+        });
+        const firstOptional = sortedStages.find(s => {
+            const name = s.name.toLowerCase();
+            return !name.includes('welcome') && !name.includes('research configuration') && !name.includes('thank you') && !name.includes('thankyou');
+        });
+        if (!firstOptional || !firstOptional.modules?.length) return null;
+        const sortedModules = [...firstOptional.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+        return sortedModules[0].id;
+    }, [typedResearch]);
+
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
 
@@ -509,6 +550,7 @@ export const ResearchBuilderPage = () => {
                                 researchId={id!}
                                 onSave={handleSaveModule}
                                 isActive={activeModuleId === module.id}
+                                conditionalityDisabled={module.id === firstOptionalModuleId && !hasDemographics}
                             />
                         </div>
                     ))}
@@ -550,6 +592,7 @@ export const ResearchBuilderPage = () => {
                                 researchId={id!}
                                 onSave={handleSaveModule}
                                 isActive={activeModuleId === module.id}
+                                conditionalityDisabled={module.id === firstOptionalModuleId && !hasDemographics}
                             />
                         </div>
                     ))}

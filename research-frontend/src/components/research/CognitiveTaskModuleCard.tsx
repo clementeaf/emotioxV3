@@ -20,6 +20,7 @@ interface CognitiveTaskModuleCardProps {
     researchId?: string;
     onSave?: () => void;
     isActive?: boolean;
+    conditionalityDisabled?: boolean;
 }
 
 /**
@@ -27,7 +28,7 @@ interface CognitiveTaskModuleCardProps {
  * Estructura idéntica a SmartVOCModuleCard para consistencia
  */
 export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
-    ({ module, researchId, isActive = false }, ref) => {
+    ({ module, researchId, isActive = false, conditionalityDisabled = false }, ref) => {
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -157,6 +158,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                             checked={isConditionality}
                             onChange={(e) => handleConditionalityChange(Boolean(e.target.checked))}
                             label="Show conditionality"
+                            disabled={conditionalityDisabled}
                         />
                     </div>
                 </div>
