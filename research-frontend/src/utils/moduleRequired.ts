@@ -55,6 +55,34 @@ export const withModuleHidden = (
 };
 
 /**
+ * Safely extracts the module "conditionality" flag from a module config object.
+ * Defaults to false when not present or invalid.
+ * @param config - Module config object
+ * @returns Whether the module has conditionality enabled
+ */
+export const getModuleConditionality = (config: Record<string, unknown> | undefined): boolean => {
+    if (!config) return false;
+    const value = config.conditionality;
+    return typeof value === 'boolean' ? value : false;
+};
+
+/**
+ * Returns a new module config object with the "conditionality" flag set.
+ * @param config - Existing module config
+ * @param conditionality - Conditionality flag to set
+ * @returns Updated config object
+ */
+export const withModuleConditionality = (
+    config: Record<string, unknown> | undefined,
+    conditionality: boolean
+): Record<string, unknown> => {
+    return {
+        ...(config || {}),
+        conditionality,
+    };
+};
+
+/**
  * Checks if a component has a configured value (not empty or default).
  * @param component - Component configuration
  * @returns true if component has a configured value

@@ -46,6 +46,17 @@
 
 ---
 
+## [0.15.0] Conditionality toggle & modal for Cognitive Task and Smart VOC — 2026-02-21
+
+### research-frontend
+- Added "Show conditionality" toggle to Cognitive Task and Smart VOC module cards (alongside existing Required and Hide toggles)
+- Added `ConditionalityModal` component with condition configuration UI: action selector (Show), question selector, answer selector, and optional-target warning banner
+- Modal opens automatically when toggle is activated; closing the modal (X, overlay click, or Escape) deactivates the toggle
+- Added `getModuleConditionality` / `withModuleConditionality` utility functions in `moduleRequired.ts`
+- Conditionality flag persisted to `module.config.conditionality` on save
+
+---
+
 ## [0.14.1] Fix preview mode: step reset & sidebar visibility — 2026-02-17
 
 ### participant-frontend

@@ -16,7 +16,7 @@ import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
-import { withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
+import { withModuleConditionality, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 
 export const ResearchBuilderPage = () => {
     const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
@@ -261,10 +261,11 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    // Use the researcher's explicit hidden toggle value
+                    // Use the researcher's explicit toggle values
                     const hidden = moduleRef.getHidden();
+                    const conditionality = moduleRef.getConditionality();
 
-                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
+                    const config = withModuleConditionality(withModuleHidden(withModuleRequired(configWithStructure, required), hidden), conditionality);
 
                     return modulesService.update(module.id, {
                         config,
@@ -309,10 +310,11 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    // Use the researcher's explicit hidden toggle value
+                    // Use the researcher's explicit toggle values
                     const hidden = moduleRef.getHidden();
+                    const conditionality = moduleRef.getConditionality();
 
-                    const config = withModuleHidden(withModuleRequired(configWithStructure, required), hidden);
+                    const config = withModuleConditionality(withModuleHidden(withModuleRequired(configWithStructure, required), hidden), conditionality);
 
                     return modulesService.update(module.id, {
                         config,

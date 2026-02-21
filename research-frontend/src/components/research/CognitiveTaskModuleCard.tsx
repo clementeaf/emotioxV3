@@ -4,13 +4,15 @@ import { ModuleContentEditor } from './ModuleContentEditor';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { Toggle } from '../ui/Toggle';
-import { getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
+import { ConditionalityModal } from './ConditionalityModal';
+import { getModuleConditionality, getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
 
 export interface CognitiveTaskModuleCardRef {
     getComponentValues: () => Record<string, string>;
     getComponents: () => ComponentConfig[];
     getRequired: () => boolean;
     getHidden: () => boolean;
+    getConditionality: () => boolean;
 }
 
 interface CognitiveTaskModuleCardProps {
@@ -32,15 +34,19 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     // Derive initial values from props
     const initialRequired = useMemo(() => getModuleRequired(module.config), [module.config]);
     const initialHidden = useMemo(() => getModuleHidden(module.config), [module.config]);
+    const initialConditionality = useMemo(() => getModuleConditionality(module.config), [module.config]);
 
     const [isRequired, setIsRequired] = useState<boolean>(initialRequired);
     const [isHidden, setIsHidden] = useState<boolean>(initialHidden);
+    const [isConditionality, setIsConditionality] = useState<boolean>(initialConditionality);
+    const [isConditionalityModalOpen, setIsConditionalityModalOpen] = useState(false);
 
     // Reset state when config changes
     useEffect(() => {
         setIsRequired(initialRequired);
         setIsHidden(initialHidden);
-    }, [initialRequired, initialHidden]);
+        setIsConditionality(initialConditionality);
+    }, [initialRequired, initialHidden, initialConditionality]);
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -60,6 +66,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
         getComponents: () => components,
         getRequired: () => isRequired,
         getHidden: () => isHidden,
+        getConditionality: () => isConditionality,
     }));
 
     const handleComponentValueChange = (componentId: string, value: string): void => {
@@ -113,6 +120,13 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
         setIsHidden(next);
     };
 
+    const handleConditionalityChange = (next: boolean): void => {
+        setIsConditionality(next);
+        if (next) {
+            setIsConditionalityModalOpen(true);
+        }
+    };
+
     return (
         <div
             ref={cardRef}
@@ -139,6 +153,11 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                             onChange={(e) => handleHiddenChange(Boolean(e.target.checked))}
                             label="Hide"
                         />
+                        <Toggle
+                            checked={isConditionality}
+                            onChange={(e) => handleConditionalityChange(Boolean(e.target.checked))}
+                            label="Show conditionality"
+                        />
                     </div>
                 </div>
             </div>
@@ -154,6 +173,13 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     />
                 )}
             </div>
+            <ConditionalityModal
+                isOpen={isConditionalityModalOpen}
+                onClose={() => {
+                    setIsConditionalityModalOpen(false);
+                    setIsConditionality(false);
+                }}
+            />
         </div>
     );
 });
