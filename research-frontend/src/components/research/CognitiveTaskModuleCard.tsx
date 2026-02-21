@@ -3,6 +3,7 @@ import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ModuleContentEditor } from './ModuleContentEditor';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import { Toggle } from '../ui/Toggle';
 import { ConditionalityModal } from './ConditionalityModal';
 import { getModuleConditionality, getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
@@ -20,7 +21,7 @@ interface CognitiveTaskModuleCardProps {
     researchId?: string;
     onSave?: () => void;
     isActive?: boolean;
-    conditionalityDisabled?: boolean;
+    enabledDemographics?: EnabledDemographic[];
 }
 
 /**
@@ -28,7 +29,8 @@ interface CognitiveTaskModuleCardProps {
  * Estructura idéntica a SmartVOCModuleCard para consistencia
  */
 export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
-    ({ module, researchId, isActive = false, conditionalityDisabled = false }, ref) => {
+    ({ module, researchId, isActive = false, enabledDemographics = [] }, ref) => {
+    const conditionalityDisabled = !enabledDemographics.length;
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -182,6 +184,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     setIsConditionality(false);
                 }}
                 moduleName={module.name}
+                demographics={enabledDemographics}
             />
         </div>
     );

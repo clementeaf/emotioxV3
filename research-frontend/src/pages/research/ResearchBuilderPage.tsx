@@ -18,6 +18,23 @@ import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { withModuleConditionality, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 
+export interface EnabledDemographic {
+    key: string;
+    label: string;
+    validValues: string[];
+}
+
+const DEMOGRAPHIC_LABELS: Record<string, string> = {
+    age: 'Age',
+    country: 'Country',
+    gender: 'Gender',
+    educationLevel: 'Education Level',
+    annualIncome: 'Annual Income',
+    employmentStatus: 'Employment Status',
+    dailyHoursOnline: 'Daily Hours Online',
+    technicalProficiency: 'Technical Proficiency',
+};
+
 export const ResearchBuilderPage = () => {
     const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
     const navigate = useNavigate();
@@ -119,45 +136,31 @@ export const ResearchBuilderPage = () => {
         cognitiveTaskModules.some(m => m.id === activeModuleId)
     );
 
-    // Check if demographics are configured in Research Configuration
-    const hasDemographics = useMemo((): boolean => {
-        if (!typedResearch?.stages) return false;
+    // Extract enabled demographics from Research Configuration
+    const enabledDemographics = useMemo((): EnabledDemographic[] => {
+        if (!typedResearch?.stages) return [];
         for (const stage of typedResearch.stages) {
             for (const mod of stage.modules || []) {
                 if (mod.name === 'Research Configuration' && mod.config?.demographics) {
                     const demographics = mod.config.demographics as Record<string, unknown>;
-                    return Object.values(demographics).some((v) => {
+                    const result: EnabledDemographic[] = [];
+                    for (const [key, v] of Object.entries(demographics)) {
                         if (typeof v === 'object' && v !== null && 'enabled' in v) {
-                            return (v as { enabled: boolean }).enabled === true;
+                            const demo = v as { enabled: boolean; validValues?: string[] };
+                            if (demo.enabled) {
+                                result.push({
+                                    key,
+                                    label: DEMOGRAPHIC_LABELS[key] || key,
+                                    validValues: demo.validValues || [],
+                                });
+                            }
                         }
-                        return false;
-                    });
+                    }
+                    return result;
                 }
             }
         }
-        return false;
-    }, [typedResearch]);
-
-    // Find the first module of the first optional stage (post Research Configuration)
-    const firstOptionalModuleId = useMemo((): string | null => {
-        if (!typedResearch?.stages) return null;
-        const sortedStages = [...typedResearch.stages].sort((a, b) => {
-            const getPriority = (s: Stage) => {
-                const name = s.name.toLowerCase();
-                if (name.includes('welcome')) return 0;
-                if (name.includes('research configuration')) return 1;
-                if (name.includes('thank you') || name.includes('thankyou')) return 999;
-                return 2;
-            };
-            return getPriority(a) - getPriority(b);
-        });
-        const firstOptional = sortedStages.find(s => {
-            const name = s.name.toLowerCase();
-            return !name.includes('welcome') && !name.includes('research configuration') && !name.includes('thank you') && !name.includes('thankyou');
-        });
-        if (!firstOptional || !firstOptional.modules?.length) return null;
-        const sortedModules = [...firstOptional.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-        return sortedModules[0].id;
+        return [];
     }, [typedResearch]);
 
     // Check if current module is Research Configuration
@@ -550,7 +553,7 @@ export const ResearchBuilderPage = () => {
                                 researchId={id!}
                                 onSave={handleSaveModule}
                                 isActive={activeModuleId === module.id}
-                                conditionalityDisabled={module.id === firstOptionalModuleId && !hasDemographics}
+                                enabledDemographics={enabledDemographics}
                             />
                         </div>
                     ))}
@@ -592,7 +595,7 @@ export const ResearchBuilderPage = () => {
                                 researchId={id!}
                                 onSave={handleSaveModule}
                                 isActive={activeModuleId === module.id}
-                                conditionalityDisabled={module.id === firstOptionalModuleId && !hasDemographics}
+                                enabledDemographics={enabledDemographics}
                             />
                         </div>
                     ))}

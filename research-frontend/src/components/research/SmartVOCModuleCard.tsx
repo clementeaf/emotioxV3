@@ -4,6 +4,7 @@ import { ModuleContentEditor } from './ModuleContentEditor';
 import { SmartVOCPreview } from './SmartVOCPreview';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import { Toggle } from '../ui/Toggle';
 import { ConditionalityModal } from './ConditionalityModal';
 import { getModuleConditionality, getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
@@ -21,7 +22,7 @@ interface SmartVOCModuleCardProps {
     researchId?: string;
     onSave?: () => void;
     isActive?: boolean;
-    conditionalityDisabled?: boolean;
+    enabledDemographics?: EnabledDemographic[];
 }
 
 /**
@@ -29,7 +30,8 @@ interface SmartVOCModuleCardProps {
  * Muestra el módulo con su editor de contenido
  */
 export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModuleCardProps>(
-    ({ module, researchId, isActive = false, conditionalityDisabled = false }, ref) => {
+    ({ module, researchId, isActive = false, enabledDemographics = [] }, ref) => {
+    const conditionalityDisabled = !enabledDemographics.length;
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -178,6 +180,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                     setIsConditionality(false);
                 }}
                 moduleName={module.name}
+                demographics={enabledDemographics}
             />
         </div>
     );

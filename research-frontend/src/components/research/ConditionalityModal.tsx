@@ -1,20 +1,56 @@
+import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui/Modal';
+import { CustomSelect } from '../ui/CustomSelect';
+import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 
 interface ConditionalityModalProps {
     isOpen: boolean;
     onClose: () => void;
     moduleName: string;
+    demographics: EnabledDemographic[];
 }
 
 /**
  * Modal for configuring conditionality rules on a question/section.
- * Pure UI — no functional logic yet.
+ * Populates selects from enabled demographics in Research Configuration.
  */
 export const ConditionalityModal = ({
     isOpen,
     onClose,
     moduleName,
+    demographics,
 }: ConditionalityModalProps) => {
+    const [selectedQuestion, setSelectedQuestion] = useState('');
+    const [selectedOption, setSelectedOption] = useState('');
+
+    // Reset state when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setSelectedQuestion(demographics.length === 1 ? demographics[0].key : '');
+            setSelectedOption('');
+        }
+    }, [isOpen, demographics]);
+
+    const selectedDemographic = useMemo(
+        () => demographics.find(d => d.key === selectedQuestion),
+        [demographics, selectedQuestion]
+    );
+
+    const questionOptions = useMemo(
+        () => demographics.map(d => ({ value: d.key, label: d.label })),
+        [demographics]
+    );
+
+    const answerOptions = useMemo(
+        () => selectedDemographic?.validValues.map(val => ({ value: val, label: val })) || [],
+        [selectedDemographic]
+    );
+
+    const handleQuestionChange = (key: string) => {
+        setSelectedQuestion(key);
+        setSelectedOption('');
+    };
+
     return (
         <Modal
             isOpen={isOpen}
@@ -41,36 +77,32 @@ export const ConditionalityModal = ({
 
                 {/* Condition row: Show / this section if */}
                 <div className="flex items-center gap-3">
-                    <select
-                        className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        defaultValue="show"
-                    >
-                        <option value="show">Show</option>
-                    </select>
+                    <CustomSelect
+                        options={[{ value: 'show', label: 'Show' }]}
+                        value="show"
+                        className="w-auto"
+                    />
                     <span className="text-sm text-gray-700">this section if</span>
                 </div>
 
                 {/* Question selector */}
-                <div>
-                    <select
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        defaultValue=""
-                    >
-                        <option value="" disabled>Select a question</option>
-                        <option value="placeholder">3.3.- Question &nbsp; Ask something</option>
-                    </select>
-                </div>
+                <CustomSelect
+                    options={questionOptions}
+                    value={selectedQuestion}
+                    onChange={handleQuestionChange}
+                    placeholder="Select a question"
+                />
 
                 {/* Answer selector */}
                 <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-700 shrink-0">answer is</span>
-                    <select
-                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        defaultValue=""
-                    >
-                        <option value="" disabled>Select an option</option>
-                        <option value="placeholder">Option 2</option>
-                    </select>
+                    <CustomSelect
+                        options={answerOptions}
+                        value={selectedOption}
+                        onChange={setSelectedOption}
+                        placeholder="Select an option"
+                        disabled={!selectedDemographic}
+                    />
                 </div>
 
                 {/* Warning banner */}
