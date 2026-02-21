@@ -46,6 +46,26 @@
 
 ---
 
+## [0.16.0] Conditionality config persistence & participant-side filtering — 2026-02-21
+
+### research-frontend
+- `ConditionalityModal` now fully functional: saves `conditionalityConfig` (demographicKey + demographicValue) to module config
+- Added `onSave`/`initialConfig` props to modal; re-opening the modal restores the saved condition
+- Save button disabled until both question and answer are selected
+- SmartVOC and CognitiveTask cards expose `getConditionalityConfig()` via imperative ref
+- Visual indicator below toggle shows configured condition (e.g. "Condition: Show if age = 18-24") with click to re-edit
+- Toggling conditionality OFF clears the config; closing modal without saving reverts toggle only if no config was previously set
+- `ResearchBuilderPage.handleSaveModule` persists `conditionalityConfig` alongside `conditionality` flag to backend
+- Added `ConditionalityConfig` interface, `getModuleConditionalityConfig` and `withModuleConditionalityConfig` helpers in `moduleRequired.ts`
+
+### participant-frontend
+- **Conditionality filtering**: `useNavigation` skips modules whose condition is not met based on participant's demographic responses
+- Modules with conditions are shown by default until demographics are answered, then re-evaluated
+- `demographicResponses` read reactively from Zustand store (re-filters navigation on demographic change)
+- **DemographicsStep revamp**: title changed from "Information" to "Demographics", removed internal border/shadow and "Continue" button
+- Demographic fields now use configured options from Research Configuration (validAges for age ranges, options for gender/education/etc., validCountries for country)
+- Server-side demographic validation (quota/disqualification) moved to `ResearchPage.handleNext` for the demographics step
+
 ## [0.15.0] Conditionality toggle & modal for Cognitive Task and Smart VOC — 2026-02-21
 
 ### research-frontend
