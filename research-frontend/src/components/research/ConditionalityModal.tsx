@@ -3,7 +3,7 @@ import { Modal } from '../ui/Modal';
 interface ConditionalityModalProps {
     isOpen: boolean;
     onClose: () => void;
-    questionLabel?: string;
+    moduleName: string;
 }
 
 /**
@@ -13,7 +13,7 @@ interface ConditionalityModalProps {
 export const ConditionalityModal = ({
     isOpen,
     onClose,
-    questionLabel = '3.4.- Question',
+    moduleName,
 }: ConditionalityModalProps) => {
     return (
         <Modal
@@ -33,7 +33,7 @@ export const ConditionalityModal = ({
             <div className="space-y-5">
                 {/* Question header */}
                 <div>
-                    <h3 className="text-base font-semibold text-gray-900">{questionLabel}</h3>
+                    <h3 className="text-base font-semibold text-gray-900">{moduleName}</h3>
                     <p className="text-sm text-gray-500 mt-0.5">
                         Please, select the configuration for this question
                     </p>

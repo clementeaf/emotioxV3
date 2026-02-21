@@ -54,6 +54,7 @@
 - Modal opens automatically when toggle is activated; closing the modal (X, overlay click, or Escape) deactivates the toggle
 - Added `getModuleConditionality` / `withModuleConditionality` utility functions in `moduleRequired.ts`
 - Conditionality flag persisted to `module.config.conditionality` on save
+- ConditionalityModal identifies the source module by name
 
 ---
 

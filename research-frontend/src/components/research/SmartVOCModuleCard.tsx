@@ -175,6 +175,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                     setIsConditionalityModalOpen(false);
                     setIsConditionality(false);
                 }}
+                moduleName={module.name}
             />
         </div>
     );

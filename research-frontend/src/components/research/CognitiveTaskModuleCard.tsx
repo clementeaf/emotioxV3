@@ -179,6 +179,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     setIsConditionalityModalOpen(false);
                     setIsConditionality(false);
                 }}
+                moduleName={module.name}
             />
         </div>
     );
