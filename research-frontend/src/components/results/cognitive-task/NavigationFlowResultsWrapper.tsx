@@ -176,6 +176,7 @@ export const NavigationFlowResultsWrapper = ({
         heatmapData: data.heatmapData, // Pass the raw heatmap data with isCorrect info
         imageUrl: imageUrl, // Pass the background image
         hitZones: hitZones, // Pass hitZones for overlay rendering
+        responses: data.responses,
         aois: [] // TODO: Extract AOIs from hitZones if needed
     }];
 
