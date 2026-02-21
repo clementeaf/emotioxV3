@@ -5,6 +5,7 @@ import { QueryProvider } from './providers/QueryProvider';
 // Lazy load pages for code splitting
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 const ResearchPage = lazy(() => import('./pages/ResearchPage').then(m => ({ default: m.ResearchPage })));
+const EyeTrackingTestPage = lazy(() => import('./pages/EyeTrackingTestPage').then(m => ({ default: m.EyeTrackingTestPage })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -32,6 +33,14 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<PageLoader />}>
         <ResearchPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/eye-tracking-test',
+    element: (
+      <Suspense fallback={<PageLoader />}>
+        <EyeTrackingTestPage />
       </Suspense>
     ),
   },

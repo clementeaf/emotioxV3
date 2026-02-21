@@ -100,4 +100,7 @@ export default defineConfig(({ mode }) => ({
   esbuild: {
     sourcemap: false,
   },
+  optimizeDeps: {
+    exclude: ['@mediapipe/tasks-vision'],
+  },
 }))

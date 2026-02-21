@@ -25,6 +25,7 @@
 - **Response Submission**: Real-time capture, unified store (Zustand), flush on completion.
 - **Preview Mode**: Draft research preview allowed for researchers.
 - **DevSidebar**: Module navigation grouped by stage, responsive with burger menu on mobile.
+- **Eye Tracking**: Webcam-based gaze estimation with MediaPipe Face Landmarker + Ridge Regression. 9-point calibration (15 frames/point), real-time tracking with lerp smoothing. Standalone test page at `/eye-tracking-test`.
 - **Security**: Turnstile disabled for cPanel environment.
 - **Deployment**: Build locally → rsync to cPanel ~/public_html/participant. GitHub Actions workflow available.
 
@@ -43,6 +44,23 @@
 - Service worker registration disabled to prevent caching issues
 - Some Spanish text remaining in code comments and variable names
 - DB migration pending: `remove_image_upload_from_modules.ts` (clean up image-upload from existing modules)
+
+---
+
+## [0.17.0] Eye-tracking con webcam — calibración + rastreo de mirada — 2026-02-21
+
+### participant-frontend
+- **New feature**: Webcam-based eye-tracking system with calibration and gaze estimation
+- Added standalone test page at `/eye-tracking-test` with state machine: permission → calibrating → tracking → done
+- **MediaPipe Face Landmarker** integration for real-time 478-landmark facial detection (WASM + CDN model loading)
+- **Ridge Regression** engine (`ridgeRegression.ts`): pure matrix algebra (transpose, multiply, Gauss-Jordan inverse), maps iris features to screen coordinates
+- **Rich feature extraction**: relative iris position within eye (using eye corner landmarks as reference, invariant to head position), head pose (nose tip), polynomial cross-terms (14 features total)
+- **Multi-frame calibration**: 9-point calibration grid, collects 15 frames per point with averaged features for noise reduction
+- **Calibration UI**: fullscreen white screen with animated red dot, progress ring animation during frame collection, progress bar
+- **Tracking UI**: fullscreen dark overlay with webcam feed and green gaze indicator dot with lerp smoothing
+- `useWebcam` hook: camera access lifecycle (start/stop), stream management, cleanup on unmount
+- `useEyeTracking` hook: orchestrates FaceLandmarker init, calibration state machine, frame collection with setInterval, gaze prediction loop via requestAnimationFrame
+- Added `@mediapipe/tasks-vision` dependency; Vite configured with `optimizeDeps.exclude` for WASM compatibility
 
 ---
 
