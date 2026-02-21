@@ -16,7 +16,7 @@ import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
-import { withModuleConditionality, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
+import { withModuleConditionality, withModuleConditionalityConfig, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 
 export interface EnabledDemographic {
     key: string;
@@ -308,8 +308,12 @@ export const ResearchBuilderPage = () => {
                     // Use the researcher's explicit toggle values
                     const hidden = moduleRef.getHidden();
                     const conditionality = moduleRef.getConditionality();
+                    const ccConfig = moduleRef.getConditionalityConfig();
 
-                    const config = withModuleConditionality(withModuleHidden(withModuleRequired(configWithStructure, required), hidden), conditionality);
+                    const config = withModuleConditionalityConfig(
+                        withModuleConditionality(withModuleHidden(withModuleRequired(configWithStructure, required), hidden), conditionality),
+                        conditionality ? ccConfig : null
+                    );
 
                     return modulesService.update(module.id, {
                         config,
@@ -357,8 +361,12 @@ export const ResearchBuilderPage = () => {
                     // Use the researcher's explicit toggle values
                     const hidden = moduleRef.getHidden();
                     const conditionality = moduleRef.getConditionality();
+                    const ccConfig = moduleRef.getConditionalityConfig();
 
-                    const config = withModuleConditionality(withModuleHidden(withModuleRequired(configWithStructure, required), hidden), conditionality);
+                    const config = withModuleConditionalityConfig(
+                        withModuleConditionality(withModuleHidden(withModuleRequired(configWithStructure, required), hidden), conditionality),
+                        conditionality ? ccConfig : null
+                    );
 
                     return modulesService.update(module.id, {
                         config,

@@ -2,12 +2,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui/Modal';
 import { CustomSelect } from '../ui/CustomSelect';
 import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
+import type { ConditionalityConfig } from '../../utils/moduleRequired';
 
 interface ConditionalityModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSave: (config: ConditionalityConfig) => void;
     moduleName: string;
     demographics: EnabledDemographic[];
+    initialConfig?: ConditionalityConfig | null;
 }
 
 /**
@@ -17,19 +20,26 @@ interface ConditionalityModalProps {
 export const ConditionalityModal = ({
     isOpen,
     onClose,
+    onSave,
     moduleName,
     demographics,
+    initialConfig,
 }: ConditionalityModalProps) => {
     const [selectedQuestion, setSelectedQuestion] = useState('');
     const [selectedOption, setSelectedOption] = useState('');
 
-    // Reset state when modal opens
+    // Reset state when modal opens, seeding from initialConfig if present
     useEffect(() => {
         if (isOpen) {
-            setSelectedQuestion(demographics.length === 1 ? demographics[0].key : '');
-            setSelectedOption('');
+            if (initialConfig) {
+                setSelectedQuestion(initialConfig.demographicKey);
+                setSelectedOption(initialConfig.demographicValue);
+            } else {
+                setSelectedQuestion(demographics.length === 1 ? demographics[0].key : '');
+                setSelectedOption('');
+            }
         }
-    }, [isOpen, demographics]);
+    }, [isOpen, demographics, initialConfig]);
 
     const selectedDemographic = useMemo(
         () => demographics.find(d => d.key === selectedQuestion),
@@ -51,20 +61,20 @@ export const ConditionalityModal = ({
         setSelectedOption('');
     };
 
+    const canSave = Boolean(selectedQuestion && selectedOption);
+
+    const handleSave = () => {
+        if (canSave) {
+            onSave({ action: 'show', demographicKey: selectedQuestion, demographicValue: selectedOption });
+        }
+    };
+
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
             title="Show conditionality"
             size="md"
-            footer={
-                <button
-                    type="button"
-                    className="w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors"
-                >
-                    Save configuration
-                </button>
-            }
         >
             <div className="space-y-5">
                 {/* Question header */}
@@ -115,6 +125,16 @@ export const ConditionalityModal = ({
                         triggered, you may want to make it required.
                     </p>
                 </div>
+
+                {/* Save button — inside children to avoid footer rendering issues */}
+                <button
+                    type="button"
+                    disabled={!canSave}
+                    className="w-full py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleSave}
+                >
+                    Save configuration
+                </button>
             </div>
         </Modal>
     );

@@ -7,7 +7,8 @@ import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import { Toggle } from '../ui/Toggle';
 import { ConditionalityModal } from './ConditionalityModal';
-import { getModuleConditionality, getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
+import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
+import type { ConditionalityConfig } from '../../utils/moduleRequired';
 
 export interface SmartVOCModuleCardRef {
     getComponentValues: () => Record<string, string>;
@@ -15,6 +16,7 @@ export interface SmartVOCModuleCardRef {
     getRequired: () => boolean;
     getHidden: () => boolean;
     getConditionality: () => boolean;
+    getConditionalityConfig: () => ConditionalityConfig | null;
 }
 
 interface SmartVOCModuleCardProps {
@@ -39,10 +41,12 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
     const initialRequired = useMemo(() => getModuleRequired(module.config), [module.config]);
     const initialHidden = useMemo(() => getModuleHidden(module.config), [module.config]);
     const initialConditionality = useMemo(() => getModuleConditionality(module.config), [module.config]);
+    const initialConditionalityConfig = useMemo(() => getModuleConditionalityConfig(module.config), [module.config]);
 
     const [isRequired, setIsRequired] = useState<boolean>(initialRequired);
     const [isHidden, setIsHidden] = useState<boolean>(initialHidden);
     const [isConditionality, setIsConditionality] = useState<boolean>(initialConditionality);
+    const [conditionalityConfig, setConditionalityConfig] = useState<ConditionalityConfig | null>(initialConditionalityConfig);
     const [isConditionalityModalOpen, setIsConditionalityModalOpen] = useState(false);
 
     // Reset state when config changes
@@ -50,7 +54,8 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         setIsRequired(initialRequired);
         setIsHidden(initialHidden);
         setIsConditionality(initialConditionality);
-    }, [initialRequired, initialHidden, initialConditionality]);
+        setConditionalityConfig(initialConditionalityConfig);
+    }, [initialRequired, initialHidden, initialConditionality, initialConditionalityConfig]);
 
     // Scroll to this module when it becomes active
     useEffect(() => {
@@ -71,6 +76,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         getRequired: () => isRequired,
         getHidden: () => isHidden,
         getConditionality: () => isConditionality,
+        getConditionalityConfig: () => conditionalityConfig,
     }));
 
     const handleComponentValueChange = (componentId: string, value: string): void => {
@@ -100,6 +106,8 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         setIsConditionality(next);
         if (next) {
             setIsConditionalityModalOpen(true);
+        } else {
+            setConditionalityConfig(null);
         }
     };
 
@@ -154,6 +162,15 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                         />
                     </div>
                 </div>
+                {isConditionality && conditionalityConfig && (
+                    <button
+                        type="button"
+                        onClick={() => setIsConditionalityModalOpen(true)}
+                        className="mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                        Condition: Show if {conditionalityConfig.demographicKey} = {conditionalityConfig.demographicValue}
+                    </button>
+                )}
             </div>
             <div className="p-6">
                 {!isHidden && (
@@ -177,8 +194,13 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                 isOpen={isConditionalityModalOpen}
                 onClose={() => {
                     setIsConditionalityModalOpen(false);
-                    setIsConditionality(false);
+                    if (!conditionalityConfig) setIsConditionality(false);
                 }}
+                onSave={(cfg) => {
+                    setConditionalityConfig(cfg);
+                    setIsConditionalityModalOpen(false);
+                }}
+                initialConfig={conditionalityConfig}
                 moduleName={module.name}
                 demographics={enabledDemographics}
             />

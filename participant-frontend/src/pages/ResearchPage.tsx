@@ -327,7 +327,24 @@ export const ResearchPage = () => {
   const { setConfig } = useSessionStore();
   const { getResponsesByModule, startNewSession, clearAllResponses } = useParticipantStore();
   const [modules, setModules] = useState<Record<string, Module>>({});
-  const { currentStep, goNext, isLastStep } = useNavigation(modules);
+
+  // Build demographic responses map for conditionality filtering.
+  // We serialize to a JSON key so the memo only updates when actual values change.
+  const _demoResponsesJson = useParticipantStore((state) => {
+    const map: Record<string, string> = {};
+    state.responses.forEach((r) => {
+      if (r.moduleId === 'demographics' && typeof r.value === 'string') {
+        map[r.componentId] = r.value;
+      }
+    });
+    return JSON.stringify(map);
+  });
+  const demographicResponses: Record<string, string> = useMemo(
+    () => JSON.parse(_demoResponsesJson) as Record<string, string>,
+    [_demoResponsesJson]
+  );
+
+  const { currentStep, goNext, isLastStep } = useNavigation(modules, demographicResponses);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -739,6 +756,50 @@ export const ResearchPage = () => {
       useParticipantStore.getState().setCurrentStep('welcome');
       setShowRestartOption(false);
       return;
+    }
+
+    // Demographics server-side validation (quota & disqualification)
+    if (currentStep === 'demographics' && !isPreviewMode) {
+      const demoResponses = useParticipantStore.getState().responses;
+      const demoAnswers: Record<string, string> = {};
+      demoResponses.forEach((r) => {
+        if (r.moduleId === 'demographics' && typeof r.value === 'string') {
+          demoAnswers[r.componentId] = r.value;
+        }
+      });
+
+      // Check that at least one answer exists
+      if (Object.keys(demoAnswers).length === 0) {
+        alert('Please answer the demographic questions before continuing.');
+        return;
+      }
+
+      try {
+        setSubmitting(true);
+        const match = window.location.pathname.match(/\/research\/([^/]+)/);
+        const rid = match?.[1] ?? researchId;
+        if (rid) {
+          const result = await publicService.validateDemographics(rid, demoAnswers);
+          if (!result.valid) {
+            const bl = backlinks;
+            if (result.reason === 'QUOTA_FULL') {
+              if (bl.overquota) { window.location.href = bl.overquota; return; }
+              alert('This survey has reached its participant limit for your profile.');
+            } else {
+              if (bl.disqualified) { window.location.href = bl.disqualified; return; }
+              alert('Sorry, you do not meet the required profile for this study.');
+            }
+            setSubmitting(false);
+            return;
+          }
+        }
+      } catch {
+        alert('Validation error. Please try again.');
+        setSubmitting(false);
+        return;
+      } finally {
+        setSubmitting(false);
+      }
     }
 
     // Verify Turnstile token on welcome step (only in participant mode)

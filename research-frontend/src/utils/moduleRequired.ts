@@ -82,6 +82,43 @@ export const withModuleConditionality = (
     };
 };
 
+export interface ConditionalityConfig {
+    action: 'show';
+    demographicKey: string;
+    demographicValue: string;
+}
+
+export const getModuleConditionalityConfig = (
+    config: Record<string, unknown> | undefined
+): ConditionalityConfig | null => {
+    if (!config) return null;
+    const cc = config.conditionalityConfig;
+    if (
+        typeof cc === 'object' &&
+        cc !== null &&
+        'action' in cc &&
+        'demographicKey' in cc &&
+        'demographicValue' in cc
+    ) {
+        const typed = cc as ConditionalityConfig;
+        if (typed.demographicKey && typed.demographicValue) return typed;
+    }
+    return null;
+};
+
+export const withModuleConditionalityConfig = (
+    config: Record<string, unknown> | undefined,
+    conditionalityConfig: ConditionalityConfig | null
+): Record<string, unknown> => {
+    const base = { ...(config || {}) };
+    if (conditionalityConfig) {
+        base.conditionalityConfig = conditionalityConfig;
+    } else {
+        delete base.conditionalityConfig;
+    }
+    return base;
+};
+
 /**
  * Checks if a component has a configured value (not empty or default).
  * @param component - Component configuration
