@@ -27,8 +27,15 @@ export const ChoiceQuestion = ({
     required = false,
     onComplete,
 }: ChoiceQuestionProps) => {
-    const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const { save } = useResponse({ moduleId, componentId });
+    const { value: storedValue, save } = useResponse({ moduleId, componentId });
+
+    // Derive selectedIds from store — single source of truth
+    const [selectedIds, setSelectedIds] = useState<string[]>(() => {
+        if (!storedValue) return [];
+        if (Array.isArray(storedValue)) return storedValue as string[];
+        if (typeof storedValue === 'string') return [storedValue];
+        return [];
+    });
 
     useEffect(() => {
         // Save selection

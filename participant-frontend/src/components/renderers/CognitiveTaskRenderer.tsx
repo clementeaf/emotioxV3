@@ -85,6 +85,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
             return (
                 <ChoiceQuestion
+                    key={`${module.id}-choice`}
                     moduleId={module.id}
                     componentId="choice"
                     title={titleText}
@@ -110,6 +111,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
             return (
                 <LinearScaleQuestion
+                    key={`${module.id}-scale`}
                     moduleId={module.id}
                     componentId="scale"
                     title={titleText}
@@ -280,6 +282,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
             return (
                 <RankingQuestion
+                    key={`${module.id}-ranking`}
                     moduleId={module.id}
                     componentId="ranking"
                     title={titleText}

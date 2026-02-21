@@ -28,6 +28,6 @@ export function getPublicTestsUrl(researchId: string, participantId: string): st
         }
     }
     
-    return `${baseUrl}?researchId=${researchId}&userId=${participantId}`;
+    return `${baseUrl}/research/${researchId}?participantId=${participantId}`;
 }
 

@@ -23,20 +23,26 @@ export const RankingQuestion = ({
     items,
     required = false,
 }: RankingQuestionProps) => {
-    const [rankedItems, setRankedItems] = useState<RankingItem[]>(items);
+    const { value: storedValue, save } = useResponse({ moduleId, componentId });
+
+    const [rankedItems, setRankedItems] = useState<RankingItem[]>(() => {
+        if (Array.isArray(storedValue)) {
+            // Reorder items based on stored ranking (array of IDs)
+            const ordered = (storedValue as string[])
+                .map(id => items.find(item => item.id === id))
+                .filter((item): item is RankingItem => item !== undefined);
+            // Append any items not in the stored ranking
+            const ids = storedValue as string[];
+            const remaining = items.filter(item => !ids.includes(item.id));
+            return [...ordered, ...remaining];
+        }
+        return items;
+    });
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-    const { save } = useResponse({ moduleId, componentId });
 
     useEffect(() => {
         // Save ranking as array of IDs
         const ranking = rankedItems.map(item => item.id);
-        console.log('[RankingQuestion] Saving ranking:', {
-            moduleId,
-            componentId,
-            itemsCount: rankedItems.length,
-            ranking,
-            rankedItems: rankedItems.map(item => ({ id: item.id, label: item.label }))
-        });
         save(ranking, {
             itemCount: rankedItems.length,
         });

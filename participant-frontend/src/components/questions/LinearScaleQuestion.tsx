@@ -41,8 +41,11 @@ export const LinearScaleQuestion = ({
     required = false,
     onComplete,
 }: LinearScaleQuestionProps) => {
-    const [selectedValue, setSelectedValue] = useState<number | null>(null);
-    const { save } = useResponse({ moduleId, componentId });
+    const { value: storedValue, save } = useResponse({ moduleId, componentId });
+
+    const [selectedValue, setSelectedValue] = useState<number | null>(() => {
+        return typeof storedValue === 'number' ? storedValue : null;
+    });
 
     useEffect(() => {
         if (selectedValue !== null) {
