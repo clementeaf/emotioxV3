@@ -73,23 +73,28 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // Specific libraries first (before generic 'react' match)
             if (id.includes('@tanstack/react-query')) {
               return 'query-vendor';
             }
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
+            if (id.includes('react-router-dom') || id.includes('react-router')) {
+              return 'vendor';
+            }
+            if (id.includes('react-i18next') || id.includes('i18next')) {
+              return 'vendor';
             }
             if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
               return 'ui-vendor';
             }
-            if (id.includes('react-router-dom')) {
-              return 'router-vendor';
+            if (id.includes('react-window') || id.includes('@marsidev/react-turnstile')) {
+              return 'vendor';
+            }
+            // Core React + scheduler (must stay together)
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+              return 'react-vendor';
             }
             if (id.includes('zustand')) {
               return 'state-vendor';
-            }
-            if (id.includes('axios')) {
-              return 'http-vendor';
             }
             return 'vendor';
           }

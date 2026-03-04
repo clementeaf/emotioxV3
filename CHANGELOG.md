@@ -4,6 +4,12 @@
 
 ---
 
+## v0.18.1 — Participant vendor chunk fix (2026-03-04)
+
+- Fixed `manualChunks` in participant-frontend Vite config that caused React crash in production
+- Root cause: `id.includes('react')` was capturing all react-* libraries (router, i18next, window, turnstile) into `react-vendor` chunk, while `scheduler` (react-dom dependency) fell into generic `vendor` chunk, breaking initialization order
+- Fix: specific library matches run before generic React match; core React uses exact path matching (`/react/`, `/react-dom/`, `/scheduler/`) to keep only essential modules together
+
 ## v0.18.0 — Participant i18n (2026-03-04)
 
 - Internationalization for participant-frontend using `react-i18next` + `i18next`
