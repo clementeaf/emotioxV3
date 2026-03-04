@@ -14,6 +14,8 @@ interface QuotaConfig {
     enforcementMode?: 'immediate' | 'post_collection';
 }
 
+type LocationGranularity = 'countryOnly' | 'countryRegion' | 'countryRegionCommune';
+
 interface DemographicConfig {
     enabled: boolean;
     quotas?: QuotaConfig[];
@@ -21,6 +23,7 @@ interface DemographicConfig {
     min?: number;
     max?: number;
     value?: string; // For country/geographic restrictions
+    granularity?: LocationGranularity;
     region?: string;
     communes?: string[];
 }

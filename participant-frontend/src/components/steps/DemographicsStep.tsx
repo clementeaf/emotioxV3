@@ -8,6 +8,8 @@ interface DemographicsStepProps {
     onComplete: () => void;
 }
 
+type LocationGranularity = 'countryOnly' | 'countryRegion' | 'countryRegionCommune';
+
 interface DemographicConfig {
     enabled?: boolean;
     // Age
@@ -17,6 +19,7 @@ interface DemographicConfig {
     validCountries?: string[];
     disqualifyingCountries?: string[];
     priorityCountries?: string[];
+    granularity?: LocationGranularity;
     // Generic (gender, educationLevel, etc.)
     options?: Array<{ value: string; label: string }>;
     disqualified?: string[];

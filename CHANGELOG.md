@@ -4,6 +4,18 @@
 
 ---
 
+## v0.17.0 — Location Granularity (WIP, 2026-03-04)
+
+### Phase 1: Types
+- Added `LocationGranularity` type (`countryOnly | countryRegion | countryRegionCommune`) to:
+  - `research-frontend/src/utils/demographicsMapper.ts` (exported)
+  - `backend/src/modules/quotas/quota.service.ts`
+  - `participant-frontend/src/components/steps/DemographicsStep.tsx`
+- Added `granularity?` field to `BackendDemographicConfig`, backend `DemographicConfig`, and participant `DemographicConfig`
+- Goal: allow researchers to configure geographic detail level per study instead of hardcoded Chile-only region/commune
+
+---
+
 ## Current State Summary (as of 2026-02-17)
 
 ### research-frontend (https://emotio.cx/research)
