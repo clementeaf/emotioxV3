@@ -4,6 +4,15 @@
 
 ---
 
+## v0.19.0 — Participant UX: explicit Continue buttons (2026-03-04)
+
+- Replaced auto-advance (`setTimeout 500ms`) with explicit "Continue" button across all participant steps
+- Affects: ChoiceQuestion (single/multiple), LinearScaleQuestion, SmartVOC (NPS, CSAT, CES, CV, NEV)
+- Button appears only after participant makes a selection
+- Removed unused `onComplete` prop from ScaleSelector, StarSelector, EmotionSelector
+- NavigationFlow now renders title and description; removed instruction box
+- Added `common.continue` translation key (ES: "Continuar", EN: "Continue")
+
 ## v0.18.1 — Participant vendor chunk fix (2026-03-04)
 
 - Fixed `manualChunks` in participant-frontend Vite config that caused React crash in production
