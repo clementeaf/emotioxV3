@@ -672,11 +672,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 <CountryConfigModal
                     isOpen={true}
                     onClose={() => setActiveConfigModal(null)}
-                    onSave={(validCountries, disqualifyingCountries, priorityCountries) => {
+                    onSave={(validCountries, disqualifyingCountries, priorityCountries, granularity) => {
                         handleSaveDemographicConfig({
                             validCountries,
                             disqualifyingCountries,
-                            priorityCountries
+                            priorityCountries,
+                            granularity
                         });
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('country', quotas)}
@@ -684,6 +685,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                     initialValidCountries={demographics.country?.validCountries || []}
                     initialDisqualifyingCountries={demographics.country?.disqualifyingCountries || []}
                     initialPriorityCountries={demographics.country?.priorityCountries || []}
+                    initialGranularity={demographics.country?.granularity || 'countryOnly'}
                     initialQuotas={mapBackendQuotasToModal(demographics.country?.quotas, 'country')}
                     quotasEnabled={isQuotasEnabled('country')}
                 />

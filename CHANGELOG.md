@@ -18,6 +18,11 @@
 - `mapCountryConfigToBackend` now accepts optional `granularity` param, defaults to `'countryOnly'`
 - `mapModalConfigToBackend` passes `modalData.granularity` through to the country mapper
 
+### Phase 3: Research UI (CountryConfigModal)
+- Added granularity selector (3 radio cards: Solo país / País + Región / País + Región + Comuna) at the top of `CountryConfigModal`
+- `onSave` now includes `granularity` as 4th argument
+- `ResearchConfigurationModule` passes `initialGranularity` from saved config and forwards selected granularity to the mapper
+
 ---
 
 ## Current State Summary (as of 2026-02-17)

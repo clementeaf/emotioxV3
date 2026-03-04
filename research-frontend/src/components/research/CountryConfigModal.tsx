@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronRight, Edit2, Globe, Save, Search, Star, Target, Trash2, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Globe, MapPin, Save, Search, Star, Target, Trash2, Users, X } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { QuotasTab } from './demographic-config/QuotasTab';
 import { useQuotaManagement } from './demographic-config/useQuotaManagement';
 import type { BaseDemographicQuota } from './demographic-config/types';
+import type { LocationGranularity } from '../../utils/demographicsMapper';
 
 interface Country {
   id: string;
@@ -38,14 +39,13 @@ interface ContinentSection {
 interface CountryConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (validCountries: string[], disqualifyingCountries: string[], priorityCountries: string[]) => void;
-  // 🎯 NUEVAS PROPS PARA CUOTAS
+  onSave: (validCountries: string[], disqualifyingCountries: string[], priorityCountries: string[], granularity: LocationGranularity) => void;
   onQuotasSave?: (quotas: CountryQuota[]) => void;
   onQuotasToggle?: (enabled: boolean) => void;
   initialValidCountries?: string[];
   initialDisqualifyingCountries?: string[];
   initialPriorityCountries?: string[];
-  // 🎯 NUEVAS PROPS PARA CUOTAS
+  initialGranularity?: LocationGranularity;
   initialQuotas?: CountryQuota[];
   quotasEnabled?: boolean;
 }
@@ -88,6 +88,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   initialValidCountries: _initialValidCountries = [],
   initialDisqualifyingCountries = [],
   initialPriorityCountries = [],
+  initialGranularity = 'countryOnly',
   initialQuotas = [],
   quotasEnabled = false
 }) => {
@@ -95,6 +96,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCountry, setEditingCountry] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'options' | 'quotas'>('options');
+  const [granularity, setGranularity] = useState<LocationGranularity>(initialGranularity);
 
   // 🎯 USAR HOOK DE CUOTAS
   const baseQuotas = useMemo(
@@ -143,8 +145,9 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setContinentSections(createContinentSections);
+      setGranularity(initialGranularity);
     }
-  }, [isOpen, createContinentSections]);
+  }, [isOpen, createContinentSections, initialGranularity]);
 
   // Filtrar continentes y países por búsqueda
   const filteredSections = useMemo(() => {
@@ -334,7 +337,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
       .filter(country => country.isPriority && !country.isDisqualifying)
       .map(country => country.name);
 
-    onSave(validCountries, disqualifyingCountries, priorityCountries);
+    onSave(validCountries, disqualifyingCountries, priorityCountries, granularity);
 
     // 🎯 GUARDAR CUOTAS SI ESTÁN HABILITADAS
     if (quotaConfig.quotasEnabled && onQuotasSave) {
@@ -375,7 +378,44 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
           </button>
         </div>
 
-        {/* 🎯 NUEVO: TABS PARA OPCIONES Y CUOTAS */}
+        {/* Granularidad geográfica */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex items-center gap-2 mb-3">
+            <MapPin size={16} className="text-gray-600" />
+            <span className="text-sm font-medium text-gray-900">Nivel de detalle geográfico</span>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            Define qué nivel de información geográfica se le pedirá al participante.
+          </p>
+          <div className="flex gap-3">
+            {([
+              { value: 'countryOnly', label: 'Solo país' },
+              { value: 'countryRegion', label: 'País + Región' },
+              { value: 'countryRegionCommune', label: 'País + Región + Comuna/Ciudad' },
+            ] as const).map(option => (
+              <label
+                key={option.value}
+                className={`flex-1 flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  granularity === option.value
+                    ? 'border-blue-500 bg-blue-50 text-blue-800'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="granularity"
+                  value={option.value}
+                  checked={granularity === option.value}
+                  onChange={() => setGranularity(option.value)}
+                  className="sr-only"
+                />
+                <span className="text-sm font-medium">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Tabs para opciones y cuotas */}
         <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
           <button
             onClick={() => setActiveTab('options')}
