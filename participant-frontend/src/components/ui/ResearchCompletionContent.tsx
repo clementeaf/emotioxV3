@@ -1,8 +1,12 @@
+import { useTranslation } from 'react-i18next';
+
 interface ResearchCompletionContentProps {
   showRestartOption: boolean;
 }
 
 export const ResearchCompletionContent = ({ showRestartOption }: ResearchCompletionContentProps) => {
+  const { t } = useTranslation();
+
   if (!showRestartOption) return null;
 
   return (
@@ -13,10 +17,10 @@ export const ResearchCompletionContent = ({ showRestartOption }: ResearchComplet
         </svg>
       </div>
       <h1 className="text-2xl font-bold text-gray-900">
-        ¡Gracias por completar la encuesta!
+        {t('completion.title')}
       </h1>
       <p className="text-gray-600 max-w-md">
-        Esta investigación permite múltiples respuestas. Puedes comenzar de nuevo si lo deseas.
+        {t('completion.multipleAllowed')}
       </p>
     </div>
   );

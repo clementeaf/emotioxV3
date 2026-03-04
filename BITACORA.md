@@ -5,7 +5,44 @@
 
 ---
 
-## Última actualización: 2026-02-17 (sesión 3)
+## Última actualización: 2026-03-04 (sesión 4)
+
+---
+
+## Sesión 4: 4 de marzo de 2026 — Location Granularity (v0.17.0)
+
+### Cambios realizados
+
+#### Feature: Granularidad geográfica configurable por investigación
+**Problema:** La estructura de ubicación estaba hardcodeada — Chile tenía 3 niveles (país→región→comuna) y todos los demás países solo 1 nivel. El investigador no podía elegir qué nivel de detalle geográfico pedir.
+
+**Solución (5 fases + simplificación, 5 commits):**
+
+1. **Tipos** — Creado `LocationGranularity` (`countryOnly | countryCity`) en los 3 sub-proyectos:
+   - `research-frontend/src/utils/demographicsMapper.ts` (exportado)
+   - `backend/src/modules/quotas/quota.service.ts`
+   - `participant-frontend/src/components/steps/DemographicsStep.tsx`
+
+2. **Mapper** — `mapCountryConfigToBackend` acepta y serializa `granularity` (default `countryOnly`). `mapModalConfigToBackend` lo pasa al caso country.
+
+3. **UI Investigador** — Selector visual de granularidad (2 radio cards: "Solo país" / "País + Ciudad") en `CountryConfigModal`. Se persiste en el JSON del módulo Research Configuration. `ResearchConfigurationModule` lee/escribe `initialGranularity`.
+
+4. **UI Participante** — `DemographicsStep` reemplazó el hardcode `=== 'Chile'` por lectura de `granularity` del config. Si `countryCity`, muestra un campo de texto libre para ciudad debajo del selector de país.
+
+5. **Limpieza** — Eliminado `chile-geography.ts` de ambos frontends. Eliminada validación hardcodeada de regiones/comunas de Chile del backend. Verificado que el backend no rompe (usa `Object.entries` dinámico, sin validación estricta de schema).
+
+### Archivos modificados
+- `research-frontend/src/utils/demographicsMapper.ts`
+- `research-frontend/src/components/research/CountryConfigModal.tsx`
+- `research-frontend/src/components/research/ResearchConfigurationModule.tsx`
+- `research-frontend/src/data/chile-geography.ts` (eliminado)
+- `participant-frontend/src/data/chile-geography.ts` (eliminado)
+- `backend/src/modules/quotas/quota.service.ts`
+- `participant-frontend/src/components/steps/DemographicsStep.tsx`
+- `CHANGELOG.md`
+
+### Pendientes
+- Deploy a producción (research-frontend, participant-frontend, backend)
 
 ---
 

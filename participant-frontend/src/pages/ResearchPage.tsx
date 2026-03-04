@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
 import { Button } from '../components/ui/Button';
 import { DevSidebar } from '../components/layout/DevSidebar';
@@ -13,6 +14,7 @@ import { ResearchCompletionContent } from '../components/ui/ResearchCompletionCo
 import { UnconfiguredStepContent } from '../components/ui/UnconfiguredStepContent';
 import { WelcomeStep } from '../components/steps/WelcomeStep';
 import { DemographicsStep } from '../components/steps/DemographicsStep';
+import { LanguageSelector } from '../components/ui/LanguageSelector';
 import { useSessionStore } from '../stores/useSessionStore';
 import { useParticipantStore } from '../stores/useParticipantStore';
 import { useNavigation } from '../hooks/useNavigation';
@@ -322,6 +324,7 @@ const getStepIdFromModuleName = (moduleName: string): string | null => {
 };
 
 export const ResearchPage = () => {
+  const { t } = useTranslation();
   const { researchId } = useParams<{ researchId: string }>();
   const { isPreviewMode, participantId } = usePreviewMode();
   const { setConfig } = useSessionStore();
@@ -427,7 +430,7 @@ export const ResearchPage = () => {
 
         // If mobile devices are not allowed and user is on mobile/tablet
         if (linkConfig.allowMobile === false && deviceType && (deviceType === 'mobile' || deviceType === 'tablet')) {
-          setMobileRestriction('This research is not available on mobile devices. Please access it from a desktop computer.');
+          setMobileRestriction(t('mobileRestriction.message'));
           setModules({});
           setLoading(false);
           return;
@@ -590,14 +593,14 @@ export const ResearchPage = () => {
         // Removed excessive logging for production
       } catch (err: unknown) {
         console.error('Failed to load research:', err);
-        setError('Failed to load research. Please try again.');
+        setError(t('errors.failedToLoadResearch'));
       } finally {
         setLoading(false);
       }
     };
 
     void loadResearch();
-  }, [researchId, setConfig, isPreviewMode]);
+  }, [researchId, setConfig, isPreviewMode, t]);
 
   // Check if we're in development mode
   const isDev = useMemo(() => import.meta.env.DEV, []);
@@ -643,7 +646,7 @@ export const ResearchPage = () => {
    */
   const getButtonText = useCallback((module: Module | undefined): string => {
     if (!module) {
-      return 'Guardar y continuar';
+      return t('common.saveAndContinue');
     }
 
     // For Welcome Screen, use the start_button_text component value
@@ -684,8 +687,8 @@ export const ResearchPage = () => {
     }
 
     // Default text
-    return 'Guardar y continuar';
-  }, [isStartButtonComponent]);
+    return t('common.saveAndContinue');
+  }, [isStartButtonComponent, t]);
 
   /**
    * Determines if the "Guardar y continuar" button should be shown for the current module
@@ -770,7 +773,7 @@ export const ResearchPage = () => {
 
       // Check that at least one answer exists
       if (Object.keys(demoAnswers).length === 0) {
-        alert('Please answer the demographic questions before continuing.');
+        alert(t('errors.answerDemographics'));
         return;
       }
 
@@ -784,17 +787,17 @@ export const ResearchPage = () => {
             const bl = backlinks;
             if (result.reason === 'QUOTA_FULL') {
               if (bl.overquota) { window.location.href = bl.overquota; return; }
-              alert('This survey has reached its participant limit for your profile.');
+              alert(t('errors.quotaFull'));
             } else {
               if (bl.disqualified) { window.location.href = bl.disqualified; return; }
-              alert('Sorry, you do not meet the required profile for this study.');
+              alert(t('errors.disqualified'));
             }
             setSubmitting(false);
             return;
           }
         }
       } catch {
-        alert('Validation error. Please try again.');
+        alert(t('errors.validationError'));
         setSubmitting(false);
         return;
       } finally {
@@ -807,7 +810,7 @@ export const ResearchPage = () => {
     if (TURNSTILE_ENABLED && currentStep === 'welcome' && !isPreviewMode) {
       const { turnstileVerified, turnstileToken } = useSessionStore.getState();
       if (!turnstileVerified || !turnstileToken) {
-        alert('Por favor, completa la verificación de seguridad antes de continuar.');
+        alert(t('errors.completeSecurityVerification'));
         return;
       }
     }
@@ -846,7 +849,7 @@ export const ResearchPage = () => {
 
       // Only require token verification if Turnstile is enabled and not already verified
       if (TURNSTILE_ENABLED && !isDevelopment && !turnstileTokenUsed && !wasAlreadyVerified && (!turnstileVerified || !turnstileToken)) {
-        alert('La verificación de seguridad es requerida. Por favor, recarga la página y completa la verificación.');
+        alert(t('errors.securityRequired'));
         return;
       }
 
@@ -899,13 +902,13 @@ export const ResearchPage = () => {
           console.error('Error submitting responses:', error);
 
           // Check if error is related to Turnstile verification
-          const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+          const errorMessage = error instanceof Error ? error.message : t('errors.unknownError');
           if (errorMessage.includes('verification') || errorMessage.includes('Anti-bot') || errorMessage.includes('security')) {
-            alert('Error de verificación de seguridad. Por favor, recarga la página y completa la verificación nuevamente.');
+            alert(t('errors.securityVerificationError'));
             // Clear token to force re-verification
             useSessionStore.getState().clearTurnstileToken();
           } else {
-            alert('Error al guardar respuestas. Por favor, intenta nuevamente.');
+            alert(t('errors.saveResponsesError'));
           }
 
           setSubmitting(false);
@@ -939,7 +942,7 @@ export const ResearchPage = () => {
         setShowRestartOption(true);
       }
     }
-  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks.complete]);
+  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks.complete, t]);
 
   if (!researchId) {
     return <InvalidResearchScreen />;
@@ -974,6 +977,8 @@ export const ResearchPage = () => {
       {/* Preview Mode Banner */}
       {isPreviewMode && <PreviewModeBanner />}
 
+      <LanguageSelector />
+
       <MainLayout
         footer={
           shouldShowButton(currentModule) && !showRestartOption ? (
@@ -982,9 +987,9 @@ export const ResearchPage = () => {
               disabled={submitting}
             >
               {submitting
-                ? 'Guardando...'
+                ? t('common.saving')
                 : isLastStep
-                  ? 'Finalizar'
+                  ? t('common.finish')
                   : getButtonText(currentModule)}
             </Button>
           ) : showRestartOption ? (
@@ -992,7 +997,7 @@ export const ResearchPage = () => {
               onClick={handleNext}
               disabled={submitting}
             >
-              Comenzar de nuevo
+              {t('common.startOver')}
             </Button>
           ) : null
         }

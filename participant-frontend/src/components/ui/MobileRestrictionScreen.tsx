@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 
 interface MobileRestrictionScreenProps {
@@ -5,6 +6,8 @@ interface MobileRestrictionScreenProps {
 }
 
 export const MobileRestrictionScreen = ({ message }: MobileRestrictionScreenProps) => {
+  const { t } = useTranslation();
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
       <div className="text-center max-w-md p-6">
@@ -14,13 +17,13 @@ export const MobileRestrictionScreen = ({ message }: MobileRestrictionScreenProp
           </svg>
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Access Restricted
+          {t('mobileRestriction.title')}
         </h1>
         <p className="text-gray-600 mb-6">
           {message}
         </p>
         <Button onClick={() => window.location.reload()}>
-          Reload Page
+          {t('common.reloadPage')}
         </Button>
       </div>
     </div>

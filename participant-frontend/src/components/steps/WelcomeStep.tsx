@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSessionStore } from '../../stores/useSessionStore';
 
 // Turnstile temporarily disabled - will be re-enabled when TURNSTILE_SECRET_KEY is configured
@@ -10,10 +11,13 @@ interface WelcomeStepProps {
 }
 
 export const WelcomeStep: React.FC<WelcomeStepProps> = ({
-    title = 'Bienvenido a la Investigación',
-    message = 'Gracias por participar en este estudio. A continuación, responderás una serie de preguntas que nos ayudarán a comprender mejor tu experiencia.'
+    title,
+    message
 }) => {
+    const { t } = useTranslation();
     const { setTurnstileToken, turnstileVerified } = useSessionStore();
+    const resolvedTitle = title || t('welcome.defaultTitle');
+    const resolvedMessage = message || t('welcome.defaultMessage');
 
     // Auto-verify when Turnstile is disabled
     useEffect(() => {
@@ -41,11 +45,11 @@ export const WelcomeStep: React.FC<WelcomeStepProps> = ({
             </div>
 
             <h1 className="text-3xl font-bold text-gray-900">
-                {title}
+                {resolvedTitle}
             </h1>
 
             <p className="text-lg text-gray-600 max-w-2xl">
-                {message}
+                {resolvedMessage}
             </p>
         </div>
     );

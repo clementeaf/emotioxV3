@@ -1,0 +1,115 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "loadingResearch": "Cargando investigación...",
+    "retry": "Reintentar",
+    "error": "Error",
+    "saveAndContinue": "Guardar y continuar",
+    "saving": "Guardando...",
+    "finish": "Finalizar",
+    "startOver": "Comenzar de nuevo",
+    "reloadPage": "Recargar página",
+    "select": "Seleccionar..."
+  },
+  "welcome": {
+    "defaultTitle": "Bienvenido a la Investigación",
+    "defaultMessage": "Gracias por participar en este estudio. A continuación, responderás una serie de preguntas que nos ayudarán a comprender mejor tu experiencia."
+  },
+  "thankYou": {
+    "defaultTitle": "¡Gracias por tu Participación!",
+    "defaultMessage": "Hemos recibido tus respuestas correctamente. Tu contribución es muy valiosa para nuestra investigación.",
+    "closeWindow": "Ya puedes cerrar esta ventana"
+  },
+  "demographics": {
+    "title": "Datos Demográficos",
+    "subtitle": "Por favor responde las siguientes preguntas para continuar.",
+    "labels": {
+      "age": "Edad",
+      "country": "País",
+      "gender": "Género",
+      "educationLevel": "Nivel Educacional",
+      "annualIncome": "Ingreso Anual",
+      "employmentStatus": "Situación Laboral",
+      "dailyHoursOnline": "Horas Diarias en Línea",
+      "technicalProficiency": "Competencia Técnica"
+    },
+    "enterYour": "Ingresa tu {{label}}",
+    "city": "Ciudad"
+  },
+  "home": {
+    "title": "Bienvenido a User Emotion",
+    "subtitle": "Por favor accede a una investigación usando un enlace válido"
+  },
+  "errors": {
+    "failedToLoadResearch": "Error al cargar la investigación. Por favor intenta nuevamente.",
+    "validationError": "Error de validación. Por favor intenta de nuevo.",
+    "securityVerificationError": "Error de verificación de seguridad. Por favor, recarga la página y completa la verificación nuevamente.",
+    "saveResponsesError": "Error al guardar respuestas. Por favor, intenta nuevamente.",
+    "completeSecurityVerification": "Por favor, completa la verificación de seguridad antes de continuar.",
+    "securityRequired": "La verificación de seguridad es requerida. Por favor, recarga la página y completa la verificación.",
+    "answerDemographics": "Por favor responde las preguntas demográficas antes de continuar.",
+    "quotaFull": "Esta encuesta ha alcanzado su límite de participantes para tu perfil.",
+    "disqualified": "Lo sentimos, no cumples con el perfil requerido para este estudio.",
+    "unknownError": "Error desconocido"
+  },
+  "mobileRestriction": {
+    "title": "Acceso Restringido",
+    "message": "Esta investigación no está disponible en dispositivos móviles. Por favor accede desde un computador de escritorio."
+  },
+  "invalidResearch": {
+    "title": "Investigación Inválida",
+    "noId": "No se proporcionó un ID de investigación"
+  },
+  "preview": {
+    "label": "Modo Vista Previa",
+    "description": "— Estás viendo esta investigación como investigador. Las respuestas no serán guardadas."
+  },
+  "bootstrap": {
+    "initFailed": "Error de inicialización",
+    "configLoadFailed": "La app no pudo cargar la configuración de la API.",
+    "configHint": "Proporciona <code>/runtime-config.json</code> con <code>{\"apiBaseUrl\":\"https://...\"}</code> o configura <code>VITE_API_URL</code>."
+  },
+  "unconfigured": {
+    "stepLabel": "Paso: {{step}}",
+    "notConfigured": "Este paso aún no está configurado."
+  },
+  "completion": {
+    "title": "¡Gracias por completar la encuesta!",
+    "multipleAllowed": "Esta investigación permite múltiples respuestas. Puedes comenzar de nuevo si lo deseas."
+  },
+  "smartVoc": {
+    "npsStartLabel": "No lo recomendaría",
+    "npsEndLabel": "Lo recomendaría",
+    "vocPlaceholder": "Escribe tu opinión aquí...",
+    "selectValueHint": "Selecciona un valor para pasar al siguiente paso",
+    "selectOneEmotion": "Selecciona una emoción para pasar al siguiente paso",
+    "selectNEmotions": "Selecciona {{count}} emociones para pasar al siguiente paso",
+    "selectEmotions": "Selecciona las emociones para pasar al siguiente paso"
+  },
+  "navigationFlow": {
+    "imageOf": "Imagen {{current}} de {{total}}",
+    "clickCorrectArea": "Haz clic en el área correcta para continuar",
+    "instruction": "Instrucción:",
+    "instructionText": "El flujo continuará en la medida que selecciones el área especificada.",
+    "tryAnotherArea": "❌ Intenta en otra área",
+    "goodAdvancing": "✓ ¡Bien! Avanzando...",
+    "flowCompleted": "¡Flujo completado!",
+    "flowCompletedDesc": "Has navegado exitosamente por todas las pantallas"
+  },
+  "choice": {
+    "optionSelected": "Opción seleccionada",
+    "optionsSelected_one": "{{count}} opción seleccionada",
+    "optionsSelected_other": "{{count}} opciones seleccionadas"
+  },
+  "linearScale": {
+    "selectedValue": "Valor seleccionado: {{value}}"
+  },
+  "eyeTracking": {
+    "keepLooking": "Mantén la mirada en el punto...",
+    "lookAndClick": "Mira el punto rojo y haz click en él",
+    "pointOf": "Punto {{current}} de {{total}}",
+    "calibrationPoint": "Punto de calibración {{number}}",
+    "gazeIndicator": "El punto verde indica hacia dónde estás mirando",
+    "finish": "Finalizar"
+  }
+}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ModuleConfig } from '../../types/module';
 import { ScaleSelector } from '../ui/ScaleSelector';
 import { StarSelector } from '../ui/StarSelector';
@@ -14,6 +15,7 @@ interface SmartVOCRendererProps {
 }
 
 export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onComplete }) => {
+    const { t } = useTranslation();
     const { getResponse, saveResponse } = useParticipantStore();
 
     /**
@@ -97,8 +99,8 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     max={10}
                     value={scaleValue}
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
-                    startLabel="No lo recomendaría"
-                    endLabel="Lo recomendaría"
+                    startLabel={t('smartVoc.npsStartLabel')}
+                    endLabel={t('smartVoc.npsEndLabel')}
                     onComplete={onComplete}
                 />
             );
@@ -204,7 +206,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                 defaultValue: '',
                 placeholder: {
                     enabled: true,
-                    text: 'Escribe tu opinión aquí...'
+                    text: t('smartVoc.vocPlaceholder')
                 },
                 required: false,
                 order: 4,
@@ -257,7 +259,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                 {/* Module-specific instruction text */}
                 {(isCSAT || isNPS || isCES || isCV) && (
                     <p className="text-sm text-gray-600 text-center mt-4">
-                        Selecciona un valor para pasar al siguiente paso
+                        {t('smartVoc.selectValueHint')}
                     </p>
                 )}
 
@@ -270,20 +272,20 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                         if (minEmotions === 1) {
                             return (
                                 <p className="text-sm text-gray-600 text-center mt-4">
-                                    Selecciona una emoción para pasar al siguiente paso
+                                    {t('smartVoc.selectOneEmotion')}
                                 </p>
                             );
                         }
                         return (
                             <p className="text-sm text-gray-600 text-center mt-4">
-                                Selecciona {minEmotions} emociones para pasar al siguiente paso
+                                {t('smartVoc.selectNEmotions', { count: minEmotions })}
                             </p>
                         );
                     }
 
                     return (
                         <p className="text-sm text-gray-600 text-center mt-4">
-                            Selecciona las emociones para pasar al siguiente paso
+                            {t('smartVoc.selectEmotions')}
                         </p>
                     );
                 })()}

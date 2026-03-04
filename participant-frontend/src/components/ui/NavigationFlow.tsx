@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { mediaService } from '../../services/media.service';
 import { LazyImage } from './LazyImage';
 import { useResponse } from '../../hooks/useResponse';
@@ -45,6 +46,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     images: propImages,
     onComplete
 }) => {
+    const { t } = useTranslation();
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
     const [isComplete, setIsComplete] = useState(false);
@@ -274,7 +276,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         <div className="w-full space-y-3">
             {/* Progress indicator */}
             <div className="flex items-center justify-between text-xs text-gray-600">
-                <span>Imagen {currentImageIndex + 1} de {images.length}</span>
+                <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
                 <span className="text-xs text-gray-400">{currentImage.name}</span>
             </div>
 
@@ -318,7 +320,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
                             <p className="text-gray-600 font-medium">{currentImage.name}</p>
-                            <p className="text-xs text-gray-400 mt-2">Haz clic en el área correcta para continuar</p>
+                            <p className="text-xs text-gray-400 mt-2">{t('navigationFlow.clickCorrectArea')}</p>
                         </div>
                     </div>
                 )}
@@ -374,8 +376,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
-                            <p className="text-lg font-semibold text-green-800">¡Flujo completado!</p>
-                            <p className="text-sm text-green-600 mt-2">Has navegado exitosamente por todas las pantallas</p>
+                            <p className="text-lg font-semibold text-green-800">{t('navigationFlow.flowCompleted')}</p>
+                            <p className="text-sm text-green-600 mt-2">{t('navigationFlow.flowCompletedDesc')}</p>
                         </div>
                     </div>
                 )}
@@ -384,12 +386,12 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             {/* Instructions */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs text-blue-800">
-                    <span className="font-semibold">Instrucción:</span> El flujo continuará en la medida que selecciones el área especificada.
+                    <span className="font-semibold">{t('navigationFlow.instruction')}</span> {t('navigationFlow.instructionText')}
                     {clickPoints.length > 0 && !isComplete && (
                         <span className="block mt-1 text-blue-600">
                             {clickPoints.filter(p => !p.isCorrect).length > 0
-                                ? '❌ Intenta en otra área'
-                                : '✓ ¡Bien! Avanzando...'}
+                                ? t('navigationFlow.tryAnotherArea')
+                                : t('navigationFlow.goodAdvancing')}
                         </span>
                     )}
                 </p>

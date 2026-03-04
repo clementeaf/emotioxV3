@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ModuleConfig } from '../../types/module';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 
@@ -26,17 +27,6 @@ interface DemographicConfig {
     validValues?: string[];
 }
 
-const DEMOGRAPHIC_LABELS: Record<string, string> = {
-    age: 'Age',
-    country: 'Country',
-    gender: 'Gender',
-    educationLevel: 'Education Level',
-    annualIncome: 'Annual Income',
-    employmentStatus: 'Employment Status',
-    dailyHoursOnline: 'Daily Hours Online',
-    technicalProficiency: 'Technical Proficiency',
-};
-
 const DEMOGRAPHIC_ORDER = [
     'age', 'gender', 'country', 'educationLevel', 'annualIncome',
     'employmentStatus', 'dailyHoursOnline', 'technicalProficiency',
@@ -62,8 +52,13 @@ const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[]
 };
 
 export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) => {
+    const { t } = useTranslation();
     const demographics = (module.config?.demographics || {}) as Record<string, DemographicConfig | boolean>;
     const { updateResponse } = useParticipantStore();
+
+    const getDemographicLabel = useCallback((key: string): string => {
+        return t(`demographics.labels.${key}`, { defaultValue: key });
+    }, [t]);
 
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [validationError, setValidationError] = useState<string | null>(null);
@@ -117,14 +112,14 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
             <input
                 type="text"
                 className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                placeholder={`Enter your ${label.toLowerCase()}`}
+                placeholder={t('demographics.enterYour', { label: label.toLowerCase() })}
                 value={value || ''}
                 onChange={e => handleChange(key, e.target.value)}
             />
         </div>
     );
 
-    const renderSelect = (key: string, label: string, options: string[], value: string, placeholder = 'Select...') => (
+    const renderSelect = (key: string, label: string, options: string[], value: string, placeholder?: string) => (
         <div key={key} className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">{label}</label>
             <select
@@ -132,7 +127,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                 value={value || ''}
                 onChange={e => handleChange(key, e.target.value)}
             >
-                <option value="">{placeholder}</option>
+                <option value="">{placeholder ?? t('common.select')}</option>
                 {options.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
         </div>
@@ -142,14 +137,14 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-lg space-y-8">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900">Demographics</h1>
-                    <p className="mt-2 text-gray-600">Please answer the following questions to proceed.</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('demographics.title')}</h1>
+                    <p className="mt-2 text-gray-600">{t('demographics.subtitle')}</p>
                 </div>
 
                 <div className="space-y-6">
                     {enabledKeys.map(key => {
                         const cfg = getConfig(key);
-                        const label = DEMOGRAPHIC_LABELS[key] || key;
+                        const label = getDemographicLabel(key);
                         const options = getOptionsForDemographic(key, cfg);
 
                         // Country: optionally show city field based on granularity config
@@ -157,7 +152,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                             return (
                                 <React.Fragment key={key}>
                                     {renderSelect('country', label, options.length > 0 ? options : ['Chile', 'Other'], answers.country)}
-                                    {showCity && answers.country && renderTextInput('city', 'City', answers.city)}
+                                    {showCity && answers.country && renderTextInput('city', t('demographics.city'), answers.city)}
                                 </React.Fragment>
                             );
                         }
@@ -174,7 +169,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                                 <input
                                     type="text"
                                     className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                                    placeholder={`Enter your ${label.toLowerCase()}`}
+                                    placeholder={t('demographics.enterYour', { label: label.toLowerCase() })}
                                     value={answers[key] || ''}
                                     onChange={e => handleChange(key, e.target.value)}
                                 />

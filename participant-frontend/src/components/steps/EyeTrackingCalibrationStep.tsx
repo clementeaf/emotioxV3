@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 interface EyeTrackingCalibrationStepProps {
   dotPosition: [number, number]; // [x%, y%]
   progress: number;
@@ -17,6 +19,7 @@ export function EyeTrackingCalibrationStep({
   framesPerPoint,
   onDotClick,
 }: EyeTrackingCalibrationStepProps) {
+  const { t } = useTranslation();
   const [pctX, pctY] = dotPosition;
   const collectPct = (collectProgress / framesPerPoint) * 100;
 
@@ -29,11 +32,11 @@ export function EyeTrackingCalibrationStep({
       <div className="absolute top-6 left-1/2 -translate-x-1/2 text-center">
         <p className="text-gray-700 text-lg font-medium">
           {isCollecting
-            ? 'Mantén la mirada en el punto...'
-            : 'Mira el punto rojo y haz click en él'}
+            ? t('eyeTracking.keepLooking')
+            : t('eyeTracking.lookAndClick')}
         </p>
         <p className="text-gray-500 text-sm mt-1">
-          Punto {progress + 1} de {total}
+          {t('eyeTracking.pointOf', { current: progress + 1, total })}
         </p>
       </div>
 
@@ -43,7 +46,7 @@ export function EyeTrackingCalibrationStep({
         disabled={isCollecting}
         className="absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none"
         style={{ left: `${pctX}%`, top: `${pctY}%` }}
-        aria-label={`Punto de calibración ${progress + 1}`}
+        aria-label={t('eyeTracking.calibrationPoint', { number: progress + 1 })}
       >
         {/* Collection progress ring */}
         <svg width="40" height="40" viewBox="0 0 40 40" className="absolute -top-3 -left-3">

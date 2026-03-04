@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useResponse } from '../../hooks/useResponse';
 import { ScaleSelector } from '../ui/ScaleSelector';
 
@@ -41,6 +42,7 @@ export const LinearScaleQuestion = ({
     required = false,
     onComplete,
 }: LinearScaleQuestionProps) => {
+    const { t } = useTranslation();
     const { value: storedValue, save } = useResponse({ moduleId, componentId });
 
     const [selectedValue, setSelectedValue] = useState<number | null>(() => {
@@ -88,7 +90,7 @@ export const LinearScaleQuestion = ({
 
             {selectedValue !== null && (
                 <p className="text-sm text-center text-gray-500">
-                    Valor seleccionado: {selectedValue}
+                    {t('linearScale.selectedValue', { value: selectedValue })}
                 </p>
             )}
         </div>

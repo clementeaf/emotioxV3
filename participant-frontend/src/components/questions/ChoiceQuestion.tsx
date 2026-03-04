@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useResponse } from '../../hooks/useResponse';
 
 interface Option {
@@ -27,6 +28,7 @@ export const ChoiceQuestion = ({
     required = false,
     onComplete,
 }: ChoiceQuestionProps) => {
+    const { t } = useTranslation();
     const { value: storedValue, save } = useResponse({ moduleId, componentId });
 
     // Derive selectedIds from store — single source of truth
@@ -123,8 +125,8 @@ export const ChoiceQuestion = ({
             {selectedIds.length > 0 && (
                 <p className="text-sm text-gray-500">
                     {isMultiple
-                        ? `${selectedIds.length} ${selectedIds.length === 1 ? 'opción seleccionada' : 'opciones seleccionadas'}`
-                        : 'Opción seleccionada'
+                        ? t('choice.optionsSelected', { count: selectedIds.length })
+                        : t('choice.optionSelected')
                     }
                 </p>
             )}

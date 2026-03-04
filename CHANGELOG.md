@@ -4,7 +4,18 @@
 
 ---
 
-## v0.17.0 — Location Granularity (WIP, 2026-03-04)
+## v0.18.0 — Participant i18n (2026-03-04)
+
+- Internationalization for participant-frontend using `react-i18next` + `i18next`
+- Language selector (🌐 ES/EN) fixed top-right, visible on all pages
+- ~90 strings extracted from 22 files into `es.json` and `en.json` translation files
+- Language preference persisted in localStorage (`emotiox-lang` key)
+- Spanish as default language, English as secondary
+- Participant chooses their language (not the researcher)
+- Covers: Welcome, Demographics, SmartVOC, Cognitive Tasks, Eye Tracking, Thank You, error screens
+- Demographics labels fully translated (Edad/Age, País/Country, Género/Gender, etc.)
+
+## v0.17.0 — Location Granularity (2026-03-04)
 
 - `LocationGranularity` type simplified to `'countryOnly' | 'countryCity'` across all 3 sub-projects
 - Researcher picks "Solo país" or "País + Ciudad" in `CountryConfigModal`
@@ -37,6 +48,7 @@
 - **Preview Mode**: Draft research preview allowed for researchers.
 - **DevSidebar**: Module navigation grouped by stage, responsive with burger menu on mobile.
 - **Eye Tracking**: Webcam-based gaze estimation with MediaPipe Face Landmarker + Ridge Regression. 9-point calibration (15 frames/point), real-time tracking with lerp smoothing. Standalone test page at `/eye-tracking-test`.
+- **i18n**: Spanish (default) + English via react-i18next. Language selector visible on all pages. ~90 translated strings. Persisted in localStorage.
 - **Security**: Turnstile disabled for cPanel environment.
 - **Deployment**: Build locally → rsync to cPanel ~/public_html/participant. GitHub Actions workflow available.
 
@@ -53,7 +65,7 @@
 ### Known Issues / Technical Debt
 - SSH key to cPanel requires passphrase (`sshpass` used in deploy scripts)
 - Service worker registration disabled to prevent caching issues
-- Some Spanish text remaining in code comments and variable names
+- Some Spanish text remaining in code comments and variable names (research-frontend + backend)
 - DB migration pending: `remove_image_upload_from_modules.ts` (clean up image-upload from existing modules)
 
 ---

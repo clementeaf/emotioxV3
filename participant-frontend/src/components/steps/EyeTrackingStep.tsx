@@ -1,22 +1,25 @@
+import { useTranslation } from 'react-i18next';
+
 interface EyeTrackingStepProps {
   gazePosition: [number, number]; // [screenX, screenY]
   onFinish: () => void;
 }
 
 export function EyeTrackingStep({ gazePosition, onFinish }: EyeTrackingStepProps) {
+  const { t } = useTranslation();
   const [gx, gy] = gazePosition;
 
   return (
     <div className="fixed inset-0 bg-gray-900 flex flex-col items-center justify-end pb-16 select-none" style={{ zIndex: 9999 }}>
       <p className="text-gray-400 text-sm mb-4">
-        El punto verde indica hacia dónde estás mirando
+        {t('eyeTracking.gazeIndicator')}
       </p>
 
       <button
         onClick={onFinish}
         className="px-6 py-2.5 bg-white text-gray-900 rounded-lg font-medium hover:bg-gray-100 transition-colors"
       >
-        Finalizar
+        {t('eyeTracking.finish')}
       </button>
 
       {/* Gaze indicator */}

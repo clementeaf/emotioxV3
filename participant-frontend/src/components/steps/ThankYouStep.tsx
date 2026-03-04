@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ThankYouStepProps {
     title?: string;
@@ -6,9 +7,12 @@ interface ThankYouStepProps {
 }
 
 export const ThankYouStep: React.FC<ThankYouStepProps> = ({
-    title = '¡Gracias por tu Participación!',
-    message = 'Hemos recibido tus respuestas correctamente. Tu contribución es muy valiosa para nuestra investigación.'
+    title,
+    message
 }) => {
+    const { t } = useTranslation();
+    const resolvedTitle = title || t('thankYou.defaultTitle');
+    const resolvedMessage = message || t('thankYou.defaultMessage');
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6 px-4">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
@@ -28,11 +32,11 @@ export const ThankYouStep: React.FC<ThankYouStepProps> = ({
             </div>
 
             <h1 className="text-3xl font-bold text-gray-900">
-                {title}
+                {resolvedTitle}
             </h1>
 
             <p className="text-lg text-gray-600 max-w-2xl">
-                {message}
+                {resolvedMessage}
             </p>
 
             {/* Close window hint */}
@@ -51,7 +55,7 @@ export const ThankYouStep: React.FC<ThankYouStepProps> = ({
                             d="M6 18L18 6M6 6l12 12"
                         />
                     </svg>
-                    Ya puedes cerrar esta ventana
+                    {t('thankYou.closeWindow')}
                 </p>
             </div>
         </div>

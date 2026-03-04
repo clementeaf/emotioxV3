@@ -1,0 +1,115 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "loadingResearch": "Loading research...",
+    "retry": "Retry",
+    "error": "Error",
+    "saveAndContinue": "Save and continue",
+    "saving": "Saving...",
+    "finish": "Finish",
+    "startOver": "Start over",
+    "reloadPage": "Reload page",
+    "select": "Select..."
+  },
+  "welcome": {
+    "defaultTitle": "Welcome to the Research",
+    "defaultMessage": "Thank you for participating in this study. Next, you will answer a series of questions that will help us better understand your experience."
+  },
+  "thankYou": {
+    "defaultTitle": "Thank You for Your Participation!",
+    "defaultMessage": "We have received your answers correctly. Your contribution is very valuable to our research.",
+    "closeWindow": "You can now close this window"
+  },
+  "demographics": {
+    "title": "Demographics",
+    "subtitle": "Please answer the following questions to proceed.",
+    "labels": {
+      "age": "Age",
+      "country": "Country",
+      "gender": "Gender",
+      "educationLevel": "Education Level",
+      "annualIncome": "Annual Income",
+      "employmentStatus": "Employment Status",
+      "dailyHoursOnline": "Daily Hours Online",
+      "technicalProficiency": "Technical Proficiency"
+    },
+    "enterYour": "Enter your {{label}}",
+    "city": "City"
+  },
+  "home": {
+    "title": "Welcome to User Emotion",
+    "subtitle": "Please access a research using a valid link"
+  },
+  "errors": {
+    "failedToLoadResearch": "Failed to load research. Please try again.",
+    "validationError": "Validation error. Please try again.",
+    "securityVerificationError": "Security verification error. Please reload the page and complete the verification again.",
+    "saveResponsesError": "Error saving responses. Please try again.",
+    "completeSecurityVerification": "Please complete the security verification before continuing.",
+    "securityRequired": "Security verification is required. Please reload the page and complete the verification.",
+    "answerDemographics": "Please answer the demographic questions before continuing.",
+    "quotaFull": "This survey has reached its participant limit for your profile.",
+    "disqualified": "Sorry, you do not meet the required profile for this study.",
+    "unknownError": "Unknown error"
+  },
+  "mobileRestriction": {
+    "title": "Access Restricted",
+    "message": "This research is not available on mobile devices. Please access it from a desktop computer."
+  },
+  "invalidResearch": {
+    "title": "Invalid Research",
+    "noId": "No research ID provided"
+  },
+  "preview": {
+    "label": "Preview Mode",
+    "description": "— You're viewing this research as a researcher. Responses will not be saved."
+  },
+  "bootstrap": {
+    "initFailed": "Initialization failed",
+    "configLoadFailed": "The app could not load API configuration.",
+    "configHint": "Provide <code>/runtime-config.json</code> with <code>{\"apiBaseUrl\":\"https://...\"}</code> or set <code>VITE_API_URL</code>."
+  },
+  "unconfigured": {
+    "stepLabel": "Step: {{step}}",
+    "notConfigured": "This step is not yet configured."
+  },
+  "completion": {
+    "title": "Thank you for completing the survey!",
+    "multipleAllowed": "This research allows multiple responses. You can start over if you wish."
+  },
+  "smartVoc": {
+    "npsStartLabel": "Would not recommend",
+    "npsEndLabel": "Would recommend",
+    "vocPlaceholder": "Write your opinion here...",
+    "selectValueHint": "Select a value to proceed to the next step",
+    "selectOneEmotion": "Select one emotion to proceed to the next step",
+    "selectNEmotions": "Select {{count}} emotions to proceed to the next step",
+    "selectEmotions": "Select the emotions to proceed to the next step"
+  },
+  "navigationFlow": {
+    "imageOf": "Image {{current}} of {{total}}",
+    "clickCorrectArea": "Click the correct area to continue",
+    "instruction": "Instruction:",
+    "instructionText": "The flow will continue as you select the specified area.",
+    "tryAnotherArea": "❌ Try another area",
+    "goodAdvancing": "✓ Great! Advancing...",
+    "flowCompleted": "Flow completed!",
+    "flowCompletedDesc": "You have successfully navigated through all screens"
+  },
+  "choice": {
+    "optionSelected": "Option selected",
+    "optionsSelected_one": "{{count}} option selected",
+    "optionsSelected_other": "{{count}} options selected"
+  },
+  "linearScale": {
+    "selectedValue": "Selected value: {{value}}"
+  },
+  "eyeTracking": {
+    "keepLooking": "Keep looking at the point...",
+    "lookAndClick": "Look at the red point and click on it",
+    "pointOf": "Point {{current}} of {{total}}",
+    "calibrationPoint": "Calibration point {{number}}",
+    "gazeIndicator": "The green point indicates where you are looking",
+    "finish": "Finish"
+  }
+}
