@@ -9,7 +9,8 @@
     "finish": "Finish",
     "startOver": "Start over",
     "reloadPage": "Reload page",
-    "select": "Select..."
+    "select": "Select...",
+    "continue": "Continue"
   },
   "welcome": {
     "defaultTitle": "Welcome to the Research",

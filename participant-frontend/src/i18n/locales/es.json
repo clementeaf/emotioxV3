@@ -9,7 +9,8 @@
     "finish": "Finalizar",
     "startOver": "Comenzar de nuevo",
     "reloadPage": "Recargar página",
-    "select": "Seleccionar..."
+    "select": "Seleccionar...",
+    "continue": "Continuar"
   },
   "welcome": {
     "defaultTitle": "Bienvenido a la Investigación",

@@ -59,12 +59,6 @@ export const ChoiceQuestion = ({
             );
         } else {
             setSelectedIds([optionId]);
-            // Auto-advance for single choice after a short delay
-            if (onComplete) {
-                setTimeout(() => {
-                    onComplete();
-                }, 500);
-            }
         }
     };
 
@@ -123,12 +117,22 @@ export const ChoiceQuestion = ({
             </div>
 
             {selectedIds.length > 0 && (
-                <p className="text-sm text-gray-500">
-                    {isMultiple
-                        ? t('choice.optionsSelected', { count: selectedIds.length })
-                        : t('choice.optionSelected')
-                    }
-                </p>
+                <div className="space-y-3">
+                    <p className="text-sm text-gray-500">
+                        {isMultiple
+                            ? t('choice.optionsSelected', { count: selectedIds.length })
+                            : t('choice.optionSelected')
+                        }
+                    </p>
+                    {onComplete && (
+                        <button
+                            onClick={onComplete}
+                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                        >
+                            {t('common.continue')}
+                        </button>
+                    )}
+                </div>
             )}
         </div>
     );

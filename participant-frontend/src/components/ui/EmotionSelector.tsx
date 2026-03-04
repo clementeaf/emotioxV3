@@ -9,8 +9,6 @@ interface Emotion {
 interface EmotionSelectorProps {
     value: string[];
     onChange: (emotions: string[]) => void;
-    onComplete?: () => void;
-    minEmotions?: number;
 }
 
 // 20 emociones organizadas en 3 filas con sus colores
@@ -46,29 +44,13 @@ const EMOTIONS: Emotion[][] = [
     ],
 ];
 
-export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChange, onComplete, minEmotions }) => {
+export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChange }) => {
     const toggleEmotion = (emotionId: string): void => {
         const newValue = value.includes(emotionId)
             ? value.filter(id => id !== emotionId)
             : [...value, emotionId];
 
         onChange(newValue);
-
-        // Auto-advance if minimum emotions requirement is met
-        if (onComplete && minEmotions !== undefined && minEmotions > 0) {
-            if (newValue.length >= minEmotions) {
-                setTimeout(() => {
-                    onComplete();
-                }, 500);
-            }
-        } else if (onComplete && (!minEmotions || minEmotions === 0)) {
-            // If no minimum requirement, advance on any selection
-            if (newValue.length > 0) {
-                setTimeout(() => {
-                    onComplete();
-                }, 500);
-            }
-        }
     };
 
     return (

@@ -40,9 +40,11 @@ interface NavigationFlowProps {
     onComplete?: () => void;
 }
 
-export const NavigationFlow: React.FC<NavigationFlowProps> = ({ 
+export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     moduleId = 'navigation-flow',
     componentId = 'navigation-flow-component',
+    title,
+    description,
     images: propImages,
     onComplete
 }) => {
@@ -274,6 +276,14 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
 
     return (
         <div className="w-full space-y-3">
+            {/* Title and description */}
+            {title && (
+                <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+            )}
+            {description && (
+                <p className="text-gray-600">{description}</p>
+            )}
+
             {/* Progress indicator */}
             <div className="flex items-center justify-between text-xs text-gray-600">
                 <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
@@ -383,19 +393,6 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 )}
             </div>
 
-            {/* Instructions */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs text-blue-800">
-                    <span className="font-semibold">{t('navigationFlow.instruction')}</span> {t('navigationFlow.instructionText')}
-                    {clickPoints.length > 0 && !isComplete && (
-                        <span className="block mt-1 text-blue-600">
-                            {clickPoints.filter(p => !p.isCorrect).length > 0
-                                ? t('navigationFlow.tryAnotherArea')
-                                : t('navigationFlow.goodAdvancing')}
-                        </span>
-                    )}
-                </p>
-            </div>
         </div>
     );
 };

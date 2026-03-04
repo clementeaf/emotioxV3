@@ -78,7 +78,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
             const displayType = getComponentText(displayTypeComponent) || 'stars';
 
             if (displayType === 'stars') {
-                return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} onComplete={onComplete} />;
+                return <StarSelector max={5} value={scaleValue} onChange={(val) => saveComponentValue('scale', val ?? null)} />;
             } else {
                 return (
                     <ScaleSelector
@@ -86,7 +86,6 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                         max={5}
                         value={scaleValue}
                         onChange={(val) => saveComponentValue('scale', val ?? null)}
-                        onComplete={onComplete}
                     />
                 );
             }
@@ -101,7 +100,6 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel={t('smartVoc.npsStartLabel')}
                     endLabel={t('smartVoc.npsEndLabel')}
-                    onComplete={onComplete}
                 />
             );
         }
@@ -138,61 +136,15 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel={getComponentText(startLabelComponent)}
                     endLabel={getComponentText(endLabelComponent)}
-                    onComplete={onComplete}
                 />
             );
         }
 
         if (isNEV) {
-            // Helper to parse target count from text
-            const parseTargetCount = (text: string): number | undefined => {
-                if (!text) return undefined;
-
-                // Match digits and Spanish number words
-                const regex = /\b(un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\b/gi;
-                const matches = text.match(regex);
-
-                if (!matches) return undefined;
-
-                // Get the last number mentioned (usually "hasta X" or "selecciona X")
-                const lastMatch = matches[matches.length - 1].toLowerCase();
-
-                const numberMap: Record<string, number> = {
-                    'un': 1, 'una': 1, 'uno': 1,
-                    'dos': 2,
-                    'tres': 3,
-                    'cuatro': 4,
-                    'cinco': 5,
-                    'seis': 6,
-                    'siete': 7,
-                    'ocho': 8,
-                    'nueve': 9,
-                    'diez': 10
-                };
-
-                // If it's a digit
-                if (/^\d+$/.test(lastMatch)) {
-                    return parseInt(lastMatch, 10);
-                }
-
-                return numberMap[lastMatch];
-            };
-
-            // Try to get minimum emotions from module.config first
-            const config = typeof module.config === 'object' && module.config !== null ? module.config as Record<string, unknown> : {};
-            let minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
-
-            // If not in config, try to extract from title
-            if (minEmotions === undefined && titleText) {
-                minEmotions = parseTargetCount(titleText);
-            }
-
             return (
                 <EmotionSelector
                     value={emotionValues}
                     onChange={(val) => saveComponentValue('emotions', val)}
-                    onComplete={onComplete}
-                    minEmotions={minEmotions}
                 />
             );
         }
@@ -257,10 +209,22 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                 </div>
 
                 {/* Module-specific instruction text */}
-                {(isCSAT || isNPS || isCES || isCV) && (
+                {(isCSAT || isNPS || isCES || isCV) && scaleValue === null && (
                     <p className="text-sm text-gray-600 text-center mt-4">
                         {t('smartVoc.selectValueHint')}
                     </p>
+                )}
+
+                {/* Continue button */}
+                {onComplete && (
+                    (scaleValue !== null || emotionValues.length > 0 || textValue.length > 0) && (
+                        <button
+                            onClick={onComplete}
+                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors mt-4"
+                        >
+                            {t('common.continue')}
+                        </button>
+                    )
                 )}
 
                 {isNEV && (() => {

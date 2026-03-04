@@ -4,23 +4,15 @@ interface StarSelectorProps {
     max: number; // Usually 5
     value: number | null;
     onChange: (value: number) => void;
-    onComplete?: () => void;
 }
 
 export const StarSelector: React.FC<StarSelectorProps> = ({
     max,
     value,
     onChange,
-    onComplete
 }) => {
     const handleChange = (newValue: number): void => {
         onChange(newValue);
-        // Auto-advance after a short delay if onComplete is provided
-        if (onComplete) {
-            setTimeout(() => {
-                onComplete();
-            }, 500);
-        }
     };
     const stars = Array.from({ length: max }, (_, i) => i + 1);
 

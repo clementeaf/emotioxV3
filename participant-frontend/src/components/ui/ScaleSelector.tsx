@@ -8,7 +8,6 @@ interface ScaleSelectorProps {
     startLabel?: string;
     endLabel?: string;
     variant?: 'buttons' | 'slider';
-    onComplete?: () => void;
 }
 
 export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
@@ -19,16 +18,9 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
     startLabel,
     endLabel,
     variant = 'buttons',
-    onComplete
 }) => {
     const handleChange = (newValue: number): void => {
         onChange(newValue);
-        // Auto-advance after a short delay if onComplete is provided
-        if (onComplete) {
-            setTimeout(() => {
-                onComplete();
-            }, 500);
-        }
     };
     // Generate array of numbers from min to max
     const numbers = Array.from({ length: max - min + 1 }, (_, i) => min + i);

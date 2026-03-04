@@ -84,14 +84,23 @@ export const LinearScaleQuestion = ({
                     startLabel={minLabel}
                     endLabel={maxLabel}
                     variant="slider"
-                    onComplete={onComplete}
                 />
             </div>
 
             {selectedValue !== null && (
-                <p className="text-sm text-center text-gray-500">
-                    {t('linearScale.selectedValue', { value: selectedValue })}
-                </p>
+                <div className="space-y-3">
+                    <p className="text-sm text-center text-gray-500">
+                        {t('linearScale.selectedValue', { value: selectedValue })}
+                    </p>
+                    {onComplete && (
+                        <button
+                            onClick={onComplete}
+                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                        >
+                            {t('common.continue')}
+                        </button>
+                    )}
+                </div>
             )}
         </div>
     );
