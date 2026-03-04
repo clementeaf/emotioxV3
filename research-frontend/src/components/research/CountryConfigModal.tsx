@@ -390,8 +390,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
           <div className="flex gap-3">
             {([
               { value: 'countryOnly', label: 'Solo país' },
-              { value: 'countryRegion', label: 'País + Región' },
-              { value: 'countryRegionCommune', label: 'País + Región + Comuna/Ciudad' },
+              { value: 'countryCity', label: 'País + Ciudad' },
             ] as const).map(option => (
               <label
                 key={option.value}

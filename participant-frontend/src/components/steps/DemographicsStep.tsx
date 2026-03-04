@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { ModuleConfig } from '../../types/module';
-import { CHILE_REGIONS } from '../../data/chile-geography';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 
 interface DemographicsStepProps {
@@ -8,7 +7,7 @@ interface DemographicsStepProps {
     onComplete: () => void;
 }
 
-type LocationGranularity = 'countryOnly' | 'countryRegion' | 'countryRegionCommune';
+type LocationGranularity = 'countryOnly' | 'countryCity';
 
 interface DemographicConfig {
     enabled?: boolean;
@@ -96,42 +95,21 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         });
     }, [answers, module.id, updateResponse]);
 
-    const countryGranularity = useMemo((): LocationGranularity => {
+    const showCity = useMemo((): boolean => {
         const cfg = getConfig('country');
-        return cfg.granularity || 'countryOnly';
+        return (cfg.granularity || 'countryOnly') === 'countryCity';
     }, [getConfig]);
-
-    const showRegion = countryGranularity === 'countryRegion' || countryGranularity === 'countryRegionCommune';
-    const showCommune = countryGranularity === 'countryRegionCommune';
 
     const handleChange = (key: string, value: string) => {
         setValidationError(null);
         setAnswers(prev => {
             const next = { ...prev, [key]: value };
             if (key === 'country') {
-                delete next.region;
-                delete next.commune;
-            }
-            if (key === 'region') {
-                delete next.commune;
+                delete next.city;
             }
             return next;
         });
     };
-
-    // Structured regions for countries that have geography data (e.g. Chile)
-    const structuredRegions = useMemo(() => {
-        if (!showRegion || !answers.country) return null;
-        if (answers.country === 'Chile') {
-            return CHILE_REGIONS.map(r => r.name);
-        }
-        return null; // Other countries: free-text
-    }, [showRegion, answers.country]);
-
-    const structuredCommunes = useMemo(() => {
-        if (!showCommune || !answers.region || answers.country !== 'Chile') return null;
-        return CHILE_REGIONS.find(r => r.name === answers.region)?.communes.map(c => c.name) || null;
-    }, [showCommune, answers.country, answers.region]);
 
     const renderTextInput = (key: string, label: string, value: string) => (
         <div key={key} className="space-y-2">
@@ -174,21 +152,12 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                         const label = DEMOGRAPHIC_LABELS[key] || key;
                         const options = getOptionsForDemographic(key, cfg);
 
-                        // Country: cascading logic driven by granularity config
+                        // Country: optionally show city field based on granularity config
                         if (key === 'country') {
                             return (
                                 <React.Fragment key={key}>
                                     {renderSelect('country', label, options.length > 0 ? options : ['Chile', 'Other'], answers.country)}
-                                    {showRegion && answers.country && (
-                                        structuredRegions
-                                            ? renderSelect('region', 'Region', structuredRegions, answers.region)
-                                            : renderTextInput('region', 'Region', answers.region)
-                                    )}
-                                    {showCommune && answers.country && answers.region && (
-                                        structuredCommunes
-                                            ? renderSelect('commune', 'Commune/City', structuredCommunes, answers.commune)
-                                            : renderTextInput('commune', 'Commune/City', answers.commune)
-                                    )}
+                                    {showCity && answers.country && renderTextInput('city', 'City', answers.city)}
                                 </React.Fragment>
                             );
                         }

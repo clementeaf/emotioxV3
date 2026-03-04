@@ -4,7 +4,7 @@
  */
 
 // Backend expected types
-export type LocationGranularity = 'countryOnly' | 'countryRegion' | 'countryRegionCommune';
+export type LocationGranularity = 'countryOnly' | 'countryCity';
 
 interface BackendQuotaConfig {
     id: string;
@@ -28,8 +28,6 @@ interface BackendDemographicConfig {
     max?: number;
     value?: string;
     granularity?: LocationGranularity;
-    region?: string;
-    communes?: string[];
     // Keep original data for frontend use
     validValues?: string[];
     priorityValues?: string[];

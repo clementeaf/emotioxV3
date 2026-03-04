@@ -14,7 +14,7 @@ interface QuotaConfig {
     enforcementMode?: 'immediate' | 'post_collection';
 }
 
-type LocationGranularity = 'countryOnly' | 'countryRegion' | 'countryRegionCommune';
+type LocationGranularity = 'countryOnly' | 'countryCity';
 
 interface DemographicConfig {
     enabled: boolean;
@@ -24,8 +24,6 @@ interface DemographicConfig {
     max?: number;
     value?: string; // For country/geographic restrictions
     granularity?: LocationGranularity;
-    region?: string;
-    communes?: string[];
 }
 
 interface ValidationResult {
@@ -184,17 +182,6 @@ function checkDisqualifications(
         if (type === 'country') {
             if (config.value && config.value !== 'All' && answer !== config.value) {
                 return { disqualified: true, reason: 'Country not allowed' };
-            }
-
-            if (config.value === 'Chile' && answer === 'Chile') {
-                if (config.region && answers.region !== config.region) {
-                    return { disqualified: true, reason: 'Region not allowed' };
-                }
-                if (config.communes && config.communes.length > 0) {
-                    if (!config.communes.includes(answers.commune || '')) {
-                        return { disqualified: true, reason: 'Commune not allowed' };
-                    }
-                }
             }
         }
     }

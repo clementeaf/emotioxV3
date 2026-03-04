@@ -6,32 +6,11 @@
 
 ## v0.17.0 — Location Granularity (WIP, 2026-03-04)
 
-### Phase 1: Types
-- Added `LocationGranularity` type (`countryOnly | countryRegion | countryRegionCommune`) to:
-  - `research-frontend/src/utils/demographicsMapper.ts` (exported)
-  - `backend/src/modules/quotas/quota.service.ts`
-  - `participant-frontend/src/components/steps/DemographicsStep.tsx`
-- Added `granularity?` field to `BackendDemographicConfig`, backend `DemographicConfig`, and participant `DemographicConfig`
-- Goal: allow researchers to configure geographic detail level per study instead of hardcoded Chile-only region/commune
-
-### Phase 2: Mapper
-- `mapCountryConfigToBackend` now accepts optional `granularity` param, defaults to `'countryOnly'`
-- `mapModalConfigToBackend` passes `modalData.granularity` through to the country mapper
-
-### Phase 3: Research UI (CountryConfigModal)
-- Added granularity selector (3 radio cards: Solo país / País + Región / País + Región + Comuna) at the top of `CountryConfigModal`
-- `onSave` now includes `granularity` as 4th argument
-- `ResearchConfigurationModule` passes `initialGranularity` from saved config and forwards selected granularity to the mapper
-
-### Phase 4: Participant UI (DemographicsStep)
-- Replaced hardcoded `answers.country === 'Chile'` with config-driven `granularity` field
-- Region/commune fields now show based on `countryRegion` or `countryRegionCommune` granularity
-- Countries with structured data (Chile) render `<select>`, others render free-text `<input>`
-- Added `renderTextInput` helper for free-text region/commune fields
-
-### Phase 5: Cleanup & Validation
-- Removed unused `chile-geography.ts` from research-frontend (was never imported)
-- Verified backend validate-demographics is safe (uses dynamic `Object.entries`, no strict schema)
+- `LocationGranularity` type simplified to `'countryOnly' | 'countryCity'` across all 3 sub-projects
+- Researcher picks "Solo país" or "País + Ciudad" in `CountryConfigModal`
+- `DemographicsStep` shows a free-text city input when granularity is `countryCity`
+- Removed `chile-geography.ts` from both frontends (no longer needed)
+- Removed hardcoded Chile region/commune logic from backend `quota.service.ts`
 - All 3 sub-projects pass type-check and lint with 0 errors
 
 ---
