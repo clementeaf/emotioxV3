@@ -14,6 +14,10 @@
 - Added `granularity?` field to `BackendDemographicConfig`, backend `DemographicConfig`, and participant `DemographicConfig`
 - Goal: allow researchers to configure geographic detail level per study instead of hardcoded Chile-only region/commune
 
+### Phase 2: Mapper
+- `mapCountryConfigToBackend` now accepts optional `granularity` param, defaults to `'countryOnly'`
+- `mapModalConfigToBackend` passes `modalData.granularity` through to the country mapper
+
 ---
 
 ## Current State Summary (as of 2026-02-17)

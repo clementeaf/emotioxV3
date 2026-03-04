@@ -135,7 +135,8 @@ export function mapCountryConfigToBackend(
     validCountries: string[],
     disqualifyingCountries: string[],
     priorityCountries: string[],
-    quotas?: ModalCountryQuota[]
+    quotas?: ModalCountryQuota[],
+    granularity?: LocationGranularity
 ): BackendDemographicConfig {
     // Convert disqualifying countries to disqualifications
     const disqualifications: BackendDisqualification[] = disqualifyingCountries.map(country => ({
@@ -159,6 +160,7 @@ export function mapCountryConfigToBackend(
         enabled: true,
         quotas: backendQuotas.length > 0 ? backendQuotas : undefined,
         disqualifications: disqualifications.length > 0 ? disqualifications : undefined,
+        granularity: granularity || 'countryOnly',
         validValues: validCountries,
         priorityValues: priorityCountries
     };
@@ -267,7 +269,8 @@ export function mapModalConfigToBackend(
                 (modalData.validCountries as string[]) || [],
                 (modalData.disqualifyingCountries as string[]) || [],
                 (modalData.priorityCountries as string[]) || [],
-                modalData.quotas as ModalCountryQuota[] | undefined
+                modalData.quotas as ModalCountryQuota[] | undefined,
+                modalData.granularity as LocationGranularity | undefined
             );
 
         case 'gender':
