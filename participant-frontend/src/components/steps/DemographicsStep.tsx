@@ -96,11 +96,19 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         });
     }, [answers, module.id, updateResponse]);
 
+    const countryGranularity = useMemo((): LocationGranularity => {
+        const cfg = getConfig('country');
+        return cfg.granularity || 'countryOnly';
+    }, [getConfig]);
+
+    const showRegion = countryGranularity === 'countryRegion' || countryGranularity === 'countryRegionCommune';
+    const showCommune = countryGranularity === 'countryRegionCommune';
+
     const handleChange = (key: string, value: string) => {
         setValidationError(null);
         setAnswers(prev => {
             const next = { ...prev, [key]: value };
-            if (key === 'country' && value !== 'Chile') {
+            if (key === 'country') {
                 delete next.region;
                 delete next.commune;
             }
@@ -111,10 +119,32 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         });
     };
 
-    const availableCommunes = useMemo(() => {
-        if (answers.country !== 'Chile' || !answers.region) return [];
-        return CHILE_REGIONS.find(r => r.name === answers.region)?.communes.map(c => c.name) || [];
-    }, [answers.country, answers.region]);
+    // Structured regions for countries that have geography data (e.g. Chile)
+    const structuredRegions = useMemo(() => {
+        if (!showRegion || !answers.country) return null;
+        if (answers.country === 'Chile') {
+            return CHILE_REGIONS.map(r => r.name);
+        }
+        return null; // Other countries: free-text
+    }, [showRegion, answers.country]);
+
+    const structuredCommunes = useMemo(() => {
+        if (!showCommune || !answers.region || answers.country !== 'Chile') return null;
+        return CHILE_REGIONS.find(r => r.name === answers.region)?.communes.map(c => c.name) || null;
+    }, [showCommune, answers.country, answers.region]);
+
+    const renderTextInput = (key: string, label: string, value: string) => (
+        <div key={key} className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">{label}</label>
+            <input
+                type="text"
+                className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                placeholder={`Enter your ${label.toLowerCase()}`}
+                value={value || ''}
+                onChange={e => handleChange(key, e.target.value)}
+            />
+        </div>
+    );
 
     const renderSelect = (key: string, label: string, options: string[], value: string, placeholder = 'Select...') => (
         <div key={key} className="space-y-2">
@@ -144,16 +174,20 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                         const label = DEMOGRAPHIC_LABELS[key] || key;
                         const options = getOptionsForDemographic(key, cfg);
 
-                        // Country: special cascading logic
+                        // Country: cascading logic driven by granularity config
                         if (key === 'country') {
                             return (
                                 <React.Fragment key={key}>
                                     {renderSelect('country', label, options.length > 0 ? options : ['Chile', 'Other'], answers.country)}
-                                    {answers.country === 'Chile' && (
-                                        <>
-                                            {renderSelect('region', 'Region', CHILE_REGIONS.map(r => r.name), answers.region)}
-                                            {answers.region && renderSelect('commune', 'Commune', availableCommunes, answers.commune)}
-                                        </>
+                                    {showRegion && answers.country && (
+                                        structuredRegions
+                                            ? renderSelect('region', 'Region', structuredRegions, answers.region)
+                                            : renderTextInput('region', 'Region', answers.region)
+                                    )}
+                                    {showCommune && answers.country && answers.region && (
+                                        structuredCommunes
+                                            ? renderSelect('commune', 'Commune/City', structuredCommunes, answers.commune)
+                                            : renderTextInput('commune', 'Commune/City', answers.commune)
                                     )}
                                 </React.Fragment>
                             );

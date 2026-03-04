@@ -23,6 +23,17 @@
 - `onSave` now includes `granularity` as 4th argument
 - `ResearchConfigurationModule` passes `initialGranularity` from saved config and forwards selected granularity to the mapper
 
+### Phase 4: Participant UI (DemographicsStep)
+- Replaced hardcoded `answers.country === 'Chile'` with config-driven `granularity` field
+- Region/commune fields now show based on `countryRegion` or `countryRegionCommune` granularity
+- Countries with structured data (Chile) render `<select>`, others render free-text `<input>`
+- Added `renderTextInput` helper for free-text region/commune fields
+
+### Phase 5: Cleanup & Validation
+- Removed unused `chile-geography.ts` from research-frontend (was never imported)
+- Verified backend validate-demographics is safe (uses dynamic `Object.entries`, no strict schema)
+- All 3 sub-projects pass type-check and lint with 0 errors
+
 ---
 
 ## Current State Summary (as of 2026-02-17)
