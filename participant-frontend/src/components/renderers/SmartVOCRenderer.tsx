@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ModuleConfig } from '../../types/module';
 import { ScaleSelector } from '../ui/ScaleSelector';
@@ -41,6 +41,17 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
     const scaleValue = (getSavedValue('scale') as number) || null;
     const emotionValues = (getSavedValue('emotions') as string[]) || [];
     const textValue = (getSavedValue('text') as string) || '';
+
+    // Auto-advance for scale-based SmartVOC (CSAT, NPS, CES, CV)
+    const isScaleBased = module.name.includes('CSAT') || module.name.includes('NPS') || module.name.includes('CES') || module.name.includes('CV');
+    const autoAdvanceFired = useRef(false);
+    useEffect(() => {
+        if (isScaleBased && scaleValue !== null && onComplete && !autoAdvanceFired.current) {
+            autoAdvanceFired.current = true;
+            const timer = setTimeout(onComplete, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [isScaleBased, scaleValue, onComplete]);
 
     /**
      * Finds the best matching component for a Smart VOC display field.
@@ -215,17 +226,6 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     </p>
                 )}
 
-                {/* Continue button (not for VOC/NEV — parent footer button handles them) */}
-                {onComplete && !isVOC && !isNEV && (
-                    (scaleValue !== null) && (
-                        <button
-                            onClick={onComplete}
-                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors mt-4"
-                        >
-                            {t('common.continue')}
-                        </button>
-                    )
-                )}
 
                 {isNEV && (() => {
                     // Try to get minimum emotions from module.config

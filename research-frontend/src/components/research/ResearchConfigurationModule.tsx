@@ -185,15 +185,15 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
             return '';
         }
 
-        return `${baseUrl}/research/${researchId}?preview=true`;
+        return `${baseUrl}/research/${researchId}`;
     }, [runtimeParticipantBaseUrl, runtimeConfigLoaded, researchId]);
 
     /**
-     * Opens the participant-facing URL in a new tab.
+     * Opens the participant-facing URL in preview mode in a new tab.
      * @returns void
      */
     const handleLinkPreview = (): void => {
-        const url = participantShareUrl;
+        const url = participantShareUrl ? `${participantShareUrl}?preview=true` : '';
         if (!url || url.trim().length === 0) {
             toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
             console.error('[ResearchConfigurationModule] Cannot open preview: URL is empty or invalid');

@@ -702,8 +702,7 @@ export const ResearchPage = () => {
 
     const moduleName = module.name || '';
 
-    // Hide parent button for modules that have their own internal Continue button
-    // SmartVOC scale modules (CSAT, CES, CV, NPS)
+    // SmartVOC scale modules (CSAT, CES, CV, NPS) — auto-advance, no button
     if (
       moduleName.includes('CSAT') ||
       moduleName.includes('CES') ||

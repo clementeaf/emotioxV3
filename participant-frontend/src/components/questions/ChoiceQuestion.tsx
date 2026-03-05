@@ -15,7 +15,6 @@ interface ChoiceQuestionProps {
     options: Option[];
     isMultiple?: boolean;
     required?: boolean;
-    onComplete?: () => void;
 }
 
 export const ChoiceQuestion = ({
@@ -26,7 +25,6 @@ export const ChoiceQuestion = ({
     options,
     isMultiple = false,
     required = false,
-    onComplete,
 }: ChoiceQuestionProps) => {
     const { t } = useTranslation();
     const { value: storedValue, save } = useResponse({ moduleId, componentId });
@@ -117,22 +115,12 @@ export const ChoiceQuestion = ({
             </div>
 
             {selectedIds.length > 0 && (
-                <div className="space-y-3">
-                    <p className="text-sm text-gray-500">
-                        {isMultiple
-                            ? t('choice.optionsSelected', { count: selectedIds.length })
-                            : t('choice.optionSelected')
-                        }
-                    </p>
-                    {onComplete && (
-                        <button
-                            onClick={onComplete}
-                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
-                        >
-                            {t('common.continue')}
-                        </button>
-                    )}
-                </div>
+                <p className="text-sm text-gray-500">
+                    {isMultiple
+                        ? t('choice.optionsSelected', { count: selectedIds.length })
+                        : t('choice.optionSelected')
+                    }
+                </p>
             )}
         </div>
     );

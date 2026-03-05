@@ -15,7 +15,6 @@ interface PreferenceTestProps {
         s3Key?: string;
         url?: string;
     }>;
-    onComplete?: () => void;
 }
 
 export const PreferenceTest: React.FC<PreferenceTestProps> = ({
@@ -24,7 +23,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
     title,
     description,
     images: propImages,
-    onComplete
 }) => {
     const { t } = useTranslation();
     const [selectedImage, setSelectedImage] = useState<number | null>(null);
@@ -276,16 +274,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
             </div>
             )}
 
-            {!loading && selectedImage && onComplete && (
-                <div className="space-y-3">
-                    <button
-                        onClick={onComplete}
-                        className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
-                    >
-                        {t('common.continue')}
-                    </button>
-                </div>
-            )}
 
             {/* Zoom Modal */}
             {zoomImage !== null && currentZoomImage && (

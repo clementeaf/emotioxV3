@@ -4,6 +4,15 @@
 
 ---
 
+## v0.19.5 — SmartVOC auto-advance & Research URL fix (2026-03-05)
+
+- SmartVOC scale modules (CSAT, NPS, CES, CV) now auto-advance 500ms after selection — no button shown (quick-response UX)
+- Cognitive task modules (Single Choice, Multiple Choice, Linear Scale, Preference Test) keep the blue "Guardar y continuar" footer button (take-your-time UX)
+- NEV and VOC keep the footer button (require explicit confirmation)
+- Removed all remaining internal purple "Continue" buttons from LinearScaleQuestion, ChoiceQuestion, PreferenceTest, and SmartVOCRenderer
+- Cleaned up unused `onComplete` prop from ChoiceQuestion, LinearScaleQuestion, and PreferenceTest interfaces
+- Fixed Research URL in Research Configuration: field, copy button, and QR code now show the public participant URL (without `?preview=true`); only the "Link Preview" button adds the preview parameter
+
 ## v0.19.4 — Unified footer button, custom dropdowns & lightbox UX (2026-03-05)
 
 - Removed ALL internal purple "Continue" buttons — Single Choice, Multiple Choice, Linear Scale, NEV, VOC, Preference Test now use the parent "Guardar y continuar" footer button exclusively
