@@ -4,6 +4,14 @@
 
 ---
 
+## v0.19.6 — Fullscreen Navigation Flow (2026-03-05)
+
+- Navigation Flow now renders fullscreen (fixed, inset-0) with black background — image takes 100% of viewport on both PC and mobile
+- Title, description, and progress bar float as a gradient overlay at the top
+- Language selector and preview banner remain visible (already fixed/z-50)
+- Removed image filename from progress overlay (only shows "Image X of Y")
+- Completion overlay adapted to dark theme
+
 ## v0.19.5 — SmartVOC auto-advance & Research URL fix (2026-03-05)
 
 - SmartVOC scale modules (CSAT, NPS, CES, CV) now auto-advance 500ms after selection — no button shown (quick-response UX)

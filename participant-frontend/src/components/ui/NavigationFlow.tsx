@@ -275,41 +275,40 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     }, [isComplete]);
 
     return (
-        <div className="w-full space-y-3">
-            {/* Title and description */}
-            {title && (
-                <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        <div className="fixed inset-0 z-40 bg-black flex items-center justify-center">
+            {/* Floating overlay: title, description & progress */}
+            {!isComplete && (
+                <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
+                    <div className="pointer-events-auto bg-gradient-to-b from-black/70 via-black/40 to-transparent px-4 pt-4 pb-8">
+                        {title && (
+                            <h2 className="text-lg md:text-xl font-semibold text-white text-center drop-shadow-lg">{title}</h2>
+                        )}
+                        {description && (
+                            <p className="text-sm text-white/80 text-center mt-1 drop-shadow">{description}</p>
+                        )}
+                        <div className="flex items-center justify-center text-xs text-white/70 mt-3 max-w-md mx-auto">
+                            <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
+                        </div>
+                        <div className="w-full max-w-md mx-auto bg-white/20 rounded-full h-1 mt-1.5">
+                            <div
+                                className="bg-white h-1 rounded-full transition-all duration-300"
+                                style={{ width: `${((currentImageIndex + 1) / images.length) * 100}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
             )}
-            {description && (
-                <p className="text-gray-600">{description}</p>
-            )}
 
-            {/* Progress indicator */}
-            <div className="flex items-center justify-between text-xs text-gray-600">
-                <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
-                <span className="text-xs text-gray-400">{currentImage.name}</span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
-                <div
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${((currentImageIndex + 1) / images.length) * 100}%` }}
-                />
-            </div>
-
-            {/* Image area with click tracking */}
+            {/* Fullscreen image area with click tracking */}
             <div
                 ref={imageRef}
                 onClick={handleImageClick}
-                className={`relative w-full aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg border-2 ${
-                    isComplete ? 'border-green-500' : 'border-gray-300'
-                } ${!isComplete ? 'cursor-crosshair hover:border-blue-400' : ''} transition-colors overflow-hidden`}
+                className={`relative w-full h-full ${!isComplete ? 'cursor-crosshair' : ''}`}
             >
                 {/* Render real image or mock */}
                 {loading ? (
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
                     </div>
                 ) : currentImageUrl ? (
                     <LazyImage
@@ -323,14 +322,13 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         }}
                     />
                 ) : (
-                    /* Mock interface representation */
                     <div className="absolute inset-0 flex items-center justify-center p-8">
                         <div className="text-center">
-                            <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-16 h-16 mx-auto mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
-                            <p className="text-gray-600 font-medium">{currentImage.name}</p>
-                            <p className="text-xs text-gray-400 mt-2">{t('navigationFlow.clickCorrectArea')}</p>
+                            <p className="text-gray-400 font-medium">{currentImage.name}</p>
+                            <p className="text-xs text-gray-500 mt-2">{t('navigationFlow.clickCorrectArea')}</p>
                         </div>
                     </div>
                 )}
@@ -352,20 +350,12 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 {/* Visual click points */}
                 {clickPoints.map((point, index) => (
                     <React.Fragment key={index}>
-                        {/* Ping animation */}
                         <div
-                            className={`absolute w-6 h-6 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'
-                                }`}
-                            style={{
-                                left: `${point.x}%`,
-                                top: `${point.y}%`,
-                                animationDuration: '1s'
-                            }}
+                            className={`absolute w-6 h-6 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
+                            style={{ left: `${point.x}%`, top: `${point.y}%`, animationDuration: '1s' }}
                         />
-                        {/* Static point */}
                         <div
-                            className={`absolute w-4 h-4 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'
-                                }`}
+                            className={`absolute w-4 h-4 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
                             style={{ left: `${point.x}%`, top: `${point.y}%` }}
                         >
                             {point.isCorrect && (
@@ -379,20 +369,19 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
 
                 {/* Completion overlay */}
                 {isComplete && (
-                    <div className="absolute inset-0 bg-green-50 bg-opacity-95 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
                         <div className="text-center">
                             <div className="w-16 h-16 bg-green-500 rounded-full mx-auto mb-4 flex items-center justify-center">
                                 <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
-                            <p className="text-lg font-semibold text-green-800">{t('navigationFlow.flowCompleted')}</p>
-                            <p className="text-sm text-green-600 mt-2">{t('navigationFlow.flowCompletedDesc')}</p>
+                            <p className="text-lg font-semibold text-white">{t('navigationFlow.flowCompleted')}</p>
+                            <p className="text-sm text-green-400 mt-2">{t('navigationFlow.flowCompletedDesc')}</p>
                         </div>
                     </div>
                 )}
             </div>
-
         </div>
     );
 };
