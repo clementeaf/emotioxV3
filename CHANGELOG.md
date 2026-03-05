@@ -4,12 +4,15 @@
 
 ---
 
-## v0.19.1 — PreferenceTest fixes (2026-03-05)
+## v0.19.2 — PreferenceTest & CognitiveTaskRenderer cleanup (2026-03-05)
 
 - PreferenceTest now renders title and description from module config
-- Replaced auto-advance (`setTimeout 500ms`) with explicit "Continue" button
-- Extracted 4 hardcoded Spanish strings to i18n (`preferenceTest.*` keys in es.json + en.json)
+- Replaced auto-advance (`setTimeout 500ms`) with explicit "Continue" button in PreferenceTest
+- Added "Select this image" button inside PreferenceTest zoom lightbox
+- Extracted 5 hardcoded Spanish strings to i18n (`preferenceTest.*` keys in es.json + en.json)
 - Removed debug/mock text visible in production
+- Removed 3 redundant hardcoded hint texts from CognitiveTaskRenderer (LinearScale, SingleChoice, PreferenceTest)
+- ChoiceQuestion now receives `onComplete` for both single and multiple choice
 
 ## v0.19.0 — Participant UX: explicit Continue buttons (2026-03-04)
 
