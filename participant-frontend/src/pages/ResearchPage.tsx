@@ -721,10 +721,8 @@ export const ResearchPage = () => {
     // NEV - uses parent footer button (no auto-advance)
     // (removed from exclusion list so parent button shows)
 
-    // Preference Test - internal Continue button after image selection
-    if (moduleName === 'Preference Test') {
-      return false;
-    }
+    // Preference Test - uses parent footer button (no internal Continue)
+    // (removed from exclusion list so parent button shows)
 
     // Single Choice - uses parent footer button (no internal Continue)
     // (removed from exclusion list so parent button shows)

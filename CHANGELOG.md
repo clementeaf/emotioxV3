@@ -6,9 +6,10 @@
 
 ## v0.19.4 — Unified footer button, custom dropdowns & lightbox UX (2026-03-05)
 
-- Removed all internal purple "Continue" buttons — Single Choice, Multiple Choice, Linear Scale, NEV, VOC now use the parent "Guardar y continuar" footer button exclusively
+- Removed ALL internal purple "Continue" buttons — Single Choice, Multiple Choice, Linear Scale, NEV, VOC, Preference Test now use the parent "Guardar y continuar" footer button exclusively
+- Removed "Seleccionado: filename" text from PreferenceTest (redundant with visual checkmark on selected image)
 - Added `CustomSelect` component to participant-frontend (ported from research-frontend) — replaces native `<select>` in Demographics to avoid dark OS popover on iOS/Safari
-- PreferenceTest lightbox now closes when clicking the black backdrop area (+ Escape key support)
+- PreferenceTest lightbox closes on backdrop click (without drag) and Escape key
 - Fixed mobile hamburger menu overlapping with preview mode banner
 
 ## v0.19.2 — PreferenceTest & CognitiveTaskRenderer cleanup (2026-03-05)

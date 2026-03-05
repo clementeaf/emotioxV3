@@ -361,7 +361,6 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     title={titleText}
                     description={descriptionText}
                     images={images}
-                    onComplete={onComplete}
                 />
             );
         }

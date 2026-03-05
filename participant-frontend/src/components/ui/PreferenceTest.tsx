@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mediaService } from '../../services/media.service';
 import { LazyImage } from './LazyImage';
@@ -122,8 +122,11 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
         setZoom(newZoom);
     };
 
+    const mouseDownPos = useRef<{ x: number; y: number } | null>(null);
+
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
+        mouseDownPos.current = { x: e.clientX, y: e.clientY };
         setDragging(true);
         setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     };
@@ -133,9 +136,17 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
         setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: React.MouseEvent) => {
+        const wasClick = mouseDownPos.current &&
+            Math.abs(e.clientX - mouseDownPos.current.x) < 5 &&
+            Math.abs(e.clientY - mouseDownPos.current.y) < 5;
         setDragging(false);
         setDragStart(null);
+        mouseDownPos.current = null;
+        // Close lightbox on click (not drag) outside the image
+        if (wasClick && (e.target as HTMLElement).tagName !== 'IMG') {
+            handleZoomClose();
+        }
     };
 
     const handleZoomNav = (direction: 'prev' | 'next') => {
@@ -265,21 +276,14 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
             </div>
             )}
 
-            {!loading && selectedImage && (
+            {!loading && selectedImage && onComplete && (
                 <div className="space-y-3">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                        <p className="text-xs text-green-800">
-                            <span className="font-semibold">{t('preferenceTest.selected')}:</span> {images.find(img => img.id === selectedImage)?.label}
-                        </p>
-                    </div>
-                    {onComplete && (
-                        <button
-                            onClick={onComplete}
-                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
-                        >
-                            {t('common.continue')}
-                        </button>
-                    )}
+                    <button
+                        onClick={onComplete}
+                        className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                    >
+                        {t('common.continue')}
+                    </button>
                 </div>
             )}
 
@@ -315,7 +319,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                             onMouseDown={handleMouseDown}
                             onMouseMove={handleMouseMove}
                             onMouseUp={handleMouseUp}
-                            onMouseLeave={handleMouseUp}
+                            onMouseLeave={() => { setDragging(false); setDragStart(null); mouseDownPos.current = null; }}
                         >
                             {currentZoomImage.url ? (
                                 <img
