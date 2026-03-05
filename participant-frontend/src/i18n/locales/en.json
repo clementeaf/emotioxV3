@@ -105,6 +105,12 @@
   "linearScale": {
     "selectedValue": "Selected value: {{value}}"
   },
+  "preferenceTest": {
+    "loadingImages": "Loading images...",
+    "viewDetail": "View detail",
+    "selected": "Selected",
+    "zoomHint": "Use the mouse wheel to zoom"
+  },
   "eyeTracking": {
     "keepLooking": "Keep looking at the point...",
     "lookAndClick": "Look at the red point and click on it",

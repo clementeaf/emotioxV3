@@ -4,6 +4,13 @@
 
 ---
 
+## v0.19.1 — PreferenceTest fixes (2026-03-05)
+
+- PreferenceTest now renders title and description from module config
+- Replaced auto-advance (`setTimeout 500ms`) with explicit "Continue" button
+- Extracted 4 hardcoded Spanish strings to i18n (`preferenceTest.*` keys in es.json + en.json)
+- Removed debug/mock text visible in production
+
 ## v0.19.0 — Participant UX: explicit Continue buttons (2026-03-04)
 
 - Replaced auto-advance (`setTimeout 500ms`) with explicit "Continue" button across all participant steps

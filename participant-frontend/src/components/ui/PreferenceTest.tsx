@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { mediaService } from '../../services/media.service';
 import { LazyImage } from './LazyImage';
 import { useResponse } from '../../hooks/useResponse';
@@ -17,12 +18,15 @@ interface PreferenceTestProps {
     onComplete?: () => void;
 }
 
-export const PreferenceTest: React.FC<PreferenceTestProps> = ({ 
+export const PreferenceTest: React.FC<PreferenceTestProps> = ({
     moduleId = 'preference-test',
     componentId = 'preference-test-component',
+    title,
+    description,
     images: propImages,
     onComplete
 }) => {
+    const { t } = useTranslation();
     const [selectedImage, setSelectedImage] = useState<number | null>(null);
     const [zoomImage, setZoomImage] = useState<number | null>(null);
     const [zoom, setZoom] = useState(1);
@@ -86,12 +90,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
         setSelectedImage(imageId);
         // Save selection immediately
         savePreferenceResponse(imageId);
-        // Auto-advance after a short delay if onComplete is provided
-        if (onComplete) {
-            setTimeout(() => {
-                onComplete();
-            }, 500);
-        }
     };
 
     const handleZoomOpen = (imageId: number) => {
@@ -199,10 +197,18 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
 
     return (
         <div className="w-full space-y-4">
+            {/* Title and description */}
+            {title && (
+                <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+            )}
+            {description && (
+                <p className="text-gray-600">{description}</p>
+            )}
+
             {loading && (
                 <div className="flex items-center justify-center py-8">
                     <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                    <p className="ml-3 text-gray-600">Cargando imágenes...</p>
+                    <p className="ml-3 text-gray-600">{t('preferenceTest.loadingImages')}</p>
                 </div>
             )}
             
@@ -252,7 +258,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
                             </svg>
-                            Ver detalle
+                            {t('preferenceTest.viewDetail')}
                         </button>
                     </div>
                 ))}
@@ -260,10 +266,20 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
             )}
 
             {!loading && selectedImage && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <p className="text-xs text-green-800">
-                        <span className="font-semibold">Seleccionado:</span> {images.find(img => img.id === selectedImage)?.label}
-                    </p>
+                <div className="space-y-3">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <p className="text-xs text-green-800">
+                            <span className="font-semibold">{t('preferenceTest.selected')}:</span> {images.find(img => img.id === selectedImage)?.label}
+                        </p>
+                    </div>
+                    {onComplete && (
+                        <button
+                            onClick={onComplete}
+                            className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                        >
+                            {t('common.continue')}
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -275,7 +291,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                         <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-4 flex items-center justify-between z-10">
                             <div className="text-white">
                                 <p className="font-medium">{currentZoomImage.label}</p>
-                                <p className="text-sm text-gray-300">Usa la rueda del mouse para hacer zoom</p>
+                                <p className="text-sm text-gray-300">{t('preferenceTest.zoomHint')}</p>
                             </div>
                             <button
                                 onClick={handleZoomClose}
@@ -374,9 +390,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                 </div>
             )}
 
-            <p className="text-sm text-gray-500 text-center italic">
-                En producción, aquí se mostrarían las imágenes reales cargadas por el investigador
-            </p>
         </div>
     );
 };
