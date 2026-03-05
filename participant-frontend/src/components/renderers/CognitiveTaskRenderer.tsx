@@ -92,7 +92,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     description={descriptionText}
                     options={choices}
                     isMultiple={isMultipleChoice}
-                    onComplete={isSingleChoice ? onComplete : undefined}
+                    onComplete={onComplete}
                 />
             );
         }
@@ -374,25 +374,6 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
         <div className="flex flex-col items-center justify-center px-4 py-6">
             <div className="w-full max-w-2xl">
                 {renderInteractiveComponent()}
-
-                {/* Module-specific instruction text */}
-                {isLinearScale && (
-                    <p className="text-sm text-gray-600 text-center mt-4">
-                        Selecciona un valor para pasar al siguiente paso
-                    </p>
-                )}
-
-                {isSingleChoice && (
-                    <p className="text-sm text-gray-600 text-center mt-4">
-                        Selecciona una opción para pasar al siguiente paso
-                    </p>
-                )}
-
-                {isPreferenceTest && (
-                    <p className="text-sm text-gray-600 text-center mt-4">
-                        Se pasa al siguiente paso seleccionando una de las imágenes
-                    </p>
-                )}
             </div>
         </div>
     );
