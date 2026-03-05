@@ -4,6 +4,14 @@
 
 ---
 
+## v0.19.3 — Fix duplicate Continue buttons & mobile sidebar overlap (2026-03-05)
+
+- Removed redundant purple "Continue" button from Multiple Choice (parent footer button handles it)
+- Removed redundant purple "Continue" button from VOC (parent footer button handles it)
+- Removed redundant purple "Continue" button from NEV — now uses parent "Guardar y continuar" to prevent unintended multi-advance on back-navigation
+- Fixed mobile hamburger menu overlapping with preview mode banner (offset top when banner is visible)
+- Updated misleading "auto-advance" comments in `shouldShowButton` to reflect actual behavior
+
 ## v0.19.2 — PreferenceTest & CognitiveTaskRenderer cleanup (2026-03-05)
 
 - PreferenceTest now renders title and description from module config

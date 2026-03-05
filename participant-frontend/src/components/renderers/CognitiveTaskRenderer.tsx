@@ -92,7 +92,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     description={descriptionText}
                     options={choices}
                     isMultiple={isMultipleChoice}
-                    onComplete={onComplete}
+                    onComplete={isMultipleChoice ? undefined : onComplete}
                 />
             );
         }

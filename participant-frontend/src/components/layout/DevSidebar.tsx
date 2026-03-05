@@ -8,6 +8,7 @@ interface DevSidebarProps {
     isOpen: boolean;
     onToggle: () => void;
     modules?: Record<string, ModuleConfig>; // Optional: actual modules from backend
+    isPreviewMode?: boolean;
 }
 
 /**
@@ -72,7 +73,7 @@ function getGroupedModules(modules: Record<string, ModuleConfig>): { title: stri
     }));
 }
 
-export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, modules }) => {
+export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, modules, isPreviewMode }) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
     const { getSessionSummary } = useSessionStore();
 
@@ -123,7 +124,7 @@ export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, module
             <button
                 data-burger-button
                 onClick={onToggle}
-                className="fixed top-4 left-4 z-50 md:hidden bg-white shadow-lg border border-gray-200 rounded-lg p-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                className={`fixed left-4 z-50 md:hidden bg-white shadow-lg border border-gray-200 rounded-lg p-2 text-gray-700 hover:bg-gray-50 transition-colors ${isPreviewMode ? 'top-16' : 'top-4'}`}
                 aria-label="Toggle navigation menu"
             >
                 <svg

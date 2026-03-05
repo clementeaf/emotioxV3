@@ -215,9 +215,9 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     </p>
                 )}
 
-                {/* Continue button */}
-                {onComplete && (
-                    (scaleValue !== null || emotionValues.length > 0 || textValue.length > 0) && (
+                {/* Continue button (not for VOC/NEV — parent footer button handles them) */}
+                {onComplete && !isVOC && !isNEV && (
+                    (scaleValue !== null) && (
                         <button
                             onClick={onComplete}
                             className="w-full py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors mt-4"

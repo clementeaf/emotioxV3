@@ -702,8 +702,8 @@ export const ResearchPage = () => {
 
     const moduleName = module.name || '';
 
-    // Hide button for modules that auto-advance
-    // Linear Scale modules (CSAT, CES, CV, NPS, Linear Scale) - auto-advance on selection
+    // Hide parent button for modules that have their own internal Continue button
+    // Scale modules (CSAT, CES, CV, NPS, Linear Scale)
     if (
       moduleName.includes('CSAT') ||
       moduleName.includes('CES') ||
@@ -714,22 +714,20 @@ export const ResearchPage = () => {
       return false;
     }
 
-    // Navigation Flow - auto-advances when flow completes
+    // Navigation Flow - internal completion handling
     if (moduleName === 'Navigation Flow') {
       return false;
     }
 
-    // NEV - auto-advances when required emotions are selected
-    if (moduleName.includes('NEV') || moduleName.includes('Net Emotional Value')) {
-      return false;
-    }
+    // NEV - uses parent footer button (no auto-advance)
+    // (removed from exclusion list so parent button shows)
 
-    // Preference Test - auto-advances when image is selected
+    // Preference Test - internal Continue button after image selection
     if (moduleName === 'Preference Test') {
       return false;
     }
 
-    // Single Choice - auto-advances when option is selected
+    // Single Choice - internal Continue button after option selection
     if (moduleName === 'Single Choice') {
       return false;
     }
@@ -971,6 +969,7 @@ export const ResearchPage = () => {
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           modules={modules}
+          isPreviewMode={isPreviewMode}
         />
       )}
 
