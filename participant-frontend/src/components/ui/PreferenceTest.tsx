@@ -285,7 +285,12 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
 
             {/* Zoom Modal */}
             {zoomImage !== null && currentZoomImage && (
-                <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center">
+                <div
+                    role="dialog"
+                    className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center"
+                    onClick={(e) => { if (e.target === e.currentTarget) handleZoomClose(); }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') handleZoomClose(); }}
+                >
                     <div className="relative w-full h-full flex flex-col">
                         {/* Header */}
                         <div className="absolute top-0 left-0 right-0 bg-black bg-opacity-50 p-4 flex items-center justify-between z-10">

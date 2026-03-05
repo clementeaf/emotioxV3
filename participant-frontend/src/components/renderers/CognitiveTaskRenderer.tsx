@@ -92,7 +92,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     description={descriptionText}
                     options={choices}
                     isMultiple={isMultipleChoice}
-                    onComplete={isMultipleChoice ? undefined : onComplete}
+                    onComplete={undefined}
                 />
             );
         }
@@ -120,7 +120,6 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     maxValue={max}
                     minLabel={getComponentText(startLabelComp)}
                     maxLabel={getComponentText(endLabelComp)}
-                    onComplete={onComplete}
                 />
             );
         }

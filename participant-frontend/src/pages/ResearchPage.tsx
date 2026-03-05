@@ -703,13 +703,12 @@ export const ResearchPage = () => {
     const moduleName = module.name || '';
 
     // Hide parent button for modules that have their own internal Continue button
-    // Scale modules (CSAT, CES, CV, NPS, Linear Scale)
+    // SmartVOC scale modules (CSAT, CES, CV, NPS)
     if (
       moduleName.includes('CSAT') ||
       moduleName.includes('CES') ||
       moduleName.includes('CV') ||
-      moduleName.includes('NPS') ||
-      moduleName === 'Linear Scale'
+      moduleName.includes('NPS')
     ) {
       return false;
     }
@@ -727,10 +726,8 @@ export const ResearchPage = () => {
       return false;
     }
 
-    // Single Choice - internal Continue button after option selection
-    if (moduleName === 'Single Choice') {
-      return false;
-    }
+    // Single Choice - uses parent footer button (no internal Continue)
+    // (removed from exclusion list so parent button shows)
 
     // Thank You Screen - final step, no button needed
     if (moduleName === 'Thank You Screen' || moduleName === 'Thank you screen') {

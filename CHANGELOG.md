@@ -4,13 +4,12 @@
 
 ---
 
-## v0.19.3 — Fix duplicate Continue buttons & mobile sidebar overlap (2026-03-05)
+## v0.19.4 — Unified footer button, custom dropdowns & lightbox UX (2026-03-05)
 
-- Removed redundant purple "Continue" button from Multiple Choice (parent footer button handles it)
-- Removed redundant purple "Continue" button from VOC (parent footer button handles it)
-- Removed redundant purple "Continue" button from NEV — now uses parent "Guardar y continuar" to prevent unintended multi-advance on back-navigation
-- Fixed mobile hamburger menu overlapping with preview mode banner (offset top when banner is visible)
-- Updated misleading "auto-advance" comments in `shouldShowButton` to reflect actual behavior
+- Removed all internal purple "Continue" buttons — Single Choice, Multiple Choice, Linear Scale, NEV, VOC now use the parent "Guardar y continuar" footer button exclusively
+- Added `CustomSelect` component to participant-frontend (ported from research-frontend) — replaces native `<select>` in Demographics to avoid dark OS popover on iOS/Safari
+- PreferenceTest lightbox now closes when clicking the black backdrop area (+ Escape key support)
+- Fixed mobile hamburger menu overlapping with preview mode banner
 
 ## v0.19.2 — PreferenceTest & CognitiveTaskRenderer cleanup (2026-03-05)
 
