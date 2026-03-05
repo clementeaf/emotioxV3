@@ -364,6 +364,26 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                             </button>
                         )}
 
+                        {/* Select button */}
+                        <button
+                            onClick={() => {
+                                if (zoomImage !== null) {
+                                    handleImageSelect(zoomImage);
+                                    handleZoomClose();
+                                }
+                            }}
+                            className={`absolute bottom-16 left-1/2 transform -translate-x-1/2 px-6 py-2.5 rounded-full font-medium transition-all ${
+                                selectedImage === zoomImage
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-white text-gray-900 hover:bg-purple-600 hover:text-white'
+                            }`}
+                        >
+                            {selectedImage === zoomImage
+                                ? t('preferenceTest.selected')
+                                : t('preferenceTest.selectThisImage')
+                            }
+                        </button>
+
                         {/* Zoom controls */}
                         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 rounded-full px-4 py-2 flex items-center gap-4">
                             <button

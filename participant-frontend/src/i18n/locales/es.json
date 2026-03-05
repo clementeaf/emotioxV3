@@ -109,7 +109,8 @@
     "loadingImages": "Cargando imágenes...",
     "viewDetail": "Ver detalle",
     "selected": "Seleccionado",
-    "zoomHint": "Usa la rueda del mouse para hacer zoom"
+    "zoomHint": "Usa la rueda del mouse para hacer zoom",
+    "selectThisImage": "Seleccionar esta imagen"
   },
   "eyeTracking": {
     "keepLooking": "Mantén la mirada en el punto...",
