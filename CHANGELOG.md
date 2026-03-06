@@ -12,6 +12,7 @@
 - Initial data still fetched via REST on mount; subsequent updates are pure push from database save → SSE broadcast → UI render
 - Added `isLive` state to hook for real-time connection status indicator
 - Flow: participant submits → backend COMMIT → `getSmartVOCResults()` → `broadcastToResearch('smartvoc-update', results)` → research-frontend `setData()`
+- Fixed preview mode storing previous responses: `clearAllResponses()` now called on preview entry so researchers always see a clean survey
 
 ## v0.19.6 — Fullscreen Navigation Flow (2026-03-05)
 
