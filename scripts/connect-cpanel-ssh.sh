@@ -104,7 +104,7 @@ fi
 
 # Configurar SSH config
 SSH_CONFIG="$SSH_DIR/config"
-CONFIG_ENTRY="Host cpanel-emotiox
+CONFIG_ENTRY="Host cpanel-emotio
     HostName $CPANEL_HOST
     User $CPANEL_USER
     Port $CPANEL_PORT
@@ -117,12 +117,12 @@ echo ""
 echo -e "${BLUE}📝 Agregando configuración a ~/.ssh/config...${NC}"
 
 # Verificar si ya existe una entrada para este host
-if grep -q "Host cpanel-emotiox" "$SSH_CONFIG" 2>/dev/null; then
-    echo -e "${YELLOW}⚠️  Ya existe una entrada 'cpanel-emotiox' en ~/.ssh/config${NC}"
+if grep -q "Host cpanel-emotio" "$SSH_CONFIG" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Ya existe una entrada 'cpanel-emotio' en ~/.ssh/config${NC}"
     read -p "¿Deseas reemplazarla? (s/n): " REPLACE
     if [ "$REPLACE" = "s" ] || [ "$REPLACE" = "S" ]; then
         # Eliminar entrada existente
-        sed -i.bak '/^Host cpanel-emotiox$/,/^$/d' "$SSH_CONFIG" 2>/dev/null || true
+        sed -i.bak '/^Host cpanel-emotio$/,/^$/d' "$SSH_CONFIG" 2>/dev/null || true
         echo "" >> "$SSH_CONFIG"
         echo "$CONFIG_ENTRY" >> "$SSH_CONFIG"
         echo -e "${GREEN}✅ Configuración actualizada${NC}"
@@ -153,7 +153,7 @@ echo ""
 echo "=================================================="
 echo -e "${BLUE}🔌 Para conectarte, usa:${NC}"
 echo ""
-echo "  ssh cpanel-emotiox"
+echo "  ssh cpanel-emotio"
 echo ""
 echo "O directamente:"
 echo "  ssh -i $PRIVATE_KEY -p $CPANEL_PORT $CPANEL_USER@$CPANEL_HOST"
@@ -169,7 +169,7 @@ if [ "$TEST_CONNECTION" = "s" ] || [ "$TEST_CONNECTION" = "S" ]; then
         echo ""
         echo -e "${GREEN}✅ Conexión exitosa!${NC}"
         echo ""
-        echo "Puedes conectarte con: ssh cpanel-emotiox"
+        echo "Puedes conectarte con: ssh cpanel-emotio"
     else
         echo ""
         echo -e "${RED}❌ Error al conectar${NC}"

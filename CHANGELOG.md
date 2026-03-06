@@ -12,6 +12,7 @@
 - NEV now enforces the number of selectable emotions based on the instruction/description text coming from backend
 - Supported instruction semantics: exact selection (`Selecciona 3`, `Selecciona tres`) vs maximum selection (`Hasta 3`, `Máximo 3`, `No más de 3`)
 - Added parser support for numeric digits and number words in Spanish/English, plus participant-side validation for exact/max NEV emotion rules
+- Unified the cPanel SSH alias in the local connection helper script to `cpanel-emotio` so it matches the deploy scripts used for frontend deployments
 
 ## v0.20.0 — Real-time SmartVOC Results (2026-03-06)
 
