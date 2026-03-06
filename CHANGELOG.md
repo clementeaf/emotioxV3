@@ -4,6 +4,15 @@
 
 ---
 
+## v0.20.0 — Real-time SmartVOC Results (2026-03-06)
+
+- SmartVOC results now update in real-time via Server-Sent Events (SSE) — no polling
+- Backend broadcasts fresh SmartVOC analytics via SSE immediately after a participant submits a SmartVOC response (CSAT, NPS, CES, CV, NEV, VOC)
+- `useSmartVOCAnalytics` hook connects to existing SSE endpoint (`/monitor/events/:researchId`) and listens for `smartvoc-update` events
+- Initial data still fetched via REST on mount; subsequent updates are pure push from database save → SSE broadcast → UI render
+- Added `isLive` state to hook for real-time connection status indicator
+- Flow: participant submits → backend COMMIT → `getSmartVOCResults()` → `broadcastToResearch('smartvoc-update', results)` → research-frontend `setData()`
+
 ## v0.19.6 — Fullscreen Navigation Flow (2026-03-05)
 
 - Navigation Flow now renders fullscreen (fixed, inset-0) with black background — image takes 100% of viewport on both PC and mobile

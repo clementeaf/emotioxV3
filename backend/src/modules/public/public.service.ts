@@ -866,6 +866,20 @@ export const saveParticipantResponses = async (
 
     console.log(`✓ Saved ${savedResponses.length} responses for participant ${participantId}`);
 
+    // After successful COMMIT, broadcast real-time update via SSE if SmartVOC module
+    const savedModuleName = moduleNameById.get(moduleId)?.toLowerCase() ?? '';
+    const isSmartVOC = ['csat', 'nps', 'ces', 'cv', 'nev', 'voc'].some(t => savedModuleName.includes(t));
+    if (isSmartVOC) {
+      try {
+        const { monitorSSEService } = await import('../monitor/monitor-sse.service');
+        const analyticsService = await import('../analytics/analytics.service');
+        const results = await analyticsService.getSmartVOCResults(researchId);
+        monitorSSEService.broadcastToResearch(researchId, 'smartvoc-update', results);
+      } catch (sseErr) {
+        console.error('Failed to broadcast SmartVOC SSE update:', sseErr);
+      }
+    }
+
     return {
       success: true,
       message: `Saved ${savedResponses.length} responses`,
