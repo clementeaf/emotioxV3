@@ -4,6 +4,12 @@
 
 ---
 
+## v0.20.1 — Participant SmartVOC auto-advance fix (2026-03-06)
+
+- Fixed `participant-frontend` SmartVOC scale flow where selecting a number sometimes did not advance to the next step
+- Root cause: the internal `autoAdvanceFired` guard in `SmartVOCRenderer` was not resetting when the module changed, so after one scale question advanced, the next one could get stuck
+- Fix: reset the auto-advance guard on `module.id` change so each SmartVOC scale module (`CSAT`, `NPS`, `CES`, `CV`) can advance independently after selection
+
 ## v0.20.0 — Real-time SmartVOC Results (2026-03-06)
 
 - SmartVOC results now update in real-time via Server-Sent Events (SSE) — no polling

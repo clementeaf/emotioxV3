@@ -45,6 +45,11 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
     // Auto-advance for scale-based SmartVOC (CSAT, NPS, CES, CV)
     const isScaleBased = module.name.includes('CSAT') || module.name.includes('NPS') || module.name.includes('CES') || module.name.includes('CV');
     const autoAdvanceFired = useRef(false);
+
+    useEffect(() => {
+        autoAdvanceFired.current = false;
+    }, [module.id]);
+
     useEffect(() => {
         if (isScaleBased && scaleValue !== null && onComplete && !autoAdvanceFired.current) {
             autoAdvanceFired.current = true;
