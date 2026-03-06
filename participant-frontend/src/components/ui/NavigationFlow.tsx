@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mediaService } from '../../services/media.service';
 import { LazyImage } from './LazyImage';
@@ -9,6 +9,43 @@ interface ClickPoint {
     y: number;
     timestamp: number;
     isCorrect: boolean;
+}
+
+/**
+ * Computes the actual rendered image rect inside an object-contain img element.
+ * Safari and other browsers report getBoundingClientRect() for the full img element,
+ * not the visible image content — this function returns the content area.
+ */
+function getRenderedImageRect(img: HTMLImageElement): { left: number; top: number; width: number; height: number } | null {
+    if (!img.naturalWidth || !img.naturalHeight) return null;
+    const elemRect = img.getBoundingClientRect();
+    if (elemRect.width <= 0 || elemRect.height <= 0) return null;
+
+    const naturalRatio = img.naturalWidth / img.naturalHeight;
+    const containerRatio = elemRect.width / elemRect.height;
+
+    let renderWidth: number, renderHeight: number, offsetX: number, offsetY: number;
+
+    if (naturalRatio > containerRatio) {
+        // Image wider than container — fits width, letterbox top/bottom
+        renderWidth = elemRect.width;
+        renderHeight = elemRect.width / naturalRatio;
+        offsetX = 0;
+        offsetY = (elemRect.height - renderHeight) / 2;
+    } else {
+        // Image taller than container — fits height, letterbox left/right
+        renderHeight = elemRect.height;
+        renderWidth = elemRect.height * naturalRatio;
+        offsetX = (elemRect.width - renderWidth) / 2;
+        offsetY = 0;
+    }
+
+    return {
+        left: elemRect.left + offsetX,
+        top: elemRect.top + offsetY,
+        width: renderWidth,
+        height: renderHeight,
+    };
 }
 
 interface HitzoneRect {
@@ -156,10 +193,24 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         return zones.map((z) => normalizeHitzoneToPercent(z, imgNatural));
     }, [currentImage.hitZones, imgNatural]);
 
+    // Track the rendered image rect (object-contain aware) for hitzone positioning
+    const [renderedRect, setRenderedRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+    const updateRenderedRect = useCallback(() => {
+        const img = imgElRef.current;
+        if (img) setRenderedRect(getRenderedImageRect(img));
+    }, []);
+
+    // Recompute rendered rect on resize / orientation change
+    useEffect(() => {
+        updateRenderedRect();
+        window.addEventListener('resize', updateRenderedRect);
+        return () => window.removeEventListener('resize', updateRenderedRect);
+    }, [updateRenderedRect, currentImageIndex]);
+
     /**
-     * Handles click on the navigation image.
+     * Handles click/tap on the navigation image.
      * Computes click coordinates relative to the actual rendered image rect (object-contain safe).
-     * @param e - Mouse event
      */
     const handleImageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
         if (isComplete) return;
@@ -167,19 +218,19 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         const img = imgElRef.current;
         if (!img) return;
 
-        const rect = img.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
+        const rendered = getRenderedImageRect(img);
+        if (!rendered) return;
 
-        const relX = e.clientX - rect.left;
-        const relY = e.clientY - rect.top;
+        const relX = e.clientX - rendered.left;
+        const relY = e.clientY - rendered.top;
 
         // Ignore clicks outside the rendered image (letterbox area)
-        if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) {
+        if (relX < 0 || relY < 0 || relX > rendered.width || relY > rendered.height) {
             return;
         }
 
-        const x = (relX / rect.width) * 100;
-        const y = (relY / rect.height) * 100;
+        const x = (relX / rendered.width) * 100;
+        const y = (relY / rendered.height) * 100;
 
         if (normalizedHitZones.length === 0) return;
 
@@ -319,6 +370,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         onLoad={(e) => {
                             const el = e.currentTarget;
                             setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
+                            setRenderedRect(getRenderedImageRect(el));
                         }}
                     />
                 ) : (
@@ -333,39 +385,50 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                     </div>
                 )}
 
-                {/* Invisible hitzone (only visible on hover for demo) */}
-                {!isComplete && normalizedHitZones[0] && (
-                    <div
-                        className="absolute bg-blue-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 border-2 border-dashed border-transparent hover:border-blue-400"
-                        style={{
-                            left: `${normalizedHitZones[0].x}%`,
-                            top: `${normalizedHitZones[0].y}%`,
-                            width: `${normalizedHitZones[0].width}%`,
-                            height: `${normalizedHitZones[0].height}%`,
-                            pointerEvents: 'none'
-                        }}
-                    />
-                )}
-
-                {/* Visual click points */}
-                {clickPoints.map((point, index) => (
-                    <React.Fragment key={index}>
+                {/* Hitzone overlays — positioned within the rendered image area (object-contain safe) */}
+                {!isComplete && renderedRect && imageRef.current && normalizedHitZones.map((hz, i) => {
+                    const containerRect = imageRef.current!.getBoundingClientRect();
+                    const offsetLeft = renderedRect.left - containerRect.left;
+                    const offsetTop = renderedRect.top - containerRect.top;
+                    return (
                         <div
-                            className={`absolute w-6 h-6 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
-                            style={{ left: `${point.x}%`, top: `${point.y}%`, animationDuration: '1s' }}
+                            key={i}
+                            className="absolute bg-blue-500 bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 border-2 border-dashed border-transparent hover:border-blue-400"
+                            style={{
+                                left: `${offsetLeft + (hz.x / 100) * renderedRect.width}px`,
+                                top: `${offsetTop + (hz.y / 100) * renderedRect.height}px`,
+                                width: `${(hz.width / 100) * renderedRect.width}px`,
+                                height: `${(hz.height / 100) * renderedRect.height}px`,
+                                pointerEvents: 'none'
+                            }}
                         />
-                        <div
-                            className={`absolute w-4 h-4 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
-                            style={{ left: `${point.x}%`, top: `${point.y}%` }}
-                        >
-                            {point.isCorrect && (
-                                <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                            )}
-                        </div>
-                    </React.Fragment>
-                ))}
+                    );
+                })}
+
+                {/* Visual click points — positioned within the rendered image area */}
+                {renderedRect && imageRef.current && clickPoints.map((point, index) => {
+                    const containerRect = imageRef.current!.getBoundingClientRect();
+                    const pxLeft = (renderedRect.left - containerRect.left) + (point.x / 100) * renderedRect.width;
+                    const pxTop = (renderedRect.top - containerRect.top) + (point.y / 100) * renderedRect.height;
+                    return (
+                        <React.Fragment key={index}>
+                            <div
+                                className={`absolute w-6 h-6 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
+                                style={{ left: `${pxLeft}px`, top: `${pxTop}px`, animationDuration: '1s' }}
+                            />
+                            <div
+                                className={`absolute w-4 h-4 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
+                                style={{ left: `${pxLeft}px`, top: `${pxTop}px` }}
+                            >
+                                {point.isCorrect && (
+                                    <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                )}
+                            </div>
+                        </React.Fragment>
+                    );
+                })}
 
                 {/* Completion overlay */}
                 {isComplete && (
