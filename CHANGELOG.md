@@ -9,6 +9,9 @@
 - Fixed `participant-frontend` SmartVOC scale flow where selecting a number sometimes did not advance to the next step
 - Root cause: the internal `autoAdvanceFired` guard in `SmartVOCRenderer` was not resetting when the module changed, so after one scale question advanced, the next one could get stuck
 - Fix: reset the auto-advance guard on `module.id` change so each SmartVOC scale module (`CSAT`, `NPS`, `CES`, `CV`) can advance independently after selection
+- NEV now enforces the number of selectable emotions based on the instruction/description text coming from backend
+- Supported instruction semantics: exact selection (`Selecciona 3`, `Selecciona tres`) vs maximum selection (`Hasta 3`, `Máximo 3`, `No más de 3`)
+- Added parser support for numeric digits and number words in Spanish/English, plus participant-side validation for exact/max NEV emotion rules
 
 ## v0.20.0 — Real-time SmartVOC Results (2026-03-06)
 

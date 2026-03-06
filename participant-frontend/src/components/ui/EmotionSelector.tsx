@@ -9,6 +9,7 @@ interface Emotion {
 interface EmotionSelectorProps {
     value: string[];
     onChange: (emotions: string[]) => void;
+    maxSelections?: number;
 }
 
 // 20 emociones organizadas en 3 filas con sus colores
@@ -44,8 +45,14 @@ const EMOTIONS: Emotion[][] = [
     ],
 ];
 
-export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChange }) => {
+export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChange, maxSelections }) => {
     const toggleEmotion = (emotionId: string): void => {
+        const isSelected = value.includes(emotionId);
+
+        if (!isSelected && typeof maxSelections === 'number' && value.length >= maxSelections) {
+            return;
+        }
+
         const newValue = value.includes(emotionId)
             ? value.filter(id => id !== emotionId)
             : [...value, emotionId];
@@ -55,20 +62,22 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChang
 
     return (
         <div className="w-full space-y-4">
-            {EMOTIONS.map((row, rowIndex) => (
+            {EMOTIONS.map((row) => (
                 <div
-                    key={rowIndex}
+                    key={row.map((emotion) => emotion.id).join('-')}
                     className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5"
                 >
                     {row.map((emotion) => {
                         const isSelected = value.includes(emotion.id);
+                        const isDisabled = !isSelected && typeof maxSelections === 'number' && value.length >= maxSelections;
 
                         return (
                             <button
                                 key={emotion.id}
                                 type="button"
+                                disabled={isDisabled}
                                 onClick={() => toggleEmotion(emotion.id)}
-                                className="relative px-1 py-1.5 rounded-md border-2 text-[10px] sm:text-xs font-medium transition-all min-h-[36px] flex items-center justify-center text-center"
+                                className="relative px-1 py-1.5 rounded-md border-2 text-[10px] sm:text-xs font-medium transition-all min-h-[36px] flex items-center justify-center text-center disabled:cursor-not-allowed disabled:opacity-60"
                                 style={{
                                     backgroundColor: emotion.color,
                                     borderColor: isSelected ? '#3b82f6' : '#d1d5db',

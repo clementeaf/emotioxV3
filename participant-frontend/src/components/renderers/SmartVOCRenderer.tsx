@@ -8,6 +8,7 @@ import { TextareaRenderer } from './TextareaRenderer';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import type { ResponseValue } from '../../types/responses';
 import { getComponentText } from '../../utils/moduleComponent';
+import { resolveEmotionSelectionRule } from '../../utils/emotionSelectionLimit';
 
 interface SmartVOCRendererProps {
     module: ModuleConfig;
@@ -78,6 +79,12 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
     const titleText = getComponentText(titleComponent);
     const descriptionText = getComponentText(descriptionComponent);
     const instructionsText = getComponentText(instructionsComponent);
+    const emotionSelectionRule = resolveEmotionSelectionRule(
+        instructionsText,
+        descriptionText,
+        typeof module.config?.maxEmotions === 'number' ? String(module.config.maxEmotions) : undefined
+    );
+    const emotionSelectionLimit = emotionSelectionRule?.count;
 
     // Determine module type by name
     const isCSAT = module.name.includes('CSAT');
@@ -133,14 +140,14 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
             // Try to extract from selectRange or defaultValue
             if (scaleComponent?.selectRange?.predefined) {
                 const [minStr, maxStr] = scaleComponent.selectRange.predefined.split('-');
-                min = parseInt(minStr);
-                max = parseInt(maxStr);
+                min = Number.parseInt(minStr, 10);
+                max = Number.parseInt(maxStr, 10);
             } else {
                 const scaleRangeText = getComponentText(scaleComponent);
                 if (scaleRangeText.trim().length > 0) {
                     const [minStr, maxStr] = String(scaleRangeText).split('-');
-                    min = parseInt(minStr);
-                    max = parseInt(maxStr);
+                    min = Number.parseInt(minStr, 10);
+                    max = Number.parseInt(maxStr, 10);
                 }
             }
 
@@ -161,6 +168,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                 <EmotionSelector
                     value={emotionValues}
                     onChange={(val) => saveComponentValue('emotions', val)}
+                    maxSelections={emotionSelectionLimit}
                 />
             );
         }
@@ -234,7 +242,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
 
                 {isNEV && (() => {
                     // Try to get minimum emotions from module.config
-                    const config = typeof module.config === 'object' && module.config !== null ? module.config as Record<string, unknown> : {};
+                    const config = typeof module.config === 'object' && module.config !== null ? module.config : {};
                     const minEmotions = typeof config.minEmotions === 'number' ? config.minEmotions : undefined;
 
                     if (minEmotions !== undefined && minEmotions > 0) {

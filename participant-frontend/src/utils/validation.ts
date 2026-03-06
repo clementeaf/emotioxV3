@@ -1,5 +1,7 @@
 import type { ModuleConfig, ModuleComponent } from '../types/module';
 import type { ResponseValue } from '../types/responses';
+import { resolveEmotionSelectionRule } from './emotionSelectionLimit';
+import { getComponentText } from './moduleComponent';
 
 export interface ValidationError {
     componentId: string;
@@ -243,6 +245,13 @@ export const validateModule = (
     const isNEV = module.name.includes('NEV') || module.name.includes('Net Emotional Value');
     if (isNEV) {
         const emotionsValue = responses.get('emotions');
+        const instructionsComponent = module.structure.components.find((component) => component.id.includes('instructions'));
+        const descriptionComponent = module.structure.components.find((component) => component.id.includes('description'));
+        const emotionSelectionRule = resolveEmotionSelectionRule(
+            getComponentText(instructionsComponent),
+            getComponentText(descriptionComponent),
+            typeof module.config?.maxEmotions === 'number' ? String(module.config.maxEmotions) : undefined
+        );
 
         // Check if emotions array exists and has at least one selection
         const hasValidEmotionsValue = (() => {
@@ -256,6 +265,14 @@ export const validateModule = (
             // Any other type is considered invalid for emotions
             return false;
         })();
+
+        const exceedsEmotionSelectionLimit = emotionSelectionRule?.kind === 'max' &&
+            Array.isArray(emotionsValue) &&
+            emotionsValue.length > emotionSelectionRule.count;
+
+        const failsExactEmotionSelectionRule = emotionSelectionRule?.kind === 'exact' &&
+            Array.isArray(emotionsValue) &&
+            emotionsValue.length !== emotionSelectionRule.count;
 
         if (!hasValidEmotionsValue) {
             const hasRequiredComponent = module.structure.components.some(comp => {
@@ -273,6 +290,21 @@ export const validateModule = (
                 });
             }
         }
+
+        if (exceedsEmotionSelectionLimit) {
+            errors.push({
+                componentId: 'emotions',
+                message: `No puedes seleccionar más de ${emotionSelectionRule.count} emociones`
+            });
+        }
+
+        if (failsExactEmotionSelectionRule) {
+            errors.push({
+                componentId: 'emotions',
+                message: `Debes seleccionar exactamente ${emotionSelectionRule.count} emociones`
+            });
+        }
+
         return {
             isValid: errors.length === 0,
             errors
