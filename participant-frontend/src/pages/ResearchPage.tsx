@@ -570,10 +570,13 @@ export const ResearchPage = () => {
         // If no steps are enabled, default to welcome (shouldn't happen, but safety check)
         const firstStep = enabledSteps.length > 0 ? enabledSteps[0] : 'welcome';
 
-        // In preview mode, always reset to the first step
+        // In preview mode, always reset to the first step and clear previous responses
         // In participant mode, only reset if user hasn't progressed yet
         const storedStep = useParticipantStore.getState().currentStep;
-        if (isPreviewMode || !storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
+        if (isPreviewMode) {
+          useParticipantStore.getState().clearAllResponses();
+          useParticipantStore.getState().setCurrentStep(firstStep);
+        } else if (!storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
           useParticipantStore.getState().setCurrentStep(firstStep);
         }
 
