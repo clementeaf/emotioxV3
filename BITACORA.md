@@ -5,7 +5,37 @@
 
 ---
 
-## Última actualización: 2026-03-04 (sesión 4)
+## Última actualización: 2026-03-09 (sesión 5)
+
+---
+
+## Sesión 5: 9 de marzo de 2026 — Deploy masivo v0.17.0 → v0.20.1
+
+### Deploy a producción
+
+Deploy completo de los 3 componentes a cPanel. Incluye todo el trabajo acumulado desde la Sesión 4 (4 de marzo) que no había sido desplegado.
+
+**Componentes desplegados:**
+| # | Componente | Estado | URL |
+|---|------------|--------|-----|
+| 1 | Backend | ✅ 200 | `emotio.cx/api/health` |
+| 2 | Research Frontend | ✅ 200 | `emotio.cx/research/` |
+| 3 | Participant Frontend | ✅ 200 | `emotio.cx/participant/` |
+
+**Versiones incluidas en este deploy:**
+- **v0.17.0** — Location Granularity (countryOnly / countryCity)
+- **v0.18.0** — Participant i18n (react-i18next)
+- **v0.18.1** — Participant vendor chunk fix
+- **v0.19.0** — Explicit Continue buttons
+- **v0.19.2** — PreferenceTest & CognitiveTaskRenderer cleanup
+- **v0.19.4** — Unified footer button, custom dropdowns & lightbox UX
+- **v0.19.5** — SmartVOC auto-advance & Research URL fix
+- **v0.19.6** — Fullscreen Navigation Flow
+- **v0.20.0** — Real-time SmartVOC Results (SSE)
+- **v0.20.1** — SmartVOC auto-advance fix + NEV emotion rules
+
+### Pendientes
+- Ninguno
 
 ---
 
@@ -42,7 +72,7 @@
 - `CHANGELOG.md`
 
 ### Pendientes
-- Deploy a producción (research-frontend, participant-frontend, backend)
+- ~~Deploy a producción~~ (completado en Sesión 5)
 
 ---
 

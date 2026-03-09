@@ -4,6 +4,15 @@
 
 ---
 
+## Deploy — v0.17.0 → v0.20.1 shipped to production (2026-03-09)
+
+- Full production deploy of backend, research-frontend, and participant-frontend to cPanel
+- All versions from v0.17.0 through v0.20.1 deployed in a single batch
+- All 3 endpoints verified healthy (HTTP 200)
+- Documented repeatable construction patterns in `/patterns/` (frontend, backend, devops, fullstack)
+
+---
+
 ## v0.20.1 — Participant SmartVOC auto-advance fix (2026-03-06)
 
 - Fixed `participant-frontend` SmartVOC scale flow where selecting a number sometimes did not advance to the next step

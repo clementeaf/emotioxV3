@@ -104,6 +104,7 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)
 - [BITACORA](BITACORA.md) — notas de sesiones de desarrollo
+- [Patterns](patterns/) — patrones de construcción repetibles (frontend, backend, devops, fullstack)
 - [Issues & Fixes](docs/ISSUES_&_FIXES.md)
 - [ISSUES_TRACKING](ISSUES_TRACKING.md) — 24 issues del feedback Dic 2024 (todos resueltos)
 - [QR URL Report](REPORT_URL_QR_ISSUE.md) — análisis root cause del bug de QR/URL
