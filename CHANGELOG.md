@@ -4,6 +4,17 @@
 
 ---
 
+## v0.20.2 — Navigation Flow UX improvements (2026-03-09)
+
+- Changed cursor from crosshair to pointer for better click affordance
+- Last image in flow now treats entire image as hitzone — any click completes the flow
+- Reduced advance delay from 500ms to 200ms for snappier image progression
+- Removed incorrect click red dots ("christmas tree" effect) — only correct clicks show green feedback
+- Incorrect clicks still tracked in analytics data (clickSequence) for research purposes
+- Deployed via CI/CD (GitHub Actions → cPanel)
+
+---
+
 ## Deploy — v0.17.0 → v0.20.1 shipped to production (2026-03-09)
 
 - Full production deploy of backend, research-frontend, and participant-frontend to cPanel

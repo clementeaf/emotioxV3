@@ -5,7 +5,39 @@
 
 ---
 
-## Última actualización: 2026-03-09 (sesión 5)
+## Última actualización: 2026-03-09 (sesión 6)
+
+---
+
+## Sesión 6: 9 de marzo de 2026 — Navigation Flow UX fixes (v0.20.2)
+
+### Cambios realizados
+
+#### Fix: Mejoras UX en Navigation Flow del participant-frontend
+**Problema:** El cliente reportó 5 issues en el flujo de Navigation Flow:
+1. Cursor de cruz poco intuitivo
+2. Última imagen requería click preciso en hitzone
+3. Delay de 500ms se sentía lento
+4. Puntos rojos por clicks incorrectos confundían ("árbol de navidad")
+
+**Solución (4 cambios en `NavigationFlow.tsx`):**
+1. **Cursor** — `cursor-crosshair` → `cursor-pointer` (manito)
+2. **Última imagen** — Si `isLastImage`, cualquier click en la imagen cuenta como correcto (toda la imagen es hitzone)
+3. **Avance rápido** — Delay reducido de 500ms a 200ms entre imágenes; última imagen avanza de inmediato
+4. **Sin puntos rojos** — `clickPoints` solo recibe clicks correctos; clicks incorrectos solo van a `allClicks` para analytics
+
+### Archivos modificados
+- `participant-frontend/src/components/ui/NavigationFlow.tsx`
+- `CHANGELOG.md`
+- `BITACORA.md`
+
+### Deploy
+- Push a main → CI/CD despliega participant-frontend automáticamente
+
+### Pendientes
+- Verificar compatibilidad cross-browser (Opera vs Chrome) — requiere testing manual en producción
+- SmartVOC participantId investigation
+- Migración BD pendiente (sesión 2)
 
 ---
 
