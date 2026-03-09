@@ -232,16 +232,19 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         const x = (relX / rendered.width) * 100;
         const y = (relY / rendered.height) * 100;
 
-        if (normalizedHitZones.length === 0) return;
+        if (normalizedHitZones.length === 0 && !isLastImage) return;
 
-        const isInHitzone = normalizedHitZones.some((hz) => {
-            return (
-                x >= hz.x &&
-                x <= hz.x + hz.width &&
-                y >= hz.y &&
-                y <= hz.y + hz.height
-            );
-        });
+        // Last image: the entire image is a hitzone (any click completes the flow)
+        const isInHitzone = isLastImage
+            ? true
+            : normalizedHitZones.some((hz) => {
+                return (
+                    x >= hz.x &&
+                    x <= hz.x + hz.width &&
+                    y >= hz.y &&
+                    y <= hz.y + hz.height
+                );
+            });
 
         const clickPoint: ClickPoint = {
             x,
@@ -250,27 +253,27 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             isCorrect: isInHitzone
         };
 
-        setClickPoints(prev => [...prev, clickPoint]);
+        // Always track in allClicks for analytics
         setAllClicks(prev => [...prev, { ...clickPoint, imageId: currentImage.id }]);
 
+        // Only show visual feedback for correct clicks (avoid "christmas tree" of red dots)
         if (isInHitzone) {
-            // Correct click - advance to next image or complete
-            setTimeout(() => {
-                if (isLastImage) {
-                    setIsComplete(true);
-                    // Save final response
-                    saveNavigationResponse(true);
-                    // Trigger navigation to next step after a short delay
-                    if (onComplete) {
-                        setTimeout(() => {
-                            onComplete();
-                        }, 1000);
-                    }
-                } else {
-                    setCurrentImageIndex(prev => prev + 1);
-                    setClickPoints([]); // Clear points for new image
+            setClickPoints(prev => [...prev, clickPoint]);
+            // Correct click — advance immediately (brief flash of green dot)
+            if (isLastImage) {
+                setIsComplete(true);
+                saveNavigationResponse(true);
+                if (onComplete) {
+                    setTimeout(() => {
+                        onComplete();
+                    }, 800);
                 }
-            }, 500);
+            } else {
+                setTimeout(() => {
+                    setCurrentImageIndex(prev => prev + 1);
+                    setClickPoints([]);
+                }, 200);
+            }
         }
     };
 
@@ -354,7 +357,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             <div
                 ref={imageRef}
                 onClick={handleImageClick}
-                className={`relative w-full h-full ${!isComplete ? 'cursor-crosshair' : ''}`}
+                className={`relative w-full h-full ${!isComplete ? 'cursor-pointer' : ''}`}
             >
                 {/* Render real image or mock */}
                 {loading ? (
