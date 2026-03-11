@@ -516,8 +516,11 @@ export const getSmartVOCResults = async (researchId: string) => {
   // CPV calculation
   const cpvValue = cesPercentage > 0 ? Math.round((csatPercentage / cesPercentage) * 100) / 100 : 0;
 
-  // Time series data (last 30 days)
+  // Time series data (last 30 days, daily granularity)
   const timeSeriesData = generateTimeSeriesData(responsesResult.rows);
+
+  // Intraday time series data (last 24 hours, 30-min intervals = 48 bars)
+  const intradayTimeSeriesData = generateIntradayTimeSeriesData(responsesResult.rows);
 
   // Monthly NPS data (last 6 months)
   const monthlyNPSData = generateMonthlyNPSData(responsesResult.rows);
@@ -543,6 +546,7 @@ export const getSmartVOCResults = async (researchId: string) => {
       trend: promoters > detractors ? 'Increasing' : totalResponses > 0 ? 'Stable' : 'Decreasing'
     },
     timeSeriesData,
+    intradayTimeSeriesData,
     vocResponses,
     monthlyNPSData,
     monthlyMetricsData,
@@ -685,6 +689,68 @@ const generateTimeSeriesData = (responses: any[]) => {
   }
 
   return days;
+};
+
+// Helper: Generate intraday time series data (last 24 hours, 30-min intervals = 48 bars)
+const generateIntradayTimeSeriesData = (responses: any[]) => {
+  const slots = [];
+  const now = new Date();
+  // Start 24 hours ago, rounded down to nearest 30-min boundary
+  const start = new Date(now);
+  start.setHours(start.getHours() - 24);
+  start.setMinutes(start.getMinutes() >= 30 ? 30 : 0, 0, 0);
+
+  for (let i = 0; i < 48; i++) {
+    const slotStart = new Date(start.getTime() + i * 30 * 60 * 1000);
+    const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
+
+    const slotResponses = responses.filter(r => {
+      const d = new Date(r.created_at);
+      return d >= slotStart && d < slotEnd;
+    });
+
+    // NPS
+    const npsScores = extractScores(slotResponses, 'nps', 0, 10);
+    const nps = calculateNPSFromScores(npsScores);
+
+    // NEV
+    const nevResponses = slotResponses.filter(r => r.module_name.toLowerCase().includes('nev'));
+    const nev = calculateNEVFromResponses(nevResponses);
+
+    // CSAT
+    const csatScores = extractScores(slotResponses, 'csat', 1, 5);
+    const csat = calculateCSATPercentage(csatScores);
+
+    // CES
+    const cesScores = extractScores(slotResponses, 'ces', 1, 5);
+    const ces = calculateCESPercentage(cesScores);
+
+    // CV
+    const cvScores = extractScores(slotResponses, 'cv', 1, 5);
+    const cv = cvScores.length > 0
+      ? Math.round((cvScores.filter(s => s >= 4).length / cvScores.length) * 100)
+      : 0;
+
+    // CPV
+    const cpv = ces > 0 ? Math.round((csat / ces) * 100) / 100 : 0;
+
+    // Label: HH:MM
+    const label = `${String(slotStart.getHours()).padStart(2, '0')}:${String(slotStart.getMinutes()).padStart(2, '0')}`;
+
+    slots.push({
+      date: slotStart.toISOString(),
+      label,
+      nps,
+      nev,
+      csat,
+      ces,
+      cv,
+      cpv,
+      count: slotResponses.length
+    });
+  }
+
+  return slots;
 };
 
 // Helper: Generate monthly NPS data (last 6 months)

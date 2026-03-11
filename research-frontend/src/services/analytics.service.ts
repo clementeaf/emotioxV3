@@ -277,6 +277,17 @@ export interface SmartVOCResults {
         cpv: number;
         count: number;
     }>;
+    intradayTimeSeriesData: Array<{
+        date: string;
+        label: string;
+        nps: number;
+        nev: number;
+        csat: number;
+        ces: number;
+        cv: number;
+        cpv: number;
+        count: number;
+    }>;
     vocResponses: Array<{
         text: string;
         sentiment?: string;

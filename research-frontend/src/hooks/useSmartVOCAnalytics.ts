@@ -19,6 +19,7 @@ const mapToAnalytics = (results: analyticsService.SmartVOCResults): SmartVOCAnal
     responses: [],
     metrics: results.metrics,
     timeSeriesData: results.timeSeriesData,
+    intradayTimeSeriesData: results.intradayTimeSeriesData,
     vocResponses: results.vocResponses,
     monthlyNPSData: results.monthlyNPSData,
     monthlyMetricsData: results.monthlyMetricsData,

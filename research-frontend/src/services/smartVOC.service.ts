@@ -38,10 +38,23 @@ export interface SmartVOCTimeSeriesData {
     count: number;
 }
 
+export interface SmartVOCIntradayData {
+    date: string;
+    label: string;
+    nps: number;
+    nev: number;
+    csat: number;
+    ces: number;
+    cv: number;
+    cpv: number;
+    count: number;
+}
+
 export interface SmartVOCAnalytics {
     responses: SmartVOCResponse[];
     metrics: SmartVOCMetrics;
     timeSeriesData: SmartVOCTimeSeriesData[];
+    intradayTimeSeriesData: SmartVOCIntradayData[];
     vocResponses: Array<{ text: string; sentiment?: string }>;
     monthlyNPSData: Array<{
         month: string;

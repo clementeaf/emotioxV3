@@ -12,13 +12,16 @@ import {
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 
+interface ChartDataPoint {
+  stage: string;
+  nps: number;
+  nev: number;
+  timestamp: string;
+}
+
 interface TrustFlowChartProps {
-  data: Array<{
-    stage: string;
-    nps: number;
-    nev: number;
-    timestamp: string;
-  }>;
+  dailyData: ChartDataPoint[];
+  intradayData: ChartDataPoint[];
   timeRange: 'today' | 'week' | 'month';
   onTimeRangeChange: (range: 'today' | 'week' | 'month') => void;
   className?: string;
@@ -65,31 +68,16 @@ const CustomLegend = () => (
   </div>
 );
 
-function filterDataByTimeRange(
-  dataToFilter: Array<{ stage: string; nps: number; nev: number; timestamp: string }>,
-  range: 'today' | 'week' | 'month'
+function filterDailyDataByTimeRange(
+  dataToFilter: ChartDataPoint[],
+  range: 'week' | 'month'
 ) {
   if (!dataToFilter || dataToFilter.length === 0) return [];
 
-  const now = new Date();
-  let daysBack: number;
+  const daysBack = range === 'week' ? 7 : 30;
 
-  switch (range) {
-    case 'today':
-      daysBack = 1;
-      break;
-    case 'week':
-      daysBack = 7;
-      break;
-    case 'month':
-      daysBack = 30;
-      break;
-    default:
-      return dataToFilter;
-  }
-
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const cutoffDate = new Date(today);
+  const today = new Date();
+  const cutoffDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   cutoffDate.setDate(cutoffDate.getDate() - daysBack);
 
   const cutoffDateStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`;
@@ -103,14 +91,18 @@ function filterDataByTimeRange(
 }
 
 export const TrustFlowChart = ({
-  data,
+  dailyData,
+  intradayData,
   timeRange,
   onTimeRangeChange,
   className
 }: TrustFlowChartProps) => {
   const filteredData = useMemo(() => {
-    return filterDataByTimeRange(data, timeRange);
-  }, [data, timeRange]);
+    if (timeRange === 'today') {
+      return intradayData;
+    }
+    return filterDailyDataByTimeRange(dailyData, timeRange);
+  }, [dailyData, intradayData, timeRange]);
 
   const currentData = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
   const currentTime = new Date().toLocaleTimeString('en-US', {

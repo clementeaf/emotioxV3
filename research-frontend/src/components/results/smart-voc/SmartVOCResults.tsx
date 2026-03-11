@@ -19,10 +19,10 @@ interface SmartVOCResultsProps {
 }
 
 export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps) => {
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('month');
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const { data, isLoading, error, refetch } = useSmartVOCAnalytics(researchId);
 
-  const trustFlowData = useMemo(() => {
+  const trustFlowDailyData = useMemo(() => {
     return (data?.timeSeriesData || []).map(item => ({
       stage: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       nps: item.nps,
@@ -30,6 +30,15 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       timestamp: item.date
     }));
   }, [data?.timeSeriesData]);
+
+  const trustFlowIntradayData = useMemo(() => {
+    return (data?.intradayTimeSeriesData || []).map(item => ({
+      stage: item.label,
+      nps: item.nps,
+      nev: item.nev,
+      timestamp: item.date
+    }));
+  }, [data?.intradayTimeSeriesData]);
 
   // Check which metrics have actual data
   const hasCSAT = hasScores(data?.metrics.csatScores);
@@ -224,7 +233,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           </div>
           <div className="md:col-span-2">
             <TrustFlowChart
-              data={trustFlowData}
+              dailyData={trustFlowDailyData}
+              intradayData={trustFlowIntradayData}
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
             />
