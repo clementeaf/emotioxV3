@@ -96,23 +96,23 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 ### Fase 2 — Research Frontend: selector de modo
 
 #### 2.1 Selector de modo en Research Configuration
-- [ ] **2.1.1** Leer el componente `ResearchConfigurationModule.tsx` completo para entender estructura actual
-- [ ] **2.1.2** Agregar estado local `participationMode` inicializado desde `research.config.participationMode ?? 'panel'`
-- [ ] **2.1.3** Crear UI de dos radio cards: "Kiosko (cliente final)" / "Panel (participantes identificados)" — ubicar arriba de la sección de demografía
-- [ ] **2.1.4** Persistir `participationMode` en el save de Research Configuration (incluir en el payload que va al backend)
-- [ ] **2.1.5** Bloquear cambio de modo si research está en estado `active` (solo editable en `draft`)
+- [x] **2.1.1** Leer el componente `ResearchConfigurationModule.tsx` completo para entender estructura actual
+- [x] **2.1.2** Agregar estado local `participationMode` inicializado desde `research.config.participationMode ?? 'panel'`
+- [x] **2.1.3** Crear UI de dos radio cards: "Kiosk" / "Panel" — ubicar arriba de la sección de demografía
+- [x] **2.1.4** Persistir `participationMode` en el save de Research Configuration (incluir en el payload que va al backend)
+- [x] **2.1.5** Bloquear cambio de modo si research está en estado `active` (solo editable en `draft`)
 
 #### 2.2 Condicionar secciones según modo
-- [ ] **2.2.1** Si `mode === 'kiosk'`: ocultar sección de demografía completa
-- [ ] **2.2.2** Si `mode === 'kiosk'`: ocultar backlinks de disqualification y overquota
-- [ ] **2.2.3** Si `mode === 'kiosk'`: mantener visible `participantLimit` (cuántas respuestas máximo)
-- [ ] **2.2.4** Si `mode === 'panel'`: mostrar todo como está actualmente (sin cambios)
+- [x] **2.2.1** Si `mode === 'kiosk'`: ocultar sección de demografía completa
+- [x] **2.2.2** Si `mode === 'kiosk'`: ocultar backlinks de disqualification y overquota
+- [x] **2.2.3** Si `mode === 'kiosk'`: mantener visible `participantLimit` (cuántas respuestas máximo)
+- [x] **2.2.4** Si `mode === 'panel'`: mostrar todo como está actualmente (sin cambios)
 
 #### 2.3 URL/QR ajustado por modo
-- [ ] **2.3.1** Si `mode === 'kiosk'`: generar URL sin `?participantId=` (URL limpia, reutilizable)
-- [ ] **2.3.2** Si `mode === 'kiosk'`: QR code apunta a URL limpia
-- [ ] **2.3.3** Si `mode === 'panel'`: mantener URL actual con instrucción sobre participantId
-- [ ] **2.3.4** Actualizar tooltip/texto explicativo según modo seleccionado
+- [x] **2.3.1** Si `mode === 'kiosk'`: generar URL sin `?participantId=` (URL limpia, reutilizable)
+- [x] **2.3.2** Si `mode === 'kiosk'`: QR code apunta a URL limpia
+- [x] **2.3.3** Si `mode === 'panel'`: mantener URL actual con instrucción sobre participantId
+- [x] **2.3.4** Actualizar tooltip/texto explicativo según modo seleccionado
 
 #### 2.4 Verificación Fase 2
 - [ ] **2.4.1** Test: selector de modo visible y funcional en Research Configuration
@@ -121,7 +121,7 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 - [ ] **2.4.4** Test: save persiste `participationMode` en config
 - [ ] **2.4.5** Test: URL y QR se ajustan según modo
 - [ ] **2.4.6** Test: no se puede cambiar modo en research activa
-- [ ] **2.4.7** Build + lint 0 errors
+- [x] **2.4.7** Build + lint 0 errors
 
 ---
 

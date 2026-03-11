@@ -62,8 +62,11 @@ const BacklinkInput = ({ label, value, onChange, error }: BacklinkInputProps) =>
     </div>
 );
 
+type ParticipationMode = 'kiosk' | 'panel';
+
 interface ResearchConfigurationProps {
     config: Record<string, unknown>;
+    researchStatus?: string;
     onChange: (config: Record<string, unknown>) => void;
 }
 
@@ -71,8 +74,13 @@ interface ResearchConfigurationProps {
  * Research Configuration Module Component
  * Renders the recruitment and configuration settings for a research
  */
-export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfigurationProps) => {
+export const ResearchConfigurationModule = ({ config, researchStatus, onChange }: ResearchConfigurationProps) => {
     const { id: researchId } = useParams<{ id: string }>();
+    const [participationMode, setParticipationMode] = useState<ParticipationMode>(
+        () => (config.participationMode as ParticipationMode) || 'panel'
+    );
+    const isResearchActive = researchStatus === 'active';
+    const isKiosk = participationMode === 'kiosk';
     const [demographicEnabled, setDemographicEnabled] = useState(true);
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
     const savedParticipantLimit = config.participantLimit as { enabled: boolean; value: number } | number | undefined;
@@ -380,14 +388,63 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
-
+    const handleParticipationModeChange = (mode: ParticipationMode) => {
+        if (isResearchActive) return;
+        setParticipationMode(mode);
+        onChange({ ...config, participationMode: mode });
+    };
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Left Panel - Recruitment Link */}
             <div className="space-y-6">
 
-                {/* Demographic Questions */}
+                {/* Participation Mode Selector */}
+                <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                        <h3 className="text-sm font-medium text-gray-900 mb-3">Participation mode</h3>
+                        {isResearchActive && (
+                            <p className="text-xs text-amber-600 mb-3">
+                                Mode cannot be changed while research is active.
+                            </p>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => handleParticipationModeChange('kiosk')}
+                                disabled={isResearchActive}
+                                className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                                    isKiosk
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 bg-white hover:border-gray-300'
+                                } ${isResearchActive ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                                <span className="block text-sm font-medium text-gray-900">Kiosk</span>
+                                <span className="block text-xs text-gray-500 mt-1">
+                                    Shared device, anonymous participants, auto-reset
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleParticipationModeChange('panel')}
+                                disabled={isResearchActive}
+                                className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                                    !isKiosk
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 bg-white hover:border-gray-300'
+                                } ${isResearchActive ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                            >
+                                <span className="block text-sm font-medium text-gray-900">Panel</span>
+                                <span className="block text-xs text-gray-500 mt-1">
+                                    Individual links, identified participants, demographics
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Demographic Questions — hidden in kiosk mode */}
+                {!isKiosk && (
                 <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                         <h3 className="text-sm font-medium text-gray-900">Demographic questions</h3>
@@ -476,6 +533,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* Link Configuration */}
                 <div className="space-y-4">
@@ -574,6 +632,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         error={urlErrors['backlink-complete']}
                     />
 
+                    {!isKiosk && (
+                    <>
                     <BacklinkInput
                         label="Link for disqualified interviews"
                         value={backlinks.disqualified}
@@ -587,6 +647,8 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         onChange={(value) => handleBacklinkChange('overquota', value)}
                         error={urlErrors['backlink-overquota']}
                     />
+                    </>
+                    )}
                 </div>
 
                 {/* B. Research Link */}
@@ -594,7 +656,9 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                     <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-2">B. Research&apos;s link to share</h3>
                         <p className="text-xs text-gray-500 mb-4">
-                            Share this URL with participants. Third-party systems can append participant ID as a query parameter.
+                            {isKiosk
+                                ? 'Share this URL or QR code on the shared device. Participant IDs are generated automatically.'
+                                : 'Share this URL with participants. Third-party systems can append participant ID as a query parameter.'}
                         </p>
                     </div>
 

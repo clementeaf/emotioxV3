@@ -4,7 +4,15 @@
 
 ---
 
-## v0.21.0 — Participation Modes: Kiosk vs Panel — Phase 1 Backend (2026-03-11)
+## v0.21.0 — Participation Modes: Kiosk vs Panel — Phases 1 & 2 (2026-03-11)
+
+### research-frontend
+- Added participation mode selector (Kiosk / Panel radio cards) in Research Configuration, above demographics
+- Kiosk mode hides demographic questions section and disqualification/overquota backlinks
+- Panel mode shows all sections as before (retrocompatible)
+- Mode selector disabled when research is active (only editable in draft)
+- URL helper text adapts to selected mode (kiosk: shared device hint, panel: participantId hint)
+- `participationMode` persisted in module config via existing componentValues pipeline
 
 ### backend
 - Added `ParticipationMode` type (`'kiosk' | 'panel'`) and `getParticipationMode()` service method

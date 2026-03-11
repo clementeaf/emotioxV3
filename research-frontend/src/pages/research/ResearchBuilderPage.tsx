@@ -639,6 +639,7 @@ export const ResearchBuilderPage = () => {
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ResearchConfigurationModule
                                 config={transformResearchConfigComponentValues(componentValues)}
+                                researchStatus={research?.status}
                                 onChange={(newConfig) => {
                                     Object.keys(newConfig).forEach(key => {
                                         if (key === 'demographics') {
@@ -687,7 +688,8 @@ const transformResearchConfigComponentValues = (values: Record<string, string>):
         linkConfig: {},
         backlinks: {},
         participantLimit: 50,
-        researchUrl: ''
+        researchUrl: '',
+        participationMode: 'panel'
     };
 
     // Helper to try parsing JSON or return original
@@ -724,6 +726,10 @@ const transformResearchConfigComponentValues = (values: Record<string, string>):
         // Handle participant limit
         else if (key === 'participantLimit') {
             config.participantLimit = parseInt(value) || 50;
+        }
+        // Handle participation mode
+        else if (key === 'participationMode') {
+            config.participationMode = value || 'panel';
         }
     });
 
