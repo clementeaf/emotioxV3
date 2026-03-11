@@ -4,6 +4,22 @@
 
 ---
 
+## v0.20.3 — Research Configuration quality fixes (2026-03-11)
+
+### research-frontend
+- Debounced backlink URL validation (300ms) to avoid per-keystroke validation overhead
+- Participant limit input now shows warning toast on invalid values instead of silently falling back to 50
+- Replaced fragile `||` chain in quota conversion with `DEMOGRAPHIC_QUOTA_FIELD` lookup map
+- Converted demographic row from `<div onClick>` to native `<button>` for keyboard accessibility
+- Removed redundant `handleLabelClick` handler (parent button handles the same logic)
+- Extracted `demographicLabel` variable to eliminate nested ternary in JSX
+- Added `aria-label` attributes to all section toggles, demographic checkboxes, and link config checkboxes
+- Removed duplicate `{/* QR Code Modal */}` comment
+- Wrapped `backlinks` derivation in `useMemo` to stabilize `useCallback` dependencies
+- Used `Number.parseInt` / `Number.isNaN` over global equivalents
+
+---
+
 ## v0.20.2 — Navigation Flow UX improvements (2026-03-09)
 
 - Changed cursor from crosshair to pointer for better click affordance

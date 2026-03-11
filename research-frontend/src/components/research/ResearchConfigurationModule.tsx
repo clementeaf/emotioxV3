@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -23,6 +23,18 @@ interface BackendQuota {
     enabled: boolean;
     enforcementMode?: string;
 }
+
+/** Maps demographic key → quota field name used in modal-format quotas */
+const DEMOGRAPHIC_QUOTA_FIELD: Record<string, string> = {
+    age: 'ageRange',
+    country: 'country',
+    gender: 'gender',
+    educationLevel: 'educationLevel',
+    employmentStatus: 'employmentStatus',
+    annualIncome: 'incomeLevel',
+    dailyHoursOnline: 'hoursRange',
+    technicalProficiency: 'proficiencyLevel',
+};
 
 
 interface BacklinkInputProps {
@@ -76,13 +88,13 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
 
     const { validateUrl } = useUrlValidation();
     const toast = useToast();
-
+    const backlinkValidationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
     // Demographics config is genuinely dynamic — each key (age, gender, etc.) has a different shape
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const demographics = (config.demographics || {}) as Record<string, any>;
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
-    const backlinks = (config.backlinks || {}) as Record<string, string>;
+    const backlinks = useMemo(() => (config.backlinks || {}) as Record<string, string>, [config.backlinks]);
     const participantLimit = typeof savedParticipantLimit === 'object' && savedParticipantLimit !== null
         ? savedParticipantLimit.value
         : (typeof savedParticipantLimit === 'number' ? savedParticipantLimit : 50);
@@ -267,12 +279,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         const { key, quotas } = pendingQuotasRef.current;
         pendingQuotasRef.current = null;
 
-        // Convert modal-format quotas to backend format
+        // Convert modal-format quotas to backend format using field mapping
+        const fieldName = DEMOGRAPHIC_QUOTA_FIELD[key] || key;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const backendQuotas = quotas.map((q: any) => ({
             id: q.id,
-            value: q.ageRange || q.country || q.gender || q.educationLevel ||
-                   q.employmentStatus || q.incomeLevel || q.hoursRange || q.proficiencyLevel || '',
+            value: (q[fieldName] as string) || '',
             limit: q.quota,
             enabled: q.isActive,
             enforcementMode: q.enforcementMode || 'immediate'
@@ -319,31 +331,34 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
-    const handleBacklinkChange = (key: string, value: string) => {
+    const handleBacklinkChange = useCallback((key: string, value: string) => {
         let normalizedValue = value.trim();
         if (normalizedValue && !normalizedValue.startsWith('http://') && !normalizedValue.startsWith('https://')) {
             normalizedValue = `https://${normalizedValue}`;
         }
 
-        // Validate URL if value is not empty
-        if (normalizedValue) {
-            const { isValid, error } = validateUrl(normalizedValue);
-            setUrlErrors(prev => ({
-                ...prev,
-                [`backlink-${key}`]: isValid ? '' : (error || 'Invalid URL'),
-            }));
-        } else {
-            setUrlErrors(prev => ({
-                ...prev,
-                [`backlink-${key}`]: '',
-            }));
+        // Debounce URL validation (300ms) — update value immediately
+        const timerKey = `backlink-${key}`;
+        if (backlinkValidationTimers.current[timerKey]) {
+            clearTimeout(backlinkValidationTimers.current[timerKey]);
         }
+        backlinkValidationTimers.current[timerKey] = setTimeout(() => {
+            if (normalizedValue) {
+                const { isValid, error } = validateUrl(normalizedValue);
+                setUrlErrors(prev => ({
+                    ...prev,
+                    [timerKey]: isValid ? '' : (error || 'Invalid URL'),
+                }));
+            } else {
+                setUrlErrors(prev => ({ ...prev, [timerKey]: '' }));
+            }
+        }, 300);
 
         onChange({
             ...config,
             backlinks: { ...backlinks, [key]: normalizedValue }
         });
-    };
+    }, [config, backlinks, validateUrl, onChange]);
 
     const handleParticipantLimitEnabledChange = (enabled: boolean) => {
         setParticipantLimitEnabled(enabled);
@@ -353,10 +368,15 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
         });
     };
 
-    const handleParticipantLimitChange = (value: number) => {
+    const handleParticipantLimitChange = (rawValue: string) => {
+        const parsed = Number.parseInt(rawValue);
+        if (Number.isNaN(parsed) || parsed < 1) {
+            toast.warning('El límite debe ser un número mayor a 0');
+            return;
+        }
         onChange({
             ...config,
-            participantLimit: { enabled: participantLimitEnabled, value }
+            participantLimit: { enabled: participantLimitEnabled, value: parsed }
         });
     };
 
@@ -376,6 +396,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                             checked={demographicEnabled}
                             onChange={(e) => setDemographicEnabled(e.target.checked)}
                             className="rounded border-gray-300"
+                            aria-label="Enable demographic questions"
                         />
                     </div>
 
@@ -383,22 +404,11 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         <div className="space-y-3">
                             {DEMOGRAPHIC_KEYS.map((key) => {
                                 const isEnabled = isDemographicEnabled(key);
-                                // variable removed: unused
-
-
-                                const handleLabelClick = (e: React.MouseEvent<HTMLSpanElement>): void => {
-                                    e.stopPropagation();
-                                    
-                                    if (!demographicEnabled) {
-                                        return;
-                                    }
-                                    
-                                    if (!isEnabled) {
-                                        handleDemographicChange(key, { enabled: true, validValues: [], disqualifications: [] });
-                                    }
-                                    
-                                    setActiveConfigModal(key);
+                                const DEMOGRAPHIC_LABELS: Record<string, string> = {
+                                    country: 'Country & Geography',
+                                    age: 'Age Range',
                                 };
+                                const demographicLabel = DEMOGRAPHIC_LABELS[key] ?? key.replaceAll(/([A-Z])/g, ' $1').trim();
 
                                 const handleRowClick = (): void => {
                                     if (!demographicEnabled) {
@@ -422,10 +432,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 };
 
                                 return (
-                                    <div 
-                                        key={key} 
+                                    <button
+                                        key={key}
+                                        type="button"
                                         onClick={handleRowClick}
-                                        className={`flex items-center justify-between p-3 border rounded-md transition-colors ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
+                                        disabled={!demographicEnabled}
+                                        className={`flex w-full items-center justify-between p-3 border rounded-md transition-colors text-left ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
                                     >
                                         <label className={`flex items-center gap-2 text-sm ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                                             <input
@@ -435,14 +447,12 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                                 disabled={!demographicEnabled}
                                                 className="rounded border-gray-300"
                                                 onClick={(e) => e.stopPropagation()}
+                                                aria-label={`Enable ${demographicLabel}`}
                                             />
-                                            <span 
+                                            <span
                                                 className={`capitalize ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                                                onClick={handleLabelClick}
                                             >
-                                                {key === 'country' ? 'Country & Geography' :
-                                                    key === 'age' ? 'Age Range' :
-                                                        key.replace(/([A-Z])/g, ' $1').trim()}
+                                                {demographicLabel}
                                             </span>
                                         </label>
 
@@ -460,7 +470,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                                 <Settings className="h-4 w-4 text-gray-500" />
                                             </Button>
                                         )}
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -476,6 +486,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                             checked={linkConfigEnabled}
                             onChange={(e) => setLinkConfigEnabled(e.target.checked)}
                             className="rounded border-gray-300"
+                            aria-label="Enable link configuration"
                         />
                     </div>
 
@@ -487,6 +498,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleLinkConfigChange('allowMobile', e.target.checked)}
                                 disabled={!linkConfigEnabled}
                                 className="rounded border-gray-300"
+                                aria-label="Allow mobile devices"
                             />
                             <span>Allow respondents to take survey via mobile devices</span>
                         </label>
@@ -497,6 +509,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleLinkConfigChange('trackLocation', e.target.checked)}
                                 disabled={!linkConfigEnabled}
                                 className="rounded border-gray-300"
+                                aria-label="Track respondent location"
                             />
                             <span>Track respondents location</span>
                         </label>
@@ -507,6 +520,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                                 onChange={(e) => handleLinkConfigChange('allowMultiple', e.target.checked)}
                                 disabled={!linkConfigEnabled}
                                 className="rounded border-gray-300"
+                                aria-label="Allow multiple responses per session"
                             />
                             <span>It can be taken multiple times within a single session</span>
                         </label>
@@ -522,6 +536,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                             checked={participantLimitEnabled}
                             onChange={(e) => handleParticipantLimitEnabledChange(e.target.checked)}
                             className="rounded border-gray-300"
+                            aria-label="Enable participant limit"
                         />
                     </div>
 
@@ -532,7 +547,7 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                         <Input
                             type="number"
                             value={participantLimit}
-                            onChange={(e) => handleParticipantLimitChange(parseInt(e.target.value) || 50)}
+                            onChange={(e) => handleParticipantLimitChange(e.target.value)}
                             className="w-24"
                             min={1}
                             disabled={!participantLimitEnabled}
@@ -637,7 +652,6 @@ export const ResearchConfigurationModule = ({ config, onChange }: ResearchConfig
                 </div>
             </div>
 
-            {/* QR Code Modal */}
             {/* QR Code Modal */}
             <QRCodeModal
                 isOpen={showQRModal}
