@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/layout/MainLayout';
@@ -26,6 +26,9 @@ import { publicService, type Module, type ResearchData } from '../services/publi
 import { responseService } from '../services/response.service';
 import { getComponentText } from '../utils/moduleComponent';
 import type { ModuleStructure, ModuleComponent } from '../types/module';
+
+/** Delay in ms before kiosk auto-resets to welcome for next participant */
+const KIOSK_TRANSITION_DELAY = 4000;
 
 // Turnstile temporarily disabled - will be re-enabled when TURNSTILE_SECRET_KEY is configured
 const TURNSTILE_ENABLED = false;
@@ -354,6 +357,8 @@ export const ResearchPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [mobileRestriction, setMobileRestriction] = useState<string | null>(null);
   const [showRestartOption, setShowRestartOption] = useState(false);
+  const [kioskTransition, setKioskTransition] = useState(false);
+  const kioskTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [backlinks, setBacklinks] = useState<Record<string, string>>({});
 
   // Initialize device collector
@@ -400,6 +405,44 @@ export const ResearchPage = () => {
     }
   }, []);
 
+  // Cleanup kiosk timer on unmount
+  useEffect(() => {
+    return () => {
+      if (kioskTimerRef.current) clearTimeout(kioskTimerRef.current);
+    };
+  }, []);
+
+  // Kiosk auto-reset: when currentStep becomes 'thank-you' in kiosk mode,
+  // show transition screen then reset for next participant
+  const participationMode = useParticipantStore((state) => state.participationMode);
+  useEffect(() => {
+    if (currentStep !== 'thank-you' || isPreviewMode || participationMode !== 'kiosk' || !researchId) return;
+
+    setKioskTransition(true);
+    kioskTimerRef.current = setTimeout(async () => {
+      try {
+        const newId = await publicService.requestKioskSession(researchId);
+        clearAllResponses();
+        startNewSession();
+        useParticipantStore.getState().setParticipantId(newId);
+        useSessionStore.getState().clearTurnstileToken();
+        if (!TURNSTILE_ENABLED) {
+          useSessionStore.getState().setTurnstileToken('disabled');
+        }
+        useParticipantStore.getState().setCurrentStep('welcome');
+      } catch (err) {
+        console.error('Error resetting kiosk session:', err);
+        window.location.reload();
+      } finally {
+        setKioskTransition(false);
+      }
+    }, KIOSK_TRANSITION_DELAY);
+
+    return () => {
+      if (kioskTimerRef.current) clearTimeout(kioskTimerRef.current);
+    };
+  }, [currentStep, isPreviewMode, participationMode, researchId, clearAllResponses, startNewSession]);
+
   // Load research configuration
   useEffect(() => {
     if (!researchId) return;
@@ -411,16 +454,28 @@ export const ResearchPage = () => {
         setMobileRestriction(null);
         setShowRestartOption(false);
 
-        // Fetch research data from backend
-        const research = await publicService.getResearch(researchId, isPreviewMode);
-        // Removed excessive logging for production
+        // Step 1: Detect participation mode (before anything else)
+        const mode = await publicService.getParticipationMode(researchId);
+        useParticipantStore.getState().setParticipationMode(mode);
 
-        // Log Welcome Screen module details if it exists
-        const welcomeModule = research.stages?.flatMap(s => s.modules || [])
-          .find(m => m.name === 'Welcome Screen');
-        if (welcomeModule) {
-          // Removed unused variable and logging for production
+        // Step 2: Determine effective preview mode locally
+        // (can't rely on hook value — mode was just set, re-render hasn't happened yet)
+        const urlParticipantId = new URLSearchParams(window.location.search).get('participantId');
+        const explicitPreview = new URLSearchParams(window.location.search).get('preview') === 'true';
+        const effectivePreview = explicitPreview || (!urlParticipantId && mode !== 'kiosk');
+
+        // Step 3: If kiosk mode, always request a fresh session
+        // (ensures correct research context even if localStorage has stale kiosk ID from another research)
+        if (mode === 'kiosk' && !urlParticipantId && !explicitPreview) {
+          const kioskId = await publicService.requestKioskSession(researchId);
+          useParticipantStore.getState().setParticipantId(kioskId);
+          useParticipantStore.getState().clearAllResponses();
+          startNewSession();
+          useParticipantStore.getState().setCurrentStep('welcome');
         }
+
+        // Fetch research data from backend
+        const research = await publicService.getResearch(researchId, effectivePreview);
 
         // Check mobile device restriction
         const linkConfig = getLinkConfig(research);
@@ -573,7 +628,7 @@ export const ResearchPage = () => {
         // In preview mode, always reset to the first step and clear previous responses
         // In participant mode, only reset if user hasn't progressed yet
         const storedStep = useParticipantStore.getState().currentStep;
-        if (isPreviewMode) {
+        if (effectivePreview) {
           useParticipantStore.getState().clearAllResponses();
           useParticipantStore.getState().setCurrentStep(firstStep);
         } else if (!storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
@@ -603,7 +658,7 @@ export const ResearchPage = () => {
     };
 
     void loadResearch();
-  }, [researchId, setConfig, isPreviewMode, t]);
+  }, [researchId, setConfig, startNewSession, t]);
 
   // Check if we're in development mode
   const isDev = useMemo(() => import.meta.env.DEV, []);
@@ -923,21 +978,21 @@ export const ResearchPage = () => {
       alert(errorMessage);
     }
 
-    // Check if we've reached the thank-you page
+    // Check if we've reached the thank-you page (restart button on thank-you)
     if (result.success && currentStep === 'thank-you') {
-      // Priority 1: Redirect if "Common Complete" link is configured
+      // Redirect if "Common Complete" link is configured
       if (backlinks.complete) {
         window.location.href = backlinks.complete;
         return;
       }
 
-      // Priority 2: Show restart option if multiple sessions are allowed
+      // Show restart option if multiple sessions are allowed (panel mode only — kiosk uses auto-reset effect)
       const linkConfig = useSessionStore.getState().config?.linkConfig;
       if (linkConfig?.allowMultiple === true) {
         setShowRestartOption(true);
       }
     }
-  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks.complete, t]);
+  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks, t]);
 
   if (!researchId) {
     return <InvalidResearchScreen />;
@@ -956,6 +1011,24 @@ export const ResearchPage = () => {
   // Show error state
   if (error) {
     return <ErrorScreen message={error} onRetry={() => window.location.reload()} />;
+  }
+
+  // Show kiosk transition screen (between participants)
+  if (kioskTransition) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6 px-4">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('kiosk.transitionTitle')}</h1>
+          <p className="text-gray-600">{t('kiosk.transitionMessage')}</p>
+          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+        </div>
+      </MainLayout>
+    );
   }
 
   return (

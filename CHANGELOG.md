@@ -4,9 +4,23 @@
 
 ---
 
-## v0.21.0 — Participation Modes: Kiosk vs Panel — Phases 1 & 2 (2026-03-11)
+## v0.21.0 — Participation Modes: Kiosk vs Panel — Phases 1, 2 & 3 (2026-03-11)
 
-### research-frontend
+### participant-frontend (Phase 3)
+- Kiosk mode: participant-frontend detects participation mode on load via `GET /public/research/:id/mode`
+- Kiosk URLs work without `?participantId` — backend auto-assigns incremental IDs (`kiosk-1`, `kiosk-2`, ...)
+- `usePreviewMode` hook updated: kiosk mode (no URL participantId) is NOT preview, explicit `?preview=true` always forces preview
+- After completing a kiosk survey, a 4-second transition screen shows ("Preparing next participant...") then auto-resets to Welcome
+- Reset clears all responses, requests a new kiosk session ID, and navigates to Welcome — SPA reset without page reload
+- Kiosk auto-reset uses a dedicated `useEffect` watching `currentStep` (not `handleNext`) since thank-you screen has no button
+- Fresh kiosk session always requested on page load to handle stale localStorage from different researches
+- `participationMode` persisted in Zustand store (`useParticipantStore`) with localStorage persistence
+- Added `getParticipationMode()` and `requestKioskSession()` to `publicService` using service discovery endpoints
+- Panel mode and existing researches (no mode set) behave exactly as before — zero retrocompatibility impact
+- Added kiosk i18n strings (ES/EN) for transition screen
+- Backend config controller updated with `participationMode` and `kioskSession` endpoint discovery
+
+### research-frontend (Phase 2)
 - Added participation mode selector (Kiosk / Panel radio cards) in Research Configuration, above demographics
 - Kiosk mode hides demographic questions section and disqualification/overquota backlinks
 - Panel mode shows all sections as before (retrocompatible)

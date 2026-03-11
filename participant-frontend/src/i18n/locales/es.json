@@ -112,6 +112,10 @@
     "zoomHint": "Usa la rueda del mouse para hacer zoom",
     "selectThisImage": "Seleccionar esta imagen"
   },
+  "kiosk": {
+    "transitionTitle": "¡Gracias por tu respuesta!",
+    "transitionMessage": "Preparando para el siguiente participante..."
+  },
   "eyeTracking": {
     "keepLooking": "Mantén la mirada en el punto...",
     "lookAndClick": "Mira el punto rojo y haz click en él",

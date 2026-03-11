@@ -151,7 +151,60 @@ class PublicService {
             throw error;
         }
     }
+    /**
+     * Fetch participation mode for a research
+     * @param researchId - Research ID
+     * @returns Participation mode ('kiosk' or 'panel')
+     */
+    async getParticipationMode(researchId: string): Promise<ParticipationMode> {
+        try {
+            const baseUrl = configService.getBaseUrl();
+            const endpoint = configService.getEndpoint('public', 'participationMode', { id: researchId });
+            const url = `${baseUrl}${endpoint}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch participation mode: ${response.statusText}`);
+            }
+
+            const data = await response.json() as { mode: ParticipationMode };
+            return data.mode;
+        } catch (error: unknown) {
+            console.error('Error fetching participation mode:', error);
+            // Default to panel for retrocompatibility
+            return 'panel';
+        }
+    }
+
+    /**
+     * Request a new kiosk session (generates incremental participantId)
+     * @param researchId - Research ID
+     * @returns Generated participantId (e.g., 'kiosk-1')
+     */
+    async requestKioskSession(researchId: string): Promise<string> {
+        const baseUrl = configService.getBaseUrl();
+        const endpoint = configService.getEndpoint('public', 'kioskSession', { id: researchId });
+        const url = `${baseUrl}${endpoint}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to create kiosk session: ${response.statusText}`);
+        }
+
+        const data = await response.json() as { participantId: string };
+        return data.participantId;
+    }
 }
+
+export type ParticipationMode = 'kiosk' | 'panel';
 
 export const publicService = new PublicService();
 

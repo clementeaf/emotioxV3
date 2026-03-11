@@ -1,7 +1,7 @@
 # Plan: Modos de Participación — Kiosko vs Panel
 
 > Fecha: 2026-03-11
-> Estado: **Diseño aprobado, pendiente implementación**
+> Estado: **Fases 1-3 implementadas, pendiente deploy y tests manuales**
 > Referencia: [ISSUES_&_FIXES.md](ISSUES_&_FIXES.md) → entrada 2026-03-11
 
 ---
@@ -128,28 +128,28 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 ### Fase 3 — Participant Frontend: flujo kiosko
 
 #### 3.1 Detección de modo al cargar
-- [ ] **3.1.1** Crear servicio/función `fetchParticipationMode(researchId)` que llama `GET /public/research/:id/mode`
-- [ ] **3.1.2** Agregar `participationMode: 'kiosk' | 'panel' | null` al Zustand store (`participantStore.ts`)
-- [ ] **3.1.3** En `ResearchPage.tsx`: llamar `fetchParticipationMode` al montar, guardar en store
-- [ ] **3.1.4** Mostrar loading mientras se resuelve el modo (antes de iniciar flujo)
+- [x] **3.1.1** Crear servicio/función `fetchParticipationMode(researchId)` que llama `GET /public/research/:id/mode`
+- [x] **3.1.2** Agregar `participationMode: 'kiosk' | 'panel' | null` al Zustand store (`participantStore.ts`)
+- [x] **3.1.3** En `ResearchPage.tsx`: llamar `fetchParticipationMode` al montar, guardar en store
+- [x] **3.1.4** Mostrar loading mientras se resuelve el modo (antes de iniciar flujo)
 
 #### 3.2 Sesión kiosko: obtener ID al inicio
-- [ ] **3.2.1** Crear servicio/función `requestKioskSession(researchId)` que llama `POST /public/research/:id/kiosk/session`
-- [ ] **3.2.2** Si `mode === 'kiosk'` y no hay `participantId` en URL: llamar `requestKioskSession` automáticamente
-- [ ] **3.2.3** Guardar `participantId` retornado en Zustand store (mismo campo que el actual)
-- [ ] **3.2.4** Ajustar `usePreviewMode.ts`: modo kiosko NO es preview (debe guardar respuestas)
+- [x] **3.2.1** Crear servicio/función `requestKioskSession(researchId)` que llama `POST /public/research/:id/kiosk/session`
+- [x] **3.2.2** Si `mode === 'kiosk'` y no hay `participantId` en URL: llamar `requestKioskSession` automáticamente
+- [x] **3.2.3** Guardar `participantId` retornado en Zustand store (mismo campo que el actual)
+- [x] **3.2.4** Ajustar `usePreviewMode.ts`: modo kiosko NO es preview (debe guardar respuestas)
 
 #### 3.3 Reset post-submit (flujo kiosko)
-- [ ] **3.3.1** Identificar el punto exacto donde el flujo actual termina (Thank You screen mount o submit final)
-- [ ] **3.3.2** Si `mode === 'kiosk'`: después de submit, mostrar pantalla de transición ("Gracias, preparando siguiente...")
-- [ ] **3.3.3** Llamar `clearAllResponses()` del store
-- [ ] **3.3.4** Llamar `requestKioskSession()` para obtener nuevo `participantId`
-- [ ] **3.3.5** Navegar a Welcome screen (primer step) — SPA reset sin recarga de página
-- [ ] **3.3.6** Timer configurable en transición (3-5 segundos) antes de reset automático
+- [x] **3.3.1** Identificar el punto exacto donde el flujo actual termina (Thank You screen mount o submit final)
+- [x] **3.3.2** Si `mode === 'kiosk'`: después de submit, mostrar pantalla de transición ("Gracias, preparando siguiente...")
+- [x] **3.3.3** Llamar `clearAllResponses()` del store
+- [x] **3.3.4** Llamar `requestKioskSession()` para obtener nuevo `participantId`
+- [x] **3.3.5** Navegar a Welcome screen (primer step) — SPA reset sin recarga de página
+- [x] **3.3.6** Timer configurable en transición (3-5 segundos) antes de reset automático
 
 #### 3.4 Modo panel: sin cambios
-- [ ] **3.4.1** Verificar que `mode === 'panel'` (o `null` para researches existentes) mantiene flujo actual exacto
-- [ ] **3.4.2** Verificar que Thank You screen NO resetea en modo panel
+- [x] **3.4.1** Verificar que `mode === 'panel'` (o `null` para researches existentes) mantiene flujo actual exacto
+- [x] **3.4.2** Verificar que Thank You screen NO resetea en modo panel
 
 #### 3.5 Verificación Fase 3
 - [ ] **3.5.1** Test: URL kiosko sin `?participantId` carga correctamente
@@ -159,7 +159,7 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 - [ ] **3.5.5** Test: segundo participante puede responder completo
 - [ ] **3.5.6** Test: URL panel con `?participantId=xxx` sigue funcionando igual
 - [ ] **3.5.7** Test: preview mode sigue funcionando igual
-- [ ] **3.5.8** Build + lint 0 errors
+- [x] **3.5.8** Build + lint 0 errors
 
 ---
 

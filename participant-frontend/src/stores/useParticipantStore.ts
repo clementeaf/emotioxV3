@@ -5,6 +5,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Response, ResponseId, ResponseValue, ResponseMetadata, ResponsesMap } from '../types/responses';
+import type { ParticipationMode } from '../services/public.service';
 
 interface ParticipantState {
   // Navegación
@@ -19,12 +20,16 @@ interface ParticipantState {
   sessionCount: number;
   participantId: string | null;
 
+  // Participation mode (kiosk or panel)
+  participationMode: ParticipationMode | null;
+
   // Turnstile verification (persisted)
   turnstileVerifiedAt: number | null;
 
   // Actions - Navegación
   setCurrentStep: (step: string) => void;
   setParticipantId: (id: string | null) => void;
+  setParticipationMode: (mode: ParticipationMode | null) => void;
   setTurnstileVerified: () => void;
   clearTurnstileVerified: () => void;
 
@@ -83,6 +88,7 @@ export const useParticipantStore = create<ParticipantState>()(
       sessionStartTime: Date.now(),
       sessionCount: 1,
       participantId: null,
+      participationMode: null,
       turnstileVerifiedAt: null,
 
       /**
@@ -91,6 +97,13 @@ export const useParticipantStore = create<ParticipantState>()(
        */
       setParticipantId: (id: string | null) => {
         set({ participantId: id });
+      },
+
+      /**
+       * Establece el modo de participación
+       */
+      setParticipationMode: (mode: ParticipationMode | null) => {
+        set({ participationMode: mode });
       },
 
       /**
@@ -230,6 +243,7 @@ export const useParticipantStore = create<ParticipantState>()(
         sessionStartTime: state.sessionStartTime,
         sessionCount: state.sessionCount,
         participantId: state.participantId,
+        participationMode: state.participationMode,
         turnstileVerifiedAt: state.turnstileVerifiedAt,
       }),
       merge: (persistedState, currentState) => {
@@ -240,6 +254,7 @@ export const useParticipantStore = create<ParticipantState>()(
           sessionStartTime?: number;
           sessionCount?: number;
           participantId?: string;
+          participationMode?: ParticipationMode | null;
           turnstileVerifiedAt?: number | null;
         };
         return {
@@ -250,6 +265,7 @@ export const useParticipantStore = create<ParticipantState>()(
           sessionStartTime: persisted.sessionStartTime ?? currentState.sessionStartTime,
           sessionCount: persisted.sessionCount ?? currentState.sessionCount,
           participantId: persisted.participantId ?? currentState.participantId,
+          participationMode: persisted.participationMode ?? currentState.participationMode,
           turnstileVerifiedAt: persisted.turnstileVerifiedAt ?? currentState.turnstileVerifiedAt,
         };
       },

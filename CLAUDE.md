@@ -72,7 +72,10 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/research/ResearchBuilderPage.tsx` — builder principal
 - `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía
 - `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity
-- `participant-frontend/src/pages/ResearchPage.tsx` — flujo de encuesta del participante
+- `participant-frontend/src/pages/ResearchPage.tsx` — flujo de encuesta del participante (incluye kiosk auto-reset)
+- `participant-frontend/src/hooks/usePreviewMode.ts` — detecta preview vs participant vs kiosk mode
+- `participant-frontend/src/stores/useParticipantStore.ts` — estado participante + participationMode
+- `participant-frontend/src/services/public.service.ts` — API pública (getParticipationMode, requestKioskSession)
 - `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
 
@@ -103,9 +106,12 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 ```
 
 ## Participation Modes (Kiosko vs Panel)
-- La plataforma soportará dos modos de participación: **Kiosko** (SmartVOC, ID autoincremental, reset automático) y **Panel** (Cognitive Tasks, ID externo/individual)
+- Dos modos de participación: **Kiosko** (SmartVOC, ID autoincremental `kiosk-N`, reset automático post-submit) y **Panel** (Cognitive Tasks, ID externo/individual)
+- **Fases 1-3 implementadas** (backend, research-frontend, participant-frontend). Fase 4 (import CSV, email) pendiente.
 - Plan completo: [docs/PLAN_PARTICIPATION_MODES.md](docs/PLAN_PARTICIPATION_MODES.md)
 - `researches.config.participationMode`: `'kiosk' | 'panel'` (default: `'panel'` para retrocompatibilidad)
+- Endpoints públicos: `GET /public/research/:id/mode`, `POST /public/research/:id/kiosk/session`
+- Participant-frontend: `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), y kiosk (sin params, modo detectado del backend)
 
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)

@@ -146,6 +146,8 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 validateDemographics: '/public/research/:id/validate-demographics',
                 submitResponse: '/public/research/:id/responses',
                 mediaByKey: '/public/media/by-key',
+                participationMode: '/public/research/:id/mode',
+                kioskSession: '/public/research/:id/kiosk/session',
             },
 
             // Media
