@@ -4,6 +4,14 @@
 
 ---
 
+## v0.23.2 — SmartVOC Auto-Advance Fix (2026-03-11)
+
+### participant-frontend
+- Fix: SmartVOC scale steps (CSAT, NPS, CES, CV) getting stuck — `onComplete` reference changes caused the auto-advance timer to be canceled via effect cleanup, while the `autoAdvanceFired` guard prevented re-scheduling. Solved by storing `onComplete` in a ref so the effect only depends on `scaleValue`.
+- Fix: NPS scale value 0 not registering — `(value as number) || null` treated `0` as falsy. Now uses explicit `typeof` check to preserve zero as a valid selection.
+
+---
+
 ## v0.23.1 — Navigation Flow Cross-Browser Fixes (2026-03-11)
 
 ### participant-frontend

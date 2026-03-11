@@ -39,7 +39,8 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
     };
 
     // Obtener valores guardados
-    const scaleValue = (getSavedValue('scale') as number) || null;
+    const rawScale = getSavedValue('scale');
+    const scaleValue = (typeof rawScale === 'number') ? rawScale : null;
     const emotionValues = (getSavedValue('emotions') as string[]) || [];
     const textValue = (getSavedValue('text') as string) || '';
 
@@ -47,17 +48,24 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
     const isScaleBased = module.name.includes('CSAT') || module.name.includes('NPS') || module.name.includes('CES') || module.name.includes('CV');
     const autoAdvanceFired = useRef(false);
 
+    // Keep a stable ref to onComplete so the auto-advance effect
+    // does not re-run (and cancel its timer) when onComplete changes reference.
+    const onCompleteRef = useRef(onComplete);
+    useEffect(() => {
+        onCompleteRef.current = onComplete;
+    }, [onComplete]);
+
     useEffect(() => {
         autoAdvanceFired.current = false;
     }, [module.id]);
 
     useEffect(() => {
-        if (isScaleBased && scaleValue !== null && onComplete && !autoAdvanceFired.current) {
+        if (isScaleBased && scaleValue !== null && !autoAdvanceFired.current) {
             autoAdvanceFired.current = true;
-            const timer = setTimeout(onComplete, 500);
+            const timer = setTimeout(() => onCompleteRef.current?.(), 500);
             return () => clearTimeout(timer);
         }
-    }, [isScaleBased, scaleValue, onComplete]);
+    }, [isScaleBased, scaleValue]);
 
     /**
      * Finds the best matching component for a Smart VOC display field.
