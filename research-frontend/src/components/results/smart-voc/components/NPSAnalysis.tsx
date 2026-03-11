@@ -359,9 +359,19 @@ export const NPSAnalysis = ({
         <div className="border-t border-gray-200 pt-3">
           <div className="mb-3">
             <h3 className="text-base font-medium">Loyalty's Evolution</h3>
-            <div className="text-green-600 font-medium text-sm mt-1">
-              +16% Since last month
-            </div>
+            {(() => {
+              if (monthlyData.length < 2) return null;
+              const current = monthlyData[monthlyData.length - 1].npsRatio;
+              const previous = monthlyData[monthlyData.length - 2].npsRatio;
+              const delta = current - previous;
+              const sign = delta >= 0 ? '+' : '';
+              const color = delta >= 0 ? 'text-green-600' : 'text-red-600';
+              return (
+                <div className={cn(color, 'font-medium text-sm mt-1')}>
+                  {sign}{delta}% Since last month
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex mt-3">

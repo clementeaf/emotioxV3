@@ -168,9 +168,8 @@ export const TrustFlowChart = ({
               tickLine={false}
               stroke="#9CA3AF"
               fontSize={12}
-              domain={[0, 12]}
-              ticks={[0, 4, 8, 12]}
-              tickFormatter={(value) => `${value}k`}
+              domain={[-100, 100]}
+              ticks={[-100, -50, 0, 50, 100]}
               tickMargin={10}
             />
             <Tooltip content={<CustomTooltip />} />

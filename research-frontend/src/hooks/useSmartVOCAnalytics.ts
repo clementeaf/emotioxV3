@@ -21,6 +21,7 @@ const mapToAnalytics = (results: analyticsService.SmartVOCResults): SmartVOCAnal
     timeSeriesData: results.timeSeriesData,
     vocResponses: results.vocResponses,
     monthlyNPSData: results.monthlyNPSData,
+    monthlyMetricsData: results.monthlyMetricsData,
     emotionalStates: results.emotionalStates
 });
 

@@ -39,11 +39,16 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
   const hasNPS = (data?.metrics.promoters || 0) + (data?.metrics.neutrals || 0) + (data?.metrics.detractors || 0) > 0;
   const hasVOC = data?.vocResponses && data.vocResponses.length > 0;
 
+  // Map monthly metrics for each MetricCard
+  const csatMonthly = (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.csatSatisfied, dissatisfied: m.csatDissatisfied }));
+  const cesMonthly = (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cesPositive, dissatisfied: m.cesNegative }));
+  const cvMonthly = (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cvPositive, dissatisfied: m.cvNegative }));
+
   // Filter visible metric cards
   const visibleMetricCards = [
-    { show: hasCSAT, component: <MetricCard key="csat" title="Customer Satisfaction" abbreviation="CSAT" score={calculateCSAT(data?.metrics.csatScores)} question="How satisfied are you with our service?" hasData={hasCSAT} /> },
-    { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(data?.metrics.cesScores)} question="How easy was it to use our service?" hasData={hasCES} /> },
-    { show: hasCV, component: <MetricCard key="cv" title="Cognitive Value" abbreviation="CV" score={calculateCV(data?.metrics.cvScores)} question="How valuable do you find our service?" hasData={hasCV} /> }
+    { show: hasCSAT, component: <MetricCard key="csat" title="Customer Satisfaction" abbreviation="CSAT" score={calculateCSAT(data?.metrics.csatScores)} question="How satisfied are you with our service?" monthlyData={csatMonthly} /> },
+    { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(data?.metrics.cesScores)} question="How easy was it to use our service?" monthlyData={cesMonthly} /> },
+    { show: hasCV, component: <MetricCard key="cv" title="Cognitive Value" abbreviation="CV" score={calculateCV(data?.metrics.cvScores)} question="How valuable do you find our service?" monthlyData={cvMonthly} /> }
   ].filter(card => card.show);
 
   // Generate question cards only for metrics with data
@@ -132,16 +137,33 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
             isPositive: ['joy', 'anticipation', 'trust', 'surprise', 'feliz', 'satisfecho', 'confiado', 'valorado', 'cuidado', 'seguro', 'enfocado', 'indulgente', 'estimulado', 'exploratorio', 'interesado', 'enérgico'].includes(name.toLowerCase())
           }));
         })()}
-        longTermClusters={[
-          { name: 'Advocacy', value: 70.95, trend: 'up' as const },
-          { name: 'Recommendation', value: 50.0, trend: 'down' as const },
-          { name: 'Attention', value: 20.95, trend: 'up' as const },
-          { name: 'Desirability', value: 35.5, trend: 'down' as const }
-        ]}
-        shortTermClusters={[
-          { name: 'Attention', value: 93.5, trend: 'up' as const },
-          { name: 'Destroying', value: 36.5, trend: 'down' as const }
-        ]}
+        longTermClusters={(() => {
+          const states = data?.emotionalStates || {};
+          const total = Object.values(states).reduce((s, c) => s + c, 0) || 1;
+          const clusterDefs = [
+            { name: 'Advocacy', emotions: ['confiado', 'valorado', 'trust'] },
+            { name: 'Recommendation', emotions: ['satisfecho', 'feliz', 'joy'] },
+            { name: 'Attention', emotions: ['interesado', 'exploratorio', 'anticipation'] },
+            { name: 'Desirability', emotions: ['estimulado', 'enérgico', 'surprise'] }
+          ];
+          return clusterDefs.map(c => {
+            const count = c.emotions.reduce((s, e) => s + (states[e] || states[e.charAt(0).toUpperCase() + e.slice(1)] || 0), 0);
+            return { name: c.name, value: Math.round((count / total) * 10000) / 100, trend: 'up' as const };
+          });
+        })()}
+        shortTermClusters={(() => {
+          const states = data?.emotionalStates || {};
+          const total = Object.values(states).reduce((s, c) => s + c, 0) || 1;
+          const clusterDefs = [
+            { name: 'Engagement', emotions: ['enfocado', 'indulgente', 'cuidado', 'seguro'] },
+            { name: 'Destroying', emotions: ['frustrado', 'irritado', 'decepción', 'descontento', 'anger', 'disgust'] }
+          ];
+          return clusterDefs.map(c => {
+            const count = c.emotions.reduce((s, e) => s + (states[e] || states[e.charAt(0).toUpperCase() + e.slice(1)] || 0), 0);
+            const trend = c.name === 'Destroying' ? 'down' as const : 'up' as const;
+            return { name: c.name, value: Math.round((count / total) * 10000) / 100, trend };
+          });
+        })()}
       />
     );
   }
@@ -196,6 +218,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               value={data?.metrics.cpvValue || 0}
               timeRange={timeRange}
               onTimeRangeChange={setTimeRange}
+              cpvData={(data?.monthlyMetricsData || []).map(m => ({ date: m.date, cpv: m.cpv }))}
               hasData={!!data}
             />
           </div>

@@ -10,12 +10,18 @@ import {
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 
+interface MonthlyDataPoint {
+  date: string;
+  satisfied: number;
+  dissatisfied: number;
+}
+
 interface MetricCardProps {
   title: string;
   abbreviation: string;
   score: number;
   question: string;
-  hasData?: boolean;
+  monthlyData?: MonthlyDataPoint[];
   className?: string;
 }
 
@@ -81,23 +87,30 @@ const CustomLegend = ({ cardType }: { cardType: string }) => {
   );
 };
 
-const defaultData = [
-  { date: 'Ene', satisfied: 0, dissatisfied: 0 },
-  { date: 'Feb', satisfied: 0, dissatisfied: 0 },
-  { date: 'Mar', satisfied: 0, dissatisfied: 0 },
-  { date: 'Abr', satisfied: 0, dissatisfied: 0 },
-  { date: 'May', satisfied: 0, dissatisfied: 0 },
-  { date: 'Jun', satisfied: 0, dissatisfied: 0 }
-];
+const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const getEmptyData = () => {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return { date: monthNames[d.getMonth()], satisfied: 0, dissatisfied: 0 };
+  });
+};
 
 export const MetricCard = ({
   title,
   abbreviation,
   score,
   question,
-  hasData = true,
+  monthlyData,
   className
 }: MetricCardProps) => {
+  const chartData = monthlyData && monthlyData.length > 0
+    ? monthlyData.map(d => {
+        const month = new Date(d.date + 'T00:00:00');
+        return { date: monthNames[month.getMonth()], satisfied: d.satisfied, dissatisfied: d.dissatisfied };
+      })
+    : getEmptyData();
   return (
     <Card className={cn('p-6 space-y-6', className)}>
       <div className="space-y-4">
@@ -136,7 +149,7 @@ export const MetricCard = ({
 
       <div style={{ width: '100%', height: '160px', minHeight: '160px' }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <LineChart data={hasData ? defaultData : defaultData}>
+          <LineChart data={chartData}>
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}

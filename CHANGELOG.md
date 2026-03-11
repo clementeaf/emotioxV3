@@ -4,7 +4,7 @@
 
 ---
 
-## v0.24.0 — SmartVOC Analytics: Real Metrics Backend (2026-03-11)
+## v0.24.0 — SmartVOC Analytics: Real Metrics (2026-03-11)
 
 ### backend
 - Feat: `generateTimeSeriesData` now computes all metrics per day (NPS, NEV, CSAT, CES, CV, CPV) — previously NEV was hardcoded to 0 and only NPS was calculated
@@ -14,6 +14,15 @@
 - Refactor: Extracted shared helpers (`POSITIVE_EMOTIONS`, `parseScoreValue`, `extractScores`, `calculateNPSFromScores`, `calculateNEVFromResponses`, `calculateCSATPercentage`, `calculateCESPercentage`) eliminating duplicated logic
 - Refactor: Removed unused `modulesQuery`/`modulesResult` and unnecessary `async`/`researchId` params from helper functions
 - Return type of `getSmartVOCResults` now includes `monthlyMetricsData` (auto-broadcast via SSE)
+
+### research-frontend
+- Feat: MetricCard (CSAT/CES/CV) mini-charts now render real monthly satisfied/dissatisfied data from `monthlyMetricsData` — previously used hardcoded empty `defaultData`
+- Feat: CPVCard generates dynamic SVG curve from real CPV monthly data with auto-positioned peak label — previously used static SVG path and hardcoded "83,62" label
+- Feat: TrustFlowChart NEV line now displays real data (backend fix) and Y-axis corrected from arbitrary 0-12k scale to -100/+100 range matching NPS/NEV percentages
+- Feat: NPSAnalysis Loyalty Evolution now calculates real month-over-month NPS delta — previously hardcoded "+16% Since last month"
+- Feat: NEVQuestionCard clusters now computed from real emotional states grouped by category (Advocacy, Recommendation, Engagement, Destroying) — previously used mock values
+- Refactor: Updated `SmartVOCResults`, `SmartVOCAnalytics`, and `SmartVOCTimeSeriesData` types to include new backend fields (`monthlyMetricsData`, `csat`, `ces`, `cv`, `cpv` in time series)
+- Cleanup: Removed unused `hasData` prop and `defaultData` constant from MetricCard
 
 ---
 

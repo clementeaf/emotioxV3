@@ -269,9 +269,12 @@ export interface SmartVOCResults {
     };
     timeSeriesData: Array<{
         date: string;
-        score: number;
         nps: number;
         nev: number;
+        csat: number;
+        ces: number;
+        cv: number;
+        cpv: number;
         count: number;
     }>;
     vocResponses: Array<{
@@ -287,6 +290,17 @@ export interface SmartVOCResults {
         detractors: number;
         npsRatio: number;
         date?: string;
+    }>;
+    monthlyMetricsData: Array<{
+        month: string;
+        date: string;
+        csatSatisfied: number;
+        csatDissatisfied: number;
+        cesPositive: number;
+        cesNegative: number;
+        cvPositive: number;
+        cvNegative: number;
+        cpv: number;
     }>;
     emotionalStates: Record<string, number>;
 }
