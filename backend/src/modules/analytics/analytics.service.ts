@@ -413,14 +413,15 @@ export const getSmartVOCResults = async (researchId: string) => {
   `;
   const responsesResult = await pool.query(responsesQuery, [researchId]);
 
-  // Process responses by type
-  const csatScores: number[] = [];
-  const cesScores: number[] = [];
-  const npsScores: number[] = [];
-  const cvScores: number[] = [];
+  // Process responses by type — each score includes its timestamp for frontend time-range filtering
+  const csatScores: Array<{ value: number; date: string }> = [];
+  const cesScores: Array<{ value: number; date: string }> = [];
+  const npsScores: Array<{ value: number; date: string }> = [];
+  const cvScores: Array<{ value: number; date: string }> = [];
   const nevScores: number[] = [];
   const vocResponses: Array<{ text: string; sentiment?: string; participantId: string; createdAt: string }> = [];
   const emotionalStates: Record<string, number> = {};
+  const nevResponsesData: Array<{ emotions: string[]; date: string }> = [];
 
   responsesResult.rows.forEach((row) => {
     const moduleName = row.module_name.toLowerCase();
@@ -431,28 +432,28 @@ export const getSmartVOCResults = async (researchId: string) => {
       if (moduleName.includes('csat')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 1 && score <= 5) {
-          csatScores.push(score);
+          csatScores.push({ value: score, date: row.created_at });
         }
       }
       // CES (scale 1-5)
       else if (moduleName.includes('ces')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 1 && score <= 5) {
-          cesScores.push(score);
+          cesScores.push({ value: score, date: row.created_at });
         }
       }
       // NPS (scale 0-10)
       else if (moduleName.includes('nps')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 0 && score <= 10) {
-          npsScores.push(score);
+          npsScores.push({ value: score, date: row.created_at });
         }
       }
       // CV (scale 1-5)
       else if (moduleName.includes('cv')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 1 && score <= 5) {
-          cvScores.push(score);
+          cvScores.push({ value: score, date: row.created_at });
         }
       }
       // NEV (emotional states array)
@@ -471,10 +472,15 @@ export const getSmartVOCResults = async (researchId: string) => {
           emotionalStates[emotion] = (emotionalStates[emotion] || 0) + 1;
         });
 
+        // Store per-response data with timestamp for frontend filtering
+        if (emotions.length > 0) {
+          nevResponsesData.push({ emotions, date: row.created_at });
+        }
+
         // Calculate NEV score
         const positiveCount = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(e)).length;
         const negativeCount = emotions.length - positiveCount;
-        
+
         if (emotions.length > 0) {
           const nevScore = Math.round(((positiveCount - negativeCount) / emotions.length) * 100);
           nevScores.push(nevScore);
@@ -493,24 +499,28 @@ export const getSmartVOCResults = async (researchId: string) => {
     }
   });
 
-  // Calculate metrics
+  // Calculate metrics — extract raw values for aggregate calculations
   const totalResponses = responsesResult.rows.length;
   const uniqueParticipants = new Set(responsesResult.rows.map(r => r.participant_id)).size;
 
+  const npsValues = npsScores.map(s => s.value);
+  const csatValues = csatScores.map(s => s.value);
+  const cesValues = cesScores.map(s => s.value);
+
   // NPS calculation
-  const promoters = npsScores.filter(s => s >= 9).length;
-  const passives = npsScores.filter(s => s >= 7 && s <= 8).length;
-  const detractors = npsScores.filter(s => s <= 6).length;
-  const npsScore = npsScores.length > 0 
-    ? Math.round(((promoters - detractors) / npsScores.length) * 100)
+  const promoters = npsValues.filter(s => s >= 9).length;
+  const passives = npsValues.filter(s => s >= 7 && s <= 8).length;
+  const detractors = npsValues.filter(s => s <= 6).length;
+  const npsScore = npsValues.length > 0
+    ? Math.round(((promoters - detractors) / npsValues.length) * 100)
     : 0;
 
   // CSAT & CES percentages
-  const csatPercentage = csatScores.length > 0
-    ? Math.round((csatScores.filter(s => s >= 4).length / csatScores.length) * 100)
+  const csatPercentage = csatValues.length > 0
+    ? Math.round((csatValues.filter(s => s >= 4).length / csatValues.length) * 100)
     : 0;
-  const cesPercentage = cesScores.length > 0
-    ? Math.round((cesScores.filter(s => s <= 2).length / cesScores.length) * 100)
+  const cesPercentage = cesValues.length > 0
+    ? Math.round((cesValues.filter(s => s <= 2).length / cesValues.length) * 100)
     : 0;
 
   // CPV calculation
@@ -534,7 +544,7 @@ export const getSmartVOCResults = async (researchId: string) => {
     metrics: {
       cpvValue,
       satisfaction: csatPercentage,
-      retention: Math.round(((promoters + passives) / Math.max(npsScores.length, 1)) * 100),
+      retention: Math.round(((promoters + passives) / Math.max(npsValues.length, 1)) * 100),
       npsScore,
       promoters,
       neutrals: passives,
@@ -542,6 +552,7 @@ export const getSmartVOCResults = async (researchId: string) => {
       csatScores,
       cesScores,
       cvScores,
+      npsScores,
       impact: promoters > detractors ? 'High' : totalResponses > 0 ? 'Medium' : 'Low',
       trend: promoters > detractors ? 'Increasing' : totalResponses > 0 ? 'Stable' : 'Decreasing'
     },
@@ -550,7 +561,8 @@ export const getSmartVOCResults = async (researchId: string) => {
     vocResponses,
     monthlyNPSData,
     monthlyMetricsData,
-    emotionalStates
+    emotionalStates,
+    nevResponsesData
   };
 };
 

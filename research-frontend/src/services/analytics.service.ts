@@ -261,9 +261,10 @@ export interface SmartVOCResults {
         promoters: number;
         neutrals: number;
         detractors: number;
-        csatScores: number[];
-        cesScores: number[];
-        cvScores: number[];
+        csatScores: Array<{ value: number; date: string }>;
+        cesScores: Array<{ value: number; date: string }>;
+        cvScores: Array<{ value: number; date: string }>;
+        npsScores: Array<{ value: number; date: string }>;
         impact: string;
         trend: string;
     };
@@ -314,6 +315,7 @@ export interface SmartVOCResults {
         cpv: number;
     }>;
     emotionalStates: Record<string, number>;
+    nevResponsesData: Array<{ emotions: string[]; date: string }>;
 }
 
 export const getSmartVOCResults = async (researchId: string): Promise<SmartVOCResults> => {

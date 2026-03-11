@@ -4,6 +4,26 @@
 
 ---
 
+## v0.25.0 — SmartVOC Filters: Time Range Across All Panels (2026-03-11)
+
+### backend
+- Feat: Score arrays (`csatScores`, `cesScores`, `cvScores`, `npsScores`) now include timestamps (`{value, date}`) — enables frontend time-range filtering
+- Feat: New `npsScores` field in metrics response (previously only aggregate counts were returned)
+- Feat: New `nevResponsesData` field with per-response emotions + timestamp for NEV time filtering
+
+### research-frontend
+- Feat: Time range filter (Today/Week/Month) now affects all 5 SmartVOC panels — previously only TrustFlowChart and NPSAnalysis were filtered
+- Feat: CPVCard value recalculated from filtered CSAT/CES scores per time range
+- Feat: MetricCards (CSAT/CES/CV) scores recalculated from filtered data
+- Feat: QuestionCards breakdown percentages and response counts reflect selected time range
+- Feat: NEVQuestionCard emotional states, clusters, and percentages filtered by time range
+- Feat: VOCComments filtered to show only comments within selected time range
+- Refactor: Centralized `filterByTimeRange()` helper and `filtered` useMemo in SmartVOCResults — single source of truth for time-filtered data
+- Types: Added `TimestampedScore`, updated `SmartVOCMetrics` and `SmartVOCAnalytics` interfaces
+- Updated `hasScores()` utility to accept both `number[]` and `{value}[]` arrays
+
+---
+
 ## v0.24.0 — SmartVOC Analytics: Real Metrics (2026-03-11)
 
 ### backend

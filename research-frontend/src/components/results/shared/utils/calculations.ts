@@ -60,6 +60,6 @@ export const calculateCV = (scores: number[] | undefined): number => {
   return parseFloat((positivePercentage - negativePercentage).toFixed(2));
 };
 
-export const hasScores = (scores: number[] | undefined): boolean => {
+export const hasScores = (scores: number[] | Array<{ value: number }> | undefined): boolean => {
   return !!(scores && scores.length > 0);
 };

@@ -12,6 +12,11 @@ export interface SmartVOCResponse {
     created_at: string;
 }
 
+export interface TimestampedScore {
+    value: number;
+    date: string;
+}
+
 export interface SmartVOCMetrics {
     cpvValue: number;
     satisfaction: number;
@@ -20,9 +25,10 @@ export interface SmartVOCMetrics {
     promoters: number;
     neutrals: number;
     detractors: number;
-    csatScores: number[];
-    cesScores: number[];
-    cvScores: number[];
+    csatScores: TimestampedScore[];
+    cesScores: TimestampedScore[];
+    cvScores: TimestampedScore[];
+    npsScores: TimestampedScore[];
     impact: string;
     trend: string;
 }
@@ -55,7 +61,8 @@ export interface SmartVOCAnalytics {
     metrics: SmartVOCMetrics;
     timeSeriesData: SmartVOCTimeSeriesData[];
     intradayTimeSeriesData: SmartVOCIntradayData[];
-    vocResponses: Array<{ text: string; sentiment?: string }>;
+    vocResponses: Array<{ text: string; sentiment?: string; createdAt?: string }>;
+    nevResponsesData: Array<{ emotions: string[]; date: string }>;
     monthlyNPSData: Array<{
         month: string;
         promoters: number;

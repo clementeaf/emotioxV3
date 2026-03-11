@@ -20,7 +20,8 @@ const mapToAnalytics = (results: analyticsService.SmartVOCResults): SmartVOCAnal
     metrics: results.metrics,
     timeSeriesData: results.timeSeriesData,
     intradayTimeSeriesData: results.intradayTimeSeriesData,
-    vocResponses: results.vocResponses,
+    vocResponses: results.vocResponses.map(v => ({ text: v.text, sentiment: v.sentiment, createdAt: v.createdAt })),
+    nevResponsesData: results.nevResponsesData,
     monthlyNPSData: results.monthlyNPSData,
     monthlyMetricsData: results.monthlyMetricsData,
     emotionalStates: results.emotionalStates
