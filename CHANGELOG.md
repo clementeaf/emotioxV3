@@ -4,6 +4,15 @@
 
 ---
 
+## v0.25.1 — TrustFlowChart: Week View as Bar Chart (2026-03-11)
+
+### research-frontend
+- Feat: TrustFlowChart "Last week" view now renders as a BarChart (7 grouped bars for NPS/NEV) instead of a LineChart — each bar represents the average ratio for a 24h interval
+- Feat: Week view X-axis labels show weekday names (Mon, Tue, Wed…) instead of dates
+- Today (intraday lines) and Month (daily lines) views remain unchanged
+
+---
+
 ## v0.25.0 — SmartVOC Filters: Time Range Across All Panels (2026-03-11)
 
 ### backend

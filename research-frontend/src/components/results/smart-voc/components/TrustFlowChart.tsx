@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -97,12 +99,24 @@ export const TrustFlowChart = ({
   onTimeRangeChange,
   className
 }: TrustFlowChartProps) => {
+  // For week view, format labels as weekday names (Mon, Tue, etc.)
+  const weekData = useMemo(() => {
+    const filtered = filterDailyDataByTimeRange(dailyData, 'week');
+    return filtered.map(item => ({
+      ...item,
+      stage: new Date(item.timestamp).toLocaleDateString('en-US', { weekday: 'short' })
+    }));
+  }, [dailyData]);
+
   const filteredData = useMemo(() => {
     if (timeRange === 'today') {
       return intradayData;
     }
+    if (timeRange === 'week') {
+      return weekData;
+    }
     return filterDailyDataByTimeRange(dailyData, timeRange);
-  }, [dailyData, intradayData, timeRange]);
+  }, [dailyData, intradayData, weekData, timeRange]);
 
   const currentData = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
   const currentTime = new Date().toLocaleTimeString('en-US', {
@@ -141,56 +155,103 @@ export const TrustFlowChart = ({
 
       <div className="h-64 mt-6 relative" style={{ minHeight: '256px' }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <LineChart data={filteredData}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="#E5E7EB"
-            />
-            <XAxis
-              dataKey="stage"
-              axisLine={false}
-              tickLine={false}
-              stroke="#9CA3AF"
-              fontSize={12}
-              tickMargin={10}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              stroke="#9CA3AF"
-              fontSize={12}
-              domain={[-100, 100]}
-              ticks={[-100, -50, 0, 50, 100]}
-              tickMargin={10}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend content={<CustomLegend />} />
-            <Line
-              type="monotone"
-              dataKey="nps"
-              name="NPS"
-              stroke="#3B82F6"
-              strokeWidth={2}
-              dot={{ r: 4, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-              isAnimationActive={true}
-              animationDuration={1000}
-              animationEasing="ease-out"
-            />
-            <Line
-              type="monotone"
-              dataKey="nev"
-              name="NEV"
-              stroke="#8B5CF6"
-              strokeWidth={2}
-              dot={{ r: 4, fill: '#8B5CF6', stroke: '#fff', strokeWidth: 2 }}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-              isAnimationActive={true}
-              animationDuration={1000}
-              animationEasing="ease-out"
-            />
-          </LineChart>
+          {timeRange === 'week' ? (
+            <BarChart data={filteredData} barCategoryGap="20%">
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#E5E7EB"
+              />
+              <XAxis
+                dataKey="stage"
+                axisLine={false}
+                tickLine={false}
+                stroke="#9CA3AF"
+                fontSize={12}
+                tickMargin={10}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                stroke="#9CA3AF"
+                fontSize={12}
+                domain={[-100, 100]}
+                ticks={[-100, -50, 0, 50, 100]}
+                tickMargin={10}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend content={<CustomLegend />} />
+              <Bar
+                dataKey="nps"
+                name="NPS"
+                fill="#3B82F6"
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={true}
+                animationDuration={1000}
+                animationEasing="ease-out"
+              />
+              <Bar
+                dataKey="nev"
+                name="NEV"
+                fill="#8B5CF6"
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={true}
+                animationDuration={1000}
+                animationEasing="ease-out"
+              />
+            </BarChart>
+          ) : (
+            <LineChart data={filteredData}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#E5E7EB"
+              />
+              <XAxis
+                dataKey="stage"
+                axisLine={false}
+                tickLine={false}
+                stroke="#9CA3AF"
+                fontSize={12}
+                tickMargin={10}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                stroke="#9CA3AF"
+                fontSize={12}
+                domain={[-100, 100]}
+                ticks={[-100, -50, 0, 50, 100]}
+                tickMargin={10}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend content={<CustomLegend />} />
+              <Line
+                type="monotone"
+                dataKey="nps"
+                name="NPS"
+                stroke="#3B82F6"
+                strokeWidth={2}
+                dot={{ r: 4, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                isAnimationActive={true}
+                animationDuration={1000}
+                animationEasing="ease-out"
+              />
+              <Line
+                type="monotone"
+                dataKey="nev"
+                name="NEV"
+                stroke="#8B5CF6"
+                strokeWidth={2}
+                dot={{ r: 4, fill: '#8B5CF6', stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                isAnimationActive={true}
+                animationDuration={1000}
+                animationEasing="ease-out"
+              />
+            </LineChart>
+          )}
         </ResponsiveContainer>
 
         {/* Current metrics overlay */}
