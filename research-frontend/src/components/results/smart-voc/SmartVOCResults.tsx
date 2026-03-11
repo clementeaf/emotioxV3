@@ -63,6 +63,7 @@ function computeEmotionalStates(nevResponses: Array<{ emotions: string[]; date: 
 }
 
 export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps) => {
+  // ...existing code...
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const { data, isLoading, error, refetch } = useSmartVOCAnalytics(researchId);
 
@@ -90,10 +91,10 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
   const filtered = useMemo(() => {
     if (!data) return null;
 
-    // Filter timestamped scores by time range
-    const csatFiltered = filterByTimeRange(data.metrics.csatScores || [], timeRange);
-    const cesFiltered = filterByTimeRange(data.metrics.cesScores || [], timeRange);
-    const cvFiltered = filterByTimeRange(data.metrics.cvScores || [], timeRange);
+    // Filter timestamped scores by time range and map to values
+    const csatValues = filterByTimeRange(data.metrics.csatScores || [], timeRange).map(s => s.value);
+    const cesValues = filterByTimeRange(data.metrics.cesScores || [], timeRange).map(s => s.value);
+    const cvValues = filterByTimeRange(data.metrics.cvScores || [], timeRange).map(s => s.value);
     const npsFiltered = filterByTimeRange(data.metrics.npsScores || [], timeRange);
     const nevFiltered = filterByTimeRange(data.nevResponsesData || [], timeRange);
     const vocFiltered = filterByTimeRange(
@@ -102,11 +103,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         .map(v => ({ text: v.text, sentiment: v.sentiment, date: v.createdAt })),
       timeRange
     );
-
-    // Extract number arrays for calculation functions
-    const csatValues = csatFiltered.map(s => s.value);
-    const cesValues = cesFiltered.map(s => s.value);
-    const cvValues = cvFiltered.map(s => s.value);
     const npsValues = npsFiltered.map(s => s.value);
 
     // NPS aggregates
@@ -121,9 +117,9 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
 
     // CPV
     const csatPct = csatValues.length > 0
-      ? Math.round((csatValues.filter(s => s >= 4).length / csatValues.length) * 100) : 0;
+      ? Math.round((csatValues.filter((s: number) => s >= 4).length / csatValues.length) * 100) : 0;
     const cesPct = cesValues.length > 0
-      ? Math.round((cesValues.filter(s => s <= 2).length / cesValues.length) * 100) : 0;
+      ? Math.round((cesValues.filter((s: number) => s <= 2).length / cesValues.length) * 100) : 0;
     const cpvValue = cesPct > 0 ? Math.round((csatPct / cesPct) * 100) / 100 : 0;
 
     return {
@@ -153,6 +149,11 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(filtered?.cesValues)} question="How easy was it to use our service?" monthlyData={cesMonthly} /> },
     { show: hasCV, component: <MetricCard key="cv" title="Cognitive Value" abbreviation="CV" score={calculateCV(filtered?.cvValues)} question="How valuable do you find our service?" monthlyData={cvMonthly} /> }
   ].filter(card => card.show);
+  // Determinar clases de grid para métricas
+  const gridColsClass =
+    visibleMetricCards.length === 1 ? 'grid-cols-1 md:grid-cols-1' :
+    visibleMetricCards.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+    'grid-cols-1 md:grid-cols-3';
 
   // Generate question cards — all using filtered data
   let questionCounter = 0;
@@ -221,17 +222,18 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     const totalEmotions = Object.values(states).reduce((sum, count) => sum + count, 0);
     const totalForPct = Math.max(totalEmotions, 1);
 
-    const positiveCount = Object.entries(states)
-      .filter(([emotion]) => POSITIVE_EMOTIONS.includes(emotion.toLowerCase()))
-      .reduce((sum, [, count]) => sum + count, 0);
-    const negativeCount = Object.entries(states)
-      .filter(([emotion]) => NEGATIVE_EMOTIONS.includes(emotion.toLowerCase()))
-      .reduce((sum, [, count]) => sum + count, 0);
 
-    const emotionalStatesList = Object.entries(states).map(([name, count]) => ({
+    // Mostrar todas las emociones, aunque tengan valor 0
+    const ALL_EMOTIONS = [
+      ...POSITIVE_EMOTIONS,
+      ...NEGATIVE_EMOTIONS
+    ];
+    // Eliminar duplicados por si hay solapamiento
+    const uniqueEmotions = Array.from(new Set(ALL_EMOTIONS.map(e => e.toLowerCase())));
+    const emotionalStatesList = uniqueEmotions.map(name => ({
       name,
-      value: totalEmotions > 0 ? Math.round((count / totalEmotions) * 100) : 0,
-      isPositive: POSITIVE_EMOTIONS.includes(name.toLowerCase())
+      value: totalEmotions > 0 && states[name] ? Math.round((states[name] / totalEmotions) * 100) : 0,
+      isPositive: POSITIVE_EMOTIONS.includes(name)
     }));
 
     const clusterFromStates = (emotions: string[]) => {
@@ -243,12 +245,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         key="nev-detail"
         questionNumber={`2.${questionCounter}`}
         title="Net Emotional Value (NEV)"
-        questionText="How do you feel about the experience offered by the [company]?"
-        instructionsText="Please select up to 3 emotions from these 20 emotional moods"
-        score={Math.round(totalEmotions * 0.56)}
-        responses={totalEmotions}
-        positivePercentage={Math.round((positiveCount / totalForPct) * 100) || 0}
-        negativePercentage={Math.round((negativeCount / totalForPct) * 100) || 0}
         emotionalStates={emotionalStatesList}
         longTermClusters={[
           { name: 'Advocacy', emotions: ['confiado', 'valorado', 'trust'] },
@@ -335,12 +331,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
 
         {/* Metrics Cards: Only show cards with data */}
         {visibleMetricCards.length > 0 && (
-          <div className={cn(
-            'grid gap-6 mb-6',
-            visibleMetricCards.length === 1 ? 'grid-cols-1 md:grid-cols-1' :
-            visibleMetricCards.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-            'grid-cols-1 md:grid-cols-3'
-          )}>
+          <div className={cn('grid gap-6 mb-6', gridColsClass)}>
             {visibleMetricCards.map(card => card.component)}
           </div>
         )}

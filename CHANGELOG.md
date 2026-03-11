@@ -1,3 +1,8 @@
+## v0.25.2 — NEV: All Emotions, Cluster Tooltip (2026-03-11)
+
+### research-frontend
+- Feat: NEVQuestionCard now displays all 20 emotions (positive and negative), even if not selected, with a max bar percent of 50% (each emotion can reach up to 5% if distributed equally).
+- Feat: Added tooltip to NEV clusters explaining the meaning of up/down arrows and the period (day/week/month) according to the selected time range.
 # CHANGELOG
 
 > **533 commits** | **Nov 20 2025 → Feb 17 2026** | Monorepo: research-frontend (196 files) · participant-frontend (67 files) · backend (60 files)
