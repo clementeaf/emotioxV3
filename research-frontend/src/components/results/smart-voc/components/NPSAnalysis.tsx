@@ -174,8 +174,21 @@ export const NPSAnalysis = ({
   const detractorsPercentage = total > 0 ? Math.round((detractors / total) * 100) : 0;
   const neutralsPercentage = total > 0 ? Math.round((neutrals / total) * 100) : 0;
 
-  // Los datos ya llegan filtrados desde SmartVOCResults
-  const filteredMonthlyData = monthlyData;
+  // Normalizar cada fila para que promoters+neutrals+detractors sumen 100 (barras apiladas al 100%)
+  const filteredMonthlyData = monthlyData.map(row => {
+    const sum = row.promoters + row.neutrals + row.detractors || 1;
+    if (sum === 100) return row;
+    let pctP = Math.round((row.promoters / sum) * 100);
+    const pctN = Math.round((row.neutrals / sum) * 100);
+    const pctD = Math.round((row.detractors / sum) * 100);
+    const total = pctP + pctN + pctD;
+    if (total !== 100) {
+      const diff = 100 - total;
+      if (diff > 0) pctP = Math.min(100, pctP + diff);
+      else pctP = Math.max(0, pctP + diff);
+    }
+    return { ...row, promoters: pctP, neutrals: pctN, detractors: 100 - pctP - pctN };
+  });
 
   return (
     <Card className={cn('p-6 pb-24 space-y-4', className)}>

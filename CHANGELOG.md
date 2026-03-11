@@ -1,3 +1,10 @@
+## v0.26.5 — NPS stacked bars at 100% (2026-03-11)
+
+### research-frontend
+- Fix: SmartVOC Results NPS — stacked bars (Promoters / Neutrals / Detractors) now display at 100% height. Today/Week chart data use percentages instead of counts; NPSAnalysis normalizes each row so the three segments sum to 100 (fixes rounding and ensures full bar fill).
+
+---
+
 ## v0.26.4 — NEV: canonical emotions, normalized keys, Spanish labels only (2026-03-11)
 
 ### research-frontend

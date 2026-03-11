@@ -317,12 +317,13 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           const p = scores.filter(s => s >= 9).length;
           const n = scores.filter(s => s >= 7 && s <= 8).length;
           const d = scores.filter(s => s <= 6).length;
+          const total = p + n + d || 1;
           const nps = scores.length > 0 ? Math.round(((p - d) / scores.length) * 100) : 0;
           return {
             month: new Date(dayKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            promoters: p,
-            neutrals: n,
-            detractors: d,
+            promoters: Math.round((p / total) * 100),
+            neutrals: Math.round((n / total) * 100),
+            detractors: Math.round((d / total) * 100),
             npsRatio: nps,
             date: dayKey
           };
