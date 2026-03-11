@@ -467,9 +467,10 @@ export const getSmartVOCResults = async (researchId: string) => {
           emotions = [];
         }
 
-        // Count emotional states
+        // Count emotional states (normalized keys so no records lost; matches participant IDs)
         emotions.forEach((emotion: string) => {
-          emotionalStates[emotion] = (emotionalStates[emotion] || 0) + 1;
+          const key = normalizeEmotionKey(emotion);
+          emotionalStates[key] = (emotionalStates[key] || 0) + 1;
         });
 
         // Store per-response data with timestamp for frontend filtering
@@ -477,8 +478,8 @@ export const getSmartVOCResults = async (researchId: string) => {
           nevResponsesData.push({ emotions, date: row.created_at });
         }
 
-        // Calculate NEV score
-        const positiveCount = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(e)).length;
+        // Calculate NEV score (normalize so e.g. "Enérgico" / "energico" count as positive)
+        const positiveCount = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(normalizeEmotionKey(e))).length;
         const negativeCount = emotions.length - positiveCount;
 
         if (emotions.length > 0) {
@@ -566,11 +567,24 @@ export const getSmartVOCResults = async (researchId: string) => {
   };
 };
 
-// Positive emotions list for NEV calculation (shared between aggregation and time series)
+// Canonical NEV emotion IDs (lowercase, no accents) — match participant-frontend EmotionSelector
 const POSITIVE_EMOTIONS = [
-  'Feliz', 'Satisfecho', 'Confiado', 'Valorado', 'Cuidado', 'Seguro',
-  'Enfocado', 'Indulgente', 'Estimulado', 'Exploratorio', 'Interesado', 'Enérgico'
+  'feliz', 'satisfecho', 'confiado', 'valorado', 'cuidado', 'seguro',
+  'enfocado', 'indulgente', 'estimulado', 'exploratorio', 'interesado', 'energico'
 ];
+const NEGATIVE_EMOTIONS = [
+  'descontento', 'frustrado', 'irritado', 'decepcion', 'estresado', 'infeliz', 'desatendido', 'apresurado'
+];
+
+/** Normalize emotion key for NEV (lowercase, remove accents) so participant submissions match canonical list. */
+function normalizeEmotionKey(key: string): string {
+  return key
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\u0301/g, '')
+    .replace(/\u0300/g, '')
+    .replace(/[\u0302\u0303\u0308]/g, '');
+}
 
 /**
  * Parse a response value to integer score, handling both string and non-string values
@@ -621,7 +635,7 @@ const calculateNEVFromResponses = (nevResponses: any[]): number => {
     }
 
     if (emotions.length > 0) {
-      const positive = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(e)).length;
+      const positive = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(normalizeEmotionKey(e))).length;
       totalPositive += positive;
       totalNegative += emotions.length - positive;
       totalEmotions += emotions.length;

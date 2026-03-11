@@ -18,16 +18,39 @@ interface SmartVOCResultsProps {
   className?: string;
 }
 
-const POSITIVE_EMOTIONS = [
-  'joy', 'anticipation', 'trust', 'surprise',
-  'feliz', 'satisfecho', 'confiado', 'valorado', 'cuidado', 'seguro',
-  'enfocado', 'indulgente', 'estimulado', 'exploratorio', 'interesado', 'enérgico'
+/** Canonical NEV emotions: IDs match participant-frontend EmotionSelector (lowercase, no accents). Labels in Spanish for consistent display. */
+const NEV_EMOTIONS: Array<{ id: string; label: string; isPositive: boolean }> = [
+  { id: 'feliz', label: 'Feliz', isPositive: true },
+  { id: 'satisfecho', label: 'Satisfecho', isPositive: true },
+  { id: 'confiado', label: 'Confiado', isPositive: true },
+  { id: 'valorado', label: 'Valorado', isPositive: true },
+  { id: 'cuidado', label: 'Cuidado', isPositive: true },
+  { id: 'seguro', label: 'Seguro', isPositive: true },
+  { id: 'enfocado', label: 'Enfocado', isPositive: true },
+  { id: 'indulgente', label: 'Indulgente', isPositive: true },
+  { id: 'estimulado', label: 'Estimulado', isPositive: true },
+  { id: 'exploratorio', label: 'Exploratorio', isPositive: true },
+  { id: 'interesado', label: 'Interesado', isPositive: true },
+  { id: 'energico', label: 'Enérgico', isPositive: true },
+  { id: 'descontento', label: 'Descontento', isPositive: false },
+  { id: 'frustrado', label: 'Frustrado', isPositive: false },
+  { id: 'irritado', label: 'Irritado', isPositive: false },
+  { id: 'decepcion', label: 'Decepción', isPositive: false },
+  { id: 'estresado', label: 'Estresado', isPositive: false },
+  { id: 'infeliz', label: 'Infeliz', isPositive: false },
+  { id: 'desatendido', label: 'Desatendido', isPositive: false },
+  { id: 'apresurado', label: 'Apresurado', isPositive: false }
 ];
 
-const NEGATIVE_EMOTIONS = [
-  'sadness', 'fear', 'anger', 'disgust',
-  'descontento', 'frustrado', 'irritado', 'decepción'
-];
+/** Normalize emotion key for aggregation (lowercase, remove accents) so no records are lost. */
+function normalizeEmotionKey(key: string): string {
+  return key
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\u0301/g, '')
+    .replace(/\u0300/g, '')
+    .replace(/[\u0302\u0303\u0308]/g, '');
+}
 
 /** Filter timestamped items by time range */
 function filterByTimeRange<T extends { date: string }>(
@@ -53,11 +76,14 @@ function filterByTimeRange<T extends { date: string }>(
   return items.filter(item => new Date(item.date) >= cutoff);
 }
 
-/** Compute emotional states record from timestamped NEV responses */
+/** Compute emotional states from NEV responses; keys normalized so no records are lost (e.g. Enérgico/energico -> energico). */
 function computeEmotionalStates(nevResponses: Array<{ emotions: string[]; date: string }>): Record<string, number> {
   const states: Record<string, number> = {};
   nevResponses.forEach(r => {
-    r.emotions.forEach(e => { states[e] = (states[e] || 0) + 1; });
+    r.emotions.forEach(e => {
+      const key = normalizeEmotionKey(e);
+      states[key] = (states[key] || 0) + 1;
+    });
   });
   return states;
 }
@@ -222,22 +248,24 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     const totalEmotions = Object.values(states).reduce((sum, count) => sum + count, 0);
     const totalForPct = Math.max(totalEmotions, 1);
 
-
-    // Mostrar todas las emociones, aunque tengan valor 0
-    const ALL_EMOTIONS = [
-      ...POSITIVE_EMOTIONS,
-      ...NEGATIVE_EMOTIONS
+    const canonicalIds = new Set(NEV_EMOTIONS.map(e => e.id));
+    const emotionalStatesList = [
+      ...NEV_EMOTIONS.map(e => ({
+        name: e.label,
+        value: totalEmotions > 0 && states[e.id] ? Math.round((states[e.id] / totalEmotions) * 100) : 0,
+        isPositive: e.isPositive
+      })),
+      ...Object.keys(states)
+        .filter(k => !canonicalIds.has(k))
+        .map(k => ({
+          name: k,
+          value: totalEmotions > 0 ? Math.round((states[k] / totalEmotions) * 100) : 0,
+          isPositive: false
+        }))
     ];
-    // Eliminar duplicados por si hay solapamiento
-    const uniqueEmotions = Array.from(new Set(ALL_EMOTIONS.map(e => e.toLowerCase())));
-    const emotionalStatesList = uniqueEmotions.map(name => ({
-      name,
-      value: totalEmotions > 0 && states[name] ? Math.round((states[name] / totalEmotions) * 100) : 0,
-      isPositive: POSITIVE_EMOTIONS.includes(name)
-    }));
 
-    const clusterFromStates = (emotions: string[]) => {
-      return emotions.reduce((s, e) => s + (states[e] || states[e.charAt(0).toUpperCase() + e.slice(1)] || 0), 0);
+    const clusterFromStates = (emotionIds: string[]) => {
+      return emotionIds.reduce((s, id) => s + (states[normalizeEmotionKey(id)] || states[id] || 0), 0);
     };
 
     questionCards.push(
@@ -247,10 +275,10 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         title="Net Emotional Value (NEV)"
         emotionalStates={emotionalStatesList}
         longTermClusters={[
-          { name: 'Advocacy', emotions: ['confiado', 'valorado', 'trust'] },
-          { name: 'Recommendation', emotions: ['satisfecho', 'feliz', 'joy'] },
-          { name: 'Attention', emotions: ['interesado', 'exploratorio', 'anticipation'] },
-          { name: 'Desirability', emotions: ['estimulado', 'enérgico', 'surprise'] }
+          { name: 'Advocacy', emotions: ['confiado', 'valorado'] },
+          { name: 'Recommendation', emotions: ['satisfecho', 'feliz'] },
+          { name: 'Attention', emotions: ['interesado', 'exploratorio'] },
+          { name: 'Desirability', emotions: ['estimulado', 'energico'] }
         ].map(c => ({
           name: c.name,
           value: Math.round((clusterFromStates(c.emotions) / totalForPct) * 10000) / 100,
@@ -258,7 +286,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         }))}
         shortTermClusters={[
           { name: 'Engagement', emotions: ['enfocado', 'indulgente', 'cuidado', 'seguro'] },
-          { name: 'Destroying', emotions: ['frustrado', 'irritado', 'decepción', 'descontento', 'anger', 'disgust'] }
+          { name: 'Destroying', emotions: ['frustrado', 'irritado', 'decepcion', 'descontento', 'estresado', 'infeliz', 'desatendido', 'apresurado'] }
         ].map(c => ({
           name: c.name,
           value: Math.round((clusterFromStates(c.emotions) / totalForPct) * 10000) / 100,

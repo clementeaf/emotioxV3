@@ -82,11 +82,12 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
-- `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios. CPV = CSAT positivo (4+5) - CES negativo (1+2). NPS agrupado por día en today/week.
+- `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios. CPV = CSAT positivo (4+5) - CES negativo (1+2). NPS agrupado por día en today/week. NEV: lista canónica de 20 emociones (IDs alineados con participant EmotionSelector), normalización de claves al agregar, etiquetas solo en español.
 - `research-frontend/src/components/results/smart-voc/components/CPVCard.tsx` — CPV: pastilla compacta sticky en top-left con valor porcentual
 - `research-frontend/src/components/results/smart-voc/components/NEVQuestionCard.tsx` — NEV: muestra todas las emociones con % encima de cada barra, techo 50%, clusters lado a lado, tooltip clusters
 - `research-frontend/src/components/results/smart-voc/components/VOCComments.tsx` — VOC: tabla de comentarios, botón de exportar CSV (participant_id, demográficos, respuestas)
 - `research-frontend/src/components/results/smart-voc/components/TrustFlowChart.tsx` — Trust Relationship Flow: NPS/NEV por tiempo (Today=LineChart, Week=BarChart, Month=LineChart). Caja "Latest point" en el encabezado (no sobre el gráfico) para no tapar el tooltip al pasar el mouse.
+- `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC; NEV usa IDs canónicos (minúsculas, sin tildes) y normalizeEmotionKey para conteo y cálculo de NEV
 - `backend/src/modules/research/research-in-progress.service.ts` — progreso de participantes usa `component_id` (no `question_id`); el total para el 100% se calcula solo con componentes visibles/habilitados (excluye Research Configuration, módulos y componentes con `hidden: true`)
 
 ## Deploy

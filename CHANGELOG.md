@@ -1,3 +1,15 @@
+## v0.26.4 — NEV: canonical emotions, normalized keys, Spanish labels only (2026-03-11)
+
+### research-frontend
+- Fix: NEV Results — emotional states now use a single canonical list (20 emotions) aligned with participant-frontend EmotionSelector; keys normalized when aggregating so no records are lost (e.g. "Enérgico" / "energico" count together)
+- Fix: NEV labels shown only in Spanish; removed mixed English (joy, trust, anger, etc.); clusters use canonical IDs and include all 8 negative emotions (estresado, infeliz, desatendido, apresurado)
+
+### backend
+- Fix: NEV calculation — POSITIVE_EMOTIONS and NEGATIVE_EMOTIONS use canonical IDs (lowercase, no accents); added `normalizeEmotionKey` so participant submissions match (e.g. "decepcion" / "Decepción" both count as negative)
+- Fix: Emotional states aggregation stores normalized keys so response counts are consistent with frontend
+
+---
+
 ## v0.26.3 — Trust Flow: latest-point box in header, tooltip no longer covered (2026-03-11)
 
 ### research-frontend
