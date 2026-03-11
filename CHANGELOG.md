@@ -1,4 +1,8 @@
 ## v0.25.2 — NEV: All Emotions, Cluster Tooltip (2026-03-11)
+## v0.25.3 — VOC Comments CSV Export (2026-03-11)
+
+### research-frontend
+- Feat: Added button to export all Voice of Customer (VOC) comments to CSV in SmartVOC Results. CSV includes participant_id, demographic data, and all SmartVOC responses for participants who left comments.
 
 ### research-frontend
 - Feat: NEVQuestionCard now displays all 20 emotions (positive and negative), even if not selected, with a max bar percent of 50% (each emotion can reach up to 5% if distributed equally).

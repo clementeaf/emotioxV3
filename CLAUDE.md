@@ -81,8 +81,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
-- `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips
+- `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios
 - `research-frontend/src/components/results/smart-voc/components/NEVQuestionCard.tsx` — NEV: muestra todas las emociones, techo 50%, tooltip clusters
+- `research-frontend/src/components/results/smart-voc/components/VOCComments.tsx` — VOC: tabla de comentarios, botón de exportar CSV (participant_id, demográficos, respuestas)
 
 ## Deploy
 - **Referencia completa:** [Deploy Skill](skills/deploy.md) + [cPanel Runbook](docs/cpanel-runbook.md)

@@ -41,6 +41,97 @@ export const VOCComments = ({
     }
   };
 
+  // ...existing code...
+  // Botón para descargar comentarios en CSV
+  const handleDownloadCSV = async () => {
+    // Import dinámico para evitar dependencias circulares
+    const [{ participantsService }, { smartVOCService }] = await Promise.all([
+      import('../../../../services/participants.service'),
+      import('../../../../services/smartVOC.service')
+    ]);
+    // Obtener researchId desde window.location o prop (ajustar si se pasa como prop)
+    const urlParts = window.location.pathname.split('/');
+    const researchId = urlParts.includes('results') ? urlParts[urlParts.indexOf('results') + 1] : '';
+    // Participantes
+    let participants: import('../../../../services/participants.service').Participant[] = [];
+    try {
+      participants = await participantsService.list(researchId);
+    } catch (err) {
+      // Manejo explícito: log y fallback
+      console.error('Error fetching participants:', err);
+      participants = [];
+    }
+    // Respuestas SmartVOC
+    let responses: import('../../../../services/smartVOC.service').SmartVOCResponse[] = [];
+    try {
+      responses = await smartVOCService.getResponses(researchId);
+    } catch (err) {
+      // Manejo explícito: log y fallback
+      console.error('Error fetching SmartVOC responses:', err);
+      responses = [];
+    }
+
+    // Map participantId → demográficos
+    const participantMap: Record<string, import('../../../../services/participants.service').Participant> = {};
+    participants.forEach(p => {
+      participantMap[p.participant_id] = p;
+    });
+
+    // Map participantId → respuestas
+    const responsesMap: Record<string, import('../../../../services/smartVOC.service').SmartVOCResponse[]> = {};
+    responses.forEach(r => {
+      if (!responsesMap[r.participant_id]) responsesMap[r.participant_id] = [];
+      responsesMap[r.participant_id].push(r);
+    });
+
+    // Solo participantes que han dejado comentarios
+    // Buscar participant_id en responses tipo VOC
+    const vocResponses = responses.filter(r => r.question_type === 'VOC' && typeof r.response_value.text === 'string');
+    const participantIdsWithComments = Array.from(new Set(vocResponses.map(r => r.participant_id)));
+    if (participantIdsWithComments.length === 0) return;
+
+    // CSV header
+    const header = [
+      'participant_id',
+      'email',
+      'name',
+      'external_id',
+      'status',
+      'comment',
+      'mood',
+      'responses',
+    ];
+    // CSV rows
+    const rows = participantIdsWithComments.map(pid => {
+      const p = participantMap[pid] || {};
+      // Buscar el comentario VOC
+      const voc = vocResponses.find(r => r.participant_id === pid);
+      const comment = voc && voc.response_value.text ? String(voc.response_value.text).replace(/"/g, '""') : '';
+      const mood = voc && voc.response_value.mood ? String(voc.response_value.mood) : '';
+      // Respuestas SmartVOC serializadas
+      const resp = responsesMap[pid] || [];
+      const respStr = resp.map(r => `${r.question_key}: ${JSON.stringify(r.response_value)}`).join(' | ');
+      return [
+        pid,
+        p.email || '',
+        p.name || '',
+        p.external_id || '',
+        p.status || '',
+        comment,
+        mood,
+        respStr.replace(/"/g, '""'),
+      ].map(v => `"${v}"`).join(',');
+    });
+    const csv = [header.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `voc-comments-${researchId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card className={cn('p-6 pb-24 space-y-6', className)}>
       {/* Header */}
@@ -61,10 +152,11 @@ export const VOCComments = ({
             </span>
           </div>
         </div>
-        <button className="text-gray-400 hover:text-gray-600">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
+        <button
+          className="text-xs px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          onClick={handleDownloadCSV}
+        >
+          Descargar comentarios (.csv)
         </button>
       </div>
 
