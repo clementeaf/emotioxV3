@@ -102,6 +102,11 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 ~/public_html/participant/    → Participant Frontend (Vite dist + runtime-config.json + .htaccess)
 ```
 
+## Participation Modes (Kiosko vs Panel)
+- La plataforma soportará dos modos de participación: **Kiosko** (SmartVOC, ID autoincremental, reset automático) y **Panel** (Cognitive Tasks, ID externo/individual)
+- Plan completo: [docs/PLAN_PARTICIPATION_MODES.md](docs/PLAN_PARTICIPATION_MODES.md)
+- `researches.config.participationMode`: `'kiosk' | 'panel'` (default: `'panel'` para retrocompatibilidad)
+
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)
 - [BITACORA](BITACORA.md) — notas de sesiones de desarrollo
@@ -109,5 +114,6 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - [Issues & Fixes](docs/ISSUES_&_FIXES.md)
 - [ISSUES_TRACKING](ISSUES_TRACKING.md) — 24 issues del feedback Dic 2024 (todos resueltos)
 - [QR URL Report](REPORT_URL_QR_ISSUE.md) — análisis root cause del bug de QR/URL
+- [Plan Modos de Participación](docs/PLAN_PARTICIPATION_MODES.md) — Kiosko vs Panel, diseño e implementación
 - [Perfil de Datos](scripts/perfil_datos.py)
 - [.agent/](/.agent/) — 13 docs de arquitectura detallada (data flows, API reference, etc.)

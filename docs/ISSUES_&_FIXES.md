@@ -51,3 +51,29 @@ Registro de problemas encontrados y sus soluciones. Para issues anteriores ver [
 - **Causa raíz:** `runtime-config.json` del research-frontend en producción no tiene `participantBaseUrl`. Las 3 prioridades de resolución fallan (runtime-config, VITE env, fallback emotiox.org)
 - **Solución:** Agregar `"participantBaseUrl": "https://emotio.cx/participant"` a `~/public_html/research/runtime-config.json`
 - **Prevención:** Script de deploy actualizado para incluir el campo. Ver [reporte completo](../REPORT_URL_QR_ISSUE.md)
+
+### [2026-02-11] uso de participantID en link para participant-frontend en cpanel
+- Inconveniente: (pendiente de documentar)
+
+---
+
+### [2026-03-11] Dos modos de participación: Kiosko (SmartVOC) vs Panel (Cognitive Tasks)
+
+**Contexto:** La plataforma tiene dos casos de uso fundamentalmente distintos para la recolección de respuestas:
+
+#### Modo 1 — Kiosko / Cliente final (SmartVOC)
+- **Uso:** Dispositivo compartido (tablet en tienda, totem, link público)
+- **Flujo:** Participante responde → submit → backend genera ID incremental automático → participant-frontend se resetea a Welcome → listo para siguiente participante
+- **IDs:** Autogenerados por el backend, incrementales (participante 1, 2, 3...)
+- **No requiere:** Identificación individual, email, demografía compleja
+- **Alcance:** research-frontend (config del modo), participant-frontend (reset automático post-respuesta), backend (autogeneración de IDs)
+
+#### Modo 2 — Panel comprado (Cognitive Tasks)
+- **Uso:** Base de datos de personas (probablemente con emails), link enviado individualmente
+- **Flujo:** Investigador importa/conecta base de participantes → se envía link por email → cada participante responde una vez con su ID
+- **IDs:** Posiblemente provistos por el proveedor del panel (formato externo) o generados internamente — pendiente de definir
+- **Requiere:** Mapeo de participante a respuesta, posible demografía/cuotas
+- **Incógnita:** ¿El proveedor del panel entrega IDs propios o hay que generarlos?
+
+**Estado:** Plan formal documentado → ver [PLAN_PARTICIPATION_MODES.md](PLAN_PARTICIPATION_MODES.md)
+**Componentes afectados:** research-frontend (Research Configuration), participant-frontend (flujo de respuesta y reset), backend (gestión de participantId)
