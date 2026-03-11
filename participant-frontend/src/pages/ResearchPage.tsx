@@ -25,6 +25,8 @@ import { usePreviewMode } from '../hooks/usePreviewMode';
 import { publicService, type Module, type ResearchData } from '../services/public.service';
 import { responseService } from '../services/response.service';
 import { getComponentText } from '../utils/moduleComponent';
+import { mediaService } from '../services/media.service';
+import { queryClient } from '../providers/QueryProvider';
 import type { ModuleStructure, ModuleComponent } from '../types/module';
 
 /** Delay in ms before kiosk auto-resets to welcome for next participant */
@@ -384,6 +386,9 @@ export const ResearchPage = () => {
         useSessionStore.getState().setTurnstileToken('disabled');
       }
       startNewSession();
+      // Flush caches to prevent memory buildup across participant sessions
+      mediaService.clearCache();
+      queryClient.clear();
       // Reset to the first step (welcome)
       useParticipantStore.getState().setCurrentStep('welcome');
     }
@@ -424,6 +429,9 @@ export const ResearchPage = () => {
         const newId = await publicService.requestKioskSession(researchId);
         clearAllResponses();
         startNewSession();
+        // Flush caches to prevent memory buildup across kiosk sessions
+        mediaService.clearCache();
+        queryClient.clear();
         useParticipantStore.getState().setParticipantId(newId);
         useSessionStore.getState().clearTurnstileToken();
         if (!TURNSTILE_ENABLED) {
@@ -799,6 +807,8 @@ export const ResearchPage = () => {
       // Start a new session
       startNewSession();
       clearAllResponses();
+      mediaService.clearCache();
+      queryClient.clear();
       // Clear Turnstile token to force re-verification
       useSessionStore.getState().clearTurnstileToken();
       // If Turnstile is disabled, auto-verify immediately

@@ -4,10 +4,11 @@ import { useSessionStore } from '../stores/useSessionStore';
 const IDLE_TIMEOUT = 30000; // 30 segundos sin actividad = idle
 
 /**
- * Hook para trackear tiempo de sesión, tiempo de foco y tiempo idle
+ * Hook para trackear tiempo de sesión, tiempo de foco y tiempo idle.
+ * Uses refs for store actions to keep the effect stable (single mount/unmount).
  */
 export const useSessionTimer = () => {
-    const { startSession, endSession, updateMetrics } = useSessionStore();
+    const storeRef = useRef(useSessionStore.getState());
     const focusTimeRef = useRef(0);
     const idleTimeRef = useRef(0);
     const lastActivityRef = useRef(0);
@@ -15,9 +16,11 @@ export const useSessionTimer = () => {
     const focusStartRef = useRef<number | null>(null);
 
     useEffect(() => {
+        const store = storeRef.current;
+
         // Initialize on mount
         lastActivityRef.current = Date.now();
-        startSession();
+        store.startSession();
         focusStartRef.current = Date.now();
 
         // Trackear actividad del usuario
@@ -48,7 +51,7 @@ export const useSessionTimer = () => {
         // Intervalo para detectar idle
         const idleInterval = setInterval(() => {
             const timeSinceActivity = Date.now() - lastActivityRef.current;
-            
+
             if (timeSinceActivity > IDLE_TIMEOUT && !isIdleRef.current && !document.hidden) {
                 // Usuario está idle
                 isIdleRef.current = true;
@@ -57,7 +60,7 @@ export const useSessionTimer = () => {
                     focusStartRef.current = null;
                 }
             }
-            
+
             // Actualizar idle time si está idle
             if (isIdleRef.current) {
                 idleTimeRef.current += 1000; // Incrementar 1 segundo
@@ -70,8 +73,8 @@ export const useSessionTimer = () => {
             if (focusStartRef.current && !isIdleRef.current && !document.hidden) {
                 currentFocusTime += Date.now() - focusStartRef.current;
             }
-            
-            updateMetrics({
+
+            useSessionStore.getState().updateMetrics({
                 focusTime: currentFocusTime,
                 idleTime: idleTimeRef.current,
             });
@@ -91,21 +94,21 @@ export const useSessionTimer = () => {
             if (focusStartRef.current && !isIdleRef.current && !document.hidden) {
                 focusTimeRef.current += Date.now() - focusStartRef.current;
             }
-            
-            updateMetrics({
+
+            useSessionStore.getState().updateMetrics({
                 focusTime: focusTimeRef.current,
                 idleTime: idleTimeRef.current,
             });
-            
-            endSession();
+
+            useSessionStore.getState().endSession();
             clearInterval(idleInterval);
             clearInterval(metricsInterval);
-            
+
             events.forEach(event => {
                 window.removeEventListener(event, handleActivity);
             });
-            
+
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [startSession, endSession, updateMetrics]);
+    }, []); // Empty deps — runs once per mount
 };

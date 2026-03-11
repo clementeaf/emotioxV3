@@ -64,8 +64,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     
     startSession: () => {
         const startTime = Date.now();
-        set({ 
-            metrics: { ...initialMetrics, startTime } 
+        set({
+            metrics: { ...initialMetrics, startTime },
+            interactions: [],
         });
     },
     

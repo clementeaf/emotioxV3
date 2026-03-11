@@ -4,6 +4,16 @@
 
 ---
 
+## v0.23.3 — Memory Leak Fixes (2026-03-11)
+
+### participant-frontend
+- Fix: Browser freezing after multiple participant sessions — React Query cache (`gcTime` 10min→2min), MediaService URL cache, and session store interactions accumulated without cleanup between participants
+- Fix: `useSessionTimer` effect re-running on every render due to unstable store deps — stabilized with `useRef` + empty deps to prevent event listener and interval accumulation
+- Fix: Session store `interactions[]` not cleared on `startSession()` — now resets to empty array
+- Fix: Added `mediaService.clearCache()` + `queryClient.clear()` on all session reset paths (participant change, kiosk auto-reset, manual restart)
+
+---
+
 ## v0.23.2 — SmartVOC Auto-Advance Fix (2026-03-11)
 
 ### participant-frontend
