@@ -170,7 +170,7 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 - [x] **4.3** UI research-frontend: `PanelParticipantsSection` — importar CSV, tabla de participantes, status
 - [x] **4.4** Generación de links individuales por participante — copy link, copy all links (CSV), export CSV
 - [x] **4.5** Tracking de estado por participante (pendiente / respondido / descalificado) — auto-update en `saveParticipantResponses`
-- [ ] **4.6** Integración de envío por email (Resend, SendGrid, o similar) — pendiente, sin proveedor configurado
+- [x] **4.6** Integración de envío por email — Nodemailer + cPanel SMTP (Exim), endpoints bulk/individual, UI con botón "Send invitations" + reenvío por fila. Pendiente: crear cuenta `noreply@emotio.cx` en cPanel y configurar credenciales SMTP en `.env` de producción
 
 ---
 

@@ -79,6 +79,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
+- `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
 
 ## Deploy
@@ -109,12 +110,14 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 
 ## Participation Modes (Kiosko vs Panel)
 - Dos modos de participación: **Kiosko** (SmartVOC, ID autoincremental `kiosk-N`, reset automático post-submit) y **Panel** (Cognitive Tasks, ID externo/individual)
-- **Fases 1-4 implementadas** (4.6 email pendiente). Plan completo: [docs/PLAN_PARTICIPATION_MODES.md](docs/PLAN_PARTICIPATION_MODES.md)
+- **Fases 1-4.6 implementadas**. Pendiente: config SMTP en producción (`noreply@emotio.cx`). Plan completo: [docs/PLAN_PARTICIPATION_MODES.md](docs/PLAN_PARTICIPATION_MODES.md)
 - `researches.config.participationMode`: `'kiosk' | 'panel'` (default: `'panel'` para retrocompatibilidad)
 - Endpoints públicos: `GET /public/research/:id/mode`, `POST /public/research/:id/kiosk/session`
 - Endpoints autenticados (panel): `GET/DELETE /participants/:researchId`, `POST /participants/:researchId/import`, `DELETE /participants/:researchId/:id`
-- Tabla `participants` (migración 015): email, name, external_id, status (pending/responded/disqualified/overquota), IDs auto `panel-N`
-- Research-frontend: `PanelParticipantsSection` en Research Configuration — import CSV, tabla, links individuales, export, status tracking
+- Endpoints email (panel): `POST /participants/:researchId/send-emails` (bulk), `POST /participants/:researchId/:id/send-email` (individual)
+- Tabla `participants` (migración 015): email, name, external_id, status (pending/responded/disqualified/overquota), invited_at, IDs auto `panel-N`
+- Research-frontend: `PanelParticipantsSection` en Research Configuration — import CSV, tabla, links individuales, export, status tracking, envío de invitaciones por email
+- Backend: `email.service.ts` — Nodemailer con SMTP cPanel (Exim), template HTML de invitación
 - `saveParticipantResponses()` auto-actualiza `participants.status` a `'responded'` al recibir respuestas
 - Participant-frontend: `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), y kiosk (sin params, modo detectado del backend)
 

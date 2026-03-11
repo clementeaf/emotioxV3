@@ -4,6 +4,30 @@
 
 ---
 
+## v0.23.0 — Panel Email Invitations (2026-03-11)
+
+### backend
+- New `email` module with Nodemailer transport configured for cPanel SMTP (Exim)
+- HTML invitation email template with EmotioX branding, participant name greeting, and participation button/link
+- New endpoints for sending invitation emails (authenticated, panel-mode only):
+  - `POST /participants/:researchId/send-emails` — bulk send to all pending participants with email, returns `{ sent, failed, results }`
+  - `POST /participants/:researchId/:id/send-email` — send to a single participant (for resends/retries)
+- Both endpoints validate `participationMode === 'panel'` before sending (returns 400 for kiosk)
+- `invited_at` timestamp updated on successful send
+- SMTP env variables: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
+
+### research-frontend
+- "Send invitations" button in PanelParticipantsSection — bulk sends to all pending participants with email
+- Confirmation dialog before bulk send showing count of recipients
+- Per-row resend button (mail icon) for individual participants with email
+- New "Invited" column in participants table showing last invitation date
+- `researchName` prop threaded from ResearchBuilderPage → ResearchConfigurationModule → PanelParticipantsSection
+
+### pending
+- Create `noreply@emotio.cx` email account in cPanel and configure SMTP credentials in production `.env`
+
+---
+
 ## v0.22.0 — Panel Participants: CSV Import, Links & Status Tracking (2026-03-11)
 
 ### database
