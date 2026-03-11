@@ -68,6 +68,7 @@ type ParticipationMode = 'kiosk' | 'panel';
 interface ResearchConfigurationProps {
     config: Record<string, unknown>;
     researchStatus?: string;
+    researchName?: string;
     onChange: (config: Record<string, unknown>) => void;
 }
 
@@ -75,7 +76,7 @@ interface ResearchConfigurationProps {
  * Research Configuration Module Component
  * Renders the recruitment and configuration settings for a research
  */
-export const ResearchConfigurationModule = ({ config, researchStatus, onChange }: ResearchConfigurationProps) => {
+export const ResearchConfigurationModule = ({ config, researchStatus, researchName, onChange }: ResearchConfigurationProps) => {
     const { id: researchId } = useParams<{ id: string }>();
     const [participationMode, setParticipationMode] = useState<ParticipationMode>(
         () => (config.participationMode as ParticipationMode) || 'panel'
@@ -722,6 +723,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, onChange }
                 <PanelParticipantsSection
                     researchId={researchId}
                     participantShareUrl={participantShareUrl}
+                    researchName={researchName || 'Research Study'}
                 />
             )}
 

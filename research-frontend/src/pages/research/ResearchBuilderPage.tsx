@@ -640,6 +640,7 @@ export const ResearchBuilderPage = () => {
                             <ResearchConfigurationModule
                                 config={transformResearchConfigComponentValues(componentValues)}
                                 researchStatus={research?.status}
+                                researchName={research?.name}
                                 onChange={(newConfig) => {
                                     Object.keys(newConfig).forEach(key => {
                                         if (key === 'demographics') {

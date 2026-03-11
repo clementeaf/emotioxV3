@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../ui/Button';
-import { Upload, Trash2, Download, Users, Copy, Link } from 'lucide-react';
+import { Upload, Trash2, Download, Users, Copy, Link, Send, Mail } from 'lucide-react';
 import { participantsService, type Participant } from '../../services/participants.service';
 import { useToast } from '../../hooks/useToast';
 
@@ -14,12 +14,16 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 interface PanelParticipantsSectionProps {
   researchId: string;
   participantShareUrl: string;
+  researchName: string;
 }
 
-export const PanelParticipantsSection = ({ researchId, participantShareUrl }: PanelParticipantsSectionProps) => {
+export const PanelParticipantsSection = ({ researchId, participantShareUrl, researchName }: PanelParticipantsSectionProps) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [confirmSendAll, setConfirmSendAll] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
@@ -82,6 +86,43 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl }: Pa
     }
   };
 
+  const handleSendAll = async () => {
+    setConfirmSendAll(false);
+    setSending(true);
+    try {
+      const result = await participantsService.sendEmails(researchId, participantShareUrl, researchName);
+      if (result.sent > 0) {
+        toast.success(`Sent ${result.sent} invitation(s)${result.failed > 0 ? `, ${result.failed} failed` : ''}`);
+      } else if (result.failed > 0) {
+        toast.error(`All ${result.failed} email(s) failed to send`);
+      } else {
+        toast.warning('No pending participants with email to send to');
+      }
+      await loadParticipants();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSendOne = async (participant: Participant) => {
+    setSendingId(participant.id);
+    try {
+      const result = await participantsService.sendEmail(researchId, participant.id, participantShareUrl, researchName);
+      if (result.success) {
+        toast.success(`Invitation sent to ${participant.email}`);
+        await loadParticipants();
+      } else {
+        toast.error(result.error || 'Failed to send email');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
   const getParticipantUrl = (participant: Participant): string => {
     return `${participantShareUrl}?participantId=${encodeURIComponent(participant.participant_id)}`;
   };
@@ -134,6 +175,7 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl }: Pa
 
   const pendingCount = participants.filter(p => p.status === 'pending').length;
   const respondedCount = participants.filter(p => p.status === 'responded').length;
+  const pendingWithEmail = participants.filter(p => p.status === 'pending' && p.email).length;
 
   return (
     <div className="col-span-full space-y-4">
@@ -167,6 +209,16 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl }: Pa
             </Button>
             {participants.length > 0 && (
               <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmSendAll(true)}
+                  disabled={sending || pendingWithEmail === 0}
+                  title={pendingWithEmail > 0 ? `Send invitations to ${pendingWithEmail} pending participant(s)` : 'No pending participants with email'}
+                >
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                  {sending ? 'Sending...' : 'Send invitations'}
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleCopyAllLinks} title="Copy all links to clipboard (CSV)">
                   <Link className="h-3.5 w-3.5 mr-1.5" />
                   Copy links
@@ -215,12 +267,15 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl }: Pa
                   <th className="text-left p-2 font-medium text-gray-600">Email</th>
                   <th className="text-left p-2 font-medium text-gray-600">Name</th>
                   <th className="text-left p-2 font-medium text-gray-600">Status</th>
+                  <th className="text-left p-2 font-medium text-gray-600">Invited</th>
                   <th className="text-right p-2 font-medium text-gray-600">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {participants.map(p => {
                   const statusInfo = STATUS_LABELS[p.status] || STATUS_LABELS.pending;
+                  const invitedDate = p.invited_at ? new Date(p.invited_at).toLocaleDateString() : '—';
+                  const isSendingThis = sendingId === p.id;
                   return (
                     <tr key={p.id} className="hover:bg-gray-50">
                       <td className="p-2 font-mono text-gray-700">{p.participant_id}</td>
@@ -231,8 +286,20 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl }: Pa
                           {statusInfo.label}
                         </span>
                       </td>
+                      <td className="p-2 text-gray-500">{invitedDate}</td>
                       <td className="p-2 text-right">
                         <div className="flex justify-end gap-1">
+                          {p.email && (
+                            <button
+                              type="button"
+                              onClick={() => handleSendOne(p)}
+                              disabled={isSendingThis}
+                              className="p-1 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                              title={p.invited_at ? 'Resend invitation' : 'Send invitation'}
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleCopyLink(p)}
@@ -258,6 +325,27 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl }: Pa
             </table>
           </div>
         ) : null}
+
+        {/* Confirmation dialog for bulk send */}
+        {confirmSendAll && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">Send invitations?</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                This will send an email invitation to <strong>{pendingWithEmail}</strong> pending participant(s) with email address.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setConfirmSendAll(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSendAll}>
+                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                  Send
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

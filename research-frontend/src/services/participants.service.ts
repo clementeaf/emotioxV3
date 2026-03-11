@@ -26,6 +26,19 @@ interface ListResponse {
   participants: Participant[];
 }
 
+interface SendEmailsResult {
+  sent: number;
+  failed: number;
+  results: Array<{ participantId: string; email: string; success: boolean; error?: string }>;
+}
+
+interface SendEmailResult {
+  participantId: string;
+  email: string;
+  success: boolean;
+  error?: string;
+}
+
 const handleError = (err: unknown, defaultMessage: string): never => {
   const axiosError = err as ApiErrorResponse;
   const message = axiosError.response?.data?.error || defaultMessage;
@@ -63,6 +76,22 @@ export const participantsService = {
       await apiClient.delete(`/participants/${researchId}`);
     } catch (err) {
       handleError(err, 'Failed to delete participants');
+    }
+  },
+
+  async sendEmails(researchId: string, baseUrl: string, researchName: string): Promise<SendEmailsResult> {
+    try {
+      return await apiClient.post<SendEmailsResult>(`/participants/${researchId}/send-emails`, { baseUrl, researchName });
+    } catch (err) {
+      return handleError(err, 'Failed to send emails');
+    }
+  },
+
+  async sendEmail(researchId: string, participantDbId: string, baseUrl: string, researchName: string): Promise<SendEmailResult> {
+    try {
+      return await apiClient.post<SendEmailResult>(`/participants/${researchId}/${participantDbId}/send-email`, { baseUrl, researchName });
+    } catch (err) {
+      return handleError(err, 'Failed to send email');
     }
   },
 };
