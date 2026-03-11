@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import { sendInvitation, SendResult } from '../email/email.service';
 
 // --- Types ---
 
@@ -203,4 +204,105 @@ export const updateStatus = async (
     WHERE research_id = ? AND participant_id = ?
   `;
   await pool.query(query, [status, researchId, participantId]);
+};
+
+// --- Email sending ---
+
+interface SendEmailsParams {
+  researchId: string;
+  baseUrl: string; // e.g. "https://emotio.cx/participant/#/research/UUID"
+  researchName: string;
+}
+
+/**
+ * Sends invitation emails to all pending participants with email.
+ * Updates invited_at on success. Does not stop on individual failures.
+ */
+export const sendEmailsToAll = async (params: SendEmailsParams): Promise<{
+  sent: number;
+  failed: number;
+  results: SendResult[];
+}> => {
+  const query = `
+    SELECT id, participant_id, email, name
+    FROM participants
+    WHERE research_id = ? AND email IS NOT NULL AND email != '' AND status = 'pending'
+    ORDER BY created_at ASC
+  `;
+  const result = await pool.query(query, [params.researchId]);
+  const participants = result.rows as Array<{ id: string; participant_id: string; email: string; name: string | null }>;
+
+  if (participants.length === 0) {
+    return { sent: 0, failed: 0, results: [] };
+  }
+
+  const results: SendResult[] = [];
+  for (const p of participants) {
+    const participantUrl = `${params.baseUrl}?participantId=${encodeURIComponent(p.participant_id)}`;
+    const sendResult = await sendInvitation({
+      to: p.email,
+      participantName: p.name,
+      participantId: p.participant_id,
+      participantUrl,
+      researchName: params.researchName,
+    });
+    results.push(sendResult);
+
+    if (sendResult.success) {
+      await pool.query(
+        `UPDATE participants SET invited_at = NOW(), updated_at = NOW() WHERE id = ?`,
+        [p.id]
+      );
+    }
+  }
+
+  return {
+    sent: results.filter(r => r.success).length,
+    failed: results.filter(r => !r.success).length,
+    results,
+  };
+};
+
+/**
+ * Sends invitation email to a single participant by DB id.
+ */
+export const sendEmailToOne = async (
+  researchId: string,
+  participantDbId: string,
+  params: Omit<SendEmailsParams, 'researchId'>
+): Promise<SendResult> => {
+  const query = `
+    SELECT id, participant_id, email, name
+    FROM participants
+    WHERE id = ? AND research_id = ?
+  `;
+  const result = await pool.query(query, [participantDbId, researchId]);
+  const rows = result.rows as Array<{ id: string; participant_id: string; email: string | null; name: string | null }>;
+
+  if (rows.length === 0) {
+    return { participantId: '', email: '', success: false, error: 'Participant not found' };
+  }
+
+  const p = rows[0];
+  if (!p.email) {
+    return { participantId: p.participant_id, email: '', success: false, error: 'Participant has no email' };
+  }
+
+  const participantUrl = `${params.baseUrl}?participantId=${encodeURIComponent(p.participant_id)}`;
+  const sendResult = await sendInvitation({
+    to: p.email,
+    participantName: p.name,
+    participantId: p.participant_id,
+    participantUrl,
+    researchName: params.researchName,
+  });
+
+  if (sendResult.success) {
+    await pool.query(
+      `UPDATE participants SET invited_at = NOW(), updated_at = NOW() WHERE id = ?`,
+      [p.id]
+    );
+  }
+
+  return sendResult;
 };

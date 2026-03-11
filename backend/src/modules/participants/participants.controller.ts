@@ -112,6 +112,59 @@ export const handleParticipantsRoutes = async (event: APIGatewayProxyEvent): Pro
       return success({ message: `Deleted ${count} participants`, count }, 200, undefined, origin);
     }
 
+    // POST /participants/:researchId/send-emails (send to all pending)
+    const sendAllMatch = path.match(/^\/participants\/([^/]+)\/send-emails$/);
+    if (sendAllMatch && httpMethod === 'POST') {
+      const researchId = sendAllMatch[1];
+      const body = JSON.parse(event.body || '{}');
+
+      if (!body.baseUrl || !body.researchName) {
+        return error('baseUrl and researchName are required', 400, undefined, origin);
+      }
+
+      // Validate panel mode
+      const { getParticipationMode } = await import('../public/public.service');
+      const mode = await getParticipationMode(researchId);
+      if (mode !== 'panel') {
+        return error('Email sending is only available for panel-mode researches', 400, undefined, origin);
+      }
+
+      const result = await participantsService.sendEmailsToAll({
+        researchId,
+        baseUrl: body.baseUrl,
+        researchName: body.researchName,
+      });
+      return success(result, 200, undefined, origin);
+    }
+
+    // POST /participants/:researchId/:id/send-email (send to one)
+    const sendOneMatch = path.match(/^\/participants\/([^/]+)\/([^/]+)\/send-email$/);
+    if (sendOneMatch && httpMethod === 'POST') {
+      const researchId = sendOneMatch[1];
+      const participantDbId = sendOneMatch[2];
+      const body = JSON.parse(event.body || '{}');
+
+      if (!body.baseUrl || !body.researchName) {
+        return error('baseUrl and researchName are required', 400, undefined, origin);
+      }
+
+      const { getParticipationMode } = await import('../public/public.service');
+      const mode = await getParticipationMode(researchId);
+      if (mode !== 'panel') {
+        return error('Email sending is only available for panel-mode researches', 400, undefined, origin);
+      }
+
+      const result = await participantsService.sendEmailToOne(researchId, participantDbId, {
+        baseUrl: body.baseUrl,
+        researchName: body.researchName,
+      });
+
+      if (!result.success) {
+        return error(result.error || 'Failed to send email', result.participantId ? 400 : 404, undefined, origin);
+      }
+      return success(result, 200, undefined, origin);
+    }
+
     return error('Route not found', 404, undefined, origin);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
