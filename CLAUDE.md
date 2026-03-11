@@ -129,6 +129,7 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Backend: `email.service.ts` — Nodemailer con SMTP cPanel (Exim), template HTML de invitación
 - `saveParticipantResponses()` auto-actualiza `participants.status` a `'responded'` al recibir respuestas
 - Participant-frontend: `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), y kiosk (sin params, modo detectado del backend)
+- Kiosk auto-reset: ref guard en ResearchPage evita programar múltiples timeouts de transición (fix loop en Safari al llegar a thank-you)
 
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)

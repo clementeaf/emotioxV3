@@ -1,3 +1,10 @@
+## v0.26.6 — Kiosk transition loop fix (Safari) (2026-03-11)
+
+### participant-frontend
+- Fix: Kiosk auto-reset no longer loops in Safari — effect that runs on thank-you was scheduling a new timeout on every run; added `kioskResetScheduledRef` so only one transition timeout is scheduled per thank-you visit, then reset in finally and on effect cleanup.
+
+---
+
 ## v0.26.5 — NPS stacked bars at 100% (2026-03-11)
 
 ### research-frontend

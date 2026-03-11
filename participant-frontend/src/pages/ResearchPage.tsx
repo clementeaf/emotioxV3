@@ -361,6 +361,8 @@ export const ResearchPage = () => {
   const [showRestartOption, setShowRestartOption] = useState(false);
   const [kioskTransition, setKioskTransition] = useState(false);
   const kioskTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Prevents scheduling multiple kiosk reset timeouts (Safari re-renders can trigger effect repeatedly) */
+  const kioskResetScheduledRef = useRef(false);
   const [backlinks, setBacklinks] = useState<Record<string, string>>({});
 
   // Initialize device collector
@@ -418,18 +420,20 @@ export const ResearchPage = () => {
   }, []);
 
   // Kiosk auto-reset: when currentStep becomes 'thank-you' in kiosk mode,
-  // show transition screen then reset for next participant
+  // show transition screen then reset for next participant.
+  // Only schedule once per thank-you visit (ref guard) to avoid loop in Safari where effect re-runs each render.
   const participationMode = useParticipantStore((state) => state.participationMode);
   useEffect(() => {
     if (currentStep !== 'thank-you' || isPreviewMode || participationMode !== 'kiosk' || !researchId) return;
+    if (kioskResetScheduledRef.current) return;
 
+    kioskResetScheduledRef.current = true;
     setKioskTransition(true);
     kioskTimerRef.current = setTimeout(async () => {
       try {
         const newId = await publicService.requestKioskSession(researchId);
         clearAllResponses();
         startNewSession();
-        // Flush caches to prevent memory buildup across kiosk sessions
         mediaService.clearCache();
         queryClient.clear();
         useParticipantStore.getState().setParticipantId(newId);
@@ -442,12 +446,17 @@ export const ResearchPage = () => {
         console.error('Error resetting kiosk session:', err);
         window.location.reload();
       } finally {
+        kioskResetScheduledRef.current = false;
         setKioskTransition(false);
       }
     }, KIOSK_TRANSITION_DELAY);
 
     return () => {
-      if (kioskTimerRef.current) clearTimeout(kioskTimerRef.current);
+      if (kioskTimerRef.current) {
+        clearTimeout(kioskTimerRef.current);
+        kioskTimerRef.current = null;
+      }
+      kioskResetScheduledRef.current = false;
     };
   }, [currentStep, isPreviewMode, participationMode, researchId, clearAllResponses, startNewSession]);
 
