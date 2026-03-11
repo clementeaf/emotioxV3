@@ -78,6 +78,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/stores/useParticipantStore.ts` — estado participante + participationMode
 - `participant-frontend/src/services/public.service.ts` — API pública (getParticipationMode, requestKioskSession)
 - `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico
+- `participant-frontend/src/components/steps/DynamicStep.tsx` — render genérico Welcome/Thank You; Thank You Screen muestra logo EmotioCX desde `public/EmotioCX-logo.svg`
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template

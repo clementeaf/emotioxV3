@@ -202,9 +202,18 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)
+    const isThankYouScreen = module.name === 'Thank You Screen' || module.name === 'Thank you screen';
+    const logoUrl = `${import.meta.env.BASE_URL}EmotioCX-logo.svg`;
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
+            {isThankYouScreen && (
+                <img
+                    src={logoUrl}
+                    alt="EmotioCX"
+                    className="h-12 w-auto mb-6 object-contain"
+                />
+            )}
             <div className="w-full max-w-2xl space-y-6">
                 {filteredComponents.map((component) => {
                     const savedValue = getComponentValue(component.id);

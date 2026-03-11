@@ -1,3 +1,10 @@
+## v0.26.7 — Thank You Screen: EmotioCX logo (2026-03-11)
+
+### participant-frontend
+- Feat: Thank You Screen step now displays EmotioCX logo above title and message. Logo asset in `public/EmotioCX-logo.svg` (from docs); DynamicStep shows it only when module is Thank You Screen, using `import.meta.env.BASE_URL` for dev and production paths.
+
+---
+
 ## v0.26.6 — Kiosk transition loop fix (Safari) (2026-03-11)
 
 ### participant-frontend
