@@ -270,10 +270,39 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
 
   if (hasNPS) {
     questionCounter++;
+    // Adaptar datos según rango
+    let npsChartData: Array<{ month: string; promoters: number; neutrals: number; detractors: number; npsRatio: number; date?: string }> = [];
+    if (timeRange === 'month') {
+      npsChartData = data?.monthlyNPSData || [];
+    } else if (timeRange === 'week' || timeRange === 'today') {
+      // Usar filtered?.npsValues para granularidad diaria
+      npsChartData = (data?.metrics.npsScores || []).filter(item => {
+        // Filtrar por rango
+        const itemDate = new Date(item.date);
+        const now = new Date();
+        if (timeRange === 'today') {
+          return itemDate.toDateString() === now.toDateString();
+        } else {
+          const cutoff = new Date(now);
+          cutoff.setDate(cutoff.getDate() - 7);
+          return itemDate >= cutoff;
+        }
+      }).map((item: { value: number; date: string }) => {
+        const score = item.value;
+        return {
+          month: item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+          promoters: score >= 9 ? 1 : 0,
+          neutrals: score >= 7 && score <= 8 ? 1 : 0,
+          detractors: score <= 6 ? 1 : 0,
+          npsRatio: score,
+          date: item.date
+        };
+      });
+    }
     questionCards.push(
       <NPSAnalysis
         key="nps-detail"
-        monthlyData={data?.monthlyNPSData || []}
+        monthlyData={npsChartData}
         score={filtered?.npsScore || 0}
         promoters={filtered?.promoters || 0}
         neutrals={filtered?.neutrals || 0}
