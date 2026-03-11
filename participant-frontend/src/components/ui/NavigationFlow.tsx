@@ -329,7 +329,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     }, [isComplete]);
 
     return (
-        <div className="fixed inset-0 z-40 bg-black flex items-center justify-center">
+        <div className="fixed inset-0 z-40 bg-black flex items-center justify-center" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
             {/* Floating overlay: title, description & progress */}
             {!isComplete && (
                 <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
@@ -357,7 +357,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             <div
                 ref={imageRef}
                 onClick={handleImageClick}
-                className={`relative w-full h-full ${!isComplete ? 'cursor-pointer' : ''}`}
+                className={`relative w-full h-full select-none ${!isComplete ? 'cursor-pointer' : ''}`}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none' } as React.CSSProperties}
             >
                 {/* Render real image or mock */}
                 {loading ? (
@@ -368,7 +369,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                     <LazyImage
                         src={currentImageUrl}
                         alt={currentImage.name || `Image ${currentImageIndex + 1}`}
-                        className="absolute inset-0 w-full h-full object-contain"
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                        draggable={false}
                         ref={imgElRef}
                         onLoad={(e) => {
                             const el = e.currentTarget;

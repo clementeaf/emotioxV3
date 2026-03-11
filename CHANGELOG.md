@@ -4,6 +4,18 @@
 
 ---
 
+## v0.23.1 — Navigation Flow Cross-Browser Fixes (2026-03-11)
+
+### participant-frontend
+- Fix: iOS Safari tap highlight (blue/gray flash) — added `-webkit-tap-highlight-color: transparent`
+- Fix: iOS Safari long-press context menu on images — added `-webkit-touch-callout: none`
+- Fix: Desktop image drag interrupting clicks (Chrome/Edge/Opera) — added `draggable={false}` + `pointer-events-none` on image
+- Fix: 300ms touch delay on mobile — added `touch-action: manipulation`
+- Fix: Accidental text selection on long-press — added `select-none` on clickable area
+- Fix: iPhone X+ notch/home indicator overlapping fullscreen overlay — added `env(safe-area-inset-*)` padding
+
+---
+
 ## v0.23.0 — Panel Email Invitations (2026-03-11)
 
 ### backend
