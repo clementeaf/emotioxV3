@@ -69,6 +69,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 ## Key Files
 - `backend/src/router.ts` — routing central, CORS, path normalization
 - `backend/server-cpanel.js` — entry point producción (Passenger)
+- `research-frontend/src/components/layout/ResearchBuilderSidebar.tsx` — sidebar con status modal (draft/active/completed), stage management
 - `research-frontend/src/components/research/ResearchBuilderPage.tsx` — builder principal
 - `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía
 - `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity

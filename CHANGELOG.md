@@ -1,3 +1,12 @@
+## v0.26.1 — Status Modal: Change Status (Draft/Active/Completed) (2026-03-11)
+
+### research-frontend
+- Feat: Status modal now allows changing between Draft, Active, and Completed — previously only allowed activating
+- Feat: Status badge in sidebar uses semantic colors (gray=draft, blue=active, green=completed)
+- Fix: Researchers can now return a research to Draft to change participation mode, modules, or configuration
+
+---
+
 ## v0.26.0 — SmartVOC Metrics Fixes, Progress Tracking, UI Polish (2026-03-11)
 
 ### backend

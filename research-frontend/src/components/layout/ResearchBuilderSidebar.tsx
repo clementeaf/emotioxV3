@@ -14,7 +14,6 @@ import {
     LogOut
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { Button } from '../ui/Button';
 import { researchService } from '../../services/research.service';
 import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
@@ -267,18 +266,22 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
     };
 
-    const handleActivateResearch = async () => {
-        if (!activeResearch) return;
+    const handleChangeStatus = async (newStatus: string) => {
+        if (!activeResearch || activeResearch.status === newStatus) return;
 
         try {
             setIsUpdatingStatus(true);
-            await researchService.activate(activeResearch.id);
-            toast.success('Research activated successfully');
+            if (newStatus === 'active') {
+                await researchService.activate(activeResearch.id);
+            } else {
+                await researchService.updateStatus(activeResearch.id, newStatus);
+            }
+            toast.success(`Research status changed to ${newStatus}`);
             await invalidateActiveResearch(activeResearch.id);
             setShowStatusModal(false);
         } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Failed to activate research';
-            console.error('Error activating research:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Failed to update research status';
+            console.error('Error updating research status:', error);
             toast.error(errorMessage);
         } finally {
             setIsUpdatingStatus(false);
@@ -361,7 +364,11 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     <button
                         type="button"
                         onClick={() => setShowStatusModal(true)}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize hover:bg-blue-200 transition-colors cursor-pointer"
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize hover:opacity-80 transition-colors cursor-pointer ${
+                            activeResearch.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                            activeResearch.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                        }`}
                     >
                         {activeResearch.status}
                     </button>
@@ -581,47 +588,54 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             <Modal
                 isOpen={showStatusModal}
                 onClose={() => setShowStatusModal(false)}
-                title="Activate Research"
+                title="Change Research Status"
                 size="md"
-                footer={
-                    <div className="flex justify-end gap-3">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setShowStatusModal(false)}
-                            disabled={isUpdatingStatus}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={handleActivateResearch}
-                            isLoading={isUpdatingStatus}
-                            disabled={isUpdatingStatus || activeResearch?.status === 'active'}
-                        >
-                            Activate Research
-                        </Button>
-                    </div>
-                }
             >
-                <div className="space-y-4 py-4">
-                    <div>
-                        <p className="text-sm text-gray-600 mb-4">
-                            Activating this research will change its status to <span className="font-medium text-blue-600">Active</span> and make it available for participants.
-                        </p>
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                            <p className="text-sm text-gray-600">
-                                Current status: <span className="font-medium capitalize">{activeResearch?.status}</span>
+                <div className="space-y-3 py-4">
+                    <p className="text-sm text-gray-600 mb-4">
+                        Current status: <span className="font-medium capitalize">{activeResearch?.status}</span>
+                    </p>
+                    {activeResearch?.status !== 'draft' && (
+                        <button
+                            type="button"
+                            onClick={() => void handleChangeStatus('draft')}
+                            disabled={isUpdatingStatus}
+                            className="w-full text-left p-3 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <div className="font-medium text-gray-900">Draft</div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Return to draft to edit configuration, participation mode, and modules.
                             </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                                New status: <span className="font-medium capitalize text-blue-600">Active</span>
+                        </button>
+                    )}
+                    {activeResearch?.status !== 'active' && (
+                        <button
+                            type="button"
+                            onClick={() => void handleChangeStatus('active')}
+                            disabled={isUpdatingStatus}
+                            className="w-full text-left p-3 rounded-lg border-2 border-blue-200 hover:border-blue-400 bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <div className="font-medium text-blue-900">Active</div>
+                            <p className="text-xs text-blue-700 mt-1">
+                                Make available for participants.
                             </p>
-                        </div>
-                    </div>
-                    {activeResearch?.status === 'active' && (
-                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-sm text-yellow-800">
-                                This research is already active.
+                        </button>
+                    )}
+                    {activeResearch?.status !== 'completed' && (
+                        <button
+                            type="button"
+                            onClick={() => void handleChangeStatus('completed')}
+                            disabled={isUpdatingStatus}
+                            className="w-full text-left p-3 rounded-lg border-2 border-green-200 hover:border-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <div className="font-medium text-green-900">Completed</div>
+                            <p className="text-xs text-green-700 mt-1">
+                                Close the research. No new responses will be accepted.
                             </p>
-                        </div>
+                        </button>
+                    )}
+                    {isUpdatingStatus && (
+                        <p className="text-sm text-gray-500 text-center">Updating status...</p>
                     )}
                 </div>
             </Modal>
