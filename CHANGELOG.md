@@ -1,3 +1,10 @@
+## v0.26.2 — Progress 100% from visible components only (2026-03-11)
+
+### backend
+- Fix: Progress and completion rate now use only visible/enabled components — excludes Research Configuration, hidden modules (`config.hidden`), and hidden components; 100% aligns with questions actually shown in the study (e.g. SmartVOC only after removing cognitive block)
+
+---
+
 ## v0.26.1 — Status Modal: Change Status (Draft/Active/Completed) (2026-03-11)
 
 ### research-frontend

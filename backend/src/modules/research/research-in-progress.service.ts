@@ -1,5 +1,98 @@
 import pool from '../../config/database';
 
+interface ProgressComponentConfig {
+    hidden?: boolean;
+    config?: {
+        hidden?: boolean;
+    };
+}
+
+interface ProgressModuleConfig {
+    structure?: {
+        components?: ProgressComponentConfig[];
+    };
+    components?: ProgressComponentConfig[];
+    hidden?: boolean;
+}
+
+interface ProgressModuleRow {
+    id: string;
+    name: string;
+    config: unknown;
+}
+
+/**
+ * Cuenta los componentes visibles que deben considerarse para el progreso.
+ * Excluye:
+ * - El módulo de configuración de investigación
+ * - Módulos marcados como ocultos
+ * - Componentes marcados como ocultos
+ * @param modules - Lista de módulos de la investigación
+ * @returns Número total de componentes visibles
+ */
+const countVisibleComponentsForProgress = (modules: ProgressModuleRow[]): number => {
+    let totalComponents = 0;
+
+    for (const mod of modules) {
+        if (mod.name === 'Research Configuration') {
+            continue;
+        }
+
+        let parsedConfig: ProgressModuleConfig | null = null;
+
+        try {
+            if (typeof mod.config === 'string') {
+                parsedConfig = JSON.parse(mod.config) as ProgressModuleConfig;
+            } else if (mod.config && typeof mod.config === 'object') {
+                parsedConfig = mod.config as ProgressModuleConfig;
+            }
+        } catch {
+            parsedConfig = null;
+        }
+
+        if (parsedConfig?.hidden === true) {
+            continue;
+        }
+
+        const structure = parsedConfig?.structure ?? parsedConfig;
+        const components = structure?.components ?? parsedConfig?.components;
+
+        if (Array.isArray(components)) {
+            const visibleComponents = components.filter((component: ProgressComponentConfig) => {
+                if (component.hidden === true) {
+                    return false;
+                }
+                if (component.config?.hidden === true) {
+                    return false;
+                }
+                return true;
+            });
+
+            totalComponents += visibleComponents.length;
+        } else {
+            totalComponents += 1;
+        }
+    }
+
+    return totalComponents;
+};
+
+/**
+ * Obtiene el total de componentes visibles que se usan para el cálculo de progreso.
+ * @param researchId - ID de la investigación
+ * @returns Número total de componentes visibles
+ */
+const getTotalVisibleComponentsForProgress = async (researchId: string): Promise<number> => {
+    const modulesQuery = `
+        SELECT id, name, config
+        FROM modules
+        WHERE research_id = ?
+        ORDER BY order_index
+    `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
+    return countVisibleComponentsForProgress(modulesResult.rows as ProgressModuleRow[]);
+};
+
 /**
  * Obtiene las métricas generales de una investigación
  * @param researchId - ID de la investigación
@@ -56,29 +149,8 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
     const totalParticipants = parseInt(participantsResult.rows[0]?.total_participants || '0', 10);
     const participantsWithResponses = parseInt(participantsResult.rows[0]?.participants_with_responses || '0', 10);
 
-    // Contar total de componentes desde config de módulos
-    const modulesQuery = `
-        SELECT id, name, config
-        FROM modules
-        WHERE research_id = ?
-        ORDER BY order_index
-    `;
-    const modulesResult = await pool.query(modulesQuery, [researchId]);
-
-    let totalComponents = 0;
-    for (const mod of modulesResult.rows) {
-        if (mod.name === 'Research Configuration') continue;
-        try {
-            const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
-            const structure = config?.structure || config;
-            const components = structure?.components || config?.components;
-            if (Array.isArray(components)) {
-                totalComponents += components.length;
-            }
-        } catch {
-            totalComponents += 1;
-        }
-    }
+    // Contar total de componentes visibles desde config de módulos
+    const totalComponents = await getTotalVisibleComponentsForProgress(researchId);
 
     // Calcular tasa de completitud real: participantes que respondieron todo
     const completedQuery = `
@@ -166,31 +238,8 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         throw new Error('Research not found');
     }
 
-    // 1. Contar total de componentes esperados desde la config de módulos
-    const modulesQuery = `
-        SELECT id, name, config
-        FROM modules
-        WHERE research_id = ?
-        ORDER BY order_index
-    `;
-    const modulesResult = await pool.query(modulesQuery, [researchId]);
-
-    let totalComponents = 0;
-    for (const mod of modulesResult.rows) {
-        // Excluir módulos de configuración que no son respondidos por participantes
-        if (mod.name === 'Research Configuration') continue;
-        try {
-            const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
-            const structure = config?.structure || config;
-            const components = structure?.components || config?.components;
-            if (Array.isArray(components)) {
-                totalComponents += components.length;
-            }
-        } catch {
-            // Si no se puede parsear, contar como 1 componente por módulo
-            totalComponents += 1;
-        }
-    }
+    // 1. Contar total de componentes visibles esperados desde la config de módulos
+    const totalComponents = await getTotalVisibleComponentsForProgress(researchId);
 
     // 2. Obtener respuestas únicas por participante usando component_id
     const participantsQuery = `
@@ -276,29 +325,8 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         throw new Error('Research not found');
     }
 
-    // Contar total de componentes desde config de módulos
-    const modulesQuery = `
-        SELECT id, name, config
-        FROM modules
-        WHERE research_id = ?
-        ORDER BY order_index
-    `;
-    const modulesResult = await pool.query(modulesQuery, [researchId]);
-
-    let totalComponents = 0;
-    for (const mod of modulesResult.rows) {
-        if (mod.name === 'Research Configuration') continue;
-        try {
-            const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
-            const structure = config?.structure || config;
-            const components = structure?.components || config?.components;
-            if (Array.isArray(components)) {
-                totalComponents += components.length;
-            }
-        } catch {
-            totalComponents += 1;
-        }
-    }
+    // Contar total de componentes visibles desde config de módulos
+    const totalComponents = await getTotalVisibleComponentsForProgress(researchId);
 
     // Obtener estadísticas del participante usando component_id
     const participantQuery = `
