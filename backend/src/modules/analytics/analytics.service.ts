@@ -384,24 +384,7 @@ const getModuleResponses = async (researchId: string, moduleId: string) => {
 // ==========================================
 
 export const getSmartVOCResults = async (researchId: string) => {
-  // Get all SmartVOC modules for this research
-  const modulesQuery = `
-    SELECT DISTINCT m.id, m.name
-    FROM modules m
-    LEFT JOIN stages s ON s.id = m.stage_id
-    WHERE m.research_id = ? 
-      AND (
-        s.name LIKE '%smart voc%'
-        OR m.name LIKE '%csat%'
-        OR m.name LIKE '%nps%'
-        OR m.name LIKE '%ces%'
-        OR m.name LIKE '%cv%'
-        OR m.name LIKE '%nev%'
-        OR m.name LIKE '%voc%'
-      )
-    ORDER BY m.name
-  `;
-  const modulesResult = await pool.query(modulesQuery, [researchId]);
+  // Note: module discovery is done implicitly via the responses query below
 
   // Get all responses for SmartVOC modules
   const responsesQuery = `
@@ -489,11 +472,7 @@ export const getSmartVOCResults = async (researchId: string) => {
         });
 
         // Calculate NEV score
-        const positiveEmotions = [
-          'Feliz', 'Satisfecho', 'Confiado', 'Valorado', 'Cuidado', 'Seguro',
-          'Enfocado', 'Indulgente', 'Estimulado', 'Exploratorio', 'Interesado', 'Enérgico'
-        ];
-        const positiveCount = emotions.filter((e: string) => positiveEmotions.includes(e)).length;
+        const positiveCount = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(e)).length;
         const negativeCount = emotions.length - positiveCount;
         
         if (emotions.length > 0) {
@@ -537,11 +516,14 @@ export const getSmartVOCResults = async (researchId: string) => {
   // CPV calculation
   const cpvValue = cesPercentage > 0 ? Math.round((csatPercentage / cesPercentage) * 100) / 100 : 0;
 
-  // Time series data (last 7 days)
-  const timeSeriesData = await generateTimeSeriesData(researchId, responsesResult.rows);
+  // Time series data (last 30 days)
+  const timeSeriesData = generateTimeSeriesData(responsesResult.rows);
 
-  // Monthly NPS data
-  const monthlyNPSData = await generateMonthlyNPSData(researchId, responsesResult.rows);
+  // Monthly NPS data (last 6 months)
+  const monthlyNPSData = generateMonthlyNPSData(responsesResult.rows);
+
+  // Monthly metrics data for CSAT/CES/CV/CPV charts (last 6 months)
+  const monthlyMetricsData = generateMonthlyMetricsData(responsesResult.rows);
 
   return {
     totalResponses,
@@ -563,65 +545,168 @@ export const getSmartVOCResults = async (researchId: string) => {
     timeSeriesData,
     vocResponses,
     monthlyNPSData,
+    monthlyMetricsData,
     emotionalStates
   };
 };
 
-// Helper: Generate time series data
-const generateTimeSeriesData = async (researchId: string, responses: any[]) => {
-  const last7Days = [];
+// Positive emotions list for NEV calculation (shared between aggregation and time series)
+const POSITIVE_EMOTIONS = [
+  'Feliz', 'Satisfecho', 'Confiado', 'Valorado', 'Cuidado', 'Seguro',
+  'Enfocado', 'Indulgente', 'Estimulado', 'Exploratorio', 'Interesado', 'Enérgico'
+];
+
+/**
+ * Parse a response value to integer score, handling both string and non-string values
+ */
+const parseScoreValue = (value: unknown): number => {
+  const raw = typeof value === 'string' ? value : JSON.stringify(value);
+  return parseInt(raw);
+};
+
+/**
+ * Filter responses by module name pattern and parse scores
+ */
+const extractScores = (responses: any[], modulePattern: string, minValid = -Infinity, maxValid = Infinity): number[] => {
+  return responses
+    .filter(r => r.module_name.toLowerCase().includes(modulePattern))
+    .map(r => parseScoreValue(r.value))
+    .filter(s => !isNaN(s) && s >= minValid && s <= maxValid);
+};
+
+/**
+ * Calculate NPS from an array of 0-10 scores
+ */
+const calculateNPSFromScores = (scores: number[]): number => {
+  if (scores.length === 0) return 0;
+  const promoters = scores.filter(s => s >= 9).length;
+  const detractors = scores.filter(s => s <= 6).length;
+  return Math.round(((promoters - detractors) / scores.length) * 100);
+};
+
+/**
+ * Calculate NEV from responses that contain emotion arrays
+ */
+const calculateNEVFromResponses = (nevResponses: any[]): number => {
+  if (nevResponses.length === 0) return 0;
+
+  let totalPositive = 0;
+  let totalNegative = 0;
+  let totalEmotions = 0;
+
+  nevResponses.forEach(r => {
+    const value = typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
+    let emotions: string[] = [];
+    try {
+      const parsed = JSON.parse(value);
+      emotions = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      emotions = [];
+    }
+
+    if (emotions.length > 0) {
+      const positive = emotions.filter((e: string) => POSITIVE_EMOTIONS.includes(e)).length;
+      totalPositive += positive;
+      totalNegative += emotions.length - positive;
+      totalEmotions += emotions.length;
+    }
+  });
+
+  if (totalEmotions === 0) return 0;
+  return Math.round(((totalPositive - totalNegative) / totalEmotions) * 100);
+};
+
+/**
+ * Calculate CSAT percentage from 1-5 scores: (scores >= 4) / total * 100
+ */
+const calculateCSATPercentage = (scores: number[]): number => {
+  if (scores.length === 0) return 0;
+  return Math.round((scores.filter(s => s >= 4).length / scores.length) * 100);
+};
+
+/**
+ * Calculate CES percentage from 1-5 scores: (scores <= 2) / total * 100
+ */
+const calculateCESPercentage = (scores: number[]): number => {
+  if (scores.length === 0) return 0;
+  return Math.round((scores.filter(s => s <= 2).length / scores.length) * 100);
+};
+
+// Helper: Generate time series data (last 30 days to support all time range filters)
+const generateTimeSeriesData = (responses: any[]) => {
+  const days = [];
   const today = new Date();
-  
-  for (let i = 6; i >= 0; i--) {
+
+  for (let i = 29; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split('T')[0];
-    
+
     const dayResponses = responses.filter(r => {
       const responseDate = new Date(r.created_at).toISOString().split('T')[0];
       return responseDate === dateStr;
     });
 
-    // Calculate NPS and NEV for this day
-    const dayNPSScores = dayResponses
-      .filter(r => r.module_name.toLowerCase().includes('nps'))
-      .map(r => parseInt(typeof r.value === 'string' ? r.value : JSON.stringify(r.value)))
-      .filter(s => !isNaN(s));
+    // NPS
+    const dayNPSScores = extractScores(dayResponses, 'nps', 0, 10);
+    const nps = calculateNPSFromScores(dayNPSScores);
 
-    const dayPromoters = dayNPSScores.filter(s => s >= 9).length;
-    const dayDetractors = dayNPSScores.filter(s => s <= 6).length;
-    const nps = dayNPSScores.length > 0
-      ? Math.round(((dayPromoters - dayDetractors) / dayNPSScores.length) * 100)
+    // NEV
+    const dayNEVResponses = dayResponses.filter(r => r.module_name.toLowerCase().includes('nev'));
+    const nev = calculateNEVFromResponses(dayNEVResponses);
+
+    // CSAT
+    const dayCSATScores = extractScores(dayResponses, 'csat', 1, 5);
+    const csat = calculateCSATPercentage(dayCSATScores);
+
+    // CES
+    const dayCESScores = extractScores(dayResponses, 'ces', 1, 5);
+    const ces = calculateCESPercentage(dayCESScores);
+
+    // CV
+    const dayCVScores = extractScores(dayResponses, 'cv', 1, 5);
+    const cv = dayCVScores.length > 0
+      ? Math.round((dayCVScores.filter(s => s >= 4).length / dayCVScores.length) * 100)
       : 0;
 
-    last7Days.push({
+    // CPV = CSAT% / CES% (only meaningful when both exist)
+    const cpv = ces > 0 ? Math.round((csat / ces) * 100) / 100 : 0;
+
+    days.push({
       date: dateStr,
-      score: 7.5,
       nps,
-      nev: 0, // TODO: Calculate NEV if needed
+      nev,
+      csat,
+      ces,
+      cv,
+      cpv,
       count: dayResponses.length
     });
   }
 
-  return last7Days;
+  return days;
 };
 
-// Helper: Generate monthly NPS data
-const generateMonthlyNPSData = async (researchId: string, responses: any[]) => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentMonth = new Date().getMonth();
+// Helper: Generate monthly NPS data (last 6 months)
+const generateMonthlyNPSData = (responses: any[]) => {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const now = new Date();
   const monthlyData = [];
 
-  for (let i = 0; i < 6; i++) {
-    const monthIndex = (currentMonth - 5 + i + 12) % 12;
+  for (let i = 5; i >= 0; i--) {
+    const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const targetMonth = targetDate.getMonth();
+    const targetYear = targetDate.getFullYear();
+
     const monthResponses = responses.filter(r => {
-      const responseMonth = new Date(r.created_at).getMonth();
-      return responseMonth === monthIndex && r.module_name.toLowerCase().includes('nps');
+      const d = new Date(r.created_at);
+      return d.getMonth() === targetMonth && d.getFullYear() === targetYear
+        && r.module_name.toLowerCase().includes('nps');
     });
 
     const scores = monthResponses
-      .map(r => parseInt(typeof r.value === 'string' ? r.value : JSON.stringify(r.value)))
-      .filter(s => !isNaN(s));
+      .map(r => parseScoreValue(r.value))
+      .filter(s => !isNaN(s) && s >= 0 && s <= 10);
 
     const promoters = scores.filter(s => s >= 9).length;
     const passives = scores.filter(s => s >= 7 && s <= 8).length;
@@ -629,12 +714,69 @@ const generateMonthlyNPSData = async (researchId: string, responses: any[]) => {
     const total = scores.length || 1;
 
     monthlyData.push({
-      month: months[monthIndex],
+      month: monthNames[targetMonth],
       promoters: Math.round((promoters / total) * 100),
       neutrals: Math.round((passives / total) * 100),
       detractors: Math.round((detractors / total) * 100),
       npsRatio: Math.round(((promoters - detractors) / total) * 100),
-      date: `2024-${String(monthIndex + 1).padStart(2, '0')}-01`
+      date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-01`
+    });
+  }
+
+  return monthlyData;
+};
+
+// Helper: Generate monthly metrics data for CSAT/CES/CV/CPV charts (last 6 months)
+const generateMonthlyMetricsData = (responses: any[]) => {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const now = new Date();
+  const monthlyData = [];
+
+  for (let i = 5; i >= 0; i--) {
+    const targetDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const targetMonth = targetDate.getMonth();
+    const targetYear = targetDate.getFullYear();
+
+    // Filter all responses for this month
+    const monthResponses = responses.filter(r => {
+      const d = new Date(r.created_at);
+      return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+    });
+
+    // CSAT
+    const csatScores = extractScores(monthResponses, 'csat', 1, 5);
+    const csatSatisfied = csatScores.length > 0
+      ? Math.round((csatScores.filter(s => s >= 4).length / csatScores.length) * 100) : 0;
+    const csatDissatisfied = csatScores.length > 0
+      ? Math.round((csatScores.filter(s => s <= 2).length / csatScores.length) * 100) : 0;
+
+    // CES
+    const cesScores = extractScores(monthResponses, 'ces', 1, 5);
+    const cesPositive = cesScores.length > 0
+      ? Math.round((cesScores.filter(s => s <= 2).length / cesScores.length) * 100) : 0;
+    const cesNegative = cesScores.length > 0
+      ? Math.round((cesScores.filter(s => s >= 4).length / cesScores.length) * 100) : 0;
+
+    // CV
+    const cvScores = extractScores(monthResponses, 'cv', 1, 5);
+    const cvPositive = cvScores.length > 0
+      ? Math.round((cvScores.filter(s => s >= 4).length / cvScores.length) * 100) : 0;
+    const cvNegative = cvScores.length > 0
+      ? Math.round((cvScores.filter(s => s <= 2).length / cvScores.length) * 100) : 0;
+
+    // CPV
+    const cpv = cesPositive > 0 ? Math.round((csatSatisfied / cesPositive) * 100) / 100 : 0;
+
+    monthlyData.push({
+      month: monthNames[targetMonth],
+      date: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-01`,
+      csatSatisfied,
+      csatDissatisfied,
+      cesPositive,
+      cesNegative,
+      cvPositive,
+      cvNegative,
+      cpv
     });
   }
 

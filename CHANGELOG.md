@@ -4,6 +4,19 @@
 
 ---
 
+## v0.24.0 — SmartVOC Analytics: Real Metrics Backend (2026-03-11)
+
+### backend
+- Feat: `generateTimeSeriesData` now computes all metrics per day (NPS, NEV, CSAT, CES, CV, CPV) — previously NEV was hardcoded to 0 and only NPS was calculated
+- Feat: Time series expanded from 7 to 30 days to support all frontend time range filters (today/week/month)
+- Feat: New `generateMonthlyMetricsData` produces 6-month monthly breakdowns for CSAT (satisfied/dissatisfied), CES (positive/negative), CV (positive/negative), and CPV — consumed by MetricCard charts
+- Fix: `generateMonthlyNPSData` used hardcoded year `2024` — now uses actual year from response dates
+- Refactor: Extracted shared helpers (`POSITIVE_EMOTIONS`, `parseScoreValue`, `extractScores`, `calculateNPSFromScores`, `calculateNEVFromResponses`, `calculateCSATPercentage`, `calculateCESPercentage`) eliminating duplicated logic
+- Refactor: Removed unused `modulesQuery`/`modulesResult` and unnecessary `async`/`researchId` params from helper functions
+- Return type of `getSmartVOCResults` now includes `monthlyMetricsData` (auto-broadcast via SSE)
+
+---
+
 ## v0.23.3 — Memory Leak Fixes (2026-03-11)
 
 ### participant-frontend
