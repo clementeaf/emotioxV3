@@ -1,5 +1,4 @@
 import { ChevronDown, Target } from 'lucide-react';
-import { useMemo } from 'react';
 import {
   Area,
   Bar,
@@ -175,34 +174,8 @@ export const NPSAnalysis = ({
   const detractorsPercentage = total > 0 ? Math.round((detractors / total) * 100) : 0;
   const neutralsPercentage = total > 0 ? Math.round((neutrals / total) * 100) : 0;
 
-  // Filtrar datos según el rango de tiempo seleccionado
-  const filteredMonthlyData = useMemo(() => {
-    if (!monthlyData || monthlyData.length === 0) return monthlyData;
-    if (timeRange === 'month') return monthlyData;
-
-    const now = new Date();
-    let daysBack: number;
-    
-    switch (timeRange) {
-      case 'today':
-        daysBack = 1;
-        break;
-      case 'week':
-        daysBack = 7;
-        break;
-      default:
-        return monthlyData;
-    }
-
-    const cutoffDate = new Date(now);
-    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
-
-    return monthlyData.filter(item => {
-      if (!item.date) return true;
-      const itemDate = new Date(item.date + 'T12:00:00');
-      return itemDate >= cutoffDate;
-    });
-  }, [monthlyData, timeRange]);
+  // Los datos ya llegan filtrados desde SmartVOCResults
+  const filteredMonthlyData = monthlyData;
 
   return (
     <Card className={cn('p-6 pb-24 space-y-4', className)}>

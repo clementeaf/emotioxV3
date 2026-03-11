@@ -56,39 +56,46 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
     const totalParticipants = parseInt(participantsResult.rows[0]?.total_participants || '0', 10);
     const participantsWithResponses = parseInt(participantsResult.rows[0]?.participants_with_responses || '0', 10);
 
-    // Calcular progreso promedio de participantes
-    const progressQuery = `
-        WITH participant_progress AS (
-            SELECT 
-                participant_id,
-                COUNT(DISTINCT module_id) as completed_modules,
-                (SELECT COUNT(DISTINCT id) FROM modules WHERE research_id = ?) as total_modules
+    // Contar total de componentes desde config de módulos
+    const modulesQuery = `
+        SELECT id, name, config
+        FROM modules
+        WHERE research_id = ?
+        ORDER BY order_index
+    `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
+
+    let totalComponents = 0;
+    for (const mod of modulesResult.rows) {
+        if (mod.name === 'Research Configuration') continue;
+        try {
+            const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+            const structure = config?.structure || config;
+            const components = structure?.components || config?.components;
+            if (Array.isArray(components)) {
+                totalComponents += components.length;
+            }
+        } catch {
+            totalComponents += 1;
+        }
+    }
+
+    // Calcular tasa de completitud real: participantes que respondieron todo
+    const completedQuery = `
+        SELECT COUNT(*) as completed
+        FROM (
+            SELECT participant_id, COUNT(DISTINCT component_id) as answered
             FROM responses
             WHERE research_id = ?
             GROUP BY participant_id
-        )
-        SELECT 
-            AVG(CASE 
-                WHEN total_modules > 0 
-                THEN (completed_modules / total_modules) * 100 
-                ELSE 0 
-            END) as avg_progress
-        FROM participant_progress
+            HAVING COUNT(DISTINCT component_id) >= ?
+        ) completed_participants
     `;
-    const progressResult = await pool.query(progressQuery, [researchId, researchId]);
-    const avgProgress = parseFloat(progressResult.rows[0]?.avg_progress || '0');
+    const completedResult = await pool.query(completedQuery, [researchId, totalComponents]);
+    const completedParticipants = parseInt(completedResult.rows[0]?.completed || '0', 10);
 
-    // Calcular tasa de completitud
-    const totalModulesQuery = `
-        SELECT COUNT(DISTINCT id) as total_modules
-        FROM modules
-        WHERE research_id = ?
-    `;
-    const totalModulesResult = await pool.query(totalModulesQuery, [researchId]);
-    const totalModules = parseInt(totalModulesResult.rows[0]?.total_modules || '0', 10);
-
-    const completionRate = totalParticipants > 0 && totalModules > 0
-        ? Math.round((participantsWithResponses / totalParticipants) * 100)
+    const completionRate = totalParticipants > 0
+        ? Math.round((completedParticipants / totalParticipants) * 100)
         : 0;
 
     // Calcular tiempo promedio
@@ -159,67 +166,69 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         throw new Error('Research not found');
     }
 
-    // Obtener todos los participantes únicos con sus estadísticas
-    const participantsQuery = `
-        WITH participant_stats AS (
-            SELECT 
-                participant_id,
-                COUNT(DISTINCT module_id) as completed_modules,
-                MIN(created_at) as first_response,
-                MAX(created_at) as last_response,
-                COUNT(*) as total_responses
-            FROM responses
-            WHERE research_id = ?
-            GROUP BY participant_id
-        ),
-        total_modules AS (
-            SELECT COUNT(DISTINCT id) as total
-            FROM modules
-            WHERE research_id = ?
-        )
-        SELECT 
-            ps.participant_id as id,
-            COALESCE(CAST(ps.participant_id AS CHAR), 'Unknown') as name,
-            COALESCE(CAST(ps.participant_id AS CHAR), 'unknown@example.com') as email,
-            CASE 
-                WHEN ps.completed_modules >= tm.total THEN 'Completado'
-                WHEN ps.completed_modules > 0 THEN 'En proceso'
-                ELSE 'Por iniciar'
-            END as status,
-            CASE 
-                WHEN tm.total > 0 
-                THEN ROUND((ps.completed_modules / tm.total) * 100)
-                ELSE 0 
-            END as progress,
-            CASE 
-                WHEN ps.last_response IS NOT NULL AND ps.first_response IS NOT NULL
-                THEN TIMESTAMPDIFF(SECOND, ps.first_response, ps.last_response)
-                ELSE 0
-            END as duration_seconds,
-            ps.last_response as last_activity
-        FROM participant_stats ps
-        CROSS JOIN total_modules tm
-        ORDER BY ps.last_response IS NULL, ps.last_response DESC
+    // 1. Contar total de componentes esperados desde la config de módulos
+    const modulesQuery = `
+        SELECT id, name, config
+        FROM modules
+        WHERE research_id = ?
+        ORDER BY order_index
     `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
 
-    const result = await pool.query(participantsQuery, [researchId, researchId]);
+    let totalComponents = 0;
+    for (const mod of modulesResult.rows) {
+        // Excluir módulos de configuración que no son respondidos por participantes
+        if (mod.name === 'Research Configuration') continue;
+        try {
+            const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+            const structure = config?.structure || config;
+            const components = structure?.components || config?.components;
+            if (Array.isArray(components)) {
+                totalComponents += components.length;
+            }
+        } catch {
+            // Si no se puede parsear, contar como 1 componente por módulo
+            totalComponents += 1;
+        }
+    }
+
+    // 2. Obtener respuestas únicas por participante usando component_id
+    const participantsQuery = `
+        SELECT
+            r.participant_id as id,
+            COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
+            COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+            COUNT(DISTINCT r.component_id) as answered_components,
+            MIN(r.created_at) as first_response,
+            MAX(r.created_at) as last_response
+        FROM responses r
+        WHERE r.research_id = ?
+        GROUP BY r.participant_id
+        ORDER BY MAX(r.created_at) IS NULL, MAX(r.created_at) DESC
+    `;
+    const result = await pool.query(participantsQuery, [researchId]);
 
     const participants = result.rows.map(row => {
-        const durationSeconds = parseFloat(row.duration_seconds || '0');
+        const answered = parseInt(row.answered_components || '0', 10);
+        const progress = totalComponents > 0
+            ? Math.min(100, Math.round((answered / totalComponents) * 100))
+            : 0;
+        const status = progress >= 100 ? 'Completado' : (progress > 0 ? 'En proceso' : 'Por iniciar');
+        const durationSeconds = row.first_response && row.last_response
+            ? Math.floor((new Date(row.last_response).getTime() - new Date(row.first_response).getTime()) / 1000)
+            : 0;
         const minutes = Math.floor(durationSeconds / 60);
         const seconds = Math.floor(durationSeconds % 60);
         const duration = minutes > 0 ? `${minutes} min ${seconds} seg` : `${seconds} seg`;
-
-        const lastActivity = row.last_activity
-            ? formatLastActivity(row.last_activity)
+        const lastActivity = row.last_response
+            ? formatLastActivity(row.last_response)
             : 'Nunca';
-
         return {
             id: row.id,
             name: row.name,
             email: row.email,
-            status: row.status,
-            progress: parseInt(row.progress || '0', 10),
+            status,
+            progress,
             duration,
             lastActivity
         };
@@ -267,58 +276,61 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         throw new Error('Research not found');
     }
 
-    // Obtener estadísticas del participante
+    // Contar total de componentes desde config de módulos
+    const modulesQuery = `
+        SELECT id, name, config
+        FROM modules
+        WHERE research_id = ?
+        ORDER BY order_index
+    `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
+
+    let totalComponents = 0;
+    for (const mod of modulesResult.rows) {
+        if (mod.name === 'Research Configuration') continue;
+        try {
+            const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+            const structure = config?.structure || config;
+            const components = structure?.components || config?.components;
+            if (Array.isArray(components)) {
+                totalComponents += components.length;
+            }
+        } catch {
+            totalComponents += 1;
+        }
+    }
+
+    // Obtener estadísticas del participante usando component_id
     const participantQuery = `
-        WITH participant_stats AS (
-            SELECT 
-                participant_id,
-                COUNT(DISTINCT module_id) as completed_modules,
-                MIN(created_at) as first_response,
-                MAX(created_at) as last_response,
-                COUNT(*) as total_responses
-            FROM responses
-            WHERE research_id = ? AND participant_id = ?
-            GROUP BY participant_id
-        ),
-        total_modules AS (
-            SELECT COUNT(DISTINCT id) as total
-            FROM modules
-            WHERE research_id = ?
-        )
-        SELECT 
-            ps.participant_id as id,
-            COALESCE(CAST(ps.participant_id AS CHAR), 'Unknown') as name,
-            COALESCE(CAST(ps.participant_id AS CHAR), 'unknown@example.com') as email,
-            CASE 
-                WHEN ps.completed_modules >= tm.total THEN 'Completado'
-                WHEN ps.completed_modules > 0 THEN 'En proceso'
-                ELSE 'Por iniciar'
-            END as status,
-            CASE 
-                WHEN tm.total > 0 
-                THEN ROUND((ps.completed_modules / tm.total) * 100)
-                ELSE 0 
-            END as progress,
-            CASE 
-                WHEN ps.last_response IS NOT NULL AND ps.first_response IS NOT NULL
-                THEN TIMESTAMPDIFF(SECOND, ps.first_response, ps.last_response)
-                ELSE 0
-            END as duration_seconds,
-            ps.last_response as last_activity,
-            ps.first_response as start_time,
-            ps.last_response as end_time
-        FROM participant_stats ps
-        CROSS JOIN total_modules tm
+        SELECT
+            participant_id as id,
+            COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
+            COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
+            COUNT(DISTINCT component_id) as answered_components,
+            MIN(created_at) as first_response,
+            MAX(created_at) as last_response
+        FROM responses
+        WHERE research_id = ? AND participant_id = ?
+        GROUP BY participant_id
     `;
 
-    const result = await pool.query(participantQuery, [researchId, participantId, researchId]);
+    const result = await pool.query(participantQuery, [researchId, participantId]);
 
     if (result.rows.length === 0) {
         throw new Error('Participant not found');
     }
 
     const row = result.rows[0];
-    const durationSeconds = parseFloat(row.duration_seconds || '0');
+    const answered = parseInt(row.answered_components || '0', 10);
+    const progress = totalComponents > 0
+        ? Math.min(100, Math.round((answered / totalComponents) * 100))
+        : 0;
+    const status = progress >= 100 ? 'Completado' : (progress > 0 ? 'En proceso' : 'Por iniciar');
+
+    const durationMs = row.first_response && row.last_response
+        ? new Date(row.last_response).getTime() - new Date(row.first_response).getTime()
+        : 0;
+    const durationSeconds = Math.floor(durationMs / 1000);
     const minutes = Math.floor(durationSeconds / 60);
     const seconds = Math.floor(durationSeconds % 60);
     const duration = minutes > 0 ? `${minutes} min ${seconds} seg` : `${seconds} seg`;
@@ -348,12 +360,12 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         id: row.id,
         name: row.name,
         email: row.email,
-        status: row.status,
-        progress: parseInt(row.progress || '0', 10),
+        status,
+        progress,
         duration,
-        lastActivity: row.last_activity ? formatLastActivity(row.last_activity) : 'Nunca',
-        startTime: row.start_time,
-        endTime: row.end_time,
+        lastActivity: row.last_response ? formatLastActivity(row.last_response) : 'Nunca',
+        startTime: row.first_response,
+        endTime: row.last_response,
         responses: responsesResult.rows.map(r => ({
             id: r.id,
             moduleId: r.module_id,

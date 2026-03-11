@@ -1,3 +1,24 @@
+## v0.26.0 — SmartVOC Metrics Fixes, Progress Tracking, UI Polish (2026-03-11)
+
+### backend
+- Fix: Participant progress tracking now uses `component_id` instead of `question_id` — the modern response endpoint saves to `component_id` while progress was counting `question_id` (always NULL), causing 0% progress and "Por iniciar" status for all participants
+- Fix: Total expected responses now computed from module config `components[]` arrays instead of the `questions` table
+- Fix: `getParticipantDetails` status/progress now correctly calculated from component-based data
+- Fix: Completion rate in overview metrics uses real completed participants count (all components answered)
+
+### research-frontend
+- Fix: CPV calculation corrected from `csatPct / cesPct` (ratio) to `csatPct - cesPct` (percentage points) — formula: CSAT positive (4+5) minus CES negative (1+2)
+- Fix: CES QuestionCard breakdown was inverted — scores 1+2 labeled "Little effort" (green) and 4+5 "Much effort" (red); now correctly: 4+5 = "Easy" (green), 1+2 = "Difficult" (red)
+- Fix: NPS chart in Today/Week views showed individual responses as separate data points; now aggregates scores by day with proper NPS ratio calculation
+- Fix: Removed redundant time-range filter inside NPSAnalysis (data arrives pre-filtered from SmartVOCResults)
+- Feat: CPVCard redesigned as compact sticky pill at top-left with time range selector — stays visible on scroll
+- Feat: NEVQuestionCard now shows percentage labels above each emotion bar
+- Feat: NEV clusters displayed side by side (2-column grid) instead of stacked vertically
+- Feat: ResearchInProgressContent shows disconnection warning and explanatory note about progress calculation
+- Refactor: Simplified publicTestsUrl to prioritize runtime-config.json participantBaseUrl
+
+---
+
 ## v0.25.2 — NEV: All Emotions, Cluster Tooltip (2026-03-11)
 ## v0.25.3 — VOC Comments CSV Export (2026-03-11)
 

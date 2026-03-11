@@ -5,29 +5,23 @@
  * @returns URL completa para acceder a los tests
  */
 export function getPublicTestsUrl(researchId: string, participantId: string): string {
-    const host = window.location.hostname;
-    const isLocal = host === 'localhost' || host === '127.0.0.1';
-    
-    let baseUrl: string;
-    
-    if (isLocal) {
-        baseUrl = 'http://localhost:12600';
+    // Siempre usar participantBaseUrl de runtime-config.json si está definido
+    let baseUrl = '';
+    const runtimeConfig = (window as { runtimeConfig?: { participantBaseUrl?: string } }).runtimeConfig;
+    if (runtimeConfig?.participantBaseUrl) {
+        baseUrl = runtimeConfig.participantBaseUrl;
     } else {
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        baseUrl = `${protocol}//${hostname}`;
-        
-        const runtimeConfig = (window as { runtimeConfig?: { participantBaseUrl?: string } }).runtimeConfig;
-        if (runtimeConfig?.participantBaseUrl) {
-            baseUrl = runtimeConfig.participantBaseUrl;
+        // Fallback solo si no existe participantBaseUrl
+        const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
+        if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
+            baseUrl = envUrl;
         } else {
-            const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
-            if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
-                baseUrl = envUrl;
-            }
+            // Último recurso: hostname actual
+            const protocol = window.location.protocol;
+            const hostname = window.location.hostname;
+            baseUrl = `${protocol}//${hostname}`;
         }
     }
-    
     return `${baseUrl}/research/${researchId}?participantId=${participantId}`;
 }
 

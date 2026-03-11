@@ -65,7 +65,7 @@ function computeEmotionalStates(nevResponses: Array<{ emotions: string[]; date: 
 export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps) => {
   // ...existing code...
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
-  const { data, isLoading, error, refetch } = useSmartVOCAnalytics(researchId);
+  const { data, isLoading, error, refetch, isLive } = useSmartVOCAnalytics(researchId);
 
   // Trust Flow chart data (separate from filtered metrics)
   const trustFlowDailyData = useMemo(() => {
@@ -120,7 +120,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       ? Math.round((csatValues.filter((s: number) => s >= 4).length / csatValues.length) * 100) : 0;
     const cesPct = cesValues.length > 0
       ? Math.round((cesValues.filter((s: number) => s <= 2).length / cesValues.length) * 100) : 0;
-    const cpvValue = cesPct > 0 ? Math.round((csatPct / cesPct) * 100) / 100 : 0;
+    const cpvValue = csatPct - cesPct;
 
     return {
       csatValues, cesValues, cvValues, npsValues,
@@ -189,9 +189,9 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         score={Math.round(calculateCES(filtered?.cesValues))}
         responses={filtered?.cesValues?.length || 0}
         breakdown={[
-          { label: 'Little effort', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score <= 2), color: 'bg-green-500' },
-          { label: 'Neutrals', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score === 3), color: 'bg-gray-400' },
-          { label: 'Much effort', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score >= 4), color: 'bg-red-500' }
+          { label: 'Easy', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score >= 4), color: 'bg-green-500' },
+          { label: 'Neutral', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score === 3), color: 'bg-gray-400' },
+          { label: 'Difficult', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score <= 2), color: 'bg-red-500' }
         ]}
       />
     );
@@ -274,30 +274,31 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     let npsChartData: Array<{ month: string; promoters: number; neutrals: number; detractors: number; npsRatio: number; date?: string }> = [];
     if (timeRange === 'month') {
       npsChartData = data?.monthlyNPSData || [];
-    } else if (timeRange === 'week' || timeRange === 'today') {
-      // Usar filtered?.npsValues para granularidad diaria
-      npsChartData = (data?.metrics.npsScores || []).filter(item => {
-        // Filtrar por rango
-        const itemDate = new Date(item.date);
-        const now = new Date();
-        if (timeRange === 'today') {
-          return itemDate.toDateString() === now.toDateString();
-        } else {
-          const cutoff = new Date(now);
-          cutoff.setDate(cutoff.getDate() - 7);
-          return itemDate >= cutoff;
-        }
-      }).map((item: { value: number; date: string }) => {
-        const score = item.value;
-        return {
-          month: item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
-          promoters: score >= 9 ? 1 : 0,
-          neutrals: score >= 7 && score <= 8 ? 1 : 0,
-          detractors: score <= 6 ? 1 : 0,
-          npsRatio: score,
-          date: item.date
-        };
+    } else {
+      // Agrupar scores filtrados por día
+      const filteredScores = filterByTimeRange(data?.metrics.npsScores || [], timeRange);
+      const byDay = new Map<string, number[]>();
+      filteredScores.forEach(item => {
+        const dayKey = new Date(item.date).toDateString();
+        if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+        byDay.get(dayKey)!.push(item.value);
       });
+      npsChartData = Array.from(byDay.entries())
+        .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+        .map(([dayKey, scores]) => {
+          const p = scores.filter(s => s >= 9).length;
+          const n = scores.filter(s => s >= 7 && s <= 8).length;
+          const d = scores.filter(s => s <= 6).length;
+          const nps = scores.length > 0 ? Math.round(((p - d) / scores.length) * 100) : 0;
+          return {
+            month: new Date(dayKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            promoters: p,
+            neutrals: n,
+            detractors: d,
+            npsRatio: nps,
+            date: dayKey
+          };
+        });
     }
     questionCards.push(
       <NPSAnalysis
@@ -336,26 +337,46 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       onRetry={refetch}
       loadingSkeleton={<SmartVOCResultsSkeleton />}
     >
+      {/* Mensaje aclaratorio sobre tiempo real */}
+      {!isLive && (
+        <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+          <p className="text-xs text-yellow-700">
+            <strong>Nota:</strong> Los resultados no se actualizan en tiempo real. Para ver los datos más recientes, reconecta el monitoreo o recarga la página.
+          </p>
+        </div>
+      )}
       <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
-        {/* Top Section: CPV + Trust Flow */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="md:col-span-1">
-            <CPVCard
-              value={filtered?.cpvValue || 0}
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-              cpvData={(data?.monthlyMetricsData || []).map(m => ({ date: m.date, cpv: m.cpv }))}
-              hasData={!!data}
-            />
+        {/* Sticky top bar: CPV + Time Range Selector */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm pb-3 mb-4">
+          <div className="flex items-center gap-4">
+            <CPVCard value={filtered?.cpvValue || 0} />
+            <div className="flex gap-4">
+              {(['today', 'week', 'month'] as const).map(range => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm rounded-full transition-colors',
+                    timeRange === range
+                      ? 'bg-blue-600 text-white font-medium'
+                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  )}
+                >
+                  {range === 'today' ? 'Today' : range === 'week' ? 'Week' : 'Month'}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="md:col-span-2">
-            <TrustFlowChart
-              dailyData={trustFlowDailyData}
-              intradayData={trustFlowIntradayData}
-              timeRange={timeRange}
-              onTimeRangeChange={setTimeRange}
-            />
-          </div>
+        </div>
+
+        {/* Trust Flow Chart — full width */}
+        <div className="mb-6">
+          <TrustFlowChart
+            dailyData={trustFlowDailyData}
+            intradayData={trustFlowIntradayData}
+            timeRange={timeRange}
+            onTimeRangeChange={setTimeRange}
+          />
         </div>
 
         {/* Metrics Cards: Only show cards with data */}

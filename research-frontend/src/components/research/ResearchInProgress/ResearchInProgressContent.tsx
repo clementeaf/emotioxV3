@@ -141,12 +141,17 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                     </div>
                 </div>
                 {!isConnected && (
-                    <button
-                        onClick={connect}
-                        className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
-                    >
-                        Reconectar
-                    </button>
+                    <>
+                        <button
+                            onClick={connect}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+                        >
+                            Reconectar
+                        </button>
+                        <div className="mt-2 text-xs text-red-500">
+                            El monitoreo en tiempo real está desconectado. Los datos no se actualizarán automáticamente hasta que se restablezca la conexión.
+                        </div>
+                    </>
                 )}
             </div>
 
@@ -164,6 +169,12 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            {/* Mensaje aclaratorio sobre progreso y completitud */}
+                            <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                                <p className="text-xs text-yellow-700">
+                                    <strong>Nota:</strong> El progreso refleja el porcentaje de preguntas respondidas sobre el total de preguntas de la encuesta. El estado "Completado" solo se asigna si el participante responde <u>todas</u> las preguntas. Si omite alguna pregunta, el sistema lo marca como "En proceso" y el progreso será menor a 100%.
+                                </p>
+                            </div>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Estado</CardTitle>
