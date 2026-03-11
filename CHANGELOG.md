@@ -4,6 +4,34 @@
 
 ---
 
+## v0.22.0 — Panel Participants: CSV Import, Links & Status Tracking (2026-03-11)
+
+### database
+- New migration `015_create_participants.sql`: `participants` table with fields for email, name, external_id, status tracking, and unique constraint on (research_id, participant_id)
+
+### backend
+- New `participants` module (service + controller) with authenticated endpoints:
+  - `GET /participants/:researchId` — list all participants for a research
+  - `POST /participants/:researchId/import` — import participants from CSV text (flexible column mapping: email/name/externalId, supports `,` and `;` delimiters)
+  - `DELETE /participants/:researchId/:id` — delete single participant
+  - `DELETE /participants/:researchId` — delete all participants
+- Participant IDs auto-generated as `panel-N` (incremental per research), or uses `externalId` from CSV if provided
+- Duplicate detection by email within same research (skipped on import)
+- Auto-status tracking: `saveParticipantResponses()` now updates `participants.status` to `'responded'` when responses are saved (non-blocking, backwards-compatible)
+
+### research-frontend
+- New `PanelParticipantsSection` component in Research Configuration (visible only in Panel mode):
+  - CSV import button with flexible column detection (email, name, externalId — all optional)
+  - Participants table with status badges (pending/responded/disqualified/overquota)
+  - Copy individual participant link (`?participantId=panel-N`)
+  - Copy all links (CSV format to clipboard)
+  - Export participants + links as downloadable CSV
+  - Delete individual or all participants
+  - Stats summary (pending/responded counts)
+- New `participants.service.ts` frontend service for API communication
+
+---
+
 ## v0.21.0 — Participation Modes: Kiosk vs Panel — Phases 1, 2 & 3 (2026-03-11)
 
 ### participant-frontend (Phase 3)

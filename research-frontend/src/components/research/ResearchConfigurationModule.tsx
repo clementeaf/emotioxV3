@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
 import { ExternalLink, QrCode, Copy, Settings } from 'lucide-react';
+import { PanelParticipantsSection } from './PanelParticipantsSection';
 import { useUrlValidation } from '../../hooks/useUrlValidation';
 import { mapModalConfigToBackend } from '../../utils/demographicsMapper';
 import AgeConfigModal from './AgeConfigModal';
@@ -715,6 +716,14 @@ export const ResearchConfigurationModule = ({ config, researchStatus, onChange }
                     </div>
                 </div>
             </div>
+
+            {/* Panel Participants — import, links, tracking (only in panel mode) */}
+            {!isKiosk && researchId && participantShareUrl && (
+                <PanelParticipantsSection
+                    researchId={researchId}
+                    participantShareUrl={participantShareUrl}
+                />
+            )}
 
             {/* QR Code Modal */}
             <QRCodeModal

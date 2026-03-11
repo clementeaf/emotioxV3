@@ -1,7 +1,7 @@
 # Plan: Modos de Participación — Kiosko vs Panel
 
 > Fecha: 2026-03-11
-> Estado: **Fases 1-3 implementadas, pendiente deploy y tests manuales**
+> Estado: **Fases 1-4 implementadas (4.6 email pendiente), pendiente deploy y tests manuales**
 > Referencia: [ISSUES_&_FIXES.md](ISSUES_&_FIXES.md) → entrada 2026-03-11
 
 ---
@@ -163,14 +163,14 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 
 ---
 
-### Fase 4 — Panel: refinamientos (posterior, no prioridad)
+### Fase 4 — Panel: refinamientos
 
-- [ ] **4.1** Diseñar schema de importación de participantes (CSV: email, nombre, ID externo opcional)
-- [ ] **4.2** Endpoint backend: `POST /research/:id/participants/import` (parseo CSV + generación de IDs)
-- [ ] **4.3** UI research-frontend: botón importar + preview de datos + confirmación
-- [ ] **4.4** Generación de links individuales por participante
-- [ ] **4.5** Tracking de estado por participante (pendiente / respondido / descalificado)
-- [ ] **4.6** Integración de envío por email (Resend, SendGrid, o similar)
+- [x] **4.1** Diseñar schema de importación de participantes (CSV: email, nombre, ID externo opcional) — migración `015_create_participants.sql`
+- [x] **4.2** Endpoint backend: `POST /participants/:id/import` (parseo CSV + generación de IDs `panel-N`)
+- [x] **4.3** UI research-frontend: `PanelParticipantsSection` — importar CSV, tabla de participantes, status
+- [x] **4.4** Generación de links individuales por participante — copy link, copy all links (CSV), export CSV
+- [x] **4.5** Tracking de estado por participante (pendiente / respondido / descalificado) — auto-update en `saveParticipantResponses`
+- [ ] **4.6** Integración de envío por email (Resend, SendGrid, o similar) — pendiente, sin proveedor configurado
 
 ---
 

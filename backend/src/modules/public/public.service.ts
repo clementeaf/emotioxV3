@@ -927,6 +927,14 @@ export const saveParticipantResponses = async (
 
     console.log(`✓ Saved ${savedResponses.length} responses for participant ${participantId}`);
 
+    // Update participant status in participants table (panel mode tracking)
+    try {
+      const { updateStatus } = await import('../participants/participants.service');
+      await updateStatus(researchId, participantId, 'responded');
+    } catch (_statusErr) {
+      // Non-critical: participant may not exist in participants table (kiosk mode, legacy)
+    }
+
     // After successful COMMIT, broadcast real-time update via SSE if SmartVOC module
     const savedModuleName = moduleNameById.get(moduleId)?.toLowerCase() ?? '';
     const isSmartVOC = ['csat', 'nps', 'ces', 'cv', 'nev', 'voc'].some(t => savedModuleName.includes(t));

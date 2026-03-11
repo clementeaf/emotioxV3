@@ -164,6 +164,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleMediaRoutes(normalizedEvent);
         }
 
+        // Participants routes (panel mode: import, list, delete)
+        if (path.startsWith('/participants')) {
+            const { handleParticipantsRoutes } = await import('./modules/participants/participants.controller');
+            return await handleParticipantsRoutes(normalizedEvent);
+        }
+
         // Responses routes
         if (path.startsWith('/responses')) {
             const { handleResponsesRoutes } = await import('./modules/responses/responses.controller');
