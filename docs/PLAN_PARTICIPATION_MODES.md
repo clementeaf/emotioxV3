@@ -63,27 +63,24 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 ### Fase 1 — Backend: soporte de modos
 
 #### 1.1 Tipo `ParticipationMode` y lectura de config
-- [ ] **1.1.1** Crear tipo `ParticipationMode = 'kiosk' | 'panel'` en `backend/src/modules/public/public.service.ts`
-- [ ] **1.1.2** Crear método `getParticipationMode(researchId): Promise<ParticipationMode>` en `public.service.ts` — lee `researches.config` JSON, extrae `participationMode`, default `'panel'`
-- [ ] **1.1.3** Verificar que `research.service.ts` ya persiste campos arbitrarios en `config` JSON al hacer update (si no, agregar)
+- [x] **1.1.1** Crear tipo `ParticipationMode = 'kiosk' | 'panel'` en `backend/src/modules/public/public.service.ts`
+- [x] **1.1.2** Crear método `getParticipationMode(researchId): Promise<ParticipationMode>` en `public.service.ts` — lee Research Configuration module config, extrae `participationMode`, default `'panel'`
+- [x] **1.1.3** Verificar que `research.service.ts` ya persiste campos arbitrarios en `config` JSON al hacer update → Sí, el config se guarda como JSON libre en el módulo "Research Configuration"
 
 #### 1.2 Endpoint GET modo de participación
-- [ ] **1.2.1** Agregar ruta `GET /public/research/:researchId/mode` en `public.controller.ts`
-- [ ] **1.2.2** Handler: llama `getParticipationMode()`, responde `{ mode, settings }` (settings vacío por ahora)
-- [ ] **1.2.3** Verificar que la ruta es pública (sin JWT, igual que otros endpoints `/public/`)
+- [x] **1.2.1** Agregar ruta `GET /public/research/:researchId/mode` en `public.controller.ts`
+- [x] **1.2.2** Handler: llama `getParticipationMode()`, responde `{ mode, settings }` (settings vacío por ahora)
+- [x] **1.2.3** Verificar que la ruta es pública (sin JWT, igual que otros endpoints `/public/`)
 
 #### 1.3 Endpoint POST sesión kiosko
-- [ ] **1.3.1** Agregar ruta `POST /public/research/:researchId/kiosk/session` en `public.controller.ts`
-- [ ] **1.3.2** Crear método `generateKioskSession(researchId): Promise<{ participantId: string }>` en `public.service.ts`
-- [ ] **1.3.3** Implementar lógica de ID incremental: `SELECT COUNT(DISTINCT participant_id) FROM responses WHERE research_id = ? AND participant_id LIKE 'kiosk-%'` → `kiosk-(count+1)`
-- [ ] **1.3.4** Envolver en transacción MySQL para evitar race condition entre tablets simultáneas
-- [ ] **1.3.5** Validar que la research existe, está activa, y tiene `participationMode === 'kiosk'` — si no, devolver 400
+- [x] **1.3.1** Agregar ruta `POST /public/research/:researchId/kiosk/session` en `public.controller.ts`
+- [x] **1.3.2** Crear método `generateKioskSession(researchId): Promise<{ participantId: string }>` en `public.service.ts`
+- [x] **1.3.3** Implementar lógica de ID incremental: `SELECT COUNT(DISTINCT participant_id) FROM responses WHERE research_id = ? AND participant_id LIKE 'kiosk-%'` → `kiosk-(count+1)`
+- [x] **1.3.4** Envolver en transacción MySQL con `FOR UPDATE` para evitar race condition entre tablets simultáneas
+- [x] **1.3.5** Validar que la research existe, está activa, y tiene `participationMode === 'kiosk'` — si no, devolver 400
 
 #### 1.4 Modificar save de respuestas para modo kiosko
-- [ ] **1.4.1** En `saveParticipantResponses()`: leer `participationMode` de la research
-- [ ] **1.4.2** Si `mode === 'kiosk'`: aceptar `participantId` del body (generado por `/kiosk/session`) sin requerirlo en URL
-- [ ] **1.4.3** Si `mode === 'panel'`: mantener comportamiento actual (requiere `participantId` en URL/body)
-- [ ] **1.4.4** Verificar que `participantLimit` sigue funcionando en ambos modos
+- [x] **1.4.1-1.4.4** No se necesitan cambios: `saveParticipantResponses()` ya acepta cualquier `participantId` no vacío del body. Los IDs kiosko (`kiosk-N`) pasan la validación existente. `participantLimit` funciona igual porque cuenta `DISTINCT participant_id` sin filtrar por formato.
 
 #### 1.5 Verificación Fase 1
 - [ ] **1.5.1** Test manual: crear research con `config.participationMode = 'kiosk'` directo en BD
@@ -92,7 +89,7 @@ Actualmente el sistema trata todas las investigaciones igual: el `participantId`
 - [ ] **1.5.4** Test: segunda llamada devuelve `kiosk-2`
 - [ ] **1.5.5** Test: save responses con `participantId: 'kiosk-1'` funciona
 - [ ] **1.5.6** Test: research sin modo (existente) devuelve `{ mode: 'panel' }` (retrocompatibilidad)
-- [ ] **1.5.7** Build + lint 0 errors
+- [x] **1.5.7** Build + type-check 0 errors
 
 ---
 

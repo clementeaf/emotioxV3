@@ -4,6 +4,18 @@
 
 ---
 
+## v0.21.0 — Participation Modes: Kiosk vs Panel — Phase 1 Backend (2026-03-11)
+
+### backend
+- Added `ParticipationMode` type (`'kiosk' | 'panel'`) and `getParticipationMode()` service method
+- New public endpoint `GET /public/research/:id/mode` returns the participation mode for a research (defaults to `'panel'` for retrocompatibility)
+- New public endpoint `POST /public/research/:id/kiosk/session` generates incremental participant IDs (`kiosk-1`, `kiosk-2`, ...) for kiosk-mode researches
+- Kiosk session generation uses MySQL transaction with `FOR UPDATE` to prevent race conditions between simultaneous tablets
+- Validates research is active and configured in kiosk mode before generating session IDs
+- No changes needed to `saveParticipantResponses()` — existing validation accepts kiosk IDs natively
+
+---
+
 ## v0.20.3 — Research Configuration quality fixes (2026-03-11)
 
 ### research-frontend

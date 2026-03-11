@@ -37,6 +37,30 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             }
         }
 
+        // GET /public/research/:id/mode
+        const modeMatch = path.match(/^\/public\/research\/([^\/]+)\/mode$/);
+        if (modeMatch && httpMethod === 'GET') {
+            const researchId = modeMatch[1];
+            const mode = await publicService.getParticipationMode(researchId);
+            return success({ mode, settings: {} }, 200, undefined, origin);
+        }
+
+        // POST /public/research/:id/kiosk/session
+        const kioskMatch = path.match(/^\/public\/research\/([^\/]+)\/kiosk\/session$/);
+        if (kioskMatch && httpMethod === 'POST') {
+            const researchId = kioskMatch[1];
+            try {
+                const result = await publicService.generateKioskSession(researchId);
+                return success(result, 201, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to create kiosk session';
+                if (errorMessage.includes('not configured in kiosk mode') || errorMessage.includes('not found')) {
+                    return error(errorMessage, 400, undefined, origin);
+                }
+                throw err;
+            }
+        }
+
         // POST /public/research/:id/responses
         const responsesMatch = path.match(/^\/public\/research\/([^\/]+)\/responses$/);
         if (responsesMatch && httpMethod === 'POST') {
