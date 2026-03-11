@@ -118,12 +118,12 @@ export const TrustFlowChart = ({
     return filterDailyDataByTimeRange(dailyData, timeRange);
   }, [dailyData, intradayData, weekData, timeRange]);
 
-  const currentData = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
-  const currentTime = new Date().toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  });
+  const lastPoint = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
+  const lastPointLabel = lastPoint?.timestamp
+    ? (timeRange === 'today'
+        ? new Date(lastPoint.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : new Date(lastPoint.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: timeRange === 'month' ? 'numeric' : undefined }))
+    : null;
 
   const timeRangeOptions = [
     { value: 'today' as const, label: 'Last 24 hours' },
@@ -134,22 +134,40 @@ export const TrustFlowChart = ({
   return (
     <Card className={cn('p-6 h-96', className)}>
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center flex-wrap gap-3">
           <div>
             <h3 className="text-gray-900 font-medium">Trust Relationship Flow</h3>
             <p className="text-sm text-gray-500 mt-1">Customer's perception about service in time</p>
           </div>
-          <select
-            className="text-sm border border-gray-300 rounded-md px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={timeRange}
-            onChange={(e) => onTimeRangeChange(e.target.value as 'today' | 'week' | 'month')}
-          >
-            {timeRangeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-3">
+            {lastPoint && lastPointLabel && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <div className="text-xs text-gray-500 mb-0.5">Latest point</div>
+                <div className="text-gray-700 font-medium">{lastPointLabel}</div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
+                    NPS {lastPoint.nps.toFixed(2)}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0" />
+                    NEV {lastPoint.nev.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+            <select
+              className="text-sm border border-gray-300 rounded-md px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              value={timeRange}
+              onChange={(e) => onTimeRangeChange(e.target.value as 'today' | 'week' | 'month')}
+            >
+              {timeRangeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -253,23 +271,6 @@ export const TrustFlowChart = ({
             </LineChart>
           )}
         </ResponsiveContainer>
-
-        {/* Current metrics overlay */}
-        {currentData && (
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg">
-            <div className="text-xs text-gray-500 mb-1">{currentTime}</div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-sm font-medium">NPS {currentData.nps.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                <span className="text-sm font-medium">NEV {currentData.nev.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </Card>
   );

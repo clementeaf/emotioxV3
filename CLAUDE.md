@@ -86,6 +86,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/results/smart-voc/components/CPVCard.tsx` — CPV: pastilla compacta sticky en top-left con valor porcentual
 - `research-frontend/src/components/results/smart-voc/components/NEVQuestionCard.tsx` — NEV: muestra todas las emociones con % encima de cada barra, techo 50%, clusters lado a lado, tooltip clusters
 - `research-frontend/src/components/results/smart-voc/components/VOCComments.tsx` — VOC: tabla de comentarios, botón de exportar CSV (participant_id, demográficos, respuestas)
+- `research-frontend/src/components/results/smart-voc/components/TrustFlowChart.tsx` — Trust Relationship Flow: NPS/NEV por tiempo (Today=LineChart, Week=BarChart, Month=LineChart). Caja "Latest point" en el encabezado (no sobre el gráfico) para no tapar el tooltip al pasar el mouse.
 - `backend/src/modules/research/research-in-progress.service.ts` — progreso de participantes usa `component_id` (no `question_id`); el total para el 100% se calcula solo con componentes visibles/habilitados (excluye Research Configuration, módulos y componentes con `hidden: true`)
 
 ## Deploy

@@ -1,3 +1,11 @@
+## v0.26.3 — Trust Flow: latest-point box in header, tooltip no longer covered (2026-03-11)
+
+### research-frontend
+- Fix: Trust Relationship Flow — "Latest point" (NPS/NEV) box moved from chart overlay to header row so Recharts tooltip is not covered when hovering over points (e.g. 15:00)
+- Feat: Overlay label now shows the last data point's timestamp (time for Today, date for Week/Month) instead of current time; added "Latest point" label to clarify it is not global average or query time
+
+---
+
 ## v0.26.2 — Progress 100% from visible components only (2026-03-11)
 
 ### backend
