@@ -71,7 +71,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/server-cpanel.js` — entry point producción (Passenger)
 - `research-frontend/src/components/layout/ResearchBuilderSidebar.tsx` — sidebar con status modal (draft/active/completed), stage management
 - `research-frontend/src/components/research/ResearchBuilderPage.tsx` — builder principal
-- `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía
+- `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía. Al habilitar un demográfico de opciones (Competencia técnica, etc.) se inyectan opciones por defecto (`DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC`) para que el participante vea siempre selector, no input de texto.
 - `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity
 - `participant-frontend/src/pages/ResearchPage.tsx` — flujo de encuesta del participante (incluye kiosk auto-reset)
 - `participant-frontend/src/hooks/usePreviewMode.ts` — detecta preview vs participant vs kiosk mode
@@ -79,6 +79,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/services/public.service.ts` — API pública (getParticipationMode, requestKioskSession)
 - `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico
 - `participant-frontend/src/components/steps/DynamicStep.tsx` — render genérico Welcome/Thank You; Thank You Screen muestra logo EmotioCX desde `public/EmotioCX-logo.svg`
+- `participant-frontend/src/components/ui/NavigationFlow.tsx` — flujo fullscreen por hitzones; título e instrucciones arriba de la imagen (no encima) para que hitzones superiores sean clickeables; registro con pointer/touch/click y dedupe; sin hitzones configuradas trata toda la imagen como válida
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template
@@ -86,7 +87,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios. CPV = CSAT positivo (4+5) - CES negativo (1+2). NPS agrupado por día en today/week con porcentajes para barras apiladas. NEV: lista canónica de 20 emociones (IDs alineados con participant EmotionSelector), normalización de claves al agregar, etiquetas solo en español.
 - `research-frontend/src/components/results/smart-voc/components/NPSAnalysis.tsx` — NPS: barras apiladas Promoters/Neutrals/Detractors normalizadas al 100% (datos en porcentajes; Today/Week desde SmartVOCResults, Month desde backend); gráfico ComposedChart + circular score + Loyalty Evolution.
 - `research-frontend/src/components/results/smart-voc/components/CPVCard.tsx` — CPV: pastilla compacta sticky en top-left con valor porcentual
-- `research-frontend/src/components/results/smart-voc/components/NEVQuestionCard.tsx` — NEV: muestra todas las emociones con % encima de cada barra, techo 50%, clusters lado a lado, tooltip clusters
+- `research-frontend/src/components/results/smart-voc/components/NEVQuestionCard.tsx` — NEV: badge NEV score con signo (Negative/Positive) y color; todas las emociones con % encima de cada barra, techo 50%, clusters con tendencia según datos (up/down)
 - `research-frontend/src/components/results/smart-voc/components/VOCComments.tsx` — VOC: tabla de comentarios, botón de exportar CSV (participant_id, demográficos, respuestas)
 - `research-frontend/src/components/results/smart-voc/components/TrustFlowChart.tsx` — Trust Relationship Flow: NPS/NEV por tiempo (Today=LineChart, Week=BarChart, Month=LineChart). Caja "Latest point" en el encabezado (no sobre el gráfico) para no tapar el tooltip al pasar el mouse.
 - `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC; NEV usa IDs canónicos (minúsculas, sin tildes) y normalizeEmotionKey para conteo y cálculo de NEV

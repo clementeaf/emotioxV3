@@ -1,3 +1,15 @@
+## v0.26.8 — Demographics defaults, NEV sign, Navigation Flow UX (2026-03-11)
+
+### research-frontend
+- Feat: Enabling an option-based demographic (Competencia técnica, gender, educationLevel, etc.) in Research Configuration now injects default validValues so participants always see a selector instead of a free-text input.
+- Fix: SmartVOC NEV section shows NEV score with correct Positive/Negative label and color (red when &lt; 0); cluster trends are now data-driven (up/down from cluster value) instead of hardcoded.
+
+### participant-frontend
+- Fix: Navigation Flow — title and instructions moved above the image (no overlay) so top hitzones are clickable on mobile, tablet, and desktop.
+- Fix: Navigation Flow — pointer and touch events (onPointerUp, onTouchEnd) with click dedupe so taps/clicks register in Opera and all browsers; when no hitzones are configured, whole image is treated as valid so the flow can advance.
+
+---
+
 ## v0.26.7 — Thank You Screen: EmotioCX logo (2026-03-11)
 
 ### participant-frontend

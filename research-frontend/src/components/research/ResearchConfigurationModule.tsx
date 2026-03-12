@@ -37,6 +37,19 @@ const DEMOGRAPHIC_QUOTA_FIELD: Record<string, string> = {
     technicalProficiency: 'proficiencyLevel',
 };
 
+/**
+ * Default validValues for option-based demographics when first enabled.
+ * Ensures participants always see a selector instead of a free-text input.
+ */
+const DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC: Record<string, string[]> = {
+    gender: ['Masculino', 'Femenino', 'Prefiero no especificar'],
+    educationLevel: ['Básica', 'Media', 'Universitaria', 'Maestría', 'Doctorado'],
+    employmentStatus: ['Dependiente', 'Independiente', 'Cesante', 'Jubilado'],
+    annualIncome: ['Menos de 20.000€', '20.000€ - 40.000€', '40.000€ - 60.000€', '60.000€ - 80.000€', 'Más de 80.000€'],
+    dailyHoursOnline: ['0-2 horas', '2-4 horas', '4-6 horas', '6-8 horas', 'Más de 8 horas'],
+    technicalProficiency: ['Básico', 'Intermedio', 'Profesional', 'Experto'],
+};
+
 
 interface BacklinkInputProps {
     label: string;
@@ -469,22 +482,22 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                 };
                                 const demographicLabel = DEMOGRAPHIC_LABELS[key] ?? key.replaceAll(/([A-Z])/g, ' $1').trim();
 
+                                const defaultValidValues = DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC[key] ?? [];
+
                                 const handleRowClick = (): void => {
                                     if (!demographicEnabled) {
                                         return;
                                     }
-                                    
                                     if (!isEnabled) {
-                                        handleDemographicChange(key, { enabled: true, validValues: [], disqualifications: [] });
+                                        handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
                                     }
-                                    
                                     setActiveConfigModal(key);
                                 };
 
                                 const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
                                     e.stopPropagation();
                                     if (e.target.checked) {
-                                        handleDemographicChange(key, { enabled: true, validValues: [], disqualifications: [] });
+                                        handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
                                     } else {
                                         handleDemographicChange(key, false);
                                     }

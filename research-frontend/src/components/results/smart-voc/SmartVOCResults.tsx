@@ -268,30 +268,37 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       return emotionIds.reduce((s, id) => s + (states[normalizeEmotionKey(id)] || states[id] || 0), 0);
     };
 
+    const positiveTotal = NEV_EMOTIONS.filter(e => e.isPositive).reduce((s, e) => s + (states[e.id] || 0), 0);
+    const negativeTotal = NEV_EMOTIONS.filter(e => !e.isPositive).reduce((s, e) => s + (states[e.id] || 0), 0);
+    const nevScore = totalEmotions > 0
+      ? Math.round(((positiveTotal - negativeTotal) / totalEmotions) * 100)
+      : 0;
+
     questionCards.push(
       <NEVQuestionCard
         key="nev-detail"
         questionNumber={`2.${questionCounter}`}
         title="Net Emotional Value (NEV)"
+        nevScore={nevScore}
         emotionalStates={emotionalStatesList}
         longTermClusters={[
           { name: 'Advocacy', emotions: ['confiado', 'valorado'] },
           { name: 'Recommendation', emotions: ['satisfecho', 'feliz'] },
           { name: 'Attention', emotions: ['interesado', 'exploratorio'] },
           { name: 'Desirability', emotions: ['estimulado', 'energico'] }
-        ].map(c => ({
-          name: c.name,
-          value: Math.round((clusterFromStates(c.emotions) / totalForPct) * 10000) / 100,
-          trend: 'up' as const
-        }))}
+        ].map(c => {
+          const value = Math.round((clusterFromStates(c.emotions) / totalForPct) * 10000) / 100;
+          const trend: 'up' | 'down' = value > 0 ? 'up' : 'down';
+          return { name: c.name, value, trend };
+        })}
         shortTermClusters={[
           { name: 'Engagement', emotions: ['enfocado', 'indulgente', 'cuidado', 'seguro'] },
           { name: 'Destroying', emotions: ['frustrado', 'irritado', 'decepcion', 'descontento', 'estresado', 'infeliz', 'desatendido', 'apresurado'] }
-        ].map(c => ({
-          name: c.name,
-          value: Math.round((clusterFromStates(c.emotions) / totalForPct) * 10000) / 100,
-          trend: c.name === 'Destroying' ? 'down' as const : 'up' as const
-        }))}
+        ].map(c => {
+          const value = Math.round((clusterFromStates(c.emotions) / totalForPct) * 10000) / 100;
+          const trend: 'up' | 'down' = c.name === 'Destroying' ? (value > 0 ? 'down' : 'up') : (value > 0 ? 'up' : 'down');
+          return { name: c.name, value, trend };
+        })}
       />
     );
   }

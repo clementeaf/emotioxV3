@@ -96,6 +96,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const imageRef = useRef<HTMLDivElement>(null);
     const imgElRef = useRef<HTMLImageElement>(null);
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
+    /** Dedupe pointerup + click so we only advance once per interaction (Opera and others fire both). */
+    const lastHandledAtRef = useRef<number>(0);
 
     // Response hook for saving data
     const response = useResponse({ moduleId, componentId });
@@ -208,11 +210,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         return () => window.removeEventListener('resize', updateRenderedRect);
     }, [updateRenderedRect, currentImageIndex]);
 
-    /**
-     * Handles click/tap on the navigation image.
-     * Computes click coordinates relative to the actual rendered image rect (object-contain safe).
-     */
-    const handleImageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+    /** Process one pointer/click at (clientX, clientY). Used by both pointer and click so touch/pen work in Opera and others. */
+    const processInteraction = (clientX: number, clientY: number): void => {
         if (isComplete) return;
 
         const img = imgElRef.current;
@@ -221,30 +220,23 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         const rendered = getRenderedImageRect(img);
         if (!rendered) return;
 
-        const relX = e.clientX - rendered.left;
-        const relY = e.clientY - rendered.top;
+        const relX = clientX - rendered.left;
+        const relY = clientY - rendered.top;
 
-        // Ignore clicks outside the rendered image (letterbox area)
-        if (relX < 0 || relY < 0 || relX > rendered.width || relY > rendered.height) {
-            return;
-        }
+        if (relX < 0 || relY < 0 || relX > rendered.width || relY > rendered.height) return;
 
         const x = (relX / rendered.width) * 100;
         const y = (relY / rendered.height) * 100;
 
-        if (normalizedHitZones.length === 0 && !isLastImage) return;
-
-        // Last image: the entire image is a hitzone (any click completes the flow)
+        // Last image: entire image is hitzone. When no hitzones configured, treat whole image as valid so flow advances in all browsers.
+        const hasHitzones = normalizedHitZones.length > 0;
         const isInHitzone = isLastImage
             ? true
-            : normalizedHitZones.some((hz) => {
-                return (
-                    x >= hz.x &&
-                    x <= hz.x + hz.width &&
-                    y >= hz.y &&
-                    y <= hz.y + hz.height
-                );
-            });
+            : hasHitzones
+                ? normalizedHitZones.some((hz) => (
+                    x >= hz.x && x <= hz.x + hz.width && y >= hz.y && y <= hz.y + hz.height
+                ))
+                : true;
 
         const clickPoint: ClickPoint = {
             x,
@@ -253,27 +245,43 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             isCorrect: isInHitzone
         };
 
-        // Always track in allClicks for analytics
         setAllClicks(prev => [...prev, { ...clickPoint, imageId: currentImage.id }]);
 
-        // Only show visual feedback for correct clicks (avoid "christmas tree" of red dots)
         if (isInHitzone) {
             setClickPoints(prev => [...prev, clickPoint]);
-            // Correct click — advance immediately (brief flash of green dot)
             if (isLastImage) {
                 setIsComplete(true);
                 saveNavigationResponse(true);
-                if (onComplete) {
-                    setTimeout(() => {
-                        onComplete();
-                    }, 800);
-                }
+                if (onComplete) setTimeout(() => onComplete(), 800);
             } else {
                 setTimeout(() => {
                     setCurrentImageIndex(prev => prev + 1);
                     setClickPoints([]);
                 }, 200);
             }
+        }
+    };
+
+    const DEDUPE_MS = 400;
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>): void => {
+        if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
+        lastHandledAtRef.current = Date.now();
+        processInteraction(e.clientX, e.clientY);
+    };
+
+    const handleImageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+        if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
+        lastHandledAtRef.current = Date.now();
+        processInteraction(e.clientX, e.clientY);
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>): void => {
+        if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
+        const t = e.changedTouches?.[0];
+        if (t) {
+            lastHandledAtRef.current = Date.now();
+            processInteraction(t.clientX, t.clientY);
         }
     };
 
@@ -329,35 +337,38 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     }, [isComplete]);
 
     return (
-        <div className="fixed inset-0 z-40 bg-black flex items-center justify-center" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-            {/* Floating overlay: title, description & progress */}
+        <div
+            className="fixed inset-0 z-40 bg-black flex flex-col"
+            style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+            {/* Title and instructions above the image so hitzones at the top remain clickable */}
             {!isComplete && (
-                <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
-                    <div className="pointer-events-auto bg-gradient-to-b from-black/70 via-black/40 to-transparent px-4 pt-4 pb-8">
-                        {title && (
-                            <h2 className="text-lg md:text-xl font-semibold text-white text-center drop-shadow-lg">{title}</h2>
-                        )}
-                        {description && (
-                            <p className="text-sm text-white/80 text-center mt-1 drop-shadow">{description}</p>
-                        )}
-                        <div className="flex items-center justify-center text-xs text-white/70 mt-3 max-w-md mx-auto">
-                            <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
-                        </div>
-                        <div className="w-full max-w-md mx-auto bg-white/20 rounded-full h-1 mt-1.5">
-                            <div
-                                className="bg-white h-1 rounded-full transition-all duration-300"
-                                style={{ width: `${((currentImageIndex + 1) / images.length) * 100}%` }}
-                            />
-                        </div>
+                <div className="flex-shrink-0 bg-black px-4 pt-4 pb-3">
+                    {title && (
+                        <h2 className="text-lg md:text-xl font-semibold text-white text-center">{title}</h2>
+                    )}
+                    {description && (
+                        <p className="text-sm text-white/80 text-center mt-1">{description}</p>
+                    )}
+                    <div className="flex items-center justify-center text-xs text-white/70 mt-3 max-w-md mx-auto">
+                        <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
+                    </div>
+                    <div className="w-full max-w-md mx-auto bg-white/20 rounded-full h-1 mt-1.5">
+                        <div
+                            className="bg-white h-1 rounded-full transition-all duration-300"
+                            style={{ width: `${((currentImageIndex + 1) / images.length) * 100}%` }}
+                        />
                     </div>
                 </div>
             )}
 
-            {/* Fullscreen image area with click tracking */}
+            {/* Image area below header: full area clickable, no overlay on image */}
             <div
                 ref={imageRef}
                 onClick={handleImageClick}
-                className={`relative w-full h-full select-none ${!isComplete ? 'cursor-pointer' : ''}`}
+                onPointerUp={handlePointerUp}
+                onTouchEnd={handleTouchEnd}
+                className={`relative flex-1 min-h-0 flex items-center justify-center select-none ${!isComplete ? 'cursor-pointer' : ''}`}
                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none' } as React.CSSProperties}
             >
                 {/* Render real image or mock */}

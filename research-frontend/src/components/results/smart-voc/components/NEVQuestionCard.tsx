@@ -17,6 +17,8 @@ interface Cluster {
 interface NEVQuestionCardProps {
   questionNumber: string;
   title: string;
+  /** NEV score from -100 (all negative) to +100 (all positive). Used for correct positive/negative label and color. */
+  nevScore: number;
   emotionalStates: EmotionalState[];
   longTermClusters: Cluster[];
   shortTermClusters: Cluster[];
@@ -27,6 +29,7 @@ interface NEVQuestionCardProps {
 export const NEVQuestionCard = ({
   questionNumber,
   title,
+  nevScore,
   emotionalStates,
   longTermClusters,
   shortTermClusters,
@@ -38,13 +41,26 @@ export const NEVQuestionCard = ({
   className
 }: NEVQuestionCardProps) => {
   const MAX_BAR_PCT = 50;
+  const isNegative = nevScore < 0;
 
   return (
     <Card className={cn('p-6', className)}>
-      {/* Header */}
+      {/* Header with NEV score and sign */}
       <div className="mb-4">
         <h2 className="text-lg font-semibold mb-2">{questionNumber}- Question: {title}</h2>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium rounded-md',
+              isNegative ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+            )}
+            title={isNegative ? 'Net Emotional Value: negative' : 'Net Emotional Value: positive'}
+          >
+            NEV {nevScore}
+            <span className="text-xs font-normal opacity-90">
+              {isNegative ? 'Negative' : 'Positive'}
+            </span>
+          </span>
           {badges.map((badge) => (
             <span key={badge.label} className={cn('px-2 py-1 text-xs font-medium rounded', badge.color)}>
               {badge.label}
