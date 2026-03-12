@@ -1,3 +1,10 @@
+## v0.26.9 — Demographics step: interpret backend config format (2026-03-12)
+
+### participant-frontend
+- Fix: DemographicsStep now correctly interprets Research Configuration demographics served by the backend. Backend stores `validValues` (from demographicsMapper); step accepts both backend shape (validValues) and research UI shape (validAges, validCountries, options). Option entries support `name` in addition to value/label. Legacy array or boolean per demographic handled.
+
+---
+
 ## v0.26.8 — Demographics defaults, NEV sign, Navigation Flow UX (2026-03-11)
 
 ### research-frontend

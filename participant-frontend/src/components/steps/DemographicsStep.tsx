@@ -11,20 +11,21 @@ interface DemographicsStepProps {
 
 type LocationGranularity = 'countryOnly' | 'countryCity';
 
+/** Config shape from Research Configuration; backend may store validValues only (demographicsMapper output). */
 interface DemographicConfig {
     enabled?: boolean;
-    // Age
+    // Age: research UI uses validAges; backend mapper stores validValues
     validAges?: string[];
     disqualifyingAges?: string[];
-    // Country
+    // Country: research UI uses validCountries; backend mapper stores validValues + priorityValues
     validCountries?: string[];
-    disqualifyingCountries?: string[];
     priorityCountries?: string[];
     granularity?: LocationGranularity;
-    // Generic (gender, educationLevel, etc.)
-    options?: Array<{ value: string; label: string }>;
+    disqualifyingCountries?: string[];
+    // Generic: research UI uses options; backend mapper stores validValues (string[])
+    options?: Array<{ value?: string; label?: string; name?: string } | string>;
     disqualified?: string[];
-    // Legacy
+    // Backend/stored format (demographicsMapper): single list of allowed values
     validValues?: string[];
 }
 
@@ -34,27 +35,40 @@ const DEMOGRAPHIC_ORDER = [
 ];
 
 /**
+ * Normalizes a single option entry to a display string.
+ * Handles backend format (validValues = string[]) and modal format (options = { value, label, name }[]).
+ */
+const optionToLabel = (o: string | Record<string, unknown>): string => {
+    if (typeof o === 'string') return o;
+    const obj = o as Record<string, unknown>;
+    const label = obj.label ?? obj.value ?? obj.name;
+    return typeof label === 'string' ? label : String(label ?? '');
+};
+
+/**
  * Extracts the selectable options for a given demographic from its config.
+ * Interprets both research-frontend modal shape (validAges, validCountries, options)
+ * and backend/stored shape (validValues only, from demographicsMapper).
  */
 const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[] => {
     if (key === 'age') {
-        return cfg.validAges || cfg.validValues || [];
+        return cfg.validAges ?? cfg.validValues ?? [];
     }
     if (key === 'country') {
-        return cfg.validCountries || cfg.validValues || [];
+        return cfg.validCountries ?? cfg.validValues ?? [];
     }
-    // Generic demographics store options as { value, label }[]
-    if (cfg.options && Array.isArray(cfg.options)) {
-        return cfg.options.map(o =>
-            typeof o === 'string' ? o : (o.label || o.value || String(o))
-        );
+    if (cfg.options && Array.isArray(cfg.options) && cfg.options.length > 0) {
+        return cfg.options.map(o => optionToLabel(o as string | Record<string, unknown>));
     }
-    return cfg.validValues || [];
+    return cfg.validValues ?? [];
 };
 
 export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) => {
     const { t } = useTranslation();
-    const demographics = (module.config?.demographics || {}) as Record<string, DemographicConfig | boolean>;
+    const demographics = useMemo(
+        () => (module.config?.demographics || {}) as Record<string, DemographicConfig | boolean>,
+        [module.config?.demographics]
+    );
     const { updateResponse } = useParticipantStore();
 
     const getDemographicLabel = useCallback((key: string): string => {
@@ -67,14 +81,21 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
     const isEnabled = useCallback((key: string) => {
         const val = demographics[key];
         if (val === true) return true;
-        if (typeof val === 'object' && val !== null && val.enabled === true) return true;
+        if (typeof val === 'object' && val !== null && !Array.isArray(val) && (val as DemographicConfig).enabled === true) return true;
         return false;
     }, [demographics]);
 
+    /**
+     * Returns normalized config for a demographic key.
+     * Handles backend format (validValues), research UI format (validAges/validCountries/options),
+     * and legacy array value (treated as validValues).
+     */
     const getConfig = useCallback((key: string): DemographicConfig => {
         const val = demographics[key];
-        if (typeof val === 'object' && val !== null) return val as DemographicConfig;
-        return {};
+        if (val === true) return { enabled: true };
+        if (typeof val !== 'object' || val === null) return {};
+        if (Array.isArray(val)) return { enabled: true, validValues: val as unknown as string[] };
+        return val as DemographicConfig;
     }, [demographics]);
 
     const enabledKeys = useMemo(

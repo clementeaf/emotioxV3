@@ -77,7 +77,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/hooks/usePreviewMode.ts` — detecta preview vs participant vs kiosk mode
 - `participant-frontend/src/stores/useParticipantStore.ts` — estado participante + participationMode
 - `participant-frontend/src/services/public.service.ts` — API pública (getParticipationMode, requestKioskSession)
-- `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico
+- `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico; interpreta tanto formato backend (validValues desde demographicsMapper) como formato research UI (validAges, validCountries, options con value/label/name); soporta legacy (entrada como array o boolean).
 - `participant-frontend/src/components/steps/DynamicStep.tsx` — render genérico Welcome/Thank You; Thank You Screen muestra logo EmotioCX desde `public/EmotioCX-logo.svg`
 - `participant-frontend/src/components/ui/NavigationFlow.tsx` — flujo fullscreen por hitzones; título e instrucciones arriba de la imagen (no encima) para que hitzones superiores sean clickeables; registro con pointer/touch/click y dedupe; sin hitzones configuradas trata toda la imagen como válida
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
