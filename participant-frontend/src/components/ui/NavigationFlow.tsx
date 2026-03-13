@@ -210,14 +210,44 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         return () => window.removeEventListener('resize', updateRenderedRect);
     }, [updateRenderedRect, currentImageIndex]);
 
+    // Non-passive touch listeners so preventDefault works: avoids Safari/Chrome consuming the tap for scroll or delaying the click
+    useEffect(() => {
+        const el = imageRef.current;
+        if (!el) return;
+        const prevent = (e: TouchEvent): void => {
+            e.preventDefault();
+        };
+        el.addEventListener('touchstart', prevent, { passive: false });
+        el.addEventListener('touchend', prevent, { passive: false });
+        return () => {
+            el.removeEventListener('touchstart', prevent);
+            el.removeEventListener('touchend', prevent);
+        };
+    }, []);
+
+    /**
+     * Resolves the clickable image area in viewport coordinates.
+     * When no img is rendered, img has not loaded yet (naturalWidth/Height 0), or rect is null, uses the container so taps/clicks still advance in all browsers.
+     */
+    const getClickableRect = useCallback((): { left: number; top: number; width: number; height: number } | null => {
+        const img = imgElRef.current;
+        if (img) {
+            const rect = getRenderedImageRect(img);
+            if (rect) return rect;
+        }
+        const container = imageRef.current;
+        if (container) {
+            const r = container.getBoundingClientRect();
+            return { left: r.left, top: r.top, width: r.width, height: r.height };
+        }
+        return null;
+    }, []);
+
     /** Process one pointer/click at (clientX, clientY). Used by both pointer and click so touch/pen work in Opera and others. */
     const processInteraction = (clientX: number, clientY: number): void => {
         if (isComplete) return;
 
-        const img = imgElRef.current;
-        if (!img) return;
-
-        const rendered = getRenderedImageRect(img);
+        const rendered = getClickableRect();
         if (!rendered) return;
 
         const relX = clientX - rendered.left;
@@ -265,21 +295,23 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const DEDUPE_MS = 400;
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>): void => {
+        e.preventDefault();
         if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
         lastHandledAtRef.current = Date.now();
         processInteraction(e.clientX, e.clientY);
     };
 
     const handleImageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+        e.preventDefault();
         if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
         lastHandledAtRef.current = Date.now();
         processInteraction(e.clientX, e.clientY);
     };
 
     const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>): void => {
-        if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
         const t = e.changedTouches?.[0];
         if (t) {
+            if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
             lastHandledAtRef.current = Date.now();
             processInteraction(t.clientX, t.clientY);
         }
@@ -365,6 +397,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             {/* Image area below header: full area clickable, no overlay on image */}
             <div
                 ref={imageRef}
+                data-testid="navigation-flow-click-area"
                 onClick={handleImageClick}
                 onPointerUp={handlePointerUp}
                 onTouchEnd={handleTouchEnd}

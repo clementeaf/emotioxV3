@@ -83,7 +83,6 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
 
       case 'short_text':
       case 'long_text': {
-        // Usamos VOCComments para mostrar respuestas de texto
         const textResponses = module.responses
           .map((r): TextResponseFormatted | null => {
             try {
@@ -95,12 +94,22 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           })
           .filter((r): r is TextResponseFormatted => r !== null);
 
+        const cognitiveExportRows = module.responses.map(r => {
+          const participantId = (r as { participantId?: string; participant_id?: string }).participantId
+            ?? (r as { participant_id?: string }).participant_id ?? '';
+          const value = (r as { value?: unknown }).value ?? (r as { responseData?: { value?: unknown } }).responseData?.value;
+          const text = typeof value === 'string' ? value : JSON.stringify(value ?? '');
+          return { participantId, text, mood: 'Positive' as const };
+        });
+
         return (
           <VOCComments
             key={module.moduleId}
             questionNumber={questionNumber}
             questionText={module.moduleName}
             comments={textResponses.length > 0 ? textResponses : [{ text: 'No responses yet', mood: 'gray' }]}
+            researchId={researchId}
+            cognitiveExportRows={cognitiveExportRows.length > 0 ? cognitiveExportRows : undefined}
           />
         );
       }

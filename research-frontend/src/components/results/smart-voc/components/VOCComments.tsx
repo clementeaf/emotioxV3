@@ -9,18 +9,30 @@ interface Comment {
   selected?: boolean;
 }
 
+/** Row for CSV export when used from Cognitive Tasks (Long/Short Text) */
+export interface CognitiveCommentRow {
+  participantId: string;
+  text: string;
+  mood?: string;
+}
+
 interface VOCCommentsProps {
   comments?: Comment[];
   questionNumber?: string;
   questionText?: string;
   className?: string;
+  /** When set, download uses these rows instead of SmartVOC API (Cognitive Tasks Long/Short Text) */
+  researchId?: string;
+  cognitiveExportRows?: CognitiveCommentRow[];
 }
 
-export const VOCComments = ({ 
+export const VOCComments = ({
   comments = [],
   questionNumber = "2.6",
   questionText = "Voice of Customer (VOC)",
-  className 
+  className,
+  researchId: researchIdProp,
+  cognitiveExportRows,
 }: VOCCommentsProps) => {
   const [activeTab, setActiveTab] = useState<'sentiment' | 'themes' | 'keywords'>('sentiment');
   const [selectedComments, setSelectedComments] = useState<number[]>([]);
@@ -41,95 +53,92 @@ export const VOCComments = ({
     }
   };
 
-  // ...existing code...
-  // Botón para descargar comentarios en CSV
-  const handleDownloadCSV = async () => {
-    // Import dinámico para evitar dependencias circulares
+  const triggerDownload = (csv: string, filename: string): void => {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadCSV = async (): Promise<void> => {
+    const researchId = researchIdProp ?? (() => {
+      const urlParts = window.location.pathname.split('/');
+      const idx = urlParts.indexOf('research');
+      if (idx !== -1 && urlParts[idx + 1]) return urlParts[idx + 1];
+      return urlParts.includes('results') ? urlParts[urlParts.indexOf('results') + 1] ?? '' : '';
+    })();
+
+    if (cognitiveExportRows && cognitiveExportRows.length > 0) {
+      const header = ['participant_id', 'comment', 'mood'];
+      const rows = cognitiveExportRows.map(row => [
+        row.participantId,
+        (row.text ?? '').replace(/"/g, '""'),
+        (row.mood ?? '').replace(/"/g, '""'),
+      ].map(v => `"${v}"`).join(','));
+      const csv = [header.join(','), ...rows].join('\n');
+      triggerDownload(csv, `comments-${researchId || 'export'}.csv`);
+      return;
+    }
+
     const [{ participantsService }, { smartVOCService }] = await Promise.all([
       import('../../../../services/participants.service'),
       import('../../../../services/smartVOC.service')
     ]);
-    // Obtener researchId desde window.location o prop (ajustar si se pasa como prop)
-    const urlParts = window.location.pathname.split('/');
-    const researchId = urlParts.includes('results') ? urlParts[urlParts.indexOf('results') + 1] : '';
-    // Participantes
+
     let participants: import('../../../../services/participants.service').Participant[] = [];
     try {
       participants = await participantsService.list(researchId);
     } catch (err) {
-      // Manejo explícito: log y fallback
       console.error('Error fetching participants:', err);
-      participants = [];
     }
-    // Respuestas SmartVOC
+
     let responses: import('../../../../services/smartVOC.service').SmartVOCResponse[] = [];
     try {
       responses = await smartVOCService.getResponses(researchId);
     } catch (err) {
-      // Manejo explícito: log y fallback
       console.error('Error fetching SmartVOC responses:', err);
-      responses = [];
     }
 
-    // Map participantId → demográficos
     const participantMap: Record<string, import('../../../../services/participants.service').Participant> = {};
-    participants.forEach(p => {
-      participantMap[p.participant_id] = p;
-    });
+    participants.forEach(p => { participantMap[p.participant_id] = p; });
 
-    // Map participantId → respuestas
     const responsesMap: Record<string, import('../../../../services/smartVOC.service').SmartVOCResponse[]> = {};
     responses.forEach(r => {
       if (!responsesMap[r.participant_id]) responsesMap[r.participant_id] = [];
       responsesMap[r.participant_id].push(r);
     });
 
-    // Solo participantes que han dejado comentarios
-    // Buscar participant_id en responses tipo VOC
-    const vocResponses = responses.filter(r => r.question_type === 'VOC' && typeof r.response_value.text === 'string');
+    const vocResponses = responses.filter(r => r.question_type === 'VOC' && typeof r.response_value?.text === 'string');
     const participantIdsWithComments = Array.from(new Set(vocResponses.map(r => r.participant_id)));
     if (participantIdsWithComments.length === 0) return;
 
-    // CSV header
-    const header = [
-      'participant_id',
-      'email',
-      'name',
-      'external_id',
-      'status',
-      'comment',
-      'mood',
-      'responses',
-    ];
-    // CSV rows
+    const header = ['participant_id', 'email', 'name', 'external_id', 'status', 'comment', 'mood', 'responses'];
     const rows = participantIdsWithComments.map(pid => {
       const p = participantMap[pid] || {};
-      // Buscar el comentario VOC
       const voc = vocResponses.find(r => r.participant_id === pid);
-      const comment = voc && voc.response_value.text ? String(voc.response_value.text).replace(/"/g, '""') : '';
-      const mood = voc && voc.response_value.mood ? String(voc.response_value.mood) : '';
-      // Respuestas SmartVOC serializadas
+      const comment = voc?.response_value?.text ? String(voc.response_value.text).replace(/"/g, '""') : '';
+      const mood = voc?.response_value?.mood ? String(voc.response_value.mood) : '';
       const resp = responsesMap[pid] || [];
       const respStr = resp.map(r => `${r.question_key}: ${JSON.stringify(r.response_value)}`).join(' | ');
       return [
         pid,
-        p.email || '',
-        p.name || '',
-        p.external_id || '',
-        p.status || '',
+        p.email ?? '',
+        p.name ?? '',
+        p.external_id ?? '',
+        p.status ?? '',
         comment,
         mood,
         respStr.replace(/"/g, '""'),
       ].map(v => `"${v}"`).join(',');
     });
     const csv = [header.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `voc-comments-${researchId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerDownload(csv, `voc-comments-${researchId || 'export'}.csv`);
   };
 
   return (

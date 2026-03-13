@@ -1,3 +1,15 @@
+## v0.26.10 — Navigation Flow advance, CustomSelect dropdown, Long Text CSV (2026-03-12)
+
+### participant-frontend
+- Fix: Navigation Flow — getClickableRect falls back to container rect when no img (placeholder, loading, or mock) so taps/clicks advance in Safari, Opera, DuckDuckGo, Chrome, Brave. Non-passive touch listeners for reliable tap handling.
+- Fix: CustomSelect dropdown position — use viewport-only coordinates (no scrollY/scrollX) for position:fixed so dropdown aligns in Opera, DuckDuckGo. Download trigger appends link to body before click for browser compatibility.
+- Test: NavigationFlow test verifies onComplete when clicking container (fallback rect).
+
+### research-frontend
+- Fix: Cognitive Tasks Long Text (e.g. 3.2) — "Descargar comentarios (.csv)" now downloads: VOCComments accepts researchId and cognitiveExportRows; when used from CognitiveTaskResults, CSV is built from module responses and triggerDownload uses appendChild for reliable download.
+
+---
+
 ## v0.26.9 — Demographics step: interpret backend config format (2026-03-12)
 
 ### participant-frontend
