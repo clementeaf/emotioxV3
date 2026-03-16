@@ -1,3 +1,14 @@
+## v0.26.11 — Navigation Flow cross-browser fixes (2026-03-15)
+
+### participant-frontend
+- Fix: Navigation Flow — reduce click dedupe window from 400ms to 150ms so quick taps are no longer swallowed (all browsers).
+- Fix: Navigation Flow — skip placeholder onLoad (1x1 GIF) to prevent imgNatural and renderedRect from being set to incorrect values before the real image loads.
+- Fix: Navigation Flow — change touchAction from 'manipulation' to 'none' to fully block browser panning/zooming gestures on the interactive area (Safari, Chrome mobile).
+- Fix: Navigation Flow — prevent context menu on long-press (Brave, Opera, Safari mobile).
+- Fix: Navigation Flow — reset imgNatural and renderedRect to null on image transition to avoid stale hitzone positioning from the previous image.
+
+---
+
 ## v0.26.10 — Navigation Flow advance, CustomSelect dropdown, Long Text CSV (2026-03-12)
 
 ### participant-frontend

@@ -203,6 +203,13 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         if (img) setRenderedRect(getRenderedImageRect(img));
     }, []);
 
+    // Reset rendered rect and natural size when image changes so stale data from the previous
+    // image is not used for hitzone positioning while the new image loads.
+    useEffect(() => {
+        setImgNatural(null);
+        setRenderedRect(null);
+    }, [currentImageIndex]);
+
     // Recompute rendered rect on resize / orientation change
     useEffect(() => {
         updateRenderedRect();
@@ -292,7 +299,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         }
     };
 
-    const DEDUPE_MS = 400;
+    const DEDUPE_MS = 150;
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>): void => {
         e.preventDefault();
@@ -402,7 +409,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 onPointerUp={handlePointerUp}
                 onTouchEnd={handleTouchEnd}
                 className={`relative flex-1 min-h-0 flex items-center justify-center select-none ${!isComplete ? 'cursor-pointer' : ''}`}
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none' } as React.CSSProperties}
+                onContextMenu={(e) => e.preventDefault()}
+                style={{ touchAction: 'none', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
             >
                 {/* Render real image or mock */}
                 {loading ? (
@@ -418,6 +426,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         ref={imgElRef}
                         onLoad={(e) => {
                             const el = e.currentTarget;
+                            // Skip placeholder (1x1 transparent GIF) — only update on real image load
+                            if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
                             setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
                             setRenderedRect(getRenderedImageRect(el));
                         }}
