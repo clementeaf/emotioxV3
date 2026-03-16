@@ -1,3 +1,10 @@
+## v0.26.14 — VOCComments CSV download reliability fix (2026-03-16)
+
+### research-frontend
+- Fix: VOCComments CSV download — split handleDownloadCSV into sync (Cognitive Tasks) and async (SmartVOC) paths so Cognitive Tasks downloads stay within the browser's user-gesture window. Delayed URL.revokeObjectURL by 200ms, removed display:none from temp anchor, added defensive String() coercion on CSV fields.
+
+---
+
 ## v0.26.13 — CustomSelect dropdown direction fix (2026-03-16)
 
 ### participant-frontend
