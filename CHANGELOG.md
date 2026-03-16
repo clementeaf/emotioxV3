@@ -1,7 +1,8 @@
-## v0.26.12 — Demographics fallback options for legacy configs (2026-03-15)
+## v0.26.12 — Demographics fallback options and label alignment (2026-03-15)
 
 ### participant-frontend
-- Fix: DemographicsStep renders text input instead of selector when config lacks validValues (legacy researches stored as boolean `true` or `{ enabled: true }` without options). Added FALLBACK_OPTIONS map for all option-based demographics (gender, educationLevel, employmentStatus, annualIncome, dailyHoursOnline, technicalProficiency) so participants always see a CustomSelect.
+- Fix: DemographicsStep renders text input instead of selector when config lacks validValues (legacy researches stored as boolean `true` or `{ enabled: true }` without options). Added FALLBACK_OPTIONS map for all option-based demographics so participants always see a CustomSelect.
+- Fix: annualIncome label changed from "Ingreso Anual" / "Annual Income" to "Ingreso Familiar" / "Household Income" to match research-frontend configuration label.
 
 ---
 

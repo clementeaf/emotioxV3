@@ -29,7 +29,7 @@
       "country": "Country",
       "gender": "Gender",
       "educationLevel": "Education Level",
-      "annualIncome": "Annual Income",
+      "annualIncome": "Household Income",
       "employmentStatus": "Employment Status",
       "dailyHoursOnline": "Daily Hours Online",
       "technicalProficiency": "Technical Proficiency"
