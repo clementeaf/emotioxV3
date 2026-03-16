@@ -35,6 +35,20 @@ const DEMOGRAPHIC_ORDER = [
 ];
 
 /**
+ * Fallback options for option-based demographics when validValues is missing or empty.
+ * Handles legacy researches stored as boolean `true` without validValues.
+ * Must stay in sync with DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC in research-frontend.
+ */
+const FALLBACK_OPTIONS: Record<string, string[]> = {
+    gender: ['Masculino', 'Femenino', 'Prefiero no especificar'],
+    educationLevel: ['Básica', 'Media', 'Universitaria', 'Maestría', 'Doctorado'],
+    employmentStatus: ['Dependiente', 'Independiente', 'Cesante', 'Jubilado'],
+    annualIncome: ['Menos de 20.000€', '20.000€ - 40.000€', '40.000€ - 60.000€', '60.000€ - 80.000€', 'Más de 80.000€'],
+    dailyHoursOnline: ['0-2 horas', '2-4 horas', '4-6 horas', '6-8 horas', 'Más de 8 horas'],
+    technicalProficiency: ['Básico', 'Intermedio', 'Profesional', 'Experto'],
+};
+
+/**
  * Normalizes a single option entry to a display string.
  * Handles backend format (validValues = string[]) and modal format (options = { value, label, name }[]).
  */
@@ -49,6 +63,8 @@ const optionToLabel = (o: string | Record<string, unknown>): string => {
  * Extracts the selectable options for a given demographic from its config.
  * Interprets both research-frontend modal shape (validAges, validCountries, options)
  * and backend/stored shape (validValues only, from demographicsMapper).
+ * Falls back to FALLBACK_OPTIONS for option-based demographics when no values are configured
+ * (legacy researches stored as boolean `true`).
  */
 const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[] => {
     if (key === 'age') {
@@ -60,7 +76,10 @@ const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[]
     if (cfg.options && Array.isArray(cfg.options) && cfg.options.length > 0) {
         return cfg.options.map(o => optionToLabel(o as string | Record<string, unknown>));
     }
-    return cfg.validValues ?? [];
+    const values = cfg.validValues ?? [];
+    if (values.length > 0) return values;
+    // Fallback for legacy configs missing validValues
+    return FALLBACK_OPTIONS[key] ?? [];
 };
 
 export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) => {

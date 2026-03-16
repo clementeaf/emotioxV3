@@ -1,3 +1,10 @@
+## v0.26.12 — Demographics fallback options for legacy configs (2026-03-15)
+
+### participant-frontend
+- Fix: DemographicsStep renders text input instead of selector when config lacks validValues (legacy researches stored as boolean `true` or `{ enabled: true }` without options). Added FALLBACK_OPTIONS map for all option-based demographics (gender, educationLevel, employmentStatus, annualIncome, dailyHoursOnline, technicalProficiency) so participants always see a CustomSelect.
+
+---
+
 ## v0.26.11 — Navigation Flow cross-browser fixes (2026-03-15)
 
 ### participant-frontend
