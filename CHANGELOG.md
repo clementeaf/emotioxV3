@@ -1,3 +1,10 @@
+## v0.26.13 — CustomSelect dropdown direction fix (2026-03-16)
+
+### participant-frontend
+- Fix: CustomSelect dropdown now opens upward when there isn't enough space below the trigger, preventing overlap with the "Guardar y continuar" button on demographics fields near the bottom of the screen.
+
+---
+
 ## v0.26.12 — Demographics fallback options and label alignment (2026-03-15)
 
 ### participant-frontend

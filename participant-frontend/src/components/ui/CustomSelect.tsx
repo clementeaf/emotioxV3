@@ -31,7 +31,7 @@ export const CustomSelect = ({
     const generatedId = useId();
     const id = propId || generatedId;
     const [isOpen, setIsOpen] = useState(false);
-    const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number; openAbove: boolean } | null>(null);
     const selectRef = useRef<HTMLDivElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -50,10 +50,14 @@ export const CustomSelect = ({
 
         if (selectRef.current) {
             const rect = selectRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const dropdownMaxH = 240; // max-h-60 = 15rem = 240px
+            const openAbove = spaceBelow < dropdownMaxH && rect.top > spaceBelow;
             setDropdownPosition({
-                top: rect.bottom + 4,
+                top: openAbove ? rect.top : rect.bottom + 4,
                 left: rect.left,
                 width: rect.width,
+                openAbove,
             });
         }
 
@@ -104,7 +108,9 @@ export const CustomSelect = ({
                         ref={dropdownRef}
                         className="fixed z-[9999] rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
                         style={{
-                            top: `${dropdownPosition.top}px`,
+                            ...(dropdownPosition.openAbove
+                                ? { bottom: `${window.innerHeight - dropdownPosition.top + 4}px` }
+                                : { top: `${dropdownPosition.top}px` }),
                             left: `${dropdownPosition.left}px`,
                             width: `${dropdownPosition.width}px`,
                         }}
