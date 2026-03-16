@@ -17,6 +17,8 @@ import { LoadingErrorStates } from '../../components/research/LoadingErrorStates
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { withModuleConditionality, withModuleConditionalityConfig, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
+import type { StudyModuleOption } from '../../components/research/ConditionalityModal';
+import type { ComponentConfig } from '../../types/moduleBuilder.types';
 
 export interface EnabledDemographic {
     key: string;
@@ -162,6 +164,38 @@ export const ResearchBuilderPage = () => {
         }
         return [];
     }, [typedResearch]);
+
+    // Build list of study modules with choice options for conditionality
+    const studyModulesWithOptions = useMemo((): StudyModuleOption[] => {
+        const allModules = [...smartVOCModules, ...cognitiveTaskModules];
+        const result: StudyModuleOption[] = [];
+        for (const mod of allModules) {
+            if (mod.name !== 'Single Choice' && mod.name !== 'Multiple Choice') continue;
+            const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
+            const components = structure?.components || [];
+            const choices = components.filter(c => c.settings?.isChoice || c.id.includes('choice-'));
+            if (choices.length === 0) continue;
+            const options = choices
+                .map(c => {
+                    const defaultVal = typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
+                    const label = (c.value && typeof c.value === 'string' && c.value.trim())
+                        || defaultVal
+                        || c.label
+                        || c.id;
+                    return { id: c.id, label };
+                })
+                .filter(o => o.label.trim().length > 0);
+            if (options.length === 0) continue;
+            result.push({
+                id: mod.id,
+                name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
+                orderIndex: mod.order_index,
+                componentId: 'choice',
+                options,
+            });
+        }
+        return result;
+    }, [smartVOCModules, cognitiveTaskModules]);
 
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
@@ -562,6 +596,7 @@ export const ResearchBuilderPage = () => {
                                 onSave={handleSaveModule}
                                 isActive={activeModuleId === module.id}
                                 enabledDemographics={enabledDemographics}
+                                studyModules={studyModulesWithOptions}
                             />
                         </div>
                     ))}
@@ -604,6 +639,7 @@ export const ResearchBuilderPage = () => {
                                 onSave={handleSaveModule}
                                 isActive={activeModuleId === module.id}
                                 enabledDemographics={enabledDemographics}
+                                studyModules={studyModulesWithOptions}
                             />
                         </div>
                     ))}

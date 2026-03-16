@@ -82,27 +82,49 @@ export const withModuleConditionality = (
     };
 };
 
-export interface ConditionalityConfig {
+export interface DemographicConditionality {
     action: 'show';
     demographicKey: string;
     demographicValue: string;
 }
+
+export interface ModuleConditionality {
+    action: 'show';
+    sourceModuleId: string;
+    sourceComponentId: string;
+    selectedValues: string[];
+    matchMode: 'any';
+}
+
+export type ConditionalityConfig = DemographicConditionality | ModuleConditionality;
+
+export const isDemographicCondition = (cc: ConditionalityConfig): cc is DemographicConditionality =>
+    'demographicKey' in cc;
+
+export const isModuleCondition = (cc: ConditionalityConfig): cc is ModuleConditionality =>
+    'sourceModuleId' in cc;
 
 export const getModuleConditionalityConfig = (
     config: Record<string, unknown> | undefined
 ): ConditionalityConfig | null => {
     if (!config) return null;
     const cc = config.conditionalityConfig;
-    if (
-        typeof cc === 'object' &&
-        cc !== null &&
-        'action' in cc &&
-        'demographicKey' in cc &&
-        'demographicValue' in cc
-    ) {
-        const typed = cc as ConditionalityConfig;
+    if (typeof cc !== 'object' || cc === null || !('action' in cc)) return null;
+
+    // Module condition
+    if ('sourceModuleId' in cc) {
+        const typed = cc as ModuleConditionality;
+        if (typed.sourceModuleId && typed.sourceComponentId && typed.selectedValues?.length > 0) {
+            return typed;
+        }
+    }
+
+    // Demographic condition
+    if ('demographicKey' in cc) {
+        const typed = cc as DemographicConditionality;
         if (typed.demographicKey && typed.demographicValue) return typed;
     }
+
     return null;
 };
 

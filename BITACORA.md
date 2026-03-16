@@ -5,7 +5,37 @@
 
 ---
 
-## Última actualización: 2026-03-09 (sesión 6)
+## Última actualización: 2026-03-16 (sesión 7)
+
+---
+
+## Sesión 7: 16 de marzo de 2026 — Module-to-module conditionality (v0.27.0)
+
+### Cambios realizados
+
+#### Feat: Condicionalidad entre preguntas del estudio
+**Contexto:** Hasta ahora la condicionalidad solo permitía mostrar/ocultar un módulo según una respuesta demográfica. Se necesitaba poder condicionar según la respuesta a otra pregunta (Single/Multiple Choice).
+
+**Implementación:**
+1. **Tipos** (`moduleRequired.ts`) — `ConditionalityConfig` es ahora union de `DemographicConditionality` y `ModuleConditionality`. Type guards para distinguirlas.
+2. **ConditionalityModal** — Selector "Condition source" (Demographic / Study question). Al elegir study question: lista módulos choice anteriores por `orderIndex`, checkboxes para seleccionar opciones.
+3. **ResearchBuilderPage** — Computa `studyModulesWithOptions` desde los módulos Single/Multiple Choice, lo pasa a ambos ModuleCards.
+4. **ModuleCards** — Forwarded al modal, display del resumen de condición adaptado a ambos tipos.
+5. **useNavigation** (participant) — Evalúa condiciones de módulo comparando respuesta almacenada vs `selectedValues`. Single=match directo, Multiple=any match.
+6. **ResearchPage** (participant) — Construye `moduleResponses` reactivo desde el store y lo pasa a `useNavigation`.
+
+### Archivos modificados
+- `research-frontend/src/utils/moduleRequired.ts`
+- `research-frontend/src/components/research/ConditionalityModal.tsx`
+- `research-frontend/src/components/research/SmartVOCModuleCard.tsx`
+- `research-frontend/src/components/research/CognitiveTaskModuleCard.tsx`
+- `research-frontend/src/pages/research/ResearchBuilderPage.tsx`
+- `participant-frontend/src/hooks/useNavigation.ts`
+- `participant-frontend/src/pages/ResearchPage.tsx`
+
+---
+
+## Última actualización previa: 2026-03-09 (sesión 6)
 
 ---
 

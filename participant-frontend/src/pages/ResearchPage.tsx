@@ -352,7 +352,22 @@ export const ResearchPage = () => {
     [_demoResponsesJson]
   );
 
-  const { currentStep, goNext, isLastStep } = useNavigation(modules, demographicResponses);
+  // Build module responses map for module-based conditionality filtering.
+  const _moduleResponsesJson = useParticipantStore((state) => {
+    const map: Record<string, { value: string | number | boolean | string[] | number[] | null }> = {};
+    state.responses.forEach((r) => {
+      if (r.moduleId !== 'demographics') {
+        map[`${r.moduleId}_${r.componentId}`] = { value: r.value };
+      }
+    });
+    return JSON.stringify(map);
+  });
+  const moduleResponses = useMemo(() => {
+    const parsed = JSON.parse(_moduleResponsesJson) as Record<string, { value: string | number | boolean | string[] | number[] | null }>;
+    return new Map(Object.entries(parsed));
+  }, [_moduleResponsesJson]);
+
+  const { currentStep, goNext, isLastStep } = useNavigation(modules, demographicResponses, moduleResponses);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

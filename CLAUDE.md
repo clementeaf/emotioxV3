@@ -60,6 +60,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **URLs de media del backend son relativas** (`/api/media/...`) — ambos frontends tienen `resolveMediaUrl()` que las convierte a absolutas contra el origen del backend
 - **ComponentType union** en `moduleBuilder.types.ts` debe incluir todos los tipos que usa el seed/BD
 - El save de módulos usa el **toggle Hide explícito** del investigador, NO auto-calcula hidden
+- **Condicionalidad de módulos** soporta dos fuentes: demográfica (`DemographicConditionality`) y pregunta del estudio (`ModuleConditionality`). El tipo `ConditionalityConfig` es un union; usar type guards `isDemographicCondition()` / `isModuleCondition()` de `moduleRequired.ts`
 - TypeScript strict en los 3 subproyectos
 - 0 errors, 0 warnings en lint + build (enforced por pre-commit)
 - `Record<string, any>` solo donde es genuinamente dinámico (demographics config), marcado con eslint-disable
@@ -81,6 +82,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/components/steps/DynamicStep.tsx` — render genérico Welcome/Thank You; Thank You Screen muestra logo EmotioCX desde `public/EmotioCX-logo.svg`
 - `participant-frontend/src/components/ui/NavigationFlow.tsx` — flujo fullscreen por hitzones; getClickableRect usa contenedor cuando no hay img (placeholder/carga); triple handler (pointerup+click+touchend) con dedupe 150ms; touchAction:'none' para bloquear gestos del navegador; onLoad ignora placeholder 1x1; reset de imgNatural/renderedRect al cambiar imagen; onContextMenu preventDefault para long-press; data-testid navigation-flow-click-area para tests.
 - `participant-frontend/src/components/ui/CustomSelect.tsx` — selector custom (demografía, etc.); dropdown con position:fixed usa solo coordenadas viewport (sin scrollY/scrollX); abre hacia arriba automáticamente cuando no hay espacio suficiente debajo del trigger (evita solapar botón "Guardar y continuar").
+- `research-frontend/src/utils/moduleRequired.ts` — flags de módulo (required, hidden, conditionality) y tipos `ConditionalityConfig` (union: demographic / module). Type guards y getters/setters.
+- `research-frontend/src/components/research/ConditionalityModal.tsx` — modal de condicionalidad; soporta fuente demográfica y pregunta del estudio (Single/Multiple Choice anteriores). Exporta `StudyModuleOption`.
+- `participant-frontend/src/hooks/useNavigation.ts` — navegación del participante; `isModuleConditionMet` evalúa condiciones demográficas y de módulo; filtra steps habilitados reactivamente.
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template

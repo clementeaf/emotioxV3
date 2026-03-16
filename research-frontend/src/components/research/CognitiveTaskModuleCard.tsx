@@ -6,7 +6,8 @@ import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import { Toggle } from '../ui/Toggle';
 import { ConditionalityModal } from './ConditionalityModal';
-import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden, getModuleRequired } from '../../utils/moduleRequired';
+import type { StudyModuleOption } from './ConditionalityModal';
+import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden, getModuleRequired, isDemographicCondition, isModuleCondition } from '../../utils/moduleRequired';
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
 
 export interface CognitiveTaskModuleCardRef {
@@ -24,6 +25,7 @@ interface CognitiveTaskModuleCardProps {
     onSave?: () => void;
     isActive?: boolean;
     enabledDemographics?: EnabledDemographic[];
+    studyModules?: StudyModuleOption[];
 }
 
 /**
@@ -31,8 +33,8 @@ interface CognitiveTaskModuleCardProps {
  * Estructura idéntica a SmartVOCModuleCard para consistencia
  */
 export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
-    ({ module, researchId, isActive = false, enabledDemographics = [] }, ref) => {
-    const conditionalityDisabled = !enabledDemographics.length;
+    ({ module, researchId, isActive = false, enabledDemographics = [], studyModules = [] }, ref) => {
+    const conditionalityDisabled = !enabledDemographics.length && !studyModules.length;
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -178,7 +180,11 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                         onClick={() => setIsConditionalityModalOpen(true)}
                         className="mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline"
                     >
-                        Condition: Show if {conditionalityConfig.demographicKey} = {conditionalityConfig.demographicValue}
+                        {isDemographicCondition(conditionalityConfig)
+                            ? `Condition: Show if ${conditionalityConfig.demographicKey} = ${conditionalityConfig.demographicValue}`
+                            : isModuleCondition(conditionalityConfig)
+                                ? `Condition: Show if ${studyModules.find(m => m.id === conditionalityConfig.sourceModuleId)?.name || 'Unknown'} = ${conditionalityConfig.selectedValues.map(v => studyModules.find(m => m.id === conditionalityConfig.sourceModuleId)?.options.find(o => o.id === v)?.label || v).join(', ')}`
+                                : 'Condition configured'}
                     </button>
                 )}
             </div>
@@ -207,6 +213,8 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                 initialConfig={conditionalityConfig}
                 moduleName={module.name}
                 demographics={enabledDemographics}
+                studyModules={studyModules}
+                currentModuleOrderIndex={module.order_index}
             />
         </div>
     );

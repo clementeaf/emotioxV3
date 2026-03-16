@@ -17,38 +17,76 @@ const STEPS_ORDER = [
 ];
 
 /**
- * Checks whether a module's conditionality condition is met based on demographic responses.
+ * Checks whether a module's conditionality condition is met based on demographic
+ * and/or module responses.
  * @param module - Module to check
  * @param demographicResponses - Map of demographicKey -> selected value
+ * @param moduleResponses - Map of responseId (`moduleId_componentId`) -> response value
  * @returns true if module should be shown
  */
 const isModuleConditionMet = (
     module: Module,
-    demographicResponses: Record<string, string>
+    demographicResponses: Record<string, string>,
+    moduleResponses: Map<string, { value: string | number | boolean | string[] | number[] | null }>
 ): boolean => {
     const cfg = module.config;
     if (!cfg || typeof cfg !== 'object') return true;
     const rec = cfg as Record<string, unknown>;
     if (!rec.conditionality || !rec.conditionalityConfig) return true;
 
-    const cc = rec.conditionalityConfig as { action?: string; demographicKey?: string; demographicValue?: string };
-    if (!cc.demographicKey || !cc.demographicValue) return true;
+    const cc = rec.conditionalityConfig as Record<string, unknown>;
+    if (!cc) return true;
+
+    // Module condition
+    if ('sourceModuleId' in cc) {
+        const sourceModuleId = cc.sourceModuleId as string;
+        const sourceComponentId = cc.sourceComponentId as string;
+        const selectedValues = cc.selectedValues as string[];
+        if (!sourceModuleId || !sourceComponentId || !selectedValues?.length) return true;
+
+        const responseKey = `${sourceModuleId}_${sourceComponentId}`;
+        const response = moduleResponses.get(responseKey);
+
+        // If source module hasn't been answered yet, show the module
+        // (will be re-evaluated after participant answers)
+        if (!response) return true;
+
+        const responseValue = response.value;
+
+        if (Array.isArray(responseValue)) {
+            // Multiple choice: any match
+            return selectedValues.some(v => (responseValue as string[]).includes(v));
+        }
+        if (typeof responseValue === 'string') {
+            // Single choice: direct match
+            return selectedValues.includes(responseValue);
+        }
+
+        return true;
+    }
+
+    // Demographic condition (existing)
+    const demographicKey = cc.demographicKey as string | undefined;
+    const demographicValue = cc.demographicValue as string | undefined;
+    if (!demographicKey || !demographicValue) return true;
 
     // If demographics haven't been answered yet, show the module (will be re-evaluated after demographics)
     if (Object.keys(demographicResponses).length === 0) return true;
 
-    const answer = demographicResponses[cc.demographicKey];
-    return answer === cc.demographicValue;
+    const answer = demographicResponses[demographicKey];
+    return answer === demographicValue;
 };
 
 /**
  * Navigation hook for participant flow.
  * @param modulesByStep - Map of stepId -> module loaded from backend
  * @param demographicResponses - Map of demographicKey -> participant's selected value
+ * @param moduleResponses - Map of responseId -> response (for module-based conditions)
  */
 export const useNavigation = (
     modulesByStep: Record<string, Module>,
-    demographicResponses: Record<string, string> = {}
+    demographicResponses: Record<string, string> = {},
+    moduleResponses: Map<string, { value: string | number | boolean | string[] | number[] | null }> = new Map()
 ) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
     const { updateMetrics, trackInteraction } = useSessionStore();
@@ -57,7 +95,7 @@ export const useNavigation = (
     const enabledSteps = STEPS_ORDER.filter((stepId) => {
         const mod = modulesByStep[stepId];
         if (!mod) return false;
-        return isModuleConditionMet(mod, demographicResponses);
+        return isModuleConditionMet(mod, demographicResponses, moduleResponses);
     });
     const steps = enabledSteps.length > 0 ? enabledSteps : STEPS_ORDER;
 

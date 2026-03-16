@@ -1,3 +1,16 @@
+## v0.27.0 — Module-to-module conditionality (2026-03-16)
+
+### research-frontend
+- Feat: Conditionality now supports "Study question" as source — show/hide a module based on a participant's answer to a previous Single Choice or Multiple Choice question. The ConditionalityModal lets the researcher pick the source question and select which option(s) trigger the condition.
+- Types: `ConditionalityConfig` is now a union of `DemographicConditionality` and `ModuleConditionality`, with type guards `isDemographicCondition()` / `isModuleCondition()`.
+- ModuleCards (SmartVOC & Cognitive Task): conditionality toggle enabled when demographics or study modules with options exist; condition summary displays source module name and selected options.
+
+### participant-frontend
+- Feat: `useNavigation` evaluates module-based conditions — compares participant's stored response for the source module against `selectedValues`. Single choice uses direct match; multiple choice uses any-match. Unanswered source modules default to showing the conditional module.
+- `ResearchPage` builds a reactive `moduleResponses` map from the participant store and passes it to `useNavigation` for re-evaluation on each navigation.
+
+---
+
 ## v0.26.14 — VOCComments CSV download reliability fix (2026-03-16)
 
 ### research-frontend

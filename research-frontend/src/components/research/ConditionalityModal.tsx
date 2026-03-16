@@ -3,6 +3,15 @@ import { Modal } from '../ui/Modal';
 import { CustomSelect } from '../ui/CustomSelect';
 import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
+import { isDemographicCondition, isModuleCondition } from '../../utils/moduleRequired';
+
+export interface StudyModuleOption {
+    id: string;
+    name: string;
+    orderIndex: number;
+    componentId: string;
+    options: Array<{ id: string; label: string }>;
+}
 
 interface ConditionalityModalProps {
     isOpen: boolean;
@@ -11,11 +20,15 @@ interface ConditionalityModalProps {
     moduleName: string;
     demographics: EnabledDemographic[];
     initialConfig?: ConditionalityConfig | null;
+    studyModules?: StudyModuleOption[];
+    currentModuleOrderIndex?: number;
 }
+
+type ConditionSource = 'demographic' | 'study-question';
 
 /**
  * Modal for configuring conditionality rules on a question/section.
- * Populates selects from enabled demographics in Research Configuration.
+ * Supports demographic-based and study-question-based conditions.
  */
 export const ConditionalityModal = ({
     isOpen,
@@ -24,19 +37,48 @@ export const ConditionalityModal = ({
     moduleName,
     demographics,
     initialConfig,
+    studyModules = [],
+    currentModuleOrderIndex = Infinity,
 }: ConditionalityModalProps) => {
+    const [conditionSource, setConditionSource] = useState<ConditionSource>('demographic');
+    // Demographic state
     const [selectedQuestion, setSelectedQuestion] = useState('');
     const [selectedOption, setSelectedOption] = useState('');
+    // Study question state
+    const [selectedModuleId, setSelectedModuleId] = useState('');
+    const [selectedValues, setSelectedValues] = useState<string[]>([]);
+
+    // Only show modules that come before the current module
+    const availableStudyModules = useMemo(
+        () => studyModules.filter(m => m.orderIndex < currentModuleOrderIndex),
+        [studyModules, currentModuleOrderIndex]
+    );
+
+    const hasStudyModules = availableStudyModules.length > 0;
 
     // Reset state when modal opens, seeding from initialConfig if present
     useEffect(() => {
         if (isOpen) {
             if (initialConfig) {
-                setSelectedQuestion(initialConfig.demographicKey);
-                setSelectedOption(initialConfig.demographicValue);
+                if (isModuleCondition(initialConfig)) {
+                    setConditionSource('study-question');
+                    setSelectedModuleId(initialConfig.sourceModuleId);
+                    setSelectedValues([...initialConfig.selectedValues]);
+                    setSelectedQuestion('');
+                    setSelectedOption('');
+                } else if (isDemographicCondition(initialConfig)) {
+                    setConditionSource('demographic');
+                    setSelectedQuestion(initialConfig.demographicKey);
+                    setSelectedOption(initialConfig.demographicValue);
+                    setSelectedModuleId('');
+                    setSelectedValues([]);
+                }
             } else {
+                setConditionSource('demographic');
                 setSelectedQuestion(demographics.length === 1 ? demographics[0].key : '');
                 setSelectedOption('');
+                setSelectedModuleId('');
+                setSelectedValues([]);
             }
         }
     }, [isOpen, demographics, initialConfig]);
@@ -56,18 +98,68 @@ export const ConditionalityModal = ({
         [selectedDemographic]
     );
 
+    const selectedStudyModule = useMemo(
+        () => availableStudyModules.find(m => m.id === selectedModuleId),
+        [availableStudyModules, selectedModuleId]
+    );
+
+    const studyModuleOptions = useMemo(
+        () => availableStudyModules.map(m => ({ value: m.id, label: m.name })),
+        [availableStudyModules]
+    );
+
     const handleQuestionChange = (key: string) => {
         setSelectedQuestion(key);
         setSelectedOption('');
     };
 
-    const canSave = Boolean(selectedQuestion && selectedOption);
+    const handleSourceChange = (source: string) => {
+        setConditionSource(source as ConditionSource);
+        // Reset selections when switching source
+        setSelectedQuestion('');
+        setSelectedOption('');
+        setSelectedModuleId('');
+        setSelectedValues([]);
+    };
+
+    const handleModuleChange = (moduleId: string) => {
+        setSelectedModuleId(moduleId);
+        setSelectedValues([]);
+    };
+
+    const handleValueToggle = (valueId: string) => {
+        setSelectedValues(prev =>
+            prev.includes(valueId)
+                ? prev.filter(v => v !== valueId)
+                : [...prev, valueId]
+        );
+    };
+
+    const canSave = conditionSource === 'demographic'
+        ? Boolean(selectedQuestion && selectedOption)
+        : Boolean(selectedModuleId && selectedValues.length > 0);
 
     const handleSave = () => {
-        if (canSave) {
+        if (!canSave) return;
+        if (conditionSource === 'demographic') {
             onSave({ action: 'show', demographicKey: selectedQuestion, demographicValue: selectedOption });
+        } else {
+            const mod = selectedStudyModule;
+            if (!mod) return;
+            onSave({
+                action: 'show',
+                sourceModuleId: selectedModuleId,
+                sourceComponentId: mod.componentId,
+                selectedValues,
+                matchMode: 'any',
+            });
         }
     };
+
+    const sourceOptions = [
+        { value: 'demographic', label: 'Demographic' },
+        ...(hasStudyModules ? [{ value: 'study-question', label: 'Study question' }] : []),
+    ];
 
     return (
         <Modal
@@ -95,25 +187,74 @@ export const ConditionalityModal = ({
                     <span className="text-sm text-gray-700">this section if</span>
                 </div>
 
-                {/* Question selector */}
-                <CustomSelect
-                    options={questionOptions}
-                    value={selectedQuestion}
-                    onChange={handleQuestionChange}
-                    placeholder="Select a question"
-                />
-
-                {/* Answer selector */}
-                <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-700 shrink-0">answer is</span>
+                {/* Condition source selector */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition source</label>
                     <CustomSelect
-                        options={answerOptions}
-                        value={selectedOption}
-                        onChange={setSelectedOption}
-                        placeholder="Select an option"
-                        disabled={!selectedDemographic}
+                        options={sourceOptions}
+                        value={conditionSource}
+                        onChange={handleSourceChange}
                     />
                 </div>
+
+                {/* Demographic condition (existing) */}
+                {conditionSource === 'demographic' && (
+                    <>
+                        <CustomSelect
+                            options={questionOptions}
+                            value={selectedQuestion}
+                            onChange={handleQuestionChange}
+                            placeholder="Select a question"
+                        />
+
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-700 shrink-0">answer is</span>
+                            <CustomSelect
+                                options={answerOptions}
+                                value={selectedOption}
+                                onChange={setSelectedOption}
+                                placeholder="Select an option"
+                                disabled={!selectedDemographic}
+                            />
+                        </div>
+                    </>
+                )}
+
+                {/* Study question condition (new) */}
+                {conditionSource === 'study-question' && (
+                    <>
+                        <CustomSelect
+                            options={studyModuleOptions}
+                            value={selectedModuleId}
+                            onChange={handleModuleChange}
+                            placeholder="Select a study question"
+                        />
+
+                        {selectedStudyModule && (
+                            <div>
+                                <span className="block text-sm text-gray-700 mb-2">
+                                    answer is any of:
+                                </span>
+                                <div className="space-y-2 max-h-48 overflow-y-auto">
+                                    {selectedStudyModule.options.map(opt => (
+                                        <label
+                                            key={opt.id}
+                                            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedValues.includes(opt.id)}
+                                                onChange={() => handleValueToggle(opt.id)}
+                                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm text-gray-900">{opt.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
 
                 {/* Warning banner */}
                 <div className="border-t border-gray-200 pt-4">
@@ -126,7 +267,7 @@ export const ConditionalityModal = ({
                     </p>
                 </div>
 
-                {/* Save button — inside children to avoid footer rendering issues */}
+                {/* Save button */}
                 <button
                     type="button"
                     disabled={!canSave}
