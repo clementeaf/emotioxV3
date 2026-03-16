@@ -33,6 +33,16 @@
 - `participant-frontend/src/hooks/useNavigation.ts`
 - `participant-frontend/src/pages/ResearchPage.tsx`
 
+### Verificación E2E (sesión 8, 16 de marzo)
+Se trazó el flujo completo de condicionalidad módulo-a-módulo desde el builder hasta el participante:
+- **Persistencia:** `conditionalityConfig` se guarda íntegro en la columna `config` (JSON) del módulo. Sin transformaciones ni stripping.
+- **Entrega:** La API pública (`GET /public/research/:id`) devuelve el config completo, incluyendo `conditionalityConfig`.
+- **Alineación de IDs:** Builder, modal y renderer usan el mismo `c.id` de los componentes choice. No hay desalineación.
+- **Evaluación:** `useNavigation` compara correctamente `response.value` contra `selectedValues`.
+- **Cache:** El endpoint público cachea 1 minuto (preview lo bypasea, no afecta testing del investigador).
+
+Resultado: flujo sólido, listo para verificar en producción post-deploy.
+
 ---
 
 ## Última actualización previa: 2026-03-09 (sesión 6)
