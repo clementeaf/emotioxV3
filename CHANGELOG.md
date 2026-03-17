@@ -1,3 +1,20 @@
+## v0.27.4 — Navigation Flow production hardening (2026-03-17)
+
+### participant-frontend
+- Fix: Navigation Flow — use `img.decode()` before setting dimensions so hitzones work reliably when images load from cache or cross-origin (avoids 0x0 in some browsers).
+- Fix: Navigation Flow — store `containerRect` in state and use it for overlay/click positioning instead of reading `getBoundingClientRect()` during render (avoids layout thrashing and stale values in production).
+- Fix: Navigation Flow — add `onError` handler to clear dimensions and show error message when image fails to load, preventing stale hitzone data from previous image.
+- i18n: Added `navigationFlow.imageLoadError` (ES/EN) for image load failure message.
+
+---
+
+## v0.27.3 — Quota enforcement stress test (2026-03-17)
+
+### scripts
+- New: `scripts/stress-test-quotas.ts` — E2E stress test for atomic quota enforcement. Creates a kiosk research with demographic quotas, fires 10 concurrent participants, and verifies no quota is ever exceeded. Self-registers a temporary user, cleans up after itself.
+
+---
+
 ## v0.27.2 — Atomic quota enforcement (2026-03-17)
 
 ### backend

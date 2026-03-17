@@ -90,6 +90,7 @@
   "navigationFlow": {
     "imageOf": "Image {{current}} of {{total}}",
     "clickCorrectArea": "Click the correct area to continue",
+    "imageLoadError": "The image could not be loaded. Please try again or continue.",
     "instruction": "Instruction:",
     "instructionText": "The flow will continue as you select the specified area.",
     "tryAnotherArea": "❌ Try another area",

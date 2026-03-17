@@ -4,6 +4,13 @@ import { mediaService } from '../../services/media.service';
 // NOTE: LazyImage is NOT used here — NavigationFlow is fullscreen so the image
 // must load eagerly.  Using IntersectionObserver caused a race condition where
 // imgNatural was never set, blocking all hitzone clicks in Opera / DuckDuckGo.
+//
+// Production (cPanel) hitzone checklist if clicks fail or feel wrong:
+// - Hitzones are stored in PIXELS (natural image size) by research-frontend;
+//   we convert to percent here. Same image dimensions must be served in editor and participant.
+// - img.decode() ensures dimensions are set only after decode (avoids 0x0 in some browsers).
+// - containerRect/renderedRect are kept in state to avoid reading getBoundingClientRect during render.
+// - onError clears dimensions so we never use stale values from a failed/previous image.
 import { useResponse } from '../../hooks/useResponse';
 
 interface ClickPoint {
@@ -186,19 +193,27 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         return rawHitZones.map((z) => convertPixelsToPercent(z, imgNatural));
     }, [rawHitZones, imgNatural]);
 
-    // Track the rendered image rect (object-contain aware) for hitzone positioning
+    // Track the rendered image rect (object-contain aware) for hitzone positioning.
+    // containerRect is stored in state so we don't read getBoundingClientRect during render
+    // (avoids layout thrashing and stale values in production/cache-heavy loads).
     const [renderedRect, setRenderedRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+    const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+    const [imageError, setImageError] = useState(false);
 
     const updateRenderedRect = useCallback(() => {
         const img = imgElRef.current;
+        const container = imageRef.current;
+        if (container) setContainerRect(container.getBoundingClientRect());
         if (img) setRenderedRect(getRenderedImageRect(img));
     }, []);
 
-    // Reset rendered rect and natural size when image changes so stale data from the previous
-    // image is not used for hitzone positioning while the new image loads.
+    // Reset rendered rect, container rect and natural size when image changes so stale data
+    // from the previous image is not used for hitzone positioning while the new image loads.
     useEffect(() => {
         setImgNatural(null);
         setRenderedRect(null);
+        setContainerRect(null);
+        setImageError(false);
     }, [currentImageIndex]);
 
     // Recompute rendered rect on resize / orientation change
@@ -425,19 +440,42 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
                     </div>
                 ) : currentImageUrl ? (
-                    <img
-                        ref={imgElRef}
-                        src={currentImageUrl}
-                        alt={currentImage.name || `Image ${currentImageIndex + 1}`}
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                        draggable={false}
-                        onLoad={(e) => {
-                            const el = e.currentTarget;
-                            if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
-                            setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
-                            setRenderedRect(getRenderedImageRect(el));
-                        }}
-                    />
+                    <>
+                        <img
+                            ref={imgElRef}
+                            src={currentImageUrl}
+                            alt={currentImage.name || `Image ${currentImageIndex + 1}`}
+                            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                            draggable={false}
+                            onLoad={(e) => {
+                                const el = e.currentTarget;
+                                if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
+                                setImageError(false);
+                                const applyDimensions = (): void => {
+                                    setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
+                                    setRenderedRect(getRenderedImageRect(el));
+                                    const container = imageRef.current;
+                                    if (container) setContainerRect(container.getBoundingClientRect());
+                                };
+                                if (typeof el.decode === 'function') {
+                                    el.decode().then(applyDimensions).catch(() => applyDimensions());
+                                } else {
+                                    applyDimensions();
+                                }
+                            }}
+                            onError={() => {
+                                setImgNatural(null);
+                                setRenderedRect(null);
+                                setContainerRect(null);
+                                setImageError(true);
+                            }}
+                        />
+                        {imageError && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+                                <p className="text-white text-center px-4">{t('navigationFlow.imageLoadError', 'The image could not be loaded. Please try again or continue.')}</p>
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center p-8">
                         <div className="text-center">
@@ -451,8 +489,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 )}
 
                 {/* Hitzone overlays — positioned within the rendered image area (object-contain safe) */}
-                {!isComplete && renderedRect && imageRef.current && normalizedHitZones.map((hz, i) => {
-                    const containerRect = imageRef.current!.getBoundingClientRect();
+                {!isComplete && renderedRect && containerRect && normalizedHitZones.map((hz, i) => {
                     const offsetLeft = renderedRect.left - containerRect.left;
                     const offsetTop = renderedRect.top - containerRect.top;
                     return (
@@ -471,8 +508,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 })}
 
                 {/* Visual click points — positioned within the rendered image area */}
-                {renderedRect && imageRef.current && clickPoints.map((point, index) => {
-                    const containerRect = imageRef.current!.getBoundingClientRect();
+                {renderedRect && containerRect && clickPoints.map((point, index) => {
                     const pxLeft = (renderedRect.left - containerRect.left) + (point.x / 100) * renderedRect.width;
                     const pxTop = (renderedRect.top - containerRect.top) + (point.y / 100) * renderedRect.height;
                     return (

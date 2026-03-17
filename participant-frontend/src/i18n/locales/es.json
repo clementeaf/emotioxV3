@@ -90,6 +90,7 @@
   "navigationFlow": {
     "imageOf": "Imagen {{current}} de {{total}}",
     "clickCorrectArea": "Haz clic en el área correcta para continuar",
+    "imageLoadError": "No se pudo cargar la imagen. Intenta de nuevo o continúa.",
     "instruction": "Instrucción:",
     "instructionText": "El flujo continuará en la medida que selecciones el área especificada.",
     "tryAnotherArea": "❌ Intenta en otra área",
