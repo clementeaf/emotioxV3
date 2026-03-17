@@ -1,3 +1,11 @@
+## v0.27.6 — Cognitive Tasks: demographic filters panel (2026-03-17)
+
+### research-frontend
+- Feat: Filters sidebar — checkbox filters per demographic type with counts, Show more/less, User ID field, "Update study" banner, Descargar CSV.
+- Feat: Cognitive Task Results — main content filters by selected demographics and User ID (responses scoped to matching participants).
+
+---
+
 ## v0.27.5 — Cognitive results: demographics, CSV exports, NPS bars (2026-03-17)
 
 ### backend

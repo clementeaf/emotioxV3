@@ -1,5 +1,6 @@
+import { useState, useEffect, useMemo } from 'react';
 import { Card } from '../../ui/Card';
-import { Filters } from '../smart-voc/components/Filters';
+import { Filters, type DemographicFiltersState } from '../smart-voc/components/Filters';
 import { VOCComments } from '../smart-voc/components/VOCComments';
 import { cn } from '../../../lib/utils';
 import { useCognitiveTaskResults } from '../../../hooks/useCognitiveTaskResults';
@@ -9,6 +10,7 @@ import { PreferenceTestResultsWrapper } from './PreferenceTestResultsWrapper';
 import { ChoiceResultsWrapper } from './ChoiceResultsWrapper';
 import { ScaleResultsWrapper } from './ScaleResultsWrapper';
 import { RankingResultsWrapper } from './RankingResultsWrapper';
+import * as analyticsService from '../../../services/analytics.service';
 
 interface CognitiveTaskResultsProps {
   researchId: string;
@@ -36,8 +38,65 @@ interface TextResponseFormatted {
 
 export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskResultsProps) => {
   const { data, isLoading, error, refetch } = useCognitiveTaskResults(researchId);
+  const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
+  const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
+  const [userIdFilter, setUserIdFilter] = useState('');
 
-  console.log('Cognitive Task Results Data:', data);
+  useEffect(() => {
+    if (!researchId) {
+      setDemographicData(null);
+      return;
+    }
+    let cancelled = false;
+    analyticsService.getDemographicResponses(researchId)
+      .then((result) => { if (!cancelled) setDemographicData(result); })
+      .catch(() => { if (!cancelled) setDemographicData({ participants: [], demographicTypes: [] }); });
+    return () => { cancelled = true; };
+  }, [researchId]);
+
+  const filteredParticipantIds = useMemo(() => {
+    if (!demographicData?.participants.length) return null;
+    const participants = demographicData.participants;
+    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '';
+    if (!hasAnyFilter) return null;
+
+    const idSet = new Set(
+      participants
+        .filter((p) => {
+          for (const [type, selected] of Object.entries(demographicFilters)) {
+            if (selected.length === 0) continue;
+            const val = p.demographics[type];
+            const key = val != null && val !== '' ? String(val) : '—';
+            if (!selected.includes(key)) return false;
+          }
+          if (userIdFilter.trim()) {
+            if (!p.participantId.toLowerCase().includes(userIdFilter.trim().toLowerCase())) return false;
+          }
+          return true;
+        })
+        .map((p) => p.participantId)
+    );
+    return idSet;
+  }, [demographicData?.participants, demographicFilters, userIdFilter]);
+
+  const modulesToRender = useMemo(() => {
+    const list = data?.modules?.filter((m) => {
+      const normalized = m.moduleName.toLowerCase();
+      if (normalized.includes('research configuration') || normalized.includes('welcome screen') || normalized.includes('thank you screen') ||
+          normalized.includes('csat') || normalized.includes('nps') || normalized.includes('ces') || normalized.includes('voc') ||
+          normalized.includes('net emotional value') || normalized.includes('nev') || normalized.includes('smart voc')) return false;
+      return (normalized.includes('navigation flow') || normalized.includes('preference test') || normalized.includes('short text') ||
+              normalized.includes('long text') || normalized.includes('single choice') || normalized.includes('multiple choice') ||
+              normalized.includes('linear scale') || normalized.includes('ranking')) && m.totalResponses > 0;
+    }) ?? [];
+
+    if (!filteredParticipantIds) return list;
+    return list.map((module) => ({
+      ...module,
+      responses: module.responses.filter((r) => filteredParticipantIds.has(r.participantId)),
+      totalResponses: module.responses.filter((r) => filteredParticipantIds.has(r.participantId)).length,
+    }));
+  }, [data?.modules, filteredParticipantIds]);
 
   // Helper to detect module type
   const detectModuleType = (moduleName: string): string => {
@@ -172,43 +231,6 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
     }
   };
 
-  // Filter modules to show only cognitive tasks that have actual responses
-  const shouldShowModule = (module: ModuleData): boolean => {
-    const normalized = module.moduleName.toLowerCase();
-
-    // Explicit exclusions (System & Smart VOC)
-    if (
-      normalized.includes('research configuration') ||
-      normalized.includes('welcome screen') ||
-      normalized.includes('thank you screen') ||
-      normalized.includes('csat') ||
-      normalized.includes('nps') ||
-      normalized.includes('ces') ||
-      normalized.includes('voc') ||
-      normalized.includes('net emotional value') ||
-      normalized.includes('nev') ||
-      normalized.includes('smart voc')
-    ) {
-      return false;
-    }
-
-    // Explicit inclusions (Cognitive Tasks)
-    const isCognitiveTask = 
-      normalized.includes('navigation flow') ||
-      normalized.includes('preference test') ||
-      normalized.includes('short text') ||
-      normalized.includes('long text') ||
-      normalized.includes('single choice') ||
-      normalized.includes('multiple choice') ||
-      normalized.includes('linear scale') ||
-      normalized.includes('ranking');
-
-    // Only show if it's a cognitive task AND has responses
-    return isCognitiveTask && module.totalResponses > 0;
-  };
-
-  const filteredModules = data?.modules?.filter(m => shouldShowModule(m)) || [];
-
   return (
     <ResultsStateHandler
       isLoading={isLoading}
@@ -232,14 +254,14 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               <h2 className="text-xl font-semibold text-gray-900">Cognitive Tasks Results</h2>
               {data && (
                 <p className="text-sm text-gray-600 mt-1">
-                  {filteredModules.length} modules • {filteredModules.reduce((sum, m) => sum + m.totalResponses, 0)} total responses
+                  {modulesToRender.length} modules • {modulesToRender.reduce((sum, m) => sum + m.totalResponses, 0)} total responses
                 </p>
               )}
             </Card>
 
             {/* Dynamic Module Rendering */}
-            {filteredModules.length > 0 ? (
-              filteredModules.map((module, index) => renderModuleResults(module, index))
+            {modulesToRender.length > 0 ? (
+              modulesToRender.map((module, index) => renderModuleResults(module, index))
             ) : (
               <Card className="p-12 text-center bg-gray-50">
                 <div className="flex items-center justify-center mb-4">
@@ -259,7 +281,15 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
 
           {/* Right: Filters Sidebar */}
           <div className="w-80 shrink-0">
-            <Filters researchId={researchId} />
+            <Filters
+              researchId={researchId}
+              demographicData={demographicData}
+              selectedFilters={demographicFilters}
+              onFilterChange={setDemographicFilters}
+              userIdFilter={userIdFilter}
+              onUserIdFilterChange={setUserIdFilter}
+              onUpdate={refetch}
+            />
           </div>
         </div>
       </div>

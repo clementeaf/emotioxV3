@@ -1,50 +1,105 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FileDown } from 'lucide-react';
 import * as analyticsService from '../../../../services/analytics.service';
 import { triggerCsvDownload } from '../../../../utils/csvDownload';
 
 const DEMOGRAPHIC_LABELS: Record<string, string> = {
-    age: 'Age',
+    age: 'Age range',
     country: 'Country',
     gender: 'Gender',
-    educationLevel: 'Education Level',
+    educationLevel: 'Education level',
     annualIncome: 'Annual Income',
     employmentStatus: 'Employment Status',
     dailyHoursOnline: 'Daily Hours Online',
     technicalProficiency: 'Technical Proficiency',
 };
 
+const INITIAL_VISIBLE_OPTIONS = 5;
+
 function getDemographicLabel(key: string): string {
     return DEMOGRAPHIC_LABELS[key] ?? key;
 }
 
+export type DemographicFiltersState = Record<string, string[]>;
+
 interface FiltersProps {
     researchId?: string;
+    /** Demographics data (if provided by parent); otherwise Filters fetches internally */
+    demographicData?: analyticsService.DemographicResponsesResult | null;
+    /** Selected filter values per demographic type */
+    selectedFilters?: DemographicFiltersState;
+    /** Called when user toggles a filter option */
+    onFilterChange?: (filters: DemographicFiltersState) => void;
+    /** Filter by participant ID (substring match) */
+    userIdFilter?: string;
+    onUserIdFilterChange?: (value: string) => void;
+    /** Called when user clicks Update (refetch) */
+    onUpdate?: () => void;
 }
 
-export const Filters = ({ researchId }: FiltersProps) => {
-    const [data, setData] = useState<analyticsService.DemographicResponsesResult | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+export const Filters = ({
+    researchId,
+    demographicData: demographicDataProp,
+    selectedFilters = {},
+    onFilterChange,
+    userIdFilter = '',
+    onUserIdFilterChange,
+    onUpdate,
+}: FiltersProps) => {
+    const [internalData, setInternalData] = useState<analyticsService.DemographicResponsesResult | null>(null);
+    const [isLoading, setIsLoading] = useState(!demographicDataProp && !!researchId);
+    const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>({});
+
+    const data = demographicDataProp ?? internalData;
 
     useEffect(() => {
-        if (!researchId) {
-            setData(null);
+        if (demographicDataProp !== undefined || !researchId) {
+            if (!researchId) setInternalData(null);
             setIsLoading(false);
             return;
         }
         let cancelled = false;
         analyticsService.getDemographicResponses(researchId)
             .then((result: analyticsService.DemographicResponsesResult) => {
-                if (!cancelled) setData(result);
+                if (!cancelled) setInternalData(result);
             })
             .catch(() => {
-                if (!cancelled) setData({ participants: [], demographicTypes: [] });
+                if (!cancelled) setInternalData({ participants: [], demographicTypes: [] });
             })
             .finally(() => {
                 if (!cancelled) setIsLoading(false);
             });
         return () => { cancelled = true; };
-    }, [researchId]);
+    }, [researchId, demographicDataProp]);
+
+    const optionsWithCounts = useMemo(() => {
+        if (!data?.participants?.length || !data.demographicTypes.length) return {};
+        const out: Record<string, Array<{ value: string; count: number }>> = {};
+        for (const type of data.demographicTypes) {
+            const counts: Record<string, number> = {};
+            for (const p of data.participants) {
+                const v = p.demographics[type];
+                const key = v != null && v !== '' ? String(v) : '—';
+                counts[key] = (counts[key] || 0) + 1;
+            }
+            out[type] = Object.entries(counts)
+                .map(([value, count]) => ({ value, count }))
+                .sort((a, b) => b.count - a.count);
+        }
+        return out;
+    }, [data?.participants, data?.demographicTypes]);
+
+    const toggleFilter = (type: string, value: string): void => {
+        const current = selectedFilters[type] ?? [];
+        const next = current.includes(value)
+            ? current.filter((v) => v !== value)
+            : [...current, value];
+        onFilterChange?.({ ...selectedFilters, [type]: next });
+    };
+
+    const toggleExpand = (type: string): void => {
+        setExpandedTypes((prev) => ({ ...prev, [type]: !prev[type] }));
+    };
 
     const handleDownloadCSV = (): void => {
         if (!researchId || !data || data.participants.length === 0) return;
@@ -63,8 +118,8 @@ export const Filters = ({ researchId }: FiltersProps) => {
     if (!researchId) {
         return (
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="font-semibold mb-2">Filtros</h3>
-                <p className="text-sm text-gray-500">Selecciona un estudio para ver las respuestas demográficas.</p>
+                <h3 className="font-semibold mb-2">Filters</h3>
+                <p className="text-sm text-gray-500">Select a study to see demographic filters.</p>
             </div>
         );
     }
@@ -72,7 +127,7 @@ export const Filters = ({ researchId }: FiltersProps) => {
     if (isLoading) {
         return (
             <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="font-semibold mb-2">Respuestas demográficas</h3>
+                <h3 className="font-semibold mb-2">Filters</h3>
                 <div className="h-32 bg-gray-100 rounded animate-pulse" />
             </div>
         );
@@ -81,51 +136,95 @@ export const Filters = ({ researchId }: FiltersProps) => {
     const hasData = data && data.participants.length > 0 && data.demographicTypes.length > 0;
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Respuestas demográficas</h3>
-                {hasData && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+            <h3 className="font-semibold">Filters</h3>
+
+            {onUpdate && (
+                <div className="flex items-center justify-between gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <span className="text-xs text-blue-900">New data was obtained. Please, update study.</span>
+                    <button
+                        type="button"
+                        onClick={onUpdate}
+                        className="shrink-0 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+                    >
+                        Update
+                    </button>
+                </div>
+            )}
+
+            {!hasData ? (
+                <p className="text-sm text-gray-500">No demographic responses for this study.</p>
+            ) : (
+                <>
+                    {data.demographicTypes.map((type) => {
+                        const options = optionsWithCounts[type] ?? [];
+                        const isExpanded = expandedTypes[type] ?? false;
+                        const visibleOptions = isExpanded ? options : options.slice(0, INITIAL_VISIBLE_OPTIONS);
+                        const hasMore = options.length > INITIAL_VISIBLE_OPTIONS;
+                        const selected = selectedFilters[type] ?? [];
+
+                        return (
+                            <div key={type} className="space-y-2">
+                                <div className="text-sm font-medium text-gray-700">
+                                    {getDemographicLabel(type)}
+                                </div>
+                                <div className="space-y-1.5">
+                                    {visibleOptions.map(({ value, count }) => (
+                                        <label
+                                            key={value}
+                                            className="flex items-center gap-2 cursor-pointer text-sm text-gray-700"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.includes(value)}
+                                                onChange={() => toggleFilter(type, value)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>
+                                                {value === '—' ? '(empty)' : value}
+                                                <span className="text-gray-500 ml-1">({count})</span>
+                                            </span>
+                                        </label>
+                                    ))}
+                                    {hasMore && (
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleExpand(type)}
+                                            className="text-xs text-blue-600 hover:underline"
+                                        >
+                                            {isExpanded ? 'Show less' : 'Show more'}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </>
+            )}
+
+            {onUserIdFilterChange && (
+                <div className="space-y-1.5 pt-2 border-t border-gray-200">
+                    <div className="text-sm font-medium text-gray-700">User ID</div>
+                    <input
+                        type="text"
+                        value={userIdFilter}
+                        onChange={(e) => onUserIdFilterChange(e.target.value)}
+                        placeholder="e.g. e5adfa14-18be-433e..."
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+            )}
+
+            {hasData && (
+                <div className="pt-2 border-t border-gray-200">
                     <button
                         type="button"
                         onClick={handleDownloadCSV}
-                        className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
-                        title="Descargar CSV"
+                        className="inline-flex items-center gap-1.5 w-full justify-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                     >
-                        <FileDown className="w-3.5 h-3.5" />
+                        <FileDown className="w-4 h-4" />
                         Descargar CSV
                     </button>
-                )}
-            </div>
-            {!hasData ? (
-                <p className="text-sm text-gray-500">No hay respuestas demográficas para este estudio.</p>
-            ) : (
-                <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
-                    <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 border-b sticky top-0">
-                            <tr>
-                                <th className="p-2 text-left font-medium text-gray-600">Participante</th>
-                                {data.demographicTypes.map((t: string) => (
-                                    <th key={t} className="p-2 text-left font-medium text-gray-600">
-                                        {getDemographicLabel(t)}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {data.participants.map((p: analyticsService.DemographicParticipant) => (
-                                <tr key={p.participantId} className="hover:bg-gray-50">
-                                    <td className="p-2 font-mono text-xs text-gray-700">
-                                        {p.participantId}
-                                    </td>
-                                    {data.demographicTypes.map((t: string) => (
-                                        <td key={t} className="p-2 text-gray-700">
-                                            {p.demographics[t] ?? '—'}
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
                 </div>
             )}
         </div>
