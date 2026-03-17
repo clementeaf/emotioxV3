@@ -61,6 +61,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **ComponentType union** en `moduleBuilder.types.ts` debe incluir todos los tipos que usa el seed/BD
 - El save de módulos usa el **toggle Hide explícito** del investigador, NO auto-calcula hidden
 - **Condicionalidad de módulos** soporta dos fuentes: demográfica (`DemographicConditionality`) y pregunta del estudio (`ModuleConditionality`). El tipo `ConditionalityConfig` es un union; usar type guards `isDemographicCondition()` / `isModuleCondition()` de `moduleRequired.ts`
+- **Cuotas demográficas** se validan e incrementan atómicamente en `validateDemographics` (transacción con `tryIncrementQuota`). `saveParticipantResponses` ya NO incrementa cuotas.
 - TypeScript strict en los 3 subproyectos
 - 0 errors, 0 warnings en lint + build (enforced por pre-commit)
 - `Record<string, any>` solo donde es genuinamente dinámico (demographics config), marcado con eslint-disable
@@ -95,6 +96,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/results/smart-voc/components/NEVQuestionCard.tsx` — NEV: badge NEV score con signo (Negative/Positive) y color; todas las emociones con % encima de cada barra, techo 50%, clusters con tendencia según datos (up/down)
 - `research-frontend/src/components/results/smart-voc/components/VOCComments.tsx` — VOC y Long/Short Text (Cognitive Tasks): tabla de comentarios; botón Descargar comentarios (.csv) usa researchId/cognitiveExportRows cuando viene de CognitiveTaskResults; triggerDownload con appendChild para que el CSV se descargue en todos los navegadores.
 - `research-frontend/src/components/results/smart-voc/components/TrustFlowChart.tsx` — Trust Relationship Flow: NPS/NEV por tiempo (Today=LineChart, Week=BarChart, Month=LineChart). Caja "Latest point" en el encabezado (no sobre el gráfico) para no tapar el tooltip al pasar el mouse.
+- `backend/src/modules/quotas/quota.service.ts` — cuotas demográficas. `tryIncrementQuota` es la operación atómica (check+increment en una transacción con `FOR UPDATE`). `checkQuotaAvailability` e `incrementQuota` están deprecated.
 - `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC; NEV usa IDs canónicos (minúsculas, sin tildes) y normalizeEmotionKey para conteo y cálculo de NEV
 - `backend/src/modules/research/research-in-progress.service.ts` — progreso de participantes usa `component_id` (no `question_id`); el total para el 100% se calcula solo con componentes visibles/habilitados (excluye Research Configuration, módulos y componentes con `hidden: true`)
 

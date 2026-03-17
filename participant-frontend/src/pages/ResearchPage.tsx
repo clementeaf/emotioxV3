@@ -866,7 +866,7 @@ export const ResearchPage = () => {
         const match = window.location.pathname.match(/\/research\/([^/]+)/);
         const rid = match?.[1] ?? researchId;
         if (rid) {
-          const result = await publicService.validateDemographics(rid, demoAnswers);
+          const result = await publicService.validateDemographics(rid, demoAnswers, participantId ?? undefined);
           if (!result.valid) {
             const bl = backlinks;
             if (result.reason === 'QUOTA_FULL') {

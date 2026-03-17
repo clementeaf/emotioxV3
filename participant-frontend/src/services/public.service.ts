@@ -126,7 +126,7 @@ class PublicService {
      * @param demographics - Demographic answers
      * @returns Validation result
      */
-    async validateDemographics(researchId: string, demographics: Record<string, string>): Promise<ValidationResult> {
+    async validateDemographics(researchId: string, demographics: Record<string, string>, participantId?: string): Promise<ValidationResult> {
         try {
             const baseUrl = configService.getBaseUrl();
             const endpoint = configService.getEndpoint('public', 'validateDemographics', { id: researchId });
@@ -137,7 +137,7 @@ class PublicService {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ demographics }),
+                body: JSON.stringify({ demographics, participantId }),
             });
 
             if (!response.ok) {

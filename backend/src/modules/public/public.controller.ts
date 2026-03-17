@@ -75,7 +75,7 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
         if (validateMatch && httpMethod === 'POST') {
             const researchId = validateMatch[1];
             const body = JSON.parse(event.body || '{}');
-            const validation = await publicService.validateDemographics(researchId, body.demographics || {});
+            const validation = await publicService.validateDemographics(researchId, body.demographics || {}, body.participantId);
             return success({ validation }, 200, undefined, origin);
         }
 

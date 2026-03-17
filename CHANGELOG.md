@@ -1,3 +1,14 @@
+## v0.27.2 — Atomic quota enforcement (2026-03-17)
+
+### backend
+- Fix: Replaced two-step quota flow (check → increment) with atomic `tryIncrementQuota` that uses `UPDATE ... WHERE current_count < quota_limit` inside a transaction, eliminating the race condition where concurrent participants could exceed quota limits.
+- `checkQuotaAvailability` and `incrementQuota` marked as `@deprecated`.
+
+### participant-frontend
+- Chore: `validateDemographics` now sends `participantId` so the backend can perform the atomic check-and-increment in a single transaction.
+
+---
+
 ## v0.27.1 — Navigation Flow hitzone fix & CPV display (2026-03-17)
 
 ### participant-frontend

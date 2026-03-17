@@ -641,32 +641,58 @@ const verifyTurnstileToken = async (token: string): Promise<boolean> => {
 };
 
 /**
- * Validates participant demographics against disqualifications and quota availability
- * Called before participant completes demographics step
+ * Validates participant demographics against disqualifications and quota availability.
+ * Uses an atomic check-and-increment: if quotas pass, counters are already incremented on COMMIT.
+ * Called before participant completes demographics step.
  */
 export const validateDemographics = async (
   researchId: string,
-  demographicAnswers: Record<string, string>
+  demographicAnswers: Record<string, string>,
+  participantId?: string
 ): Promise<{ valid: boolean; reason?: 'DISQUALIFIED' | 'QUOTA_FULL'; details?: string }> => {
+  const client = await pool.connect();
   try {
     // Get research configuration to access demographic rules
     const researchConfig = await getResearchConfiguration(researchId);
     const demographics = (researchConfig.demographics || {}) as Record<string, any>;
 
-    // Import quota service
     const quotaService = await import('../quotas/quota.service');
 
-    // Check validation through quota service
-    const validation = await quotaService.checkQuotaAvailability(
+    // If no participantId provided, fall back to non-atomic check (backwards compat)
+    if (!participantId) {
+      const validation = await quotaService.checkQuotaAvailability(
+        researchId,
+        demographicAnswers,
+        demographics
+      );
+      return validation;
+    }
+
+    // Atomic: validate + increment quotas in a single transaction
+    await client.query('BEGIN');
+
+    const validation = await quotaService.tryIncrementQuota(
+      client,
       researchId,
+      participantId,
       demographicAnswers,
       demographics
     );
 
+    if (validation.valid) {
+      await client.query('COMMIT');
+      console.log(`✓ Atomic quota increment committed for participant ${participantId}`);
+    } else {
+      await client.query('ROLLBACK');
+    }
+
     return validation;
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error validating demographics:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 
@@ -906,22 +932,8 @@ export const saveParticipantResponses = async (
       savedResponses.push(selectResult.rows[0]);
     }
 
-    // If this is a demographics module, increment quotas
-    const moduleName = moduleNameById.get(moduleId);
-    if (moduleName && (moduleName.toLowerCase().includes('demographic') || moduleName === 'Information')) {
-      // Extract demographic answers from responses
-      const demographicAnswers: Record<string, string> = {};
-      for (const response of responses) {
-        if (typeof response.value === 'string') {
-          demographicAnswers[response.componentId] = response.value;
-        }
-      }
-
-      // Increment matching quotas
-      const quotaService = await import('../quotas/quota.service');
-      await quotaService.incrementQuota(client, researchId, participantId, demographicAnswers);
-      console.log(`✓ Updated quota counts for participant ${participantId}`);
-    }
+    // Quotas are incremented atomically in validateDemographics (tryIncrementQuota)
+    // before this function is called, so no separate increment is needed here.
 
     await client.query('COMMIT');
 

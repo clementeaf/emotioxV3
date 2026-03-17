@@ -190,6 +190,92 @@ function checkDisqualifications(
 }
 
 /**
+ * Atomically validates demographics and increments quota counters in a single transaction.
+ * Uses UPDATE ... WHERE current_count < quota_limit to prevent race conditions.
+ * Must be called within an existing transaction (caller manages BEGIN/COMMIT/ROLLBACK).
+ */
+export async function tryIncrementQuota(
+    client: PoolClient,
+    researchId: string,
+    participantId: string,
+    demographicAnswers: Record<string, string>,
+    demographicConfig: Record<string, DemographicConfig>
+): Promise<ValidationResult> {
+    // 1. Check disqualifications (pure JS, no DB)
+    const disqualCheck = checkDisqualifications(demographicAnswers, demographicConfig);
+    if (disqualCheck.disqualified) {
+        return {
+            valid: false,
+            reason: 'DISQUALIFIED',
+            details: disqualCheck.reason
+        };
+    }
+
+    // 2. Save participant demographics
+    for (const [type, value] of Object.entries(demographicAnswers)) {
+        await client.query(
+            `INSERT INTO participant_demographics
+             (research_id, participant_id, demographic_type, demographic_value)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE demographic_value = VALUES(demographic_value)`,
+            [researchId, participantId, type, value]
+        );
+    }
+
+    // 3. Get all enabled quotas for this research (with row lock)
+    const quotas = await client.query(
+        `SELECT id, demographic_type, quota_value, quota_limit, current_count, enforcement_mode
+         FROM demographic_quotas
+         WHERE research_id = ? AND enabled = true
+         FOR UPDATE`,
+        [researchId]
+    );
+
+    // 4. For each matching immediate quota, atomically increment
+    const incrementedIds: string[] = [];
+
+    for (const quota of quotas.rows) {
+        const answer = demographicAnswers[quota.demographic_type];
+        if (!answer) continue;
+
+        // post_collection quotas are never enforced in real-time
+        if (quota.enforcement_mode === 'post_collection') continue;
+
+        if (matchesQuotaValue(answer, quota.quota_value, quota.demographic_type)) {
+            const result = await client.query(
+                `UPDATE demographic_quotas
+                 SET current_count = current_count + 1, updated_at = NOW()
+                 WHERE id = ? AND current_count < quota_limit`,
+                [quota.id]
+            );
+
+            // rowCount = 0 means no rows updated → quota is full
+            if (result.rowCount === 0) {
+                // Rollback increments we already did in this call
+                for (const prevId of incrementedIds) {
+                    await client.query(
+                        `UPDATE demographic_quotas
+                         SET current_count = current_count - 1, updated_at = NOW()
+                         WHERE id = ?`,
+                        [prevId]
+                    );
+                }
+                return {
+                    valid: false,
+                    reason: 'QUOTA_FULL',
+                    details: `${quota.demographic_type} quota (${quota.quota_value}) is full`
+                };
+            }
+
+            incrementedIds.push(quota.id);
+        }
+    }
+
+    return { valid: true };
+}
+
+/**
+ * @deprecated Use tryIncrementQuota instead — it combines check + increment atomically.
  * Validates participant demographics against disqualifications and quota availability
  */
 export async function checkQuotaAvailability(
@@ -242,6 +328,7 @@ export async function checkQuotaAvailability(
 }
 
 /**
+ * @deprecated Use tryIncrementQuota instead — it combines check + increment atomically.
  * Increments quota counters for matching demographics
  * Uses SELECT...FOR UPDATE to ensure atomic increment
  */

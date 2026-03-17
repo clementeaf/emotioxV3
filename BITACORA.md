@@ -5,7 +5,31 @@
 
 ---
 
-## Última actualización: 2026-03-16 (sesión 7)
+## Última actualización: 2026-03-17 (sesión 9)
+
+---
+
+## Sesión 9: 17 de marzo de 2026 — Cuotas atómicas (v0.27.2)
+
+### Cambios realizados
+
+#### Fix: Race condition en cuotas demográficas
+**Problema:** `checkQuotaAvailability` (validación) e `incrementQuota` (incremento) eran operaciones separadas. Bajo concurrencia, dos participantes podían pasar la validación simultáneamente antes de que se incrementara el contador, excediendo el límite.
+
+**Solución:** Nueva función `tryIncrementQuota` que dentro de una transacción con `FOR UPDATE`:
+1. Valida disqualifications (JS puro)
+2. Guarda `participant_demographics`
+3. Incrementa con `UPDATE ... WHERE current_count < quota_limit` — si `rowCount = 0`, la cuota está llena
+4. Si alguna cuota falla, revierte los incrementos previos y retorna `QUOTA_FULL`
+
+`validateDemographics` en `public.service.ts` ahora abre la transacción y llama `tryIncrementQuota`. El bloque de `incrementQuota` en `saveParticipantResponses` fue eliminado.
+
+### Archivos modificados
+- `backend/src/modules/quotas/quota.service.ts` — nueva `tryIncrementQuota`, deprecated en las antiguas
+- `backend/src/modules/public/public.service.ts` — `validateDemographics` con transacción atómica, eliminado incremento en `saveParticipantResponses`
+- `backend/src/modules/public/public.controller.ts` — pasa `participantId` al servicio
+- `participant-frontend/src/services/public.service.ts` — envía `participantId` en el body
+- `participant-frontend/src/pages/ResearchPage.tsx` — pasa `participantId` a `validateDemographics`
 
 ---
 
