@@ -846,7 +846,10 @@ export const ResearchPage = () => {
     }
 
     // Demographics server-side validation (quota & disqualification)
-    if (currentStep === 'demographics' && !isPreviewMode) {
+    // Only skip for explicit preview (?preview=true). Participants without ?participantId
+    // were incorrectly treated as preview, skipping demographic persistence.
+    const isExplicitPreview = new URLSearchParams(window.location.search).get('preview') === 'true';
+    if (currentStep === 'demographics' && !isExplicitPreview) {
       const demoResponses = useParticipantStore.getState().responses;
       const demoAnswers: Record<string, string> = {};
       demoResponses.forEach((r) => {
@@ -866,7 +869,11 @@ export const ResearchPage = () => {
         const match = window.location.pathname.match(/\/research\/([^/]+)/);
         const rid = match?.[1] ?? researchId;
         if (rid) {
-          const result = await publicService.validateDemographics(rid, demoAnswers, participantId ?? undefined);
+          // Use participantId from URL/hook, or from store (kiosk), or generate a temporary one
+          const effectivePid = participantId
+            ?? useParticipantStore.getState().participantId
+            ?? `anon-${Date.now()}`;
+          const result = await publicService.validateDemographics(rid, demoAnswers, effectivePid);
           if (!result.valid) {
             const bl = backlinks;
             if (result.reason === 'QUOTA_FULL') {
