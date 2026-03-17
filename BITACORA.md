@@ -5,7 +5,58 @@
 
 ---
 
-## Última actualización: 2026-03-17 (sesión 9)
+## Última actualización: 2026-03-17 (sesión 11)
+
+---
+
+## Sesión 11: 17 de marzo de 2026 — Results UI polish & NavigationFlow (v0.28.0)
+
+### Cambios realizados
+
+#### SmartVOC: filtros demográficos funcionales
+- Backend ahora incluye `participantId` en todos los score arrays (CSAT, CES, CV, NPS, NEV).
+- SmartVOC Results usa los mismos filtros demográficos que Cognitive Tasks: checkboxes + User ID filtran todas las métricas.
+- MetricCard charts (CSAT, CES, CV) cambian con Today/Week/Month — antes siempre mostraban datos mensuales.
+
+#### Fix: demographics no se guardaban en `participant_demographics`
+- Root cause: `usePreviewMode` trataba participantes sin `?participantId` como preview → `validateDemographics` se saltaba → datos demográficos nunca se persistían.
+- Fix: solo se salta para `?preview=true` explícito; siempre se envía un participantId al backend.
+
+#### Limpieza UI de resultados
+- Quitado banner "New data obtained" del panel Filters.
+- Quitados botones duplicados "Copiar todos" / "Descargar CSV" de la tabla de comentarios (queda "Descargar comentarios").
+- Short/Long Text ya no muestra "Positive" hardcodeado en columna Mood.
+- Navigation Flow Results: todos los steps expandidos por defecto.
+
+#### NavigationFlow (participant): mejoras de confiabilidad
+- URLs de imágenes ya no se filtran — se mantiene la alineación de índices con `propImages`.
+- Polling de 100ms como safety net para imágenes cacheadas donde `onLoad` dispara antes de que el ref esté listo.
+- Clicks fuera del hitzone ahora muestran punto rojo (antes eran silenciosos).
+
+### Deploy
+Commits `48cf249`, `0a2821d`, `19b5113` — CI/CD auto-desplegó backend, research-frontend y participant-frontend.
+
+---
+
+## Sesión 10: 17 de marzo de 2026 — Stress test de cuotas (v0.27.3)
+
+### Cambios realizados
+
+#### Script: stress-test-quotas.ts
+Script E2E standalone (`npx tsx scripts/stress-test-quotas.ts`) que valida el enforcement atómico de cuotas demográficas:
+
+1. Registra un usuario temporal, crea una investigación kiosk con cuotas ajustadas (gender limit 3, age limit 2 por bucket)
+2. Lanza 10 participantes concurrentes contra `validate-demographics` (que usa `tryIncrementQuota`)
+3. Verifica que ningún bucket excede su límite y reporta PASS/FAIL
+4. Archiva la research al terminar
+
+Ejecutado 2 veces en producción — **PASS** en ambas. Las cuotas atómicas funcionan correctamente bajo concurrencia real.
+
+### Archivos creados
+- `scripts/stress-test-quotas.ts`
+
+### Observación
+Todos los participantes concurrentes obtienen `kiosk-1` como participantId (race condition en el contador de sesiones kiosk). No afecta la validación de cuotas pero es un detalle a considerar.
 
 ---
 

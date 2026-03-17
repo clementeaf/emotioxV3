@@ -1,3 +1,24 @@
+## v0.28.0 — Results UI polish, SmartVOC filters & NavigationFlow fixes (2026-03-17)
+
+### backend
+- Feat: SmartVOC scores (CSAT, CES, CV, NPS, NEV) now include `participantId` for frontend demographic filtering.
+
+### research-frontend
+- Feat: SmartVOC Results — Filters panel now functional (same as Cognitive Tasks): demographic checkboxes and User ID filter all metrics in real time.
+- Feat: MetricCard charts (CSAT, CES, CV) react to Today/Week/Month toggle — previously always showed monthly data.
+- Fix: Removed "New data obtained" banner from Filters.
+- Fix: Removed duplicate "Copiar todos" / "Descargar CSV" buttons from VOCComments table (kept "Descargar comentarios").
+- Fix: Short/Long Text no longer shows hardcoded "Positive" mood.
+- Fix: Navigation Flow results — all steps expanded by default (not just step 1).
+
+### participant-frontend
+- Fix: Demographics now persist for participants without `?participantId` in URL — previously treated as preview, skipping `validateDemographics` entirely.
+- Fix: NavigationFlow — keep imageUrls array aligned with propImages to prevent index mismatch.
+- Fix: NavigationFlow — polling safety net for cached images where `onLoad` fires before React ref is ready.
+- Fix: NavigationFlow — show red dot feedback for clicks outside hitzone (previously silent).
+
+---
+
 ## v0.27.6 — Cognitive Tasks: demographic filters panel (2026-03-17)
 
 ### research-frontend
