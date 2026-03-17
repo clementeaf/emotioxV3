@@ -271,6 +271,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
                     saveTokenToStorage(null, null, false);
                     set({
                         ...initialState,
+                        isLoading: false,
                     });
                 }
             },
