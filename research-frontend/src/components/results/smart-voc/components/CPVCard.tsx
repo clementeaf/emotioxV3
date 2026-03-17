@@ -13,7 +13,7 @@ export const CPVCard = ({ value, className }: CPVCardProps) => {
     )}>
       <div>
         <div className="text-[10px] uppercase tracking-wider text-white/70 leading-none mb-0.5">CPV</div>
-        <div className="text-2xl font-bold leading-none">{value}%</div>
+        <div className="text-2xl font-bold leading-none">{value}</div>
       </div>
       <div className="text-[10px] text-white/60 leading-tight max-w-[7rem]">
         Customer Perceived Value
