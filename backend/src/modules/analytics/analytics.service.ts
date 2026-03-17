@@ -449,15 +449,15 @@ export const getSmartVOCResults = async (researchId: string) => {
   `;
   const responsesResult = await pool.query(responsesQuery, [researchId]);
 
-  // Process responses by type — each score includes its timestamp for frontend time-range filtering
-  const csatScores: Array<{ value: number; date: string }> = [];
-  const cesScores: Array<{ value: number; date: string }> = [];
-  const npsScores: Array<{ value: number; date: string }> = [];
-  const cvScores: Array<{ value: number; date: string }> = [];
+  // Process responses by type — each score includes its timestamp and participantId for frontend filtering
+  const csatScores: Array<{ value: number; date: string; participantId: string }> = [];
+  const cesScores: Array<{ value: number; date: string; participantId: string }> = [];
+  const npsScores: Array<{ value: number; date: string; participantId: string }> = [];
+  const cvScores: Array<{ value: number; date: string; participantId: string }> = [];
   const nevScores: number[] = [];
   const vocResponses: Array<{ text: string; sentiment?: string; participantId: string; createdAt: string }> = [];
   const emotionalStates: Record<string, number> = {};
-  const nevResponsesData: Array<{ emotions: string[]; date: string }> = [];
+  const nevResponsesData: Array<{ emotions: string[]; date: string; participantId: string }> = [];
 
   responsesResult.rows.forEach((row) => {
     const moduleName = row.module_name.toLowerCase();
@@ -468,28 +468,28 @@ export const getSmartVOCResults = async (researchId: string) => {
       if (moduleName.includes('csat')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 1 && score <= 5) {
-          csatScores.push({ value: score, date: row.created_at });
+          csatScores.push({ value: score, date: row.created_at, participantId: row.participant_id });
         }
       }
       // CES (scale 1-5)
       else if (moduleName.includes('ces')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 1 && score <= 5) {
-          cesScores.push({ value: score, date: row.created_at });
+          cesScores.push({ value: score, date: row.created_at, participantId: row.participant_id });
         }
       }
       // NPS (scale 0-10)
       else if (moduleName.includes('nps')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 0 && score <= 10) {
-          npsScores.push({ value: score, date: row.created_at });
+          npsScores.push({ value: score, date: row.created_at, participantId: row.participant_id });
         }
       }
       // CV (scale 1-5)
       else if (moduleName.includes('cv')) {
         const score = parseInt(value);
         if (!isNaN(score) && score >= 1 && score <= 5) {
-          cvScores.push({ value: score, date: row.created_at });
+          cvScores.push({ value: score, date: row.created_at, participantId: row.participant_id });
         }
       }
       // NEV (emotional states array)
@@ -509,9 +509,9 @@ export const getSmartVOCResults = async (researchId: string) => {
           emotionalStates[key] = (emotionalStates[key] || 0) + 1;
         });
 
-        // Store per-response data with timestamp for frontend filtering
+        // Store per-response data with timestamp and participantId for frontend filtering
         if (emotions.length > 0) {
-          nevResponsesData.push({ emotions, date: row.created_at });
+          nevResponsesData.push({ emotions, date: row.created_at, participantId: row.participant_id });
         }
 
         // Calculate NEV score (normalize so e.g. "Enérgico" / "energico" count as positive)

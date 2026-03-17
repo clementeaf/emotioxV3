@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSmartVOCAnalytics } from '../../../hooks/useSmartVOCAnalytics';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { SmartVOCResultsSkeleton } from './components/SmartVOCResultsSkeleton';
@@ -9,7 +9,8 @@ import { QuestionCard } from './components/QuestionCard';
 import { NEVQuestionCard } from './components/NEVQuestionCard';
 import { NPSAnalysis } from './components/NPSAnalysis';
 import { VOCComments } from './components/VOCComments';
-import { Filters } from './components/Filters';
+import { Filters, type DemographicFiltersState } from './components/Filters';
+import * as analyticsService from '../../../services/analytics.service';
 import { safeCalculatePercentage, calculateCSAT, calculateCES, calculateCV, hasScores } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
 
@@ -89,9 +90,53 @@ function computeEmotionalStates(nevResponses: Array<{ emotions: string[]; date: 
 }
 
 export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps) => {
-  // ...existing code...
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
   const { data, isLoading, error, refetch, isLive } = useSmartVOCAnalytics(researchId);
+
+  // Demographic filters state (same pattern as CognitiveTaskResults)
+  const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
+  const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
+  const [userIdFilter, setUserIdFilter] = useState('');
+
+  useEffect(() => {
+    if (!researchId) return;
+    let cancelled = false;
+    analyticsService.getDemographicResponses(researchId)
+      .then((result) => { if (!cancelled) setDemographicData(result); })
+      .catch(() => { if (!cancelled) setDemographicData({ participants: [], demographicTypes: [] }); });
+    return () => { cancelled = true; };
+  }, [researchId]);
+
+  // Compute set of participant IDs matching current filters
+  const filteredParticipantIds = useMemo(() => {
+    if (!demographicData?.participants.length) return null;
+    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '';
+    if (!hasAnyFilter) return null;
+
+    const idSet = new Set(
+      demographicData.participants
+        .filter((p) => {
+          for (const [type, selected] of Object.entries(demographicFilters)) {
+            if (selected.length === 0) continue;
+            const val = p.demographics[type];
+            const key = val != null && val !== '' ? String(val) : '—';
+            if (!selected.includes(key)) return false;
+          }
+          if (userIdFilter.trim()) {
+            if (!p.participantId.toLowerCase().includes(userIdFilter.trim().toLowerCase())) return false;
+          }
+          return true;
+        })
+        .map((p) => p.participantId)
+    );
+    return idSet;
+  }, [demographicData?.participants, demographicFilters, userIdFilter]);
+
+  // Helper: filter score arrays by participant when demographic filters are active
+  const filterByParticipant = <T extends { participantId?: string }>(items: T[]): T[] => {
+    if (!filteredParticipantIds) return items;
+    return items.filter((item) => item.participantId && filteredParticipantIds.has(item.participantId));
+  };
 
   // Trust Flow chart data (separate from filtered metrics)
   const trustFlowDailyData = useMemo(() => {
@@ -112,21 +157,23 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     }));
   }, [data?.intradayTimeSeriesData]);
 
-  // ========== TIME-RANGE FILTERED DATA ==========
+  // ========== DEMOGRAPHIC + TIME-RANGE FILTERED DATA ==========
   // All 5 panels use this filtered data instead of raw all-time data
   const filtered = useMemo(() => {
     if (!data) return null;
 
-    // Filter timestamped scores by time range and map to values
-    const csatValues = filterByTimeRange(data.metrics.csatScores || [], timeRange).map(s => s.value);
-    const cesValues = filterByTimeRange(data.metrics.cesScores || [], timeRange).map(s => s.value);
-    const cvValues = filterByTimeRange(data.metrics.cvScores || [], timeRange).map(s => s.value);
-    const npsFiltered = filterByTimeRange(data.metrics.npsScores || [], timeRange);
-    const nevFiltered = filterByTimeRange(data.nevResponsesData || [], timeRange);
+    // First apply demographic filter, then time-range filter
+    const csatValues = filterByTimeRange(filterByParticipant(data.metrics.csatScores || []), timeRange).map(s => s.value);
+    const cesValues = filterByTimeRange(filterByParticipant(data.metrics.cesScores || []), timeRange).map(s => s.value);
+    const cvValues = filterByTimeRange(filterByParticipant(data.metrics.cvScores || []), timeRange).map(s => s.value);
+    const npsFiltered = filterByTimeRange(filterByParticipant(data.metrics.npsScores || []), timeRange);
+    const nevFiltered = filterByTimeRange(filterByParticipant(data.nevResponsesData || []), timeRange);
     const vocFiltered = filterByTimeRange(
-      (data.vocResponses || [])
-        .filter((v): v is typeof v & { createdAt: string } => !!v.createdAt)
-        .map(v => ({ text: v.text, sentiment: v.sentiment, date: v.createdAt })),
+      filterByParticipant(
+        (data.vocResponses || [])
+          .filter((v): v is typeof v & { createdAt: string } => !!v.createdAt)
+          .map(v => ({ text: v.text, sentiment: v.sentiment, date: v.createdAt, participantId: v.participantId }))
+      ),
       timeRange
     );
     const npsValues = npsFiltered.map(s => s.value);
@@ -154,7 +201,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       emotionalStates,
       vocComments: vocFiltered.map(v => ({ text: v.text, mood: v.sentiment || 'Positive' }))
     };
-  }, [data, timeRange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filterByParticipant depends on filteredParticipantIds
+  }, [data, timeRange, filteredParticipantIds]);
 
   // Check which metrics have actual data (all-time, for panel visibility)
   const hasCSAT = hasScores(data?.metrics.csatScores);
@@ -310,8 +358,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     if (timeRange === 'month') {
       npsChartData = data?.monthlyNPSData || [];
     } else {
-      // Agrupar scores filtrados por día
-      const filteredScores = filterByTimeRange(data?.metrics.npsScores || [], timeRange);
+      // Agrupar scores filtrados por demografía + tiempo
+      const filteredScores = filterByTimeRange(filterByParticipant(data?.metrics.npsScores || []), timeRange);
       const byDay = new Map<string, number[]>();
       filteredScores.forEach(item => {
         const dayKey = new Date(item.date).toDateString();
@@ -436,7 +484,15 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           </div>
 
           <div className="w-80 shrink-0">
-            <Filters researchId={researchId} />
+            <Filters
+              researchId={researchId}
+              demographicData={demographicData}
+              selectedFilters={demographicFilters}
+              onFilterChange={setDemographicFilters}
+              userIdFilter={userIdFilter}
+              onUserIdFilterChange={setUserIdFilter}
+              onUpdate={refetch}
+            />
           </div>
         </div>
       </div>

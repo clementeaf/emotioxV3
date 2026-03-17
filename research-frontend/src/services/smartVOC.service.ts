@@ -15,6 +15,7 @@ export interface SmartVOCResponse {
 export interface TimestampedScore {
     value: number;
     date: string;
+    participantId?: string;
 }
 
 export interface SmartVOCMetrics {
@@ -61,8 +62,8 @@ export interface SmartVOCAnalytics {
     metrics: SmartVOCMetrics;
     timeSeriesData: SmartVOCTimeSeriesData[];
     intradayTimeSeriesData: SmartVOCIntradayData[];
-    vocResponses: Array<{ text: string; sentiment?: string; createdAt?: string }>;
-    nevResponsesData: Array<{ emotions: string[]; date: string }>;
+    vocResponses: Array<{ text: string; sentiment?: string; createdAt?: string; participantId?: string }>;
+    nevResponsesData: Array<{ emotions: string[]; date: string; participantId?: string }>;
     monthlyNPSData: Array<{
         month: string;
         promoters: number;
