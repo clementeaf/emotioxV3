@@ -1,3 +1,16 @@
+## v0.27.1 — Navigation Flow hitzone fix & CPV display (2026-03-17)
+
+### participant-frontend
+- Fix: Navigation Flow — replaced LazyImage with a plain `<img>` since the component is fullscreen and IntersectionObserver caused a race condition where hitzones never activated in Opera and DuckDuckGo.
+- Fix: Navigation Flow — added fallback hitzone computation from the img ref when React state hasn't caught up, preventing clicks from being silently ignored.
+- Fix: Navigation Flow — replaced fragile heuristic (`looksLikePercent` / `looksLikeRatio`) with direct pixel→percent conversion for hitzone coordinates.
+- Fix: CognitiveTaskRenderer — use `??` instead of `||` for hitzone coordinates so a value of `0` is preserved.
+
+### research-frontend
+- Fix: CPV card no longer shows `%` — CPV is a ratio (CSAT% / CES%), not a percentage.
+
+---
+
 ## v0.27.0 — Module-to-module conditionality (2026-03-16)
 
 ### research-frontend
@@ -6,9 +19,6 @@
 
 ### participant-frontend
 - Feat: `useNavigation` evaluates module-based conditions reactively. Unanswered source modules default to showing the conditional module.
-
-### E2E verified
-- Full trace confirmed: config persists intact through save → MySQL → public API → participant evaluation. Choice IDs align between builder and renderer. Public API cache (1 min) does not affect preview mode.
 
 ---
 
