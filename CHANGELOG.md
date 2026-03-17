@@ -1,13 +1,14 @@
 ## v0.27.0 — Module-to-module conditionality (2026-03-16)
 
 ### research-frontend
-- Feat: Conditionality now supports "Study question" as source — show/hide a module based on a participant's answer to a previous Single Choice or Multiple Choice question. The ConditionalityModal lets the researcher pick the source question and select which option(s) trigger the condition.
-- Types: `ConditionalityConfig` is now a union of `DemographicConditionality` and `ModuleConditionality`, with type guards `isDemographicCondition()` / `isModuleCondition()`.
-- ModuleCards (SmartVOC & Cognitive Task): conditionality toggle enabled when demographics or study modules with options exist; condition summary displays source module name and selected options.
+- Feat: Conditionality now supports two sources — demographic response (existing) or study question (new). Researchers can show/hide any module based on a participant's answer to a previous Single Choice or Multiple Choice question.
+- `ConditionalityConfig` is a union type with guards `isDemographicCondition()` / `isModuleCondition()`.
 
 ### participant-frontend
-- Feat: `useNavigation` evaluates module-based conditions — compares participant's stored response for the source module against `selectedValues`. Single choice uses direct match; multiple choice uses any-match. Unanswered source modules default to showing the conditional module.
-- `ResearchPage` builds a reactive `moduleResponses` map from the participant store and passes it to `useNavigation` for re-evaluation on each navigation.
+- Feat: `useNavigation` evaluates module-based conditions reactively. Unanswered source modules default to showing the conditional module.
+
+### E2E verified
+- Full trace confirmed: config persists intact through save → MySQL → public API → participant evaluation. Choice IDs align between builder and renderer. Public API cache (1 min) does not affect preview mode.
 
 ---
 

@@ -305,11 +305,14 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                             name: img.name,
                             s3Key: img.s3Key,
                             url: img.url,
+                            // Hitzones are stored in PIXEL coordinates (relative to the natural
+                            // image size) by the research-frontend hitzone editor.  Use ?? so
+                            // a coordinate of exactly 0 is preserved (|| treats 0 as falsy).
                             hitZones: img.hitZones?.map((hz) => ({
-                                x: hz.region?.x || hz.x || 0,
-                                y: hz.region?.y || hz.y || 0,
-                                width: hz.region?.width || hz.width || 0,
-                                height: hz.region?.height || hz.height || 0,
+                                x: hz.region?.x ?? hz.x ?? 0,
+                                y: hz.region?.y ?? hz.y ?? 0,
+                                width: hz.region?.width ?? hz.width ?? 0,
+                                height: hz.region?.height ?? hz.height ?? 0,
                                 label: hz.name || hz.label,
                             })),
                         }));

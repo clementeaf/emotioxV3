@@ -160,40 +160,41 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const isLastImage = currentImageIndex === images.length - 1;
 
     /**
-     * Normalizes a hitzone to percent coordinates (0-100) relative to the rendered image.
-     * Supports ratios (0..1), percents (0..100), or pixels (requires natural size).
-     * @param hz - Raw hitzone
-     * @param natural - Natural image size
-     * @returns Normalized hitzone in percent
+     * Converts a hitzone from pixel coordinates (relative to the natural image
+     * size) to percent coordinates (0-100) relative to the rendered image.
+     *
+     * The hitzone editor always saves in PIXEL coordinates.  Previous versions
+     * used a heuristic (looksLikePercent / looksLikeRatio) which was fragile:
+     * small pixel values (≤ 100) were wrongly treated as percentages, causing
+     * clicks to miss the hitzone.  This was the root cause of the recurring
+     * "no detecta el área sensible" bug.
+     *
+     * Now we always convert from pixels.  If imgNatural is not yet available,
+     * we return null so callers know the hitzones are not ready.
      */
-    const normalizeHitzoneToPercent = (hz: HitzoneRect, natural: { width: number; height: number } | null): HitzoneRect => {
-        const looksLikeRatio = hz.width <= 1 && hz.height <= 1 && hz.x <= 1 && hz.y <= 1;
-        if (looksLikeRatio) {
-            return { ...hz, x: hz.x * 100, y: hz.y * 100, width: hz.width * 100, height: hz.height * 100 };
-        }
-
-        const looksLikePercent = hz.width <= 100 && hz.height <= 100 && hz.x <= 100 && hz.y <= 100;
-        if (looksLikePercent) {
-            return hz;
-        }
-
-        if (natural && natural.width > 0 && natural.height > 0) {
-            return {
-                ...hz,
-                x: (hz.x / natural.width) * 100,
-                y: (hz.y / natural.height) * 100,
-                width: (hz.width / natural.width) * 100,
-                height: (hz.height / natural.height) * 100,
-            };
-        }
-
-        return hz;
+    const convertPixelsToPercent = (hz: HitzoneRect, natural: { width: number; height: number }): HitzoneRect => {
+        return {
+            ...hz,
+            x: (hz.x / natural.width) * 100,
+            y: (hz.y / natural.height) * 100,
+            width: (hz.width / natural.width) * 100,
+            height: (hz.height / natural.height) * 100,
+        };
     };
 
+    // Whether the current image has hitzone definitions (regardless of imgNatural).
+    const rawHitZones = useMemo(
+        () => (currentImage.hitZones || []) as HitzoneRect[],
+        [currentImage.hitZones],
+    );
+    const hasHitzoneDefs = rawHitZones.length > 0;
+
+    // Only compute percent hitzones when imgNatural is available.
+    // While the image hasn't loaded, normalizedHitZones is empty.
     const normalizedHitZones = useMemo((): HitzoneRect[] => {
-        const zones = (currentImage.hitZones || []) as HitzoneRect[];
-        return zones.map((z) => normalizeHitzoneToPercent(z, imgNatural));
-    }, [currentImage.hitZones, imgNatural]);
+        if (!imgNatural) return [];
+        return rawHitZones.map((z) => convertPixelsToPercent(z, imgNatural));
+    }, [rawHitZones, imgNatural]);
 
     // Track the rendered image rect (object-contain aware) for hitzone positioning
     const [renderedRect, setRenderedRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -265,11 +266,19 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         const x = (relX / rendered.width) * 100;
         const y = (relY / rendered.height) * 100;
 
-        // Last image: entire image is hitzone. When no hitzones configured, treat whole image as valid so flow advances in all browsers.
-        const hasHitzones = normalizedHitZones.length > 0;
+        // Last image: entire image is hitzone.
+        // If hitzones are defined but imgNatural hasn't loaded yet, ignore the
+        // click — don't let the user accidentally advance before we can
+        // evaluate the correct geometry.
+        // When NO hitzones are configured at all, treat whole image as valid.
+        if (hasHitzoneDefs && normalizedHitZones.length === 0) {
+            // imgNatural not ready yet — ignore click
+            return;
+        }
+
         const isInHitzone = isLastImage
             ? true
-            : hasHitzones
+            : normalizedHitZones.length > 0
                 ? normalizedHitZones.some((hz) => (
                     x >= hz.x && x <= hz.x + hz.width && y >= hz.y && y <= hz.y + hz.height
                 ))
