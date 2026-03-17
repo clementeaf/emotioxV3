@@ -492,7 +492,7 @@ export const ResearchPage = () => {
 
         // Step 2: Determine effective preview mode locally
         // (can't rely on hook value — mode was just set, re-render hasn't happened yet)
-        const urlParticipantId = new URLSearchParams(window.location.search).get('participantId');
+        const urlParticipantId = new URLSearchParams(window.location.search).get('participantId') ?? new URLSearchParams(window.location.search).get('participantid');
         const explicitPreview = new URLSearchParams(window.location.search).get('preview') === 'true';
         const effectivePreview = explicitPreview || (!urlParticipantId && mode !== 'kiosk');
 
