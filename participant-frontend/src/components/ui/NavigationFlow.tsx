@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { mediaService } from '../../services/media.service';
-import { LazyImage } from './LazyImage';
+// NOTE: LazyImage is NOT used here — NavigationFlow is fullscreen so the image
+// must load eagerly.  Using IntersectionObserver caused a race condition where
+// imgNatural was never set, blocking all hitzone clicks in Opera / DuckDuckGo.
 import { useResponse } from '../../hooks/useResponse';
 
 interface ClickPoint {
@@ -427,15 +429,14 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
                     </div>
                 ) : currentImageUrl ? (
-                    <LazyImage
+                    <img
+                        ref={imgElRef}
                         src={currentImageUrl}
                         alt={currentImage.name || `Image ${currentImageIndex + 1}`}
                         className="absolute inset-0 w-full h-full object-contain pointer-events-none"
                         draggable={false}
-                        ref={imgElRef}
                         onLoad={(e) => {
                             const el = e.currentTarget;
-                            // Skip placeholder (1x1 transparent GIF) — only update on real image load
                             if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
                             setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
                             setRenderedRect(getRenderedImageRect(el));
