@@ -212,16 +212,41 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
   const hasNPS = hasScores(data?.metrics.npsScores);
   const hasVOC = data?.vocResponses && data.vocResponses.length > 0;
 
-  // Map monthly metrics for MetricCard charts
-  const csatMonthly = (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.csatSatisfied, dissatisfied: m.csatDissatisfied }));
-  const cesMonthly = (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cesPositive, dissatisfied: m.cesNegative }));
-  const cvMonthly = (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cvPositive, dissatisfied: m.cvNegative }));
+  // Build MetricCard chart data: group filtered scores by day (today/week) or use monthly (month)
+  const buildChartData = (
+    scores: Array<{ value: number; date: string; participantId?: string }>,
+    positiveFn: (v: number) => boolean,
+    negativeFn: (v: number) => boolean
+  ) => {
+    if (timeRange === 'month') return null; // use monthlyMetricsData below
+    const filtered2 = filterByTimeRange(filterByParticipant(scores), timeRange);
+    const byDay = new Map<string, number[]>();
+    filtered2.forEach(s => {
+      const dayKey = new Date(s.date).toDateString();
+      if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+      byDay.get(dayKey)!.push(s.value);
+    });
+    return Array.from(byDay.entries())
+      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+      .map(([dayKey, vals]) => ({
+        date: new Date(dayKey).toISOString().split('T')[0],
+        satisfied: vals.length > 0 ? Math.round((vals.filter(positiveFn).length / vals.length) * 100) : 0,
+        dissatisfied: vals.length > 0 ? Math.round((vals.filter(negativeFn).length / vals.length) * 100) : 0,
+      }));
+  };
+
+  const csatChartData = buildChartData(data?.metrics.csatScores || [], v => v >= 4, v => v <= 2)
+    ?? (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.csatSatisfied, dissatisfied: m.csatDissatisfied }));
+  const cesChartData = buildChartData(data?.metrics.cesScores || [], v => v <= 2, v => v >= 4)
+    ?? (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cesPositive, dissatisfied: m.cesNegative }));
+  const cvChartData = buildChartData(data?.metrics.cvScores || [], v => v >= 4, v => v <= 2)
+    ?? (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cvPositive, dissatisfied: m.cvNegative }));
 
   // Filter visible metric cards — scores from filtered data
   const visibleMetricCards = [
-    { show: hasCSAT, component: <MetricCard key="csat" title="Customer Satisfaction" abbreviation="CSAT" score={calculateCSAT(filtered?.csatValues)} question="How satisfied are you with our service?" monthlyData={csatMonthly} /> },
-    { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(filtered?.cesValues)} question="How easy was it to use our service?" monthlyData={cesMonthly} /> },
-    { show: hasCV, component: <MetricCard key="cv" title="Cognitive Value" abbreviation="CV" score={calculateCV(filtered?.cvValues)} question="How valuable do you find our service?" monthlyData={cvMonthly} /> }
+    { show: hasCSAT, component: <MetricCard key="csat" title="Customer Satisfaction" abbreviation="CSAT" score={calculateCSAT(filtered?.csatValues)} question="How satisfied are you with our service?" monthlyData={csatChartData} /> },
+    { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(filtered?.cesValues)} question="How easy was it to use our service?" monthlyData={cesChartData} /> },
+    { show: hasCV, component: <MetricCard key="cv" title="Cognitive Value" abbreviation="CV" score={calculateCV(filtered?.cvValues)} question="How valuable do you find our service?" monthlyData={cvChartData} /> }
   ].filter(card => card.show);
   // Determinar clases de grid para métricas
   const gridColsClass =
@@ -491,7 +516,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               onFilterChange={setDemographicFilters}
               userIdFilter={userIdFilter}
               onUserIdFilterChange={setUserIdFilter}
-              onUpdate={refetch}
             />
           </div>
         </div>

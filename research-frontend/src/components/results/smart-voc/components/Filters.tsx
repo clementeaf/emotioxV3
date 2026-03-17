@@ -33,8 +33,6 @@ interface FiltersProps {
     /** Filter by participant ID (substring match) */
     userIdFilter?: string;
     onUserIdFilterChange?: (value: string) => void;
-    /** Called when user clicks Update (refetch) */
-    onUpdate?: () => void;
 }
 
 export const Filters = ({
@@ -44,7 +42,6 @@ export const Filters = ({
     onFilterChange,
     userIdFilter = '',
     onUserIdFilterChange,
-    onUpdate,
 }: FiltersProps) => {
     const [internalData, setInternalData] = useState<analyticsService.DemographicResponsesResult | null>(null);
     const [isLoading, setIsLoading] = useState(!demographicDataProp && !!researchId);
@@ -138,19 +135,6 @@ export const Filters = ({
     return (
         <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
             <h3 className="font-semibold">Filters</h3>
-
-            {onUpdate && (
-                <div className="flex items-center justify-between gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                    <span className="text-xs text-blue-900">New data was obtained. Please, update study.</span>
-                    <button
-                        type="button"
-                        onClick={onUpdate}
-                        className="shrink-0 px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
-                    >
-                        Update
-                    </button>
-                </div>
-            )}
 
             {!hasData ? (
                 <p className="text-sm text-gray-500">No demographic responses for this study.</p>

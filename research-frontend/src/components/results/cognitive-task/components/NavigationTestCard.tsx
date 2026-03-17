@@ -386,7 +386,9 @@ export const NavigationTestCard = ({
   onDownloadCSV,
   className
 }: NavigationTestCardProps) => {
-  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([1]));
+  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(
+    new Set(steps.map(s => s.stepNumber))
+  );
   const [activeTab, setActiveTab] = useState('heat-click-map');
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

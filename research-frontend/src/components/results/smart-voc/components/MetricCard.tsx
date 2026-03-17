@@ -107,8 +107,12 @@ export const MetricCard = ({
 }: MetricCardProps) => {
   const chartData = monthlyData && monthlyData.length > 0
     ? monthlyData.map(d => {
-        const month = new Date(d.date + 'T00:00:00');
-        return { date: monthNames[month.getMonth()], satisfied: d.satisfied, dissatisfied: d.dissatisfied };
+        const dt = new Date(d.date + 'T00:00:00');
+        // If multiple entries share the same month, use short date (Mar 15); otherwise month only
+        const label = monthlyData.length <= 6 && new Set(monthlyData.map(m => new Date(m.date + 'T00:00:00').getMonth())).size === monthlyData.length
+          ? monthNames[dt.getMonth()]
+          : `${monthNames[dt.getMonth()]} ${dt.getDate()}`;
+        return { date: label, satisfied: d.satisfied, dissatisfied: d.dissatisfied };
       })
     : getEmptyData();
   return (

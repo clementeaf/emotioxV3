@@ -141,7 +141,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         }
     ];
 
-    // Load images from S3
+    // Load images from S3 — keep array aligned with propImages (no filtering)
     useEffect(() => {
         const loadImages = async () => {
             if (!propImages || propImages.length === 0) {
@@ -152,12 +152,17 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             try {
                 const urls = await Promise.all(
                     propImages.map(async (img) => {
-                        if (img.s3Key) return await mediaService.getMediaUrl(img.s3Key);
-                        if (img.url) return img.url;
+                        try {
+                            if (img.s3Key) return await mediaService.getMediaUrl(img.s3Key);
+                            if (img.url) return img.url;
+                        } catch (err) {
+                            console.warn('Failed to resolve image URL:', err);
+                        }
                         return '';
                     })
                 );
-                setImageUrls(urls.filter(url => url !== ''));
+                // Keep all entries so indices align with propImages
+                setImageUrls(urls);
             } catch (error) {
                 console.error('Failed to load images:', error);
             } finally {
@@ -209,11 +214,30 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
 
     // Reset rendered rect, container rect and natural size when image changes so stale data
     // from the previous image is not used for hitzone positioning while the new image loads.
+    // Also poll briefly for cached images where onLoad may fire before React updates refs.
     useEffect(() => {
         setImgNatural(null);
         setRenderedRect(null);
         setContainerRect(null);
         setImageError(false);
+
+        // Safety net: if onLoad already fired (cached image) or fires during render,
+        // poll the img ref briefly to pick up naturalWidth/Height.
+        let attempts = 0;
+        const pollId = setInterval(() => {
+            attempts++;
+            const img = imgElRef.current;
+            if (img && img.naturalWidth > 1 && img.naturalHeight > 1) {
+                setImgNatural({ width: img.naturalWidth, height: img.naturalHeight });
+                setRenderedRect(getRenderedImageRect(img));
+                const container = imageRef.current;
+                if (container) setContainerRect(container.getBoundingClientRect());
+                clearInterval(pollId);
+            }
+            if (attempts >= 20) clearInterval(pollId); // stop after 2s
+        }, 100);
+
+        return () => clearInterval(pollId);
     }, [currentImageIndex]);
 
     // Recompute rendered rect on resize / orientation change
@@ -305,9 +329,10 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         };
 
         setAllClicks(prev => [...prev, { ...clickPoint, imageId: currentImage.id }]);
+        // Always show visual feedback (green dot for correct, red for incorrect)
+        setClickPoints(prev => [...prev, clickPoint]);
 
         if (isInHitzone) {
-            setClickPoints(prev => [...prev, clickPoint]);
             if (isLastImage) {
                 setIsComplete(true);
                 saveNavigationResponse(true);

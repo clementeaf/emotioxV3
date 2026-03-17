@@ -146,7 +146,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           .map((r): TextResponseFormatted | null => {
             try {
               const value = typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
-              return { text: value, mood: 'Positive' };
+              return { text: value, mood: '' };
             } catch {
               return null;
             }
@@ -158,7 +158,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             ?? (r as { participant_id?: string }).participant_id ?? '';
           const value = (r as { value?: unknown }).value ?? (r as { responseData?: { value?: unknown } }).responseData?.value;
           const text = typeof value === 'string' ? value : JSON.stringify(value ?? '');
-          return { participantId, text, mood: 'Positive' as const };
+          return { participantId, text };
         });
 
         return (
@@ -288,7 +288,6 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               onFilterChange={setDemographicFilters}
               userIdFilter={userIdFilter}
               onUserIdFilterChange={setUserIdFilter}
-              onUpdate={refetch}
             />
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, ClipboardList, Hash, Copy, FileDown } from 'lucide-react';
+import { User, ClipboardList, Hash } from 'lucide-react';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 
@@ -50,22 +50,6 @@ export const VOCComments = ({
       setSelectedComments(selectedComments.filter(i => i !== index));
     } else {
       setSelectedComments([...selectedComments, index]);
-    }
-  };
-
-  const handleCopyAllComments = async (): Promise<void> => {
-    if (comments.length === 0) return;
-    const text = comments.map((c) => c.text).join('\n\n');
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // fallback for older browsers
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
     }
   };
 
@@ -217,29 +201,11 @@ export const VOCComments = ({
                   </div>
                 </th>
                 <th className="p-3 text-left">
-                  <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-600 text-sm">Mood</span>
-                    <div className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        onClick={handleCopyAllComments}
-                        disabled={comments.length === 0}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Copiar todos los comentarios"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        Copiar todos
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDownloadCSV}
-                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
-                        title="Descargar CSV"
-                      >
-                        <FileDown className="w-3.5 h-3.5" />
-                        Descargar CSV
-                      </button>
-                    </div>
+                    <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M3 3a1 1 0 000 2h11a1 1 0 100-2H3zM3 7a1 1 0 000 2h5a1 1 0 000-2H3zM3 11a1 1 0 100 2h4a1 1 0 100-2H3zM13 16a1 1 0 102 0v-5.586l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 101.414 1.414L13 10.414V16z" />
+                    </svg>
                   </div>
                 </th>
               </tr>
@@ -260,14 +226,16 @@ export const VOCComments = ({
                       </div>
                     </td>
                     <td className="p-3">
-                      <span className={cn(
-                        'text-sm font-medium',
-                        comment.mood === 'Positive' ? 'text-green-600' : 
-                        comment.mood === 'green' ? 'text-green-600' : 
-                        'text-gray-600'
-                      )}>
-                        {comment.mood}
-                      </span>
+                      {comment.mood && (
+                        <span className={cn(
+                          'text-sm font-medium',
+                          comment.mood === 'Positive' ? 'text-green-600' :
+                          comment.mood === 'green' ? 'text-green-600' :
+                          'text-gray-600'
+                        )}>
+                          {comment.mood}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))
