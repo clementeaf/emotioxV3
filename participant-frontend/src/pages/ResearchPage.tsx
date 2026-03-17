@@ -1028,6 +1028,22 @@ export const ResearchPage = () => {
     }
   }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks, t]);
 
+  // Enter key → "Guardar y continuar" (accessibility)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      // Don't intercept Enter inside textareas (Long Text needs newlines)
+      if (e.target instanceof HTMLTextAreaElement) return;
+      // Only when the footer button is visible and not submitting
+      if (!shouldShowButton(currentModule) && !showRestartOption) return;
+      if (submitting) return;
+      e.preventDefault();
+      handleNext();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentModule, showRestartOption, submitting, shouldShowButton, handleNext]);
+
   if (!researchId) {
     return <InvalidResearchScreen />;
   }
