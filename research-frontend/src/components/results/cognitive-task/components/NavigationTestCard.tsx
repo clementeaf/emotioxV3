@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 import { HeatmapRenderer } from './HeatmapRenderer';
@@ -45,6 +45,7 @@ interface NavigationTestCardProps {
   conditionalityDisabled?: boolean;
   required?: boolean;
   steps: NavigationStep[];
+  onDownloadCSV?: () => void;
   className?: string;
 }
 
@@ -382,10 +383,24 @@ export const NavigationTestCard = ({
   conditionalityDisabled = true,
   required = false,
   steps,
+  onDownloadCSV,
   className
 }: NavigationTestCardProps) => {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([1]));
   const [activeTab, setActiveTab] = useState('heat-click-map');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [menuOpen]);
 
   const toggleStep = (stepNumber: number) => {
     const newExpanded = new Set(expandedSteps);
@@ -421,11 +436,36 @@ export const NavigationTestCard = ({
             )}
           </div>
         </div>
-        <button className="text-gray-400 hover:text-gray-600">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded"
+            aria-label="Options"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+            </svg>
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 mt-1 w-48 py-1 bg-white border rounded-lg shadow-lg z-10">
+              {onDownloadCSV ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDownloadCSV();
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  Descargar CSV (.csv)
+                </button>
+              ) : (
+                <div className="px-4 py-2 text-sm text-gray-500">No actions</div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Steps */}

@@ -249,6 +249,42 @@ export const getChoiceResponses = async (researchId: string, moduleId: string) =
 };
 
 // ==========================================
+// DEMOGRAPHIC RESPONSES (for Cognitive Tasks filters / export)
+// ==========================================
+
+export const getDemographicResponses = async (researchId: string) => {
+  const query = `
+    SELECT participant_id, demographic_type, demographic_value
+    FROM participant_demographics
+    WHERE research_id = ?
+    ORDER BY participant_id, demographic_type
+  `;
+  const result = await pool.query(query, [researchId]);
+  const rows = (result.rows || []) as Array<{ participant_id: string; demographic_type: string; demographic_value: string }>;
+
+  const byParticipant = new Map<string, Record<string, string>>();
+  for (const row of rows) {
+    const pid = row.participant_id;
+    if (!byParticipant.has(pid)) byParticipant.set(pid, {});
+    byParticipant.get(pid)![row.demographic_type] = row.demographic_value;
+  }
+
+  const participants = Array.from(byParticipant.entries()).map(([participantId, demographics]) => ({
+    participantId,
+    demographics,
+  }));
+
+  const demographicTypes = Array.from(
+    new Set(rows.map((r) => r.demographic_type))
+  ).sort();
+
+  return {
+    participants,
+    demographicTypes,
+  };
+};
+
+// ==========================================
 // SCALE RESPONSES (Linear Scale)
 // ==========================================
 

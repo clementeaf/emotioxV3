@@ -48,6 +48,23 @@ export const getCognitiveTaskResults = async (researchId: string): Promise<Cogni
     return response.results;
 };
 
+export interface DemographicParticipant {
+    participantId: string;
+    demographics: Record<string, string>;
+}
+
+export interface DemographicResponsesResult {
+    participants: DemographicParticipant[];
+    demographicTypes: string[];
+}
+
+export const getDemographicResponses = async (researchId: string): Promise<DemographicResponsesResult> => {
+    const response = await apiClient.get<{ results: DemographicResponsesResult }>(
+        `/analytics/research/${researchId}/demographics`
+    );
+    return response.results;
+};
+
 // ==========================================
 // NAVIGATION FLOW RESULTS
 // ==========================================
@@ -64,6 +81,7 @@ export interface NavigationFlowResponse extends BaseResponse {
         y: number;
         timestamp: number;
         isCorrect: boolean;
+        imageId?: string;
     }>;
     metadata?: ResponseMetadata;
 }
@@ -81,6 +99,7 @@ export interface NavigationFlowResults {
         y: number;
         timestamp: number;
         isCorrect: boolean;
+        imageId?: string;
     }>;
     responses: NavigationFlowResponse[];
 }

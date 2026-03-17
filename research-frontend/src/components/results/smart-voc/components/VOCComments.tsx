@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, ClipboardList, Hash } from 'lucide-react';
+import { User, ClipboardList, Hash, Copy, FileDown } from 'lucide-react';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 
@@ -50,6 +50,22 @@ export const VOCComments = ({
       setSelectedComments(selectedComments.filter(i => i !== index));
     } else {
       setSelectedComments([...selectedComments, index]);
+    }
+  };
+
+  const handleCopyAllComments = async (): Promise<void> => {
+    if (comments.length === 0) return;
+    const text = comments.map((c) => c.text).join('\n\n');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
     }
   };
 
@@ -181,8 +197,8 @@ export const VOCComments = ({
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left: Comments Table */}
-        <div className="border rounded-lg overflow-hidden">
+        {/* Left: Comments Table — fixed height + scroll to avoid huge page scroll with many responses */}
+        <div className="border rounded-lg overflow-hidden max-h-[500px] overflow-y-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
@@ -201,7 +217,30 @@ export const VOCComments = ({
                   </div>
                 </th>
                 <th className="p-3 text-left">
-                  <span className="font-medium text-gray-600 text-sm">Mood</span>
+                  <div className="flex flex-col gap-2">
+                    <span className="font-medium text-gray-600 text-sm">Mood</span>
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={handleCopyAllComments}
+                        disabled={comments.length === 0}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Copiar todos los comentarios"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Copiar todos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadCSV}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                        title="Descargar CSV"
+                      >
+                        <FileDown className="w-3.5 h-3.5" />
+                        Descargar CSV
+                      </button>
+                    </div>
+                  </div>
                 </th>
               </tr>
             </thead>

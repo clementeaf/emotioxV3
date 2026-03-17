@@ -1,3 +1,17 @@
+## v0.27.5 — Cognitive results: demographics, CSV exports, NPS bars (2026-03-17)
+
+### backend
+- Feat: GET `/analytics/research/:id/demographics` — returns participant demographic responses for Cognitive Tasks results sidebar and CSV export.
+
+### research-frontend
+- Feat: Cognitive Task Results — Navigation Flow shows one step per image with heatmap filtered by imageId; CSV export per question via 3-dot menu.
+- Feat: Cognitive Task Results — Linear Scale (3.5) CSV export via 3-dot menu; shared `utils/csvDownload.ts`.
+- Feat: Filters (right column) — demographic responses table with max-height 500px scroll and "Descargar CSV" for demographics.
+- Feat: VOCComments (Long/Short Text) — table max-height 500px overflow-y-auto; Mood column: "Copiar todos" and "Descargar CSV" buttons.
+- Fix: SmartVOC NPS — removed border radius from green/red bars (Progress and Recharts stacked bars) for block-style appearance.
+
+---
+
 ## v0.27.4 — Navigation Flow production hardening (2026-03-17)
 
 ### participant-frontend

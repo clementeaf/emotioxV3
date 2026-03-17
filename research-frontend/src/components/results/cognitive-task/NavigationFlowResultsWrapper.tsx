@@ -3,6 +3,7 @@ import { useNavigationFlowResults } from '../../../hooks/useNavigationFlowResult
 import { NavigationTestCard } from './components/NavigationTestCard';
 import { researchService, type Module } from '../../../services/research.service';
 import { mediaService } from '../../../services/media.service';
+import { triggerCsvDownload } from '../../../utils/csvDownload';
 
 interface ModuleComponent {
     id?: string;
@@ -21,6 +22,14 @@ interface ModuleConfigStructure {
 
 interface HitzoneRegion {
     region?: { x: number; y: number; width: number; height: number };
+}
+
+interface ParsedFile {
+    id: string;
+    name?: string;
+    s3Key?: string;
+    url?: string;
+    hitZones?: Array<{ x: number; y: number; width: number; height: number }>;
 }
 
 interface NavigationFlowResultsWrapperProps {
@@ -67,33 +76,29 @@ export const NavigationFlowResultsWrapper = ({
 
                         if (fileUploadComponent) {
                             console.log('ResultsWrapper: Found file upload component:', fileUploadComponent);
-                            if (fileUploadComponent.value) {
-                                try {
-                                    const files = JSON.parse(fileUploadComponent.value);
-                                    console.log('ResultsWrapper: Parsed files:', files);
-                                    if (Array.isArray(files) && files.length > 0) {
-                                        const file = files[0];
-                                        // Always refresh URL if s3Key exists because stored URLs might be expired
-                                        if (file.s3Key) {
-                                            console.log('ResultsWrapper: s3Key found, forcing URL refresh:', file.s3Key);
+                        if (fileUploadComponent.value) {
+                            try {
+                                const files = JSON.parse(fileUploadComponent.value) as Array<{ id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<HitzoneRegion> }>;
+                                console.log('ResultsWrapper: Parsed files:', files);
+                                if (Array.isArray(files) && files.length > 0) {
+                                    for (let i = 0; i < files.length; i++) {
+                                        const file = files[i];
+                                        if (file?.s3Key) {
                                             try {
                                                 const mediaResponse = await mediaService.getMediaUrlByS3Key(file.s3Key);
-                                                console.log('ResultsWrapper: Resolved fresh URL:', mediaResponse.url);
                                                 file.url = mediaResponse.url;
-                                                // Update the in-memory module object so the render logic finds it
-                                                files[0] = file;
-                                                fileUploadComponent.value = JSON.stringify(files);
+                                                files[i] = file;
                                             } catch (err) {
-                                                console.warn('Failed to resolve media URL for module', moduleId, err);
+                                                console.warn('Failed to resolve media URL for file', file.s3Key, err);
                                             }
-                                        } else {
-                                            console.log('ResultsWrapper: No s3Key found, using existing URL if any:', file);
                                         }
                                     }
-                                } catch (e) {
-                                    console.error('ResultsWrapper: JSON parse error', e);
+                                    fileUploadComponent.value = JSON.stringify(files);
                                 }
-                            } else {
+                            } catch (e) {
+                                console.error('ResultsWrapper: JSON parse error', e);
+                            }
+                        } else {
                                 console.log('ResultsWrapper: File component has no value');
                             }
                         } else {
@@ -127,58 +132,103 @@ export const NavigationFlowResultsWrapper = ({
         );
     }
 
-    // Extract image URL and HitZones from module config components
-    let imageUrl = '';
-    let hitZones: Array<{ x: number; y: number; width: number; height: number }> = [];
-    
+    // Extract all images and hitZones from file-upload component (one step per image)
+    const parsedFiles: ParsedFile[] = [];
+
     if (module?.config && typeof module.config === 'object') {
         const config = module.config as ModuleConfigStructure;
-        // Check if components exist in structure
         const components = config.structure?.components || [];
-
-        // Find file-upload component
         const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
-    
+
         if (fileUploadComponent?.value) {
             try {
-                const files = JSON.parse(fileUploadComponent.value);
+                const files = JSON.parse(fileUploadComponent.value) as Array<{ id?: string; mediaId?: string; name?: string; url?: string; hitZones?: Array<HitzoneRegion> }>;
                 if (Array.isArray(files) && files.length > 0) {
-                    imageUrl = files[0].url;
-                    // Extract hitZones from the uploaded file
-                    if (files[0].hitZones && Array.isArray(files[0].hitZones)) {
-                        hitZones = files[0].hitZones.map((hz: HitzoneRegion) => ({
-                            x: hz.region?.x || 0,
-                            y: hz.region?.y || 0,
-                            width: hz.region?.width || 0,
-                            height: hz.region?.height || 0,
-                        }));
+                    for (const f of files) {
+                        const id = f.id ?? f.mediaId ?? '';
+                        parsedFiles.push({
+                            id,
+                            name: f.name,
+                            url: f.url,
+                            hitZones: (f.hitZones ?? []).map((hz: HitzoneRegion) => ({
+                                x: hz.region?.x ?? 0,
+                                y: hz.region?.y ?? 0,
+                                width: hz.region?.width ?? 0,
+                                height: hz.region?.height ?? 0,
+                            })),
+                        });
                     }
                 }
             } catch (e) {
                 console.error('Error parsing file-upload component value:', e);
             }
         }
-    
-        // Fallback: check top-level config just in case (legacy)
-        if (!imageUrl) {
-            imageUrl = (config.image_url || config.imageUrl || '') as string;
+
+        if (parsedFiles.length === 0) {
+            const imageUrl = (config.image_url || config.imageUrl) as string | undefined;
+            if (imageUrl) {
+                parsedFiles.push({ id: '1', url: imageUrl, hitZones: [] });
+            }
         }
     }
 
-    // Map responses to steps (one step per navigation flow)
-    const steps = [{
-        stepNumber: 1,
-        title: moduleName,
-        duration: `${data.averageDuration}s`,
-        completionRate: Math.round(data.completionRate),
-        participantCount: data.totalResponses,
-        hasHeatmap: data.heatmapData.length > 0,
-        heatmapData: data.heatmapData, // Pass the raw heatmap data with isCorrect info
-        imageUrl: imageUrl, // Pass the background image
-        hitZones: hitZones, // Pass hitZones for overlay rendering
-        responses: data.responses,
-        aois: [] // TODO: Extract AOIs from hitZones if needed
-    }];
+    // Build one step per image; filter heatmapData by imageId so each step shows only its clicks
+    const steps = parsedFiles.map((file, index) => {
+        const fileId = String(file.id);
+        const heatmapForImage = data.heatmapData.filter((c: { imageId?: string }) => {
+            if (parsedFiles.length === 1) return true;
+            const cId = c.imageId != null ? String(c.imageId) : null;
+            if (!cId) return index === 0;
+            return cId === fileId;
+        });
+        return {
+            stepNumber: index + 1,
+            title: file.name ? `${index + 1}. ${file.name}` : `${moduleName} — Step ${index + 1}`,
+            duration: `${data.averageDuration}s`,
+            completionRate: Math.round(data.completionRate),
+            participantCount: data.totalResponses,
+            hasHeatmap: heatmapForImage.length > 0,
+            heatmapData: heatmapForImage,
+            imageUrl: file.url ?? '',
+            hitZones: file.hitZones ?? [],
+            responses: data.responses,
+            aois: [],
+        };
+    });
+
+    if (steps.length === 0) {
+        steps.push({
+            stepNumber: 1,
+            title: moduleName,
+            duration: `${data.averageDuration}s`,
+            completionRate: Math.round(data.completionRate),
+            participantCount: data.totalResponses,
+            hasHeatmap: data.heatmapData.length > 0,
+            heatmapData: data.heatmapData,
+            imageUrl: '',
+            hitZones: [],
+            responses: data.responses,
+            aois: [],
+        });
+    }
+
+    const onDownloadCSV = (): void => {
+        const header = ['participant_id', 'completed', 'total_clicks', 'correct_clicks', 'total_duration_ms', 'click_sequence'];
+        const rows = (data.responses ?? []).map((r: { participantId?: string; completed?: boolean; completedFlow?: boolean; totalClicks?: number; correctClicks?: number; totalDuration?: number; clickSequence?: unknown }) => {
+            const completed = r.completed ?? r.completedFlow;
+            return [
+                String(r.participantId ?? '').replace(/"/g, '""'),
+                completed === true ? '1' : '0',
+                String(r.totalClicks ?? 0),
+                String(r.correctClicks ?? 0),
+                String(r.totalDuration ?? 0),
+                JSON.stringify(r.clickSequence ?? []).replace(/"/g, '""'),
+            ].map((v) => `"${v}"`).join(',');
+        });
+        const csv = [header.join(','), ...rows].join('\n');
+        const slug = questionNumber.replace(/\./g, '-');
+        triggerCsvDownload(csv, `navigation-flow-${slug}-${researchId}.csv`);
+    };
 
     return (
         <NavigationTestCard
@@ -188,6 +238,7 @@ export const NavigationFlowResultsWrapper = ({
             conditionalityDisabled={true}
             required={false}
             steps={steps}
+            onDownloadCSV={onDownloadCSV}
         />
     );
 };

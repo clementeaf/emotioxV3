@@ -1,5 +1,6 @@
 import { useScaleResponses } from '../../../hooks/useScaleResponses';
 import { LinearScaleQuestionCard } from './components/LinearScaleQuestionCard';
+import { triggerCsvDownload } from '../../../utils/csvDownload';
 
 interface ScaleResultsWrapperProps {
     researchId: string;
@@ -25,26 +26,31 @@ export const ScaleResultsWrapper = ({
         );
     }
 
-    // Map distribution to options with color gradient
     const options = data.distribution
         .sort((a, b) => a.value - b.value)
         .map((dist) => {
-            // Color gradient: red (low) -> gray (middle) -> green (high)
             const maxValue = Math.max(...data.distribution.map(d => d.value));
-            let color = '#9CA3AF'; // Gray for middle values
-            
-            if (dist.value <= 2) {
-                color = '#EF4444'; // Red for low values
-            } else if (dist.value >= maxValue - 1) {
-                color = '#10B981'; // Green for high values
-            }
-
+            let color = '#9CA3AF';
+            if (dist.value <= 2) color = '#EF4444';
+            else if (dist.value >= maxValue - 1) color = '#10B981';
             return {
                 value: dist.value,
                 percentage: Math.round(dist.percentage),
                 color
             };
         });
+
+    const onDownloadCSV = (): void => {
+        const header = ['participant_id', 'value', 'created_at'];
+        const rows = (data.responses ?? []).map((r) => [
+            String(r.participantId ?? '').replace(/"/g, '""'),
+            String(r.value ?? ''),
+            String(r.createdAt ?? '').replace(/"/g, '""'),
+        ].map((v) => `"${v}"`).join(','));
+        const csv = [header.join(','), ...rows].join('\n');
+        const slug = questionNumber.replace(/\./g, '-');
+        triggerCsvDownload(csv, `linear-scale-${slug}-${researchId}.csv`);
+    };
 
     return (
         <LinearScaleQuestionCard
@@ -55,6 +61,7 @@ export const ScaleResultsWrapper = ({
             required={false}
             totalResponses={data.totalResponses}
             options={options}
+            onDownloadCSV={onDownloadCSV}
         />
     );
 };

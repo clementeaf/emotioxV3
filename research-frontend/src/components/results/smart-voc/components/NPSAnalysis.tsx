@@ -20,7 +20,7 @@ interface ProgressProps {
 }
 
 const Progress = ({ value, className, indicatorClassName }: ProgressProps) => (
-  <div className={cn('h-2 w-full bg-gray-200 rounded-full overflow-hidden', className)}>
+  <div className={cn('h-2 w-full bg-gray-200 overflow-hidden', className)}>
     <div
       className={cn('h-full transition-all', indicatorClassName)}
       style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
@@ -312,7 +312,7 @@ export const NPSAnalysis = ({
                 name="Promoters"
                 fill="#10B981"
                 stackId="nps"
-                radius={[12, 12, 0, 0]}
+                radius={[0, 0, 0, 0]}
               />
               <Bar
                 dataKey="neutrals"
@@ -326,7 +326,7 @@ export const NPSAnalysis = ({
                 name="Detractors"
                 fill="#F87171"
                 stackId="nps"
-                radius={[0, 0, 12, 12]}
+                radius={[0, 0, 0, 0]}
               />
               <Area
                 type="natural"
