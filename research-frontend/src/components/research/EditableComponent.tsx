@@ -154,56 +154,88 @@ interface RankingItemsEditorProps {
 type RankingItem = {
     id: string;
     label: string;
+    qualification?: 'qualify' | 'disqualify';
 };
 
 /**
  * Editor for ranking items — lets the researcher add/edit/remove items to rank
  */
 const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorProps) => {
-    const buildInitialItems = (): RankingItem[] => {
+    const buildInitialState = (): { items: RankingItem[]; randomize: boolean } => {
         if (value) {
             try {
                 const parsed = JSON.parse(value);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed as RankingItem[];
+                // New format: { items, randomize }
+                if (parsed && !Array.isArray(parsed) && parsed.items) {
+                    return { items: parsed.items as RankingItem[], randomize: !!parsed.randomize };
+                }
+                // Legacy format: plain array
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return { items: parsed as RankingItem[], randomize: false };
+                }
             } catch { /* not JSON */ }
         }
         const items = component.rankingConfig?.items;
-        if (items && items.length > 0) return items;
-        return [
-            { id: `item-${crypto.randomUUID()}`, label: 'Item 1' },
-            { id: `item-${crypto.randomUUID()}`, label: 'Item 2' },
-            { id: `item-${crypto.randomUUID()}`, label: 'Item 3' },
-        ];
+        if (items && items.length > 0) return { items, randomize: false };
+        return {
+            items: [
+                { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' },
+                { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' },
+                { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' },
+            ],
+            randomize: false,
+        };
     };
 
-    const [localItems, setLocalItems] = useState<RankingItem[]>(buildInitialItems);
+    const [localItems, setLocalItems] = useState<RankingItem[]>(() => buildInitialState().items);
+    const [randomize, setRandomize] = useState<boolean>(() => buildInitialState().randomize);
 
     useEffect(() => {
         if (value) {
             try {
                 const parsed = JSON.parse(value);
-                if (Array.isArray(parsed)) setLocalItems(parsed);
+                if (parsed && !Array.isArray(parsed) && parsed.items) {
+                    setLocalItems(parsed.items);
+                    setRandomize(!!parsed.randomize);
+                } else if (Array.isArray(parsed)) {
+                    setLocalItems(parsed);
+                }
             } catch { /* keep current */ }
         }
     }, [value]);
 
+    const persist = (items: RankingItem[], rand: boolean) => {
+        onChange(JSON.stringify({ items, randomize: rand }));
+    };
+
     const handleLabelChange = (itemId: string, label: string) => {
         const updated = localItems.map(item => item.id === itemId ? { ...item, label } : item);
         setLocalItems(updated);
-        onChange(JSON.stringify(updated));
+        persist(updated, randomize);
+    };
+
+    const handleQualificationChange = (itemId: string, qualification: 'qualify' | 'disqualify') => {
+        const updated = localItems.map(item => item.id === itemId ? { ...item, qualification } : item);
+        setLocalItems(updated);
+        persist(updated, randomize);
     };
 
     const handleAdd = () => {
-        const newItem: RankingItem = { id: `item-${crypto.randomUUID()}`, label: `Item ${localItems.length + 1}` };
+        const newItem: RankingItem = { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' };
         const updated = [...localItems, newItem];
         setLocalItems(updated);
-        onChange(JSON.stringify(updated));
+        persist(updated, randomize);
     };
 
     const handleDelete = (itemId: string) => {
         const updated = localItems.filter(item => item.id !== itemId);
         setLocalItems(updated);
-        onChange(JSON.stringify(updated));
+        persist(updated, randomize);
+    };
+
+    const handleRandomizeChange = (checked: boolean) => {
+        setRandomize(checked);
+        persist(localItems, checked);
     };
 
     return (
@@ -212,24 +244,31 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
                 {component.label}
             </label>
             <div className="space-y-3">
-                {localItems.map((item, index) => {
+                {localItems.map((item) => {
                     const canDelete = localItems.length > 2;
                     return (
-                        <div key={item.id} className="flex items-start gap-3">
-                            <span className="mt-2.5 text-sm font-medium text-gray-500 w-6 text-right">{index + 1}.</span>
+                        <div key={item.id} className="flex items-center gap-3">
                             <div className="flex-1">
                                 <Input
                                     id={`ranking-${item.id}-label`}
                                     label=""
                                     value={item.label}
                                     onChange={(e) => handleLabelChange(item.id, e.target.value)}
-                                    placeholder={`Item ${index + 1}`}
+                                    placeholder="Write an option..."
                                 />
                             </div>
+                            <select
+                                value={item.qualification || 'qualify'}
+                                onChange={(e) => handleQualificationChange(item.id, e.target.value as 'qualify' | 'disqualify')}
+                                className="px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="qualify">Qualify</option>
+                                <option value="disqualify">Disqualify</option>
+                            </select>
                             <button
                                 onClick={() => handleDelete(item.id)}
                                 disabled={!canDelete}
-                                className={`mt-1.5 p-2 rounded transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed opacity-50'}`}
+                                className={`p-2 rounded transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed opacity-50'}`}
                                 title={canDelete ? 'Delete item' : 'Minimum 2 items required'}
                             >
                                 <Trash2 className="h-4 w-4" />
@@ -243,8 +282,17 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
                     className="w-full"
                 >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add another item
+                    Add another choice
                 </Button>
+                <label className="flex items-center gap-2 cursor-pointer mt-2">
+                    <input
+                        type="checkbox"
+                        checked={randomize}
+                        onChange={(e) => handleRandomizeChange(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">Randomize the order of questions</span>
+                </label>
             </div>
         </div>
     );

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
-import type { Research, Stage, Module } from '../../services/research.service';
+import { researchService, type Research, type Stage, type Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
@@ -296,6 +296,18 @@ export const ResearchBuilderPage = () => {
             } catch { /* keep original */ }
         }
         return comp;
+    };
+
+    const handleDeleteModule = async (moduleId: string): Promise<void> => {
+        if (!id) return;
+        try {
+            await researchService.deleteModule(id, moduleId);
+            // Invalidate React Query cache to refetch research data
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+        } catch (err) {
+            console.error('Failed to delete module:', err);
+            alert('Failed to delete module. Please try again.');
+        }
     };
 
     const handleSaveModule = async (): Promise<void> => {
@@ -594,6 +606,7 @@ export const ResearchBuilderPage = () => {
                                 module={module}
                                 researchId={id!}
                                 onSave={handleSaveModule}
+                                onDelete={handleDeleteModule}
                                 isActive={activeModuleId === module.id}
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
@@ -637,6 +650,7 @@ export const ResearchBuilderPage = () => {
                                 module={module}
                                 researchId={id!}
                                 onSave={handleSaveModule}
+                                onDelete={handleDeleteModule}
                                 isActive={activeModuleId === module.id}
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}

@@ -1,3 +1,22 @@
+## v0.28.1 — Heatmap, AOI, Ranking redesign, hitzone fix, module delete (2026-03-18)
+
+### research-frontend
+- Feat: Heatmap — intensity-based color gradient (blue→purple→red→yellow→white) with 50% alpha overlay, replacing per-click green/red dots.
+- Feat: AOI (Areas of Interest) — draw rectangles over heatmap, shows % of participants and count per AOI, with thumbnail and Remove button.
+- Feat: Ranking results — redesigned to match Figma: per-option histogram showing vote distribution by position, sorted by mean.
+- Feat: Ranking builder — added Qualify/Disqualify selector per option, "Add another choice" button, "Randomize the order of questions" checkbox.
+- Feat: Module delete — trash icon on SmartVOC and Cognitive Task module cards with confirmation modal; calls `DELETE /research/:id/modules/:moduleId`.
+- Fix: Hitzone overlay in results — converted pixel coordinates to percent before rendering in SVG viewBox; hitzones now align with the image.
+- Fix: Hitzone editor — enlarged container (max-w-48rem, h-700px) so drawn areas are proportional to the actual image.
+- Fix: VOC download — uses pre-filtered data instead of nonexistent `/responses/.../smart-voc` endpoint.
+- Fix: NPS — removed duplicate time-range dropdown (top bar already controls this).
+
+### participant-frontend
+- Fix: NavigationFlow — removed container fallback when hitzones exist; clicks now only use rendered image rect, preventing coordinate mismatch that made all clicks incorrect.
+- Removed temporary debug overlay.
+
+---
+
 ## v0.28.0 — Results UI polish, SmartVOC filters & NavigationFlow fixes (2026-03-17)
 
 ### backend

@@ -5,7 +5,31 @@
 
 ---
 
-## Última actualización: 2026-03-17 (sesión 11)
+## Última actualización: 2026-03-18 (sesión 12)
+
+---
+
+## Sesión 12: 18 de marzo de 2026 — Heatmap, AOI, Ranking, hitzone fix (v0.28.1)
+
+### Cambios realizados
+
+#### Heatmap con gradiente de intensidad
+Canvas offscreen con círculos aditivos → colorización blue→purple→red→yellow→white con alpha 50%.
+
+#### AOI (Areas of Interest)
+Botón "+ Add AOI" en tab Heat click map. Dibuja rectángulos sobre el heatmap, calcula % de participantes únicos dentro del área. Fila con miniatura, label, %, count, filtro, Remove.
+
+#### Ranking rediseñado
+- **Builder**: inputs con selector Qualify/Disqualify, botón "Add another choice", checkbox "Randomize the order of questions".
+- **Results**: histograma de barras verticales por posición para cada opción, ordenado por mean.
+
+#### Hitzone: root cause encontrado y corregido
+- **Resultados**: hitzones se pasaban en píxeles al SVG con viewBox 0-100 → ahora se convierten a % usando dimensiones naturales de la imagen.
+- **Participant**: `getClickableRect()` tenía fallback al container fullscreen cuando la imagen no estaba lista → coordenadas de click desfasadas → todos los clicks incorrectos. Eliminado el fallback cuando hay hitzones.
+- **Editor**: contenedor ampliado a 700px de alto para que las áreas dibujadas sean proporcionales.
+
+#### Eliminar módulo
+Botón basurero en SmartVOC y Cognitive Task cards con modal de confirmación. Llama `DELETE /research/:id/modules/:moduleId`.
 
 ---
 

@@ -177,22 +177,20 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
         <div className="flex flex-col items-center justify-center">
             <div
                 ref={containerRef}
-                className="relative w-[56vw] max-w-[28rem] max-h-[56vh] bg-white rounded-lg shadow-lg overflow-hidden"
-                style={{
-                    aspectRatio: imgNatural ? `${imgNatural.width} / ${imgNatural.height}` : undefined,
-                }}
+                className="relative bg-white rounded-lg shadow-lg overflow-hidden flex items-center justify-center"
+                style={{ height: 700 }}
             >
                 {resolvedImageUrl && (
                     <img
                         src={resolvedImageUrl}
                         alt="Base image"
-                        className="w-full h-auto max-h-[56vh] object-contain bg-white"
+                        className="object-contain bg-white"
                         draggable={false}
                         onLoad={handleImgLoad}
                         onError={() => {
                             void refreshImageUrlIfPossible();
                         }}
-                        style={{ display: 'block' }}
+                        style={{ display: 'block', maxWidth: '100%', maxHeight: 700 }}
                         crossOrigin="anonymous"
                     />
                 )}

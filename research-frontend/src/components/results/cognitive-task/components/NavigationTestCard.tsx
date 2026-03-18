@@ -6,8 +6,15 @@ import { HeatmapRenderer } from './HeatmapRenderer';
 interface AOI {
   id: string;
   label: string;
+  /** Rect in percent (0-100) of image */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** % of total participants who clicked inside */
   percentage: number;
-  thumbnail?: string;
+  /** Unique participants who clicked inside */
+  participantCount: number;
 }
 
 interface NavigationResponse {
@@ -393,6 +400,55 @@ export const NavigationTestCard = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // AOI drawing state (per step, keyed by stepNumber)
+  const [aoiMap, setAoiMap] = useState<Record<number, AOI[]>>({});
+  const [drawingAoi, setDrawingAoi] = useState(false);
+  const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
+  const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const aoiContainerRef = useRef<HTMLDivElement>(null);
+
+  const getMousePercent = (e: React.MouseEvent, containerEl: HTMLElement): { x: number; y: number } => {
+    const rect = containerEl.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
+    };
+  };
+
+  const addAoi = (stepNumber: number, rect: { x: number; y: number; w: number; h: number }, responses: NavigationResponse[]) => {
+    const totalParticipants = responses.length;
+    // Count unique participants who have at least one click inside the AOI
+    // Backend responses use `clickSequence`; NavigationResponse type uses `heatmapData`
+    const participantsInside = responses.filter(r => {
+      const clicks = r.heatmapData
+        || (r as unknown as { clickSequence?: Array<{ x: number; y: number }> }).clickSequence
+        || [];
+      return clicks.some((c: { x: number; y: number }) =>
+        c.x >= rect.x && c.x <= rect.x + rect.w &&
+        c.y >= rect.y && c.y <= rect.y + rect.h
+      );
+    }).length;
+    const percentage = totalParticipants > 0 ? Math.round((participantsInside / totalParticipants) * 100) : 0;
+    const aoi: AOI = {
+      id: `aoi_${crypto.randomUUID()}`,
+      label: `Area of Interest (AOI)`,
+      x: rect.x,
+      y: rect.y,
+      width: rect.w,
+      height: rect.h,
+      percentage,
+      participantCount: participantsInside,
+    };
+    setAoiMap(prev => ({ ...prev, [stepNumber]: [...(prev[stepNumber] || []), aoi] }));
+  };
+
+  const removeAoi = (stepNumber: number, aoiId: string) => {
+    setAoiMap(prev => ({
+      ...prev,
+      [stepNumber]: (prev[stepNumber] || []).filter(a => a.id !== aoiId),
+    }));
+  };
+
   useEffect(() => {
     if (!menuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -556,13 +612,93 @@ export const NavigationTestCard = ({
                     {/* Heat Click Map Tab - Shows heatmap with clicks colored by correctness */}
                     {activeTab === 'heat-click-map' && (
                       <>
+                        {/* AOI toolbar */}
+                        <div className="flex items-center gap-3 mb-3">
+                          <button
+                            type="button"
+                            onClick={() => setDrawingAoi(prev => !prev)}
+                            className={cn(
+                              'px-3 py-1.5 text-xs font-medium rounded transition-colors',
+                              drawingAoi
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            )}
+                          >
+                            {drawingAoi ? 'Drawing AOI...' : '+ Add AOI'}
+                          </button>
+                          {(aoiMap[step.stepNumber] || []).length > 0 && (
+                            <span className="text-xs text-gray-500">
+                              {(aoiMap[step.stepNumber] || []).length} AOI defined
+                            </span>
+                          )}
+                        </div>
+
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
+                          <div
+                            ref={aoiContainerRef}
+                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative', drawingAoi && 'cursor-crosshair')}
+                            onMouseDown={drawingAoi ? (e) => {
+                              const container = aoiContainerRef.current;
+                              if (!container) return;
+                              const pos = getMousePercent(e, container);
+                              setAoiStart(pos);
+                              setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
+                            } : undefined}
+                            onMouseMove={drawingAoi && aoiStart ? (e) => {
+                              const container = aoiContainerRef.current;
+                              if (!container) return;
+                              const pos = getMousePercent(e, container);
+                              setAoiCurrent({
+                                x: Math.min(aoiStart.x, pos.x),
+                                y: Math.min(aoiStart.y, pos.y),
+                                w: Math.abs(pos.x - aoiStart.x),
+                                h: Math.abs(pos.y - aoiStart.y),
+                              });
+                            } : undefined}
+                            onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
+                              addAoi(step.stepNumber, aoiCurrent, step.responses || []);
+                              setAoiStart(null);
+                              setAoiCurrent(null);
+                              setDrawingAoi(false);
+                            } : () => { setAoiStart(null); setAoiCurrent(null); }}
+                          >
                             <HeatmapRenderer
                               imageUrl={step.imageUrl}
                               data={step.heatmapData || []}
                               className="w-full"
                             />
+
+                            {/* AOI overlays */}
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              {(aoiMap[step.stepNumber] || []).map((aoi) => (
+                                <g key={aoi.id}>
+                                  <rect
+                                    x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
+                                    fill="rgba(59, 130, 246, 0.1)"
+                                    stroke="#3B82F6"
+                                    strokeWidth="0.4"
+                                  />
+                                  <text
+                                    x={aoi.x + 0.5} y={aoi.y + 2.5}
+                                    fill="#1D4ED8" fontSize="2.5" fontWeight="bold"
+                                  >
+                                    {aoi.label} — {aoi.percentage}% ({aoi.participantCount})
+                                  </text>
+                                </g>
+                              ))}
+                              {/* Drawing preview */}
+                              {aoiCurrent && aoiCurrent.w > 0 && (
+                                <rect
+                                  x={aoiCurrent.x} y={aoiCurrent.y}
+                                  width={aoiCurrent.w} height={aoiCurrent.h}
+                                  fill="rgba(59, 130, 246, 0.15)"
+                                  stroke="#3B82F6"
+                                  strokeWidth="0.4"
+                                  strokeDasharray="1,1"
+                                />
+                              )}
+                            </svg>
+
                             {/* Overlay hitZones on top of heatmap */}
                             {step.hitZones && step.hitZones.length > 0 && (
                               <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -667,57 +803,58 @@ export const NavigationTestCard = ({
                       <NavigationTab step={step} />
                     )}
 
-                    {/* AOIs (Areas of Interest) */}
-                    {step.aois && step.aois.length > 0 && (
-                      <div className="space-y-3">
-                        <h5 className="text-sm font-semibold text-gray-700 mb-2">Areas of Interest (AOI)</h5>
-                        {step.aois.map((aoi, idx) => (
-                          <div key={idx} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
-                            {/* AOI Thumbnail */}
-                            <div className={cn(
-                              'w-16 h-16 rounded flex items-center justify-center flex-shrink-0',
-                              idx === 0 ? 'bg-gray-100' :
-                                idx === 1 ? 'bg-blue-900' :
-                                  idx === 2 ? 'bg-gray-200' :
-                                    'bg-gradient-to-br from-blue-200 to-purple-200'
-                            )}>
-                              {idx === 0 && (
-                                <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                            </div>
-
-                            {/* AOI Info */}
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-gray-900">{aoi.label}</span>
-                                <span className="text-xs text-gray-500">#1</span>
+                    {/* AOIs (Areas of Interest) — drawn by the researcher */}
+                    {(aoiMap[step.stepNumber] || []).length > 0 && (
+                      <div className="space-y-2 mt-4">
+                        {(aoiMap[step.stepNumber] || []).map((aoi, idx) => (
+                          <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
+                            {/* Thumbnail: cropped preview of the AOI region */}
+                            {step.imageUrl && (
+                              <div className="w-16 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
+                                <img
+                                  src={step.imageUrl}
+                                  alt={`AOI ${idx + 1}`}
+                                  className="w-full h-full"
+                                  style={{
+                                    objectFit: 'cover',
+                                    objectPosition: `${aoi.x + aoi.width / 2}% ${aoi.y + aoi.height / 2}%`,
+                                  }}
+                                />
                               </div>
+                            )}
+
+                            {/* Label + number */}
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                              <span className="text-sm text-gray-700">{aoi.label}</span>
+                              <span className="text-sm font-semibold text-gray-900">#{idx + 1}</span>
                             </div>
 
                             {/* Percentage */}
-                            <div className="text-right">
-                              <span className="text-sm font-semibold text-blue-600">{aoi.percentage}%</span>
+                            <span className="text-sm font-semibold text-green-600">{aoi.percentage}%</span>
+
+                            {/* Participant count */}
+                            <div className="flex items-center gap-1 text-gray-600">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-sm">{String(aoi.participantCount).padStart(2, '0')}</span>
                             </div>
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-2">
-                              <button className="text-gray-400 hover:text-gray-600">
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                  <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                </svg>
-                              </button>
-                              <button className="text-gray-400 hover:text-gray-600">
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-                                </svg>
-                              </button>
-                              <button className="text-sm text-red-600 hover:text-red-700 font-medium">
-                                Remove AOI
-                              </button>
-                            </div>
+                            {/* Filter icon (placeholder for future filtering) */}
+                            <button type="button" className="text-gray-400 hover:text-gray-600" title="Filter by this AOI">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+
+                            {/* Remove */}
+                            <button
+                              type="button"
+                              onClick={() => removeAoi(step.stepNumber, aoi.id)}
+                              className="text-sm text-red-600 hover:text-red-700 font-medium whitespace-nowrap"
+                            >
+                              Remove AOI
+                            </button>
                           </div>
                         ))}
                       </div>

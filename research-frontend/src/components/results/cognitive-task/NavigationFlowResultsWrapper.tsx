@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigationFlowResults } from '../../../hooks/useNavigationFlowResults';
 import { NavigationTestCard } from './components/NavigationTestCard';
 import { researchService, type Module } from '../../../services/research.service';
@@ -48,6 +48,16 @@ export const NavigationFlowResultsWrapper = ({
     const { data, isLoading: isResultsLoading } = useNavigationFlowResults(researchId, moduleId);
     const [module, setModule] = useState<Module | null>(null);
     const [isModuleLoading, setIsModuleLoading] = useState(true);
+    // Natural dimensions per image (keyed by file id) for hitzone px→% conversion
+    const [naturalDims, setNaturalDims] = useState<Record<string, { width: number; height: number }>>({});
+
+    const loadImageDims = useCallback((fileId: string, url: string) => {
+        const img = new Image();
+        img.onload = () => {
+            setNaturalDims(prev => ({ ...prev, [fileId]: { width: img.naturalWidth, height: img.naturalHeight } }));
+        };
+        img.src = url;
+    }, []);
 
     useEffect(() => {
         const fetchModuleFromResearch = async () => {
@@ -121,6 +131,22 @@ export const NavigationFlowResultsWrapper = ({
         }
     }, [researchId, moduleId]);
 
+    // Load natural image dimensions for hitzone px→% conversion
+    useEffect(() => {
+        if (!module?.config || typeof module.config !== 'object') return;
+        const config = module.config as ModuleConfigStructure;
+        const components = config.structure?.components || [];
+        const fu = components.find((c: ModuleComponent) => c.type === 'file-upload');
+        if (!fu?.value) return;
+        try {
+            const files = JSON.parse(fu.value) as Array<{ id?: string; mediaId?: string; url?: string }>;
+            files.forEach(f => {
+                const fid = f.id ?? f.mediaId ?? '';
+                if (f.url && fid && !naturalDims[fid]) loadImageDims(fid, f.url);
+            });
+        } catch { /* ignore */ }
+    }, [module, loadImageDims, naturalDims]);
+
     const isLoading = isResultsLoading || isModuleLoading;
 
     if (isLoading || !data) {
@@ -190,7 +216,17 @@ export const NavigationFlowResultsWrapper = ({
             hasHeatmap: heatmapForImage.length > 0,
             heatmapData: heatmapForImage,
             imageUrl: file.url ?? '',
-            hitZones: file.hitZones ?? [],
+            // Convert hitZones from natural image pixels to percent (0-100)
+            hitZones: (file.hitZones ?? []).map(hz => {
+                const dims = naturalDims[file.id];
+                if (!dims || dims.width === 0 || dims.height === 0) return hz;
+                return {
+                    x: (hz.x / dims.width) * 100,
+                    y: (hz.y / dims.height) * 100,
+                    width: (hz.width / dims.width) * 100,
+                    height: (hz.height / dims.height) * 100,
+                };
+            }),
             responses: data.responses,
             aois: [],
         };

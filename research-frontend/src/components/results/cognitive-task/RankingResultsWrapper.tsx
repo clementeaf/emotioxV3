@@ -25,19 +25,38 @@ export const RankingResultsWrapper = ({
         );
     }
 
-    // Map rankings to options with distribution
-    // Color palette for ranking segments (lightest to darkest indigo)
-    const colors = ['#A5B4FC', '#818CF8', '#6366F1', '#4F46E5', '#4338CA', '#3730A3'];
+    // Collect all unique items and determine total positions
+    const allItems = new Set<string>();
+    // Each RankingResponse has `rankings: Array<{ item, meanPosition }>` but the raw backend
+    // response also includes the ordered array.  We read it from the raw shape.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawResponses = data.responses as any[];
+    rawResponses.forEach((r: Record<string, unknown>) => {
+        const items = (Array.isArray(r.ranking) ? r.ranking : []) as string[];
+        items.forEach(item => allItems.add(item));
+    });
+    const positionCount = allItems.size || 1;
 
-    const options = data.rankings.map((ranking, index) => ({
-        id: String(index + 1),
+    // Build distribution: for each item, count how many times it was placed at each position
+    const distMap: Record<string, number[]> = {};
+    for (const item of allItems) {
+        distMap[item] = Array(positionCount).fill(0);
+    }
+    rawResponses.forEach((r: Record<string, unknown>) => {
+        const items = (Array.isArray(r.ranking) ? r.ranking : []) as string[];
+        items.forEach((item: string, idx: number) => {
+            if (distMap[item] && idx < positionCount) {
+                distMap[item][idx]++;
+            }
+        });
+    });
+
+    // Sort by mean position (best first)
+    const options = data.rankings.map((ranking) => ({
+        id: ranking.item,
         label: ranking.item,
         mean: Math.round(ranking.meanPosition * 10) / 10,
-        segments: colors.map((color, position) => ({
-            position: position + 1,
-            percentage: Math.round(100 / colors.length), // Equal distribution for now (TODO: get actual distribution)
-            color
-        }))
+        distribution: distMap[ranking.item] || Array(positionCount).fill(0),
     }));
 
     return (

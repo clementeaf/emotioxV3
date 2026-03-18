@@ -20,7 +20,7 @@ export const HeatmapRenderer = ({
     imageUrl,
     data,
     className = '',
-    radius = 25
+    radius = 30
 }: HeatmapRendererProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -42,11 +42,8 @@ export const HeatmapRenderer = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Set canvas dimensions to match image natural size for accurate coordinate mapping
         canvas.width = naturalSize.width;
         canvas.height = naturalSize.height;
-
-        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw background image
@@ -54,47 +51,89 @@ export const HeatmapRenderer = ({
         img.src = imageUrl;
         ctx.drawImage(img, 0, 0);
 
-        // Draw Heatmap Points
-        // Simple implementation: Radial gradients for each point
+        // --- Heatmap with intensity overlay (alpha channel) ---
+        // 1. Build an intensity map on an offscreen canvas (grayscale, additive)
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const offCtx = offscreen.getContext('2d')!;
+
         data.forEach(point => {
-            ctx.beginPath();
-            // Assuming point.x and point.y are percentages (0-100)
             let x = point.x;
             let y = point.y;
 
-            // Convert percentage (0-100) to pixel coordinates
             if (x > 1 && y > 1) {
-                // Already in percentage format (0-100)
                 x = (x / 100) * naturalSize.width;
                 y = (y / 100) * naturalSize.height;
             } else if (x <= 1 && y <= 1) {
-                // Normalized format (0-1)
                 x *= naturalSize.width;
                 y *= naturalSize.height;
             }
 
-            const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            // Additive white circle — overlapping circles accumulate intensity
+            const gradient = offCtx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
 
-            // Color based on correctness: Green for correct, Red for incorrect
-            if (point.isCorrect === true) {
-                gradient.addColorStop(0, 'rgba(34, 197, 94, 0.6)'); // Green center
-                gradient.addColorStop(0.5, 'rgba(134, 239, 172, 0.4)'); // Light green
-                gradient.addColorStop(1, 'rgba(134, 239, 172, 0)'); // Transparent
-            } else if (point.isCorrect === false) {
-                gradient.addColorStop(0, 'rgba(239, 68, 68, 0.6)'); // Red center
-                gradient.addColorStop(0.5, 'rgba(252, 165, 165, 0.4)'); // Light red
-                gradient.addColorStop(1, 'rgba(252, 165, 165, 0)'); // Transparent
+            offCtx.globalCompositeOperation = 'lighter';
+            offCtx.fillStyle = gradient;
+            offCtx.beginPath();
+            offCtx.arc(x, y, radius, 0, 2 * Math.PI);
+            offCtx.fill();
+        });
+
+        // 2. Read the intensity map and colorize: blue→purple→red→yellow→white
+        const intensityData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+        const colorized = ctx.createImageData(canvas.width, canvas.height);
+
+        for (let i = 0; i < intensityData.data.length; i += 4) {
+            const intensity = intensityData.data[i]; // R channel (white circles → R=G=B)
+            if (intensity === 0) continue; // transparent where no clicks
+
+            // Map intensity 0-255 to heatmap gradient: blue → purple → red → yellow → white
+            let r: number, g: number, b: number;
+            const t = intensity / 255;
+
+            if (t < 0.25) {
+                // Blue → Purple
+                const p = t / 0.25;
+                r = Math.round(80 * p);
+                g = 0;
+                b = Math.round(180 + 75 * p);
+            } else if (t < 0.5) {
+                // Purple → Red
+                const p = (t - 0.25) / 0.25;
+                r = Math.round(80 + 175 * p);
+                g = 0;
+                b = Math.round(255 - 255 * p);
+            } else if (t < 0.75) {
+                // Red → Yellow
+                const p = (t - 0.5) / 0.25;
+                r = 255;
+                g = Math.round(200 * p);
+                b = 0;
             } else {
-                // Default yellow for unknown
-                gradient.addColorStop(0, 'rgba(255, 0, 0, 0.6)'); // Red center
-                gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.4)'); // Yellow
-                gradient.addColorStop(1, 'rgba(255, 255, 0, 0)'); // Transparent
+                // Yellow → White
+                const p = (t - 0.75) / 0.25;
+                r = 255;
+                g = Math.round(200 + 55 * p);
+                b = Math.round(80 * p);
             }
 
-            ctx.fillStyle = gradient;
-            ctx.arc(x, y, radius, 0, 2 * Math.PI);
-            ctx.fill();
-        });
+            colorized.data[i] = r;
+            colorized.data[i + 1] = g;
+            colorized.data[i + 2] = b;
+            colorized.data[i + 3] = Math.round(128); // 50% alpha
+        }
+
+        // 3. Draw colorized overlay on top of the image
+        const overlayCanvas = document.createElement('canvas');
+        overlayCanvas.width = canvas.width;
+        overlayCanvas.height = canvas.height;
+        const overlayCtx = overlayCanvas.getContext('2d')!;
+        overlayCtx.putImageData(colorized, 0, 0);
+
+        ctx.drawImage(overlayCanvas, 0, 0);
 
     }, [imageLoaded, naturalSize, data, imageUrl, radius]);
 

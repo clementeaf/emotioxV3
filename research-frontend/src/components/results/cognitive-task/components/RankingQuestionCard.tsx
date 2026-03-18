@@ -1,17 +1,12 @@
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 
-interface RankingSegment {
-  position: number;
-  percentage: number;
-  color: string;
-}
-
 interface RankingOption {
   id: string;
   label: string;
   mean: number;
-  segments: RankingSegment[];
+  /** Distribution: how many times this option was placed at each position (index 0 = position 1) */
+  distribution: number[];
 }
 
 interface RankingQuestionCardProps {
@@ -33,122 +28,104 @@ export const RankingQuestionCard = ({
   conditionalityDisabled = true,
   required = false,
   options,
-  totalResponses,
-  responseTime = '70s',
+  responseTime = '76s',
   className
 }: RankingQuestionCardProps) => {
-  const maxPosition = Math.max(...options.flatMap(opt => opt.segments.map(s => s.position)));
+  const positionCount = options.length > 0
+    ? Math.max(...options.map(o => o.distribution.length))
+    : 0;
+  const maxCount = Math.max(1, ...options.flatMap(o => o.distribution));
 
   return (
-    <Card className={cn('p-6 pb-24', className)}>
+    <Card className={cn('p-6 pb-8', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-lg font-semibold">{questionNumber}- {questionText}</h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 text-xs font-medium rounded text-green-600 bg-green-50">
-              {questionType}
-            </span>
-            {conditionalityDisabled && (
-              <span className="px-2 py-1 text-xs font-medium rounded text-blue-600 bg-blue-50">
-                Conditionality disabled
-              </span>
-            )}
-            {required && (
-              <span className="px-2 py-1 text-xs font-medium rounded text-red-600 bg-red-50">
-                Required
-              </span>
-            )}
-          </div>
-        </div>
-        <button className="text-gray-400 hover:text-gray-600">
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="text-lg font-semibold">{questionNumber}- Question: {questionText}</h3>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-6">
+        <span className="px-2 py-1 text-xs font-medium rounded text-green-600 bg-green-50">
+          {questionType}
+        </span>
+        {conditionalityDisabled && (
+          <span className="px-2 py-1 text-xs font-medium rounded text-blue-600 bg-blue-50">
+            Conditionality disabled
+          </span>
+        )}
+        {required && (
+          <span className="px-2 py-1 text-xs font-medium rounded text-red-600 bg-red-50">
+            Required
+          </span>
+        )}
+        <button className="text-gray-400 hover:text-gray-600 ml-2">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+            <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
           </svg>
         </button>
       </div>
 
-      {/* Ranking Visualization */}
-      <div className="space-y-1">
-        {/* Header with position numbers */}
-        <div className="flex items-center gap-3 mb-2 pl-20">
-          <div className="flex-1 flex justify-between items-center px-2 text-xs text-gray-500 font-medium">
-            {Array.from({ length: maxPosition }, (_, i) => (
-              <span key={i + 1}>{i + 1}</span>
-            ))}
-          </div>
-          <div className="w-20 text-center text-xs text-gray-500 font-medium">Mean</div>
-          <div className="w-16 text-center text-xs text-gray-500 font-medium">Secs</div>
-          <div className="w-8"></div>
+      {/* Column headers */}
+      <div className="flex items-end gap-3 mb-1">
+        <div className="w-24 shrink-0" />
+        <div className="flex-1 flex">
+          {Array.from({ length: positionCount }, (_, i) => (
+            <div key={i} className="flex-1 text-center text-xs font-medium text-gray-500">
+              {i + 1}
+            </div>
+          ))}
         </div>
+        <div className="w-14 text-center text-xs font-medium text-gray-500">Mean</div>
+        <div className="w-12 text-center text-xs font-medium text-gray-500">Secs</div>
+        <div className="w-6" />
+      </div>
 
-        {/* Options with segmented bars */}
+      {/* Options */}
+      <div className="space-y-2">
         {options.map((option) => (
-          <div key={option.id} className="flex items-center gap-3">
-            {/* Option Label */}
-            <div className="w-20 text-sm font-medium text-gray-700">
+          <div key={option.id} className="flex items-center gap-3 border border-gray-100 rounded-lg p-3 bg-white" style={{ borderLeft: '3px solid #a3e635' }}>
+            {/* Option label */}
+            <div className="w-24 shrink-0 text-sm font-medium text-gray-700">
               {option.label}
             </div>
 
-            {/* Segmented Bar */}
-            <div className="flex-1 flex rounded-full overflow-hidden h-7 bg-gray-200">
-              {option.segments.map((segment, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-center transition-all duration-300"
-                  style={{
-                    width: `${segment.percentage}%`,
-                    backgroundColor: segment.color,
-                    minWidth: segment.percentage > 0 ? '8px' : '0'
-                  }}
-                >
-                  {segment.percentage > 5 && (
-                    <span className="text-xs font-semibold text-white drop-shadow-sm">
-                      {segment.position}
-                    </span>
-                  )}
-                </div>
-              ))}
+            {/* Distribution histogram */}
+            <div className="flex-1 flex items-end gap-px" style={{ height: 48 }}>
+              {option.distribution.map((count, posIdx) => {
+                const barHeight = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                return (
+                  <div key={posIdx} className="flex-1 flex flex-col items-center justify-end h-full">
+                    <div
+                      className="w-full rounded-t-sm"
+                      style={{
+                        height: `${barHeight}%`,
+                        minHeight: count > 0 ? 3 : 0,
+                        backgroundColor: '#93a3c8',
+                      }}
+                    />
+                    <span className="text-[10px] text-gray-400 mt-0.5">{posIdx + 1}</span>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Mean Value */}
-            <div className="w-20 text-center">
-              <span className="text-sm font-semibold text-gray-900">{option.mean.toFixed(1)}</span>
+            {/* Mean */}
+            <div className="w-14 text-center">
+              <span className="text-sm font-bold text-gray-900">{option.mean.toFixed(1).replace('.', ',')}</span>
             </div>
 
-            {/* Response Time */}
-            <div className="w-16 text-center">
-              <span className="text-sm text-gray-500">{responseTime}</span>
+            {/* Time */}
+            <div className="w-12 text-center">
+              <span className="text-sm text-blue-500">{responseTime}</span>
             </div>
 
-            {/* Filter Icon */}
-            <div className="w-8 flex justify-center">
-              <button className="text-gray-400 hover:text-gray-600">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
+            {/* Filter */}
+            <button className="text-gray-400 hover:text-gray-600 w-6 flex justify-center">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
         ))}
       </div>
-
-      {/* Responses Summary */}
-      {totalResponses && (
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-medium text-gray-700 mb-1">Responses</h3>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-gray-900">{totalResponses.toLocaleString()}</span>
-                <span className="text-sm text-gray-500">26s</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </Card>
   );
 };
