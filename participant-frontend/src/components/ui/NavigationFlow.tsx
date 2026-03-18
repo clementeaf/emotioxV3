@@ -116,6 +116,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const imageRef = useRef<HTMLDivElement>(null);
     const imgElRef = useRef<HTMLImageElement>(null);
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
+    // Debug state: shows last click coords vs hitzone on screen (TEMPORARY — remove after diagnosis)
+    const [debugInfo, setDebugInfo] = useState<string>('');
     /** Dedupe pointerup + click so we only advance once per interaction (Opera and others fire both). */
     const lastHandledAtRef = useRef<number>(0);
 
@@ -325,6 +327,14 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 ))
                 : true;
 
+        // TEMPORARY debug overlay — shows what the component actually computes
+        const hzStr = hitzonesToCheck.map(hz =>
+            `[${hz.x.toFixed(1)}-${(hz.x+hz.width).toFixed(1)}, ${hz.y.toFixed(1)}-${(hz.y+hz.height).toFixed(1)}]`
+        ).join(' ');
+        setDebugInfo(
+            `click(${x.toFixed(1)}, ${y.toFixed(1)}) hz:${hzStr} nat:${imgNatural?.width}x${imgNatural?.height} rnd:${rendered.width.toFixed(0)}x${rendered.height.toFixed(0)} hit:${isInHitzone}`
+        );
+
         const clickPoint: ClickPoint = {
             x,
             y,
@@ -431,6 +441,13 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             className="fixed inset-0 z-40 bg-black flex flex-col"
             style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
+            {/* TEMPORARY debug panel — remove after diagnosis */}
+            {debugInfo && (
+                <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-300 text-black text-xs px-2 py-1 font-mono break-all">
+                    {debugInfo}
+                </div>
+            )}
+
             {/* Title and instructions above the image so hitzones at the top remain clickable */}
             {!isComplete && (
                 <div className="flex-shrink-0 bg-black px-4 pt-4 pb-3">
