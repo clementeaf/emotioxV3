@@ -118,6 +118,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
     /** Dedupe pointerup + click so we only advance once per interaction (Opera and others fire both). */
     const lastHandledAtRef = useRef<number>(0);
+    /** Count clicks on current image that didn't trigger advance — used for stuck-detection button. */
+    const [stuckClicks, setStuckClicks] = useState(0);
 
     // Response hook for saving data
     const response = useResponse({ moduleId, componentId });
@@ -220,6 +222,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         setRenderedRect(null);
         setContainerRect(null);
         setImageError(false);
+        setStuckClicks(0);
 
         // Safety net: if onLoad already fired (cached image) or fires during render,
         // poll the img ref briefly to pick up naturalWidth/Height.
@@ -280,7 +283,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         // we must NOT fall back to container — it would make ALL clicks incorrect.
         if (!rendered) {
             if (hasHitzoneDefs) {
-                // Image not ready yet — ignore click silently
+                // Image not ready yet — count as stuck so force-advance button appears
+                setStuckClicks(prev => prev + 1);
                 return;
             }
             // No hitzones defined — any click advances, so container fallback is fine
@@ -312,7 +316,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 // Sync state so subsequent clicks use the fast path
                 setImgNatural(natural);
             } else {
-                // Image truly not loaded yet — ignore click
+                // Image truly not loaded yet — count as stuck so force-advance button appears
+                setStuckClicks(prev => prev + 1);
                 return;
             }
         }
@@ -346,8 +351,11 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 setTimeout(() => {
                     setCurrentImageIndex(prev => prev + 1);
                     setClickPoints([]);
+                    setStuckClicks(0);
                 }, 200);
             }
+        } else {
+            setStuckClicks(prev => prev + 1);
         }
     };
 
@@ -427,6 +435,28 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isComplete]);
 
+    /** Force-advance to next image — fallback when hitzones fail to detect clicks (e.g. Opera/Linux). */
+    const forceAdvance = useCallback(() => {
+        if (isComplete) return;
+        // Record a synthetic correct click so analytics still reflect the interaction
+        const syntheticClick: ClickPoint = { x: -1, y: -1, timestamp: Date.now(), isCorrect: true };
+        setAllClicks(prev => [...prev, { ...syntheticClick, imageId: currentImage.id } as ClickPoint & { imageId?: string }]);
+
+        if (isLastImage) {
+            setIsComplete(true);
+            saveNavigationResponse(true);
+            if (onComplete) setTimeout(() => onComplete(), 800);
+        } else {
+            setCurrentImageIndex(prev => prev + 1);
+            setClickPoints([]);
+            setStuckClicks(0);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isComplete, isLastImage, currentImage.id, onComplete]);
+
+    // Show force-advance button after 3+ clicks without advancing
+    const showForceAdvance = !isComplete && stuckClicks >= 3;
+
     return (
         <div
             className="fixed inset-0 z-40 bg-black flex flex-col"
@@ -488,7 +518,9 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                                     if (container) setContainerRect(container.getBoundingClientRect());
                                 };
                                 if (typeof el.decode === 'function') {
-                                    el.decode().then(applyDimensions).catch(() => applyDimensions());
+                                    // Race decode() against a timeout — Opera/Linux can hang on decode() indefinitely
+                                    const timeout = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('decode timeout')), 1000));
+                                    Promise.race([el.decode(), timeout]).then(applyDimensions).catch(() => applyDimensions());
                                 } else {
                                     applyDimensions();
                                 }
@@ -560,6 +592,18 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         </React.Fragment>
                     );
                 })}
+
+                {/* Force-advance button — appears after 3+ failed clicks on the same image */}
+                {showForceAdvance && (
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); forceAdvance(); }}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-6 py-2.5 bg-white/90 hover:bg-white text-gray-900 text-sm font-medium rounded-full shadow-lg backdrop-blur-sm transition-all"
+                    >
+                        {t('navigationFlow.continue', 'Continue →')}
+                    </button>
+                )}
 
                 {/* Completion overlay */}
                 {isComplete && (

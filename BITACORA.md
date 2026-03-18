@@ -5,7 +5,25 @@
 
 ---
 
-## Última actualización: 2026-03-18 (sesión 14)
+## Última actualización: 2026-03-18 (sesión 15)
+
+---
+
+## Sesión 15: 18 de marzo de 2026 — NavigationFlow: fix Opera/Linux (v0.28.4)
+
+### Problema reportado
+En Opera sobre Ubuntu 25, el NavigationFlow se pegaba después del click en la imagen 2 sin avanzar. Brave y Safari funcionaban sin problemas.
+
+### Root cause
+`img.decode()` puede colgarse indefinidamente en Opera/Linux, dejando `imgNatural` en `null`. Sin dimensiones naturales, los clicks se ignoran silenciosamente.
+
+### Solución
+- **Timeout en `img.decode()`** (1s): si no resuelve, aplica dimensiones desde `naturalWidth/Height` directamente.
+- **Botón "Continue →"**: aparece tras 3+ clicks sin avanzar. Registra click sintético (`x:-1, y:-1`) en analytics. Cubre tanto el bug de Opera como participantes que no encuentran el hitzone.
+- **Contador `stuckClicks`**: se incrementa en clicks ignorados (imagen no lista) y clicks fuera del hitzone. Se resetea al cambiar de imagen.
+
+### Nota
+La "barra amarilla con coordenadas" que reportó el usuario no es parte del código — es una herramienta de Opera o extensión del navegador.
 
 ---
 
