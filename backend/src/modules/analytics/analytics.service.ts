@@ -347,16 +347,17 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
       WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'ranking'
       ORDER BY r.created_at ASC
     `, [researchId, moduleId]),
-    pool.query(`SELECT structure FROM modules WHERE id = ?`, [moduleId]),
+    pool.query(`SELECT config FROM modules WHERE id = ?`, [moduleId]),
   ]);
 
-  // Build id→label map from module structure
+  // Build id→label map from module structure (structure is nested inside config)
   const itemLabels: Record<string, string> = {};
   if (moduleResult.rows.length > 0) {
     try {
-      const structure = typeof moduleResult.rows[0].structure === 'string'
-        ? JSON.parse(moduleResult.rows[0].structure)
-        : moduleResult.rows[0].structure;
+      const config = typeof moduleResult.rows[0].config === 'string'
+        ? JSON.parse(moduleResult.rows[0].config)
+        : moduleResult.rows[0].config;
+      const structure = config?.structure ?? config;
       const rankingComponent = structure?.components?.find((c: any) => c.type === 'ranking-list' || c.rankingConfig);
       const items = rankingComponent?.rankingConfig?.items ?? [];
       items.forEach((item: { id: string; label: string }) => {
