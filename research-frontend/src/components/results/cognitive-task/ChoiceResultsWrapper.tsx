@@ -7,6 +7,7 @@ interface ChoiceResultsWrapperProps {
     moduleName: string;
     questionNumber: string;
     isSingleChoice: boolean;
+    filteredParticipantIds?: Set<string> | null;
 }
 
 export const ChoiceResultsWrapper = ({
@@ -14,9 +15,28 @@ export const ChoiceResultsWrapper = ({
     moduleId,
     moduleName,
     questionNumber,
-    isSingleChoice
+    isSingleChoice,
+    filteredParticipantIds
 }: ChoiceResultsWrapperProps) => {
-    const { data, isLoading } = useChoiceResponses(researchId, moduleId);
+    const { data: rawData, isLoading } = useChoiceResponses(researchId, moduleId);
+
+    // Apply participant filter
+    const data = rawData && filteredParticipantIds
+        ? (() => {
+            const filtered = rawData.responses.filter(r => filteredParticipantIds.has(r.participantId));
+            const counts: Record<string, number> = {};
+            filtered.forEach(r => { counts[r.choice] = (counts[r.choice] || 0) + 1; });
+            return {
+                ...rawData,
+                totalResponses: filtered.length,
+                responses: filtered,
+                choiceCounts: rawData.choiceCounts.map(cc => {
+                    const count = counts[cc.choice] || 0;
+                    return { ...cc, count, percentage: filtered.length > 0 ? (count / filtered.length) * 100 : 0 };
+                }),
+            };
+        })()
+        : rawData;
 
     if (isLoading || !data) {
         return (

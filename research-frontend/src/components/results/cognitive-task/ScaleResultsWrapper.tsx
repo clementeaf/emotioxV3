@@ -7,15 +7,36 @@ interface ScaleResultsWrapperProps {
     moduleId: string;
     moduleName: string;
     questionNumber: string;
+    filteredParticipantIds?: Set<string> | null;
 }
 
 export const ScaleResultsWrapper = ({
     researchId,
     moduleId,
     moduleName,
-    questionNumber
+    questionNumber,
+    filteredParticipantIds
 }: ScaleResultsWrapperProps) => {
-    const { data, isLoading } = useScaleResponses(researchId, moduleId);
+    const { data: rawData, isLoading } = useScaleResponses(researchId, moduleId);
+
+    // Apply participant filter
+    const data = rawData && filteredParticipantIds
+        ? (() => {
+            const filtered = rawData.responses.filter(r => filteredParticipantIds.has(r.participantId));
+            const distribution: Record<number, number> = {};
+            filtered.forEach(r => { distribution[r.value] = (distribution[r.value] || 0) + 1; });
+            return {
+                ...rawData,
+                totalResponses: filtered.length,
+                responses: filtered,
+                distribution: Object.entries(distribution).map(([value, count]) => ({
+                    value: parseInt(value),
+                    count,
+                    percentage: filtered.length > 0 ? (count / filtered.length) * 100 : 0,
+                })),
+            };
+        })()
+        : rawData;
 
     if (isLoading || !data) {
         return (

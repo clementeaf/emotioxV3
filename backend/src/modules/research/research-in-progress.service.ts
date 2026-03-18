@@ -22,24 +22,18 @@ interface ProgressModuleRow {
 }
 
 /**
- * Cuenta los componentes visibles que deben considerarse para el progreso.
- * Excluye:
- * - El módulo de configuración de investigación
- * - Módulos marcados como ocultos
- * - Componentes marcados como ocultos
- * @param modules - Lista de módulos de la investigación
- * @returns Número total de componentes visibles
+ * Counts visible modules (not sub-components) that participants are expected to answer.
+ * Excludes Research Configuration, Welcome Screen, Thank You Screen, and hidden modules.
+ * Progress = modules answered / total visible modules.
  */
-const countVisibleComponentsForProgress = (modules: ProgressModuleRow[]): number => {
-    let totalComponents = 0;
+const countVisibleModulesForProgress = (modules: ProgressModuleRow[]): number => {
+    const EXCLUDED_NAMES = ['research configuration', 'welcome screen', 'thank you screen'];
+    let count = 0;
 
     for (const mod of modules) {
-        if (mod.name === 'Research Configuration') {
-            continue;
-        }
+        if (EXCLUDED_NAMES.includes(mod.name.toLowerCase())) continue;
 
         let parsedConfig: ProgressModuleConfig | null = null;
-
         try {
             if (typeof mod.config === 'string') {
                 parsedConfig = JSON.parse(mod.config) as ProgressModuleConfig;
@@ -50,39 +44,20 @@ const countVisibleComponentsForProgress = (modules: ProgressModuleRow[]): number
             parsedConfig = null;
         }
 
-        if (parsedConfig?.hidden === true) {
-            continue;
-        }
+        if (parsedConfig?.hidden === true) continue;
 
-        const structure = parsedConfig?.structure ?? parsedConfig;
-        const components = structure?.components ?? parsedConfig?.components;
-
-        if (Array.isArray(components)) {
-            const visibleComponents = components.filter((component: ProgressComponentConfig) => {
-                if (component.hidden === true) {
-                    return false;
-                }
-                if (component.config?.hidden === true) {
-                    return false;
-                }
-                return true;
-            });
-
-            totalComponents += visibleComponents.length;
-        } else {
-            totalComponents += 1;
-        }
+        count++;
     }
 
-    return totalComponents;
+    return count;
 };
 
 /**
- * Obtiene el total de componentes visibles que se usan para el cálculo de progreso.
- * @param researchId - ID de la investigación
- * @returns Número total de componentes visibles
+ * Gets the total number of visible modules for progress calculation.
+ * @param researchId - Research ID
+ * @returns Number of visible modules participants should answer
  */
-const getTotalVisibleComponentsForProgress = async (researchId: string): Promise<number> => {
+const getTotalVisibleModulesForProgress = async (researchId: string): Promise<number> => {
     const modulesQuery = `
         SELECT id, name, config
         FROM modules
@@ -90,7 +65,7 @@ const getTotalVisibleComponentsForProgress = async (researchId: string): Promise
         ORDER BY order_index
     `;
     const modulesResult = await pool.query(modulesQuery, [researchId]);
-    return countVisibleComponentsForProgress(modulesResult.rows as ProgressModuleRow[]);
+    return countVisibleModulesForProgress(modulesResult.rows as ProgressModuleRow[]);
 };
 
 /**
@@ -150,17 +125,17 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
     const participantsWithResponses = parseInt(participantsResult.rows[0]?.participants_with_responses || '0', 10);
 
     // Contar total de componentes visibles desde config de módulos
-    const totalComponents = await getTotalVisibleComponentsForProgress(researchId);
+    const totalComponents = await getTotalVisibleModulesForProgress(researchId);
 
-    // Calcular tasa de completitud real: participantes que respondieron todo
+    // Calcular tasa de completitud real: participantes que respondieron todos los módulos
     const completedQuery = `
         SELECT COUNT(*) as completed
         FROM (
-            SELECT participant_id, COUNT(DISTINCT component_id) as answered
+            SELECT participant_id, COUNT(DISTINCT module_id) as answered
             FROM responses
             WHERE research_id = ?
             GROUP BY participant_id
-            HAVING COUNT(DISTINCT component_id) >= ?
+            HAVING COUNT(DISTINCT module_id) >= ?
         ) completed_participants
     `;
     const completedResult = await pool.query(completedQuery, [researchId, totalComponents]);
@@ -239,15 +214,15 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
     }
 
     // 1. Contar total de componentes visibles esperados desde la config de módulos
-    const totalComponents = await getTotalVisibleComponentsForProgress(researchId);
+    const totalComponents = await getTotalVisibleModulesForProgress(researchId);
 
-    // 2. Obtener respuestas únicas por participante usando component_id
+    // 2. Obtener módulos respondidos por participante
     const participantsQuery = `
         SELECT
             r.participant_id as id,
             COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
             COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
-            COUNT(DISTINCT r.component_id) as answered_components,
+            COUNT(DISTINCT r.module_id) as answered_modules,
             MIN(r.created_at) as first_response,
             MAX(r.created_at) as last_response
         FROM responses r
@@ -258,7 +233,7 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
     const result = await pool.query(participantsQuery, [researchId]);
 
     const participants = result.rows.map(row => {
-        const answered = parseInt(row.answered_components || '0', 10);
+        const answered = parseInt(row.answered_modules || '0', 10);
         const progress = totalComponents > 0
             ? Math.min(100, Math.round((answered / totalComponents) * 100))
             : 0;
@@ -326,15 +301,15 @@ export const getParticipantDetails = async (researchId: string, participantId: s
     }
 
     // Contar total de componentes visibles desde config de módulos
-    const totalComponents = await getTotalVisibleComponentsForProgress(researchId);
+    const totalComponents = await getTotalVisibleModulesForProgress(researchId);
 
-    // Obtener estadísticas del participante usando component_id
+    // Obtener estadísticas del participante usando module_id
     const participantQuery = `
         SELECT
             participant_id as id,
             COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
             COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
-            COUNT(DISTINCT component_id) as answered_components,
+            COUNT(DISTINCT module_id) as answered_modules,
             MIN(created_at) as first_response,
             MAX(created_at) as last_response
         FROM responses
@@ -349,7 +324,7 @@ export const getParticipantDetails = async (researchId: string, participantId: s
     }
 
     const row = result.rows[0];
-    const answered = parseInt(row.answered_components || '0', 10);
+    const answered = parseInt(row.answered_modules || '0', 10);
     const progress = totalComponents > 0
         ? Math.min(100, Math.round((answered / totalComponents) * 100))
         : 0;

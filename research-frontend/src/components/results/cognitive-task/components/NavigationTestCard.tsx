@@ -1,4 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { toPng } from 'html-to-image';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 import { HeatmapRenderer } from './HeatmapRenderer';
@@ -110,8 +111,8 @@ const QuantityMapperTab = ({ step }: { step: NavigationStep }) => {
 
   return (
     <div className="space-y-3">
-      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
-        <img src={step.imageUrl} alt={step.title} className="w-full h-auto" />
+      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
+        <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {gridData.cells.map((count, idx) => {
             if (count === 0) return null;
@@ -198,8 +199,8 @@ const ScanPathTab = ({ step }: { step: NavigationStep }) => {
 
   return (
     <div className="space-y-3">
-      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
-        <img src={step.imageUrl} alt={step.title} className="w-full h-auto" />
+      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
+        <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {/* Defs for arrow markers */}
           <defs>
@@ -407,6 +408,25 @@ export const NavigationTestCard = ({
   const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const aoiContainerRef = useRef<HTMLDivElement>(null);
 
+  // Ref for the current tab's image container (for download)
+  const tabImageRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadImage = useCallback(async (stepNumber: number) => {
+    const el = tabImageRef.current;
+    if (!el) return;
+    try {
+      const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2 });
+      const link = document.createElement('a');
+      link.download = `navigation-flow-step${stepNumber}-${activeTab}.png`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to download image:', err);
+    }
+  }, [activeTab]);
+
   const getMousePercent = (e: React.MouseEvent, containerEl: HTMLElement): { x: number; y: number } => {
     const rect = containerEl.getBoundingClientRect();
     return {
@@ -589,26 +609,40 @@ export const NavigationTestCard = ({
 
                   {/* Tabs */}
                   <div className="border-b bg-white">
-                    <div className="flex gap-1 px-4">
-                      {['Heat click map', 'Click map', 'Quantity mapper', 'Scan Path', 'Image', 'Navigation'].map((tab) => (
+                    <div className="flex items-center gap-1 px-4">
+                      <div className="flex gap-1 flex-1">
+                        {['Heat click map', 'Click map', 'Quantity mapper', 'Scan Path', 'Image', 'Navigation'].map((tab) => (
+                          <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab.toLowerCase().replace(/\s+/g, '-'))}
+                            className={cn(
+                              'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                              activeTab === tab.toLowerCase().replace(/\s+/g, '-')
+                                ? 'border-blue-600 text-blue-600'
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                            )}
+                          >
+                            {tab}
+                          </button>
+                        ))}
+                      </div>
+                      {activeTab !== 'navigation' && (
                         <button
-                          key={tab}
-                          onClick={() => setActiveTab(tab.toLowerCase().replace(/\s+/g, '-'))}
-                          className={cn(
-                            'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-                            activeTab === tab.toLowerCase().replace(/\s+/g, '-')
-                              ? 'border-blue-600 text-blue-600'
-                              : 'border-transparent text-gray-600 hover:text-gray-900'
-                          )}
+                          type="button"
+                          onClick={() => handleDownloadImage(step.stepNumber)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                         >
-                          {tab}
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Download image
                         </button>
-                      ))}
+                      )}
                     </div>
                   </div>
 
                   {/* Content Area */}
-                  <div className="p-4">
+                  <div className="p-4" ref={tabImageRef}>
                     {/* Heat Click Map Tab - Shows heatmap with clicks colored by correctness */}
                     {activeTab === 'heat-click-map' && (
                       <>
@@ -636,7 +670,7 @@ export const NavigationTestCard = ({
                         {step.imageUrl ? (
                           <div
                             ref={aoiContainerRef}
-                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative', drawingAoi && 'cursor-crosshair')}
+                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto', drawingAoi && 'cursor-crosshair')}
                             onMouseDown={drawingAoi ? (e) => {
                               const container = aoiContainerRef.current;
                               if (!container) return;
@@ -730,8 +764,8 @@ export const NavigationTestCard = ({
                     {activeTab === 'click-map' && (
                       <>
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative">
-                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto" />
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
+                            <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
                             {/* Render individual clicks as dots */}
                             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                               {(step.heatmapData || []).map((click, idx) => (
@@ -777,8 +811,8 @@ export const NavigationTestCard = ({
                     {activeTab === 'image' && (
                       <>
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100">
-                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto" />
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit max-w-full mx-auto">
+                            <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
                           </div>
                         ) : (
                           <div className="mb-4 rounded-lg overflow-hidden bg-gray-200 h-64 flex items-center justify-center">

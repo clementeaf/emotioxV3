@@ -1,3 +1,26 @@
+## v0.29.1 — Progress fix, filters, demographics sync, image sizing, SW cleanup (2026-03-18)
+
+### backend
+- Fix: View Progress — progress calculated by modules answered (`module_id`) instead of sub-components (`component_id`). Excludes Welcome/Thank You/Research Config from total. Participants who answered all questions now show 100% and "Completado".
+- Feat: `GET /public/research/:id/participant/:participantId/status` — check if participant already responded.
+
+### research-frontend
+- Fix: Cognitive Task Results filters now apply to all module types (Scale, Ranking, Choice, NavigationFlow, PreferenceTest). Previously only Short/Long Text responded to demographic filters.
+- Fix: Cognitive Task Results show modules even with 0 responses (previously hidden).
+- Fix: Navigation Flow results — images use `w-fit max-w-full` containers so vertical images maintain proportions and SVG overlays align correctly.
+- Fix: Linear Scale results — percentage text moved outside bar (always black, always readable).
+- Feat: Navigation Flow results — "Download image" button per tab (captures heatmap/clicks/scan path as PNG).
+- Fix: Logo path uses `import.meta.env.BASE_URL` for cPanel `/research/` base path compatibility.
+
+### participant-frontend
+- Fix: Demographics — values persist to store immediately on change (not just via useEffect), preventing "validation error" on fast clicks.
+- Feat: Dynamic step order from backend `order_index` instead of hardcoded `STEPS_ORDER`. Module reorder in research-frontend now reflects in participant flow.
+- Feat: Block already-responded participants with "already responded" screen.
+- Fix: Choice question (Single/Multiple) — purple color scheme changed to blue.
+- Fix: Force unregister stale service workers and clear caches on load (fixes users seeing old "AWS backend" error).
+
+---
+
 ## v0.29.0 — Linear Scale controlled ranges, module reorder, Ranking UX, logo (2026-03-18)
 
 ### research-frontend

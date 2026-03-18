@@ -9,6 +9,7 @@ interface PreferenceTestResultsWrapperProps {
     moduleId: string;
     moduleName: string;
     questionNumber: string;
+    filteredParticipantIds?: Set<string> | null;
 }
 
 interface ModuleComponent {
@@ -41,9 +42,30 @@ export const PreferenceTestResultsWrapper = ({
     researchId,
     moduleId,
     moduleName,
-    questionNumber
+    questionNumber,
+    filteredParticipantIds
 }: PreferenceTestResultsWrapperProps) => {
-    const { data, isLoading: isResultsLoading } = usePreferenceTestResults(researchId, moduleId);
+    const { data: rawData, isLoading: isResultsLoading } = usePreferenceTestResults(researchId, moduleId);
+
+    // Apply participant filter
+    const data = rawData && filteredParticipantIds
+        ? (() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const filtered = rawData.responses.filter((r: any) => filteredParticipantIds.has(r.participantId));
+            const counts: Record<string, number> = {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            filtered.forEach((r: any) => { const img = r.selectedImageId || r.selectedImage; if (img) counts[img] = (counts[img] || 0) + 1; });
+            return {
+                ...rawData,
+                totalResponses: filtered.length,
+                responses: filtered,
+                selections: rawData.selections.map(s => {
+                    const count = counts[String(s.imageId)] || 0;
+                    return { ...s, count, percentage: filtered.length > 0 ? (count / filtered.length) * 100 : 0 };
+                }),
+            };
+        })()
+        : rawData;
     const [images, setImages] = useState<ImageData[]>([]);
     const [isModuleLoading, setIsModuleLoading] = useState(true);
 

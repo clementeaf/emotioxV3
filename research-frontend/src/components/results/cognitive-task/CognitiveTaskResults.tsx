@@ -87,7 +87,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           normalized.includes('net emotional value') || normalized.includes('nev') || normalized.includes('smart voc')) return false;
       return (normalized.includes('navigation flow') || normalized.includes('preference test') || normalized.includes('short text') ||
               normalized.includes('long text') || normalized.includes('single choice') || normalized.includes('multiple choice') ||
-              normalized.includes('linear scale') || normalized.includes('ranking')) && m.totalResponses > 0;
+              normalized.includes('linear scale') || normalized.includes('ranking'));
     }) ?? [];
 
     if (!filteredParticipantIds) return list;
@@ -126,6 +126,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             moduleId={module.moduleId}
             moduleName={module.moduleName}
             questionNumber={questionNumber}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
 
@@ -137,6 +138,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             moduleId={module.moduleId}
             moduleName={module.moduleName}
             questionNumber={questionNumber}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
 
@@ -182,6 +184,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             moduleName={module.moduleName}
             questionNumber={questionNumber}
             isSingleChoice={true}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
 
@@ -194,6 +197,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             moduleName={module.moduleName}
             questionNumber={questionNumber}
             isSingleChoice={false}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
 
@@ -205,6 +209,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             moduleId={module.moduleId}
             moduleName={module.moduleName}
             questionNumber={questionNumber}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
 
@@ -216,6 +221,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             moduleId={module.moduleId}
             moduleName={module.moduleName}
             questionNumber={questionNumber}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
 

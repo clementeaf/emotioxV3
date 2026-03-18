@@ -37,15 +37,39 @@ interface NavigationFlowResultsWrapperProps {
     moduleId: string;
     moduleName: string;
     questionNumber: string;
+    filteredParticipantIds?: Set<string> | null;
 }
 
 export const NavigationFlowResultsWrapper = ({
     researchId,
     moduleId,
     moduleName,
-    questionNumber
+    questionNumber,
+    filteredParticipantIds
 }: NavigationFlowResultsWrapperProps) => {
-    const { data, isLoading: isResultsLoading } = useNavigationFlowResults(researchId, moduleId);
+    const { data: rawResultsData, isLoading: isResultsLoading } = useNavigationFlowResults(researchId, moduleId);
+
+    // Apply participant filter
+    const data = rawResultsData && filteredParticipantIds
+        ? (() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const filtered = rawResultsData.responses.filter((r: any) => filteredParticipantIds.has(r.participantId));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const filteredHeatmap = rawResultsData.heatmapData.filter((c: any) =>
+                !c.participantId || filteredParticipantIds.has(c.participantId)
+            );
+            const total = filtered.length;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const completed = filtered.filter((r: any) => r.completed).length;
+            return {
+                ...rawResultsData,
+                totalResponses: total,
+                responses: filtered,
+                heatmapData: filteredHeatmap,
+                completionRate: total > 0 ? (completed / total) * 100 : 0,
+            };
+        })()
+        : rawResultsData;
     const [module, setModule] = useState<Module | null>(null);
     const [isModuleLoading, setIsModuleLoading] = useState(true);
     // Natural dimensions per image (keyed by file id) for hitzone px→% conversion

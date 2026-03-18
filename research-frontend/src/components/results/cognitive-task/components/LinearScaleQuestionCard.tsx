@@ -111,26 +111,20 @@ export const LinearScaleQuestionCard = ({
                 <div className="w-20 text-sm font-medium text-gray-700">
                   Option {String(option.value).padStart(2, '0')}
                 </div>
-                <div className="flex-1">
-                  <div className="relative">
-                    <div className="w-full bg-gray-200 rounded-full h-6">
-                      <div
-                        className="h-6 rounded-full transition-all duration-300"
-                        style={{
-                          width: `${option.percentage}%`,
-                          backgroundColor: option.color,
-                          minWidth: option.percentage > 0 ? '16px' : '0px'
-                        }}
-                      />
-                    </div>
-                    {option.percentage > 0 && (
-                      <div className="absolute inset-0 flex items-center justify-end pr-2">
-                        <span className="text-xs font-semibold text-white drop-shadow-sm">
-                          {option.percentage}%
-                        </span>
-                      </div>
-                    )}
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-6">
+                    <div
+                      className="h-6 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${option.percentage}%`,
+                        backgroundColor: option.color,
+                        minWidth: option.percentage > 0 ? '16px' : '0px'
+                      }}
+                    />
                   </div>
+                  <span className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
+                    {option.percentage}%
+                  </span>
                 </div>
               </div>
             ))}

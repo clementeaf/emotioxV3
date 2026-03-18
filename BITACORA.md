@@ -5,7 +5,38 @@
 
 ---
 
-## Última actualización: 2026-03-18 (sesión 17)
+## Última actualización: 2026-03-18 (sesión 18)
+
+---
+
+## Sesión 18: 18 de marzo de 2026 — Progress, filtros, demographics, imágenes (v0.29.1)
+
+### View Progress: status y progreso corregidos
+- El progreso se calculaba con `COUNT(DISTINCT component_id)` vs total de sub-componentes → nunca llegaba a 100%.
+- Cambiado a `COUNT(DISTINCT module_id)` vs módulos visibles (excluye Welcome/Thank You/Research Config/hidden).
+- Ahora un participante que respondió todo muestra 100% y "Completado".
+
+### Cognitive Task Results: filtros demográficos
+- Los filtros del sidebar solo aplicaban a Short/Long Text (renderizados inline con `module.responses`).
+- Los wrappers de Scale, Ranking, Choice, NavigationFlow, PreferenceTest hacían fetch independiente e ignoraban filtros.
+- Fix: cada wrapper recibe `filteredParticipantIds` y filtra localmente después del fetch.
+- Módulos con 0 respuestas ahora se muestran (antes se ocultaban con `totalResponses > 0`).
+
+### Demographics: persistencia inmediata
+- `handleChange` en DemographicsStep solo persistía al store vía `useEffect` (asíncrono).
+- Si el usuario clickeaba "Guardar y continuar" rápido, el store no tenía la última respuesta → "Error de validación".
+- Fix: `updateResponse` se llama inmediatamente en `handleChange`.
+
+### Navigation Flow results: imágenes
+- Contenedores de imagen usan `w-fit max-w-full mx-auto` → imágenes verticales no se estiran, SVG overlays alineados.
+- Linear Scale: porcentaje movido fuera de la barra (siempre negro, siempre legible).
+- Botón "Download image" por pestaña (captura como PNG con overlays).
+
+### Participant: orden dinámico y sesiones
+- `useNavigation` acepta `dynamicStepsOrder` desde backend `order_index` (ya no hardcodeado).
+- Participantes ya respondidos ven pantalla de bloqueo ("You have already responded").
+- Choice question: purple → blue.
+- Service workers viejos se desregistran forzosamente al cargar (fix cache con error "AWS backend").
 
 ---
 

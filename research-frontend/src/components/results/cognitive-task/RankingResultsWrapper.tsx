@@ -6,15 +6,46 @@ interface RankingResultsWrapperProps {
     moduleId: string;
     moduleName: string;
     questionNumber: string;
+    filteredParticipantIds?: Set<string> | null;
 }
 
 export const RankingResultsWrapper = ({
     researchId,
     moduleId,
     moduleName,
-    questionNumber
+    questionNumber,
+    filteredParticipantIds
 }: RankingResultsWrapperProps) => {
-    const { data, isLoading } = useRankingResponses(researchId, moduleId);
+    const { data: rawData, isLoading } = useRankingResponses(researchId, moduleId);
+
+    // Apply participant filter
+    const data = rawData && filteredParticipantIds
+        ? (() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const filtered = rawData.responses.filter((r: any) => filteredParticipantIds.has(r.participantId));
+            const positionSums: Record<string, { sum: number; count: number }> = {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            filtered.forEach((r: any) => {
+                (r.ranking as string[]).forEach((item: string, idx: number) => {
+                    if (!positionSums[item]) positionSums[item] = { sum: 0, count: 0 };
+                    positionSums[item].sum += idx + 1;
+                    positionSums[item].count += 1;
+                });
+            });
+            return {
+                ...rawData,
+                totalResponses: filtered.length,
+                responses: filtered,
+                rankings: rawData.rankings.map(r => ({
+                    ...r,
+                    meanPosition: positionSums[r.item]
+                        ? positionSums[r.item].sum / positionSums[r.item].count
+                        : r.meanPosition,
+                    count: positionSums[r.item]?.count ?? 0,
+                })).sort((a, b) => a.meanPosition - b.meanPosition),
+            };
+        })()
+        : rawData;
 
     if (isLoading || !data) {
         return (
