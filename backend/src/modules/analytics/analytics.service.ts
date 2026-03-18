@@ -339,20 +339,31 @@ export const getScaleResponses = async (researchId: string, moduleId: string) =>
 // ==========================================
 
 export const getRankingResponses = async (researchId: string, moduleId: string) => {
-  const query = `
-    SELECT 
-      r.value,
-      r.metadata,
-      r.created_at,
-      r.participant_id
-    FROM responses r
-    WHERE r.research_id = ? 
-      AND r.module_id = ?
-      AND r.component_id = 'ranking'
-    ORDER BY r.created_at ASC
-  `;
+  // Fetch responses and module structure in parallel
+  const [result, moduleResult] = await Promise.all([
+    pool.query(`
+      SELECT r.value, r.metadata, r.created_at, r.participant_id
+      FROM responses r
+      WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'ranking'
+      ORDER BY r.created_at ASC
+    `, [researchId, moduleId]),
+    pool.query(`SELECT structure FROM modules WHERE id = ?`, [moduleId]),
+  ]);
 
-  const result = await pool.query(query, [researchId, moduleId]);
+  // Build id→label map from module structure
+  const itemLabels: Record<string, string> = {};
+  if (moduleResult.rows.length > 0) {
+    try {
+      const structure = typeof moduleResult.rows[0].structure === 'string'
+        ? JSON.parse(moduleResult.rows[0].structure)
+        : moduleResult.rows[0].structure;
+      const rankingComponent = structure?.components?.find((c: any) => c.type === 'ranking-list' || c.rankingConfig);
+      const items = rankingComponent?.rankingConfig?.items ?? [];
+      items.forEach((item: { id: string; label: string }) => {
+        itemLabels[item.id] = item.label;
+      });
+    } catch { /* structure parse error — labels will fallback to IDs */ }
+  }
 
   const responses = result.rows.map(row => {
     try {
@@ -370,7 +381,7 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
 
   // Calculate mean position for each option
   const positionSums: Record<string, { sum: number; count: number }> = {};
-  
+
   responses.forEach((r: any) => {
     r.ranking.forEach((item: string, index: number) => {
       if (!positionSums[item]) {
@@ -383,6 +394,7 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
 
   const rankings = Object.entries(positionSums).map(([item, data]) => ({
     item,
+    label: itemLabels[item] || item,
     meanPosition: data.count > 0 ? data.sum / data.count : 0,
     count: data.count,
   })).sort((a, b) => a.meanPosition - b.meanPosition);

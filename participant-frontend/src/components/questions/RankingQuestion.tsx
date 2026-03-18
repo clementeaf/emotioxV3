@@ -127,21 +127,21 @@ export const RankingQuestion = ({
                         className={`
                             flex items-center gap-3 p-4 rounded-lg border-2 bg-white cursor-move transition-all
                             ${draggedIndex === index
-                                ? 'border-purple-500 shadow-lg opacity-50'
-                                : 'border-gray-300 hover:border-purple-300'
+                                ? 'border-blue-500 shadow-lg opacity-50'
+                                : 'border-gray-300 hover:border-blue-300'
                             }
                         `}
                     >
-                        {/* Rank number */}
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-sm">
-                            {index + 1}
+                        {/* Drag handle — 3 stacked lines */}
+                        <div className="text-gray-400">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" d="M4 8h16M4 12h16M4 16h16" />
+                            </svg>
                         </div>
 
-                        {/* Drag handle */}
-                        <div className="text-gray-400">
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M7 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 14a1 1 0 100-2 1 1 0 000 2zm0-4a1 1 0 100-2 1 1 0 000 2zm0-4a1 1 0 100-2 1 1 0 000 2z" />
-                            </svg>
+                        {/* Rank number */}
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm">
+                            {index + 1}
                         </div>
 
                         {/* Item label */}

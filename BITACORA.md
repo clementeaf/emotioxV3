@@ -5,7 +5,39 @@
 
 ---
 
-## Última actualización: 2026-03-18 (sesión 16)
+## Última actualización: 2026-03-18 (sesión 17)
+
+---
+
+## Sesión 17: 18 de marzo de 2026 — Builder UX polish, module reorder, logo (v0.29.0)
+
+### Linear Scale: selector controlado
+- Eliminada la opción "Custom" que permitía números arbitrarios como min/max.
+- Ahora solo opciones predefinidas: 1-3, 1-5, 1-7, 1-10, 0-10.
+- Labels (Start/End) visibles para todas las opciones.
+- Backward compatible: datos existentes con `type: 'custom'` siguen funcionando en participant-frontend.
+
+### Module reorder
+- Flechas arriba/abajo al costado de cada card de módulo (SmartVOC y Cognitive Tasks).
+- Usa endpoint existente `PUT /stages/:stageId/modules/reorder` + `modulesService.updateModulesOrder()`.
+- Solo visible cuando hay más de 1 módulo en el stage.
+
+### Ranking UX (participant-frontend)
+- Color púrpura → azul (border, badge, hover).
+- Drag handle: bloque gris reemplazado por ícono de 3 líneas (grip clásico).
+
+### Ranking results: nombres en vez de IDs
+- Backend `getRankingResponses` ahora lee `modules.structure` para extraer `rankingConfig.items` y devuelve `label` por cada item.
+- Frontend usa `ranking.label || ranking.item`.
+
+### Auto-scroll al crear módulo
+- Después de agregar un módulo desde el drawer, la vista hace scroll suave al módulo recién creado.
+- Fix: `selectedStage` stale — ahora se lee el stage fresco de `typedResearch` para calcular `order_index`.
+
+### Logo EmotioCX
+- `docs/EmotioCX-logo.svg` copiado a `research-frontend/public/`.
+- StandardSidebar: reemplazado BrainCircuit icon por logo SVG.
+- ResearchBuilderSidebar: agregado logo arriba del "Back to List".
 
 ---
 

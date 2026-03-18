@@ -3,7 +3,7 @@ import { Toggle } from '../ui/Toggle';
 import { CustomSelect } from '../ui/CustomSelect';
 import { Button } from '../ui/Button';
 import { Trash2, Plus } from 'lucide-react';
-import type { ComponentConfig, SelectRangeConfig, ChoiceOption, RankingItem } from '../../types/moduleBuilder.types';
+import type { ComponentConfig, ChoiceOption, RankingItem } from '../../types/moduleBuilder.types';
 
 interface ComponentConfigPanelProps {
     component: ComponentConfig;
@@ -37,25 +37,10 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
 
     // Select: Range configuration
     const renderSelectRangeConfig = () => {
-        const rangeType = component.selectRange?.type ?? 'predefined';
         const predefinedValue = component.selectRange?.predefined ?? '1-5';
-        const customMin = component.selectRange?.custom?.min ?? 1;
-        const customMax = component.selectRange?.custom?.max ?? 10;
         const startLabel = component.selectRange?.startLabel ?? '';
         const endLabel = component.selectRange?.endLabel ?? '';
         const variant = component.selectRange?.variant ?? 'dropdown';
-
-        // Helper to update selectRange while preserving required fields
-        const updateSelectRange = (updates: Partial<SelectRangeConfig>) => {
-            const base: SelectRangeConfig = {
-                type: rangeType,
-                variant,
-                ...(rangeType === 'custom'
-                    ? { custom: { min: customMin, max: customMax }, startLabel, endLabel }
-                    : { predefined: predefinedValue })
-            };
-            onUpdate({ selectRange: { ...base, ...updates } });
-        };
 
         return (
             <div className="space-y-3">
@@ -64,7 +49,15 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                     label="Display Type"
                     value={variant}
                     onChange={(value) => {
-                        updateSelectRange({ variant: value as 'dropdown' | 'scale' | 'slider' });
+                        onUpdate({
+                            selectRange: {
+                                type: 'predefined',
+                                predefined: predefinedValue,
+                                variant: value as 'dropdown' | 'scale' | 'slider',
+                                startLabel,
+                                endLabel,
+                            },
+                        });
                     }}
                     options={[
                         { value: 'dropdown', label: 'Dropdown' },
@@ -73,88 +66,64 @@ export const ComponentConfigPanel = ({ component, onUpdate }: ComponentConfigPan
                     ]}
                 />
                 <CustomSelect
-                    id={`range-type-${component.id}`}
-                    label="Range Type"
-                    value={rangeType}
+                    id={`predefined-${component.id}`}
+                    label="Scale Range"
+                    value={predefinedValue}
                     onChange={(value) => {
-                        const newType = value as 'predefined' | 'custom';
                         onUpdate({
                             selectRange: {
-                                type: newType,
+                                type: 'predefined',
+                                predefined: value as '1-3' | '1-5' | '1-7' | '1-10' | '0-10',
                                 variant,
-                                ...(newType === 'custom'
-                                    ? { custom: { min: customMin, max: customMax }, startLabel, endLabel }
-                                    : { predefined: predefinedValue })
-                            }
+                                startLabel,
+                                endLabel,
+                            },
                         });
                     }}
                     options={[
-                        { value: 'predefined', label: 'Predefined' },
-                        { value: 'custom', label: 'Custom' },
+                        { value: '1-3', label: '1 to 3' },
+                        { value: '1-5', label: '1 to 5' },
+                        { value: '1-7', label: '1 to 7' },
+                        { value: '1-10', label: '1 to 10' },
+                        { value: '0-10', label: '0 to 10' },
                     ]}
                 />
-                {rangeType === 'predefined' ? (
-                    <CustomSelect
-                        id={`predefined-${component.id}`}
-                        label="Predefined Range"
-                        value={predefinedValue}
-                        onChange={(value) => {
-                            onUpdate({
-                                selectRange: { 
-                                    type: 'predefined', 
-                                    predefined: value as '1-5' | '1-7' | '1-10',
-                                    variant 
-                                },
-                            });
-                        }}
-                        options={[
-                            { value: '1-5', label: '1-5' },
-                            { value: '1-7', label: '1-7' },
-                            { value: '1-10', label: '1-10' },
-                        ]}
-                    />
-                ) : (
-                    <>
-                        <Input
-                            id={`custom-min-${component.id}`}
-                            label="Min Value"
-                            type="number"
-                            value={customMin.toString()}
-                            onChange={(e) => {
-                                const min = parseInt(e.target.value) || 1;
-                                updateSelectRange({ custom: { min, max: customMax } });
-                            }}
-                        />
-                        <Input
-                            id={`custom-max-${component.id}`}
-                            label="Max Value"
-                            type="number"
-                            value={customMax.toString()}
-                            onChange={(e) => {
-                                const max = parseInt(e.target.value) || 10;
-                                updateSelectRange({ custom: { min: customMin, max } });
-                            }}
-                        />
-                        <Input
-                            id={`start-label-${component.id}`}
-                            label="Start Label"
-                            type="text"
-                            value={startLabel}
-                            onChange={(e) => {
-                                updateSelectRange({ startLabel: e.target.value });
-                            }}
-                        />
-                        <Input
-                            id={`end-label-${component.id}`}
-                            label="End Label"
-                            type="text"
-                            value={endLabel}
-                            onChange={(e) => {
-                                updateSelectRange({ endLabel: e.target.value });
-                            }}
-                        />
-                    </>
-                )}
+                <Input
+                    id={`start-label-${component.id}`}
+                    label="Start Label"
+                    type="text"
+                    value={startLabel}
+                    placeholder="e.g. Not at all likely"
+                    onChange={(e) => {
+                        onUpdate({
+                            selectRange: {
+                                type: 'predefined',
+                                predefined: predefinedValue,
+                                variant,
+                                startLabel: e.target.value,
+                                endLabel,
+                            },
+                        });
+                    }}
+                />
+                <Input
+                    id={`end-label-${component.id}`}
+                    label="End Label"
+                    type="text"
+                    value={endLabel}
+                    placeholder="e.g. Extremely likely"
+                    onChange={(e) => {
+                        onUpdate({
+                            selectRange: {
+                                type: 'predefined',
+                                predefined: predefinedValue,
+                                variant,
+                                startLabel,
+                                endLabel: e.target.value,
+                            },
+                        });
+                    }}
+                />
             </div>
         );
     };

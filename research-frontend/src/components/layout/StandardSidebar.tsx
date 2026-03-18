@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
-    BrainCircuit,
     LayoutDashboard,
     Boxes,
     Wrench,
@@ -67,9 +66,14 @@ export const StandardSidebar = () => {
             {/* Logo */}
             <div className="p-4 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center justify-center">
-                    <div className="rounded-full bg-blue-500 p-2">
-                        <BrainCircuit className="h-5 w-5 text-white" />
-                    </div>
+                    <img
+                        src="/EmotioCX-logo.svg"
+                        alt="EmotioCX"
+                        className={cn(
+                            "transition-all duration-300",
+                            isCollapsed ? "h-8 w-8" : "h-8"
+                        )}
+                    />
                 </div>
             </div>
 

@@ -1,3 +1,22 @@
+## v0.29.0 — Linear Scale controlled ranges, module reorder, Ranking UX, logo (2026-03-18)
+
+### research-frontend
+- Feat: Linear Scale — replaced free-form min/max inputs with controlled dropdown: 1-3, 1-5, 1-7, 1-10, 0-10. Start/End labels now always visible.
+- Feat: Module reorder — up/down arrows on each SmartVOC and Cognitive Task module card. Persists via `PUT /stages/:stageId/modules/reorder`.
+- Feat: Auto-scroll to newly created module after adding from template drawer.
+- Fix: Ranking results — display item names instead of UUIDs (backend now returns `label` from module structure).
+- Fix: Module creation used stale stage data for `order_index` calculation; now reads fresh stage from query cache.
+- Feat: EmotioCX logo (`EmotioCX-logo.svg`) in both StandardSidebar and ResearchBuilderSidebar, replacing BrainCircuit icon.
+
+### participant-frontend
+- Fix: Ranking — purple color scheme changed to blue (consistent with rest of UI).
+- Fix: Ranking — drag handle icon changed from block to classic 3-line grip icon.
+
+### backend
+- Feat: `getRankingResponses` now reads module structure to return `label` for each ranking item (fallback to ID).
+
+---
+
 ## v0.28.5 — Translate module templates to English (2026-03-18)
 
 ### backend (production database)

@@ -5,7 +5,7 @@ export interface PlaceholderConfig {
 
 export interface SelectRangeConfig {
     type: 'predefined' | 'custom';
-    predefined?: '1-5' | '1-7' | '1-10';
+    predefined?: '1-3' | '1-5' | '1-7' | '1-10' | '0-10';
     custom?: { min: number; max: number };
     startLabel?: string;
     endLabel?: string;

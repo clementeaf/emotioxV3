@@ -314,6 +314,13 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
     return (
         <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg transition-all duration-300">
+            {/* Logo */}
+            <div className="p-4 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center justify-center">
+                    <img src="/EmotioCX-logo.svg" alt="EmotioCX" className="h-8" />
+                </div>
+            </div>
+
             {/* Header with Back Button */}
             <div className="p-4 border-b border-gray-100">
                 <Link

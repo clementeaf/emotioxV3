@@ -54,7 +54,7 @@ export const RankingResultsWrapper = ({
     // Sort by mean position (best first)
     const options = data.rankings.map((ranking) => ({
         id: ranking.item,
-        label: ranking.item,
+        label: ranking.label || ranking.item,
         mean: Math.round(ranking.meanPosition * 10) / 10,
         distribution: distMap[ranking.item] || Array(positionCount).fill(0),
     }));

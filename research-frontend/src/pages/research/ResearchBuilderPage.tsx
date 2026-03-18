@@ -232,6 +232,31 @@ export const ResearchBuilderPage = () => {
         }
     }, []);
 
+    // Move a module up or down within its stage
+    const handleMoveModule = useCallback(async (
+        modules: Module[],
+        stage: Stage,
+        index: number,
+        direction: 'up' | 'down'
+    ) => {
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= modules.length) return;
+
+        // Build new order
+        const reordered = [...modules];
+        [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+
+        const updates = reordered.map((m, i) => ({ moduleId: m.id, order_index: i }));
+
+        try {
+            await modulesService.updateModulesOrder(stage.id, updates);
+            await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id!) });
+        } catch (err) {
+            console.error('Failed to reorder modules:', err);
+            toast.error('Failed to reorder modules');
+        }
+    }, [id, queryClient, toast]);
+
     useWelcomeScreenRedirect(typedResearch, loading, activeModuleId, isSettings, id);
 
     const [isSaving, setIsSaving] = useState(false);
@@ -522,11 +547,12 @@ export const ResearchBuilderPage = () => {
         }
 
         try {
-            // Calculate next order_index
-            const existingModules = selectedStage.modules || [];
+            // Use the latest stage data from typedResearch (selectedStage may be stale)
+            const freshStage = typedResearch?.stages?.find((s: Stage) => s.id === selectedStage.id);
+            const existingModules = freshStage?.modules || selectedStage.modules || [];
             const nextOrderIndex = existingModules.length;
 
-            await modulesService.createFromTemplate({
+            const result = await modulesService.createFromTemplate({
                 research_id: id,
                 stage_id: selectedStage.id,
                 template_id: templateId,
@@ -537,11 +563,20 @@ export const ResearchBuilderPage = () => {
             await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
 
             toast.success('Module added successfully');
+
+            // Scroll to the newly created module after React re-renders
+            const newModuleId = result?.module?.id;
+            if (newModuleId) {
+                const scrollType = selectedStage.stage_type === 'single_module' ? 'smartvoc' : 'cognitive';
+                requestAnimationFrame(() => {
+                    setTimeout(() => scrollToModule(newModuleId, scrollType), 100);
+                });
+            }
         } catch (error) {
             console.error('Failed to create module from template:', error);
             throw error; // Re-throw to let modal handle it
         }
-    }, [id, selectedStage, queryClient, toast]);
+    }, [id, selectedStage, typedResearch, queryClient, toast, scrollToModule]);
 
     // Loading state
     if (loading) {
@@ -584,7 +619,7 @@ export const ResearchBuilderPage = () => {
                 {/* Smart VOC Stage: Show all modules in the same view */}
                 {isSmartVOCStage && smartVOCModules.length > 0 && (
                     <div className="space-y-6">
-                    {smartVOCModules.map((module) => (
+                    {smartVOCModules.map((module, idx) => (
                         <div
                             key={module.id}
                             ref={(el) => {
@@ -594,7 +629,34 @@ export const ResearchBuilderPage = () => {
                                     smartVOCModuleElementRefs.current.delete(module.id);
                                 }
                             }}
+                            className="flex gap-2 items-start"
                         >
+                            {/* Reorder arrows */}
+                            {smartVOCModules.length > 1 && (
+                                <div className="flex flex-col gap-1 pt-4 flex-shrink-0">
+                                    <button
+                                        onClick={() => handleMoveModule(smartVOCModules, smartVOCStage!, idx, 'up')}
+                                        disabled={idx === 0}
+                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title="Move up"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleMoveModule(smartVOCModules, smartVOCStage!, idx, 'down')}
+                                        disabled={idx === smartVOCModules.length - 1}
+                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title="Move down"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
                             <SmartVOCModuleCard
                                 ref={(ref) => {
                                     if (ref) {
@@ -611,6 +673,7 @@ export const ResearchBuilderPage = () => {
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
                             />
+                            </div>
                         </div>
                     ))}
 
@@ -640,7 +703,7 @@ export const ResearchBuilderPage = () => {
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
                 {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
                     <div className="space-y-6">
-                    {cognitiveTaskModules.map((module) => (
+                    {cognitiveTaskModules.map((module, idx) => (
                         <div
                             key={module.id}
                             ref={(el) => {
@@ -650,7 +713,34 @@ export const ResearchBuilderPage = () => {
                                     cognitiveTaskModuleElementRefs.current.delete(module.id);
                                 }
                             }}
+                            className="flex gap-2 items-start"
                         >
+                            {/* Reorder arrows */}
+                            {cognitiveTaskModules.length > 1 && (
+                                <div className="flex flex-col gap-1 pt-4 flex-shrink-0">
+                                    <button
+                                        onClick={() => handleMoveModule(cognitiveTaskModules, cognitiveTasksStage!, idx, 'up')}
+                                        disabled={idx === 0}
+                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title="Move up"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleMoveModule(cognitiveTaskModules, cognitiveTasksStage!, idx, 'down')}
+                                        disabled={idx === cognitiveTaskModules.length - 1}
+                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        title="Move down"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
                             <CognitiveTaskModuleCard
                                 ref={(ref) => {
                                     if (ref) {
@@ -667,6 +757,7 @@ export const ResearchBuilderPage = () => {
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
                             />
+                            </div>
                         </div>
                     ))}
 

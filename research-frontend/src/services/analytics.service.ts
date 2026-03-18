@@ -249,6 +249,7 @@ export interface RankingResponses {
     totalResponses: number;
     rankings: Array<{
         item: string;
+        label?: string;
         meanPosition: number;
         count: number;
     }>;
