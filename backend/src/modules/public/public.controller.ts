@@ -61,6 +61,15 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             }
         }
 
+        // GET /public/research/:id/participant/:participantId/status
+        const participantStatusMatch = path.match(/^\/public\/research\/([^\/]+)\/participant\/([^\/]+)\/status$/);
+        if (participantStatusMatch && httpMethod === 'GET') {
+            const researchId = participantStatusMatch[1];
+            const participantId = participantStatusMatch[2];
+            const status = await publicService.getParticipantStatus(researchId, participantId);
+            return success(status, 200, undefined, origin);
+        }
+
         // POST /public/research/:id/responses
         const responsesMatch = path.match(/^\/public\/research\/([^\/]+)\/responses$/);
         if (responsesMatch && httpMethod === 'POST') {

@@ -697,6 +697,18 @@ export const validateDemographics = async (
 };
 
 /**
+ * Check if a participant has already responded to a research
+ */
+export const getParticipantStatus = async (researchId: string, participantId: string) => {
+  const result = await pool.query(
+    'SELECT COUNT(*) as count FROM responses WHERE research_id = ? AND participant_id = ?',
+    [researchId, participantId]
+  );
+  const hasResponded = (result.rows[0]?.count ?? 0) > 0;
+  return { participantId, hasResponded };
+};
+
+/**
  * Save participant responses for a module
  * This is the modern endpoint for saving responses from participant-frontend
  */

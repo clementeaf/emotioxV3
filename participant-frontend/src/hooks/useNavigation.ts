@@ -4,8 +4,8 @@ import { useSessionStore } from '../stores/useSessionStore';
 import { useValidation } from './useValidation';
 import type { Module } from '../services/public.service';
 
-// Define the order of steps (hardcoded for now, will be dynamic later)
-const STEPS_ORDER = [
+// Fallback order when no dynamic order is provided
+const DEFAULT_STEPS_ORDER = [
     'welcome',
     'demographics',
     // SmartVOC
@@ -82,22 +82,26 @@ const isModuleConditionMet = (
  * @param modulesByStep - Map of stepId -> module loaded from backend
  * @param demographicResponses - Map of demographicKey -> participant's selected value
  * @param moduleResponses - Map of responseId -> response (for module-based conditions)
+ * @param dynamicStepsOrder - Optional ordered array of stepIds (respects backend order_index)
  */
 export const useNavigation = (
     modulesByStep: Record<string, Module>,
     demographicResponses: Record<string, string> = {},
-    moduleResponses: Map<string, { value: string | number | boolean | string[] | number[] | null }> = new Map()
+    moduleResponses: Map<string, { value: string | number | boolean | string[] | number[] | null }> = new Map(),
+    dynamicStepsOrder?: string[]
 ) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
     const { updateMetrics, trackInteraction } = useSessionStore();
     const { validateStep } = useValidation();
 
-    const enabledSteps = STEPS_ORDER.filter((stepId) => {
+    const stepsOrder = dynamicStepsOrder && dynamicStepsOrder.length > 0 ? dynamicStepsOrder : DEFAULT_STEPS_ORDER;
+
+    const enabledSteps = stepsOrder.filter((stepId) => {
         const mod = modulesByStep[stepId];
         if (!mod) return false;
         return isModuleConditionMet(mod, demographicResponses, moduleResponses);
     });
-    const steps = enabledSteps.length > 0 ? enabledSteps : STEPS_ORDER;
+    const steps = enabledSteps.length > 0 ? enabledSteps : stepsOrder;
 
     const currentIndex = steps.indexOf(currentStep);
     const isFirstStep = currentIndex === 0;

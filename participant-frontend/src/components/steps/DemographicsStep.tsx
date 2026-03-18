@@ -145,6 +145,10 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
             }
             return next;
         });
+        // Persist immediately to store (useEffect runs after render, too late if user clicks "Save" fast)
+        if (value) {
+            updateResponse(module.id, key, value);
+        }
     };
 
     const renderTextInput = (key: string, label: string, value: string) => (

@@ -202,6 +202,27 @@ class PublicService {
         const data = await response.json() as { participantId: string };
         return data.participantId;
     }
+    /**
+     * Check if a participant has already responded
+     */
+    async getParticipantStatus(researchId: string, participantId: string): Promise<{ hasResponded: boolean }> {
+        try {
+            const baseUrl = configService.getBaseUrl();
+            const url = `${baseUrl}/public/research/${researchId}/participant/${encodeURIComponent(participantId)}/status`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (!response.ok) return { hasResponded: false };
+
+            const data = await response.json() as { hasResponded: boolean };
+            return data;
+        } catch {
+            return { hasResponded: false };
+        }
+    }
 }
 
 export type ParticipationMode = 'kiosk' | 'panel';

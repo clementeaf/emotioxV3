@@ -85,8 +85,8 @@ export const ChoiceQuestion = ({
                             className={`
                                 w-full px-4 py-3 rounded-lg border-2 text-left transition-all
                                 ${selected
-                                    ? 'border-purple-500 bg-purple-50 text-purple-900'
-                                    : 'border-gray-300 bg-white text-gray-900 hover:border-purple-300'
+                                    ? 'border-blue-500 bg-blue-50 text-blue-900'
+                                    : 'border-gray-300 bg-white text-gray-900 hover:border-blue-300'
                                 }
                             `}
                         >
@@ -96,7 +96,7 @@ export const ChoiceQuestion = ({
                                     flex items-center justify-center w-5 h-5 border-2 rounded transition-colors
                                     ${isMultiple ? 'rounded-md' : 'rounded-full'}
                                     ${selected
-                                        ? 'border-purple-500 bg-purple-500'
+                                        ? 'border-blue-500 bg-blue-500'
                                         : 'border-gray-400 bg-white'
                                     }
                                 `}>

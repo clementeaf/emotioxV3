@@ -367,7 +367,8 @@ export const ResearchPage = () => {
     return new Map(Object.entries(parsed));
   }, [_moduleResponsesJson]);
 
-  const { currentStep, goNext, isLastStep } = useNavigation(modules, demographicResponses, moduleResponses);
+  const [stepsOrder, setStepsOrder] = useState<string[]>([]);
+  const { currentStep, goNext, isLastStep } = useNavigation(modules, demographicResponses, moduleResponses, stepsOrder);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -379,6 +380,7 @@ export const ResearchPage = () => {
   /** Prevents scheduling multiple kiosk reset timeouts (Safari re-renders can trigger effect repeatedly) */
   const kioskResetScheduledRef = useRef(false);
   const [backlinks, setBacklinks] = useState<Record<string, string>>({});
+  const [alreadyResponded, setAlreadyResponded] = useState(false);
 
   // Initialize device collector
   useDeviceCollector();
@@ -413,6 +415,16 @@ export const ResearchPage = () => {
     // Always update to current participant ID
     useParticipantStore.getState().setParticipantId(participantId);
   }, [participantId, clearAllResponses, startNewSession]);
+
+  // Check if participant already responded (panel mode only)
+  useEffect(() => {
+    if (!researchId || !participantId || isPreviewMode) return;
+    let cancelled = false;
+    publicService.getParticipantStatus(researchId, participantId).then(({ hasResponded }) => {
+      if (!cancelled && hasResponded) setAlreadyResponded(true);
+    });
+    return () => { cancelled = true; };
+  }, [researchId, participantId, isPreviewMode]);
 
   // Initialize session timer
   useSessionTimer();
@@ -601,59 +613,56 @@ export const ResearchPage = () => {
           };
         }
 
-        // Track if welcome screen is configured
+        // Build dynamic steps order from backend order_index
+        const dynamicOrder: string[] = [];
+
+        // Collect all modules across stages, sorted by stage order then module order_index
+        const allModules: Array<{ module: unknown; order_index: number }> = [];
         stages.forEach(stage => {
-          const modules = stage.modules || [];
-          modules.forEach(module => {
-            try {
-              const normalizedModule = normalizeModule(module);
-              
-              // Debug: Log Ranking module structure from API
-              if (normalizedModule.name === 'Ranking' && normalizedModule.id === '1ff3e347-85bb-47fb-8fa6-fdfeb8fff37b') {
-                console.log('[ResearchPage] Ranking module from API:', {
-                  id: normalizedModule.id,
-                  name: normalizedModule.name,
-                  description: normalizedModule.description,
-                  structure: normalizedModule.structure,
-                  config: normalizedModule.config,
-                  rawModule: module,
-                  components: normalizedModule.structure.components.map(c => ({
-                    id: c.id,
-                    type: c.type,
-                    label: c.label,
-                    value: c.value,
-                    options: c.options,
-                    settings: c.settings,
-                    defaultValue: c.defaultValue
-                  }))
-                });
-              }
-              
-              if (isModuleHidden(normalizedModule)) return;
-              if (!isModuleConfigured(normalizedModule)) return;
-              const stepId = getStepIdFromModuleName(normalizedModule.name);
-              if (!stepId) return;
-              modulesMap[stepId] = normalizedModule;
-            } catch (error: unknown) {
-              console.error('Error normalizing module:', error, module);
-            }
+          const mods = stage.modules || [];
+          mods.forEach(mod => {
+            const oi = isRecord(mod) && typeof (mod as Record<string, unknown>).order_index === 'number'
+              ? (mod as Record<string, unknown>).order_index as number
+              : 0;
+            allModules.push({ module: mod, order_index: oi });
           });
         });
+        // Sort by order_index (backend already sorts, but ensure client-side too)
+        allModules.sort((a, b) => a.order_index - b.order_index);
 
-        // If no Welcome Screen is configured, skip welcome step
-        // (Turnstile verification is now disabled, so no need for virtual welcome)
+        allModules.forEach(({ module }) => {
+          try {
+            const normalizedModule = normalizeModule(module);
+            if (isModuleHidden(normalizedModule)) return;
+            if (!isModuleConfigured(normalizedModule)) return;
+            const stepId = getStepIdFromModuleName(normalizedModule.name);
+            if (!stepId) return;
+            modulesMap[stepId] = normalizedModule;
+            // Add to dynamic order (avoid duplicates — welcome/thank-you/demographics are special)
+            if (!dynamicOrder.includes(stepId)) {
+              dynamicOrder.push(stepId);
+            }
+          } catch (err: unknown) {
+            console.error('Error normalizing module:', err, module);
+          }
+        });
+
+        // Ensure welcome is first and thank-you is last
+        const orderedSteps: string[] = [];
+        if (dynamicOrder.includes('welcome')) orderedSteps.push('welcome');
+        if (dynamicOrder.includes('demographics') || modulesMap['demographics']) orderedSteps.push('demographics');
+        // Add all non-special steps in their order_index order
+        dynamicOrder.forEach(s => {
+          if (s !== 'welcome' && s !== 'demographics' && s !== 'thank-you') {
+            orderedSteps.push(s);
+          }
+        });
+        if (dynamicOrder.includes('thank-you')) orderedSteps.push('thank-you');
 
         setModules(modulesMap);
+        setStepsOrder(orderedSteps);
 
-        // Determine the first available step and set it as current
-        const STEPS_ORDER = [
-          'welcome', 'demographics',
-          'csat', 'nps', 'ces', 'cv', 'nev', 'voc',
-          'short-text', 'long-text', 'single-choice', 'multiple-choice',
-          'linear-scale', 'ranking', 'navigation-flow', 'preference-test',
-          'thank-you'
-        ];
-        const enabledSteps = STEPS_ORDER.filter((stepId) => Boolean(modulesMap[stepId]));
+        const enabledSteps = orderedSteps.filter((stepId) => Boolean(modulesMap[stepId]));
         // If no steps are enabled, default to welcome (shouldn't happen, but safety check)
         const firstStep = enabledSteps.length > 0 ? enabledSteps[0] : 'welcome';
 
@@ -884,6 +893,7 @@ export const ResearchPage = () => {
           const effectivePid = participantId
             ?? useParticipantStore.getState().participantId
             ?? `anon-${Date.now()}`;
+
           const result = await publicService.validateDemographics(rid, demoAnswers, effectivePid);
           if (!result.valid) {
             const bl = backlinks;
@@ -1069,6 +1079,23 @@ export const ResearchPage = () => {
   // Show mobile restriction message
   if (mobileRestriction) {
     return <MobileRestrictionScreen message={mobileRestriction} />;
+  }
+
+  // Block already-responded participants
+  if (alreadyResponded) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6 px-4">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">{t('alreadyResponded.title', 'You have already responded')}</h2>
+          <p className="text-gray-600 max-w-md">{t('alreadyResponded.message', 'Your responses have been recorded. Thank you for your participation!')}</p>
+        </div>
+      </MainLayout>
+    );
   }
 
   // Show loading state

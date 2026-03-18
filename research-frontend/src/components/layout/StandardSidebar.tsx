@@ -67,7 +67,7 @@ export const StandardSidebar = () => {
             <div className="p-4 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center justify-center">
                     <img
-                        src="/EmotioCX-logo.svg"
+                        src={`${import.meta.env.BASE_URL}EmotioCX-logo.svg`}
                         alt="EmotioCX"
                         className={cn(
                             "transition-all duration-300",
