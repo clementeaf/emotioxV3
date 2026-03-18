@@ -118,8 +118,9 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
     /** Dedupe pointerup + click so we only advance once per interaction (Opera and others fire both). */
     const lastHandledAtRef = useRef<number>(0);
-    /** Count clicks on current image that didn't trigger advance — used for stuck-detection button. */
-    const [stuckClicks, setStuckClicks] = useState(0);
+    /** Count failed clicks on current image — after 3 misses the flow auto-completes. */
+    const MAX_ATTEMPTS_PER_IMAGE = 3;
+    const [failedClicks, setFailedClicks] = useState(0);
 
     // Response hook for saving data
     const response = useResponse({ moduleId, componentId });
@@ -222,7 +223,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         setRenderedRect(null);
         setContainerRect(null);
         setImageError(false);
-        setStuckClicks(0);
+        setFailedClicks(0);
 
         // Safety net: if onLoad already fired (cached image) or fires during render,
         // poll the img ref briefly to pick up naturalWidth/Height.
@@ -283,8 +284,17 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         // we must NOT fall back to container — it would make ALL clicks incorrect.
         if (!rendered) {
             if (hasHitzoneDefs) {
-                // Image not ready yet — count as stuck so force-advance button appears
-                setStuckClicks(prev => prev + 1);
+                // Image not ready yet — count as failed attempt
+                setFailedClicks(prev => {
+                    const next = prev + 1;
+                    if (next >= MAX_ATTEMPTS_PER_IMAGE) {
+                        setTimeout(() => {
+                            setIsComplete(true);
+                            if (onComplete) setTimeout(() => onComplete(), 800);
+                        }, 400);
+                    }
+                    return next;
+                });
                 return;
             }
             // No hitzones defined — any click advances, so container fallback is fine
@@ -316,8 +326,17 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 // Sync state so subsequent clicks use the fast path
                 setImgNatural(natural);
             } else {
-                // Image truly not loaded yet — count as stuck so force-advance button appears
-                setStuckClicks(prev => prev + 1);
+                // Image truly not loaded yet — count as failed attempt
+                setFailedClicks(prev => {
+                    const next = prev + 1;
+                    if (next >= MAX_ATTEMPTS_PER_IMAGE) {
+                        setTimeout(() => {
+                            setIsComplete(true);
+                            if (onComplete) setTimeout(() => onComplete(), 800);
+                        }, 400);
+                    }
+                    return next;
+                });
                 return;
             }
         }
@@ -351,11 +370,20 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 setTimeout(() => {
                     setCurrentImageIndex(prev => prev + 1);
                     setClickPoints([]);
-                    setStuckClicks(0);
+                    setFailedClicks(0);
                 }, 200);
             }
         } else {
-            setStuckClicks(prev => prev + 1);
+            const newFailed = failedClicks + 1;
+            setFailedClicks(newFailed);
+            if (newFailed >= MAX_ATTEMPTS_PER_IMAGE) {
+                // 3 misses on this image — end the flow, move to next question
+                setTimeout(() => {
+                    setIsComplete(true);
+                    saveNavigationResponse(false);
+                    if (onComplete) setTimeout(() => onComplete(), 800);
+                }, 400);
+            }
         }
     };
 
@@ -434,28 +462,6 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isComplete]);
-
-    /** Force-advance to next image — fallback when hitzones fail to detect clicks (e.g. Opera/Linux). */
-    const forceAdvance = useCallback(() => {
-        if (isComplete) return;
-        // Record a synthetic correct click so analytics still reflect the interaction
-        const syntheticClick: ClickPoint = { x: -1, y: -1, timestamp: Date.now(), isCorrect: true };
-        setAllClicks(prev => [...prev, { ...syntheticClick, imageId: currentImage.id } as ClickPoint & { imageId?: string }]);
-
-        if (isLastImage) {
-            setIsComplete(true);
-            saveNavigationResponse(true);
-            if (onComplete) setTimeout(() => onComplete(), 800);
-        } else {
-            setCurrentImageIndex(prev => prev + 1);
-            setClickPoints([]);
-            setStuckClicks(0);
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isComplete, isLastImage, currentImage.id, onComplete]);
-
-    // Show force-advance button after 3+ clicks without advancing
-    const showForceAdvance = !isComplete && stuckClicks >= 3;
 
     return (
         <div
@@ -592,18 +598,6 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         </React.Fragment>
                     );
                 })}
-
-                {/* Force-advance button — appears after 3+ failed clicks on the same image */}
-                {showForceAdvance && (
-                    <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); forceAdvance(); }}
-                        onPointerUp={(e) => e.stopPropagation()}
-                        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-6 py-2.5 bg-white/90 hover:bg-white text-gray-900 text-sm font-medium rounded-full shadow-lg backdrop-blur-sm transition-all"
-                    >
-                        {t('navigationFlow.continue', 'Continue →')}
-                    </button>
-                )}
 
                 {/* Completion overlay */}
                 {isComplete && (

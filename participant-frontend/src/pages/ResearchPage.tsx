@@ -858,9 +858,20 @@ export const ResearchPage = () => {
         }
       });
 
-      // Check that at least one answer exists
-      if (Object.keys(demoAnswers).length === 0) {
-        alert(t('errors.answerDemographics'));
+      // Check that ALL enabled demographics have been answered
+      const demoConfig = currentModule?.config?.demographics as Record<string, unknown> | undefined;
+      const DEMO_KEYS = ['age', 'gender', 'country', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'];
+      const enabledDemoKeys = demoConfig
+        ? DEMO_KEYS.filter(k => {
+            const v = demoConfig[k];
+            if (v === true) return true;
+            if (typeof v === 'object' && v !== null && (v as Record<string, unknown>).enabled === true) return true;
+            return false;
+          })
+        : [];
+      const missingKeys = enabledDemoKeys.filter(k => !demoAnswers[k]);
+      if (missingKeys.length > 0) {
+        alert(t('errors.answerAllDemographics', 'Please answer all demographic questions before continuing.'));
         return;
       }
 

@@ -1,8 +1,9 @@
-## v0.28.4 — NavigationFlow: Opera/Linux fix & force-advance fallback (2026-03-18)
+## v0.28.4 — NavigationFlow 3-attempt limit, demographics validation (2026-03-18)
 
 ### participant-frontend
 - Fix: `img.decode()` timeout (1s) prevents indefinite hang in Opera/Linux that blocked hitzone detection.
-- Feat: "Continue →" button appears after 3+ clicks without advancing — covers both browser bugs and hard-to-find hitzones.
+- Feat: NavigationFlow — 3 attempts per image. Correct click advances; 3rd miss ends the flow and moves to the next question.
+- Fix: Demographics — ENTER or "Guardar y continuar" now requires all enabled fields answered, not just one.
 
 ---
 

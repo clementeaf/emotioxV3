@@ -9,21 +9,17 @@
 
 ---
 
-## Sesión 15: 18 de marzo de 2026 — NavigationFlow: fix Opera/Linux (v0.28.4)
+## Sesión 15: 18 de marzo de 2026 — NavigationFlow 3 intentos, validación demographics (v0.28.4)
 
-### Problema reportado
-En Opera sobre Ubuntu 25, el NavigationFlow se pegaba después del click en la imagen 2 sin avanzar. Brave y Safari funcionaban sin problemas.
+### NavigationFlow: Opera/Linux fix + 3 intentos por imagen
+- **Problema**: en Opera/Ubuntu, `img.decode()` se colgaba → clicks ignorados silenciosamente.
+- **Fix**: timeout de 1s en `img.decode()`. Si no resuelve, aplica dimensiones directamente.
+- **3 intentos por imagen**: click correcto avanza a la siguiente imagen. Al 3er click fuera del hitzone, el flujo termina (`completed: false`) y pasa a la siguiente pregunta del estudio.
+- La "barra amarilla con coordenadas" no es nuestra — es herramienta de Opera o extensión del navegador.
 
-### Root cause
-`img.decode()` puede colgarse indefinidamente en Opera/Linux, dejando `imgNatural` en `null`. Sin dimensiones naturales, los clicks se ignoran silenciosamente.
-
-### Solución
-- **Timeout en `img.decode()`** (1s): si no resuelve, aplica dimensiones desde `naturalWidth/Height` directamente.
-- **Botón "Continue →"**: aparece tras 3+ clicks sin avanzar. Registra click sintético (`x:-1, y:-1`) en analytics. Cubre tanto el bug de Opera como participantes que no encuentran el hitzone.
-- **Contador `stuckClicks`**: se incrementa en clicks ignorados (imagen no lista) y clicks fuera del hitzone. Se resetea al cambiar de imagen.
-
-### Nota
-La "barra amarilla con coordenadas" que reportó el usuario no es parte del código — es una herramienta de Opera o extensión del navegador.
+### Demographics: validación completa antes de avanzar
+- **Bug**: ENTER o click en "Guardar y continuar" avanzaba con solo 1 campo respondido. La validación solo verificaba `length > 0`.
+- **Fix**: ahora se extraen las keys habilitadas del config del módulo y se valida que todas tengan respuesta.
 
 ---
 
