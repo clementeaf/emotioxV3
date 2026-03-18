@@ -5,7 +5,22 @@
 
 ---
 
-## Última actualización: 2026-03-18 (sesión 15)
+## Última actualización: 2026-03-18 (sesión 16)
+
+---
+
+## Sesión 16: 18 de marzo de 2026 — Templates a inglés, revisión auth Google (v0.28.5)
+
+### Module templates: traducción ES → EN en BD producción
+- 8 templates de Cognitive Tasks tenían labels y placeholders en español ("Título de la pregunta", "Escribe la pregunta aquí...", etc.).
+- Actualizados directamente en `module_templates.structure` vía SQL en producción.
+- Templates afectados: Short Text, Long Text, Linear Scale, Single Choice, Multiple Choice, Navigation Flow, Preference Test, NPS.
+- Los estudios ya creados no se afectan (los módulos se clonan del template al momento de creación).
+
+### Auth Google OAuth: revisión de persistencia de sesión
+- Se revisó el flujo completo de autenticación (login email, Google OAuth, bootstrap, refresh, logout).
+- No se encontraron bugs. La sesión con Google depende de cookies httpOnly en producción y de localStorage en localhost.
+- El comportamiento reportado (perder sesión al copiar URL de incógnito a normal) es esperado: los contextos de navegador son independientes.
 
 ---
 

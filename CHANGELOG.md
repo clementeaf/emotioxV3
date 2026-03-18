@@ -1,3 +1,10 @@
+## v0.28.5 — Translate module templates to English (2026-03-18)
+
+### backend (production database)
+- Fix: 8 Cognitive Task module templates had Spanish labels/placeholders. Updated to English: Short Text, Long Text, Linear Scale, Single Choice, Multiple Choice, Navigation Flow, Preference Test, NPS.
+
+---
+
 ## v0.28.4 — NavigationFlow 3-attempt limit, demographics validation (2026-03-18)
 
 ### participant-frontend
