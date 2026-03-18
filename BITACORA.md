@@ -9,14 +9,16 @@
 
 ---
 
-## Sesión 14: 18 de marzo de 2026 — Ranking fix participant + Add another question (v0.28.3)
+## Sesión 14: 18 de marzo de 2026 — Ranking fix participant, drawer de templates (v0.28.3)
 
 ### Ranking: fix parsing en participant
-- `CognitiveTaskRenderer.tsx`: agregado parsing del formato objeto `{ items, randomize }` (third try y fourth try).
-- `RankingQuestion.tsx`: nueva prop `randomize` con Fisher-Yates shuffle en carga inicial. Respuestas previas preservan su orden.
+- `CognitiveTaskRenderer.tsx`: parsing del formato `{ items, randomize }` (third try y fourth try).
+- `RankingQuestion.tsx`: prop `randomize` con Fisher-Yates shuffle en carga inicial.
 
-### "Add another question"
-- `ResearchBuilderPage.tsx`: botón al final de la lista de módulos Cognitive Tasks que abre el modal de selección de templates existente.
+### Drawer de selección de templates
+- `ModuleTemplateSelectionModal.tsx`: convertido de modal centrado a drawer lateral derecho. Filtra por `stageType` — SmartVOC solo muestra métricas, Cognitive Tasks solo muestra preguntas. Grid 2 columnas con click directo.
+- `ResearchBuilderPage.tsx`: botón "Add another question/metric" al final de ambos stages.
+- Eliminado template "ultra basico" de la BD de producción.
 
 ---
 

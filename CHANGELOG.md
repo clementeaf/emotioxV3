@@ -1,11 +1,13 @@
-## v0.28.3 — Ranking participant fix, "Add another question" (2026-03-18)
+## v0.28.3 — Ranking participant fix, module template drawer (2026-03-18)
 
 ### participant-frontend
-- Fix: Ranking parser now handles the new `{ items, randomize }` object format. Previously only expected a plain array, so items were never extracted.
-- Feat: `randomize` flag support — items shuffled on first load when enabled by researcher.
+- Fix: Ranking parser now handles the new `{ items, randomize }` object format.
+- Feat: `randomize` flag support — items shuffled on first load when enabled.
 
 ### research-frontend
-- Feat: "Add another question" button at the bottom of Cognitive Tasks modules, allowing researchers to add more modules without needing an empty stage.
+- Feat: Module template selector converted from modal to slide-in drawer. Filters templates by stage type (SmartVOC metrics vs Cognitive Task questions).
+- Feat: "Add another question/metric" button at the bottom of both Cognitive Tasks and SmartVOC stages.
+- Fix: Removed stale "ultra basico" template from production database.
 
 ---
 
