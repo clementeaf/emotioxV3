@@ -42,15 +42,48 @@ export const HeatmapRenderer = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        canvas.width = naturalSize.width;
-        canvas.height = naturalSize.height;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw background image
+        // Load image fully before drawing
         const img = new Image();
+        img.crossOrigin = 'anonymous';
         img.src = imageUrl;
-        ctx.drawImage(img, 0, 0);
+        img.onload = () => {
+            canvas.width = naturalSize.width;
+            canvas.height = naturalSize.height;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Draw background image
+            ctx.drawImage(img, 0, 0);
+
+            drawHeatmapOverlay(ctx, canvas, naturalSize, data, radius);
+        };
+
+    }, [imageLoaded, naturalSize, data, imageUrl, radius]);
+
+    if (!imageUrl) return <div className="bg-gray-200 h-64 flex items-center justify-center">No Image URL</div>;
+
+    return (
+        <div className={`relative overflow-hidden rounded-lg shadow-sm border ${className}`}>
+            <canvas
+                ref={canvasRef}
+                className="max-w-full h-auto block"
+                style={{ width: '100%' }}
+            />
+            {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <span className="text-gray-400">Loading image...</span>
+                </div>
+            )}
+        </div>
+    );
+};
+
+function drawHeatmapOverlay(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    naturalSize: { width: number; height: number },
+    data: Array<{ x: number; y: number; value?: number; isCorrect?: boolean; timestamp?: number }>,
+    radius: number
+) {
         // --- Heatmap with intensity overlay (alpha channel) ---
         // 1. Build an intensity map on an offscreen canvas (grayscale, additive)
         const offscreen = document.createElement('canvas');
@@ -134,23 +167,4 @@ export const HeatmapRenderer = ({
         overlayCtx.putImageData(colorized, 0, 0);
 
         ctx.drawImage(overlayCanvas, 0, 0);
-
-    }, [imageLoaded, naturalSize, data, imageUrl, radius]);
-
-    if (!imageUrl) return <div className="bg-gray-200 h-64 flex items-center justify-center">No Image URL</div>;
-
-    return (
-        <div className={`relative overflow-hidden rounded-lg shadow-sm border ${className}`}>
-            <canvas
-                ref={canvasRef}
-                className="max-w-full h-auto block"
-                style={{ width: '100%' }}
-            />
-            {!imageLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                    <span className="text-gray-400">Loading image...</span>
-                </div>
-            )}
-        </div>
-    );
-};
+}
