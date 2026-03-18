@@ -262,30 +262,35 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         };
     }, []);
 
-    /**
-     * Resolves the clickable image area in viewport coordinates.
-     * When no img is rendered, img has not loaded yet (naturalWidth/Height 0), or rect is null, uses the container so taps/clicks still advance in all browsers.
-     */
-    const getClickableRect = useCallback((): { left: number; top: number; width: number; height: number } | null => {
-        const img = imgElRef.current;
-        if (img) {
-            const rect = getRenderedImageRect(img);
-            if (rect) return rect;
-        }
-        const container = imageRef.current;
-        if (container) {
-            const r = container.getBoundingClientRect();
-            return { left: r.left, top: r.top, width: r.width, height: r.height };
-        }
-        return null;
-    }, []);
-
     /** Process one pointer/click at (clientX, clientY). Used by both pointer and click so touch/pen work in Opera and others. */
     const processInteraction = (clientX: number, clientY: number): void => {
         if (isComplete) return;
 
-        const rendered = getClickableRect();
-        if (!rendered) return;
+        // Try to get the REAL rendered image rect (accounts for object-contain letterboxing).
+        // The container fallback MUST NOT be used when hitzones exist because the
+        // percentage coordinates would be wrong (container ≠ image content area).
+        const img = imgElRef.current;
+        let rendered: { left: number; top: number; width: number; height: number } | null = null;
+
+        if (img) {
+            rendered = getRenderedImageRect(img);
+        }
+
+        // If we couldn't get the rendered image rect but there are hitzones,
+        // we must NOT fall back to container — it would make ALL clicks incorrect.
+        if (!rendered) {
+            if (hasHitzoneDefs) {
+                // Image not ready yet — ignore click silently
+                return;
+            }
+            // No hitzones defined — any click advances, so container fallback is fine
+            const container = imageRef.current;
+            if (container) {
+                const r = container.getBoundingClientRect();
+                rendered = { left: r.left, top: r.top, width: r.width, height: r.height };
+            }
+            if (!rendered) return;
+        }
 
         const relX = clientX - rendered.left;
         const relY = clientY - rendered.top;
@@ -301,7 +306,6 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         // hasn't re-rendered).
         let hitzonesToCheck = normalizedHitZones;
         if (hasHitzoneDefs && hitzonesToCheck.length === 0) {
-            const img = imgElRef.current;
             if (img && img.naturalWidth > 1 && img.naturalHeight > 1) {
                 const natural = { width: img.naturalWidth, height: img.naturalHeight };
                 hitzonesToCheck = rawHitZones.map(z => convertPixelsToPercent(z, natural));

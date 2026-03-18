@@ -1,4 +1,4 @@
-import { ChevronDown, Target } from 'lucide-react';
+import { Target } from 'lucide-react';
 import {
   Area,
   Bar,
@@ -95,8 +95,6 @@ interface NPSAnalysisProps {
   questionNumber?: string;
   title?: string;
   badges?: Array<{ label: string; color: string }>;
-  timeRange?: 'today' | 'week' | 'month';
-  onTimeRangeChange?: (range: 'today' | 'week' | 'month') => void;
   className?: string;
 }
 
@@ -164,8 +162,6 @@ export const NPSAnalysis = ({
     { label: 'Conditionality disabled', color: 'text-blue-600 bg-blue-50' },
     { label: 'Required', color: 'text-red-600 bg-red-50' }
   ],
-  timeRange = 'month',
-  onTimeRangeChange,
   className
 }: NPSAnalysisProps) => {
   // Calcular porcentajes
@@ -256,23 +252,8 @@ export const NPSAnalysis = ({
 
         {/* Chart */}
         <div className="h-[320px] bg-gray-50 rounded-lg border border-gray-200 p-4">
-          <div className="flex justify-between items-center mb-3">
+          <div className="mb-3">
             <CustomLegend />
-            <div className="relative inline-block">
-              <select
-                className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:outline-none appearance-none cursor-pointer pr-8"
-                value={timeRange}
-                onChange={(e) => {
-                  const newRange = e.target.value as 'today' | 'week' | 'month';
-                  onTimeRangeChange?.(newRange);
-                }}
-              >
-                <option value="today">Today</option>
-                <option value="week">Week</option>
-                <option value="month">Year</option>
-              </select>
-              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500" />
-            </div>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={filteredMonthlyData} margin={{ top: 10, right: 10, bottom: 20, left: 40 }} barGap={0}>

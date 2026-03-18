@@ -199,7 +199,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       csatValues, cesValues, cvValues, npsValues,
       promoters, neutrals, detractors, npsScore, cpvValue,
       emotionalStates,
-      vocComments: vocFiltered.map(v => ({ text: v.text, mood: v.sentiment || 'Positive' }))
+      vocComments: vocFiltered.map(v => ({ text: v.text, mood: v.sentiment || 'Positive' })),
+      vocExportRows: vocFiltered.map(v => ({ participantId: v.participantId ?? '', text: v.text, mood: v.sentiment })),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filterByParticipant depends on filteredParticipantIds
   }, [data, timeRange, filteredParticipantIds]);
@@ -421,8 +422,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         questionText="On a scale from 0-10, how likely are you to recommend [company] to a friend or colleague?"
         questionNumber={`2.${questionCounter}`}
         title="Net Promoter Score (NPS)"
-        timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
       />
     );
   }
@@ -435,6 +434,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         questionNumber={`2.${questionCounter}`}
         questionText="Voice of Customer (VOC)"
         comments={filtered?.vocComments || []}
+        researchId={researchId}
+        cognitiveExportRows={filtered?.vocExportRows}
       />
     );
   }
