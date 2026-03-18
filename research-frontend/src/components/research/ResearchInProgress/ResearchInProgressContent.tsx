@@ -28,7 +28,8 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
 
     toastRef.current = toast;
 
-    const { isConnected, monitoringData, connect } = useMonitoringReceiver(researchId || null, token || null);
+    // SSE monitoring (kept for future use, data loaded via REST for now)
+    useMonitoringReceiver(researchId || null, token || null);
 
     const [status, setStatus] = useState<ResearchStatus>({
         status: { value: '--', description: 'Cargando...', icon: 'chart-line' },
@@ -42,58 +43,59 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     const [error, setError] = useState<string | null>(null);
     const [showInfoModal, setShowInfoModal] = useState(false);
 
-    useEffect(() => {
-        const loadData = async (): Promise<void> => {
-            if (!researchId) return;
+    const loadData = async (): Promise<void> => {
+        if (!researchId) return;
 
-            setIsLoading(true);
-            setError(null);
+        setIsLoading(true);
+        setError(null);
 
-            try {
-                const [metricsResponse, participantsResponse, configResponse] = await Promise.all([
-                    researchInProgressService.getOverviewMetrics(researchId),
-                    researchInProgressService.getParticipantsWithStatus(researchId),
-                    researchInProgressService.getResearchConfiguration(researchId)
-                ]);
+        try {
+            const [metricsResponse, participantsResponse, configResponse] = await Promise.all([
+                researchInProgressService.getOverviewMetrics(researchId),
+                researchInProgressService.getParticipantsWithStatus(researchId),
+                researchInProgressService.getResearchConfiguration(researchId)
+            ]);
 
-                if ((metricsResponse?.success && metricsResponse?.data) || (metricsResponse?.status === 200 && metricsResponse?.data)) {
-                    const metricsData = metricsResponse.data as ResearchStatus;
-                    if (metricsData.status && metricsData.participants && metricsData.completionRate && metricsData.averageTime) {
-                        setStatus(metricsData);
-                    }
+            if ((metricsResponse?.success && metricsResponse?.data) || (metricsResponse?.status === 200 && metricsResponse?.data)) {
+                const metricsData = metricsResponse.data as ResearchStatus;
+                if (metricsData.status && metricsData.participants && metricsData.completionRate && metricsData.averageTime) {
+                    setStatus(metricsData);
                 }
-
-                if ((participantsResponse.success && participantsResponse.data) || (participantsResponse.status === 200 && participantsResponse.data)) {
-                    let participantsData: Participant[];
-
-                    if (Array.isArray(participantsResponse.data)) {
-                        participantsData = participantsResponse.data;
-                    } else if (participantsResponse.data && typeof participantsResponse.data === 'object' && 'data' in participantsResponse.data && Array.isArray(participantsResponse.data.data)) {
-                        participantsData = participantsResponse.data.data;
-                    } else {
-                        participantsData = [];
-                    }
-
-                    setParticipants(participantsData);
-                }
-
-                if ((configResponse?.success && configResponse?.data) || (configResponse?.status === 200 && configResponse?.data)) {
-                    const config = configResponse.data;
-                    setResearchConfig({
-                        allowMobileDevices: config.linkConfig?.allowMobileDevices ?? true,
-                        trackLocation: config.linkConfig?.trackLocation ?? true
-                    });
-                }
-            } catch (error: unknown) {
-                const errorMessage = error instanceof Error ? error.message : 'Error al cargar los datos de la investigación';
-                setError(errorMessage);
-                toastRef.current.error(errorMessage);
-            } finally {
-                setIsLoading(false);
             }
-        };
 
+            if ((participantsResponse.success && participantsResponse.data) || (participantsResponse.status === 200 && participantsResponse.data)) {
+                let participantsData: Participant[];
+
+                if (Array.isArray(participantsResponse.data)) {
+                    participantsData = participantsResponse.data;
+                } else if (participantsResponse.data && typeof participantsResponse.data === 'object' && 'data' in participantsResponse.data && Array.isArray(participantsResponse.data.data)) {
+                    participantsData = participantsResponse.data.data;
+                } else {
+                    participantsData = [];
+                }
+
+                setParticipants(participantsData);
+            }
+
+            if ((configResponse?.success && configResponse?.data) || (configResponse?.status === 200 && configResponse?.data)) {
+                const config = configResponse.data;
+                setResearchConfig({
+                    allowMobileDevices: config.linkConfig?.allowMobileDevices ?? true,
+                    trackLocation: config.linkConfig?.trackLocation ?? true
+                });
+            }
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : 'Error al cargar los datos de la investigación';
+            setError(errorMessage);
+            toastRef.current.error(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
         void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [researchId]);
 
     const handleParticipantDeleted = (participantId: string): void => {
@@ -131,28 +133,21 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
             <div className="mb-6 p-4 rounded-lg border">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className="text-sm font-medium">
-                            {isConnected ? 'Conectado en tiempo real' : 'Desconectado'}
+                        <span className="text-sm text-gray-600">
+                            {participants.length} participantes registrados
                         </span>
                     </div>
-                    <div className="text-xs text-gray-500">
-                        {monitoringData?.participants?.length || 0} participantes monitoreados
-                    </div>
+                    <button
+                        onClick={() => void loadData()}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                    >
+                        <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {isLoading ? 'Actualizando...' : 'Actualizar datos'}
+                    </button>
                 </div>
-                {!isConnected && (
-                    <>
-                        <button
-                            onClick={connect}
-                            className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
-                        >
-                            Reconectar
-                        </button>
-                        <div className="mt-2 text-xs text-red-500">
-                            El monitoreo en tiempo real está desconectado. Los datos no se actualizarán automáticamente hasta que se restablezca la conexión.
-                        </div>
-                    </>
-                )}
             </div>
 
             <div className="flex justify-between items-center mb-8">
