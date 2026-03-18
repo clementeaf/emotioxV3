@@ -130,7 +130,8 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             // 2. Component with type 'ranking-list' (any id)
             // 3. Old format: multiple components with isChoice or choice- in id
             let items: Array<{ id: string; label: string }> = [];
-            
+            let shouldRandomize = false;
+
             // Try new format first (component with id 'items' or type 'ranking-list')
             // Also check for ranking-slider which might contain items in options
             const itemsComponent = components.find(c => 
@@ -162,8 +163,17 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         if (typeof parsed === 'string') {
                             parsed = JSON.parse(parsed);
                         }
-                        // If parsed is an array, use it
-                        if (Array.isArray(parsed)) {
+                        // New format: { items: [...], randomize: bool }
+                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'items' in parsed && Array.isArray((parsed as { items: unknown[] }).items)) {
+                            const wrapper = parsed as { items: Array<{ id?: string; label?: string; value?: string }>; randomize?: boolean };
+                            items = wrapper.items.map((item, index) => ({
+                                id: item.id || item.value || `item-${index}`,
+                                label: item.label || item.value || item.id || `Item ${index + 1}`
+                            }));
+                            shouldRandomize = !!wrapper.randomize;
+                        }
+                        // Legacy format: plain array
+                        else if (Array.isArray(parsed)) {
                             items = parsed.map((item: string | { id?: string; label?: string; value?: string }, index: number) => {
                                 if (typeof item === 'string') {
                                     return { id: `item-${index}`, label: item };
@@ -184,7 +194,15 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     if (componentText) {
                         try {
                             const parsed = JSON.parse(componentText);
-                            if (Array.isArray(parsed) && parsed.length > 0) {
+                            // New format: { items: [...], randomize: bool }
+                            if (parsed && !Array.isArray(parsed) && parsed.items && Array.isArray(parsed.items)) {
+                                items = parsed.items.map((item: { id?: string; label?: string; value?: string }, index: number) => ({
+                                    id: item.id || item.value || `item-${index}`,
+                                    label: item.label || item.value || item.id || `Item ${index + 1}`
+                                }));
+                                shouldRandomize = !!parsed.randomize;
+                            }
+                            else if (Array.isArray(parsed) && parsed.length > 0) {
                                 items = parsed.map((item: string | { id?: string; label?: string; value?: string }, index: number) => {
                                     if (typeof item === 'string') {
                                         return { id: `item-${index}`, label: item };
@@ -286,6 +304,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                     title={titleText}
                     description={descriptionText}
                     items={items}
+                    randomize={shouldRandomize}
                 />
             );
         }

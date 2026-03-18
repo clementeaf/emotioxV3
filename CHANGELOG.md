@@ -1,3 +1,11 @@
+## v0.28.3 — Ranking: participant-side parsing fix (2026-03-18)
+
+### participant-frontend
+- Fix: Ranking parser now handles the new `{ items, randomize }` object format saved by the research-frontend. Previously only expected a plain array, so items were never extracted.
+- Feat: `randomize` flag support — when enabled by the researcher, items are shuffled (Fisher-Yates) on first load. Existing responses preserve their stored order.
+
+---
+
 ## v0.28.2 — Ranking module: database fix (2026-03-18)
 
 ### backend (production database)

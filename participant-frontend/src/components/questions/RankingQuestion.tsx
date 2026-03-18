@@ -13,6 +13,17 @@ interface RankingQuestionProps {
     description?: string;
     items: RankingItem[];
     required?: boolean;
+    randomize?: boolean;
+}
+
+// Fisher-Yates shuffle (stable per-render, not per-rerender)
+function shuffleArray<T>(arr: T[]): T[] {
+    const shuffled = [...arr];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
 }
 
 export const RankingQuestion = ({
@@ -22,6 +33,7 @@ export const RankingQuestion = ({
     description,
     items,
     required = false,
+    randomize = false,
 }: RankingQuestionProps) => {
     const { value: storedValue, save } = useResponse({ moduleId, componentId });
 
@@ -36,7 +48,7 @@ export const RankingQuestion = ({
             const remaining = items.filter(item => !ids.includes(item.id));
             return [...ordered, ...remaining];
         }
-        return items;
+        return randomize ? shuffleArray(items) : items;
     });
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
