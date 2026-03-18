@@ -657,6 +657,18 @@ export const ResearchBuilderPage = () => {
                             />
                         </div>
                     ))}
+
+                    {/* Add another question button */}
+                    {cognitiveTasksStage && (
+                        <div className="flex justify-end">
+                            <button
+                                onClick={() => handleOpenTemplateModal(cognitiveTasksStage)}
+                                className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                                Add another question
+                            </button>
+                        </div>
+                    )}
                     </div>
                 )}
 

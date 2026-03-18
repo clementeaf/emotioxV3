@@ -9,14 +9,14 @@
 
 ---
 
-## Sesión 14: 18 de marzo de 2026 — Ranking: fix parsing en participant (v0.28.3)
+## Sesión 14: 18 de marzo de 2026 — Ranking fix participant + Add another question (v0.28.3)
 
-### Problema
-El research-frontend (desde v0.28.1) guarda Ranking como `{ items: [...], randomize: bool }` en `component.value`. El participant-frontend solo esperaba un array plano — nunca extraía los items del objeto wrapper, así que el Ranking aparecía vacío para el participante.
+### Ranking: fix parsing en participant
+- `CognitiveTaskRenderer.tsx`: agregado parsing del formato objeto `{ items, randomize }` (third try y fourth try).
+- `RankingQuestion.tsx`: nueva prop `randomize` con Fisher-Yates shuffle en carga inicial. Respuestas previas preservan su orden.
 
-### Corrección
-- `CognitiveTaskRenderer.tsx`: agregado parsing del formato objeto `{ items, randomize }` en los dos puntos donde se parsea `component.value` (third try y fourth try). Se extrae `shouldRandomize` y se pasa al componente.
-- `RankingQuestion.tsx`: nueva prop `randomize`. Cuando está activa, los items se muestran en orden aleatorio (Fisher-Yates) en la carga inicial. Si el participante ya tiene respuesta guardada, se respeta ese orden.
+### "Add another question"
+- `ResearchBuilderPage.tsx`: botón al final de la lista de módulos Cognitive Tasks que abre el modal de selección de templates existente.
 
 ---
 
