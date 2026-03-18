@@ -5,7 +5,19 @@
 
 ---
 
-## Última actualización: 2026-03-18 (sesión 12)
+## Última actualización: 2026-03-18 (sesión 13)
+
+---
+
+## Sesión 13: 18 de marzo de 2026 — Ranking: fix en BD producción (v0.28.2)
+
+### Problema
+4 módulos Ranking en producción tenían estructura legacy (título + descripción + slider tipo select con rango 1-5). No mostraban los inputs para agregar items ni el editor de ranking-list. Además, el `module_templates.Ranking` seguía con esa misma estructura legacy, así que cualquier Ranking nuevo se creaba roto.
+
+### Corrección
+- Migrados los 4 módulos directamente en MySQL de producción: reemplazada la estructura por `question-title` (input) + `items` (ranking-list). Títulos existentes preservados.
+- Actualizado `module_templates.Ranking` a la estructura correcta.
+- Verificación: 0 módulos Ranking rotos, 31/31 con estructura correcta.
 
 ---
 

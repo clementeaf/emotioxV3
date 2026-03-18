@@ -1,3 +1,11 @@
+## v0.28.2 — Ranking module: database fix (2026-03-18)
+
+### backend (production database)
+- Fix: 4 Ranking modules had legacy structure (input+textarea+select slider) instead of correct `question-title` + `items` (ranking-list). Migrated in-place preserving existing titles.
+- Fix: `module_templates.Ranking` still had legacy slider structure — updated to `["input", "ranking-list"]` so new Ranking modules are created correctly.
+
+---
+
 ## v0.28.1 — Heatmap, AOI, Ranking redesign, hitzone fix, module delete (2026-03-18)
 
 ### research-frontend
