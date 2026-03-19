@@ -5,7 +5,8 @@
  * ya que maneja isEnabled e isDisqualifying separados (diferente a otros modales).
  */
 
-import { Target, Users, X } from 'lucide-react';
+import { Target, Users } from 'lucide-react';
+import { Drawer } from '../ui/Drawer';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AgeOptionsTab } from './demographic-config/AgeOptionsTab';
 import { QuotasTab } from './demographic-config/QuotasTab';
@@ -185,122 +186,107 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
     return field;
   };
 
-  if (!isOpen) return null;
+  const footer = (
+    <div className="flex justify-end space-x-3">
+      <button
+        onClick={onClose}
+        className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+      >
+        Cancelar
+      </button>
+      <button
+        onClick={handleSave}
+        disabled={validOptionsCount === 0}
+        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      >
+        Guardar configuración
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Configurar opciones de edad</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
-          <button
-            onClick={() => setActiveTab('options')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'options'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Target className="inline w-4 h-4 mr-2" />
-            Opciones de Edad
-          </button>
-          <button
-            onClick={() => setActiveTab('quotas')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'quotas'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Users className="inline w-4 h-4 mr-2" />
-            Cuotas Dinámicas
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === 'options' ? (
-          <div className="p-6">
-            <AgeOptionsTab
-              options={ageOptions}
-              setOptions={setAgeOptions}
-              newOption={newOption}
-              setNewOption={setNewOption}
-              editingOption={editingOption}
-              setEditingOption={setEditingOption}
-              onAddOption={handleAddOption}
-            />
-
-            {/* Validación */}
-            {validOptionsCount === 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <p className="text-red-700 text-sm">
-                  ⚠️ Debes tener al menos una opción que clasifique para que los participantes puedan participar.
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <QuotasTab<{ id: string; label: string; isQualified: boolean }, BaseDemographicQuota<string>>
-            options={ageOptions.map(opt => ({
-              id: opt.id,
-              label: opt.label,
-              isQualified: opt.isEnabled && !opt.isDisqualifying,
-              isCustom: !PREDEFINED_OPTIONS.find(p => p.id === opt.id)
-            }))}
-            quotaConfig={quotaConfig}
-            quotasTitle="Sistema de Cuotas por Edad"
-            quotasDescription="Configura cuotas específicas por rango de edad. Cuando se alcance la cuota de un rango, los participantes de esa edad serán descalificados automáticamente."
-            quotasInfoTitle="Cómo funcionan las cuotas:"
-            quotasInfoItems={[
-              'Cada rango de edad puede tener su propia cuota (número absoluto o porcentaje)',
-              'Porcentajes: Se calculan sobre el total de participantes esperados',
-              'El sistema automáticamente contará los participantes que se registren',
-              'Cuando se alcance la cuota, los participantes de esa edad serán descalificados automáticamente',
-              '⚠️ Rangos sin cuota asignada: Si un rango habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
-              'Las cuotas inactivas no afectan la descalificación'
-            ]}
-            quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por rango de edad"
-            quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
-            quotasDisabledInfoText={[
-              'Los filtros previos de edad (rangos válidos y descalificantes) configurados en la pestaña "Opciones de Edad" seguirán activos.',
-              'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los rangos de edad válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por rango de edad.',
-              'Para asegurar una distribución controlada con cuotas específicas por rango de edad, habilita el sistema de cuotas dinámicas.'
-            ]}
-            getAvailableOptions={getAvailableOptions}
-            getQuotaFieldValue={getQuotaFieldValue}
-            getQuotaFieldLabel={getQuotaFieldLabel}
-            fieldSelectLabel="Rango de Edad"
-          />
-        )}
-
-        {/* Botones de acción */}
-        <div className="flex justify-end space-x-3 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={validOptionsCount === 0}
-            className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Guardar configuración
-          </button>
-        </div>
+    <Drawer isOpen={isOpen} onClose={onClose} title="Configurar opciones de edad" width="lg" footer={footer}>
+      {/* Tabs */}
+      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
+        <button
+          onClick={() => setActiveTab('options')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'options'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Target className="inline w-4 h-4 mr-2" />
+          Opciones de Edad
+        </button>
+        <button
+          onClick={() => setActiveTab('quotas')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'quotas'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Users className="inline w-4 h-4 mr-2" />
+          Cuotas Dinámicas
+        </button>
       </div>
-    </div>
+
+      {/* Tab Content */}
+      {activeTab === 'options' ? (
+        <div>
+          <AgeOptionsTab
+            options={ageOptions}
+            setOptions={setAgeOptions}
+            newOption={newOption}
+            setNewOption={setNewOption}
+            editingOption={editingOption}
+            setEditingOption={setEditingOption}
+            onAddOption={handleAddOption}
+          />
+
+          {validOptionsCount === 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+              <p className="text-red-700 text-sm">
+                Debes tener al menos una opción que clasifique para que los participantes puedan participar.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <QuotasTab<{ id: string; label: string; isQualified: boolean }, BaseDemographicQuota<string>>
+          options={ageOptions.map(opt => ({
+            id: opt.id,
+            label: opt.label,
+            isQualified: opt.isEnabled && !opt.isDisqualifying,
+            isCustom: !PREDEFINED_OPTIONS.find(p => p.id === opt.id)
+          }))}
+          quotaConfig={quotaConfig}
+          quotasTitle="Sistema de Cuotas por Edad"
+          quotasDescription="Configura cuotas específicas por rango de edad. Cuando se alcance la cuota de un rango, los participantes de esa edad serán descalificados automáticamente."
+          quotasInfoTitle="Cómo funcionan las cuotas:"
+          quotasInfoItems={[
+            'Cada rango de edad puede tener su propia cuota (número absoluto o porcentaje)',
+            'Porcentajes: Se calculan sobre el total de participantes esperados',
+            'El sistema automáticamente contará los participantes que se registren',
+            'Cuando se alcance la cuota, los participantes de esa edad serán descalificados automáticamente',
+            'Rangos sin cuota asignada: Si un rango habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
+            'Las cuotas inactivas no afectan la descalificación'
+          ]}
+          quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por rango de edad"
+          quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+          quotasDisabledInfoText={[
+            'Los filtros previos de edad (rangos válidos y descalificantes) configurados en la pestaña "Opciones de Edad" seguirán activos.',
+            'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los rangos de edad válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por rango de edad.',
+            'Para asegurar una distribución controlada con cuotas específicas por rango de edad, habilita el sistema de cuotas dinámicas.'
+          ]}
+          getAvailableOptions={getAvailableOptions}
+          getQuotaFieldValue={getQuotaFieldValue}
+          getQuotaFieldLabel={getQuotaFieldLabel}
+          fieldSelectLabel="Rango de Edad"
+        />
+      )}
+    </Drawer>
   );
 };
 

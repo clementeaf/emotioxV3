@@ -1,11 +1,11 @@
 /**
  * Componente de tab para gestionar opciones demográficas
- * 
- * Renderiza la lista de opciones con capacidad de editar, eliminar
- * y calificar/descalificar opciones.
+ *
+ * Mismo patrón visual que AgeOptionsTab: toggle Clasifica/Desclasifica
+ * con label, iconos de edición compactos.
  */
 
-import { Check, X as XIcon } from 'lucide-react';
+import { Edit2, Save, Trash2, X as XIcon } from 'lucide-react';
 import React from 'react';
 import type {
   BaseDemographicOption,
@@ -58,95 +58,69 @@ export function OptionsTab<TOption extends BaseDemographicOption>({
         </div>
       )}
 
+      <p className="text-gray-600 mb-6">
+        Usa el toggle para indicar si cada opción clasifica o desclasifica automáticamente al participante.
+      </p>
+
       {/* Options List */}
       <div className="space-y-3">
         {options.map((option) => (
           <div
             key={option.id}
-            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+            className={`flex items-center gap-2 p-3 rounded-lg border ${
+              option.isQualified
+                ? 'bg-gray-50 border-gray-200'
+                : 'bg-orange-50 border-orange-200'
+            }`}
           >
-            <div className="flex items-center space-x-3 flex-1">
-              {/* Toggle */}
+            {/* Label */}
+            {editingId === option.id ? (
+              <input
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleEditSave();
+                  if (e.key === 'Escape') handleEditCancel();
+                }}
+                className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-sm"
+                autoFocus
+              />
+            ) : (
+              <span className={`font-medium text-sm whitespace-nowrap ${!option.isQualified ? 'text-gray-500' : ''}`}>
+                {option.label}
+              </span>
+            )}
+
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              {/* Toggle Clasifica/Desclasifica */}
+              <span className={`text-xs whitespace-nowrap ${option.isQualified ? 'text-green-600' : 'text-orange-600'}`}>
+                {option.isQualified ? 'Clasifica' : 'Desclasifica'}
+              </span>
               <button
                 onClick={() => handleToggleQualification(option.id)}
-                className={`w-10 h-6 rounded-full transition-colors ${
-                  option.isQualified ? 'bg-green-500' : 'bg-gray-300'
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                  option.isQualified ? 'bg-green-500' : 'bg-orange-500'
                 }`}
               >
-                <div
-                  className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                    option.isQualified ? 'translate-x-5' : 'translate-x-1'
+                <span
+                  className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                    option.isQualified ? 'translate-x-1' : 'translate-x-5'
                   }`}
                 />
               </button>
 
-              {/* Label */}
-              <div className="flex-1">
-                {editingId === option.id ? (
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleEditSave();
-                      if (e.key === 'Escape') handleEditCancel();
-                    }}
-                    className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                    autoFocus
-                  />
-                ) : (
-                  <span
-                    className={`text-sm ${
-                      option.isQualified
-                        ? 'text-gray-900'
-                        : 'text-gray-500 line-through'
-                    }`}
-                  >
-                    {option.label}
-                  </span>
-                )}
-              </div>
-
-              {/* Status Icon */}
-              {option.isQualified ? (
-                <Check size={16} className="text-green-500" />
-              ) : (
-                <XIcon size={16} className="text-red-500" />
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center space-x-2 ml-3">
+              {/* Acciones */}
               {editingId === option.id ? (
                 <>
-                  <button
-                    onClick={handleEditSave}
-                    className="p-1 text-green-600 hover:text-green-800"
-                  >
-                    <Check size={16} />
-                  </button>
-                  <button
-                    onClick={handleEditCancel}
-                    className="p-1 text-gray-600 hover:text-gray-800"
-                  >
-                    <XIcon size={16} />
-                  </button>
+                  <button onClick={handleEditSave} className="p-1 text-green-600 hover:text-green-800" title="Guardar"><Save size={14} /></button>
+                  <button onClick={handleEditCancel} className="p-1 text-gray-600 hover:text-gray-800" title="Cancelar"><XIcon size={14} /></button>
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={() => handleEditStart(option)}
-                    className="p-1 text-blue-600 hover:text-blue-800"
-                  >
-                    Editar
-                  </button>
+                  <button onClick={() => handleEditStart(option)} className="p-1 text-blue-600 hover:text-blue-800" title="Editar"><Edit2 size={14} /></button>
                   {option.isCustom && (
-                    <button
-                      onClick={() => handleDelete(option.id)}
-                      className="p-1 text-red-600 hover:text-red-800"
-                    >
-                      Eliminar
-                    </button>
+                    <button onClick={() => handleDelete(option.id)} className="p-1 text-red-600 hover:text-red-800" title="Eliminar"><Trash2 size={14} /></button>
                   )}
                 </>
               )}

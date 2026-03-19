@@ -104,7 +104,7 @@ export function AgeOptionsTab({
         {options.map((option) => (
           <div
             key={option.id}
-            className={`flex items-center justify-between p-3 rounded-lg border ${
+            className={`flex items-center gap-2 p-3 rounded-lg border ${
               !option.isEnabled
                 ? 'bg-gray-100 border-gray-300 opacity-60'
                 : option.isDisqualifying
@@ -112,131 +112,75 @@ export function AgeOptionsTab({
                 : 'bg-gray-50 border-gray-200'
             }`}
           >
-            <div className="flex items-center space-x-3 flex-1">
-              {/* Toggle para activar/desactivar */}
-              <div className="flex items-center space-x-2">
-                <span
-                  className={`text-xs font-medium ${
-                    option.isEnabled ? 'text-gray-700' : 'text-gray-400'
-                  }`}
-                >
-                  {option.isEnabled ? 'Activa' : 'Inactiva'}
-                </span>
-                <button
-                  onClick={() => handleToggleEnabled(option.id)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    option.isEnabled ? 'bg-blue-500' : 'bg-gray-300'
-                  }`}
-                  title={
-                    option.isEnabled
-                      ? 'Desactivar rango de edad'
-                      : 'Activar rango de edad'
-                  }
-                >
-                  <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                      option.isEnabled ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
+            {/* Toggle activar/desactivar */}
+            <button
+              onClick={() => handleToggleEnabled(option.id)}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                option.isEnabled ? 'bg-blue-500' : 'bg-gray-300'
+              }`}
+              title={option.isEnabled ? 'Desactivar' : 'Activar'}
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                  option.isEnabled ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
 
-              {editingOption === option.id ? (
-                <input
-                  type="text"
-                  value={option.label}
-                  onChange={(e) => {
-                    setOptions(prev =>
-                      prev.map(opt =>
-                        opt.id === option.id
-                          ? { ...opt, label: e.target.value }
-                          : opt
-                      )
-                    );
-                  }}
-                  className="flex-1 px-2 py-1 border border-gray-300 rounded"
-                  autoFocus
-                  disabled={!option.isEnabled}
-                />
-              ) : (
-                <span
-                  className={`font-medium ${
-                    !option.isEnabled ? 'text-gray-400' : ''
-                  }`}
-                >
-                  {option.label}
-                </span>
-              )}
+            {/* Label */}
+            {editingOption === option.id ? (
+              <input
+                type="text"
+                value={option.label}
+                onChange={(e) => {
+                  setOptions(prev =>
+                    prev.map(opt =>
+                      opt.id === option.id ? { ...opt, label: e.target.value } : opt
+                    )
+                  );
+                }}
+                className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-sm"
+                autoFocus
+                disabled={!option.isEnabled}
+              />
+            ) : (
+              <span className={`font-medium text-sm whitespace-nowrap ${!option.isEnabled ? 'text-gray-400' : ''}`}>
+                {option.label}
+              </span>
+            )}
 
-              {/* Toggle Switch para Clasifica/Desclasifica */}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              {/* Toggle Clasifica/Desclasifica */}
               {option.isEnabled && (
-                <div className="flex items-center space-x-2">
-                  <span
-                    className={`text-sm ${
-                      option.isDisqualifying
-                        ? 'text-orange-600'
-                        : 'text-green-600'
-                    }`}
-                  >
+                <>
+                  <span className={`text-xs whitespace-nowrap ${option.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
                     {option.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
                   </span>
                   <button
                     onClick={() => handleToggleDisqualifying(option.id)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      option.isDisqualifying
-                        ? 'bg-orange-500'
-                        : 'bg-green-500'
+                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                      option.isDisqualifying ? 'bg-orange-500' : 'bg-green-500'
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        option.isDisqualifying
-                          ? 'translate-x-6'
-                          : 'translate-x-1'
+                      className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                        option.isDisqualifying ? 'translate-x-5' : 'translate-x-1'
                       }`}
                     />
                   </button>
-                </div>
+                </>
               )}
-            </div>
 
-            {/* Botones de acción */}
-            <div className="flex items-center space-x-2">
+              {/* Acciones */}
               {editingOption === option.id ? (
                 <>
-                  <button
-                    onClick={() => handleEditSave(option.id, option.label)}
-                    className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Guardar"
-                    disabled={!option.isEnabled}
-                  >
-                    <Save size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleEditCancel(option.id)}
-                    className="p-1 text-gray-600 hover:text-gray-800"
-                    title="Cancelar"
-                  >
-                    <XIcon size={16} />
-                  </button>
+                  <button onClick={() => handleEditSave(option.id, option.label)} className="p-1 text-green-600 hover:text-green-800" title="Guardar"><Save size={14} /></button>
+                  <button onClick={() => handleEditCancel(option.id)} className="p-1 text-gray-600 hover:text-gray-800" title="Cancelar"><XIcon size={14} /></button>
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={() => handleEditStart(option.id)}
-                    className="p-1 text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Editar"
-                    disabled={!option.isEnabled}
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(option.id)}
-                    className="p-1 text-red-600 hover:text-red-800"
-                    title="Eliminar"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <button onClick={() => handleEditStart(option.id)} className="p-1 text-blue-600 hover:text-blue-800" title="Editar" disabled={!option.isEnabled}><Edit2 size={14} /></button>
+                  <button onClick={() => handleDelete(option.id)} className="p-1 text-red-600 hover:text-red-800" title="Eliminar"><Trash2 size={14} /></button>
                 </>
               )}
             </div>

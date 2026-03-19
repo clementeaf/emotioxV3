@@ -12,7 +12,7 @@
  * - UI consistente
  */
 
-import { Target, Users, X } from 'lucide-react';
+import { Target, Users } from 'lucide-react';
 import React, { useState } from 'react';
 import type {
   BaseDemographicOption,
@@ -23,6 +23,7 @@ import { useDemographicConfig } from './useDemographicConfig';
 import { useQuotaManagement } from './useQuotaManagement';
 import { OptionsTab } from './OptionsTab';
 import { QuotasTab } from './QuotasTab';
+import { Drawer } from '../../ui/Drawer';
 
 /**
  * Componente base genérico para modales de configuración demográfica
@@ -53,7 +54,7 @@ export function DemographicConfigModalBase<
   quotasDisabledInfoTitle,
   quotasDisabledInfoText,
   validationMessage,
-  saveButtonText = 'Guardar',
+  saveButtonText = 'Guardar configuración',
   cancelButtonText = 'Cancelar',
   getAvailableOptions,
   getQuotaFieldValue,
@@ -105,105 +106,91 @@ export function DemographicConfigModalBase<
 
   const validOptionsCount = optionsConfig.qualifiedCount;
 
-  if (!isOpen) return null;
+  const footer = (
+    <div className="flex items-center justify-end space-x-3">
+      <button
+        onClick={onClose}
+        className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+      >
+        {cancelButtonText}
+      </button>
+      <button
+        onClick={handleSave}
+        disabled={validOptionsCount === 0}
+        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      >
+        {saveButtonText}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex space-x-1 p-6 bg-gray-100">
-          <button
-            onClick={() => setActiveTab('options')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'options'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Target className="inline w-4 h-4 mr-2" />
-            {optionsTabLabel}
-          </button>
-          <button
-            onClick={() => setActiveTab('quotas')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'quotas'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {QuotasIcon ? (
-              <QuotasIcon className="inline w-4 h-4 mr-2" />
-            ) : (
-              <Users className="inline w-4 h-4 mr-2" />
-            )}
-            {quotasTabLabel}
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        {activeTab === 'options' ? (
-          <>
-            <OptionsTab
-              config={optionsConfig}
-              statisticsLabel={statisticsLabel}
-              addCustomOptionText={addCustomOptionText}
-              onAddCustom={handleAddCustom}
-            />
-            {validationMessage && validOptionsCount === 0 && (
-              <div className="px-6 pb-6">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-red-700 text-sm">{validationMessage}</p>
-                </div>
-              </div>
-            )}
-          </>
-        ) : (
-          <QuotasTab
-            options={optionsConfig.options}
-            quotaConfig={quotaConfig}
-            quotasTitle={quotasTitle}
-            quotasDescription={quotasDescription}
-            quotasInfoTitle={quotasInfoTitle}
-            quotasInfoItems={quotasInfoItems}
-            quotasDisabledMessage={quotasDisabledMessage}
-            quotasDisabledInfoTitle={quotasDisabledInfoTitle}
-            quotasDisabledInfoText={quotasDisabledInfoText}
-            getAvailableOptions={getAvailableOptions}
-            getQuotaFieldValue={getQuotaFieldValue}
-            getQuotaFieldLabel={getQuotaFieldLabel}
-            fieldSelectLabel={fieldSelectLabel}
-            Icon={QuotasIcon}
-          />
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            {cancelButtonText}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={validOptionsCount === 0}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {saveButtonText}
-          </button>
-        </div>
+    <Drawer isOpen={isOpen} onClose={onClose} title={title} width="lg" footer={footer}>
+      {/* Tabs */}
+      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
+        <button
+          onClick={() => setActiveTab('options')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'options'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <Target className="inline w-4 h-4 mr-2" />
+          {optionsTabLabel}
+        </button>
+        <button
+          onClick={() => setActiveTab('quotas')}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'quotas'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {QuotasIcon ? (
+            <QuotasIcon className="inline w-4 h-4 mr-2" />
+          ) : (
+            <Users className="inline w-4 h-4 mr-2" />
+          )}
+          {quotasTabLabel}
+        </button>
       </div>
-    </div>
+
+      {/* Tab Content */}
+      {activeTab === 'options' ? (
+        <>
+          <OptionsTab
+            config={optionsConfig}
+            statisticsLabel={statisticsLabel}
+            addCustomOptionText={addCustomOptionText}
+            onAddCustom={handleAddCustom}
+          />
+          {validationMessage && validOptionsCount === 0 && (
+            <div className="mt-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-700 text-sm">{validationMessage}</p>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <QuotasTab
+          options={optionsConfig.options}
+          quotaConfig={quotaConfig}
+          quotasTitle={quotasTitle}
+          quotasDescription={quotasDescription}
+          quotasInfoTitle={quotasInfoTitle}
+          quotasInfoItems={quotasInfoItems}
+          quotasDisabledMessage={quotasDisabledMessage}
+          quotasDisabledInfoTitle={quotasDisabledInfoTitle}
+          quotasDisabledInfoText={quotasDisabledInfoText}
+          getAvailableOptions={getAvailableOptions}
+          getQuotaFieldValue={getQuotaFieldValue}
+          getQuotaFieldLabel={getQuotaFieldLabel}
+          fieldSelectLabel={fieldSelectLabel}
+          Icon={QuotasIcon}
+        />
+      )}
+    </Drawer>
   );
 }

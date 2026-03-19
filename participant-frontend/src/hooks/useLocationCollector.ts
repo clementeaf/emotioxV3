@@ -28,11 +28,13 @@ export const useLocationCollector = (): UseLocationCollectorReturn => {
     const [isLoading, setIsLoading] = useState(false);
     const [hasConsent, setHasConsent] = useState(false);
 
+    const trackingEnabled = config?.linkConfig?.trackLocation === true;
+
     /**
      * Solicita ubicación GPS del usuario
      */
     const requestLocation = useCallback(async () => {
-        if (!config?.settings.enableLocationCapture) return;
+        if (!trackingEnabled) return;
 
         try {
             setIsLoading(true);
@@ -86,11 +88,11 @@ export const useLocationCollector = (): UseLocationCollectorReturn => {
         } finally {
             setIsLoading(false);
         }
-    }, [config?.settings.enableLocationCapture, setLocation]);
+    }, [trackingEnabled, setLocation]);
 
     // Automatically request location if tracking is enabled in config
     useEffect(() => {
-        if (config?.linkConfig?.trackLocation === true && config?.settings.enableLocationCapture) {
+        if (trackingEnabled) {
             // Only auto-request if we haven't already requested or denied
             if (!hasConsent && !error) {
                 // Small delay to allow user to see the page first

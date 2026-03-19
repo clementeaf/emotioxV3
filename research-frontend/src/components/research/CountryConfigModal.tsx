@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Edit2, Globe, MapPin, Save, Search, Star, Target, Trash2, Users, X } from 'lucide-react';
+import { Drawer } from '../ui/Drawer';
 import React, { useEffect, useMemo, useState } from 'react';
 import { QuotasTab } from './demographic-config/QuotasTab';
 import { useQuotaManagement } from './demographic-config/useQuotaManagement';
@@ -362,23 +363,27 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   const excludedContinentsCount = continentSections
     .filter(section => section.isExcluded).length;
 
-  if (!isOpen) return null;
+  const footer = (
+    <div className="flex justify-end space-x-3">
+      <button
+        onClick={onClose}
+        className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+      >
+        Cancelar
+      </button>
+      <button
+        onClick={handleSave}
+        disabled={validCountriesCount === 0}
+        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+      >
+        Guardar configuración
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Configurar países</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Granularidad geográfica */}
+    <Drawer isOpen={isOpen} onClose={onClose} title="Configurar países" width="xl" footer={footer}>
+      {/* Granularidad geográfica */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <div className="flex items-center gap-2 mb-3">
             <MapPin size={16} className="text-gray-600" />
@@ -724,24 +729,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
           </div>
         )}
 
-        {/* Botones de acción */}
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={validCountriesCount === 0}
-            className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Guardar configuración
-          </button>
-        </div>
-      </div>
-    </div>
+    </Drawer>
   );
 };
 

@@ -560,11 +560,12 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                 };
 
                                 return (
-                                    <button
+                                    <div
                                         key={key}
-                                        type="button"
+                                        role="button"
+                                        tabIndex={0}
                                         onClick={handleRowClick}
-                                        disabled={!demographicEnabled}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleRowClick(); }}
                                         className={`flex w-full items-center justify-between p-3 border rounded-md transition-colors text-left ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
                                     >
                                         <label className={`flex items-center gap-2 text-sm ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
@@ -598,7 +599,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                                 <Settings className="h-4 w-4 text-gray-500" />
                                             </Button>
                                         )}
-                                    </button>
+                                    </div>
                                 );
                             })}
                         </div>
