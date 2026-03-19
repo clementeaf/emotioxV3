@@ -822,7 +822,8 @@ export const ResearchBuilderPage = () => {
                                                 handleComponentValueChange(subKey, val);
                                             });
                                         } else {
-                                            handleComponentValueChange(key, String(newConfig[key]));
+                                            const val = newConfig[key];
+                                            handleComponentValueChange(key, typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val));
                                         }
                                     });
                                 }}
@@ -891,7 +892,12 @@ const transformResearchConfigComponentValues = (values: Record<string, string>):
         }
         // Handle participant limit
         else if (key === 'participantLimit') {
-            config.participantLimit = parseInt(value) || 50;
+            const parsed = tryParse(value);
+            if (typeof parsed === 'object' && parsed !== null && 'enabled' in parsed) {
+                config.participantLimit = parsed;
+            } else {
+                config.participantLimit = parseInt(value) || 50;
+            }
         }
         // Handle participation mode
         else if (key === 'participationMode') {
@@ -933,7 +939,9 @@ const flattenResearchConfig = (config: Record<string, unknown>): Record<string, 
     }
 
     if (config.participantLimit !== undefined) {
-        values.participantLimit = String(config.participantLimit);
+        values.participantLimit = typeof config.participantLimit === 'object'
+            ? JSON.stringify(config.participantLimit)
+            : String(config.participantLimit);
     }
 
     return values;

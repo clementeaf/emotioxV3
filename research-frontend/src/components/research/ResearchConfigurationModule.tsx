@@ -99,13 +99,12 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     const [demographicEnabled, setDemographicEnabled] = useState(true);
     const [linkConfigEnabled, setLinkConfigEnabled] = useState(true);
     const savedParticipantLimit = config.participantLimit as { enabled: boolean; value: number } | number | undefined;
-    const [participantLimitEnabled, setParticipantLimitEnabled] = useState(() => {
+    const participantLimitEnabled = (() => {
         if (typeof savedParticipantLimit === 'object' && savedParticipantLimit !== null) {
             return savedParticipantLimit.enabled;
         }
-        // Legacy: if it's a plain number, assume enabled
         return typeof savedParticipantLimit === 'number';
-    });
+    })();
     const [showQRModal, setShowQRModal] = useState(false);
     const [urlErrors, setUrlErrors] = useState<Record<string, string>>({});
 
@@ -423,7 +422,6 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     }, [config, backlinks, validateUrl, onChange]);
 
     const handleParticipantLimitEnabledChange = (enabled: boolean) => {
-        setParticipantLimitEnabled(enabled);
         onChange({
             ...config,
             participantLimit: { enabled, value: participantLimit }
