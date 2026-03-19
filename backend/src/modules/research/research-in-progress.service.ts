@@ -76,7 +76,7 @@ const getTotalVisibleModulesForProgress = async (researchId: string): Promise<nu
  * @returns Métricas de la investigación
  */
 export const getOverviewMetrics = async (researchId: string, userId: string, role?: string) => {
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     // Verificar que el research existe y pertenece al usuario (admin bypasses)
     const researchCheck = await pool.query(
         `SELECT id, status FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
@@ -270,7 +270,7 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
  * @returns Lista de participantes con estado
  */
 export const getParticipantsWithStatus = async (researchId: string, userId: string, role?: string) => {
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     const researchCheck = await pool.query(
         `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
         [researchId, ...ownership.params]
@@ -292,7 +292,7 @@ export const getParticipantsWithStatus = async (researchId: string, userId: stri
  * @returns Detalles del participante
  */
 export const getParticipantDetails = async (researchId: string, participantId: string, userId: string, role?: string) => {
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     const researchCheck = await pool.query(
         `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
         [researchId, ...ownership.params]
@@ -394,7 +394,7 @@ export const getParticipantDetails = async (researchId: string, participantId: s
  */
 export const deleteParticipant = async (researchId: string, participantId: string, userId: string, role?: string) => {
     const client = await pool.connect();
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
 
     try {
         await client.query('BEGIN');

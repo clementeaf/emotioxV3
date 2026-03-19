@@ -11,7 +11,8 @@ export const buildOwnershipClause = (userId: string, role?: string, alias = 'r')
     if (role === 'admin') {
         return { clause: '1=1', params: [] as string[] };
     }
-    return { clause: `${alias}.created_by = ?`, params: [userId] };
+    const prefix = alias ? `${alias}.` : '';
+    return { clause: `${prefix}created_by = ?`, params: [userId] };
 };
 
 export interface ResearchData {
@@ -876,7 +877,7 @@ export const update = async (researchId: string, userId: string, data: Partial<R
         throw new Error('No fields to update');
     }
 
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     values.push(researchId, ...ownership.params);
 
     const query = `
@@ -916,7 +917,7 @@ export const update = async (researchId: string, userId: string, data: Partial<R
 };
 
 export const updateStatus = async (researchId: string, userId: string, status: string, role?: string) => {
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
@@ -944,7 +945,7 @@ export const updateStatus = async (researchId: string, userId: string, status: s
  * @returns Investigación actualizada
  */
 export const activate = async (researchId: string, userId: string, role?: string) => {
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
@@ -969,7 +970,7 @@ export const activate = async (researchId: string, userId: string, role?: string
 };
 
 export const deleteResearch = async (researchId: string, userId: string, role?: string) => {
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     // MySQL compatible: no RETURNING clause
     // Note: MySQL CHECK constraint only allows: 'draft','active','paused','completed','archived'
     // We use 'archived' instead of 'deleted' to comply with the constraint
@@ -1001,7 +1002,7 @@ export const deleteResearch = async (researchId: string, userId: string, role?: 
  */
 export const createStage = async (researchId: string, userId: string, stageName: string, description?: string, role?: string) => {
     const client = await pool.connect();
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
 
     try {
         await client.query('BEGIN');
@@ -1133,7 +1134,7 @@ export const createStage = async (researchId: string, userId: string, stageName:
  */
 export const deleteStage = async (researchId: string, userId: string, stageId: string, role?: string) => {
     const client = await pool.connect();
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
 
     try {
         await client.query('BEGIN');
@@ -1227,7 +1228,7 @@ export const updateModulesOrderInStage = async (
     role?: string
 ): Promise<{ message: string }> => {
     const client = await pool.connect();
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
     console.log(`[updateModulesOrderInStage] Attempting to update order for ${updates.length} modules in stage ${stageId} by user ${userId}`);
 
     try {
@@ -1297,7 +1298,7 @@ export const updateModulesOrderInStage = async (
  */
 export const deleteModule = async (researchId: string, userId: string, moduleId: string, role?: string) => {
     const client = await pool.connect();
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
 
     try {
         await client.query('BEGIN');
@@ -1343,7 +1344,7 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
  */
 export const addWelcomeAndThankYouStages = async (researchId: string, userId: string, role?: string): Promise<{ added: string[]; alreadyExists: string[] }> => {
     const client = await pool.connect();
-    const ownership = buildOwnershipClause(userId, role);
+    const ownership = buildOwnershipClause(userId, role, '');
 
     try {
         await client.query('BEGIN');
