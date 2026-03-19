@@ -45,7 +45,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
 
         // GET /research
         if (path === '/research' && httpMethod === 'GET') {
-            const researches = await researchService.list(user.id);
+            const researches = await researchService.list(user.id, user.role);
             return success({ researches }, 200, undefined, origin);
         }
 
@@ -64,7 +64,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (getMatch && httpMethod === 'GET') {
             const id = getMatch[1];
             try {
-                const research = await researchService.getById(id, user.id);
+                const research = await researchService.getById(id, user.id, user.role);
                 return success({ research }, 200, undefined, origin);
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -80,7 +80,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (putMatch && httpMethod === 'PUT') {
             const id = putMatch[1];
             const body = JSON.parse(event.body || '{}');
-            const research = await researchService.update(id, user.id, body);
+            const research = await researchService.update(id, user.id, body, user.role);
             return success({ research }, 200, undefined, origin);
         }
 
@@ -88,7 +88,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const deleteMatch = path.match(/^\/research\/([^\/]+)$/);
         if (deleteMatch && httpMethod === 'DELETE') {
             const id = deleteMatch[1];
-            const result = await researchService.deleteResearch(id, user.id);
+            const result = await researchService.deleteResearch(id, user.id, user.role);
             return success(result, 200, undefined, origin);
         }
 
@@ -104,7 +104,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = addWelcomeThankYouMatch[1];
             console.log('[Research Controller] POST /research/:id/add-welcome-thankyou - Research ID:', id, 'User ID:', user.id);
             try {
-                const result = await researchService.addWelcomeAndThankYouStages(id, user.id);
+                const result = await researchService.addWelcomeAndThankYouStages(id, user.id, user.role);
                 console.log('[Research Controller] Successfully added Welcome/Thank You stages:', result);
                 return success({ result }, 200, undefined, origin);
             } catch (error: unknown) {
@@ -119,7 +119,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (statusMatch && httpMethod === 'PATCH') {
             const id = statusMatch[1];
             const body = JSON.parse(event.body || '{}');
-            const research = await researchService.updateStatus(id, user.id, body.status);
+            const research = await researchService.updateStatus(id, user.id, body.status, user.role);
             return success({ research }, 200, undefined, origin);
         }
 
@@ -127,7 +127,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const activateMatch = path.match(/^\/research\/([^\/]+)\/activate$/);
         if (activateMatch && httpMethod === 'POST') {
             const id = activateMatch[1];
-            const research = await researchService.activate(id, user.id);
+            const research = await researchService.activate(id, user.id, user.role);
             return success({ research }, 200, undefined, origin);
         }
 
@@ -139,7 +139,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             if (!body.name) {
                 return error('Stage name is required', 400, undefined, origin);
             }
-            const stage = await researchService.createStage(id, user.id, body.name, body.description);
+            const stage = await researchService.createStage(id, user.id, body.name, body.description, user.role);
             return success({ stage }, 201, undefined, origin);
         }
 
@@ -149,7 +149,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const researchId = deleteStageMatch[1];
             const stageId = deleteStageMatch[2];
             try {
-                const result = await researchService.deleteStage(researchId, user.id, stageId);
+                const result = await researchService.deleteStage(researchId, user.id, stageId, user.role);
                 return success(result, 200, undefined, origin);
             } catch (deleteError: unknown) {
                 const errorMessage = deleteError instanceof Error ? deleteError.message : 'Failed to delete stage';
@@ -182,7 +182,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (deleteModuleMatch && httpMethod === 'DELETE') {
             const researchId = deleteModuleMatch[1];
             const moduleId = deleteModuleMatch[2];
-            const result = await researchService.deleteModule(researchId, user.id, moduleId);
+            const result = await researchService.deleteModule(researchId, user.id, moduleId, user.role);
             return success(result, 200, undefined, origin);
         }
 
@@ -195,7 +195,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
                 return error('updates array is required', 400, undefined, origin);
             }
             try {
-                const result = await researchService.updateModulesOrderInStage(stageId, user.id, body.updates);
+                const result = await researchService.updateModulesOrderInStage(stageId, user.id, body.updates, user.role);
                 return success(result, 200, undefined, origin);
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Failed to update modules order';
@@ -215,7 +215,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (metricsMatch && httpMethod === 'GET') {
             const researchId = metricsMatch[1];
             try {
-                const metrics = await researchInProgressService.getOverviewMetrics(researchId, user.id);
+                const metrics = await researchInProgressService.getOverviewMetrics(researchId, user.id, user.role);
                 return success(metrics, 200, undefined, origin);
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -231,7 +231,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (participantsStatusMatch && httpMethod === 'GET') {
             const researchId = participantsStatusMatch[1];
             try {
-                const participants = await researchInProgressService.getParticipantsWithStatus(researchId, user.id);
+                const participants = await researchInProgressService.getParticipantsWithStatus(researchId, user.id, user.role);
                 return success(participants, 200, undefined, origin);
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -247,7 +247,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (participantDetailsMatch && httpMethod === 'GET') {
             const researchId = participantDetailsMatch[1];
             const participantId = participantDetailsMatch[2];
-            const participant = await researchInProgressService.getParticipantDetails(researchId, participantId, user.id);
+            const participant = await researchInProgressService.getParticipantDetails(researchId, participantId, user.id, user.role);
             return success(participant, 200, undefined, origin);
         }
 
@@ -256,7 +256,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (deleteParticipantMatch && httpMethod === 'DELETE') {
             const researchId = deleteParticipantMatch[1];
             const participantId = deleteParticipantMatch[2];
-            const result = await researchInProgressService.deleteParticipant(researchId, participantId, user.id);
+            const result = await researchInProgressService.deleteParticipant(researchId, participantId, user.id, user.role);
             return success(result, 200, undefined, origin);
         }
 
@@ -265,7 +265,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (eyeTrackingRecruitMatch && httpMethod === 'GET') {
             const researchId = eyeTrackingRecruitMatch[1];
             // Verificar que el research existe y pertenece al usuario
-            await researchService.getById(researchId, user.id);
+            await researchService.getById(researchId, user.id, user.role);
             const config = await publicService.getResearchConfiguration(researchId);
             return success({ linkConfig: config.linkConfig || {}, ...config }, 200, undefined, origin);
         }

@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import { buildOwnershipClause } from './research.service';
 
 interface ProgressComponentConfig {
     hidden?: boolean;
@@ -74,11 +75,12 @@ const getTotalVisibleModulesForProgress = async (researchId: string): Promise<nu
  * @param userId - ID del usuario (para verificar permisos)
  * @returns Métricas de la investigación
  */
-export const getOverviewMetrics = async (researchId: string, userId: string) => {
-    // Verificar que el research existe y pertenece al usuario
+export const getOverviewMetrics = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
+    // Verificar que el research existe y pertenece al usuario (admin bypasses)
     const researchCheck = await pool.query(
-        'SELECT id, status FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-        [researchId, userId]
+        `SELECT id, status FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+        [researchId, ...ownership.params]
     );
 
     if (researchCheck.rows.length === 0) {
@@ -267,11 +269,11 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
  * @param userId - ID del usuario (para verificar permisos)
  * @returns Lista de participantes con estado
  */
-export const getParticipantsWithStatus = async (researchId: string, userId: string) => {
-    // Verificar que el research existe y pertenece al usuario
+export const getParticipantsWithStatus = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
     const researchCheck = await pool.query(
-        'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-        [researchId, userId]
+        `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+        [researchId, ...ownership.params]
     );
 
     if (researchCheck.rows.length === 0) {
@@ -289,11 +291,11 @@ export const getParticipantsWithStatus = async (researchId: string, userId: stri
  * @param userId - ID del usuario (para verificar permisos)
  * @returns Detalles del participante
  */
-export const getParticipantDetails = async (researchId: string, participantId: string, userId: string) => {
-    // Verificar que el research existe y pertenece al usuario
+export const getParticipantDetails = async (researchId: string, participantId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
     const researchCheck = await pool.query(
-        'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-        [researchId, userId]
+        `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+        [researchId, ...ownership.params]
     );
 
     if (researchCheck.rows.length === 0) {
@@ -390,16 +392,17 @@ export const getParticipantDetails = async (researchId: string, participantId: s
  * @param userId - ID del usuario (para verificar permisos)
  * @returns Mensaje de confirmación
  */
-export const deleteParticipant = async (researchId: string, participantId: string, userId: string) => {
+export const deleteParticipant = async (researchId: string, participantId: string, userId: string, role?: string) => {
     const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role);
 
     try {
         await client.query('BEGIN');
 
-        // Verificar que el research existe y pertenece al usuario
+        // Verificar que el research existe y pertenece al usuario (admin bypasses)
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-            [researchId, userId]
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
         );
 
         if (researchCheck.rows.length === 0) {

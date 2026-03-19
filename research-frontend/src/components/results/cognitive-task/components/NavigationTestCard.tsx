@@ -112,7 +112,7 @@ const QuantityMapperTab = ({ step }: { step: NavigationStep }) => {
   return (
     <div className="space-y-3">
       <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
-        <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
+        <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {gridData.cells.map((count, idx) => {
             if (count === 0) return null;
@@ -200,7 +200,7 @@ const ScanPathTab = ({ step }: { step: NavigationStep }) => {
   return (
     <div className="space-y-3">
       <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
-        <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
+        <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {/* Defs for arrow markers */}
           <defs>
@@ -394,9 +394,7 @@ export const NavigationTestCard = ({
   onDownloadCSV,
   className
 }: NavigationTestCardProps) => {
-  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(
-    new Set(steps.map(s => s.stepNumber))
-  );
+  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState('heat-click-map');
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -556,9 +554,15 @@ export const NavigationTestCard = ({
               {/* Step Header - Always Visible */}
               <div className="p-4 bg-white flex items-center gap-4">
                 {/* Step thumbnail */}
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-semibold text-blue-700">Step {step.stepNumber}</span>
-                </div>
+                {step.imageUrl ? (
+                  <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
+                    <img src={step.imageUrl} alt={`Step ${step.stepNumber}`} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-semibold text-blue-700">Step {step.stepNumber}</span>
+                  </div>
+                )}
 
                 {/* Progress info */}
                 <div className="flex-1">
@@ -765,7 +769,7 @@ export const NavigationTestCard = ({
                       <>
                         {step.imageUrl ? (
                           <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
-                            <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
+                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
                             {/* Render individual clicks as dots */}
                             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                               {(step.heatmapData || []).map((click, idx) => (
@@ -812,7 +816,7 @@ export const NavigationTestCard = ({
                       <>
                         {step.imageUrl ? (
                           <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit max-w-full mx-auto">
-                            <img src={step.imageUrl} alt={step.title} className="max-w-full h-auto mx-auto block" />
+                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
                           </div>
                         ) : (
                           <div className="mb-4 rounded-lg overflow-hidden bg-gray-200 h-64 flex items-center justify-center">

@@ -5,7 +5,42 @@
 
 ---
 
-## Última actualización: 2026-03-18 (sesión 18)
+## Última actualización: 2026-03-19 (sesión 19)
+
+---
+
+## Sesión 19: 19 de marzo de 2026 — Cognitive Results overhaul, admin role, duplicados (v0.30.0)
+
+### Admin role
+- `carriagadafalcone@gmail.com` → `role: 'admin'` en BD producción.
+- Helper `buildOwnershipClause(userId, role)`: admin bypasea `created_by` filter, ve todos los estudios sin quitárselos al owner original.
+- Aplicado en todas las funciones de `research.service.ts` y `research-in-progress.service.ts`.
+
+### Respuestas duplicadas
+- Root cause: no había `UNIQUE INDEX` en `responses` → `ON DUPLICATE KEY UPDATE` nunca se disparaba.
+- Limpieza: 233 filas duplicadas eliminadas (se conservó la más reciente por participante).
+- Prevención: `UNIQUE INDEX uq_responses_participant_module_component (research_id, participant_id, module_id, component_id)`.
+- Safety net: `getScaleResponses` deduplica al leer con subquery `MAX(created_at)`.
+
+### Cognitive Task Results: preguntas reales
+- Antes: todos los módulos mostraban el nombre del tipo ("Linear Scale", "Ranking") como título, con textos placeholder hardcodeados.
+- Ahora: `getCognitiveTaskResults` extrae `questionText` del componente `question-title` de cada módulo. El frontend usa `questionText || moduleName` como título.
+- Eliminados todos los hardcodes: "This was the best app...", "the question asked to the user in the test", "26s", "76s", columna "Secs", prefijo "Question:".
+
+### Cognitive Task Results: módulos con 0 respuestas
+- Ranking: parsea `value` (JSON string) del componente `ranking-list` para obtener items configurados. Muestra opciones aunque no haya respuestas.
+- Choice: extrae opciones configuradas (`settings.isChoice`) con sus labels reales.
+- Linear Scale: muestra todo el rango configurado (start–end).
+
+### Navigation Flow results
+- Thumbnails de step: miniatura de la imagen real en vez de cuadrado azul.
+- Steps colapsados por defecto (no expandidos).
+- Imágenes con `w-full` en todas las tabs para consistencia con el heatmap.
+
+### Linear Scale results
+- Porcentaje siempre fuera de la barra, texto negro.
+- Eliminado `minWidth: 16px` que distorsionaba proporciones.
+- Labels "Option 01" con `whitespace-nowrap`.
 
 ---
 

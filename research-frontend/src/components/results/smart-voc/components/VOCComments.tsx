@@ -157,7 +157,7 @@ export const VOCComments = ({
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-lg font-semibold">{questionNumber}- Question: {questionText}</h3>
+            <h3 className="text-lg font-semibold">{questionNumber}- {questionText}</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             <span className="px-2 py-1 text-xs font-medium rounded text-green-600 bg-green-50">

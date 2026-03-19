@@ -56,23 +56,16 @@ export const RankingResultsWrapper = ({
         );
     }
 
-    // Collect all unique items and determine total positions
-    const allItems = new Set<string>();
-    // Each RankingResponse has `rankings: Array<{ item, meanPosition }>` but the raw backend
-    // response also includes the ordered array.  We read it from the raw shape.
+    // Determine total positions from configured items (rankings) or responses
+    const positionCount = data.rankings.length || 1;
+
+    // Build distribution from responses: for each item, count how many times it was placed at each position
+    const distMap: Record<string, number[]> = {};
+    for (const ranking of data.rankings) {
+        distMap[ranking.item] = Array(positionCount).fill(0);
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawResponses = data.responses as any[];
-    rawResponses.forEach((r: Record<string, unknown>) => {
-        const items = (Array.isArray(r.ranking) ? r.ranking : []) as string[];
-        items.forEach(item => allItems.add(item));
-    });
-    const positionCount = allItems.size || 1;
-
-    // Build distribution: for each item, count how many times it was placed at each position
-    const distMap: Record<string, number[]> = {};
-    for (const item of allItems) {
-        distMap[item] = Array(positionCount).fill(0);
-    }
     rawResponses.forEach((r: Record<string, unknown>) => {
         const items = (Array.isArray(r.ranking) ? r.ranking : []) as string[];
         items.forEach((item: string, idx: number) => {

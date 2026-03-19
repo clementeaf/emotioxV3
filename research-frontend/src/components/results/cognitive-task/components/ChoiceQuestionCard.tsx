@@ -89,21 +89,6 @@ export const ChoiceQuestionCard = ({
             ))}
           </div>
 
-          {/* Question Card */}
-          <div className="mt-8">
-            <div className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200">
-              <div className="rounded-full bg-blue-100 p-2 flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-base text-gray-900">Question</h4>
-                <p className="text-gray-600 text-sm mt-1">the question asked to the user in the test</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Right: Stats */}
@@ -112,7 +97,6 @@ export const ChoiceQuestionCard = ({
             <h3 className="text-base font-medium text-gray-700 mb-1">Responses</h3>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-gray-900">{totalResponses.toLocaleString()}</span>
-              <span className="text-sm text-gray-500">26s</span>
             </div>
           </div>
         </div>

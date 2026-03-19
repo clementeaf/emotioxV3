@@ -1,3 +1,28 @@
+## v0.30.0 — Cognitive Results overhaul, admin role, duplicate responses fix (2026-03-19)
+
+### backend
+- Feat: Admin role — users with `role: 'admin'` bypass ownership filter and see all studies. `buildOwnershipClause` helper used across all research service queries.
+- Fix: Duplicate responses — added `UNIQUE INDEX (research_id, participant_id, module_id, component_id)` on `responses` table. Cleaned 233 duplicate rows. `ON DUPLICATE KEY UPDATE` now works correctly.
+- Fix: `getScaleResponses` deduplicates by participant (keeps latest response) as safety net.
+- Feat: All analytics endpoints (`getScaleResponses`, `getChoiceResponses`, `getRankingResponses`) now return `questionText` extracted from module config `question-title` component.
+- Feat: `getCognitiveTaskResults` includes `questionText` per module so all result types show the configured question.
+- Feat: `getRankingResponses` returns configured items even with 0 responses (parses `value` JSON string from `ranking-list` component).
+- Feat: `getChoiceResponses` returns configured choice options with labels even with 0 responses.
+- Feat: `getScaleResponses` returns full configured range (start–end) even for values with 0 responses.
+
+### research-frontend
+- Fix: Linear Scale results — percentage always outside bar (black text), removed `minWidth: 16px` distortion, removed hardcoded "26s" and placeholder question text.
+- Fix: All Cognitive Task Results show the real configured question in the header, not the module type name. Fallback to module name if no question configured.
+- Fix: Removed duplicate "Question" card that repeated the same text shown in the header (Scale, Choice, Ranking).
+- Fix: Removed "Question:" prefix from Short/Long Text headers (VOCComments).
+- Fix: Ranking — removed hardcoded "76s" and "Secs" column, removed "Question:" prefix. Column headers aligned with row content.
+- Fix: Choice — removed hardcoded placeholder question and "26s".
+- Fix: Navigation Flow results — step thumbnails show actual image miniature instead of blue "Step N" placeholder. All steps collapsed by default.
+- Fix: Navigation Flow — all tabs (Click Map, Quantity Mapper, Scan Path, Image) use `w-full` for consistent image sizing matching Heat Click Map.
+- Fix: Linear Scale "Option 01" labels use `whitespace-nowrap` to prevent line wrapping.
+
+---
+
 ## v0.29.1 — Progress fix, filters, demographics sync, image sizing, SW cleanup (2026-03-18)
 
 ### backend

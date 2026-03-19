@@ -10,21 +10,32 @@ import pool from '../../config/database';
 // ==========================================
 
 export const getCognitiveTaskResults = async (researchId: string) => {
-  // Get all modules for this research
+  // Get all modules for this research (include config to extract question text)
   const modulesQuery = `
-    SELECT id, name, description
+    SELECT id, name, description, config
     FROM modules
     WHERE research_id = ?
     ORDER BY order_index
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
-  
+
   const modules = await Promise.all(modulesResult.rows.map(async (module) => {
     const responses = await getModuleResponses(researchId, module.id);
+
+    // Extract question text from module config
+    let questionText = '';
+    try {
+      const config = typeof module.config === 'string' ? JSON.parse(module.config) : module.config;
+      const structure = config?.structure ?? config;
+      const titleComponent = structure?.components?.find((c: { id: string }) => c.id === 'question-title');
+      questionText = titleComponent?.value || '';
+    } catch { /* ignore */ }
+
     return {
       moduleId: module.id,
       moduleName: module.name,
       description: module.description,
+      questionText,
       totalResponses: responses.length,
       responses,
     };
@@ -194,20 +205,40 @@ export const getTextResponses = async (researchId: string, moduleId: string) => 
 // ==========================================
 
 export const getChoiceResponses = async (researchId: string, moduleId: string) => {
-  const query = `
-    SELECT 
-      r.value,
-      r.metadata,
-      r.created_at,
-      r.participant_id
-    FROM responses r
-    WHERE r.research_id = ? 
-      AND r.module_id = ?
-      AND r.component_id = 'choice'
-    ORDER BY r.created_at ASC
-  `;
+  const [result, moduleResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        r.value,
+        r.metadata,
+        r.created_at,
+        r.participant_id
+      FROM responses r
+      WHERE r.research_id = ?
+        AND r.module_id = ?
+        AND r.component_id = 'choice'
+      ORDER BY r.created_at ASC
+    `, [researchId, moduleId]),
+    pool.query(`SELECT config FROM modules WHERE id = ?`, [moduleId]),
+  ]);
 
-  const result = await pool.query(query, [researchId, moduleId]);
+  // Extract question text and configured choices from module structure
+  let questionText = '';
+  const configuredChoices: Array<{ id: string; label: string }> = [];
+  if (moduleResult.rows.length > 0) {
+    try {
+      const config = typeof moduleResult.rows[0].config === 'string'
+        ? JSON.parse(moduleResult.rows[0].config)
+        : moduleResult.rows[0].config;
+      const structure = config?.structure ?? config;
+      const titleComponent = structure?.components?.find((c: { id: string }) => c.id === 'question-title');
+      questionText = titleComponent?.value || '';
+      // Extract choice options (components with settings.isChoice)
+      const choiceComponents = (structure?.components ?? []).filter((c: any) => c.settings?.isChoice);
+      choiceComponents.forEach((c: { id: string; value?: string; name?: string }) => {
+        configuredChoices.push({ id: c.id, label: c.value || c.name || c.id });
+      });
+    } catch { /* ignore */ }
+  }
 
   const responses = result.rows.map(row => {
     try {
@@ -237,12 +268,23 @@ export const getChoiceResponses = async (researchId: string, moduleId: string) =
     });
   });
 
+  // Build choice labels map (id → label)
+  const choiceLabels: Record<string, string> = {};
+  configuredChoices.forEach(c => { choiceLabels[c.id] = c.label; });
+
+  // Build choiceCounts including configured choices with 0 responses
+  const allChoiceIds = new Set([
+    ...Object.keys(choiceCounts),
+    ...configuredChoices.map(c => c.id),
+  ]);
+
   return {
     totalResponses: responses.length,
-    choiceCounts: Object.entries(choiceCounts).map(([choice, count]) => ({
-      choice,
-      count,
-      percentage: responses.length > 0 ? (count / responses.length) * 100 : 0,
+    questionText,
+    choiceCounts: Array.from(allChoiceIds).map(choiceId => ({
+      choice: choiceLabels[choiceId] || choiceId,
+      count: choiceCounts[choiceId] || 0,
+      percentage: responses.length > 0 ? ((choiceCounts[choiceId] || 0) / responses.length) * 100 : 0,
     })),
     responses,
   };
@@ -289,20 +331,47 @@ export const getDemographicResponses = async (researchId: string) => {
 // ==========================================
 
 export const getScaleResponses = async (researchId: string, moduleId: string) => {
-  const query = `
-    SELECT 
-      r.value,
-      r.metadata,
-      r.created_at,
-      r.participant_id
-    FROM responses r
-    WHERE r.research_id = ? 
-      AND r.module_id = ?
-      AND r.component_id = 'scale'
-    ORDER BY r.created_at ASC
-  `;
+  // Fetch responses and module config in parallel
+  const [result, moduleResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        r.value,
+        r.metadata,
+        r.created_at,
+        r.participant_id
+      FROM responses r
+      INNER JOIN (
+        SELECT participant_id, MAX(created_at) as max_created
+        FROM responses
+        WHERE research_id = ? AND module_id = ? AND component_id = 'scale'
+        GROUP BY participant_id
+      ) latest ON r.participant_id = latest.participant_id AND r.created_at = latest.max_created
+      WHERE r.research_id = ?
+        AND r.module_id = ?
+        AND r.component_id = 'scale'
+      ORDER BY r.created_at ASC
+    `, [researchId, moduleId, researchId, moduleId]),
+    pool.query(`SELECT config FROM modules WHERE id = ?`, [moduleId]),
+  ]);
 
-  const result = await pool.query(query, [researchId, moduleId]);
+  // Extract question text and scale range from module structure
+  let questionText = '';
+  let scaleStart = 1;
+  let scaleEnd = 5;
+  if (moduleResult.rows.length > 0) {
+    try {
+      const config = typeof moduleResult.rows[0].config === 'string'
+        ? JSON.parse(moduleResult.rows[0].config)
+        : moduleResult.rows[0].config;
+      const structure = config?.structure ?? config;
+      const titleComponent = structure?.components?.find((c: { id: string }) => c.id === 'question-title');
+      questionText = titleComponent?.value || '';
+      const startComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-start-value');
+      const endComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-end-value');
+      if (startComponent?.value) scaleStart = parseInt(startComponent.value) || 1;
+      if (endComponent?.value) scaleEnd = parseInt(endComponent.value) || 5;
+    } catch { /* ignore parse errors */ }
+  }
 
   const responses = result.rows.map(row => ({
     participantId: row.participant_id,
@@ -311,8 +380,11 @@ export const getScaleResponses = async (researchId: string, moduleId: string) =>
     createdAt: row.created_at,
   }));
 
-  // Aggregate scale distribution
+  // Aggregate scale distribution (include all values in configured range)
   const distribution: Record<number, number> = {};
+  for (let i = scaleStart; i <= scaleEnd; i++) {
+    distribution[i] = 0;
+  }
   responses.forEach((r: any) => {
     const value = r.value;
     distribution[value] = (distribution[value] || 0) + 1;
@@ -325,6 +397,7 @@ export const getScaleResponses = async (researchId: string, moduleId: string) =>
   return {
     totalResponses: responses.length,
     average: Math.round(average * 100) / 100,
+    questionText,
     distribution: Object.entries(distribution).map(([value, count]) => ({
       value: parseInt(value),
       count,
@@ -352,14 +425,24 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
 
   // Build id→label map from module structure (structure is nested inside config)
   const itemLabels: Record<string, string> = {};
+  let questionText = '';
   if (moduleResult.rows.length > 0) {
     try {
       const config = typeof moduleResult.rows[0].config === 'string'
         ? JSON.parse(moduleResult.rows[0].config)
         : moduleResult.rows[0].config;
       const structure = config?.structure ?? config;
+      const titleComponent = structure?.components?.find((c: { id: string }) => c.id === 'question-title');
+      questionText = titleComponent?.value || '';
       const rankingComponent = structure?.components?.find((c: any) => c.type === 'ranking-list' || c.rankingConfig);
-      const items = rankingComponent?.rankingConfig?.items ?? [];
+      // Items can be in rankingConfig.items or in value (as JSON string with {items, randomize})
+      let items = rankingComponent?.rankingConfig?.items ?? [];
+      if (items.length === 0 && rankingComponent?.value) {
+        const parsed = typeof rankingComponent.value === 'string'
+          ? JSON.parse(rankingComponent.value)
+          : rankingComponent.value;
+        items = parsed?.items ?? [];
+      }
       items.forEach((item: { id: string; label: string }) => {
         itemLabels[item.id] = item.label;
       });
@@ -393,15 +476,26 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
     });
   });
 
-  const rankings = Object.entries(positionSums).map(([item, data]) => ({
+  // Build rankings from responses, then add any configured items with 0 responses
+  const rankingsFromResponses = Object.entries(positionSums).map(([item, data]) => ({
     item,
     label: itemLabels[item] || item,
     meanPosition: data.count > 0 ? data.sum / data.count : 0,
     count: data.count,
-  })).sort((a, b) => a.meanPosition - b.meanPosition);
+  }));
+
+  // Add configured items that have no responses yet
+  const respondedItems = new Set(rankingsFromResponses.map(r => r.item));
+  const configuredItems = Object.entries(itemLabels)
+    .filter(([id]) => !respondedItems.has(id))
+    .map(([id, label]) => ({ item: id, label, meanPosition: 0, count: 0 }));
+
+  const rankings = [...rankingsFromResponses, ...configuredItems]
+    .sort((a, b) => a.meanPosition - b.meanPosition);
 
   return {
     totalResponses: responses.length,
+    questionText,
     rankings,
     responses,
   };

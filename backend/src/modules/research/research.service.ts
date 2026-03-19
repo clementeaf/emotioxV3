@@ -2,6 +2,18 @@ import pool from '../../config/database';
 import type { PoolClient } from '../../config/database';
 import cache, { CacheKeys } from '../../config/cache';
 
+/**
+ * Admin users bypass the created_by ownership filter.
+ * Returns { clause, params } to inject into WHERE conditions.
+ * Usage: `WHERE r.id = ? AND ${clause}` with [...otherParams, ...params]
+ */
+export const buildOwnershipClause = (userId: string, role?: string, alias = 'r') => {
+    if (role === 'admin') {
+        return { clause: '1=1', params: [] as string[] };
+    }
+    return { clause: `${alias}.created_by = ?`, params: [userId] };
+};
+
 export interface ResearchData {
     name: string;
     description?: string;
@@ -12,20 +24,21 @@ export interface ResearchData {
     use_default_modules?: string[]; // Module names to clone from template
 }
 
-export const list = async (userId: string) => {
+export const list = async (userId: string, role?: string) => {
     try {
-        console.log('[Research Service] list() called for userId:', userId);
+        console.log('[Research Service] list() called for userId:', userId, 'role:', role);
+        const ownership = buildOwnershipClause(userId, role);
         // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
         const query = `
         SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.config, r.created_at, r.updated_at,
                rt.name as research_type_name
         FROM researches r
         LEFT JOIN research_types rt ON r.research_type_id = rt.id
-        WHERE r.created_by = ? AND r.deleted_at IS NULL
+        WHERE ${ownership.clause} AND r.deleted_at IS NULL
         ORDER BY r.created_at DESC
       `;
         console.log('[Research Service] Executing query with userId:', userId);
-        const result = await pool.query(query, [userId]);
+        const result = await pool.query(query, [...ownership.params]);
         console.log('[Research Service] Query result:', {
             rowCount: result.rowCount,
             rowsLength: result.rows.length,
@@ -672,7 +685,8 @@ const addDefaultStage = async (client: PoolClient, researchId: string, _userId: 
     }
 };
 
-export const getById = async (researchId: string, userId: string) => {
+export const getById = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
     // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
     const query = `
     SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.config, r.created_at, r.updated_at,
@@ -681,9 +695,9 @@ export const getById = async (researchId: string, userId: string) => {
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
-    WHERE r.id = ? AND r.created_by = ? AND r.deleted_at IS NULL
+    WHERE r.id = ? AND ${ownership.clause} AND r.deleted_at IS NULL
   `;
-    const result = await pool.query(query, [researchId, userId]);
+    const result = await pool.query(query, [researchId, ...ownership.params]);
 
     if (result.rows.length === 0) {
         throw new Error('Research not found');
@@ -837,7 +851,7 @@ export const getById = async (researchId: string, userId: string) => {
     return research;
 };
 
-export const update = async (researchId: string, userId: string, data: Partial<ResearchData>) => {
+export const update = async (researchId: string, userId: string, data: Partial<ResearchData>, role?: string) => {
     const { name, description, settings } = data;
 
     // MySQL compatible: use ? placeholders directly
@@ -862,12 +876,13 @@ export const update = async (researchId: string, userId: string, data: Partial<R
         throw new Error('No fields to update');
     }
 
-    values.push(researchId, userId);
+    const ownership = buildOwnershipClause(userId, role);
+    values.push(researchId, ...ownership.params);
 
     const query = `
     UPDATE researches
     SET ${updates.join(', ')}
-    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
   `;
 
     const result = await pool.query(query, values);
@@ -900,14 +915,15 @@ export const update = async (researchId: string, userId: string, data: Partial<R
     } as typeof rawResearch & { settings: Record<string, unknown> };
 };
 
-export const updateStatus = async (researchId: string, userId: string, status: string) => {
+export const updateStatus = async (researchId: string, userId: string, status: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
     // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
     SET status = ?
-    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
   `;
-    const result = await pool.query(query, [status, researchId, userId]);
+    const result = await pool.query(query, [status, researchId, ...ownership.params]);
 
     if (result.rowCount === 0) {
         throw new Error('Research not found');
@@ -927,14 +943,15 @@ export const updateStatus = async (researchId: string, userId: string, status: s
  * @param userId - ID del usuario propietario
  * @returns Investigación actualizada
  */
-export const activate = async (researchId: string, userId: string) => {
+export const activate = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
     // MySQL compatible: no RETURNING clause
     const query = `
     UPDATE researches
     SET status = 'active', updated_at = NOW()
-    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
   `;
-    const result = await pool.query(query, [researchId, userId]);
+    const result = await pool.query(query, [researchId, ...ownership.params]);
 
     if (result.rowCount === 0) {
         throw new Error('Research not found');
@@ -951,7 +968,8 @@ export const activate = async (researchId: string, userId: string) => {
     return selectResult.rows[0];
 };
 
-export const deleteResearch = async (researchId: string, userId: string) => {
+export const deleteResearch = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
     // MySQL compatible: no RETURNING clause
     // Note: MySQL CHECK constraint only allows: 'draft','active','paused','completed','archived'
     // We use 'archived' instead of 'deleted' to comply with the constraint
@@ -959,9 +977,9 @@ export const deleteResearch = async (researchId: string, userId: string) => {
     const query = `
     UPDATE researches
     SET deleted_at = NOW(), status = 'archived'
-    WHERE id = ? AND created_by = ? AND deleted_at IS NULL
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
   `;
-    const result = await pool.query(query, [researchId, userId]);
+    const result = await pool.query(query, [researchId, ...ownership.params]);
 
     if (result.rowCount === 0) {
         throw new Error('Research not found');
@@ -981,16 +999,17 @@ export const deleteResearch = async (researchId: string, userId: string) => {
  * @param description - Descripción opcional del stage
  * @returns Stage creado
  */
-export const createStage = async (researchId: string, userId: string, stageName: string, description?: string) => {
+export const createStage = async (researchId: string, userId: string, stageName: string, description?: string, role?: string) => {
     const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role);
 
     try {
         await client.query('BEGIN');
 
-        // Verificar que el research existe y pertenece al usuario
+        // Verificar que el research existe y pertenece al usuario (admin bypasses)
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-            [researchId, userId]
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
         );
 
         if (researchCheck.rows.length === 0) {
@@ -1112,18 +1131,19 @@ export const createStage = async (researchId: string, userId: string, stageName:
  * @param stageId - ID del stage a eliminar
  * @returns Mensaje de confirmación
  */
-export const deleteStage = async (researchId: string, userId: string, stageId: string) => {
+export const deleteStage = async (researchId: string, userId: string, stageId: string, role?: string) => {
     const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role);
 
     try {
         await client.query('BEGIN');
 
         console.log('[ResearchService] Starting stage deletion:', { researchId, userId, stageId });
 
-        // Verificar que el research existe y pertenece al usuario
+        // Verificar que el research existe y pertenece al usuario (admin bypasses)
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-            [researchId, userId]
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
         );
 
         if (researchCheck.rows.length === 0) {
@@ -1203,9 +1223,11 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
 export const updateModulesOrderInStage = async (
     stageId: string,
     userId: string,
-    updates: Array<{ moduleId: string; order_index: number }>
+    updates: Array<{ moduleId: string; order_index: number }>,
+    role?: string
 ): Promise<{ message: string }> => {
     const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role);
     console.log(`[updateModulesOrderInStage] Attempting to update order for ${updates.length} modules in stage ${stageId} by user ${userId}`);
 
     try {
@@ -1223,10 +1245,10 @@ export const updateModulesOrderInStage = async (
 
         const researchId = stageCheck.rows[0].research_id;
 
-        // Verificar que el research existe y pertenece al usuario
+        // Verificar que el research existe y pertenece al usuario (admin bypasses)
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-            [researchId, userId]
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
         );
         if (researchCheck.rows.length === 0) {
             console.warn(`[updateModulesOrderInStage] Research ${researchId} not found or not owned by user ${userId}`);
@@ -1273,16 +1295,17 @@ export const updateModulesOrderInStage = async (
  * @param moduleId - ID del módulo a eliminar
  * @returns Mensaje de confirmación
  */
-export const deleteModule = async (researchId: string, userId: string, moduleId: string) => {
+export const deleteModule = async (researchId: string, userId: string, moduleId: string, role?: string) => {
     const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role);
 
     try {
         await client.query('BEGIN');
 
-        // Verificar que el research existe y pertenece al usuario
+        // Verificar que el research existe y pertenece al usuario (admin bypasses)
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-            [researchId, userId]
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
         );
 
         if (researchCheck.rows.length === 0) {
@@ -1318,16 +1341,17 @@ export const deleteModule = async (researchId: string, userId: string, moduleId:
  * @param userId - ID of the user
  * @returns Object with information about what was added
  */
-export const addWelcomeAndThankYouStages = async (researchId: string, userId: string): Promise<{ added: string[]; alreadyExists: string[] }> => {
+export const addWelcomeAndThankYouStages = async (researchId: string, userId: string, role?: string): Promise<{ added: string[]; alreadyExists: string[] }> => {
     const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role);
 
     try {
         await client.query('BEGIN');
 
-        // Verify that the research exists and belongs to the user
+        // Verify that the research exists and belongs to the user (admin bypasses)
         const researchCheck = await client.query(
-            'SELECT id FROM researches WHERE id = ? AND created_by = ? AND deleted_at IS NULL',
-            [researchId, userId]
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
         );
 
         if (researchCheck.rows.length === 0) {

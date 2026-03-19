@@ -17,7 +17,6 @@ interface RankingQuestionCardProps {
   required?: boolean;
   options: RankingOption[];
   totalResponses?: number;
-  responseTime?: string;
   className?: string;
 }
 
@@ -28,7 +27,6 @@ export const RankingQuestionCard = ({
   conditionalityDisabled = true,
   required = false,
   options,
-  responseTime = '76s',
   className
 }: RankingQuestionCardProps) => {
   const positionCount = options.length > 0
@@ -40,7 +38,7 @@ export const RankingQuestionCard = ({
     <Card className={cn('p-6 pb-8', className)}>
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
-        <h3 className="text-lg font-semibold">{questionNumber}- Question: {questionText}</h3>
+        <h3 className="text-lg font-semibold">{questionNumber}- {questionText}</h3>
       </div>
       <div className="flex flex-wrap gap-2 mb-6">
         <span className="px-2 py-1 text-xs font-medium rounded text-green-600 bg-green-50">
@@ -63,9 +61,9 @@ export const RankingQuestionCard = ({
         </button>
       </div>
 
-      {/* Column headers */}
-      <div className="flex items-end gap-3 mb-1">
-        <div className="w-24 shrink-0" />
+      {/* Column headers — same padding/border offsets as rows */}
+      <div className="flex items-end gap-3 mb-1 px-3" style={{ marginLeft: 3 }}>
+        <div className="w-28 shrink-0" />
         <div className="flex-1 flex">
           {Array.from({ length: positionCount }, (_, i) => (
             <div key={i} className="flex-1 text-center text-xs font-medium text-gray-500">
@@ -74,8 +72,6 @@ export const RankingQuestionCard = ({
           ))}
         </div>
         <div className="w-14 text-center text-xs font-medium text-gray-500">Mean</div>
-        <div className="w-12 text-center text-xs font-medium text-gray-500">Secs</div>
-        <div className="w-6" />
       </div>
 
       {/* Options */}
@@ -83,7 +79,7 @@ export const RankingQuestionCard = ({
         {options.map((option) => (
           <div key={option.id} className="flex items-center gap-3 border border-gray-100 rounded-lg p-3 bg-white" style={{ borderLeft: '3px solid #a3e635' }}>
             {/* Option label */}
-            <div className="w-24 shrink-0 text-sm font-medium text-gray-700">
+            <div className="w-28 shrink-0 text-sm font-medium text-gray-700 truncate" title={option.label}>
               {option.label}
             </div>
 
@@ -111,21 +107,10 @@ export const RankingQuestionCard = ({
             <div className="w-14 text-center">
               <span className="text-sm font-bold text-gray-900">{option.mean.toFixed(1).replace('.', ',')}</span>
             </div>
-
-            {/* Time */}
-            <div className="w-12 text-center">
-              <span className="text-sm text-blue-500">{responseTime}</span>
-            </div>
-
-            {/* Filter */}
-            <button className="text-gray-400 hover:text-gray-600 w-6 flex justify-center">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-              </svg>
-            </button>
           </div>
         ))}
       </div>
+
     </Card>
   );
 };

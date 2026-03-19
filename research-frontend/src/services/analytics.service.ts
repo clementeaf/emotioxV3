@@ -183,6 +183,7 @@ export interface ChoiceResponse extends BaseResponse {
 
 export interface ChoiceResponses {
     totalResponses: number;
+    questionText?: string;
     choiceCounts: Array<{
         choice: string;
         count: number;
@@ -214,6 +215,7 @@ export interface ScaleResponse extends BaseResponse {
 export interface ScaleResponses {
     totalResponses: number;
     average: number;
+    questionText?: string;
     distribution: Array<{
         value: number;
         count: number;
@@ -247,6 +249,7 @@ export interface RankingResponse extends BaseResponse {
 
 export interface RankingResponses {
     totalResponses: number;
+    questionText?: string;
     rankings: Array<{
         item: string;
         label?: string;

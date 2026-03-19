@@ -107,44 +107,26 @@ export const LinearScaleQuestionCard = ({
         <div className="border rounded-lg p-6">
           <div className="space-y-4">
             {options.map((option) => (
-              <div key={option.value} className="flex items-center gap-4">
-                <div className="w-20 text-sm font-medium text-gray-700">
+              <div key={option.value} className="flex items-center gap-3">
+                <div className="text-sm font-medium text-gray-700 shrink-0 whitespace-nowrap">
                   Option {String(option.value).padStart(2, '0')}
                 </div>
-                <div className="flex-1 flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-6">
-                    <div
-                      className="h-6 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${option.percentage}%`,
-                        backgroundColor: option.color,
-                        minWidth: option.percentage > 0 ? '16px' : '0px'
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs font-semibold text-gray-700 w-10 text-right shrink-0">
-                    {option.percentage}%
-                  </span>
+                <div className="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden">
+                  <div
+                    className="h-6 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${option.percentage}%`,
+                      backgroundColor: option.color,
+                    }}
+                  />
                 </div>
+                <span className="text-sm font-semibold text-gray-900 w-12 text-right shrink-0">
+                  {option.percentage}%
+                </span>
               </div>
             ))}
           </div>
 
-          {/* Question Card */}
-          <div className="mt-8">
-            <div className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200">
-              <div className="rounded-full bg-blue-100 p-2 flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-base text-gray-900">Question</h4>
-                <p className="text-gray-600 text-sm mt-1">This was the best app my eyes had see</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Right: Stats */}
@@ -153,7 +135,6 @@ export const LinearScaleQuestionCard = ({
             <h3 className="text-base font-medium text-gray-700 mb-1">Responses</h3>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-bold text-gray-900">{totalResponses.toLocaleString()}</span>
-              <span className="text-sm text-gray-500">26s</span>
             </div>
           </div>
         </div>

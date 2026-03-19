@@ -20,6 +20,7 @@ interface CognitiveTaskResultsProps {
 interface ModuleData {
   moduleId: string;
   moduleName: string;
+  questionText?: string;
   description: string;
   totalResponses: number;
   responses: Array<{
@@ -116,6 +117,8 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
   const renderModuleResults = (module: ModuleData, index: number) => {
     const moduleType = detectModuleType(module.moduleName);
     const questionNumber = `3.${index + 1}`;
+    // Use questionText from module config if available, otherwise fall back to moduleName
+    const displayName = module.questionText || module.moduleName;
 
     switch (moduleType) {
       case 'navigation_flow':
@@ -124,7 +127,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             key={module.moduleId}
             researchId={researchId}
             moduleId={module.moduleId}
-            moduleName={module.moduleName}
+            moduleName={displayName}
             questionNumber={questionNumber}
             filteredParticipantIds={filteredParticipantIds}
           />
@@ -136,7 +139,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             key={module.moduleId}
             researchId={researchId}
             moduleId={module.moduleId}
-            moduleName={module.moduleName}
+            moduleName={displayName}
             questionNumber={questionNumber}
             filteredParticipantIds={filteredParticipantIds}
           />
@@ -167,7 +170,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           <VOCComments
             key={module.moduleId}
             questionNumber={questionNumber}
-            questionText={module.moduleName}
+            questionText={displayName}
             comments={textResponses.length > 0 ? textResponses : [{ text: 'No responses yet', mood: 'gray' }]}
             researchId={researchId}
             cognitiveExportRows={cognitiveExportRows.length > 0 ? cognitiveExportRows : undefined}
@@ -181,7 +184,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             key={module.moduleId}
             researchId={researchId}
             moduleId={module.moduleId}
-            moduleName={module.moduleName}
+            moduleName={displayName}
             questionNumber={questionNumber}
             isSingleChoice={true}
             filteredParticipantIds={filteredParticipantIds}
@@ -194,7 +197,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             key={module.moduleId}
             researchId={researchId}
             moduleId={module.moduleId}
-            moduleName={module.moduleName}
+            moduleName={displayName}
             questionNumber={questionNumber}
             isSingleChoice={false}
             filteredParticipantIds={filteredParticipantIds}
@@ -207,7 +210,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             key={module.moduleId}
             researchId={researchId}
             moduleId={module.moduleId}
-            moduleName={module.moduleName}
+            moduleName={displayName}
             questionNumber={questionNumber}
             filteredParticipantIds={filteredParticipantIds}
           />
@@ -219,7 +222,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             key={module.moduleId}
             researchId={researchId}
             moduleId={module.moduleId}
-            moduleName={module.moduleName}
+            moduleName={displayName}
             questionNumber={questionNumber}
             filteredParticipantIds={filteredParticipantIds}
           />
@@ -229,7 +232,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
       default:
         return (
           <Card key={module.moduleId} className="p-6">
-            <h3 className="text-lg font-semibold">{questionNumber}- {module.moduleName}</h3>
+            <h3 className="text-lg font-semibold">{questionNumber}- {displayName}</h3>
             <p className="text-sm text-gray-500 mt-2">Type: {moduleType}</p>
             <p className="text-sm text-gray-600 mt-1">{module.totalResponses} responses</p>
           </Card>
