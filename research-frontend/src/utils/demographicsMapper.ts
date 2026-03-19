@@ -127,7 +127,12 @@ export function mapAgeConfigToBackend(
     // validValues includes ALL enabled options (qualifying + disqualifying)
     // so participants see the full range. Backend checkDisqualifications()
     // blocks those who pick a disqualifying option.
-    const allValues = [...validAges, ...disqualifyingAges];
+    // Sort by the leading number so age ranges display in natural order.
+    const allValues = [...validAges, ...disqualifyingAges].sort((a, b) => {
+        const numA = parseInt(a.replace('+', ''));
+        const numB = parseInt(b.replace('+', ''));
+        return (isNaN(numA) ? 999 : numA) - (isNaN(numB) ? 999 : numB);
+    });
 
     return {
         enabled: true,
