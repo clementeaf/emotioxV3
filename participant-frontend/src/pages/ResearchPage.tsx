@@ -487,6 +487,22 @@ export const ResearchPage = () => {
     };
   }, [currentStep, isPreviewMode, participationMode, researchId, clearAllResponses, startNewSession]);
 
+  // Auto-redirect on thank-you for non-kiosk modes (panel / anonymous)
+  // Kiosk has its own auto-reset above; preview never redirects.
+  useEffect(() => {
+    if (currentStep !== 'thank-you' || isPreviewMode || participationMode === 'kiosk') return;
+
+    if (backlinks.complete) {
+      window.location.href = backlinks.complete;
+      return;
+    }
+
+    const linkConfig = useSessionStore.getState().config?.linkConfig;
+    if (linkConfig?.allowMultiple === true) {
+      setShowRestartOption(true);
+    }
+  }, [currentStep, isPreviewMode, participationMode, backlinks]);
+
   // Load research configuration
   useEffect(() => {
     if (!researchId) return;
@@ -1034,25 +1050,11 @@ export const ResearchPage = () => {
     }
 
     // Navigate to next step
+    // Redirect/restart on thank-you is handled by the useEffect above (reacts to currentStep change)
     const result = goNext();
     if (!result.success && result.errors) {
       const errorMessage = result.errors.map(e => e.message).join('\n');
       alert(errorMessage);
-    }
-
-    // Check if we've reached the thank-you page (restart button on thank-you)
-    if (result.success && currentStep === 'thank-you') {
-      // Redirect if "Common Complete" link is configured
-      if (backlinks.complete) {
-        window.location.href = backlinks.complete;
-        return;
-      }
-
-      // Show restart option if multiple sessions are allowed (panel mode only — kiosk uses auto-reset effect)
-      const linkConfig = useSessionStore.getState().config?.linkConfig;
-      if (linkConfig?.allowMultiple === true) {
-        setShowRestartOption(true);
-      }
     }
   }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks, t]);
 

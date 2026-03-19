@@ -31,6 +31,14 @@ interface BackendDemographicConfig {
     // Keep original data for frontend use
     validValues?: string[];
     priorityValues?: string[];
+    // Preserve modal-format fields for round-trip (reopening modals)
+    validAges?: string[];
+    disqualifyingAges?: string[];
+    validCountries?: string[];
+    disqualifyingCountries?: string[];
+    priorityCountries?: string[];
+    options?: ModalGenericOption[];
+    disqualified?: string[];
 }
 
 // Modal output types
@@ -116,13 +124,21 @@ export function mapAgeConfigToBackend(
         }
     }
 
+    // validValues includes ALL enabled options (qualifying + disqualifying)
+    // so participants see the full range. Backend checkDisqualifications()
+    // blocks those who pick a disqualifying option.
+    const allValues = [...validAges, ...disqualifyingAges];
+
     return {
         enabled: true,
         quotas: backendQuotas.length > 0 ? backendQuotas : undefined,
         disqualifications: disqualifications.length > 0 ? disqualifications : undefined,
         min,
         max,
-        validValues: validAges
+        validValues: allValues,
+        // Preserve modal fields for round-trip
+        validAges,
+        disqualifyingAges,
     };
 }
 
@@ -154,13 +170,21 @@ export function mapCountryConfigToBackend(
             enforcementMode: q.enforcementMode || 'immediate'
         }));
 
+    // validValues includes ALL enabled countries (qualifying + disqualifying)
+    // so participants see the full list. Backend checkDisqualifications() blocks disqualified.
+    const allValues = [...validCountries, ...disqualifyingCountries];
+
     return {
         enabled: true,
         quotas: backendQuotas.length > 0 ? backendQuotas : undefined,
         disqualifications: disqualifications.length > 0 ? disqualifications : undefined,
         granularity: granularity || 'countryOnly',
-        validValues: validCountries,
-        priorityValues: priorityCountries
+        validValues: allValues,
+        priorityValues: priorityCountries,
+        // Preserve modal fields for round-trip
+        validCountries,
+        disqualifyingCountries,
+        priorityCountries,
     };
 }
 
@@ -193,15 +217,18 @@ export function mapGenderConfigToBackend(
             enforcementMode: q.enforcementMode || 'immediate'
         }));
 
-    const validValues = options
-        .filter(o => o.isQualified !== false && !disqualified.includes(o.id))
-        .map(o => o.name);
+    // validValues includes ALL options so participants see the full list.
+    // Backend checkDisqualifications() blocks those who pick a disqualifying option.
+    const validValues = options.map(o => o.name);
 
     return {
         enabled: true,
         quotas: backendQuotas.length > 0 ? backendQuotas : undefined,
         disqualifications: disqualifications.length > 0 ? disqualifications : undefined,
-        validValues
+        validValues,
+        // Preserve modal fields for round-trip
+        options,
+        disqualified,
     };
 }
 
@@ -235,15 +262,18 @@ export function mapGenericOptionsToBackend(
             enforcementMode: (q.enforcementMode || 'immediate') as 'immediate' | 'post_collection'
         }));
 
-    const validValues = options
-        .filter(o => !o.isDisqualifying && o.isQualified !== false && !disqualified.includes(o.id))
-        .map(o => o.name);
+    // validValues includes ALL options so participants see the full list.
+    // Backend checkDisqualifications() blocks those who pick a disqualifying option.
+    const validValues = options.map(o => o.name);
 
     return {
         enabled: true,
         quotas: backendQuotas.length > 0 ? backendQuotas : undefined,
         disqualifications: disqualifications.length > 0 ? disqualifications : undefined,
-        validValues
+        validValues,
+        // Preserve modal fields for round-trip
+        options,
+        disqualified,
     };
 }
 

@@ -67,11 +67,13 @@ const optionToLabel = (o: string | Record<string, unknown>): string => {
  * (legacy researches stored as boolean `true`).
  */
 const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[] => {
+    // validValues is the canonical list of ALL options (qualifying + disqualifying)
+    // that the participant should see. Prefer it over modal-specific fields.
     if (key === 'age') {
-        return cfg.validAges ?? cfg.validValues ?? [];
+        return cfg.validValues ?? cfg.validAges ?? [];
     }
     if (key === 'country') {
-        return cfg.validCountries ?? cfg.validValues ?? [];
+        return cfg.validValues ?? cfg.validCountries ?? [];
     }
     if (cfg.options && Array.isArray(cfg.options) && cfg.options.length > 0) {
         return cfg.options.map(o => optionToLabel(o as string | Record<string, unknown>));

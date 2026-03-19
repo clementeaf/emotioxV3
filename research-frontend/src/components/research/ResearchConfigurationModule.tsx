@@ -293,6 +293,16 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
         pendingQuotasRef.current = { key: _demographicKey, quotas };
     };
 
+    // Keep fresh refs for the quota-flush effect so it never reads stale closures
+    const configRef = useRef(config);
+    const demographicsRef = useRef(demographics);
+    const onChangeRef = useRef(onChange);
+    useEffect(() => {
+        configRef.current = config;
+        demographicsRef.current = demographics;
+        onChangeRef.current = onChange;
+    });
+
     // Flush pending quotas after the modal closes (activeConfigModal becomes null)
     // At this point React has already processed the onChange from handleSaveDemographicConfig,
     // so demographics contains the updated config and we can safely merge quotas.
@@ -313,15 +323,15 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             enforcementMode: q.enforcementMode || 'immediate'
         }));
 
-        const current = demographics[key] || {};
-        onChange({
-            ...config,
+        const currentDemographics = demographicsRef.current;
+        const current = currentDemographics[key] || {};
+        onChangeRef.current({
+            ...configRef.current,
             demographics: {
-                ...demographics,
+                ...currentDemographics,
                 [key]: { ...current, quotas: backendQuotas }
             }
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeConfigModal]);
 
     const handleQuotasToggle = (demographicKey: string, enabled: boolean) => {
@@ -343,6 +353,35 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
 
     const isQuotasEnabled = (key: string): boolean => {
         return quotasEnabledState[key] ?? ((demographics[key]?.quotas?.length ?? 0) > 0);
+    };
+
+    /** Reconstruct modal options from backend format when modal-format fields are missing */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getModalOptions = (key: string): any[] => {
+        const cfg = demographics[key];
+        if (!cfg || typeof cfg !== 'object') return [];
+        if (cfg.options && Array.isArray(cfg.options) && cfg.options.length > 0) return cfg.options;
+        // Reconstruct from validValues
+        if (cfg.validValues && Array.isArray(cfg.validValues)) {
+            return cfg.validValues.map((v: string, i: number) => ({ id: `opt-${i}`, name: v }));
+        }
+        return [];
+    };
+
+    /** Reconstruct disqualified IDs from backend format when modal-format field is missing */
+    const getModalDisqualified = (key: string): string[] => {
+        const cfg = demographics[key];
+        if (!cfg || typeof cfg !== 'object') return [];
+        if (cfg.disqualified && Array.isArray(cfg.disqualified)) return cfg.disqualified;
+        // Reconstruct from disqualifications array
+        if (cfg.disqualifications && Array.isArray(cfg.disqualifications)) {
+            const opts = getModalOptions(key);
+            return cfg.disqualifications.map((d: BackendQuota) => {
+                const match = opts.find((o: { name: string; id: string }) => o.name === d.value);
+                return match?.id || d.value;
+            });
+        }
+        return [];
     };
 
     const DEMOGRAPHIC_KEYS = ['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'];
@@ -489,7 +528,12 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                         return;
                                     }
                                     if (!isEnabled) {
-                                        handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
+                                        const existing = demographics[key];
+                                        if (typeof existing === 'object' && existing !== null && existing.validValues) {
+                                            handleDemographicChange(key, { ...existing, enabled: true });
+                                        } else {
+                                            handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
+                                        }
                                     }
                                     setActiveConfigModal(key);
                                 };
@@ -497,9 +541,21 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                 const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
                                     e.stopPropagation();
                                     if (e.target.checked) {
-                                        handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
+                                        // Restore existing config if available, otherwise use defaults
+                                        const existing = demographics[key];
+                                        if (typeof existing === 'object' && existing !== null && existing.validValues) {
+                                            handleDemographicChange(key, { ...existing, enabled: true });
+                                        } else {
+                                            handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
+                                        }
                                     } else {
-                                        handleDemographicChange(key, false);
+                                        // Preserve config but mark as disabled so re-enabling restores it
+                    const currentConfig = demographics[key];
+                    if (typeof currentConfig === 'object' && currentConfig !== null) {
+                        handleDemographicChange(key, { ...currentConfig, enabled: false });
+                    } else {
+                        handleDemographicChange(key, { enabled: false });
+                    }
                                     }
                                 };
 
@@ -763,8 +819,12 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('age', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('age', enabled)}
-                    initialValidAges={demographics.age?.validAges || []}
-                    initialDisqualifyingAges={demographics.age?.disqualifyingAges || []}
+                    initialValidAges={demographics.age?.validAges ?? (() => {
+                        // Reconstruct from backend format: validValues minus disqualification values
+                        const disqValues = new Set((demographics.age?.disqualifications || []).map((d: BackendQuota) => d.value));
+                        return (demographics.age?.validValues || []).filter((v: string) => !disqValues.has(v));
+                    })()}
+                    initialDisqualifyingAges={demographics.age?.disqualifyingAges ?? (demographics.age?.disqualifications || []).map((d: BackendQuota) => d.value)}
                     initialQuotas={mapBackendQuotasToModal(demographics.age?.quotas, 'ageRange')}
                     quotasEnabled={isQuotasEnabled('age')}
                 />
@@ -784,9 +844,12 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('country', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('country', enabled)}
-                    initialValidCountries={demographics.country?.validCountries || []}
-                    initialDisqualifyingCountries={demographics.country?.disqualifyingCountries || []}
-                    initialPriorityCountries={demographics.country?.priorityCountries || []}
+                    initialValidCountries={demographics.country?.validCountries ?? (() => {
+                        const disqValues = new Set((demographics.country?.disqualifications || []).map((d: BackendQuota) => d.value));
+                        return (demographics.country?.validValues || []).filter((v: string) => !disqValues.has(v));
+                    })()}
+                    initialDisqualifyingCountries={demographics.country?.disqualifyingCountries ?? (demographics.country?.disqualifications || []).map((d: BackendQuota) => d.value)}
+                    initialPriorityCountries={demographics.country?.priorityCountries || demographics.country?.priorityValues || []}
                     initialGranularity={demographics.country?.granularity || 'countryOnly'}
                     initialQuotas={mapBackendQuotasToModal(demographics.country?.quotas, 'country')}
                     quotasEnabled={isQuotasEnabled('country')}
@@ -805,8 +868,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('gender', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('gender', enabled)}
-                    currentOptions={demographics.gender?.options}
-                    currentDisqualified={demographics.gender?.disqualified}
+                    currentOptions={getModalOptions('gender')}
+                    currentDisqualified={getModalDisqualified('gender')}
                     initialQuotas={mapBackendQuotasToModal(demographics.gender?.quotas, 'gender')}
                     quotasEnabled={isQuotasEnabled('gender')}
                 />
@@ -824,8 +887,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('educationLevel', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('educationLevel', enabled)}
-                    currentOptions={demographics.educationLevel?.options}
-                    currentDisqualified={demographics.educationLevel?.disqualified}
+                    currentOptions={getModalOptions('educationLevel')}
+                    currentDisqualified={getModalDisqualified('educationLevel')}
                     initialQuotas={mapBackendQuotasToModal(demographics.educationLevel?.quotas, 'educationLevel')}
                     quotasEnabled={isQuotasEnabled('educationLevel')}
                 />
@@ -843,8 +906,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('employmentStatus', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('employmentStatus', enabled)}
-                    currentOptions={demographics.employmentStatus?.options}
-                    currentDisqualified={demographics.employmentStatus?.disqualified}
+                    currentOptions={getModalOptions('employmentStatus')}
+                    currentDisqualified={getModalDisqualified('employmentStatus')}
                     initialQuotas={mapBackendQuotasToModal(demographics.employmentStatus?.quotas, 'employmentStatus')}
                     quotasEnabled={isQuotasEnabled('employmentStatus')}
                 />
@@ -862,8 +925,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('annualIncome', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('annualIncome', enabled)}
-                    currentOptions={demographics.annualIncome?.options}
-                    currentDisqualified={demographics.annualIncome?.disqualified}
+                    currentOptions={getModalOptions('annualIncome')}
+                    currentDisqualified={getModalDisqualified('annualIncome')}
                     initialQuotas={mapBackendQuotasToModal(demographics.annualIncome?.quotas, 'incomeLevel')}
                     quotasEnabled={isQuotasEnabled('annualIncome')}
                 />
@@ -881,8 +944,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('dailyHoursOnline', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('dailyHoursOnline', enabled)}
-                    currentOptions={demographics.dailyHoursOnline?.options}
-                    currentDisqualified={demographics.dailyHoursOnline?.disqualified}
+                    currentOptions={getModalOptions('dailyHoursOnline')}
+                    currentDisqualified={getModalDisqualified('dailyHoursOnline')}
                     initialQuotas={mapBackendQuotasToModal(demographics.dailyHoursOnline?.quotas, 'hoursRange')}
                     quotasEnabled={isQuotasEnabled('dailyHoursOnline')}
                 />
@@ -900,8 +963,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('technicalProficiency', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('technicalProficiency', enabled)}
-                    currentOptions={demographics.technicalProficiency?.options}
-                    currentDisqualified={demographics.technicalProficiency?.disqualified}
+                    currentOptions={getModalOptions('technicalProficiency')}
+                    currentDisqualified={getModalDisqualified('technicalProficiency')}
                     initialQuotas={mapBackendQuotasToModal(demographics.technicalProficiency?.quotas, 'proficiencyLevel')}
                     quotasEnabled={isQuotasEnabled('technicalProficiency')}
                 />
