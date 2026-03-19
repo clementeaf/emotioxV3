@@ -65,15 +65,24 @@ export const CustomSelect = ({
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
 
-            // Calculate dropdown position
+            // Calculate dropdown position (viewport coords for position:fixed)
             if (selectRef.current) {
                 const rect = selectRef.current.getBoundingClientRect();
                 setDropdownPosition({
-                    top: rect.bottom + window.scrollY + 4,
-                    left: rect.left + window.scrollX,
+                    top: rect.bottom + 4,
+                    left: rect.left,
                     width: rect.width
                 });
             }
+
+            // Close dropdown on scroll so it doesn't float detached
+            const handleScroll = () => setIsOpen(false);
+            window.addEventListener('scroll', handleScroll, true);
+
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+                window.removeEventListener('scroll', handleScroll, true);
+            };
         }
 
         return () => {
