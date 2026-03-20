@@ -43,3 +43,11 @@ export function getPublicTestsUrl(researchId: string, participantId: string): st
     const baseUrl = cachedParticipantBaseUrl || `${window.location.protocol}//${window.location.hostname}/participant`;
     return `${baseUrl}/research/${researchId}?participantId=${participantId}`;
 }
+
+/**
+ * Genera la URL para revisar las respuestas de un participante (read-only)
+ */
+export function getReviewUrl(researchId: string, participantId: string): string {
+    const baseUrl = cachedParticipantBaseUrl || `${window.location.protocol}//${window.location.hostname}/participant`;
+    return `${baseUrl}/research/${researchId}?review=${encodeURIComponent(participantId)}`;
+}

@@ -2,12 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { ParticipantsTable } from '../participants/ParticipantsTable';
 import { Button } from '../../ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../ui/Card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/Tabs';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useMonitoringReceiver } from '../../../hooks/useMonitoringReceiver';
 import { researchInProgressService, type ResearchStatus, type Participant, type ResearchConfiguration } from '../../../services/researchInProgress.service';
-import { Activity, CheckCircle, Clock, Info, Users } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
 
 interface ResearchInProgressContentProps {
@@ -130,121 +128,49 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <div className="mb-6 p-4 rounded-lg border">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-600">
-                            {participants.length} participantes registrados
-                        </span>
-                    </div>
-                    <button
-                        onClick={() => void loadData()}
-                        disabled={isLoading}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
-                    >
-                        <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        {isLoading ? 'Actualizando...' : 'Actualizar datos'}
-                    </button>
-                </div>
-            </div>
-
-            <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Investigación en Curso</h1>
-                    <p className="text-gray-600 mt-2">
-                        Monitoreo en tiempo real de participantes y progreso
-                    </p>
-                </div>
+            <div className="flex justify-end mb-6">
                 <Button onClick={handleOpenPublicTests} variant="outline">
                     <Info className="w-4 h-4 mr-2" />
                     Acceso a Tests
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                            {/* Mensaje aclaratorio sobre progreso y completitud */}
-                            <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                                <p className="text-xs text-yellow-700">
-                                    <strong>Nota:</strong> El progreso refleja el porcentaje de preguntas respondidas sobre el total de preguntas de la encuesta. El estado "Completado" solo se asigna si el participante responde <u>todas</u> las preguntas. Si omite alguna pregunta, el sistema lo marca como "En proceso" y el progreso será menor a 100%.
-                                </p>
-                            </div>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Estado</CardTitle>
-                        <Activity className="h-4 w-4 text-gray-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{status.status?.value || '--'}</div>
-                        <p className="text-xs text-gray-500">{status.status?.description || 'Cargando...'}</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Participantes</CardTitle>
-                        <Users className="h-4 w-4 text-gray-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{status.participants?.value || '--'}</div>
-                        <p className="text-xs text-gray-500">{status.participants?.description || 'Cargando...'}</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Tasa de completitud</CardTitle>
-                        <CheckCircle className="h-4 w-4 text-gray-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{status.completionRate?.value || '--'}</div>
-                        <p className="text-xs text-gray-500">{status.completionRate?.description || 'Cargando...'}</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Tiempo promedio</CardTitle>
-                        <Clock className="h-4 w-4 text-gray-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{status.averageTime?.value || '--'}</div>
-                        <p className="text-xs text-gray-500">{status.averageTime?.description || 'Cargando...'}</p>
-                    </CardContent>
-                </Card>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                <div className="p-3 rounded-lg border border-gray-200 bg-white">
+                    <p className="text-xs text-gray-500 mb-1">Estado</p>
+                    <p className="text-sm font-semibold text-gray-900">{status.status?.value || '--'}</p>
+                    <p className="text-[11px] text-gray-400">{status.status?.description || 'Cargando...'}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-200 bg-white">
+                    <p className="text-xs text-gray-500 mb-1">Módulos</p>
+                    <p className="text-sm font-semibold text-gray-900">{status.totalModules ?? '--'}</p>
+                    <p className="text-[11px] text-gray-400">configurados</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-200 bg-white">
+                    <p className="text-xs text-gray-500 mb-1">Participantes</p>
+                    <p className="text-sm font-semibold text-gray-900">{status.participants?.value || '--'}</p>
+                    <p className="text-[11px] text-gray-400">{status.participants?.description || 'Cargando...'}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-200 bg-white">
+                    <p className="text-xs text-gray-500 mb-1">Tasa de completitud</p>
+                    <p className="text-sm font-semibold text-gray-900">{status.completionRate?.value || '--'}</p>
+                    <p className="text-[11px] text-gray-400">{status.completionRate?.description || 'Cargando...'}</p>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-200 bg-white">
+                    <p className="text-xs text-gray-500 mb-1">Tiempo promedio</p>
+                    <p className="text-sm font-semibold text-gray-900">{status.averageTime?.value || '--'}</p>
+                    <p className="text-[11px] text-gray-400">{status.averageTime?.description || 'Cargando...'}</p>
+                </div>
             </div>
 
-            <Tabs defaultValue="participants" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="participants">Participantes</TabsTrigger>
-                    <TabsTrigger value="generator">Generar Participantes</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="participants" className="space-y-4">
-                    <ParticipantsTable
-                        participants={participants}
-                        onViewDetails={() => { }}
-                        researchId={researchId || ''}
-                        onParticipantDeleted={handleParticipantDeleted}
-                        isLoading={isLoading}
-                        researchConfig={researchConfig}
-                    />
-                </TabsContent>
-
-                <TabsContent value="generator" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Generar Participantes</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-gray-600">
-                                La funcionalidad de generación de participantes estará disponible pronto.
-                            </p>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+            <ParticipantsTable
+                participants={participants}
+                onViewDetails={() => { }}
+                researchId={researchId || ''}
+                onParticipantDeleted={handleParticipantDeleted}
+                isLoading={isLoading}
+                researchConfig={researchConfig}
+            />
 
             {showInfoModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

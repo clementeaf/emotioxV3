@@ -70,6 +70,15 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             return success(status, 200, undefined, origin);
         }
 
+        // GET /public/research/:id/participant/:participantId/responses
+        const participantResponsesMatch = path.match(/^\/public\/research\/([^\/]+)\/participant\/([^\/]+)\/responses$/);
+        if (participantResponsesMatch && httpMethod === 'GET') {
+            const researchId = participantResponsesMatch[1];
+            const participantId = decodeURIComponent(participantResponsesMatch[2]);
+            const responses = await publicService.getParticipantResponses(researchId, participantId);
+            return success({ responses }, 200, undefined, origin);
+        }
+
         // POST /public/research/:id/responses
         const responsesMatch = path.match(/^\/public\/research\/([^\/]+)\/responses$/);
         if (responsesMatch && httpMethod === 'POST') {

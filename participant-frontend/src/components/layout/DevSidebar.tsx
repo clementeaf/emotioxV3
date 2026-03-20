@@ -20,6 +20,7 @@ interface DevSidebarProps {
 function getModuleDisplayName(moduleKey: string, moduleName: string): string {
     const displayNames: Record<string, string> = {
         welcome: 'Welcome',
+        demographics: 'Demographics',
         'thank-you': 'Thank You',
         csat: 'CSAT',
         nps: 'NPS',
@@ -49,7 +50,7 @@ function getGroupedModules(modules: Record<string, ModuleConfig>): { title: stri
     const groups = [
         {
             title: 'General',
-            keys: ['welcome']
+            keys: ['welcome', 'demographics']
         },
         {
             title: 'SmartVOC',

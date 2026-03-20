@@ -22,6 +22,7 @@ export interface ResearchStatus {
         description: string;
         icon: string;
     };
+    totalModules?: number;
 }
 
 export interface Participant {

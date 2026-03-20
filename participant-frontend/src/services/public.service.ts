@@ -223,6 +223,23 @@ class PublicService {
             return { hasResponded: false };
         }
     }
+    async getParticipantResponses(researchId: string, participantId: string): Promise<ParticipantResponse[]> {
+        const baseUrl = configService.getBaseUrl();
+        const url = `${baseUrl}/public/research/${researchId}/participant/${encodeURIComponent(participantId)}/responses`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Failed to fetch participant responses');
+        }
+        const data = await response.json() as { responses: ParticipantResponse[] };
+        return data.responses;
+    }
+}
+
+export interface ParticipantResponse {
+    module_id: string;
+    component_id: string;
+    value: unknown;
+    created_at: string;
 }
 
 export type ParticipationMode = 'kiosk' | 'panel';

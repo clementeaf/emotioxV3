@@ -1,3 +1,24 @@
+## v0.32.0 — Dashboard cleanup, progress fix, review mode (2026-03-20)
+
+### backend
+- Fix: Participant progress counted orphan modules (no stage) and non-visible module_ids like `demographics`. Now uses `getVisibleModuleIdsForProgress` — only modules with `stage_id`, excluding Welcome/ThankYou/ResearchConfig/hidden.
+- Feat: Overview metrics response includes `totalModules` (visible modules configured).
+- Feat: Research list query joins `users` table to return `creator_first_name`, `creator_last_name`, `creator_email`.
+- Feat: Public endpoint `GET /public/research/:id/participant/:pid/responses` for read-only review mode.
+
+### research-frontend
+- Dashboard table: removed fake Progress column, removed Copy ID button, added Created/Updated date columns, Researcher column shows real user name or email.
+- View Progress: removed note banner, title/subtitle, "Actualizar datos" bar, "Generar Participantes" tab. Cards compacted (no icons, smaller text). Added "Módulos" card showing total configured.
+- View Progress: search bar and status filter removed from participants table.
+- View Progress: "Acceso directo" buttons now open review mode URL (`?review=participantId`).
+
+### participant-frontend
+- Feat: Review mode (`?review=participantId`) — loads participant responses from backend, shows sidebar + green "Review Mode" banner, no action buttons. Read-only view of what the participant answered.
+- Fix: Demographics step initializes local state from store (supports review mode pre-loaded responses).
+- Fix: DevSidebar now includes Demographics step in navigation.
+
+---
+
 ## v0.31.1 — Template drawer filtering, SmartVOC unique metrics (2026-03-19)
 
 ### research-frontend

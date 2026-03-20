@@ -23,15 +23,22 @@ interface ProgressModuleRow {
 }
 
 /**
- * Counts visible modules (not sub-components) that participants are expected to answer.
- * Excludes Research Configuration, Welcome Screen, Thank You Screen, and hidden modules.
- * Progress = modules answered / total visible modules.
+ * Returns the IDs of visible modules that participants are expected to answer.
+ * Excludes: orphan modules (no stage), Research Configuration, Welcome Screen,
+ * Thank You Screen, and hidden modules.
  */
-const countVisibleModulesForProgress = (modules: ProgressModuleRow[]): number => {
+const getVisibleModuleIdsForProgress = async (researchId: string): Promise<Set<string>> => {
     const EXCLUDED_NAMES = ['research configuration', 'welcome screen', 'thank you screen'];
-    let count = 0;
+    const modulesQuery = `
+        SELECT id, name, config
+        FROM modules
+        WHERE research_id = ? AND stage_id IS NOT NULL
+        ORDER BY order_index
+    `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
+    const visibleIds = new Set<string>();
 
-    for (const mod of modules) {
+    for (const mod of modulesResult.rows as ProgressModuleRow[]) {
         if (EXCLUDED_NAMES.includes(mod.name.toLowerCase())) continue;
 
         let parsedConfig: ProgressModuleConfig | null = null;
@@ -47,26 +54,10 @@ const countVisibleModulesForProgress = (modules: ProgressModuleRow[]): number =>
 
         if (parsedConfig?.hidden === true) continue;
 
-        count++;
+        visibleIds.add(mod.id);
     }
 
-    return count;
-};
-
-/**
- * Gets the total number of visible modules for progress calculation.
- * @param researchId - Research ID
- * @returns Number of visible modules participants should answer
- */
-const getTotalVisibleModulesForProgress = async (researchId: string): Promise<number> => {
-    const modulesQuery = `
-        SELECT id, name, config
-        FROM modules
-        WHERE research_id = ?
-        ORDER BY order_index
-    `;
-    const modulesResult = await pool.query(modulesQuery, [researchId]);
-    return countVisibleModulesForProgress(modulesResult.rows as ProgressModuleRow[]);
+    return visibleIds;
 };
 
 /**
@@ -126,25 +117,29 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
     const totalParticipants = parseInt(participantsResult.rows[0]?.total_participants || '0', 10);
     const participantsWithResponses = parseInt(participantsResult.rows[0]?.participants_with_responses || '0', 10);
 
-    // Contar total de componentes visibles desde config de módulos
-    const totalComponents = await getTotalVisibleModulesForProgress(researchId);
+    // Obtener IDs de módulos visibles
+    const visibleModuleIds = await getVisibleModuleIdsForProgress(researchId);
+    const totalComponents = visibleModuleIds.size;
 
-    // Calcular tasa de completitud real: participantes que respondieron todos los módulos
-    const completedQuery = `
-        SELECT COUNT(*) as completed
-        FROM (
-            SELECT participant_id, COUNT(DISTINCT module_id) as answered
-            FROM responses
-            WHERE research_id = ?
-            GROUP BY participant_id
-            HAVING COUNT(DISTINCT module_id) >= ?
-        ) completed_participants
-    `;
-    const completedResult = await pool.query(completedQuery, [researchId, totalComponents]);
-    const completedParticipants = parseInt(completedResult.rows[0]?.completed || '0', 10);
-
+    // Calcular tasa de completitud real: participantes que respondieron todos los módulos visibles
+    let completedParticipantsCount = 0;
+    if (totalComponents > 0) {
+        const placeholders = Array.from(visibleModuleIds).map(() => '?').join(',');
+        const completedQuery = `
+            SELECT COUNT(*) as completed
+            FROM (
+                SELECT participant_id, COUNT(DISTINCT CASE WHEN module_id IN (${placeholders}) THEN module_id END) as answered
+                FROM responses
+                WHERE research_id = ?
+                GROUP BY participant_id
+                HAVING answered >= ?
+            ) completed_participants
+        `;
+        const completedResult = await pool.query(completedQuery, [...visibleModuleIds, researchId, totalComponents]);
+        completedParticipantsCount = parseInt(completedResult.rows[0]?.completed || '0', 10);
+    }
     const completionRate = totalParticipants > 0
-        ? Math.round((completedParticipants / totalParticipants) * 100)
+        ? Math.round((completedParticipantsCount / totalParticipants) * 100)
         : 0;
 
     // Calcular tiempo promedio
@@ -197,7 +192,8 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
             value: averageTime,
             description: `Última actividad: ${await getLastActivityText(researchId)}`,
             icon: 'clock'
-        }
+        },
+        totalModules: totalComponents
     };
 };
 
@@ -215,24 +211,47 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         throw new Error('Research not found');
     }
 
-    // 1. Contar total de componentes visibles esperados desde la config de módulos
-    const totalComponents = await getTotalVisibleModulesForProgress(researchId);
+    // 1. Obtener IDs de módulos visibles (excluye huérfanos, hidden, welcome/thankyou/config)
+    const visibleModuleIds = await getVisibleModuleIdsForProgress(researchId);
+    const totalComponents = visibleModuleIds.size;
 
-    // 2. Obtener módulos respondidos por participante
-    const participantsQuery = `
-        SELECT
-            r.participant_id as id,
-            COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
-            COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
-            COUNT(DISTINCT r.module_id) as answered_modules,
-            MIN(r.created_at) as first_response,
-            MAX(r.created_at) as last_response
-        FROM responses r
-        WHERE r.research_id = ?
-        GROUP BY r.participant_id
-        ORDER BY MAX(r.created_at) IS NULL, MAX(r.created_at) DESC
-    `;
-    const result = await pool.query(participantsQuery, [researchId]);
+    // 2. Obtener módulos respondidos por participante (solo módulos visibles válidos)
+    let participantsQuery: string;
+    let queryParams: unknown[];
+
+    if (totalComponents > 0) {
+        const placeholders = Array.from(visibleModuleIds).map(() => '?').join(',');
+        participantsQuery = `
+            SELECT
+                r.participant_id as id,
+                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                COUNT(DISTINCT CASE WHEN r.module_id IN (${placeholders}) THEN r.module_id END) as answered_modules,
+                MIN(r.created_at) as first_response,
+                MAX(r.created_at) as last_response
+            FROM responses r
+            WHERE r.research_id = ?
+            GROUP BY r.participant_id
+            ORDER BY MAX(r.created_at) IS NULL, MAX(r.created_at) DESC
+        `;
+        queryParams = [...visibleModuleIds, researchId];
+    } else {
+        participantsQuery = `
+            SELECT
+                r.participant_id as id,
+                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                0 as answered_modules,
+                MIN(r.created_at) as first_response,
+                MAX(r.created_at) as last_response
+            FROM responses r
+            WHERE r.research_id = ?
+            GROUP BY r.participant_id
+            ORDER BY MAX(r.created_at) IS NULL, MAX(r.created_at) DESC
+        `;
+        queryParams = [researchId];
+    }
+    const result = await pool.query(participantsQuery, queryParams);
 
     const participants = result.rows.map(row => {
         const answered = parseInt(row.answered_modules || '0', 10);
@@ -302,24 +321,46 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         throw new Error('Research not found');
     }
 
-    // Contar total de componentes visibles desde config de módulos
-    const totalComponents = await getTotalVisibleModulesForProgress(researchId);
+    // Obtener IDs de módulos visibles
+    const visibleModuleIds = await getVisibleModuleIdsForProgress(researchId);
+    const totalComponents = visibleModuleIds.size;
 
-    // Obtener estadísticas del participante usando module_id
-    const participantQuery = `
-        SELECT
-            participant_id as id,
-            COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
-            COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
-            COUNT(DISTINCT module_id) as answered_modules,
-            MIN(created_at) as first_response,
-            MAX(created_at) as last_response
-        FROM responses
-        WHERE research_id = ? AND participant_id = ?
-        GROUP BY participant_id
-    `;
+    // Obtener estadísticas del participante (solo módulos visibles)
+    let participantQuery: string;
+    let queryParams: unknown[];
 
-    const result = await pool.query(participantQuery, [researchId, participantId]);
+    if (totalComponents > 0) {
+        const placeholders = Array.from(visibleModuleIds).map(() => '?').join(',');
+        participantQuery = `
+            SELECT
+                participant_id as id,
+                COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
+                COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
+                COUNT(DISTINCT CASE WHEN module_id IN (${placeholders}) THEN module_id END) as answered_modules,
+                MIN(created_at) as first_response,
+                MAX(created_at) as last_response
+            FROM responses
+            WHERE research_id = ? AND participant_id = ?
+            GROUP BY participant_id
+        `;
+        queryParams = [...visibleModuleIds, researchId, participantId];
+    } else {
+        participantQuery = `
+            SELECT
+                participant_id as id,
+                COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
+                COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
+                0 as answered_modules,
+                MIN(created_at) as first_response,
+                MAX(created_at) as last_response
+            FROM responses
+            WHERE research_id = ? AND participant_id = ?
+            GROUP BY participant_id
+        `;
+        queryParams = [researchId, participantId];
+    }
+
+    const result = await pool.query(participantQuery, queryParams);
 
     if (result.rows.length === 0) {
         throw new Error('Participant not found');

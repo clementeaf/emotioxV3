@@ -5,7 +5,7 @@ import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
 import { useToast } from '../../hooks/useToast';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { Copy, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { Research } from '../../services/research.service';
 
 /**
@@ -15,20 +15,12 @@ import type { Research } from '../../services/research.service';
 const ResearchTableRow = memo(({
     research,
     onRowClick,
-    onCopy,
     onDelete
 }: {
     research: Research;
     onRowClick: (id: string) => void;
-    onCopy: (research: Research) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
 }) => {
-    const progress = useMemo(() => {
-        const stages = research.stages?.length || 0;
-        if (stages === 0) return 0;
-        return Math.min(100, stages * 15);
-    }, [research.stages?.length]);
-
     const statusVariant = useMemo(() => {
         switch (research.status.toLowerCase()) {
             case 'rejected':
@@ -51,6 +43,14 @@ const ResearchTableRow = memo(({
         });
     }, [research.created_at]);
 
+    const formattedUpdatedDate = useMemo(() => {
+        return new Date(research.updated_at).toLocaleDateString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+        });
+    }, [research.updated_at]);
+
     return (
         <tr
             onClick={() => onRowClick(research.id)}
@@ -69,42 +69,22 @@ const ResearchTableRow = memo(({
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">
                 {formattedDate}
             </td>
-            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-16 sm:w-20 bg-gray-200 rounded-full h-1.5 sm:h-2">
-                        <div
-                            className="bg-blue-600 h-1.5 sm:h-2 rounded-full transition-all"
-                            style={{ width: `${progress}%` }}
-                        ></div>
-                    </div>
-                    <span className="text-[10px] sm:text-xs text-gray-600 font-medium">
-                        {progress}%
-                    </span>
-                </div>
+            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">
+                {formattedUpdatedDate}
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden lg:table-cell">
-                Researcher
+                {research.creator_first_name
+                    ? `${research.creator_first_name} ${research.creator_last_name || ''}`.trim()
+                    : research.creator_email || '—'}
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-sm font-medium">
-                <div className="flex items-center gap-0.5 sm:gap-1">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onCopy(research);
-                        }}
-                        className="p-1 sm:p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded hover:bg-green-50"
-                        title="Copy ID"
-                    >
-                        <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </button>
-                    <button
-                        onClick={(e) => onDelete(research, e)}
-                        className="p-1 sm:p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
-                        title="Delete"
-                    >
-                        <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </button>
-                </div>
+                <button
+                    onClick={(e) => onDelete(research, e)}
+                    className="p-1 sm:p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
+                    title="Delete"
+                >
+                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </button>
             </td>
         </tr>
     );
@@ -127,20 +107,14 @@ const TableSkeletonRow = memo(() => {
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap hidden md:table-cell">
                 <div className="h-3 sm:h-4 bg-gray-200 rounded w-20 sm:w-24"></div>
             </td>
-            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-16 sm:w-20 h-1.5 sm:h-2 bg-gray-200 rounded-full"></div>
-                    <div className="h-3 sm:h-4 bg-gray-200 rounded w-6 sm:w-8"></div>
-                </div>
+            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap hidden md:table-cell">
+                <div className="h-3 sm:h-4 bg-gray-200 rounded w-20 sm:w-24"></div>
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap hidden lg:table-cell">
                 <div className="h-3 sm:h-4 bg-gray-200 rounded w-20 sm:w-24"></div>
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap">
-                <div className="flex items-center gap-0.5 sm:gap-1">
-                    <div className="h-5 sm:h-6 w-5 sm:w-6 bg-gray-200 rounded"></div>
-                    <div className="h-5 sm:h-6 w-5 sm:w-6 bg-gray-200 rounded"></div>
-                </div>
+                <div className="h-5 sm:h-6 w-5 sm:w-6 bg-gray-200 rounded"></div>
             </td>
         </tr>
     );
@@ -219,16 +193,6 @@ export const DashboardPage = () => {
 
     // Handlers memoizados con useCallback
 
-    const handleCopy = useCallback(async (research: Research) => {
-        try {
-            await navigator.clipboard.writeText(research.id);
-            toast.success('Research ID copied to clipboard');
-        } catch (error) {
-            console.error('Failed to copy:', error);
-            toast.error('Failed to copy ID');
-        }
-    }, [toast]);
-
     const handleDeleteClick = useCallback((research: Research, e: React.MouseEvent) => {
         e.stopPropagation();
         setResearchToDelete(research);
@@ -265,22 +229,22 @@ export const DashboardPage = () => {
                         <table className="w-full min-w-[600px] table-fixed">
                                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[28%]">
                                             Name
                                         </th>
                                         <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">
                                             Status
                                         </th>
                                         <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">
-                                            Date
+                                            Created
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[18%]">
-                                            Progress
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">
+                                            Updated
                                         </th>
                                         <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[18%]">
                                             Researcher
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">
                                             Actions
                                         </th>
                                     </tr>
@@ -314,7 +278,6 @@ export const DashboardPage = () => {
                                             key={research.id}
                                             research={research}
                                             onRowClick={handleRowClick}
-                                            onCopy={handleCopy}
                                             onDelete={handleDeleteClick}
                                         />
                                     ))

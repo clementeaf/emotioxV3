@@ -331,7 +331,7 @@ const getStepIdFromModuleName = (moduleName: string): string | null => {
 export const ResearchPage = () => {
   const { t } = useTranslation();
   const { researchId } = useParams<{ researchId: string }>();
-  const { isPreviewMode, participantId } = usePreviewMode();
+  const { isPreviewMode, isReviewMode, reviewParticipantId, participantId } = usePreviewMode();
   const { setConfig } = useSessionStore();
   const { getResponsesByModule, startNewSession, clearAllResponses } = useParticipantStore();
   const [modules, setModules] = useState<Record<string, Module>>({});
@@ -425,6 +425,7 @@ export const ResearchPage = () => {
     });
     return () => { cancelled = true; };
   }, [researchId, participantId, isPreviewMode]);
+
 
   // Initialize session timer
   useSessionTimer();
@@ -684,9 +685,11 @@ export const ResearchPage = () => {
         const firstStep = enabledSteps.length > 0 ? enabledSteps[0] : 'welcome';
 
         // In preview mode, always reset to the first step and clear previous responses
+        // In review mode, don't clear — responses are loaded separately
         // In participant mode, only reset if user hasn't progressed yet
+        const reviewParam = params.get('review');
         const storedStep = useParticipantStore.getState().currentStep;
-        if (effectivePreview) {
+        if (effectivePreview && !reviewParam) {
           useParticipantStore.getState().clearAllResponses();
           useParticipantStore.getState().setCurrentStep(firstStep);
         } else if (!storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
@@ -706,7 +709,23 @@ export const ResearchPage = () => {
           backlinks: researchBacklinks,
         });
 
-        // Removed excessive logging for production
+        // Review mode: load participant responses after modules are ready
+        if (reviewParam) {
+          try {
+            const responses = await publicService.getParticipantResponses(researchId, reviewParam);
+            for (const r of responses) {
+              let parsedValue: unknown = r.value;
+              if (typeof parsedValue === 'string') {
+                try { parsedValue = JSON.parse(parsedValue); } catch { /* keep as string */ }
+              }
+              useParticipantStore.getState().saveResponse(r.module_id, r.component_id, parsedValue as import('../types/responses').ResponseValue);
+            }
+            useParticipantStore.getState().setCurrentStep(firstStep);
+          } catch (err) {
+            console.error('[ReviewMode] Failed to load responses:', err);
+          }
+        }
+
       } catch (err: unknown) {
         console.error('Failed to load research:', err);
         setError(t('errors.failedToLoadResearch'));
@@ -1141,13 +1160,20 @@ export const ResearchPage = () => {
         />
       )}
 
-      {/* Preview Mode Banner */}
-      {isPreviewMode && <PreviewModeBanner />}
+      {/* Preview / Review Mode Banner */}
+      {isReviewMode ? (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-emerald-600 text-white text-center py-1.5 text-xs font-medium">
+          Review Mode — Participant: {reviewParticipantId}
+        </div>
+      ) : isPreviewMode ? (
+        <PreviewModeBanner />
+      ) : null}
 
       <LanguageSelector />
 
       <MainLayout
         footer={
+          isReviewMode ? null :
           shouldShowButton(currentModule) && !showRestartOption ? (
             <Button
               onClick={handleNext}

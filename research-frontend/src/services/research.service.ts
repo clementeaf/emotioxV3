@@ -40,6 +40,9 @@ export interface Research {
     research_type_name?: string;
     research_technique_name?: string;
     created_by?: string;
+    creator_first_name?: string;
+    creator_last_name?: string;
+    creator_email?: string;
     created_at: string;
     updated_at: string;
     stages?: Stage[];

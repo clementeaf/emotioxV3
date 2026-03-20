@@ -96,13 +96,23 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         () => (module.config?.demographics || {}) as Record<string, DemographicConfig | boolean>,
         [module.config?.demographics]
     );
-    const { updateResponse } = useParticipantStore();
+    const { updateResponse, getResponsesByModule } = useParticipantStore();
 
     const getDemographicLabel = useCallback((key: string): string => {
         return t(`demographics.labels.${key}`, { defaultValue: key });
     }, [t]);
 
-    const [answers, setAnswers] = useState<Record<string, string>>({});
+    // Initialize answers from store (supports review mode pre-loaded responses)
+    const [answers, setAnswers] = useState<Record<string, string>>(() => {
+        const stored: Record<string, string> = {};
+        const responses = getResponsesByModule(module.id);
+        for (const r of responses) {
+            if (typeof r.value === 'string') {
+                stored[r.componentId] = r.value;
+            }
+        }
+        return stored;
+    });
     const [validationError, setValidationError] = useState<string | null>(null);
 
     const isEnabled = useCallback((key: string) => {

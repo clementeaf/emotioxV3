@@ -709,6 +709,29 @@ export const getParticipantStatus = async (researchId: string, participantId: st
 };
 
 /**
+ * Get all responses for a participant (read-only review mode)
+ */
+export const getParticipantResponses = async (researchId: string, participantId: string) => {
+  // Verify research exists
+  const researchResult = await pool.query(
+    'SELECT id FROM researches WHERE id = ? AND deleted_at IS NULL',
+    [researchId]
+  );
+  if (researchResult.rows.length === 0) {
+    throw new Error('Research not found');
+  }
+
+  const query = `
+    SELECT module_id, component_id, value, created_at
+    FROM responses
+    WHERE research_id = ? AND participant_id = ?
+    ORDER BY created_at ASC
+  `;
+  const result = await pool.query(query, [researchId, participantId]);
+  return result.rows;
+};
+
+/**
  * Save participant responses for a module
  * This is the modern endpoint for saving responses from participant-frontend
  */

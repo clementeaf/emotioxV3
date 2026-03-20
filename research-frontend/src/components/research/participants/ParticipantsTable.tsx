@@ -2,9 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/Card';
-import { Input } from '../../ui/Input';
 import { researchInProgressService, type Participant, type ResearchConfiguration } from '../../../services/researchInProgress.service';
-import { getPublicTestsUrl } from '../../../utils/publicTestsUrl';
+import { getReviewUrl } from '../../../utils/publicTestsUrl';
 import {
     AlertCircle,
     AlertTriangle,
@@ -13,7 +12,6 @@ import {
     Copy,
     ExternalLink,
     Eye,
-    Search,
     Trash2
 } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
@@ -63,8 +61,6 @@ export function ParticipantsTable({
     // researchConfig - unused but kept for interface compatibility
 }: ParticipantsTableProps) {
     const toast = useToast();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
     // Removed unused state variables
     // const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
     // const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,12 +72,7 @@ export function ParticipantsTable({
     const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set());
     const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
-    const filteredParticipants = participants.filter(participant => {
-        const matchesSearch = participant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            participant.email.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || participant.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const filteredParticipants = participants;
 
     const allFilteredSelected = useMemo(() => {
         return filteredParticipants.length > 0 &&
@@ -226,7 +217,7 @@ export function ParticipantsTable({
 
     const copyParticipantUrl = async (participantId: string): Promise<void> => {
         try {
-            const url = getPublicTestsUrl(researchId, participantId);
+            const url = getReviewUrl(researchId, participantId);
             await navigator.clipboard.writeText(url);
             toast.success('URL copiada al portapapeles');
         } catch {
@@ -235,7 +226,7 @@ export function ParticipantsTable({
     };
 
     const openParticipantTest = (participantId: string): void => {
-        const url = getPublicTestsUrl(researchId, participantId);
+        const url = getReviewUrl(researchId, participantId);
         window.open(url, '_blank', 'noopener,noreferrer');
     };
 
@@ -298,27 +289,8 @@ export function ParticipantsTable({
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex gap-4 mb-4 items-center">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                            <Input
-                                placeholder="Buscar participantes..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                            />
-                        </div>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="all">Todos los estados</option>
-                            <option value="En proceso">En proceso</option>
-                            <option value="Por iniciar">Por iniciar</option>
-                            <option value="Completado">Completado</option>
-                        </select>
-                        {selectedParticipantIds.size > 0 && (
+                    {selectedParticipantIds.size > 0 && (
+                        <div className="flex items-center mb-4">
                             <Button
                                 variant="danger"
                                 size="sm"
@@ -328,8 +300,8 @@ export function ParticipantsTable({
                                 <Trash2 className="h-4 w-4" />
                                 Eliminar seleccionados ({selectedParticipantIds.size})
                             </Button>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     <div className="overflow-x-auto">
                         <table className="w-full">
