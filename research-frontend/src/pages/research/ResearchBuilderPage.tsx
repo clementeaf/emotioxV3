@@ -860,6 +860,7 @@ export const ResearchBuilderPage = () => {
                 onSelect={handleCreateModuleFromTemplate}
                 stageType={selectedStage?.stage_type}
                 stageName={selectedStage?.name}
+                existingModuleNames={(selectedStage?.modules || []).map((m: Module) => m.name)}
             />
         </div>
     );

@@ -8,6 +8,7 @@ interface ModuleTemplateSelectionModalProps {
     onSelect: (templateId: string) => Promise<void>;
     stageType?: 'single_module' | 'module_collection';
     stageName?: string;
+    existingModuleNames?: string[];
 }
 
 const SMART_VOC_NAMES = new Set([
@@ -47,6 +48,7 @@ export const ModuleTemplateSelectionModal = ({
     onClose,
     onSelect,
     stageName,
+    existingModuleNames = [],
 }: ModuleTemplateSelectionModalProps) => {
     const [templates, setTemplates] = useState<ModuleTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -66,9 +68,13 @@ export const ModuleTemplateSelectionModal = ({
         setError(null);
         try {
             const allTemplates = await moduleTemplatesService.list();
+            const existingSet = new Set(existingModuleNames);
             const filtered = allTemplates.filter(t => {
                 if (!t.is_active || SYSTEM_NAMES.has(t.name)) return false;
-                if (isSmartVOC) return SMART_VOC_NAMES.has(t.name);
+                if (isSmartVOC) {
+                    if (!SMART_VOC_NAMES.has(t.name)) return false;
+                    return !existingSet.has(t.name);
+                }
                 return !SMART_VOC_NAMES.has(t.name);
             });
             setTemplates(filtered);
