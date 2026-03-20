@@ -22,7 +22,10 @@ export const usePreviewMode = (): PreviewModeResult => {
   const storedParticipantId = useParticipantStore((state) => state.participantId);
 
   const result = useMemo(() => {
-    const urlParticipantId = searchParams.get('participantId') ?? searchParams.get('participantid');
+    const urlParticipantId = searchParams.get('participantId')
+      ?? searchParams.get('participantid')
+      ?? searchParams.get('ECX')
+      ?? searchParams.get('ecx');
     const explicitPreview = searchParams.get('preview') === 'true';
 
     // Explicit preview flag always wins

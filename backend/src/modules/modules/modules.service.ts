@@ -1,7 +1,7 @@
 import pool from '../../config/database';
 
 export const create = async (researchId: string, data: Record<string, unknown>) => {
-    const { name, description, order_index, config = {} } = data;
+    const { name, description, order_index, config = {}, stage_id } = data;
 
     // Check if research exists and is not deleted
     const researchCheck = await pool.query('SELECT id FROM researches WHERE id = ? AND deleted_at IS NULL', [researchId]);
@@ -12,10 +12,10 @@ export const create = async (researchId: string, data: Record<string, unknown>) 
     // MySQL compatible: pre-generate UUID and no RETURNING
     const moduleId = crypto.randomUUID();
     const query = `
-    INSERT INTO modules (id, research_id, name, description, order_index, config)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO modules (id, research_id, stage_id, name, description, order_index, config)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `;
-    await pool.query(query, [moduleId, researchId, name, description, order_index, JSON.stringify(config)]);
+    await pool.query(query, [moduleId, researchId, stage_id || null, name, description, order_index, JSON.stringify(config)]);
     
     // Fetch created record
     const selectResult = await pool.query(

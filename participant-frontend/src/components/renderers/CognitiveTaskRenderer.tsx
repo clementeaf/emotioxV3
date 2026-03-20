@@ -98,15 +98,28 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
         // Linear Scale
         if (isLinearScale) {
+            const rangeComp = components.find(c => c.id.includes('scale-range'));
             const startValueComp = components.find(c => c.id.includes('start-value'));
             const endValueComp = components.find(c => c.id.includes('end-value'));
             const startLabelComp = components.find(c => c.id.includes('start-label'));
             const endLabelComp = components.find(c => c.id.includes('end-label'));
 
-            const minSource = getComponentText(startValueComp);
-            const maxSource = getComponentText(endValueComp);
-            const min = minSource ? parseInt(minSource) : 1;
-            const max = maxSource ? parseInt(maxSource) : 5;
+            let min = 1;
+            let max = 5;
+
+            // New format: single scale-range component (e.g. "1-5", "0-10")
+            const rangeText = getComponentText(rangeComp);
+            if (rangeText && rangeText.includes('-')) {
+                const [rangeMin, rangeMax] = rangeText.split('-').map(Number);
+                if (!isNaN(rangeMin)) min = rangeMin;
+                if (!isNaN(rangeMax)) max = rangeMax;
+            } else {
+                // Legacy: separate start-value / end-value components
+                const minSource = getComponentText(startValueComp);
+                const maxSource = getComponentText(endValueComp);
+                if (minSource) min = parseInt(minSource) || 1;
+                if (maxSource) max = parseInt(maxSource) || 5;
+            }
 
             return (
                 <LinearScaleQuestion

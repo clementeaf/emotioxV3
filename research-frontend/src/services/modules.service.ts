@@ -15,8 +15,12 @@ export interface Module {
 
 export interface CreateModuleData {
     research_id: string;
-    module_type: string;
+    module_type?: string;
+    stage_id?: string;
+    name?: string;
+    description?: string;
     order?: number;
+    order_index?: number;
     config?: Record<string, unknown>;
 }
 

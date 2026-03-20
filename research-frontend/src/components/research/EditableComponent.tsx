@@ -492,26 +492,6 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                 );
             }
             
-            // Special handling for other scale ranges - should never be a select
-            if (component.id?.includes('scale-range')) {
-                // Treat as readonly input instead
-                const defaultValue = component.settings?.defaultValue
-                    ? String(component.settings.defaultValue)
-                    : (component.options && component.options.length > 0 
-                       ? component.options[0].value 
-                       : '');
-                return (
-                    <Input
-                        id={`module-${component.id}`}
-                        label={component.label}
-                        value={value || defaultValue}
-                        onChange={(e) => onChange(e.target.value)}
-                        placeholder=""
-                        disabled={true}
-                        readOnly={true}
-                    />
-                );
-            }
             return (
                 <div className="max-w-md">
                     <CustomSelect

@@ -366,10 +366,23 @@ export const getScaleResponses = async (researchId: string, moduleId: string) =>
       const structure = config?.structure ?? config;
       const titleComponent = structure?.components?.find((c: { id: string }) => c.id === 'question-title');
       questionText = titleComponent?.value || '';
-      const startComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-start-value');
-      const endComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-end-value');
-      if (startComponent?.value) scaleStart = parseInt(startComponent.value) || 1;
-      if (endComponent?.value) scaleEnd = parseInt(endComponent.value) || 5;
+      // New format: single scale-range component (e.g. "1-5", "0-10")
+      const rangeComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-range');
+      if (rangeComponent?.value && String(rangeComponent.value).includes('-')) {
+        const [rangeMin, rangeMax] = String(rangeComponent.value).split('-').map(Number);
+        if (!isNaN(rangeMin)) scaleStart = rangeMin;
+        if (!isNaN(rangeMax)) scaleEnd = rangeMax;
+      } else if (rangeComponent?.defaultValue && String(rangeComponent.defaultValue).includes('-')) {
+        const [rangeMin, rangeMax] = String(rangeComponent.defaultValue).split('-').map(Number);
+        if (!isNaN(rangeMin)) scaleStart = rangeMin;
+        if (!isNaN(rangeMax)) scaleEnd = rangeMax;
+      } else {
+        // Legacy: separate start-value / end-value components
+        const startComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-start-value');
+        const endComponent = structure?.components?.find((c: { id: string }) => c.id === 'scale-end-value');
+        if (startComponent?.value) scaleStart = parseInt(startComponent.value) || 1;
+        if (endComponent?.value) scaleEnd = parseInt(endComponent.value) || 5;
+      }
     } catch { /* ignore parse errors */ }
   }
 

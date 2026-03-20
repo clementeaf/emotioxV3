@@ -16,6 +16,7 @@ import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
+import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import { withModuleConditionality, withModuleConditionalityConfig, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
 import type { StudyModuleOption } from '../../components/research/ConditionalityModal';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
@@ -335,6 +336,22 @@ export const ResearchBuilderPage = () => {
         }
     };
 
+    /** Persists a module: creates new local modules, updates existing ones */
+    const saveOrCreateModule = async (module: Module, config: Record<string, unknown>, stageId?: string) => {
+        const isLocal = module.id.startsWith('local-');
+        if (isLocal) {
+            return modulesService.create({
+                research_id: id!,
+                stage_id: stageId,
+                name: module.name,
+                description: module.description,
+                order_index: module.order_index,
+                config,
+            });
+        }
+        return modulesService.update(module.id, { config, order: module.order_index });
+    };
+
     const handleSaveModule = async (): Promise<void> => {
         if (!id) return;
 
@@ -347,19 +364,13 @@ export const ResearchBuilderPage = () => {
                     const moduleRef = smartVOCModuleRefs.current.get(module.id);
                     if (!moduleRef) {
                         console.warn(`No ref found for module ${module.id}`);
-                        // Fallback: use existing config if ref not available
-                        return modulesService.update(module.id, {
-                            config: module.config,
-                            order: module.order_index
-                        });
+                        return saveOrCreateModule(module, module.config, smartVOCStage?.id);
                     }
 
-                    // Get current component values from the ref
                     const currentComponentValues = moduleRef.getComponentValues();
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
 
-                    // Update components with new values
                     const updatedComponents = currentComponents.map(comp => syncRankingConfig({
                         ...comp,
                         value: comp.type === 'file-upload'
@@ -367,7 +378,6 @@ export const ResearchBuilderPage = () => {
                             : (currentComponentValues[comp.id] || comp.value)
                     }));
 
-                    // Preserve the correct backend structure
                     const configWithStructure = {
                         ...module.config,
                         structure: {
@@ -376,7 +386,6 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    // Use the researcher's explicit toggle values
                     const hidden = moduleRef.getHidden();
                     const conditionality = moduleRef.getConditionality();
                     const ccConfig = moduleRef.getConditionalityConfig();
@@ -386,10 +395,7 @@ export const ResearchBuilderPage = () => {
                         conditionality ? ccConfig : null
                     );
 
-                    return modulesService.update(module.id, {
-                        config,
-                        order: module.order_index
-                    });
+                    return saveOrCreateModule(module, config, smartVOCStage?.id);
                 });
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
@@ -404,10 +410,7 @@ export const ResearchBuilderPage = () => {
                     const moduleRef = cognitiveTaskModuleRefs.current.get(module.id);
                     if (!moduleRef) {
                         console.warn(`No ref found for module ${module.id}`);
-                        return modulesService.update(module.id, {
-                            config: module.config,
-                            order: module.order_index
-                        });
+                        return saveOrCreateModule(module, module.config, cognitiveTasksStage?.id);
                     }
 
                     const currentComponentValues = moduleRef.getComponentValues();
@@ -429,7 +432,6 @@ export const ResearchBuilderPage = () => {
                         }
                     };
 
-                    // Use the researcher's explicit toggle values
                     const hidden = moduleRef.getHidden();
                     const conditionality = moduleRef.getConditionality();
                     const ccConfig = moduleRef.getConditionalityConfig();
@@ -439,10 +441,7 @@ export const ResearchBuilderPage = () => {
                         conditionality ? ccConfig : null
                     );
 
-                    return modulesService.update(module.id, {
-                        config,
-                        order: module.order_index
-                    });
+                    return saveOrCreateModule(module, config, cognitiveTasksStage?.id);
                 });
                 await Promise.all(updatePromises);
                 toast.success(`Saved ${cognitiveTaskModules.length} Cognitive Task module(s) successfully`);
@@ -547,34 +546,52 @@ export const ResearchBuilderPage = () => {
         }
 
         try {
-            // Use the latest stage data from typedResearch (selectedStage may be stale)
+            // Fetch template structure
+            const template = await moduleTemplatesService.getById(templateId);
+
+            // Parse structure if it comes as a JSON string from MySQL
+            const structure = typeof template.structure === 'string'
+                ? JSON.parse(template.structure)
+                : template.structure;
+
             const freshStage = typedResearch?.stages?.find((s: Stage) => s.id === selectedStage.id);
             const existingModules = freshStage?.modules || selectedStage.modules || [];
             const nextOrderIndex = existingModules.length;
 
-            const result = await modulesService.createFromTemplate({
-                research_id: id,
-                stage_id: selectedStage.id,
-                template_id: templateId,
-                order_index: nextOrderIndex
+            // Create local module (not persisted yet — saved on "Save")
+            const newModule: Module = {
+                id: `local-${crypto.randomUUID()}`,
+                name: template.name,
+                description: template.description || '',
+                order_index: nextOrderIndex,
+                is_from_template: true,
+                config: { structure },
+                questions: [],
+            };
+
+            // Inject into React Query cache so it renders immediately
+            queryClient.setQueryData(researchKeys.detail(id), (old: Research | undefined) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    stages: old.stages?.map((s: Stage) =>
+                        s.id === selectedStage.id
+                            ? { ...s, modules: [...(s.modules || []), newModule] }
+                            : s
+                    ),
+                };
             });
 
-            // Invalidate and refetch research data
-            await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
+            toast.success('Module added');
 
-            toast.success('Module added successfully');
-
-            // Scroll to the newly created module after React re-renders
-            const newModuleId = result?.module?.id;
-            if (newModuleId) {
-                const scrollType = selectedStage.stage_type === 'single_module' ? 'smartvoc' : 'cognitive';
-                requestAnimationFrame(() => {
-                    setTimeout(() => scrollToModule(newModuleId, scrollType), 100);
-                });
-            }
+            // Scroll to the new module
+            const scrollType = selectedStage.stage_type === 'single_module' ? 'smartvoc' : 'cognitive';
+            requestAnimationFrame(() => {
+                setTimeout(() => scrollToModule(newModule.id, scrollType), 100);
+            });
         } catch (error) {
-            console.error('Failed to create module from template:', error);
-            throw error; // Re-throw to let modal handle it
+            console.error('Failed to add module from template:', error);
+            throw error;
         }
     }, [id, selectedStage, typedResearch, queryClient, toast, scrollToModule]);
 

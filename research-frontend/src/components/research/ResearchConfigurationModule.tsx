@@ -736,16 +736,16 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                         <label className="block text-sm text-gray-700 mb-2">Research URL</label>
                         <div className="flex gap-1 mb-2">
                             <Input
-                                value={participantShareUrl}
+                                value={isKiosk ? participantShareUrl : `${participantShareUrl}?ECX=@id`}
                                 readOnly
                                 className="bg-gray-50 cursor-default"
                             />
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                title="Copy" 
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Copy"
                                 onClick={async () => {
-                                    const url = participantShareUrl;
+                                    const url = isKiosk ? participantShareUrl : `${participantShareUrl}?ECX=@id`;
                                     if (!url) {
                                         toast.error('No se pudo generar la URL.');
                                         return;
@@ -761,6 +761,11 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                 <Copy className="h-4 w-4" />
                             </Button>
                         </div>
+                        {!isKiosk && (
+                            <p className="text-xs text-gray-400 mb-3">
+                                <code className="bg-gray-100 px-1 rounded">@id</code> será reemplazado por el sistema externo con el ID real del participante.
+                            </p>
+                        )}
                         <div className="flex gap-2">
                             <Button variant="outline" size="sm" onClick={handleLinkPreview}>
                                 <ExternalLink className="h-4 w-4 mr-2" />
