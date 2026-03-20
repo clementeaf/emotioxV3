@@ -1,3 +1,45 @@
+## v0.31.1 — Template drawer filtering, SmartVOC unique metrics (2026-03-19)
+
+### research-frontend
+- Fix: Template drawer showed Cognitive Task modules when opened from SmartVOC stage. Now filters by stage name instead of `stage_type` (both were `module_collection`).
+- Feat: SmartVOC metrics are unique — drawer hides metrics already present in the stage.
+- Cognitive Tasks still allows repeated module types.
+
+---
+
+## v0.31.0 — Demographics overhaul, Drawer UI, Linear Scale selector, module creation fix (2026-03-19)
+
+### backend
+- Fix: `buildOwnershipClause` generated `r.created_by` on queries without table alias → 500 on status change, activate, delete, stage/module operations. Now accepts empty alias for unaliased queries.
+- Fix: `modules.create` now includes `stage_id` in INSERT. Previously modules were created without stage association and disappeared on refetch.
+- Feat: `getScaleResponses` reads `scale-range` component (new format) with fallback to legacy `scale-start-value`/`scale-end-value`.
+
+### research-frontend
+- Feat: Demographic config modals replaced with slide-in Drawer component (right side, overlay close, ESC).
+- Fix: Demographics round-trip data loss — mapper now preserves modal-format fields (`validAges`, `options`, `disqualified`) alongside backend format so reopening a modal restores saved state.
+- Fix: Disabling a demographic preserves config (`{ ...config, enabled: false }`) instead of destroying all data.
+- Fix: Re-enabling a demographic restores existing config instead of overwriting with defaults.
+- Fix: Quota flush useEffect used stale closure — now uses refs for fresh reads.
+- Feat: Unified all demographic option UIs to match Age pattern: green "Clasifica" / orange "Desclasifica" toggles, icon-only edit/delete.
+- Feat: All demographic drawers use consistent blue "Guardar configuración" button.
+- Feat: Linear Scale template changed from start/end inputs to select dropdown (1-3, 1-5, 1-7, 1-10, 0-10).
+- Fix: `CustomSelect` dropdown used `window.scrollY` with `position:fixed` → drifted on scroll. Now uses viewport-only coords and closes on scroll.
+- Fix: Nested `<button>` hydration error in demographic rows — changed wrapper to `<div>`.
+- Fix: Participant limit input always disabled — `onChange` serialized `{enabled,value}` object as `"[object Object]"`. Now uses `JSON.stringify` for objects.
+- Fix: New modules from template drawer now persist on Save (local modules POST with `stage_id` instead of PUT to nonexistent ID).
+- Fix: Template structure parsed from JSON string when MySQL returns it as text.
+- Feat: Research URL shows `?ECX=@id` format for panel mode.
+
+### participant-frontend
+- Fix: Demographics `getOptionsForDemographic` prefers `validValues` (all options) over `validAges`/`validCountries` (only qualifying) so participants see full range including disqualifying options.
+- Fix: Age ranges sorted by leading number in dropdown.
+- Feat: `usePreviewMode` and `ResearchPage` read `?ECX=` / `?ecx=` as participantId (new EmotioCX standard param).
+- Fix: `trackLocation` now works — removed dead `enableLocationCapture` dependency that blocked it.
+- Feat: Auto-redirect on thank-you via `backlinks.complete` useEffect (old code in handleNext never fired because currentStep was stale in closure).
+- Fix: Linear Scale renderer reads `scale-range` component first, falls back to legacy `start-value`/`end-value`.
+
+---
+
 ## v0.30.0 — Cognitive Results overhaul, admin role, duplicate responses fix (2026-03-19)
 
 ### backend
