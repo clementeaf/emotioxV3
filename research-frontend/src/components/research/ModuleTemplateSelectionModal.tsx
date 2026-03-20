@@ -7,6 +7,7 @@ interface ModuleTemplateSelectionModalProps {
     onClose: () => void;
     onSelect: (templateId: string) => Promise<void>;
     stageType?: 'single_module' | 'module_collection';
+    stageName?: string;
 }
 
 const SMART_VOC_NAMES = new Set([
@@ -45,14 +46,14 @@ export const ModuleTemplateSelectionModal = ({
     isOpen,
     onClose,
     onSelect,
-    stageType,
+    stageName,
 }: ModuleTemplateSelectionModalProps) => {
     const [templates, setTemplates] = useState<ModuleTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
-    const isSmartVOC = stageType === 'single_module';
+    const isSmartVOC = (stageName || '').toLowerCase().includes('smart') || (stageName || '').toLowerCase().includes('voc');
 
     useEffect(() => {
         if (isOpen) {
