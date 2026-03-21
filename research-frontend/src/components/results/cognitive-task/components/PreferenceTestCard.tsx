@@ -113,10 +113,10 @@ export const PreferenceTestCard = ({
                     />
                   </div>
                   
-                  <span className="text-xs text-gray-500 min-w-[3rem] text-right">{step.duration}</span>
-                  <span className="text-xs font-semibold text-blue-600 min-w-[3rem] text-right">{step.completionRate}%</span>
-                  <span className="text-xs text-gray-500 min-w-[2rem] text-right">{step.participantCount}</span>
-                  <span className="text-xs text-gray-500 min-w-[2rem] text-right">{step.selectionCount || 0}</span>
+                  <span className="text-xs text-gray-500 min-w-[3rem] text-right cursor-help" title="Average time participants spent on this test">⏱ {step.duration}</span>
+                  <span className="text-xs font-semibold text-blue-600 min-w-[3rem] text-right cursor-help" title="Percentage of participants who made a selection">{step.completionRate}%</span>
+                  <span className="text-xs text-gray-500 min-w-[2rem] text-right cursor-help" title="Total participants who attempted this test">👥 {step.participantCount}</span>
+                  <span className="text-xs text-gray-500 min-w-[2rem] text-right cursor-help" title="Number of selections made">✓ {step.selectionCount || 0}</span>
                 </div>
 
                 {/* Show details button */}

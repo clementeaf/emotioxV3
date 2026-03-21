@@ -27,20 +27,20 @@ export const calculateCSAT = (scores: number[] | undefined): number => {
 };
 
 /**
- * Calculate CES score: (% Positive results) - (% Negative results)
- * Positive results = scores 4 and 5
- * Negative results = scores 1 and 2
+ * Calculate CES score: (% Little effort) - (% Much effort)
+ * Little effort (positive) = scores 1 and 2 (easy)
+ * Much effort (negative) = scores 4 and 5 (difficult)
  */
 export const calculateCES = (scores: number[] | undefined): number => {
   if (!scores || scores.length === 0) return 0;
-  const positiveResults = scores.filter(score => score >= 4).length;
-  const negativeResults = scores.filter(score => score <= 2).length;
+  const littleEffort = scores.filter(score => score <= 2).length;
+  const muchEffort = scores.filter(score => score >= 4).length;
   const total = scores.length;
-  
-  const positivePercentage = (positiveResults / total) * 100;
-  const negativePercentage = (negativeResults / total) * 100;
-  
-  return parseFloat((positivePercentage - negativePercentage).toFixed(2));
+
+  const littleEffortPct = (littleEffort / total) * 100;
+  const muchEffortPct = (muchEffort / total) * 100;
+
+  return parseFloat((littleEffortPct - muchEffortPct).toFixed(2));
 };
 
 /**

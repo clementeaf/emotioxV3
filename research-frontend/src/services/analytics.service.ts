@@ -339,6 +339,7 @@ export interface SmartVOCResults {
     }>;
     emotionalStates: Record<string, number>;
     nevResponsesData: Array<{ emotions: string[]; date: string; participantId?: string }>;
+    questionTexts?: Record<string, string>;
 }
 
 export const getSmartVOCResults = async (researchId: string): Promise<SmartVOCResults> => {

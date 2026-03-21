@@ -336,7 +336,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             </div>
 
             {/* Research Details */}
-            <div className="flex-1 p-4 space-y-6 overflow-y-auto">
+            <div className="flex-1 p-4 space-y-6 overflow-y-auto scrollbar-hide">
                 <div>
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
                         Research Title

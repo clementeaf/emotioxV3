@@ -1,11 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { ParticipantsTable } from '../participants/ParticipantsTable';
-import { Button } from '../../ui/Button';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useMonitoringReceiver } from '../../../hooks/useMonitoringReceiver';
 import { researchInProgressService, type ResearchStatus, type Participant, type ResearchConfiguration } from '../../../services/researchInProgress.service';
-import { Info } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
 
 interface ResearchInProgressContentProps {
@@ -39,7 +37,6 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     const [researchConfig, setResearchConfig] = useState<ResearchConfiguration | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [showInfoModal, setShowInfoModal] = useState(false);
 
     const loadData = async (): Promise<void> => {
         if (!researchId) return;
@@ -109,12 +106,6 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
         }));
     };
 
-    const handleOpenPublicTests = (): void => {
-        if (researchId) {
-            setShowInfoModal(true);
-        }
-    };
-
     if (error) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -128,13 +119,6 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <div className="flex justify-end mb-6">
-                <Button onClick={handleOpenPublicTests} variant="outline">
-                    <Info className="w-4 h-4 mr-2" />
-                    Acceso a Tests
-                </Button>
-            </div>
-
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                 <div className="p-3 rounded-lg border border-gray-200 bg-white">
                     <p className="text-xs text-gray-500 mb-1">Estado</p>
@@ -171,51 +155,6 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                 isLoading={isLoading}
                 researchConfig={researchConfig}
             />
-
-            {showInfoModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                        <div className="flex items-center gap-3 mb-4">
-                            <Info className="h-6 w-6 text-blue-500" />
-                            <h3 className="text-lg font-semibold text-gray-900">
-                                Acceso a Tests por Participante
-                            </h3>
-                        </div>
-
-                        <div className="space-y-3 mb-6">
-                            <p className="text-gray-600">
-                                Cada participante tiene una URL única para acceder a los tests sin necesidad de login.
-                            </p>
-
-                            <div className="bg-blue-50 p-3 rounded-lg">
-                                <p className="text-sm text-blue-800 font-medium">¿Cómo acceder?</p>
-                                <ul className="text-sm text-blue-700 mt-1 space-y-1">
-                                    <li>• Usa la pestaña "Generar Participantes" para crear participantes</li>
-                                    <li>• En la tabla de participantes, usa los botones de "Acceso directo"</li>
-                                    <li>• Cada participante tiene su propia URL con su ID incluido</li>
-                                </ul>
-                            </div>
-
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                                <p className="text-xs text-gray-600">
-                                    <strong>Formato de URL:</strong><br />
-                                    <code className="text-xs">
-                                        {typeof window !== 'undefined' ? window.location.origin : ''}?researchId=XXX&userId=YYY
-                                    </code>
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end">
-                            <Button
-                                onClick={() => setShowInfoModal(false)}
-                            >
-                                Entendido
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

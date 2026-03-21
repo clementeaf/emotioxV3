@@ -292,19 +292,19 @@ const NavigationTab = ({ step }: { step: NavigationStep }) => {
     <div className="space-y-6">
       {/* Summary metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-white border rounded-lg text-center">
+        <div className="p-4 bg-white border rounded-lg text-center cursor-help" title="Sum of all clicks across all participants">
           <div className="text-2xl font-bold text-gray-900">{totalClicks}</div>
           <div className="text-xs text-gray-500 mt-1">Total Clicks</div>
         </div>
-        <div className="p-4 bg-white border rounded-lg text-center">
+        <div className="p-4 bg-white border rounded-lg text-center cursor-help" title="Clicks that landed inside a defined hit zone">
           <div className="text-2xl font-bold text-green-600">{totalCorrect}</div>
           <div className="text-xs text-gray-500 mt-1">Correct Clicks</div>
         </div>
-        <div className="p-4 bg-white border rounded-lg text-center">
+        <div className="p-4 bg-white border rounded-lg text-center cursor-help" title="Correct clicks ÷ total clicks × 100">
           <div className="text-2xl font-bold text-blue-600">{overallAccuracy}%</div>
           <div className="text-xs text-gray-500 mt-1">Accuracy</div>
         </div>
-        <div className="p-4 bg-white border rounded-lg text-center">
+        <div className="p-4 bg-white border rounded-lg text-center cursor-help" title="Average time per participant to complete the flow">
           <div className="text-2xl font-bold text-gray-900">{avgDuration}s</div>
           <div className="text-xs text-gray-500 mt-1">Avg Duration</div>
         </div>
@@ -313,7 +313,7 @@ const NavigationTab = ({ step }: { step: NavigationStep }) => {
       {/* Completion summary */}
       <div className="flex items-center gap-3 text-sm">
         <span className="text-gray-600">Completed flow:</span>
-        <span className="font-semibold text-green-600">{completedCount}/{responses.length}</span>
+        <span className="font-semibold text-green-600 cursor-help" title="Participants who navigated through all steps ÷ total participants">{completedCount}/{responses.length}</span>
         <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-xs">
           <div
             className="bg-green-500 h-2 rounded-full transition-all"
@@ -575,9 +575,9 @@ export const NavigationTestCard = ({
                         style={{ width: `${step.completionRate}%` }}
                       />
                     </div>
-                    <span className="text-xs text-gray-500">{step.duration}</span>
-                    <span className="text-xs font-semibold text-blue-600">{step.completionRate}%</span>
-                    <span className="text-xs text-gray-500">{step.participantCount}</span>
+                    <span className="text-xs text-gray-500 cursor-help" title="Average time participants spent on this flow">⏱ {step.duration}</span>
+                    <span className="text-xs font-semibold text-blue-600 cursor-help" title="Percentage of participants who completed all steps in this flow">{step.completionRate}%</span>
+                    <span className="text-xs text-gray-500 cursor-help" title="Total participants who attempted this flow">👥 {step.participantCount}</span>
                   </div>
                 </div>
 

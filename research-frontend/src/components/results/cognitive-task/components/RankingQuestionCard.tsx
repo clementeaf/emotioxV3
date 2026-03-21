@@ -27,12 +27,14 @@ export const RankingQuestionCard = ({
   conditionalityDisabled = true,
   required = false,
   options,
+  totalResponses = 0,
   className
 }: RankingQuestionCardProps) => {
   const positionCount = options.length > 0
     ? Math.max(...options.map(o => o.distribution.length))
     : 0;
   const maxCount = Math.max(1, ...options.flatMap(o => o.distribution));
+  const hasResponses = totalResponses > 0;
 
   return (
     <Card className={cn('p-6 pb-8', className)}>
@@ -40,7 +42,7 @@ export const RankingQuestionCard = ({
       <div className="flex items-center gap-2 mb-2">
         <h3 className="text-lg font-semibold">{questionNumber}- {questionText}</h3>
       </div>
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         <span className="px-2 py-1 text-xs font-medium rounded text-green-600 bg-green-50">
           {questionType}
         </span>
@@ -54,24 +56,22 @@ export const RankingQuestionCard = ({
             Required
           </span>
         )}
-        <button className="text-gray-400 hover:text-gray-600 ml-2">
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-          </svg>
-        </button>
+        {hasResponses && (
+          <span className="text-xs text-gray-500 ml-2">{totalResponses} responses</span>
+        )}
       </div>
 
-      {/* Column headers — same padding/border offsets as rows */}
+      {/* Column headers */}
       <div className="flex items-end gap-3 mb-1 px-3" style={{ marginLeft: 3 }}>
-        <div className="w-28 shrink-0" />
+        <div className="w-36 shrink-0" />
         <div className="flex-1 flex">
           {Array.from({ length: positionCount }, (_, i) => (
-            <div key={i} className="flex-1 text-center text-xs font-medium text-gray-500">
+            <div key={i} className="flex-1 text-center text-xs font-medium text-gray-500 cursor-help" title={`Position ${i + 1} — bar height shows how many participants ranked this option here`}>
               {i + 1}
             </div>
           ))}
         </div>
-        <div className="w-14 text-center text-xs font-medium text-gray-500">Mean</div>
+        <div className="w-14 text-center text-xs font-medium text-gray-500 cursor-help" title="Average position across all participants (lower = more preferred)">Mean</div>
       </div>
 
       {/* Options */}
@@ -79,7 +79,7 @@ export const RankingQuestionCard = ({
         {options.map((option) => (
           <div key={option.id} className="flex items-center gap-3 border border-gray-100 rounded-lg p-3 bg-white" style={{ borderLeft: '3px solid #a3e635' }}>
             {/* Option label */}
-            <div className="w-28 shrink-0 text-sm font-medium text-gray-700 truncate" title={option.label}>
+            <div className="w-36 shrink-0 text-sm font-medium text-gray-700" title={option.label}>
               {option.label}
             </div>
 
@@ -97,7 +97,6 @@ export const RankingQuestionCard = ({
                         backgroundColor: '#93a3c8',
                       }}
                     />
-                    <span className="text-[10px] text-gray-400 mt-0.5">{posIdx + 1}</span>
                   </div>
                 );
               })}
@@ -105,12 +104,19 @@ export const RankingQuestionCard = ({
 
             {/* Mean */}
             <div className="w-14 text-center">
-              <span className="text-sm font-bold text-gray-900">{option.mean.toFixed(1).replace('.', ',')}</span>
+              <span className="text-sm font-bold text-gray-900">
+                {hasResponses && option.mean > 0
+                  ? option.mean.toFixed(1).replace('.', ',')
+                  : '—'}
+              </span>
             </div>
           </div>
         ))}
       </div>
 
+      {!hasResponses && (
+        <p className="text-sm text-gray-400 text-center mt-4">No responses yet</p>
+      )}
     </Card>
   );
 };

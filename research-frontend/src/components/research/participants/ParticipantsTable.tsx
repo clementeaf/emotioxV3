@@ -2,16 +2,15 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/Card';
-import { researchInProgressService, type Participant, type ResearchConfiguration } from '../../../services/researchInProgress.service';
-import { getReviewUrl } from '../../../utils/publicTestsUrl';
+import { Drawer } from '../../ui/Drawer';
+import { researchInProgressService, type Participant, type ParticipantDetails, type ResearchConfiguration } from '../../../services/researchInProgress.service';
 import {
     AlertCircle,
     AlertTriangle,
     CheckCircle,
     Clock,
-    Copy,
-    ExternalLink,
     Eye,
+    Loader2,
     Trash2
 } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
@@ -54,7 +53,8 @@ const statusConfig = {
  */
 export function ParticipantsTable({
     participants,
-    onViewDetails,
+    // onViewDetails is kept in props interface for compatibility but handled internally via Drawer
+    onViewDetails: _onViewDetails,
     researchId,
     onParticipantDeleted,
     isLoading = false,
@@ -70,6 +70,25 @@ export function ParticipantsTable({
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set());
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [drawerDetails, setDrawerDetails] = useState<ParticipantDetails | null>(null);
+    const [drawerLoading, setDrawerLoading] = useState(false);
+
+    const handleViewDetails = async (participantId: string): Promise<void> => {
+        setDrawerOpen(true);
+        setDrawerLoading(true);
+        setDrawerDetails(null);
+        try {
+            const response = await researchInProgressService.getParticipantDetails(researchId, participantId);
+            if (response.success && response.data) {
+                setDrawerDetails(response.data);
+            }
+        } catch {
+            toast.error('Error al cargar detalles del participante');
+        } finally {
+            setDrawerLoading(false);
+        }
+    };
     const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
     const filteredParticipants = participants;
@@ -215,21 +234,6 @@ export function ParticipantsTable({
         }
     };
 
-    const copyParticipantUrl = async (participantId: string): Promise<void> => {
-        try {
-            const url = getReviewUrl(researchId, participantId);
-            await navigator.clipboard.writeText(url);
-            toast.success('URL copiada al portapapeles');
-        } catch {
-            toast.error('Error al copiar URL');
-        }
-    };
-
-    const openParticipantTest = (participantId: string): void => {
-        const url = getReviewUrl(researchId, participantId);
-        window.open(url, '_blank', 'noopener,noreferrer');
-    };
-
     const SkeletonRow = () => (
         <tr className="border-b">
             <td className="py-3 px-4">
@@ -303,9 +307,9 @@ export function ParticipantsTable({
                         </div>
                     )}
 
-                    <div className="overflow-x-auto">
+                    <div className="overflow-auto max-h-[60vh]">
                         <table className="w-full">
-                            <thead>
+                            <thead className="sticky top-0 bg-white z-10">
                                 <tr className="border-b">
                                     <th className="text-left py-3 px-4 font-medium w-12">
                                         <input
@@ -321,7 +325,6 @@ export function ParticipantsTable({
                                     <th className="text-left py-3 px-4 font-medium">Progreso</th>
                                     <th className="text-left py-3 px-4 font-medium">Duración</th>
                                     <th className="text-left py-3 px-4 font-medium">Última actividad</th>
-                                    <th className="text-left py-3 px-4 font-medium">Acceso directo</th>
                                     <th className="text-left py-3 px-4 font-medium">Acciones</th>
                                 </tr>
                             </thead>
@@ -373,30 +376,9 @@ export function ParticipantsTable({
                                                 <td className="py-3 px-4">
                                                     <div className="flex items-center gap-2">
                                                         <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => copyParticipantUrl(participant.id)}
-                                                            className="flex items-center gap-1"
-                                                            title="Copiar URL del participante"
-                                                        >
-                                                            <Copy className="h-3 w-3" />
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => openParticipantTest(participant.id)}
-                                                            className="flex items-center gap-1"
-                                                            title="Abrir test del participante"
-                                                        >
-                                                            <ExternalLink className="h-3 w-3" />
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => onViewDetails(participant.id)}
+                                                            onClick={() => handleViewDetails(participant.id)}
                                                             title="Ver detalles"
                                                         >
                                                             <Eye className="h-4 w-4" />
@@ -486,6 +468,63 @@ export function ParticipantsTable({
                     </div>
                 </div>
             )}
+
+            <Drawer
+                isOpen={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
+                title={drawerDetails ? `Participante ${drawerDetails.id}` : 'Cargando...'}
+                width="md"
+            >
+                {drawerLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+                    </div>
+                ) : drawerDetails ? (
+                    <div className="space-y-6">
+                        {/* Summary */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="text-xs text-gray-500">Estado</div>
+                                <div className="text-sm font-semibold">{drawerDetails.status}</div>
+                            </div>
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="text-xs text-gray-500">Progreso</div>
+                                <div className="text-sm font-semibold">{drawerDetails.progress}%</div>
+                            </div>
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="text-xs text-gray-500">Duración</div>
+                                <div className="text-sm font-semibold">{drawerDetails.duration}</div>
+                            </div>
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <div className="text-xs text-gray-500">Última actividad</div>
+                                <div className="text-sm font-semibold">{drawerDetails.lastActivity}</div>
+                            </div>
+                        </div>
+
+                        {/* Responses */}
+                        {drawerDetails.responses && drawerDetails.responses.length > 0 ? (
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-700 mb-3">Respuestas ({drawerDetails.responses.length})</h4>
+                                <div className="space-y-2">
+                                    {(drawerDetails.responses as Array<{ moduleName?: string; componentId?: string; value?: unknown; createdAt?: string }>).map((r, i) => (
+                                        <div key={i} className="p-3 border border-gray-100 rounded-lg text-sm">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <span className="font-medium text-gray-800">{r.moduleName || 'Module'}</span>
+                                                <span className="text-xs text-gray-400">{r.componentId}</span>
+                                            </div>
+                                            <div className="text-gray-600 break-all">
+                                                {typeof r.value === 'string' ? r.value : JSON.stringify(r.value)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">Sin respuestas registradas</p>
+                        )}
+                    </div>
+                ) : null}
+            </Drawer>
         </>
     );
 }

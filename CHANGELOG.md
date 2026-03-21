@@ -1,3 +1,31 @@
+## v0.33.0 — Filters fix, SmartVOC polish, time ranges, participant drawer (2026-03-20)
+
+### backend
+- Fix: `getModuleResponses` returned raw snake_case columns (`participant_id`) — frontend filters failed silently. Now maps to camelCase (`participantId`).
+- Fix: `getCognitiveTaskResults` excludes orphan modules (`stage_id IS NULL`).
+- Fix: `participant_demographics` collation mismatch (`utf8mb4_general_ci` vs `utf8mb4_unicode_ci`) — unified to `utf8mb4_unicode_ci`.
+- Feat: `getSmartVOCResults` returns `questionTexts` per metric type (csat, ces, nps, cv, nev, voc) extracted from module config. Looks for `{type}-title` component with fallback to `placeholder.text`.
+
+### research-frontend
+- Fix: Demographic filters now apply to all SmartVOC charts — Trust Flow, MetricCard sparklines, and NPS stacked bars were using pre-aggregated backend data without `participantId`. All charts now compute from filtered individual scores.
+- Fix: CES calculation was inverted — treated scores 4-5 as positive (much effort). Now: 1-2 = little effort (positive), 4-5 = much effort (negative).
+- Fix: CES breakdown labels corrected: "Little effort" (green) / "Much effort" (red).
+- Fix: MetricCard tooltip labels now match card context (CES shows "Little effort/Much effort", not generic "Satisfied/Dissatisfied").
+- Fix: NPS Ratio line rendered behind stacked bars. Changed from `Area` to `Line` so it draws on top.
+- Feat: Time range selector extended with 6M and 12M options alongside Today/Week/Month.
+- Feat: SmartVOC question cards show real questions from backend config instead of hardcoded English text. Title simplified (e.g. "CSAT" instead of "Customer Satisfaction Score (CSAT)").
+- Feat: Participant details Drawer — eye button in View Progress table opens slide-in panel with status, progress, duration, and full response list.
+- UI: Removed "Acceso a Tests" button and modal from View Progress.
+- UI: Removed "Acceso directo" column from participants table.
+- UI: Trust Flow chart unified to LineChart for all time ranges (was BarChart for Week).
+- UI: Removed duplicate select from Trust Flow chart (uses parent time range selector).
+- UI: Participants table has internal scroll (`max-h-[60vh]`, sticky header) instead of page-level scrollbar.
+- UI: Sidebar scroll hidden (`scrollbar-hide`) in both Standard and ResearchBuilder sidebars.
+- UI: Tooltips added to all Cognitive Task result metrics explaining what each number means.
+- UI: Ranking card — wider label column, "—" for mean when no responses, position labels only in header.
+
+---
+
 ## v0.32.0 — Dashboard cleanup, progress fix, review mode (2026-03-20)
 
 ### backend

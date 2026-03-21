@@ -1,7 +1,5 @@
 import { useMemo } from 'react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -13,6 +11,7 @@ import {
 } from 'recharts';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
+import type { TimeRange } from '../SmartVOCResults';
 
 interface ChartDataPoint {
   stage: string;
@@ -24,8 +23,7 @@ interface ChartDataPoint {
 interface TrustFlowChartProps {
   dailyData: ChartDataPoint[];
   intradayData: ChartDataPoint[];
-  timeRange: 'today' | 'week' | 'month';
-  onTimeRangeChange: (range: 'today' | 'week' | 'month') => void;
+  timeRange: TimeRange;
   className?: string;
 }
 
@@ -72,11 +70,12 @@ const CustomLegend = () => (
 
 function filterDailyDataByTimeRange(
   dataToFilter: ChartDataPoint[],
-  range: 'week' | 'month'
+  range: TimeRange
 ) {
   if (!dataToFilter || dataToFilter.length === 0) return [];
 
-  const daysBack = range === 'week' ? 7 : 30;
+  const daysMap: Record<TimeRange, number> = { today: 1, week: 7, month: 30, '6months': 180, '12months': 365 };
+  const daysBack = daysMap[range] ?? 30;
 
   const today = new Date();
   const cutoffDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -96,7 +95,6 @@ export const TrustFlowChart = ({
   dailyData,
   intradayData,
   timeRange,
-  onTimeRangeChange,
   className
 }: TrustFlowChartProps) => {
   // For week view, format labels as weekday names (Mon, Tue, etc.)
@@ -122,154 +120,86 @@ export const TrustFlowChart = ({
   const lastPointLabel = lastPoint?.timestamp
     ? (timeRange === 'today'
         ? new Date(lastPoint.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-        : new Date(lastPoint.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: timeRange === 'month' ? 'numeric' : undefined }))
+        : new Date(lastPoint.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: ['month', '6months', '12months'].includes(timeRange) ? 'numeric' : undefined }))
     : null;
-
-  const timeRangeOptions = [
-    { value: 'today' as const, label: 'Last 24 hours' },
-    { value: 'week' as const, label: 'Last week' },
-    { value: 'month' as const, label: 'Last month' }
-  ];
 
   return (
     <Card className={cn('p-6 h-96', className)}>
-      <div className="space-y-4">
-        <div className="flex justify-between items-center flex-wrap gap-3">
-          <div>
-            <h3 className="text-gray-900 font-medium">Trust Relationship Flow</h3>
-            <p className="text-sm text-gray-500 mt-1">Customer's perception about service in time</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {lastPoint && lastPointLabel && (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm">
-                <div className="text-xs text-gray-500 mb-0.5">Latest point</div>
-                <div className="text-gray-700 font-medium">{lastPointLabel}</div>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
-                    NPS {lastPoint.nps.toFixed(2)}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0" />
-                    NEV {lastPoint.nev.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
-            <select
-              className="text-sm border border-gray-300 rounded-md px-3 py-1.5 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={timeRange}
-              onChange={(e) => onTimeRangeChange(e.target.value as 'today' | 'week' | 'month')}
-            >
-              {timeRangeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <h3 className="text-gray-900 font-medium">Trust Relationship Flow</h3>
+          <p className="text-sm text-gray-500 mt-1">Customer's perception about service in time</p>
         </div>
+        {lastPoint && lastPointLabel && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            <div className="text-xs text-gray-500 mb-0.5">Latest point</div>
+            <div className="text-gray-700 font-medium">{lastPointLabel}</div>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-blue-500 rounded-full shrink-0" />
+                NPS {lastPoint.nps.toFixed(2)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-purple-500 rounded-full shrink-0" />
+                NEV {lastPoint.nev.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="h-64 mt-6 relative" style={{ minHeight: '256px' }}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          {timeRange === 'week' ? (
-            <BarChart data={filteredData} barCategoryGap="20%">
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="#E5E7EB"
-              />
-              <XAxis
-                dataKey="stage"
-                axisLine={false}
-                tickLine={false}
-                stroke="#9CA3AF"
-                fontSize={12}
-                tickMargin={10}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                stroke="#9CA3AF"
-                fontSize={12}
-                domain={[-100, 100]}
-                ticks={[-100, -50, 0, 50, 100]}
-                tickMargin={10}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend content={<CustomLegend />} />
-              <Bar
-                dataKey="nps"
-                name="NPS"
-                fill="#3B82F6"
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={true}
-                animationDuration={1000}
-                animationEasing="ease-out"
-              />
-              <Bar
-                dataKey="nev"
-                name="NEV"
-                fill="#8B5CF6"
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={true}
-                animationDuration={1000}
-                animationEasing="ease-out"
-              />
-            </BarChart>
-          ) : (
-            <LineChart data={filteredData}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="#E5E7EB"
-              />
-              <XAxis
-                dataKey="stage"
-                axisLine={false}
-                tickLine={false}
-                stroke="#9CA3AF"
-                fontSize={12}
-                tickMargin={10}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                stroke="#9CA3AF"
-                fontSize={12}
-                domain={[-100, 100]}
-                ticks={[-100, -50, 0, 50, 100]}
-                tickMargin={10}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend content={<CustomLegend />} />
-              <Line
-                type="monotone"
-                dataKey="nps"
-                name="NPS"
-                stroke="#3B82F6"
-                strokeWidth={2}
-                dot={{ r: 4, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
-                isAnimationActive={true}
-                animationDuration={1000}
-                animationEasing="ease-out"
-              />
-              <Line
-                type="monotone"
-                dataKey="nev"
-                name="NEV"
-                stroke="#8B5CF6"
-                strokeWidth={2}
-                dot={{ r: 4, fill: '#8B5CF6', stroke: '#fff', strokeWidth: 2 }}
-                activeDot={{ r: 6, strokeWidth: 0 }}
-                isAnimationActive={true}
-                animationDuration={1000}
-                animationEasing="ease-out"
-              />
-            </LineChart>
-          )}
+          <LineChart data={filteredData}>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="#E5E7EB"
+            />
+            <XAxis
+              dataKey="stage"
+              axisLine={false}
+              tickLine={false}
+              stroke="#9CA3AF"
+              fontSize={12}
+              tickMargin={10}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              stroke="#9CA3AF"
+              fontSize={12}
+              domain={[-100, 100]}
+              ticks={[-100, -50, 0, 50, 100]}
+              tickMargin={10}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend content={<CustomLegend />} />
+            <Line
+              type="monotone"
+              dataKey="nps"
+              name="NPS"
+              stroke="#3B82F6"
+              strokeWidth={2}
+              dot={{ r: 4, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+              isAnimationActive={true}
+              animationDuration={1000}
+              animationEasing="ease-out"
+            />
+            <Line
+              type="monotone"
+              dataKey="nev"
+              name="NEV"
+              stroke="#8B5CF6"
+              strokeWidth={2}
+              dot={{ r: 4, fill: '#8B5CF6', stroke: '#fff', strokeWidth: 2 }}
+              activeDot={{ r: 6, strokeWidth: 0 }}
+              isAnimationActive={true}
+              animationDuration={1000}
+              animationEasing="ease-out"
+            />
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </Card>

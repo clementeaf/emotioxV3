@@ -5,7 +5,38 @@
 
 ---
 
-## Última actualización: 2026-03-19 (sesión 19)
+## Última actualización: 2026-03-20 (sesión 20)
+
+---
+
+## Sesión 20: 20 de marzo de 2026 — Filters, SmartVOC polish, time ranges (v0.33.0)
+
+### Filtros demográficos
+- SmartVOC Trust Flow, MetricCard sparklines y NPS stacked bars usaban datos pre-agregados del backend (sin `participantId`) — los filtros no los afectaban. Ahora todos los gráficos computan desde scores individuales filtrados.
+- `getModuleResponses` devolvía `participant_id` (snake_case) — el frontend filtraba con `participantId` (camelCase) y nunca matcheaba. Corregido con mapeo a camelCase.
+- Collation mismatch en `participant_demographics` (`utf8mb4_general_ci` vs `utf8mb4_unicode_ci`) corregido con ALTER TABLE.
+
+### CES invertido
+- `calculateCES` trataba scores 4-5 como positivos. En CES, 1-2 = poco esfuerzo (bueno). Corregido cálculo y labels (Little effort / Much effort).
+
+### SmartVOC polish
+- Preguntas reales del backend en vez de hardcoded. Backend extrae de `{type}-title` component o `placeholder.text`.
+- Títulos simplificados: "CSAT", "CES", "NPS" (sin nombre largo).
+- NPS Ratio: cambiado de `Area` a `Line` para renderizar por encima de barras.
+- Trust Flow unificado a LineChart en todos los rangos. Quitado select duplicado.
+- Selector de tiempo: agregados 6M y 12M.
+
+### View Progress
+- Quitado botón "Acceso a Tests" y su modal.
+- Quitada columna "Acceso directo" de tabla de participantes.
+- Tabla con scroll interno (`max-h-[60vh]`, header sticky).
+- Botón ojo abre Drawer con detalles y respuestas del participante.
+
+### UI general
+- Sidebar sin scrollbar visible.
+- Tooltips en todas las métricas de Cognitive Task Results.
+- Ranking card: labels más anchos, Mean "—" sin datos, sin números repetidos.
+- Módulos huérfanos (`stage_id IS NULL`) excluidos de Cognitive Task Results.
 
 ---
 

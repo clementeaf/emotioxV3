@@ -74,7 +74,7 @@ export const ChoiceQuestionCard = ({
               <div key={option.id} className="flex flex-col">
                 <div className="flex justify-between mb-2">
                   <span className="text-sm font-medium text-gray-900">{option.text}</span>
-                  <span className="text-sm font-medium text-gray-900">{option.percentage}%</span>
+                  <span className="text-sm font-medium text-gray-900 cursor-help" title="Percentage of participants who selected this option">{option.percentage}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                   <div
@@ -96,7 +96,7 @@ export const ChoiceQuestionCard = ({
           <div>
             <h3 className="text-base font-medium text-gray-700 mb-1">Responses</h3>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900">{totalResponses.toLocaleString()}</span>
+              <span className="text-3xl font-bold text-gray-900 cursor-help" title="Total number of participants who answered this question">{totalResponses.toLocaleString()}</span>
             </div>
           </div>
         </div>

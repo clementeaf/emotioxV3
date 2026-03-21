@@ -15,6 +15,7 @@ export const getCognitiveTaskResults = async (researchId: string) => {
     SELECT id, name, description, config
     FROM modules
     WHERE research_id = ?
+      AND stage_id IS NOT NULL
     ORDER BY order_index
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
@@ -520,7 +521,7 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
 
 const getModuleResponses = async (researchId: string, moduleId: string) => {
   const query = `
-    SELECT 
+    SELECT
       r.component_id,
       r.value,
       r.metadata,
@@ -532,7 +533,13 @@ const getModuleResponses = async (researchId: string, moduleId: string) => {
   `;
 
   const result = await pool.query(query, [researchId, moduleId]);
-  return result.rows;
+  return result.rows.map(row => ({
+    componentId: row.component_id,
+    value: row.value,
+    metadata: row.metadata,
+    createdAt: row.created_at,
+    participantId: row.participant_id,
+  }));
 };
 
 // ==========================================
@@ -540,7 +547,47 @@ const getModuleResponses = async (researchId: string, moduleId: string) => {
 // ==========================================
 
 export const getSmartVOCResults = async (researchId: string) => {
-  // Note: module discovery is done implicitly via the responses query below
+  // Extract question texts from SmartVOC module configs
+  const modulesQuery = `
+    SELECT m.id, m.name, m.config
+    FROM modules m
+    LEFT JOIN stages s ON s.id = m.stage_id
+    WHERE m.research_id = ?
+      AND (
+        s.name LIKE '%smart voc%'
+        OR m.name LIKE '%csat%'
+        OR m.name LIKE '%nps%'
+        OR m.name LIKE '%ces%'
+        OR m.name LIKE '%cv%'
+        OR m.name LIKE '%nev%'
+        OR m.name LIKE '%voc%'
+      )
+  `;
+  const modulesResult = await pool.query(modulesQuery, [researchId]);
+  const questionTexts: Record<string, string> = {};
+  for (const mod of modulesResult.rows) {
+    const key = mod.name.toLowerCase();
+    try {
+      const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+      const structure = config?.structure ?? config;
+      const type =
+        key.includes('csat') ? 'csat' :
+        key.includes('ces') ? 'ces' :
+        key.includes('nps') ? 'nps' :
+        key.includes('cv') && !key.includes('nev') ? 'cv' :
+        key.includes('nev') ? 'nev' :
+        key.includes('voc') ? 'voc' : null;
+      if (!type) continue;
+      // SmartVOC modules use {type}-title (e.g. csat-title), Cognitive uses question-title
+      const titleComponent = structure?.components?.find((c: { id: string }) =>
+        c.id === `${type}-title` || c.id === 'question-title'
+      );
+      const text = titleComponent?.value || titleComponent?.placeholder?.text || '';
+      if (text) {
+        questionTexts[type] = text;
+      }
+    } catch { /* ignore */ }
+  }
 
   // Get all responses for SmartVOC modules
   const responsesQuery = `
@@ -719,7 +766,8 @@ export const getSmartVOCResults = async (researchId: string) => {
     monthlyNPSData,
     monthlyMetricsData,
     emotionalStates,
-    nevResponsesData
+    nevResponsesData,
+    questionTexts
   };
 };
 

@@ -51,7 +51,7 @@ export const QuestionCard = ({
       {/* Header with title and badges */}
       <div className="mb-6">
         <div className="flex items-start justify-between mb-3">
-          <h3 className="text-base font-medium text-gray-900">{questionNumber} - Question: {title}</h3>
+          <h3 className="text-base font-medium text-gray-900">{questionNumber} - {title}</h3>
           <button className="text-gray-400 hover:text-gray-600">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
@@ -170,7 +170,6 @@ export const QuestionCard = ({
           <Target className="w-4 h-4 text-purple-600" />
         </div>
         <div>
-          <div className="text-sm font-medium text-gray-900 mb-1">{title}'s question</div>
           <p className="text-sm text-gray-500">{questionText}</p>
         </div>
       </div>

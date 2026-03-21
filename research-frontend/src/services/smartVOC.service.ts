@@ -84,6 +84,7 @@ export interface SmartVOCAnalytics {
         cpv: number;
     }>;
     emotionalStates: Record<string, number>;
+    questionTexts?: Record<string, string>;
 }
 
 /**

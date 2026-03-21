@@ -1,9 +1,9 @@
 import { Target } from 'lucide-react';
 import {
-  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -193,7 +193,7 @@ export const NPSAnalysis = ({
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-lg font-semibold">{questionNumber}- Question: {title || 'Net Promoter Score (NPS)'}</h3>
+              <h3 className="text-lg font-semibold">{questionNumber}- {title || 'NPS'}</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               {badges.map((badge, index) => (
@@ -206,7 +206,6 @@ export const NPSAnalysis = ({
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Responses</span>
             <span className="text-2xl font-semibold">{totalResponses.toLocaleString()}</span>
-            <span className="text-sm text-gray-500">26s</span>
           </div>
         </div>
 
@@ -242,8 +241,7 @@ export const NPSAnalysis = ({
             <Target className="w-4 h-4 text-purple-600" />
           </div>
           <div className="flex-1">
-            <div className="text-sm font-medium text-gray-900 mb-1">{title || 'NPS'}'s question</div>
-            <p className="text-sm text-gray-500">{questionText || "On a scale from 0-10, how likely are you to recommend [company] to a friend or colleague?"}</p>
+            <p className="text-sm text-gray-500">{questionText}</p>
           </div>
           <div className="ml-4">
             <NPSCircularProgress value={score} size={96} strokeWidth={8} />
@@ -257,12 +255,6 @@ export const NPSAnalysis = ({
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={filteredMonthlyData} margin={{ top: 10, right: 10, bottom: 20, left: 40 }} barGap={0}>
-              <defs>
-                <linearGradient id="npsGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366F1" stopOpacity={0.5} />
-                  <stop offset="95%" stopColor="#6366F1" stopOpacity={0.1} />
-                </linearGradient>
-              </defs>
               <CartesianGrid
                 strokeDasharray="3 3"
                 vertical={false}
@@ -309,14 +301,14 @@ export const NPSAnalysis = ({
                 stackId="nps"
                 radius={[0, 0, 0, 0]}
               />
-              <Area
-                type="natural"
+              <Line
+                type="monotone"
                 dataKey="npsRatio"
                 name="NPS Ratio"
-                stroke="#4F46E5"
+                stroke="#3B82F6"
                 strokeWidth={3}
-                fill="url(#npsGradient)"
-                fillOpacity={1}
+                dot={{ r: 4, fill: '#3B82F6', stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
               />
             </ComposedChart>
           </ResponsiveContainer>

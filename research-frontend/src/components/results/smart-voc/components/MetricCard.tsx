@@ -25,6 +25,19 @@ interface MetricCardProps {
   className?: string;
 }
 
+const getLineLabels = (cardType: string) => {
+  switch (cardType) {
+    case 'Customer Satisfaction':
+      return { positive: 'Satisfied', negative: 'Dissatisfied' };
+    case 'Customer Effort Score':
+      return { positive: 'Little effort', negative: 'Much effort' };
+    case 'Cognitive Value':
+      return { positive: 'Worth', negative: 'Worthless' };
+    default:
+      return { positive: 'Positive', negative: 'Negative' };
+  }
+};
+
 interface TooltipProps {
   active?: boolean;
   payload?: Array<{
@@ -58,20 +71,7 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
 };
 
 const CustomLegend = ({ cardType }: { cardType: string }) => {
-  const getLegendLabels = () => {
-    switch (cardType) {
-      case 'Customer Satisfaction':
-        return { positive: 'Satisfied', negative: 'Dissatisfied' };
-      case 'Customer Effort Score':
-        return { positive: 'Little effort', negative: 'Much effort' };
-      case 'Cognitive Value':
-        return { positive: 'Worth', negative: 'Worthless' };
-      default:
-        return { positive: 'Positive', negative: 'Negative' };
-    }
-  };
-
-  const labels = getLegendLabels();
+  const labels = getLineLabels(cardType);
 
   return (
     <div className="flex gap-4 mt-2">
@@ -105,6 +105,7 @@ export const MetricCard = ({
   monthlyData,
   className
 }: MetricCardProps) => {
+  const labels = getLineLabels(title);
   const chartData = monthlyData && monthlyData.length > 0
     ? monthlyData.map(d => {
         const dt = new Date(d.date + 'T00:00:00');
@@ -180,7 +181,7 @@ export const MetricCard = ({
             <Line
               type="monotone"
               dataKey="satisfied"
-              name="Satisfied"
+              name={labels.positive}
               stroke="#22c55e"
               strokeWidth={2}
               dot={{ r: 4, fill: '#22c55e', stroke: '#fff', strokeWidth: 2 }}
@@ -192,7 +193,7 @@ export const MetricCard = ({
             <Line
               type="monotone"
               dataKey="dissatisfied"
-              name="Dissatisfied"
+              name={labels.negative}
               stroke="#ef4444"
               strokeWidth={2}
               dot={{ r: 4, fill: '#ef4444', stroke: '#fff', strokeWidth: 2 }}

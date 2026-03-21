@@ -53,27 +53,21 @@ function normalizeEmotionKey(key: string): string {
     .replace(/[\u0302\u0303\u0308]/g, '');
 }
 
+export type TimeRange = 'today' | 'week' | 'month' | '6months' | '12months';
+
+const RANGE_DAYS: Record<TimeRange, number> = { today: 0, week: 7, month: 30, '6months': 180, '12months': 365 };
+
 /** Filter timestamped items by time range */
 function filterByTimeRange<T extends { date: string }>(
   items: T[],
-  range: 'today' | 'week' | 'month'
+  range: TimeRange
 ): T[] {
   if (!items || items.length === 0) return [];
   const now = new Date();
-  let cutoff: Date;
-  switch (range) {
-    case 'today':
-      cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      break;
-    case 'week':
-      cutoff = new Date(now);
-      cutoff.setDate(cutoff.getDate() - 7);
-      break;
-    case 'month':
-      cutoff = new Date(now);
-      cutoff.setDate(cutoff.getDate() - 30);
-      break;
-  }
+  const days = RANGE_DAYS[range];
+  const cutoff = days === 0
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    : new Date(now.getTime() - days * 86_400_000);
   return items.filter(item => new Date(item.date) >= cutoff);
 }
 
@@ -90,7 +84,7 @@ function computeEmotionalStates(nevResponses: Array<{ emotions: string[]; date: 
 }
 
 export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps) => {
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today');
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const { data, isLoading, error, refetch, isLive } = useSmartVOCAnalytics(researchId);
 
   // Demographic filters state (same pattern as CognitiveTaskResults)
@@ -138,24 +132,90 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     return items.filter((item) => item.participantId && filteredParticipantIds.has(item.participantId));
   };
 
-  // Trust Flow chart data (separate from filtered metrics)
+  // Trust Flow chart data — computed from filtered individual scores (not pre-aggregated backend data)
   const trustFlowDailyData = useMemo(() => {
-    return (data?.timeSeriesData || []).map(item => ({
-      stage: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      nps: item.nps,
-      nev: item.nev,
-      timestamp: item.date
-    }));
-  }, [data?.timeSeriesData]);
+    if (!data) return [];
+    const npsScores = filterByParticipant(data.metrics.npsScores || []);
+    const nevResponses = filterByParticipant(data.nevResponsesData || []);
+    // Group by day
+    const byDay = new Map<string, { npsVals: number[]; nevPositive: number; nevNegative: number; nevTotal: number }>();
+    npsScores.forEach(s => {
+      const dayKey = new Date(s.date).toISOString().split('T')[0];
+      if (!byDay.has(dayKey)) byDay.set(dayKey, { npsVals: [], nevPositive: 0, nevNegative: 0, nevTotal: 0 });
+      byDay.get(dayKey)!.npsVals.push(s.value);
+    });
+    nevResponses.forEach(r => {
+      const dayKey = new Date(r.date).toISOString().split('T')[0];
+      if (!byDay.has(dayKey)) byDay.set(dayKey, { npsVals: [], nevPositive: 0, nevNegative: 0, nevTotal: 0 });
+      const bucket = byDay.get(dayKey)!;
+      r.emotions.forEach((e: string) => {
+        const key = normalizeEmotionKey(e);
+        if (NEV_EMOTIONS.find(ne => ne.id === key)?.isPositive) bucket.nevPositive++;
+        else bucket.nevNegative++;
+        bucket.nevTotal++;
+      });
+    });
+    return Array.from(byDay.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dayKey, { npsVals, nevPositive, nevNegative, nevTotal }]) => {
+        const p = npsVals.filter(v => v >= 9).length;
+        const d = npsVals.filter(v => v <= 6).length;
+        const nps = npsVals.length > 0 ? Math.round(((p - d) / npsVals.length) * 100) : 0;
+        const nev = nevTotal > 0 ? Math.round(((nevPositive - nevNegative) / nevTotal) * 100) : 0;
+        return {
+          stage: new Date(dayKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          nps,
+          nev,
+          timestamp: dayKey,
+        };
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, filteredParticipantIds]);
 
   const trustFlowIntradayData = useMemo(() => {
-    return (data?.intradayTimeSeriesData || []).map(item => ({
-      stage: item.label,
-      nps: item.nps,
-      nev: item.nev,
-      timestamp: item.date
-    }));
-  }, [data?.intradayTimeSeriesData]);
+    if (!data) return [];
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const npsScores = filterByParticipant(data.metrics.npsScores || []).filter(s => new Date(s.date) >= todayStart);
+    const nevResponses = filterByParticipant(data.nevResponsesData || []).filter(r => new Date(r.date) >= todayStart);
+    // Group into 30-min intervals
+    const bySlot = new Map<number, { npsVals: number[]; nevPositive: number; nevNegative: number; nevTotal: number }>();
+    const toSlot = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return Math.floor((d.getHours() * 60 + d.getMinutes()) / 30);
+    };
+    npsScores.forEach(s => {
+      const slot = toSlot(s.date);
+      if (!bySlot.has(slot)) bySlot.set(slot, { npsVals: [], nevPositive: 0, nevNegative: 0, nevTotal: 0 });
+      bySlot.get(slot)!.npsVals.push(s.value);
+    });
+    nevResponses.forEach(r => {
+      const slot = toSlot(r.date);
+      if (!bySlot.has(slot)) bySlot.set(slot, { npsVals: [], nevPositive: 0, nevNegative: 0, nevTotal: 0 });
+      const bucket = bySlot.get(slot)!;
+      r.emotions.forEach((e: string) => {
+        const key = normalizeEmotionKey(e);
+        if (NEV_EMOTIONS.find(ne => ne.id === key)?.isPositive) bucket.nevPositive++;
+        else bucket.nevNegative++;
+        bucket.nevTotal++;
+      });
+    });
+    return Array.from(bySlot.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([slot, { npsVals, nevPositive, nevNegative, nevTotal }]) => {
+        const h = Math.floor((slot * 30) / 60);
+        const m = (slot * 30) % 60;
+        const label = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const p = npsVals.filter(v => v >= 9).length;
+        const d = npsVals.filter(v => v <= 6).length;
+        const nps = npsVals.length > 0 ? Math.round(((p - d) / npsVals.length) * 100) : 0;
+        const nev = nevTotal > 0 ? Math.round(((nevPositive - nevNegative) / nevTotal) * 100) : 0;
+        const slotDate = new Date(todayStart);
+        slotDate.setMinutes(slot * 30);
+        return { stage: label, nps, nev, timestamp: slotDate.toISOString() };
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, filteredParticipantIds]);
 
   // ========== DEMOGRAPHIC + TIME-RANGE FILTERED DATA ==========
   // All 5 panels use this filtered data instead of raw all-time data
@@ -213,13 +273,12 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
   const hasNPS = hasScores(data?.metrics.npsScores);
   const hasVOC = data?.vocResponses && data.vocResponses.length > 0;
 
-  // Build MetricCard chart data: group filtered scores by day (today/week) or use monthly (month)
+  // Build MetricCard chart data: group filtered scores by day for all time ranges
   const buildChartData = (
     scores: Array<{ value: number; date: string; participantId?: string }>,
     positiveFn: (v: number) => boolean,
     negativeFn: (v: number) => boolean
   ) => {
-    if (timeRange === 'month') return null; // use monthlyMetricsData below
     const filtered2 = filterByTimeRange(filterByParticipant(scores), timeRange);
     const byDay = new Map<string, number[]>();
     filtered2.forEach(s => {
@@ -236,12 +295,9 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       }));
   };
 
-  const csatChartData = buildChartData(data?.metrics.csatScores || [], v => v >= 4, v => v <= 2)
-    ?? (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.csatSatisfied, dissatisfied: m.csatDissatisfied }));
-  const cesChartData = buildChartData(data?.metrics.cesScores || [], v => v <= 2, v => v >= 4)
-    ?? (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cesPositive, dissatisfied: m.cesNegative }));
-  const cvChartData = buildChartData(data?.metrics.cvScores || [], v => v >= 4, v => v <= 2)
-    ?? (data?.monthlyMetricsData || []).map(m => ({ date: m.date, satisfied: m.cvPositive, dissatisfied: m.cvNegative }));
+  const csatChartData = buildChartData(data?.metrics.csatScores || [], v => v >= 4, v => v <= 2);
+  const cesChartData = buildChartData(data?.metrics.cesScores || [], v => v <= 2, v => v >= 4);
+  const cvChartData = buildChartData(data?.metrics.cvScores || [], v => v >= 4, v => v <= 2);
 
   // Filter visible metric cards — scores from filtered data
   const visibleMetricCards = [
@@ -256,6 +312,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     'grid-cols-1 md:grid-cols-3';
 
   // Generate question cards — all using filtered data
+  const qt = data?.questionTexts || {};
   let questionCounter = 0;
   const questionCards = [];
 
@@ -265,8 +322,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       <QuestionCard
         key="csat-detail"
         questionNumber={`2.${questionCounter}`}
-        title="Customer Satisfaction Score (CSAT)"
-        questionText="How satisfied are you with our service?"
+        title="CSAT"
+        questionText={qt.csat || 'How satisfied are you with our service?'}
         score={Math.round(calculateCSAT(filtered?.csatValues))}
         responses={filtered?.csatValues?.length || 0}
         breakdown={[
@@ -284,14 +341,14 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       <QuestionCard
         key="ces-detail"
         questionNumber={`2.${questionCounter}`}
-        title="Customer Effort Score (CES)"
-        questionText="How easy was it to use our service?"
+        title="CES"
+        questionText={qt.ces || 'How easy was it to use our service?'}
         score={Math.round(calculateCES(filtered?.cesValues))}
         responses={filtered?.cesValues?.length || 0}
         breakdown={[
-          { label: 'Easy', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score >= 4), color: 'bg-green-500' },
+          { label: 'Little effort', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score <= 2), color: 'bg-green-500' },
           { label: 'Neutral', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score === 3), color: 'bg-gray-400' },
-          { label: 'Difficult', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score <= 2), color: 'bg-red-500' }
+          { label: 'Much effort', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score >= 4), color: 'bg-red-500' }
         ]}
       />
     );
@@ -303,8 +360,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       <QuestionCard
         key="cv-detail"
         questionNumber={`2.${questionCounter}`}
-        title="Cognitive Value (CV)"
-        questionText="How valuable do you find our service?"
+        title="CV"
+        questionText={qt.cv || 'How valuable do you find our service?'}
         score={Math.round(calculateCV(filtered?.cvValues))}
         responses={filtered?.cvValues?.length || 0}
         breakdown={[
@@ -379,37 +436,31 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
 
   if (hasNPS) {
     questionCounter++;
-    // Adaptar datos según rango
-    let npsChartData: Array<{ month: string; promoters: number; neutrals: number; detractors: number; npsRatio: number; date?: string }> = [];
-    if (timeRange === 'month') {
-      npsChartData = data?.monthlyNPSData || [];
-    } else {
-      // Agrupar scores filtrados por demografía + tiempo
-      const filteredScores = filterByTimeRange(filterByParticipant(data?.metrics.npsScores || []), timeRange);
-      const byDay = new Map<string, number[]>();
-      filteredScores.forEach(item => {
-        const dayKey = new Date(item.date).toDateString();
-        if (!byDay.has(dayKey)) byDay.set(dayKey, []);
-        byDay.get(dayKey)!.push(item.value);
+    // Agrupar scores filtrados por demografía + tiempo (all ranges use filtered individual scores)
+    const filteredScores = filterByTimeRange(filterByParticipant(data?.metrics.npsScores || []), timeRange);
+    const byDay = new Map<string, number[]>();
+    filteredScores.forEach(item => {
+      const dayKey = new Date(item.date).toDateString();
+      if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+      byDay.get(dayKey)!.push(item.value);
+    });
+    const npsChartData = Array.from(byDay.entries())
+      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+      .map(([dayKey, scores]) => {
+        const p = scores.filter(s => s >= 9).length;
+        const n = scores.filter(s => s >= 7 && s <= 8).length;
+        const d = scores.filter(s => s <= 6).length;
+        const total = p + n + d || 1;
+        const nps = scores.length > 0 ? Math.round(((p - d) / scores.length) * 100) : 0;
+        return {
+          month: new Date(dayKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          promoters: Math.round((p / total) * 100),
+          neutrals: Math.round((n / total) * 100),
+          detractors: Math.round((d / total) * 100),
+          npsRatio: nps,
+          date: dayKey
+        };
       });
-      npsChartData = Array.from(byDay.entries())
-        .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-        .map(([dayKey, scores]) => {
-          const p = scores.filter(s => s >= 9).length;
-          const n = scores.filter(s => s >= 7 && s <= 8).length;
-          const d = scores.filter(s => s <= 6).length;
-          const total = p + n + d || 1;
-          const nps = scores.length > 0 ? Math.round(((p - d) / scores.length) * 100) : 0;
-          return {
-            month: new Date(dayKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            promoters: Math.round((p / total) * 100),
-            neutrals: Math.round((n / total) * 100),
-            detractors: Math.round((d / total) * 100),
-            npsRatio: nps,
-            date: dayKey
-          };
-        });
-    }
     questionCards.push(
       <NPSAnalysis
         key="nps-detail"
@@ -419,9 +470,9 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         neutrals={filtered?.neutrals || 0}
         detractors={filtered?.detractors || 0}
         totalResponses={filtered?.npsValues?.length || 0}
-        questionText="On a scale from 0-10, how likely are you to recommend [company] to a friend or colleague?"
+        questionText={qt.nps || 'On a scale from 0-10, how likely are you to recommend us to a friend or colleague?'}
         questionNumber={`2.${questionCounter}`}
-        title="Net Promoter Score (NPS)"
+        title="NPS"
       />
     );
   }
@@ -432,7 +483,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       <VOCComments
         key="voc-detail"
         questionNumber={`2.${questionCounter}`}
-        questionText="Voice of Customer (VOC)"
+        questionText={qt.voc || 'Voice of Customer'}
         comments={filtered?.vocComments || []}
         researchId={researchId}
         cognitiveExportRows={filtered?.vocExportRows}
@@ -460,19 +511,25 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm pb-3 mb-4">
           <div className="flex items-center gap-4">
             <CPVCard value={filtered?.cpvValue || 0} />
-            <div className="flex gap-4">
-              {(['today', 'week', 'month'] as const).map(range => (
+            <div className="flex gap-2">
+              {([
+                { value: 'today' as const, label: 'Today' },
+                { value: 'week' as const, label: 'Week' },
+                { value: 'month' as const, label: 'Month' },
+                { value: '6months' as const, label: '6M' },
+                { value: '12months' as const, label: '12M' },
+              ]).map(({ value, label }) => (
                 <button
-                  key={range}
-                  onClick={() => setTimeRange(range)}
+                  key={value}
+                  onClick={() => setTimeRange(value)}
                   className={cn(
                     'px-3 py-1.5 text-sm rounded-full transition-colors',
-                    timeRange === range
+                    timeRange === value
                       ? 'bg-blue-600 text-white font-medium'
                       : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                   )}
                 >
-                  {range === 'today' ? 'Today' : range === 'week' ? 'Week' : 'Month'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -485,7 +542,6 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
             dailyData={trustFlowDailyData}
             intradayData={trustFlowIntradayData}
             timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
           />
         </div>
 

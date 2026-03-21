@@ -78,7 +78,7 @@ export const StandardSidebar = () => {
             </div>
 
             {/* Navigation Items */}
-            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide min-h-0">
                 {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path ||

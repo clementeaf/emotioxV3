@@ -120,7 +120,7 @@ export const LinearScaleQuestionCard = ({
                     }}
                   />
                 </div>
-                <span className="text-sm font-semibold text-gray-900 w-12 text-right shrink-0">
+                <span className="text-sm font-semibold text-gray-900 w-12 text-right shrink-0 cursor-help" title="Percentage of participants who selected this value">
                   {option.percentage}%
                 </span>
               </div>
@@ -134,7 +134,7 @@ export const LinearScaleQuestionCard = ({
           <div>
             <h3 className="text-base font-medium text-gray-700 mb-1">Responses</h3>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900">{totalResponses.toLocaleString()}</span>
+              <span className="text-3xl font-bold text-gray-900 cursor-help" title="Total number of participants who answered this question">{totalResponses.toLocaleString()}</span>
             </div>
           </div>
         </div>

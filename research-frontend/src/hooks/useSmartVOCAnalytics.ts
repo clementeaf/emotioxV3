@@ -24,7 +24,8 @@ const mapToAnalytics = (results: analyticsService.SmartVOCResults): SmartVOCAnal
     nevResponsesData: results.nevResponsesData,
     monthlyNPSData: results.monthlyNPSData,
     monthlyMetricsData: results.monthlyMetricsData,
-    emotionalStates: results.emotionalStates
+    emotionalStates: results.emotionalStates,
+    questionTexts: results.questionTexts
 });
 
 /**
