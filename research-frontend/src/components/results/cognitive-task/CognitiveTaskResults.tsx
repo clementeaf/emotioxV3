@@ -27,6 +27,7 @@ interface ModuleData {
     participantId: string;
     value?: string | unknown;
     responseData?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
     moduleId?: string;
     createdAt: string;
   }>;
@@ -151,7 +152,8 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           .map((r): TextResponseFormatted | null => {
             try {
               const value = typeof r.value === 'string' ? r.value : JSON.stringify(r.value);
-              return { text: value, mood: '' };
+              const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+              return { text: value, mood: meta?.sentiment || '' };
             } catch {
               return null;
             }

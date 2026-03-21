@@ -548,13 +548,25 @@ const getModuleResponses = async (researchId: string, moduleId: string) => {
   `;
 
   const result = await pool.query(query, [researchId, moduleId]);
-  return result.rows.map(row => ({
-    componentId: row.component_id,
-    value: row.value,
-    metadata: row.metadata,
-    createdAt: row.created_at,
-    participantId: row.participant_id,
-  }));
+  const { analyzeSentiment } = await import('../sentiment/sentiment.service');
+
+  return result.rows.map(row => {
+    const meta = typeof row.metadata === 'string' ? (() => { try { return JSON.parse(row.metadata); } catch { return {}; } })() : (row.metadata ?? {});
+    // Compute sentiment on-the-fly for text responses without stored sentiment
+    if ((row.component_id === 'answer' || row.component_id === 'text') && !meta.sentiment) {
+      const text = typeof row.value === 'string' ? row.value : '';
+      if (text.trim().length > 0) {
+        meta.sentiment = analyzeSentiment(text).sentiment;
+      }
+    }
+    return {
+      componentId: row.component_id,
+      value: row.value,
+      metadata: meta,
+      createdAt: row.created_at,
+      participantId: row.participant_id,
+    };
+  });
 };
 
 // ==========================================

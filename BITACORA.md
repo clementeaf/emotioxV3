@@ -36,15 +36,21 @@
 - Nuevo módulo `sentiment/sentiment.service.ts` — lexicon bilingüe ES/EN (~220 palabras por idioma).
 - Soporta negación ("no me gusta" → negativo) e intensificadores ("muy bueno" → reforzado).
 - Se aplica al guardar respuestas de texto (Short/Long Text, VOC) → `metadata.sentiment`.
-- Analytics lee sentiment guardado o lo computa on-the-fly para datos existentes.
-- Frontend muestra badges de color en VOCComments.
+- `getModuleResponses` computa on-the-fly para datos existentes sin sentiment.
+- Frontend: badges de color en VOCComments + tab "Sentiment Analysis" con barras de distribución reales (reemplaza texto hardcodeado).
+- Cognitive Task Short/Long Text lee `metadata.sentiment` para columna mood.
+
+### Heatmap overhaul (v0.34.0)
+- Renderer custom reemplazado por `simpleheat` (librería probada, misma que usa Leaflet).
+- Estilo Hotjar: imagen + capa oscura 55% + gradiente verde→amarillo→rojo→blanco.
+- Radio auto-escalado según tamaño de imagen.
 
 ### UI general
 - Sidebar sin scrollbar visible, sin título de research duplicado.
 - Tooltips en todas las métricas de Cognitive Task Results.
 - Ranking card: labels más anchos, Mean "—" sin datos, sin números repetidos.
 - Módulos huérfanos (`stage_id IS NULL`) excluidos de Cognitive Task Results.
-- Quitados: banner "Update graph" en Navigation Flow, botones de acciones sin función, icono filtro en AOI cards.
+- Quitados: banner "Update graph", botones de acciones sin función, icono filtro en AOI.
 - Imágenes Navigation Flow limitadas a 400px.
 
 ---

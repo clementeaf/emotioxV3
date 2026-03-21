@@ -298,47 +298,54 @@ export const VOCComments = ({
 
           {/* Tab Content */}
           <div className="p-6 h-[380px] overflow-y-auto">
-            {activeTab === 'sentiment' && (
-              <div className="space-y-4">
-                <h4 className="text-base font-semibold">Sentiment analysis</h4>
-                
-                {selectedComments.length > 0 && comments.length > 0 ? (
-                  <div className="space-y-6">
-                    <div className="prose prose-sm max-w-none">
-                      <p className="text-gray-700">
-                        Then I explore the nature of cognitive developmental improvements in working memory, 
-                        the role of working memory in learning, and some potential implications of working memory 
-                        and its development for the education of children and adults.
-                      </p>
-                      <p className="text-gray-700 mt-4">
-                        The use of working memory is quite ubiquitous in human thought, but the best way to improve 
-                        education using what we know about working memory is still controversial. I hope to provide 
-                        some directions for research and educational practice.
-                      </p>
-                    </div>
+            {activeTab === 'sentiment' && (() => {
+              const positiveCount = comments.filter(c => c.mood === 'positive' || c.mood === 'Positive' || c.mood === 'green').length;
+              const negativeCount = comments.filter(c => c.mood === 'negative').length;
+              const neutralCount = comments.filter(c => c.mood === 'neutral').length;
+              const indeterminateCount = comments.filter(c => !c.mood || c.mood === 'indeterminate' || c.mood === '').length;
+              const total = comments.length;
 
-                    <div className="mt-6">
-                      <h5 className="text-sm font-semibold mb-3">Accionables:</h5>
-                      <div className="text-sm text-gray-700 space-y-2">
-                        <p>Using what we know about working memory is still controversial.</p>
-                        <p className="mt-2">
-                          I hope to provide some directions for research and educational practice.
-                        </p>
+              return (
+                <div className="space-y-4">
+                  <h4 className="text-base font-semibold">Sentiment analysis</h4>
+
+                  {total > 0 ? (
+                    <div className="space-y-5">
+                      {/* Distribution bars */}
+                      {[
+                        { label: 'Positive', count: positiveCount, color: 'bg-green-500', textColor: 'text-green-700' },
+                        { label: 'Negative', count: negativeCount, color: 'bg-red-500', textColor: 'text-red-700' },
+                        { label: 'Neutral', count: neutralCount, color: 'bg-gray-400', textColor: 'text-gray-600' },
+                        { label: 'Indeterminate', count: indeterminateCount, color: 'bg-yellow-400', textColor: 'text-yellow-700' },
+                      ].map(({ label, count, color, textColor }) => (
+                        <div key={label}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className={cn('font-medium', textColor)}>{label}</span>
+                            <span className="text-gray-500">{count} ({total > 0 ? Math.round((count / total) * 100) : 0}%)</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div className={cn('h-2 rounded-full transition-all', color)} style={{ width: `${total > 0 ? (count / total) * 100 : 0}%` }} />
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="pt-3 border-t text-xs text-gray-400">
+                        {total} responses analyzed
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="w-6 h-6 text-gray-400" />
+                  ) : (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center">
+                        <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+                          <User className="w-6 h-6 text-gray-400" />
+                        </div>
+                        <p className="text-sm text-gray-500">No responses to analyze</p>
                       </div>
-                      <p className="text-sm text-gray-500">Select comments to view sentiment analysis</p>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })()}
 
             {activeTab === 'themes' && (
               <div className="flex items-center justify-center h-64">

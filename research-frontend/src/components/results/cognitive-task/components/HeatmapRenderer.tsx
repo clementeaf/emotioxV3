@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import simpleheat from 'simpleheat';
 
 interface HeatmapPoint {
     x: number;
@@ -20,7 +21,6 @@ export const HeatmapRenderer = ({
     imageUrl,
     data,
     className = '',
-    radius = 30
 }: HeatmapRendererProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -42,22 +42,66 @@ export const HeatmapRenderer = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Load image fully before drawing
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.src = imageUrl;
         img.onload = () => {
-            canvas.width = naturalSize.width;
-            canvas.height = naturalSize.height;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const w = naturalSize.width;
+            const h = naturalSize.height;
+            canvas.width = w;
+            canvas.height = h;
 
-            // Draw background image
+            // 1. Draw background image
             ctx.drawImage(img, 0, 0);
 
-            drawHeatmapOverlay(ctx, canvas, naturalSize, data, radius);
+            // 2. Dark overlay (~55% black)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            ctx.fillRect(0, 0, w, h);
+
+            // 3. Draw heatmap on a separate canvas, then composite
+            const heatCanvas = document.createElement('canvas');
+            heatCanvas.width = w;
+            heatCanvas.height = h;
+
+            const heat = simpleheat(heatCanvas);
+
+            // Radius scales with image size
+            const r = Math.max(10, Math.round(Math.min(w, h) * 0.04));
+            heat.radius(r, r * 0.7);
+
+            // Hotjar-style gradient: green → yellow → red
+            heat.gradient({
+                0.15: '#0f0',
+                0.35: '#8f0',
+                0.5: '#ff0',
+                0.7: '#f80',
+                0.85: '#f00',
+                1.0: '#fff',
+            });
+
+            // Convert data points to [x, y, intensity]
+            const points: Array<[number, number, number]> = data.map(point => {
+                let x = point.x;
+                let y = point.y;
+                if (x > 1 && y > 1) {
+                    x = (x / 100) * w;
+                    y = (y / 100) * h;
+                } else if (x <= 1 && y <= 1) {
+                    x *= w;
+                    y *= h;
+                }
+                return [x, y, 1];
+            });
+
+            heat.data(points);
+            heat.max(Math.max(3, Math.ceil(points.length * 0.05)));
+            heat.draw(0.05);
+
+            // 4. Composite heatmap over the darkened image
+            ctx.drawImage(heatCanvas, 0, 0);
         };
 
-    }, [imageLoaded, naturalSize, data, imageUrl, radius]);
+    }, [imageLoaded, naturalSize, data, imageUrl]);
 
     if (!imageUrl) return <div className="bg-gray-200 h-64 flex items-center justify-center">No Image URL</div>;
 
@@ -76,95 +120,3 @@ export const HeatmapRenderer = ({
         </div>
     );
 };
-
-function drawHeatmapOverlay(
-    ctx: CanvasRenderingContext2D,
-    canvas: HTMLCanvasElement,
-    naturalSize: { width: number; height: number },
-    data: Array<{ x: number; y: number; value?: number; isCorrect?: boolean; timestamp?: number }>,
-    radius: number
-) {
-        // --- Heatmap with intensity overlay (alpha channel) ---
-        // 1. Build an intensity map on an offscreen canvas (grayscale, additive)
-        const offscreen = document.createElement('canvas');
-        offscreen.width = canvas.width;
-        offscreen.height = canvas.height;
-        const offCtx = offscreen.getContext('2d')!;
-
-        data.forEach(point => {
-            let x = point.x;
-            let y = point.y;
-
-            if (x > 1 && y > 1) {
-                x = (x / 100) * naturalSize.width;
-                y = (y / 100) * naturalSize.height;
-            } else if (x <= 1 && y <= 1) {
-                x *= naturalSize.width;
-                y *= naturalSize.height;
-            }
-
-            // Additive white circle — overlapping circles accumulate intensity
-            const gradient = offCtx.createRadialGradient(x, y, 0, x, y, radius);
-            gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
-            offCtx.globalCompositeOperation = 'lighter';
-            offCtx.fillStyle = gradient;
-            offCtx.beginPath();
-            offCtx.arc(x, y, radius, 0, 2 * Math.PI);
-            offCtx.fill();
-        });
-
-        // 2. Read the intensity map and colorize: blue→purple→red→yellow→white
-        const intensityData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
-        const colorized = ctx.createImageData(canvas.width, canvas.height);
-
-        for (let i = 0; i < intensityData.data.length; i += 4) {
-            const intensity = intensityData.data[i]; // R channel (white circles → R=G=B)
-            if (intensity === 0) continue; // transparent where no clicks
-
-            // Map intensity 0-255 to heatmap gradient: blue → purple → red → yellow → white
-            let r: number, g: number, b: number;
-            const t = intensity / 255;
-
-            if (t < 0.25) {
-                // Blue → Purple
-                const p = t / 0.25;
-                r = Math.round(80 * p);
-                g = 0;
-                b = Math.round(180 + 75 * p);
-            } else if (t < 0.5) {
-                // Purple → Red
-                const p = (t - 0.25) / 0.25;
-                r = Math.round(80 + 175 * p);
-                g = 0;
-                b = Math.round(255 - 255 * p);
-            } else if (t < 0.75) {
-                // Red → Yellow
-                const p = (t - 0.5) / 0.25;
-                r = 255;
-                g = Math.round(200 * p);
-                b = 0;
-            } else {
-                // Yellow → White
-                const p = (t - 0.75) / 0.25;
-                r = 255;
-                g = Math.round(200 + 55 * p);
-                b = Math.round(80 * p);
-            }
-
-            colorized.data[i] = r;
-            colorized.data[i + 1] = g;
-            colorized.data[i + 2] = b;
-            colorized.data[i + 3] = Math.round(128); // 50% alpha
-        }
-
-        // 3. Draw colorized overlay on top of the image
-        const overlayCanvas = document.createElement('canvas');
-        overlayCanvas.width = canvas.width;
-        overlayCanvas.height = canvas.height;
-        const overlayCtx = overlayCanvas.getContext('2d')!;
-        overlayCtx.putImageData(colorized, 0, 0);
-
-        ctx.drawImage(overlayCanvas, 0, 0);
-}
