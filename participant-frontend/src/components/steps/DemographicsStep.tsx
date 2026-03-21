@@ -30,7 +30,7 @@ interface DemographicConfig {
 }
 
 const DEMOGRAPHIC_ORDER = [
-    'age', 'gender', 'country', 'educationLevel', 'annualIncome',
+    'age', 'country', 'gender', 'educationLevel', 'annualIncome',
     'employmentStatus', 'dailyHoursOnline', 'technicalProficiency',
 ];
 
@@ -69,14 +69,9 @@ const optionToLabel = (o: string | Record<string, unknown>): string => {
 const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[] => {
     // validValues is the canonical list of ALL options (qualifying + disqualifying)
     // that the participant should see. Prefer it over modal-specific fields.
-    // Sort age ranges by leading number for natural display order.
+    // Preserve the order defined by the researcher.
     if (key === 'age') {
-        const ages = cfg.validValues ?? cfg.validAges ?? [];
-        return [...ages].sort((a, b) => {
-            const numA = parseInt(a.replace('+', ''));
-            const numB = parseInt(b.replace('+', ''));
-            return (isNaN(numA) ? 999 : numA) - (isNaN(numB) ? 999 : numB);
-        });
+        return cfg.validValues ?? cfg.validAges ?? [];
     }
     if (key === 'country') {
         return cfg.validValues ?? cfg.validCountries ?? [];

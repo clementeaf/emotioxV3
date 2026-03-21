@@ -5,7 +5,7 @@
  * que es diferente a los otros modales demográficos.
  */
 
-import { Edit2, Plus, Save, Trash2, X as XIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, Edit2, Plus, Save, Trash2, X as XIcon } from 'lucide-react';
 import React from 'react';
 
 interface AgeOption {
@@ -93,6 +93,16 @@ export function AgeOptionsTab({
     setOptions(prev => prev.filter(option => option.id !== id));
   };
 
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    setOptions(prev => {
+      const next = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
+  };
+
   return (
     <>
       <p className="text-gray-600 mb-6">
@@ -101,7 +111,7 @@ export function AgeOptionsTab({
 
       {/* Lista de opciones */}
       <div className="space-y-3 mb-6">
-        {options.map((option) => (
+        {options.map((option, index) => (
           <div
             key={option.id}
             className={`flex items-center gap-2 p-3 rounded-lg border ${
@@ -170,6 +180,26 @@ export function AgeOptionsTab({
                   </button>
                 </>
               )}
+
+              {/* Reordenar */}
+              <div className="flex flex-col gap-0.5">
+                <button
+                  onClick={() => handleMove(index, 'up')}
+                  disabled={index === 0}
+                  className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Subir"
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  onClick={() => handleMove(index, 'down')}
+                  disabled={index === options.length - 1}
+                  className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Bajar"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
 
               {/* Acciones */}
               {editingOption === option.id ? (

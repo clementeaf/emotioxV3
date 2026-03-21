@@ -1,3 +1,25 @@
+## v0.35.0 — Duplicate modules fix, age reorder, UX polish (2026-03-21)
+
+### participant-frontend
+- Fix: Duplicate modules (Navigation Flow, Preference Test, Ranking, etc.) now coexist — uses module UUID as step key instead of name-based key. Previously the second module overwrote the first.
+- Fix: Ranking modules not appearing — `isModuleConfigured` now handles `{items: [...]}` object format in addition to direct arrays.
+- Fix: Age range options now preserve the order defined by the researcher (removed numeric sort).
+- Fix: Demographic question order matches research-frontend (`age, country, gender, ...` instead of `age, gender, country, ...`).
+- Fix: Demographic labels aligned with research-frontend — "Age Range", "Country & Geography", "Annual Income" (EN); "Rango de Edad", "País y Geografía", "Ingreso Anual" (ES).
+- UI: Emotion selector uses flat 4-column grid (mobile) / 7-column (desktop) instead of separated 3-row layout.
+- UI: Ranking items — removed drag handle icon (hamburger), participants reorder with arrow buttons only.
+- UI: NavigationFlow in preview mode — Esc key or click on dark area to skip step.
+- UI: DevSidebar updated to support UUID-based step keys with proper grouping and ordering.
+
+### research-frontend
+- Feat: Age Range options reorderable with up/down arrows in config modal. Order preserved through save → backend → participant.
+- Feat: Filters column in SmartVOC and Cognitive Task Results is now sticky with `max-h-700px` scrollable.
+- Feat: SmartVOC Results layout restructured — filters column is outside the scrollable content area so it stays visible.
+- Feat: AOI labels simplified to `AOI #1`, `AOI #2`, etc. instead of "Area of Interest (AOI)".
+- UI: AOI overlay text shows only label and percentage (removed participant count from overlay).
+
+---
+
 ## v0.34.0 — Sentiment analysis, heatmap overhaul, UI cleanup (2026-03-21)
 
 ### backend

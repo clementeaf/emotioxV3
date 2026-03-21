@@ -25,11 +25,11 @@
     "title": "Datos Demográficos",
     "subtitle": "Por favor responde las siguientes preguntas para continuar.",
     "labels": {
-      "age": "Edad",
-      "country": "País",
+      "age": "Rango de Edad",
+      "country": "País y Geografía",
       "gender": "Género",
       "educationLevel": "Nivel Educacional",
-      "annualIncome": "Ingreso Familiar",
+      "annualIncome": "Ingreso Anual",
       "employmentStatus": "Situación Laboral",
       "dailyHoursOnline": "Horas Diarias en Línea",
       "technicalProficiency": "Competencia Técnica"

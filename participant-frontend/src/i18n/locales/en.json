@@ -25,11 +25,11 @@
     "title": "Demographics",
     "subtitle": "Please answer the following questions to proceed.",
     "labels": {
-      "age": "Age",
-      "country": "Country",
+      "age": "Age Range",
+      "country": "Country & Geography",
       "gender": "Gender",
       "educationLevel": "Education Level",
-      "annualIncome": "Household Income",
+      "annualIncome": "Annual Income",
       "employmentStatus": "Employment Status",
       "dailyHoursOnline": "Daily Hours Online",
       "technicalProficiency": "Technical Proficiency"

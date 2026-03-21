@@ -815,10 +815,11 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                 <AgeConfigModal
                     isOpen={true}
                     onClose={() => setActiveConfigModal(null)}
-                    onSave={(validAges, disqualifyingAges) => {
+                    onSave={(validAges, disqualifyingAges, orderedAll) => {
                         handleSaveDemographicConfig({
                             validAges,
-                            disqualifyingAges
+                            disqualifyingAges,
+                            orderedAll
                         });
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('age', quotas)}
@@ -829,6 +830,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                         return (demographics.age?.validValues || []).filter((v: string) => !disqValues.has(v));
                     })()}
                     initialDisqualifyingAges={demographics.age?.disqualifyingAges ?? (demographics.age?.disqualifications || []).map((d: BackendQuota) => d.value)}
+                    initialOrder={demographics.age?.validValues}
                     initialQuotas={mapBackendQuotasToModal(demographics.age?.quotas, 'ageRange')}
                     quotasEnabled={isQuotasEnabled('age')}
                 />

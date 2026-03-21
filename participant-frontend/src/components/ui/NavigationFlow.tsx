@@ -12,6 +12,7 @@ import { mediaService } from '../../services/media.service';
 // - containerRect/renderedRect are kept in state to avoid reading getBoundingClientRect during render.
 // - onError clears dimensions so we never use stale values from a failed/previous image.
 import { useResponse } from '../../hooks/useResponse';
+import { usePreviewMode } from '../../hooks/usePreviewMode';
 
 interface ClickPoint {
     x: number;
@@ -106,6 +107,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     onComplete
 }) => {
     const { t } = useTranslation();
+    const { isPreviewMode } = usePreviewMode();
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
     const [isComplete, setIsComplete] = useState(false);
@@ -118,6 +120,19 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     const [imgNatural, setImgNatural] = useState<{ width: number; height: number } | null>(null);
     /** Dedupe pointerup + click so we only advance once per interaction (Opera and others fire both). */
     const lastHandledAtRef = useRef<number>(0);
+
+    // Preview mode: Esc key to skip
+    useEffect(() => {
+        if (!isPreviewMode || isComplete) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setIsComplete(true);
+                onComplete?.();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPreviewMode, isComplete, onComplete]);
     /** Count failed clicks on current image — after 3 misses the flow auto-completes. */
     const MAX_ATTEMPTS_PER_IMAGE = 3;
     const [failedClicks, setFailedClicks] = useState(0);
@@ -467,10 +482,23 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         <div
             className="fixed inset-0 z-40 bg-black flex flex-col"
             style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+            onClick={(e) => {
+                if (!isPreviewMode || isComplete) return;
+                // Skip if click is on the image itself (let handleImageClick handle it)
+                if (imgElRef.current && imgElRef.current.contains(e.target as Node)) return;
+                // Click on any dark area (header, sides, etc.) → skip
+                setIsComplete(true);
+                onComplete?.();
+            }}
         >
             {/* Title and instructions above the image so hitzones at the top remain clickable */}
             {!isComplete && (
                 <div className="flex-shrink-0 bg-black px-4 pt-4 pb-3">
+                    {isPreviewMode && (
+                        <span className="absolute top-4 right-4 z-50 text-white/50 text-xs">
+                            Press Esc or click dark area to skip
+                        </span>
+                    )}
                     {title && (
                         <h2 className="text-lg md:text-xl font-semibold text-white text-center">{title}</h2>
                     )}

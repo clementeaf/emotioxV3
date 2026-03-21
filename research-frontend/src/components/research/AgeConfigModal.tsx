@@ -33,11 +33,13 @@ interface AgeQuota {
 interface AgeConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (validAges: string[], disqualifyingAges: string[]) => void;
+  onSave: (validAges: string[], disqualifyingAges: string[], orderedAll: string[]) => void;
   onQuotasSave?: (quotas: AgeQuota[]) => void;
   onQuotasToggle?: (enabled: boolean) => void;
   initialValidAges?: string[];
   initialDisqualifyingAges?: string[];
+  /** Ordered list of all enabled options (qualifying + disqualifying) to preserve researcher order on reopen */
+  initialOrder?: string[];
   initialQuotas?: AgeQuota[];
   quotasEnabled?: boolean;
 }
@@ -81,6 +83,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
   onQuotasToggle,
   initialValidAges = [],
   initialDisqualifyingAges = [],
+  initialOrder,
   initialQuotas = [],
   quotasEnabled = false
 }) => {
@@ -103,34 +106,58 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const allInitialAges = [...initialValidAges, ...initialDisqualifyingAges];
-      const initialOptions = PREDEFINED_OPTIONS.map(option => ({
-        ...option,
-        isDisqualifying: initialDisqualifyingAges.includes(option.label),
-        isEnabled: allInitialAges.includes(option.label),
-        isEditing: false
-      }));
+      const allEnabledSet = new Set([...initialValidAges, ...initialDisqualifyingAges]);
+      const disqualifyingSet = new Set(initialDisqualifyingAges);
 
-      const customOptions = [
-        ...initialValidAges.filter(
-          age => !PREDEFINED_OPTIONS.find(p => p.label === age)
-        ),
-        ...initialDisqualifyingAges.filter(
-          age => !PREDEFINED_OPTIONS.find(p => p.label === age)
-        )
-      ].map(age => ({
-        id: `custom-${Date.now()}-${Math.random()}`,
-        label: age,
-        isDisqualifying: initialDisqualifyingAges.includes(age),
-        isEnabled: true,
+      const makeOption = (label: string, id: string): AgeOption => ({
+        id,
+        label,
+        isDisqualifying: disqualifyingSet.has(label),
+        isEnabled: allEnabledSet.has(label),
         isEditing: false
-      }));
+      });
 
-      setAgeOptions([...initialOptions, ...customOptions]);
+      // If we have a saved order, reconstruct options in that order
+      if (initialOrder && initialOrder.length > 0) {
+        const ordered: AgeOption[] = [];
+        const seen = new Set<string>();
+
+        // 1. Add enabled options in the saved order
+        for (const label of initialOrder) {
+          seen.add(label);
+          const predefined = PREDEFINED_OPTIONS.find(p => p.label === label);
+          ordered.push(makeOption(label, predefined?.id ?? `custom-${Date.now()}-${Math.random()}`));
+        }
+
+        // 2. Add disabled predefined options that weren't in the saved order
+        for (const p of PREDEFINED_OPTIONS) {
+          if (!seen.has(p.label)) {
+            ordered.push(makeOption(p.label, p.id));
+          }
+        }
+
+        setAgeOptions(ordered);
+      } else {
+        // First time: predefined options + custom options
+        const initialOptions = PREDEFINED_OPTIONS.map(option =>
+          makeOption(option.label, option.id)
+        );
+
+        const customLabels = [...initialValidAges, ...initialDisqualifyingAges]
+          .filter(age => !PREDEFINED_OPTIONS.find(p => p.label === age));
+        const uniqueCustom = [...new Set(customLabels)];
+
+        const customOptions = uniqueCustom.map(age =>
+          makeOption(age, `custom-${Date.now()}-${Math.random()}`)
+        );
+
+        setAgeOptions([...initialOptions, ...customOptions]);
+      }
+
       setNewOption('');
       setEditingOption(null);
     }
-  }, [isOpen, initialValidAges, initialDisqualifyingAges]);
+  }, [isOpen, initialValidAges, initialDisqualifyingAges, initialOrder]);
 
   const handleAddOption = () => {
     if (newOption.trim()) {
@@ -147,15 +174,20 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
   };
 
   const handleSave = () => {
-    const validAges = ageOptions
-      .filter(option => option.isEnabled && !option.isDisqualifying)
+    // Preserve the order defined by the researcher for all enabled options
+    const enabledInOrder = ageOptions.filter(option => option.isEnabled);
+
+    const validAges = enabledInOrder
+      .filter(option => !option.isDisqualifying)
       .map(option => option.label);
 
-    const disqualifyingAges = ageOptions
-      .filter(option => option.isEnabled && option.isDisqualifying)
+    const disqualifyingAges = enabledInOrder
+      .filter(option => option.isDisqualifying)
       .map(option => option.label);
 
-    onSave(validAges, disqualifyingAges);
+    // Pass the full ordered list so the mapper preserves the researcher's order
+    const orderedAll = enabledInOrder.map(option => option.label);
+    onSave(validAges, disqualifyingAges, orderedAll);
 
     if (quotaConfig.quotasEnabled && onQuotasSave) {
       const ageQuotas = quotaConfig.quotas.map(mapBaseToAgeQuota);

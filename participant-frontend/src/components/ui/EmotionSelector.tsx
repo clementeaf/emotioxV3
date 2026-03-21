@@ -60,56 +60,53 @@ export const EmotionSelector: React.FC<EmotionSelectorProps> = ({ value, onChang
         onChange(newValue);
     };
 
+    const allEmotions = EMOTIONS.flat();
+
     return (
-        <div className="w-full space-y-4">
-            {EMOTIONS.map((row) => (
-                <div
-                    key={row.map((emotion) => emotion.id).join('-')}
-                    className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5"
-                >
-                    {row.map((emotion) => {
-                        const isSelected = value.includes(emotion.id);
-                        const isDisabled = !isSelected && typeof maxSelections === 'number' && value.length >= maxSelections;
+        <div className="w-full">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-1.5">
+                {allEmotions.map((emotion) => {
+                    const isSelected = value.includes(emotion.id);
+                    const isDisabled = !isSelected && typeof maxSelections === 'number' && value.length >= maxSelections;
 
-                        return (
-                            <button
-                                key={emotion.id}
-                                type="button"
-                                disabled={isDisabled}
-                                onClick={() => toggleEmotion(emotion.id)}
-                                className="relative px-1 py-1.5 rounded-md border-2 text-[10px] sm:text-xs font-medium transition-all min-h-[36px] flex items-center justify-center text-center disabled:cursor-not-allowed disabled:opacity-60"
-                                style={{
-                                    backgroundColor: emotion.color,
-                                    borderColor: isSelected ? '#3b82f6' : '#d1d5db',
-                                    color: '#1f2937',
-                                    boxShadow: isSelected ? '0 0 0 2px rgba(59, 130, 246, 0.3)' : 'none',
-                                }}
-                            >
-                                <span className="leading-tight break-words w-full">
-                                    {emotion.name}
-                                </span>
+                    return (
+                        <button
+                            key={emotion.id}
+                            type="button"
+                            disabled={isDisabled}
+                            onClick={() => toggleEmotion(emotion.id)}
+                            className="relative px-1 py-1.5 rounded-md border-2 text-[10px] sm:text-xs font-medium transition-all min-h-[36px] flex items-center justify-center text-center disabled:cursor-not-allowed disabled:opacity-60"
+                            style={{
+                                backgroundColor: emotion.color,
+                                borderColor: isSelected ? '#3b82f6' : '#d1d5db',
+                                color: '#1f2937',
+                                boxShadow: isSelected ? '0 0 0 2px rgba(59, 130, 246, 0.3)' : 'none',
+                            }}
+                        >
+                            <span className="leading-tight break-words w-full">
+                                {emotion.name}
+                            </span>
 
-                                {/* Checkmark */}
-                                {isSelected && (
-                                    <div className="absolute top-0.5 right-0.5">
-                                        <svg
-                                            className="w-3 h-3 text-blue-600"
-                                            fill="currentColor"
-                                            viewBox="0 0 20 20"
-                                        >
-                                            <path
-                                                fillRule="evenodd"
-                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                clipRule="evenodd"
-                                            />
-                                        </svg>
-                                    </div>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-            ))}
+                            {/* Checkmark */}
+                            {isSelected && (
+                                <div className="absolute top-0.5 right-0.5">
+                                    <svg
+                                        className="w-3 h-3 text-blue-600"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                    >
+                                        <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                        />
+                                    </svg>
+                                </div>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 };

@@ -447,9 +447,10 @@ export const NavigationTestCard = ({
       );
     }).length;
     const percentage = totalParticipants > 0 ? Math.round((participantsInside / totalParticipants) * 100) : 0;
+    const existingCount = (aoiMap[stepNumber] || []).length;
     const aoi: AOI = {
       id: `aoi_${crypto.randomUUID()}`,
-      label: `Area of Interest (AOI)`,
+      label: `AOI #${existingCount + 1}`,
       x: rect.x,
       y: rect.y,
       width: rect.w,
@@ -710,7 +711,7 @@ export const NavigationTestCard = ({
                                     x={aoi.x + 0.5} y={aoi.y + 2.5}
                                     fill="#1D4ED8" fontSize="2.5" fontWeight="bold"
                                   >
-                                    {aoi.label} — {aoi.percentage}% ({aoi.participantCount})
+                                    {aoi.label} — {aoi.percentage}%
                                   </text>
                                 </g>
                               ))}
@@ -853,8 +854,7 @@ export const NavigationTestCard = ({
 
                             {/* Label + number */}
                             <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                              <span className="text-sm text-gray-700">{aoi.label}</span>
-                              <span className="text-sm font-semibold text-gray-900">#{idx + 1}</span>
+                              <span className="text-sm font-medium text-gray-900">{aoi.label}</span>
                             </div>
 
                             {/* Percentage */}

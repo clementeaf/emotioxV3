@@ -8,6 +8,7 @@ interface DevSidebarProps {
     isOpen: boolean;
     onToggle: () => void;
     modules?: Record<string, ModuleConfig>; // Optional: actual modules from backend
+    stepsOrder?: string[];
     isPreviewMode?: boolean;
 }
 
@@ -22,65 +23,57 @@ function getModuleDisplayName(moduleKey: string, moduleName: string): string {
         welcome: 'Welcome',
         demographics: 'Demographics',
         'thank-you': 'Thank You',
-        csat: 'CSAT',
-        nps: 'NPS',
-        ces: 'CES',
-        cv: 'CV',
-        nev: 'NEV',
-        voc: 'VOC',
-        'short-text': 'Short Text',
-        'long-text': 'Long Text',
-        'single-choice': 'Single Choice',
-        'multiple-choice': 'Multiple Choice',
-        'linear-scale': 'Linear Scale',
-        'ranking': 'Ranking',
-        'navigation-flow': 'Navigation Flow',
-        'preference-test': 'Preference Test'
     };
 
     return displayNames[moduleKey] || moduleName;
 }
 
-/**
- * Agrupa los módulos por etapas
- * @param modules - Objeto con todos los módulos
- * @returns Array de grupos con sus módulos
- */
-function getGroupedModules(modules: Record<string, ModuleConfig>): { title: string; items: [string, ModuleConfig][] }[] {
-    const groups = [
-        {
-            title: 'General',
-            keys: ['welcome', 'demographics']
-        },
-        {
-            title: 'SmartVOC',
-            keys: ['csat', 'nps', 'ces', 'cv', 'nev', 'voc']
-        },
-        {
-            title: 'Cognitive Tasks',
-            keys: ['short-text', 'long-text', 'single-choice', 'multiple-choice', 'linear-scale', 'ranking', 'navigation-flow', 'preference-test']
-        },
-        {
-            title: 'Conclusion',
-            keys: ['thank-you']
-        }
-    ];
+const SMARTVOC_NAMES = new Set(['CSAT', 'NPS', 'CES', 'CV', 'NEV', 'VOC']);
+const COGNITIVE_NAMES = new Set(['Short Text', 'Long Text', 'Single Choice', 'Multiple Choice', 'Linear Scale', 'Ranking', 'Navigation Flow', 'Preference Test']);
 
-    return groups.map(group => ({
-        title: group.title,
-        items: group.keys
-            .filter(key => modules[key])
-            .map(key => [key, modules[key]] as [string, ModuleConfig])
-    }));
+function getModuleGroup(key: string, mod: ModuleConfig): 'general' | 'smartvoc' | 'cognitive' | 'conclusion' {
+    if (key === 'welcome' || key === 'demographics') return 'general';
+    if (key === 'thank-you') return 'conclusion';
+    const name = mod.name || '';
+    if (SMARTVOC_NAMES.has(name) || [...SMARTVOC_NAMES].some(s => name.includes(s))) return 'smartvoc';
+    if (COGNITIVE_NAMES.has(name)) return 'cognitive';
+    return 'cognitive'; // default for unknown module types
 }
 
-export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, modules, isPreviewMode }) => {
+/**
+ * Agrupa los módulos por etapas.
+ * Supports both name-based keys (welcome, demographics, thank-you) and UUID keys.
+ */
+function getGroupedModules(modules: Record<string, ModuleConfig>, stepsOrder?: string[]): { title: string; items: [string, ModuleConfig][] }[] {
+    const groups: Record<string, { title: string; items: [string, ModuleConfig][] }> = {
+        general: { title: 'General', items: [] },
+        smartvoc: { title: 'SmartVOC', items: [] },
+        cognitive: { title: 'Cognitive Tasks', items: [] },
+        conclusion: { title: 'Conclusion', items: [] },
+    };
+
+    // Use stepsOrder to maintain correct ordering, fallback to Object.keys
+    const keys = stepsOrder && stepsOrder.length > 0
+        ? stepsOrder.filter(k => modules[k])
+        : Object.keys(modules);
+
+    for (const key of keys) {
+        const mod = modules[key];
+        if (!mod) continue;
+        const group = getModuleGroup(key, mod);
+        groups[group].items.push([key, mod]);
+    }
+
+    return Object.values(groups);
+}
+
+export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, modules, stepsOrder, isPreviewMode }) => {
     const { currentStep, setCurrentStep } = useParticipantStore();
     const { getSessionSummary } = useSessionStore();
 
     // Use actual modules from backend if provided, otherwise fall back to mocks
     const activeModules = modules && Object.keys(modules).length > 0 ? modules : MOCK_MODULES;
-    const groupedModules = useMemo(() => getGroupedModules(activeModules), [activeModules]);
+    const groupedModules = useMemo(() => getGroupedModules(activeModules, stepsOrder), [activeModules, stepsOrder]);
     const sessionSummary = getSessionSummary();
 
     // Calculate global index for numbering

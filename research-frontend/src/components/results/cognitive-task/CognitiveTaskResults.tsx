@@ -291,7 +291,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           </div>
 
           {/* Right: Filters Sidebar */}
-          <div className="w-80 shrink-0">
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
             <Filters
               researchId={researchId}
               demographicData={demographicData}

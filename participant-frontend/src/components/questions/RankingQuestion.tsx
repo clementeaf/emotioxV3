@@ -132,13 +132,6 @@ export const RankingQuestion = ({
                             }
                         `}
                     >
-                        {/* Drag handle — 3 stacked lines */}
-                        <div className="text-gray-400">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" d="M4 8h16M4 12h16M4 16h16" />
-                            </svg>
-                        </div>
-
                         {/* Rank number */}
                         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm">
                             {index + 1}

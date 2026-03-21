@@ -85,7 +85,9 @@ const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9
 export function mapAgeConfigToBackend(
     validAges: string[],
     disqualifyingAges: string[],
-    quotas?: ModalAgeQuota[]
+    quotas?: ModalAgeQuota[],
+    /** All enabled options in the order defined by the researcher */
+    orderedAll?: string[]
 ): BackendDemographicConfig {
     // Convert disqualifying ages to disqualifications
     const disqualifications: BackendDisqualification[] = disqualifyingAges.map(age => ({
@@ -127,12 +129,8 @@ export function mapAgeConfigToBackend(
     // validValues includes ALL enabled options (qualifying + disqualifying)
     // so participants see the full range. Backend checkDisqualifications()
     // blocks those who pick a disqualifying option.
-    // Sort by the leading number so age ranges display in natural order.
-    const allValues = [...validAges, ...disqualifyingAges].sort((a, b) => {
-        const numA = parseInt(a.replace('+', ''));
-        const numB = parseInt(b.replace('+', ''));
-        return (isNaN(numA) ? 999 : numA) - (isNaN(numB) ? 999 : numB);
-    });
+    // Use orderedAll (researcher's order) when available, fallback to concatenation.
+    const allValues = orderedAll ?? [...validAges, ...disqualifyingAges];
 
     return {
         enabled: true,
@@ -294,7 +292,8 @@ export function mapModalConfigToBackend(
             return mapAgeConfigToBackend(
                 (modalData.validAges as string[]) || [],
                 (modalData.disqualifyingAges as string[]) || [],
-                modalData.quotas as ModalAgeQuota[] | undefined
+                modalData.quotas as ModalAgeQuota[] | undefined,
+                modalData.orderedAll as string[] | undefined
             );
 
         case 'country':

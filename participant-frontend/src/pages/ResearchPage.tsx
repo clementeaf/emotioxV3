@@ -151,7 +151,7 @@ const isModuleConfigured = (module: Module): boolean => {
 
   // For Ranking: requires items component with items configured
   if (module.name === 'Ranking') {
-    const itemsComponent = components.find(c => 
+    const itemsComponent = components.find(c =>
       c.id === 'items' || (c.id === 'ranking-slider' && c.type === 'select')
     );
     if (!itemsComponent) return false;
@@ -159,12 +159,17 @@ const isModuleConfigured = (module: Module): boolean => {
     // Check if items component has value with actual items
     if (itemsComponent.value) {
       try {
-        const parsed = typeof itemsComponent.value === 'string' 
-          ? JSON.parse(itemsComponent.value) 
+        const parsed = typeof itemsComponent.value === 'string'
+          ? JSON.parse(itemsComponent.value)
           : itemsComponent.value;
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        // Value can be an array directly or an object { items: [...] }
+        const itemsArray = Array.isArray(parsed) ? parsed
+          : (parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown }).items))
+            ? (parsed as { items: unknown[] }).items
+            : null;
+        if (itemsArray && itemsArray.length > 0) {
           // Check if items have labels (not just default template values)
-          const hasConfiguredItems = parsed.some((item: unknown) => {
+          const hasConfiguredItems = itemsArray.some((item: unknown) => {
             if (typeof item === 'object' && item !== null) {
               const itemObj = item as { label?: string; id?: string };
               return Boolean(itemObj.label && itemObj.label.trim() && itemObj.label !== 'Item 1' && itemObj.label !== 'Item 2' && itemObj.label !== 'Item 3');
@@ -653,10 +658,13 @@ export const ResearchPage = () => {
             const normalizedModule = normalizeModule(module);
             if (isModuleHidden(normalizedModule)) return;
             if (!isModuleConfigured(normalizedModule)) return;
-            const stepId = getStepIdFromModuleName(normalizedModule.name);
-            if (!stepId) return;
+            const nameBasedId = getStepIdFromModuleName(normalizedModule.name);
+            if (!nameBasedId) return;
+            // Special steps (welcome, demographics, thank-you) keep their fixed stepId.
+            // All other modules use their unique module.id so duplicates don't collide.
+            const isSpecial = nameBasedId === 'welcome' || nameBasedId === 'demographics' || nameBasedId === 'thank-you';
+            const stepId = isSpecial ? nameBasedId : normalizedModule.id;
             modulesMap[stepId] = normalizedModule;
-            // Add to dynamic order (avoid duplicates — welcome/thank-you/demographics are special)
             if (!dynamicOrder.includes(stepId)) {
               dynamicOrder.push(stepId);
             }
@@ -1156,6 +1164,7 @@ export const ResearchPage = () => {
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           modules={modules}
+          stepsOrder={stepsOrder}
           isPreviewMode={isPreviewMode}
         />
       )}

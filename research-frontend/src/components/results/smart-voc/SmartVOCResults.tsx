@@ -506,56 +506,56 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
           </p>
         </div>
       )}
-      <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
-        {/* Sticky top bar: CPV + Time Range Selector */}
-        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm pb-3 mb-4">
-          <div className="flex items-center gap-4">
-            <CPVCard value={filtered?.cpvValue || 0} />
-            <div className="flex gap-2">
-              {([
-                { value: 'today' as const, label: 'Today' },
-                { value: 'week' as const, label: 'Week' },
-                { value: 'month' as const, label: 'Month' },
-                { value: '6months' as const, label: '6M' },
-                { value: '12months' as const, label: '12M' },
-              ]).map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => setTimeRange(value)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm rounded-full transition-colors',
-                    timeRange === value
-                      ? 'bg-blue-600 text-white font-medium'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+      <div className={cn('flex gap-6', className)}>
+        {/* Left: Main scrollable content */}
+        <div className="flex-1 max-h-[calc(100vh-9rem)] overflow-y-auto">
+          {/* Sticky top bar: CPV + Time Range Selector */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm pb-3 mb-4">
+            <div className="flex items-center gap-4">
+              <CPVCard value={filtered?.cpvValue || 0} />
+              <div className="flex gap-2">
+                {([
+                  { value: 'today' as const, label: 'Today' },
+                  { value: 'week' as const, label: 'Week' },
+                  { value: 'month' as const, label: 'Month' },
+                  { value: '6months' as const, label: '6M' },
+                  { value: '12months' as const, label: '12M' },
+                ]).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTimeRange(value)}
+                    className={cn(
+                      'px-3 py-1.5 text-sm rounded-full transition-colors',
+                      timeRange === value
+                        ? 'bg-blue-600 text-white font-medium'
+                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Trust Flow Chart — full width */}
-        <div className="mb-6">
-          <TrustFlowChart
-            dailyData={trustFlowDailyData}
-            intradayData={trustFlowIntradayData}
-            timeRange={timeRange}
-          />
-        </div>
-
-        {/* Metrics Cards: Only show cards with data */}
-        {visibleMetricCards.length > 0 && (
-          <div className={cn('grid gap-6 mb-6', gridColsClass)}>
-            {visibleMetricCards.map(card => card.component)}
+          {/* Trust Flow Chart — full width */}
+          <div className="mb-6">
+            <TrustFlowChart
+              dailyData={trustFlowDailyData}
+              intradayData={trustFlowIntradayData}
+              timeRange={timeRange}
+            />
           </div>
-        )}
 
-        {/* Main Content + Sidebar */}
-        <div className="flex gap-6">
-          <div className="flex-1 space-y-6">
-            {/* Question Cards: Only show cards with data */}
+          {/* Metrics Cards: Only show cards with data */}
+          {visibleMetricCards.length > 0 && (
+            <div className={cn('grid gap-6 mb-6', gridColsClass)}>
+              {visibleMetricCards.map(card => card.component)}
+            </div>
+          )}
+
+          {/* Question Cards */}
+          <div className="space-y-6">
             {questionCards.length > 0 ? (
               questionCards
             ) : (
@@ -564,17 +564,18 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
               </div>
             )}
           </div>
+        </div>
 
-          <div className="w-80 shrink-0">
-            <Filters
-              researchId={researchId}
-              demographicData={demographicData}
-              selectedFilters={demographicFilters}
-              onFilterChange={setDemographicFilters}
-              userIdFilter={userIdFilter}
-              onUserIdFilterChange={setUserIdFilter}
-            />
-          </div>
+        {/* Right: Filters — fixed column */}
+        <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+          <Filters
+            researchId={researchId}
+            demographicData={demographicData}
+            selectedFilters={demographicFilters}
+            onFilterChange={setDemographicFilters}
+            userIdFilter={userIdFilter}
+            onUserIdFilterChange={setUserIdFilter}
+          />
         </div>
       </div>
     </ResultsStateHandler>
