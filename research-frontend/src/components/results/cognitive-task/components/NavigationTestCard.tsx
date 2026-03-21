@@ -111,7 +111,7 @@ const QuantityMapperTab = ({ step }: { step: NavigationStep }) => {
 
   return (
     <div className="space-y-3">
-      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
+      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]">
         <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {gridData.cells.map((count, idx) => {
@@ -199,7 +199,7 @@ const ScanPathTab = ({ step }: { step: NavigationStep }) => {
 
   return (
     <div className="space-y-3">
-      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
+      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]">
         <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {/* Defs for arrow markers */}
@@ -601,16 +601,6 @@ export const NavigationTestCard = ({
                     )}
                   </div>
 
-                  {/* Update Banner */}
-                  <div className="p-3 bg-purple-50 border-b border-purple-200 flex items-center justify-between">
-                    <span className="text-sm text-purple-900">
-                      New data was obtained. Please update graph
-                    </span>
-                    <button className="px-3 py-1 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                      Update
-                    </button>
-                  </div>
-
                   {/* Tabs */}
                   <div className="border-b bg-white">
                     <div className="flex items-center gap-1 px-4">
@@ -674,7 +664,7 @@ export const NavigationTestCard = ({
                         {step.imageUrl ? (
                           <div
                             ref={aoiContainerRef}
-                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto', drawingAoi && 'cursor-crosshair')}
+                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]', drawingAoi && 'cursor-crosshair')}
                             onMouseDown={drawingAoi ? (e) => {
                               const container = aoiContainerRef.current;
                               if (!container) return;
@@ -768,7 +758,7 @@ export const NavigationTestCard = ({
                     {activeTab === 'click-map' && (
                       <>
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit max-w-full mx-auto">
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]">
                             <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
                             {/* Render individual clicks as dots */}
                             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -815,7 +805,7 @@ export const NavigationTestCard = ({
                     {activeTab === 'image' && (
                       <>
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit max-w-full mx-auto">
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto max-w-[400px]">
                             <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
                           </div>
                         ) : (
@@ -877,13 +867,6 @@ export const NavigationTestCard = ({
                               </svg>
                               <span className="text-sm">{String(aoi.participantCount).padStart(2, '0')}</span>
                             </div>
-
-                            {/* Filter icon (placeholder for future filtering) */}
-                            <button type="button" className="text-gray-400 hover:text-gray-600" title="Filter by this AOI">
-                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-                              </svg>
-                            </button>
 
                             {/* Remove */}
                             <button

@@ -259,7 +259,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       csatValues, cesValues, cvValues, npsValues,
       promoters, neutrals, detractors, npsScore, cpvValue,
       emotionalStates,
-      vocComments: vocFiltered.map(v => ({ text: v.text, mood: v.sentiment || 'Positive' })),
+      vocComments: vocFiltered.map(v => ({ text: v.text, mood: v.sentiment || 'indeterminate' })),
       vocExportRows: vocFiltered.map(v => ({ participantId: v.participantId ?? '', text: v.text, mood: v.sentiment })),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filterByParticipant depends on filteredParticipantIds

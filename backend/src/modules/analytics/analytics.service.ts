@@ -188,12 +188,27 @@ export const getTextResponses = async (researchId: string, moduleId: string) => 
 
   const result = await pool.query(query, [researchId, moduleId]);
 
-  const responses = result.rows.map(row => ({
-    participantId: row.participant_id,
-    text: typeof row.value === 'string' ? row.value : JSON.stringify(row.value),
-    metadata: row.metadata,
-    createdAt: row.created_at,
-  }));
+  const { analyzeSentiment } = await import('../sentiment/sentiment.service');
+
+  const responses = result.rows.map(row => {
+    const text = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
+    // Read sentiment from metadata or compute
+    let sentiment: string | undefined;
+    try {
+      const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+      sentiment = meta?.sentiment;
+    } catch { /* ignore */ }
+    if (!sentiment && text.trim().length > 0) {
+      sentiment = analyzeSentiment(text).sentiment;
+    }
+    return {
+      participantId: row.participant_id,
+      text,
+      sentiment,
+      metadata: row.metadata,
+      createdAt: row.created_at,
+    };
+  });
 
   return {
     totalResponses: responses.length,
@@ -625,8 +640,9 @@ export const getSmartVOCResults = async (researchId: string) => {
   const vocResponses: Array<{ text: string; sentiment?: string; participantId: string; createdAt: string }> = [];
   const emotionalStates: Record<string, number> = {};
   const nevResponsesData: Array<{ emotions: string[]; date: string; participantId: string }> = [];
+  const { analyzeSentiment: analyzeSentimentFn } = await import('../sentiment/sentiment.service');
 
-  responsesResult.rows.forEach((row) => {
+  for (const row of responsesResult.rows) {
     const moduleName = row.module_name.toLowerCase();
     const value = typeof row.value === 'string' ? row.value : JSON.stringify(row.value);
 
@@ -692,8 +708,18 @@ export const getSmartVOCResults = async (researchId: string) => {
       }
       // VOC (text responses)
       else if (moduleName.includes('voc')) {
+        // Read sentiment from metadata (saved at response time) or compute on the fly
+        let sentiment: string | undefined;
+        try {
+          const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+          sentiment = meta?.sentiment;
+        } catch { /* ignore */ }
+        if (!sentiment && value.trim().length > 0) {
+          sentiment = analyzeSentimentFn(value).sentiment;
+        }
         vocResponses.push({
           text: value,
+          sentiment,
           participantId: row.participant_id,
           createdAt: row.created_at
         });
@@ -701,7 +727,7 @@ export const getSmartVOCResults = async (researchId: string) => {
     } catch (error) {
       console.error('Error processing SmartVOC response:', error);
     }
-  });
+  }
 
   // Calculate metrics — extract raw values for aggregate calculations
   const totalResponses = responsesResult.rows.length;

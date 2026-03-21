@@ -228,12 +228,16 @@ export const VOCComments = ({
                     <td className="p-3">
                       {comment.mood && (
                         <span className={cn(
-                          'text-sm font-medium',
-                          comment.mood === 'Positive' ? 'text-green-600' :
-                          comment.mood === 'green' ? 'text-green-600' :
-                          'text-gray-600'
+                          'text-xs font-medium px-2 py-0.5 rounded-full',
+                          comment.mood === 'positive' || comment.mood === 'Positive' || comment.mood === 'green'
+                            ? 'bg-green-100 text-green-700'
+                            : comment.mood === 'negative'
+                            ? 'bg-red-100 text-red-700'
+                            : comment.mood === 'neutral'
+                            ? 'bg-gray-100 text-gray-600'
+                            : 'bg-yellow-50 text-yellow-600'
                         )}>
-                          {comment.mood}
+                          {comment.mood === 'Positive' ? 'positive' : comment.mood === 'green' ? 'positive' : comment.mood}
                         </span>
                       )}
                     </td>

@@ -923,6 +923,13 @@ export const saveParticipantResponses = async (
         moduleMetadata: metadata,
       };
 
+      // Auto-detect sentiment for text responses (answer = Short/Long Text, text = VOC)
+      if ((normalizedComponentId === 'answer' || normalizedComponentId === 'text') && typeof response.value === 'string' && response.value.trim().length > 0) {
+        const { analyzeSentiment } = await import('../sentiment/sentiment.service');
+        const { sentiment } = analyzeSentiment(response.value);
+        responseMetadata.sentiment = sentiment;
+      }
+
       const valueJson = toJsonText(response.value);
       const metadataJson = JSON.stringify(responseMetadata);
 

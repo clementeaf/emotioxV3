@@ -1,3 +1,20 @@
+## v0.34.0 — Sentiment analysis, UI cleanup (2026-03-20)
+
+### backend
+- Feat: Lexicon-based sentiment analysis (`sentiment.service.ts`) — bilingual ES/EN dictionaries with negation and intensifier support. Classifies text as `positive`, `negative`, `neutral`, or `indeterminate`.
+- Feat: Sentiment auto-computed on save for text responses (Short/Long Text, VOC) and stored in `metadata.sentiment`.
+- Feat: Analytics endpoints (`getTextResponses`, `getSmartVOCResults`) return `sentiment` per response — reads from metadata or computes on-the-fly for existing data.
+
+### research-frontend
+- Feat: VOCComments displays sentiment as colored badges (green/red/gray/yellow).
+- UI: Removed duplicate research title from builder sidebar.
+- UI: Removed "Update graph" banner from Navigation Flow results.
+- UI: Removed non-functional action buttons (three-dots) from Choice and Preference Test cards.
+- UI: Removed non-functional filter icon from AOI cards.
+- UI: Navigation Flow images capped at 400px width.
+
+---
+
 ## v0.33.0 — Filters fix, SmartVOC polish, time ranges, participant drawer (2026-03-20)
 
 ### backend
