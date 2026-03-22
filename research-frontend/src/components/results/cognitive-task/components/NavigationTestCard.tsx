@@ -12,6 +12,10 @@ interface AOI {
   y: number;
   width: number;
   height: number;
+}
+
+/** AOI with computed stats (percentage/count) derived from current (filtered) responses */
+interface AOIWithStats extends AOI {
   /** % of total participants who clicked inside */
   percentage: number;
   /** Unique participants who clicked inside */
@@ -111,8 +115,8 @@ const QuantityMapperTab = ({ step }: { step: NavigationStep }) => {
 
   return (
     <div className="space-y-3">
-      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]">
-        <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
+      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto">
+        <img src={step.imageUrl} alt={step.title} className="max-h-[700px] w-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {gridData.cells.map((count, idx) => {
             if (count === 0) return null;
@@ -199,8 +203,8 @@ const ScanPathTab = ({ step }: { step: NavigationStep }) => {
 
   return (
     <div className="space-y-3">
-      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]">
-        <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
+      <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto">
+        <img src={step.imageUrl} alt={step.title} className="max-h-[700px] w-auto block" />
         <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
           {/* Defs for arrow markers */}
           <defs>
@@ -433,20 +437,7 @@ export const NavigationTestCard = ({
     };
   };
 
-  const addAoi = (stepNumber: number, rect: { x: number; y: number; w: number; h: number }, responses: NavigationResponse[]) => {
-    const totalParticipants = responses.length;
-    // Count unique participants who have at least one click inside the AOI
-    // Backend responses use `clickSequence`; NavigationResponse type uses `heatmapData`
-    const participantsInside = responses.filter(r => {
-      const clicks = r.heatmapData
-        || (r as unknown as { clickSequence?: Array<{ x: number; y: number }> }).clickSequence
-        || [];
-      return clicks.some((c: { x: number; y: number }) =>
-        c.x >= rect.x && c.x <= rect.x + rect.w &&
-        c.y >= rect.y && c.y <= rect.y + rect.h
-      );
-    }).length;
-    const percentage = totalParticipants > 0 ? Math.round((participantsInside / totalParticipants) * 100) : 0;
+  const addAoi = (stepNumber: number, rect: { x: number; y: number; w: number; h: number }) => {
     const existingCount = (aoiMap[stepNumber] || []).length;
     const aoi: AOI = {
       id: `aoi_${crypto.randomUUID()}`,
@@ -455,11 +446,37 @@ export const NavigationTestCard = ({
       y: rect.y,
       width: rect.w,
       height: rect.h,
-      percentage,
-      participantCount: participantsInside,
     };
     setAoiMap(prev => ({ ...prev, [stepNumber]: [...(prev[stepNumber] || []), aoi] }));
   };
+
+  /** Compute AOI stats reactively from current (possibly filtered) responses */
+  const computedAoiMap = useMemo(() => {
+    const result: Record<number, AOIWithStats[]> = {};
+    for (const [stepNumStr, aois] of Object.entries(aoiMap)) {
+      const stepNum = Number(stepNumStr);
+      const stepData = steps.find(s => s.stepNumber === stepNum);
+      const responses = stepData?.responses || [];
+      const totalParticipants = responses.length;
+      result[stepNum] = aois.map(aoi => {
+        const participantsInside = responses.filter(r => {
+          const clicks = r.heatmapData
+            || (r as unknown as { clickSequence?: Array<{ x: number; y: number }> }).clickSequence
+            || [];
+          return clicks.some((c: { x: number; y: number }) =>
+            c.x >= aoi.x && c.x <= aoi.x + aoi.width &&
+            c.y >= aoi.y && c.y <= aoi.y + aoi.height
+          );
+        }).length;
+        return {
+          ...aoi,
+          percentage: totalParticipants > 0 ? Math.round((participantsInside / totalParticipants) * 100) : 0,
+          participantCount: participantsInside,
+        };
+      });
+    }
+    return result;
+  }, [aoiMap, steps]);
 
   const removeAoi = (stepNumber: number, aoiId: string) => {
     setAoiMap(prev => ({
@@ -655,9 +672,9 @@ export const NavigationTestCard = ({
                           >
                             {drawingAoi ? 'Drawing AOI...' : '+ Add AOI'}
                           </button>
-                          {(aoiMap[step.stepNumber] || []).length > 0 && (
+                          {(computedAoiMap[step.stepNumber] || []).length > 0 && (
                             <span className="text-xs text-gray-500">
-                              {(aoiMap[step.stepNumber] || []).length} AOI defined
+                              {(computedAoiMap[step.stepNumber] || []).length} AOI defined
                             </span>
                           )}
                         </div>
@@ -665,7 +682,7 @@ export const NavigationTestCard = ({
                         {step.imageUrl ? (
                           <div
                             ref={aoiContainerRef}
-                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]', drawingAoi && 'cursor-crosshair')}
+                            className={cn('mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto', drawingAoi && 'cursor-crosshair')}
                             onMouseDown={drawingAoi ? (e) => {
                               const container = aoiContainerRef.current;
                               if (!container) return;
@@ -685,7 +702,7 @@ export const NavigationTestCard = ({
                               });
                             } : undefined}
                             onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
-                              addAoi(step.stepNumber, aoiCurrent, step.responses || []);
+                              addAoi(step.stepNumber, aoiCurrent);
                               setAoiStart(null);
                               setAoiCurrent(null);
                               setDrawingAoi(false);
@@ -699,7 +716,7 @@ export const NavigationTestCard = ({
 
                             {/* AOI overlays */}
                             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                              {(aoiMap[step.stepNumber] || []).map((aoi) => (
+                              {(computedAoiMap[step.stepNumber] || []).map((aoi) => (
                                 <g key={aoi.id}>
                                   <rect
                                     x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
@@ -759,8 +776,8 @@ export const NavigationTestCard = ({
                     {activeTab === 'click-map' && (
                       <>
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto max-w-[400px]">
-                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto">
+                            <img src={step.imageUrl} alt={step.title} className="max-h-[700px] w-auto block" />
                             {/* Render individual clicks as dots */}
                             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
                               {(step.heatmapData || []).map((click, idx) => (
@@ -806,8 +823,8 @@ export const NavigationTestCard = ({
                     {activeTab === 'image' && (
                       <>
                         {step.imageUrl ? (
-                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto max-w-[400px]">
-                            <img src={step.imageUrl} alt={step.title} className="w-full h-auto block" />
+                          <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
+                            <img src={step.imageUrl} alt={step.title} className="max-h-[700px] w-auto block" />
                           </div>
                         ) : (
                           <div className="mb-4 rounded-lg overflow-hidden bg-gray-200 h-64 flex items-center justify-center">
@@ -833,9 +850,9 @@ export const NavigationTestCard = ({
                     )}
 
                     {/* AOIs (Areas of Interest) — drawn by the researcher */}
-                    {(aoiMap[step.stepNumber] || []).length > 0 && (
+                    {(computedAoiMap[step.stepNumber] || []).length > 0 && (
                       <div className="space-y-2 mt-4">
-                        {(aoiMap[step.stepNumber] || []).map((aoi, idx) => (
+                        {(computedAoiMap[step.stepNumber] || []).map((aoi, idx) => (
                           <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
                             {/* Thumbnail: cropped preview of the AOI region */}
                             {step.imageUrl && (

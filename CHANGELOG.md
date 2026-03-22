@@ -1,3 +1,15 @@
+## v0.36.0 — Quota fix for non-numeric age, AOI reactive filters (2026-03-22)
+
+### backend
+- Fix: `matchesQuotaValue` returned false for non-numeric age options (e.g., "Menor 18") because `parseInt` fails on strings starting with letters. Now falls back to exact string comparison when `parseInt` returns NaN. Previously these participants passed validation as valid.
+- Fix: `connect()` dev table prefix list was missing `demographic_quotas` and `participant_demographics` — queries from `tryIncrementQuota` in dev mode now correctly use `dev_` prefixed tables.
+
+### research-frontend
+- Fix: AOI stats (percentage, participant count) now recalculate reactively when demographic filters change. Previously stats were computed once at draw time and never updated.
+- UI: Navigation Flow result images capped at `max-h-[700px]` (was `max-w-[400px]`).
+
+---
+
 ## v0.35.0 — Duplicate modules fix, age reorder, UX polish (2026-03-21)
 
 ### participant-frontend

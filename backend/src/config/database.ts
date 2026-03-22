@@ -362,7 +362,8 @@ const pool = {
                         'users', 'enterprises', 'media',
                         'research_types', 'research_techniques', 'research_types_techniques',
                         'stage_templates', 'module_templates', 'stage_templates_module_templates',
-                        'analysis_modules', 'quotas', 'monitoring_connections'
+                        'analysis_modules', 'quotas', 'monitoring_connections',
+                        'demographic_quotas', 'participant_demographics'
                     ];
 
                     tables.forEach(table => {

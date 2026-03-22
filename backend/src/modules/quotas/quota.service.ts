@@ -120,7 +120,8 @@ function matchesQuotaValue(answer: string, quotaValue: string, demographicType: 
     // Range-based demographics (age, annualIncome, dailyHoursOnline)
     if (['age', 'annualIncome', 'dailyHoursOnline'].includes(demographicType)) {
         const numValue = parseInt(answer);
-        if (isNaN(numValue)) return false;
+        // If answer is not numeric (e.g., "Menor 18"), fall back to exact string match
+        if (isNaN(numValue)) return answer === quotaValue;
 
         if (quotaValue.includes('-')) {
             // Range: e.g., '18-25'

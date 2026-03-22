@@ -109,8 +109,8 @@ export const HeatmapRenderer = ({
         <div className={`relative overflow-hidden rounded-lg shadow-sm border ${className}`}>
             <canvas
                 ref={canvasRef}
-                className="max-w-full h-auto block"
-                style={{ width: '100%' }}
+                className="max-h-[700px] w-auto block"
+                style={{ maxHeight: '700px' }}
             />
             {!imageLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
