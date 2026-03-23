@@ -144,6 +144,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
             public: {
                 research: '/public/research/:id',
                 validateDemographics: '/public/research/:id/validate-demographics',
+                quotaAvailability: '/public/research/:id/quota-availability',
                 submitResponse: '/public/research/:id/responses',
                 mediaByKey: '/public/media/by-key',
                 participationMode: '/public/research/:id/mode',

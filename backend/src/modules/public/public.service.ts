@@ -697,6 +697,16 @@ export const validateDemographics = async (
 };
 
 /**
+ * Pre-check: are there any quota slots available at all?
+ * Called before showing demographics to avoid wasting participant time.
+ * Returns { available: true } if at least one slot exists, false if all quotas exhausted.
+ */
+export const checkQuotaPreAvailability = async (researchId: string): Promise<{ available: boolean; exhaustedType?: string }> => {
+  const quotaService = await import('../quotas/quota.service');
+  return quotaService.checkAllQuotasFull(researchId);
+};
+
+/**
  * Check if a participant has already responded to a research
  */
 export const getParticipantStatus = async (researchId: string, participantId: string) => {

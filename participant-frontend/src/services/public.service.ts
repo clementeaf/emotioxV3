@@ -121,6 +121,35 @@ class PublicService {
     }
 
     /**
+     * Pre-check quota availability before showing demographics.
+     * Returns { available: true } if there are quota slots, false if all exhausted.
+     */
+    async checkQuotaAvailability(researchId: string): Promise<{ available: boolean; exhaustedType?: string }> {
+        try {
+            const baseUrl = configService.getBaseUrl();
+            const endpoint = configService.getEndpoint('public', 'quotaAvailability', { id: researchId });
+            const url = `${baseUrl}${endpoint}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            if (!response.ok) {
+                // If endpoint doesn't exist yet, assume available (backwards compat)
+                console.warn('Quota availability check failed, assuming available');
+                return { available: true };
+            }
+
+            return await response.json() as { available: boolean; exhaustedType?: string };
+        } catch {
+            // Network error → don't block participant
+            console.warn('Quota availability check error, assuming available');
+            return { available: true };
+        }
+    }
+
+    /**
      * Validate participant demographics
      * @param researchId - Research ID
      * @param demographics - Demographic answers

@@ -377,6 +377,47 @@ export async function incrementQuota(
 }
 
 /**
+ * Checks if ALL immediate quotas for a research are full.
+ * Groups quotas by demographic_type. If ANY type has all its quota values full,
+ * no new participant can pass (every participant will have a value for that type).
+ * Returns { available: true } if at least one slot exists per type,
+ * or { available: false } if any demographic type is completely exhausted.
+ */
+export async function checkAllQuotasFull(researchId: string): Promise<{ available: boolean; exhaustedType?: string }> {
+    const result = await pool.query(
+        `SELECT demographic_type, quota_value, quota_limit, current_count
+         FROM demographic_quotas
+         WHERE research_id = ? AND enabled = true AND enforcement_mode = 'immediate'`,
+        [researchId]
+    );
+
+    if (result.rows.length === 0) {
+        // No immediate quotas configured → always available
+        return { available: true };
+    }
+
+    // Group by demographic_type
+    const byType = new Map<string, { total: number; full: number }>();
+    for (const row of result.rows) {
+        const entry = byType.get(row.demographic_type) || { total: 0, full: 0 };
+        entry.total++;
+        if (row.current_count >= row.quota_limit) {
+            entry.full++;
+        }
+        byType.set(row.demographic_type, entry);
+    }
+
+    // If ANY type has ALL values full → no participant can pass
+    for (const [type, counts] of byType) {
+        if (counts.full === counts.total) {
+            return { available: false, exhaustedType: type };
+        }
+    }
+
+    return { available: true };
+}
+
+/**
  * Gets current quota status for a research (for analytics/admin)
  */
 export async function getQuotaStatus(researchId: string) {

@@ -88,6 +88,14 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             return success(result, 201, undefined, origin);
         }
 
+        // GET /public/research/:id/quota-availability
+        const quotaAvailMatch = path.match(/^\/public\/research\/([^\/]+)\/quota-availability$/);
+        if (quotaAvailMatch && httpMethod === 'GET') {
+            const researchId = quotaAvailMatch[1];
+            const result = await publicService.checkQuotaPreAvailability(researchId);
+            return success(result, 200, undefined, origin);
+        }
+
         // POST /public/research/:id/validate-demographics
         const validateMatch = path.match(/^\/public\/research\/([^\/]+)\/validate-demographics$/);
         if (validateMatch && httpMethod === 'POST') {

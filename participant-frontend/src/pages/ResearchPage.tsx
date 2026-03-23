@@ -562,11 +562,25 @@ export const ResearchPage = () => {
         const researchBacklinks = getBacklinks(research);
         setBacklinks(researchBacklinks);
 
-        // Check overquota status (placeholder logic - backend support required)
-        // If the backend returns a specific status or flag for overquota, handle it here
-        if ((research.status === 'overquota' || research.status === 'closed') && researchBacklinks.overquota) {
-          window.location.href = researchBacklinks.overquota;
-          return;
+        // Pre-check: are all quota slots exhausted? If so, redirect before demographics
+        if (!effectivePreview) {
+          try {
+            const quotaStatus = await publicService.checkQuotaAvailability(researchId);
+            if (!quotaStatus.available) {
+              if (researchBacklinks.overquota) {
+                window.location.href = researchBacklinks.overquota;
+                return;
+              }
+              // No backlink configured — show message and stop
+              setMobileRestriction(t('errors.quotaFull', 'This survey has reached its participant limit for your profile.'));
+              setModules({});
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // Don't block participant if pre-check fails
+            console.warn('Quota pre-check failed, continuing normally');
+          }
         }
 
         /**
