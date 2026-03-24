@@ -750,7 +750,13 @@ export const ResearchPage = () => {
 
       } catch (err: unknown) {
         console.error('Failed to load research:', err);
-        setError(t('errors.failedToLoadResearch'));
+        const errMsg = err instanceof Error ? err.message : '';
+        // Research is completed/closed — show specific blocking screen
+        if (errMsg.includes('not active') || errMsg.includes('404')) {
+          setMobileRestriction(t('errors.researchClosed', 'This survey is no longer accepting responses.'));
+        } else {
+          setError(t('errors.failedToLoadResearch'));
+        }
       } finally {
         setLoading(false);
       }
@@ -955,6 +961,10 @@ export const ResearchPage = () => {
           const result = await publicService.validateDemographics(rid, demoAnswers, effectivePid);
           if (!result.valid) {
             const bl = backlinks;
+            if (result.reason === 'RESEARCH_CLOSED') {
+              setMobileRestriction(t('errors.researchClosed', 'This survey is no longer accepting responses.'));
+              return;
+            }
             if (result.reason === 'QUOTA_FULL') {
               if (bl.overquota) { window.location.href = bl.overquota; return; }
               // Show blocking screen — participant cannot continue
@@ -1072,8 +1082,15 @@ export const ResearchPage = () => {
         } catch (error: unknown) {
           console.error('Error submitting responses:', error);
 
-          // Check if error is related to Turnstile verification
           const errorMessage = error instanceof Error ? error.message : t('errors.unknownError');
+
+          // Check if research is no longer active or participant limit reached
+          if (errorMessage.includes('not active') || errorMessage.includes('not found') || errorMessage.includes('Participant limit')) {
+            setMobileRestriction(t('errors.researchClosed', 'This survey is no longer accepting responses.'));
+            return;
+          }
+
+          // Check if error is related to Turnstile verification
           if (errorMessage.includes('verification') || errorMessage.includes('Anti-bot') || errorMessage.includes('security')) {
             alert(t('errors.securityVerificationError'));
             // Clear token to force re-verification

@@ -51,6 +51,7 @@
     "answerDemographics": "Por favor responde las preguntas demográficas antes de continuar.",
     "quotaFull": "Esta encuesta ha alcanzado su límite de participantes para tu perfil.",
     "disqualified": "Lo sentimos, no cumples con el perfil requerido para este estudio.",
+    "researchClosed": "Esta encuesta ya no acepta respuestas.",
     "unknownError": "Error desconocido"
   },
   "mobileRestriction": {

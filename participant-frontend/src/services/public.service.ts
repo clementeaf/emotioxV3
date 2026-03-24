@@ -277,7 +277,7 @@ export const publicService = new PublicService();
 
 export interface ValidationResult {
     valid: boolean;
-    reason?: 'QUOTA_FULL' | 'DISQUALIFIED';
+    reason?: 'QUOTA_FULL' | 'DISQUALIFIED' | 'RESEARCH_CLOSED';
     details?: string;
 }
 

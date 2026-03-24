@@ -84,8 +84,19 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
         if (responsesMatch && httpMethod === 'POST') {
             const researchId = responsesMatch[1];
             const body = JSON.parse(event.body || '{}');
-            const result = await publicService.saveParticipantResponses(researchId, body);
-            return success(result, 201, undefined, origin);
+            try {
+                const result = await publicService.saveParticipantResponses(researchId, body);
+                return success(result, 201, undefined, origin);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Failed to save responses';
+                if (msg.includes('not active') || msg.includes('not found')) {
+                    return error(msg, 410, undefined, origin);
+                }
+                if (msg.includes('Participant limit reached')) {
+                    return error(msg, 410, undefined, origin);
+                }
+                throw err;
+            }
         }
 
         // GET /public/research/:id/quota-availability

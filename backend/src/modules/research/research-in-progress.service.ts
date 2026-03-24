@@ -228,10 +228,12 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
                 COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
                 COUNT(DISTINCT CASE WHEN r.module_id IN (${placeholders}) THEN r.module_id END) as answered_modules,
                 MIN(r.created_at) as first_response,
-                MAX(r.created_at) as last_response
+                MAX(r.created_at) as last_response,
+                p.status as panel_status
             FROM responses r
+            LEFT JOIN participants p ON p.research_id = r.research_id AND p.participant_id = r.participant_id
             WHERE r.research_id = ?
-            GROUP BY r.participant_id
+            GROUP BY r.participant_id, p.status
             ORDER BY MAX(r.created_at) IS NULL, MAX(r.created_at) DESC
         `;
         queryParams = [...visibleModuleIds, researchId];
@@ -243,10 +245,12 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
                 COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
                 0 as answered_modules,
                 MIN(r.created_at) as first_response,
-                MAX(r.created_at) as last_response
+                MAX(r.created_at) as last_response,
+                p.status as panel_status
             FROM responses r
+            LEFT JOIN participants p ON p.research_id = r.research_id AND p.participant_id = r.participant_id
             WHERE r.research_id = ?
-            GROUP BY r.participant_id
+            GROUP BY r.participant_id, p.status
             ORDER BY MAX(r.created_at) IS NULL, MAX(r.created_at) DESC
         `;
         queryParams = [researchId];
@@ -258,7 +262,13 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         const progress = totalComponents > 0
             ? Math.min(100, Math.round((answered / totalComponents) * 100))
             : 0;
-        const status = progress >= 100 ? 'Completado' : (progress > 0 ? 'En proceso' : 'Por iniciar');
+        // Panel status (overquota/disqualified) overrides progress-based status
+        const panelStatus = row.panel_status as string | null;
+        const status = panelStatus === 'overquota' ? 'Sobre cuota'
+            : panelStatus === 'disqualified' ? 'Descalificado'
+            : progress >= 100 ? 'Completado'
+            : progress > 0 ? 'En proceso'
+            : 'Por iniciar';
         const durationSeconds = row.first_response && row.last_response
             ? Math.floor((new Date(row.last_response).getTime() - new Date(row.first_response).getTime()) / 1000)
             : 0;

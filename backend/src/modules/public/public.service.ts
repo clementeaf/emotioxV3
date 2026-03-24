@@ -649,9 +649,18 @@ export const validateDemographics = async (
   researchId: string,
   demographicAnswers: Record<string, string>,
   participantId?: string
-): Promise<{ valid: boolean; reason?: 'DISQUALIFIED' | 'QUOTA_FULL'; details?: string }> => {
+): Promise<{ valid: boolean; reason?: 'DISQUALIFIED' | 'QUOTA_FULL' | 'RESEARCH_CLOSED'; details?: string }> => {
   const client = await pool.connect();
   try {
+    // Verify research is still active before validating demographics
+    const statusResult = await pool.query(
+      'SELECT status FROM researches WHERE id = ? AND deleted_at IS NULL',
+      [researchId]
+    );
+    if (statusResult.rows.length === 0 || statusResult.rows[0].status !== 'active') {
+      return { valid: false, reason: 'RESEARCH_CLOSED', details: 'Research is no longer accepting responses' };
+    }
+
     // Get research configuration to access demographic rules
     const researchConfig = await getResearchConfiguration(researchId);
     const demographics = (researchConfig.demographics || {}) as Record<string, any>;
@@ -712,6 +721,27 @@ export const validateDemographics = async (
  * Returns { available: true } if at least one slot exists, false if all quotas exhausted.
  */
 export const checkQuotaPreAvailability = async (researchId: string): Promise<{ available: boolean; exhaustedType?: string }> => {
+  // Also verify research is still active
+  const statusResult = await pool.query(
+    'SELECT status FROM researches WHERE id = ? AND deleted_at IS NULL',
+    [researchId]
+  );
+  if (statusResult.rows.length === 0 || statusResult.rows[0].status !== 'active') {
+    return { available: false, exhaustedType: 'research_closed' };
+  }
+
+  // Check participant limit
+  const researchConfig = await getResearchConfiguration(researchId);
+  if (researchConfig?.participantLimit) {
+    const participantLimit = researchConfig.participantLimit as { enabled: boolean; value: number };
+    if (participantLimit.enabled) {
+      const currentCount = await getParticipantCount(researchId);
+      if (currentCount >= participantLimit.value) {
+        return { available: false, exhaustedType: 'participant_limit' };
+      }
+    }
+  }
+
   const quotaService = await import('../quotas/quota.service');
   return quotaService.checkAllQuotasFull(researchId);
 };
