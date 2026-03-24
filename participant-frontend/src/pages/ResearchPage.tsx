@@ -957,13 +957,14 @@ export const ResearchPage = () => {
             const bl = backlinks;
             if (result.reason === 'QUOTA_FULL') {
               if (bl.overquota) { window.location.href = bl.overquota; return; }
-              alert(t('errors.quotaFull'));
+              // Show blocking screen — participant cannot continue
+              setMobileRestriction(t('errors.quotaFull', 'This survey has reached its participant limit for your profile.'));
+              return;
             } else {
               if (bl.disqualified) { window.location.href = bl.disqualified; return; }
-              alert(t('errors.disqualified'));
+              setMobileRestriction(t('errors.disqualified', 'You do not qualify for this survey.'));
+              return;
             }
-            setSubmitting(false);
-            return;
           }
         }
       } catch {

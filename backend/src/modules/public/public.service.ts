@@ -684,6 +684,16 @@ export const validateDemographics = async (
       console.log(`✓ Atomic quota increment committed for participant ${participantId}`);
     } else {
       await client.query('ROLLBACK');
+
+      // Update participant status (panel mode tracking)
+      try {
+        const { updateStatus } = await import('../participants/participants.service');
+        const status = validation.reason === 'QUOTA_FULL' ? 'overquota' : 'disqualified';
+        await updateStatus(researchId, participantId, status);
+        console.log(`✓ Participant ${participantId} marked as ${status}`);
+      } catch (_statusErr) {
+        // Non-critical: participant may not exist in participants table (kiosk mode)
+      }
     }
 
     return validation;
