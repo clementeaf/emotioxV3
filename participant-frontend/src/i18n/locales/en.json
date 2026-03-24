@@ -54,6 +54,7 @@
     "researchClosed": "This survey is no longer accepting responses.",
     "unknownError": "Unknown error"
   },
+  "redirecting": "Redirecting...",
   "mobileRestriction": {
     "title": "Access Restricted",
     "message": "This research is not available on mobile devices. Please access it from a desktop computer."

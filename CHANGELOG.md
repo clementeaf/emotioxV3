@@ -1,22 +1,33 @@
+## v0.37.1 — Participant count fix, redirect screen (2026-03-24)
+
+### backend
+- Fix: `getParticipantCount` now excludes `module_id = 'demographics'` — participants who only submitted demographics no longer count against the participant limit. Previously ghost entries (`@id`, abandoned participants) consumed limit slots.
+
+### participant-frontend
+- Feat: Redirect screen with EmotioCX logo and spinner shown for 1.5s before navigating to backlink URLs (overquota, disqualified, complete).
+- i18n: Added `redirecting` key — "Redirigiendo..." / "Redirecting..."
+
+---
+
 ## v0.37.0 — Research closed blocking, overquota/disqualified badges (2026-03-24)
 
 ### backend
-- Fix: `validateDemographics` now checks research status before processing — returns `RESEARCH_CLOSED` if research is not active.
-- Fix: `checkQuotaPreAvailability` now also verifies research is active and participant limit not reached (in addition to quotas).
-- Fix: `saveParticipantResponses` returns HTTP 410 (Gone) instead of 500 when research is not active or participant limit reached.
-- Feat: View Progress query LEFT JOINs `participants` table — overquota/disqualified panel status overrides progress-based status.
+- Fix: `validateDemographics` checks research status before processing — returns `RESEARCH_CLOSED` if not active.
+- Fix: `checkQuotaPreAvailability` verifies research is active and participant limit not reached (in addition to quotas).
+- Fix: `saveParticipantResponses` returns HTTP 410 instead of 500 for inactive research or participant limit reached.
+- Feat: View Progress LEFT JOINs `participants` table — overquota/disqualified status overrides progress-based status.
 
 ### participant-frontend
-- Fix: Demographics validation handles `RESEARCH_CLOSED` reason — shows blocking screen instead of generic error.
-- Fix: Response save errors for inactive research or participant limit now show blocking screen instead of "Error al guardar respuestas" alert.
-- Fix: `loadResearch` catch detects "not active" errors and shows "research closed" screen instead of generic load error.
-- i18n: Added `errors.researchClosed` — "Esta encuesta ya no acepta respuestas." / "This survey is no longer accepting responses."
+- Fix: Demographics validation handles `RESEARCH_CLOSED` — shows blocking screen instead of generic error.
+- Fix: Response save errors for inactive research or participant limit show blocking screen instead of alert.
+- Fix: `loadResearch` catch detects "not active" errors → "research closed" screen.
+- i18n: Added `errors.researchClosed`.
 
 ### research-frontend
-- Feat: View Progress table shows "Sobre cuota" (orange) and "Descalificado" (red) badges for participants with those panel statuses.
+- Feat: View Progress badges "Sobre cuota" (orange) and "Descalificado" (red).
 
 ### scripts
-- New: `test-quota-redirect-scenarios.ts` — 8 E2E scenarios, 20 assertions covering quota exhaustion, research completion, participant limit, concurrent race conditions, and already-responded detection.
+- New: `test-quota-redirect-scenarios.ts` — 8 scenarios, 20 assertions.
 
 ---
 

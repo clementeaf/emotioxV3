@@ -54,6 +54,7 @@
     "researchClosed": "Esta encuesta ya no acepta respuestas.",
     "unknownError": "Error desconocido"
   },
+  "redirecting": "Redirigiendo...",
   "mobileRestriction": {
     "title": "Acceso Restringido",
     "message": "Esta investigación no está disponible en dispositivos móviles. Por favor accede desde un computador de escritorio."

@@ -386,6 +386,13 @@ export const ResearchPage = () => {
   const kioskResetScheduledRef = useRef(false);
   const [backlinks, setBacklinks] = useState<Record<string, string>>({});
   const [alreadyResponded, setAlreadyResponded] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  /** Show redirect screen briefly, then navigate */
+  const redirectTo = useCallback((url: string) => {
+    setRedirecting(true);
+    setTimeout(() => { window.location.href = url; }, 1500);
+  }, []);
 
   // Initialize device collector
   useDeviceCollector();
@@ -499,7 +506,7 @@ export const ResearchPage = () => {
     if (currentStep !== 'thank-you' || isPreviewMode || participationMode === 'kiosk') return;
 
     if (backlinks.complete) {
-      window.location.href = backlinks.complete;
+      redirectTo(backlinks.complete);
       return;
     }
 
@@ -568,7 +575,7 @@ export const ResearchPage = () => {
             const quotaStatus = await publicService.checkQuotaAvailability(researchId);
             if (!quotaStatus.available) {
               if (researchBacklinks.overquota) {
-                window.location.href = researchBacklinks.overquota;
+                redirectTo(researchBacklinks.overquota);
                 return;
               }
               // No backlink configured — show message and stop
@@ -966,12 +973,12 @@ export const ResearchPage = () => {
               return;
             }
             if (result.reason === 'QUOTA_FULL') {
-              if (bl.overquota) { window.location.href = bl.overquota; return; }
+              if (bl.overquota) { redirectTo(bl.overquota); return; }
               // Show blocking screen — participant cannot continue
               setMobileRestriction(t('errors.quotaFull', 'This survey has reached its participant limit for your profile.'));
               return;
             } else {
-              if (bl.disqualified) { window.location.href = bl.disqualified; return; }
+              if (bl.disqualified) { redirectTo(bl.disqualified); return; }
               setMobileRestriction(t('errors.disqualified', 'You do not qualify for this survey.'));
               return;
             }
@@ -1136,6 +1143,18 @@ export const ResearchPage = () => {
 
   if (!researchId) {
     return <InvalidResearchScreen />;
+  }
+
+  // Show redirect screen with logo
+  if (redirecting) {
+    const logoUrl = `${import.meta.env.BASE_URL}EmotioCX-logo.svg`;
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white z-50">
+        <img src={logoUrl} alt="EmotioCX" className="h-12 mb-8 opacity-80" />
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-gray-700 mb-4" />
+        <p className="text-gray-500 text-sm">{t('redirecting', 'Redirecting...')}</p>
+      </div>
+    );
   }
 
   // Show mobile restriction message
