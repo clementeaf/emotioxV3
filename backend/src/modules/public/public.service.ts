@@ -165,11 +165,12 @@ const extractStructure = (config: Record<string, unknown>): PublicModuleStructur
 };
 
 // Function to get the participant count for a research
+// Only counts participants who submitted actual module responses (excludes demographics-only)
 export const getParticipantCount = async (researchId: string): Promise<number> => {
   const query = `
     SELECT COUNT(DISTINCT participant_id) as participant_count
     FROM responses
-    WHERE research_id = ?
+    WHERE research_id = ? AND module_id != 'demographics'
   `;
   const result = await pool.query(query, [researchId]);
   return parseInt(result.rows[0].participant_count) || 0;
