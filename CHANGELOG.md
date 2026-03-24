@@ -1,3 +1,25 @@
+## v0.37.0 — Research closed blocking, overquota/disqualified badges (2026-03-24)
+
+### backend
+- Fix: `validateDemographics` now checks research status before processing — returns `RESEARCH_CLOSED` if research is not active.
+- Fix: `checkQuotaPreAvailability` now also verifies research is active and participant limit not reached (in addition to quotas).
+- Fix: `saveParticipantResponses` returns HTTP 410 (Gone) instead of 500 when research is not active or participant limit reached.
+- Feat: View Progress query LEFT JOINs `participants` table — overquota/disqualified panel status overrides progress-based status.
+
+### participant-frontend
+- Fix: Demographics validation handles `RESEARCH_CLOSED` reason — shows blocking screen instead of generic error.
+- Fix: Response save errors for inactive research or participant limit now show blocking screen instead of "Error al guardar respuestas" alert.
+- Fix: `loadResearch` catch detects "not active" errors and shows "research closed" screen instead of generic load error.
+- i18n: Added `errors.researchClosed` — "Esta encuesta ya no acepta respuestas." / "This survey is no longer accepting responses."
+
+### research-frontend
+- Feat: View Progress table shows "Sobre cuota" (orange) and "Descalificado" (red) badges for participants with those panel statuses.
+
+### scripts
+- New: `test-quota-redirect-scenarios.ts` — 8 E2E scenarios, 20 assertions covering quota exhaustion, research completion, participant limit, concurrent race conditions, and already-responded detection.
+
+---
+
 ## v0.36.0 — Quota fix for non-numeric age, AOI reactive filters (2026-03-22)
 
 ### backend
