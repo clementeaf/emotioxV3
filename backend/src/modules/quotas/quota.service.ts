@@ -12,6 +12,7 @@ interface QuotaConfig {
     limit: number;
     enabled: boolean;
     enforcementMode?: 'immediate' | 'post_collection';
+    quotaType?: 'percentage';
 }
 
 type LocationGranularity = 'countryOnly' | 'countryCity';
@@ -71,23 +72,24 @@ export async function syncQuotasFromConfig(
                 const key = `${demographicType}:${quota.value}`;
                 configuredQuotas.add(key);
 
-                const enforcementMode = quota.enforcementMode || 'immediate';
+                const enforcementMode = 'immediate';
+                const quotaType = 'percentage';
 
                 if (existingMap.has(key)) {
                     // Update existing quota
                     await client.query(
                         `UPDATE demographic_quotas
-                         SET quota_limit = ?, enabled = true, enforcement_mode = ?, updated_at = NOW()
+                         SET quota_limit = ?, enabled = true, enforcement_mode = ?, quota_type = ?, updated_at = NOW()
                          WHERE id = ?`,
-                        [quota.limit, enforcementMode, existingMap.get(key)]
+                        [quota.limit, enforcementMode, quotaType, existingMap.get(key)]
                     );
                 } else {
                     // Insert new quota
                     await client.query(
                         `INSERT INTO demographic_quotas
-                         (research_id, demographic_type, quota_value, quota_limit, enabled, enforcement_mode)
-                         VALUES (?, ?, ?, ?, true, ?)`,
-                        [researchId, demographicType, quota.value, quota.limit, enforcementMode]
+                         (research_id, demographic_type, quota_value, quota_limit, quota_type, enabled, enforcement_mode)
+                         VALUES (?, ?, ?, ?, ?, true, ?)`,
+                        [researchId, demographicType, quota.value, quota.limit, quotaType, enforcementMode]
                     );
                 }
             }
@@ -191,8 +193,22 @@ function checkDisqualifications(
 }
 
 /**
+ * Resolves the effective absolute limit for a quota row.
+ * quota_type = 'percentage' → ceil(quota_limit * participantLimit / 100)
+ * Falls back to quota_limit if participantLimit is not available.
+ */
+function resolveAbsoluteLimit(quotaLimit: number, quotaType: string, participantLimit: number | null): number {
+    if (quotaType === 'percentage' && participantLimit && participantLimit > 0) {
+        return Math.ceil((quotaLimit * participantLimit) / 100);
+    }
+    // Fallback: treat quota_limit as absolute count
+    return quotaLimit;
+}
+
+/**
  * Atomically validates demographics and increments quota counters in a single transaction.
- * Uses UPDATE ... WHERE current_count < quota_limit to prevent race conditions.
+ * Uses UPDATE ... WHERE current_count < resolved_limit to prevent race conditions.
+ * participantLimit is used to convert percentage quotas to absolute counts.
  * Must be called within an existing transaction (caller manages BEGIN/COMMIT/ROLLBACK).
  */
 export async function tryIncrementQuota(
@@ -200,7 +216,8 @@ export async function tryIncrementQuota(
     researchId: string,
     participantId: string,
     demographicAnswers: Record<string, string>,
-    demographicConfig: Record<string, DemographicConfig>
+    demographicConfig: Record<string, DemographicConfig>,
+    participantLimit?: number | null
 ): Promise<ValidationResult> {
     // 1. Check disqualifications (pure JS, no DB)
     const disqualCheck = checkDisqualifications(demographicAnswers, demographicConfig);
@@ -225,33 +242,29 @@ export async function tryIncrementQuota(
 
     // 3. Get all enabled quotas for this research (with row lock)
     const quotas = await client.query(
-        `SELECT id, demographic_type, quota_value, quota_limit, current_count, enforcement_mode
+        `SELECT id, demographic_type, quota_value, quota_limit, quota_type, current_count, enforcement_mode
          FROM demographic_quotas
          WHERE research_id = ? AND enabled = true
          FOR UPDATE`,
         [researchId]
     );
 
-    // 4. For each matching immediate quota, atomically increment
+    // 4. For each matching quota, atomically increment (all quotas are immediate now)
     const incrementedIds: string[] = [];
 
     for (const quota of quotas.rows) {
         const answer = demographicAnswers[quota.demographic_type];
         if (!answer) continue;
 
-        // post_collection quotas are never enforced in real-time
-        if (quota.enforcement_mode === 'post_collection') continue;
-
         if (matchesQuotaValue(answer, quota.quota_value, quota.demographic_type)) {
-            const result = await client.query(
-                `UPDATE demographic_quotas
-                 SET current_count = current_count + 1, updated_at = NOW()
-                 WHERE id = ? AND current_count < quota_limit`,
-                [quota.id]
+            const absoluteLimit = resolveAbsoluteLimit(
+                quota.quota_limit,
+                quota.quota_type || 'percentage',
+                participantLimit ?? null
             );
 
-            // rowCount = 0 means no rows updated → quota is full
-            if (result.rowCount === 0) {
+            // Check if current_count already reached the resolved absolute limit
+            if (quota.current_count >= absoluteLimit) {
                 // Rollback increments we already did in this call
                 for (const prevId of incrementedIds) {
                     await client.query(
@@ -267,6 +280,13 @@ export async function tryIncrementQuota(
                     details: `${quota.demographic_type} quota (${quota.quota_value}) is full`
                 };
             }
+
+            await client.query(
+                `UPDATE demographic_quotas
+                 SET current_count = current_count + 1, updated_at = NOW()
+                 WHERE id = ?`,
+                [quota.id]
+            );
 
             incrementedIds.push(quota.id);
         }
@@ -377,22 +397,19 @@ export async function incrementQuota(
 }
 
 /**
- * Checks if ALL immediate quotas for a research are full.
- * Groups quotas by demographic_type. If ANY type has all its quota values full,
- * no new participant can pass (every participant will have a value for that type).
- * Returns { available: true } if at least one slot exists per type,
- * or { available: false } if any demographic type is completely exhausted.
+ * @deprecated Not used for public pre-check: quotas may not cover every option per type,
+ * so "all buckets full" does not imply no participant can qualify.
  */
-export async function checkAllQuotasFull(researchId: string): Promise<{ available: boolean; exhaustedType?: string }> {
+export async function checkAllQuotasFull(researchId: string, participantLimit?: number | null): Promise<{ available: boolean; exhaustedType?: string }> {
     const result = await pool.query(
-        `SELECT demographic_type, quota_value, quota_limit, current_count
+        `SELECT demographic_type, quota_value, quota_limit, quota_type, current_count
          FROM demographic_quotas
-         WHERE research_id = ? AND enabled = true AND enforcement_mode = 'immediate'`,
+         WHERE research_id = ? AND enabled = true`,
         [researchId]
     );
 
     if (result.rows.length === 0) {
-        // No immediate quotas configured → always available
+        // No quotas configured → always available
         return { available: true };
     }
 
@@ -401,7 +418,12 @@ export async function checkAllQuotasFull(researchId: string): Promise<{ availabl
     for (const row of result.rows) {
         const entry = byType.get(row.demographic_type) || { total: 0, full: 0 };
         entry.total++;
-        if (row.current_count >= row.quota_limit) {
+        const absoluteLimit = resolveAbsoluteLimit(
+            row.quota_limit,
+            row.quota_type || 'percentage',
+            participantLimit ?? null
+        );
+        if (row.current_count >= absoluteLimit) {
             entry.full++;
         }
         byType.set(row.demographic_type, entry);
@@ -422,7 +444,7 @@ export async function checkAllQuotasFull(researchId: string): Promise<{ availabl
  */
 export async function getQuotaStatus(researchId: string) {
     const result = await pool.query(
-        `SELECT demographic_type, quota_value, quota_limit, current_count, enabled, enforcement_mode
+        `SELECT demographic_type, quota_value, quota_limit, quota_type, current_count, enabled, enforcement_mode
          FROM demographic_quotas
          WHERE research_id = ?
          ORDER BY demographic_type, quota_value`,

@@ -154,15 +154,14 @@ export const DailyHoursOnlineConfigModal: React.FC<DailyHoursOnlineConfigModalPr
       addCustomOptionText="Agregar rango de horas personalizado"
       statisticsLabel="Rangos calificados"
       quotasTitle="Sistema de Cuotas por Horas Diarias en Línea"
-      quotasDescription="Configura cuotas específicas por rango de horas. Cuando se alcance la cuota de un rango, los participantes de ese rango serán descalificados automáticamente."
+      quotasDescription="Configura cuotas específicas por rango de horas. Cuando el cupo de un rango esté lleno, aplica sobre cuota, no descalificación por reglas de perfil."
       quotasInfoTitle="Cómo funcionan las cuotas:"
       quotasInfoItems={[
-        'Cada rango de horas puede tener su propia cuota (número absoluto o porcentaje)',
-        'Porcentajes: Se calculan sobre el total de participantes esperados',
-        'El sistema automáticamente contará los participantes que se registren',
-        'Cuando se alcance la cuota, los participantes de ese rango serán descalificados automáticamente',
-        '⚠️ Rangos sin cuota asignada: Si un rango habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
-        'Las cuotas inactivas no afectan la descalificación'
+        'Cada rango de horas puede tener su propia cuota en porcentaje (%) del límite de participantes',
+        'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
+        'El sistema incrementa el contador al validar demografía',
+        'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
+        'Rangos sin cuota asignada: Si un rango habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción'
       ]}
       quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por rango de horas"
       quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"

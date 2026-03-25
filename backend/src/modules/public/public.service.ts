@@ -5,6 +5,34 @@ import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 export type ParticipationMode = 'kiosk' | 'panel';
 
 /**
+ * Resolves global participant cap from Research Configuration module.
+ * Matches research-frontend: legacy `participantLimit` as a number means enabled with that value;
+ * object form uses `enabled` + `value`.
+ * @param researchConfig - Parsed module config from getResearchConfiguration
+ * @returns Positive cap when the limit applies, or null when disabled / unset
+ */
+export function getEffectiveParticipantLimitCap(researchConfig: Record<string, unknown>): number | null {
+  const raw = researchConfig?.participantLimit;
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return Math.floor(raw);
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    const o = raw as Record<string, unknown>;
+    if (o.enabled !== true) {
+      return null;
+    }
+    const v = typeof o.value === 'number' ? o.value : Number(o.value);
+    if (Number.isFinite(v) && v > 0) {
+      return Math.floor(v);
+    }
+  }
+  return null;
+}
+
+/**
  * Gets the participation mode for a research from its Research Configuration module.
  * @returns 'kiosk' or 'panel' (defaults to 'panel' for retrocompatibility)
  */
@@ -662,9 +690,12 @@ export const validateDemographics = async (
       return { valid: false, reason: 'RESEARCH_CLOSED', details: 'Research is no longer accepting responses' };
     }
 
-    // Get research configuration to access demographic rules
+    // Get research configuration to access demographic rules and participant limit
     const researchConfig = await getResearchConfiguration(researchId);
     const demographics = (researchConfig.demographics || {}) as Record<string, any>;
+
+    // Resolve participant limit for percentage→absolute conversion (supports legacy number + { enabled, value })
+    const resolvedParticipantLimit = getEffectiveParticipantLimitCap(researchConfig);
 
     const quotaService = await import('../quotas/quota.service');
 
@@ -686,7 +717,8 @@ export const validateDemographics = async (
       researchId,
       participantId,
       demographicAnswers,
-      demographics
+      demographics,
+      resolvedParticipantLimit
     );
 
     if (validation.valid) {
@@ -717,9 +749,9 @@ export const validateDemographics = async (
 };
 
 /**
- * Pre-check: are there any quota slots available at all?
- * Called before showing demographics to avoid wasting participant time.
- * Returns { available: true } if at least one slot exists, false if all quotas exhausted.
+ * Pre-check before showing the survey: research active + global participant limit only.
+ * Demographic quotas are not pre-checked (options may exist outside configured quota rows;
+ * enforcement remains in validateDemographics / tryIncrementQuota).
  */
 export const checkQuotaPreAvailability = async (researchId: string): Promise<{ available: boolean; exhaustedType?: string }> => {
   // Also verify research is still active
@@ -731,28 +763,26 @@ export const checkQuotaPreAvailability = async (researchId: string): Promise<{ a
     return { available: false, exhaustedType: 'research_closed' };
   }
 
-  // Check participant limit
   const researchConfig = await getResearchConfiguration(researchId);
-  if (researchConfig?.participantLimit) {
-    const participantLimit = researchConfig.participantLimit as { enabled: boolean; value: number };
-    if (participantLimit.enabled) {
-      const currentCount = await getParticipantCount(researchId);
-      if (currentCount >= participantLimit.value) {
-        return { available: false, exhaustedType: 'participant_limit' };
-      }
+  const participantCap = getEffectiveParticipantLimitCap(researchConfig);
+  if (participantCap !== null) {
+    const currentCount = await getParticipantCount(researchId);
+    if (currentCount >= participantCap) {
+      return { available: false, exhaustedType: 'participant_limit' };
     }
   }
 
-  const quotaService = await import('../quotas/quota.service');
-  return quotaService.checkAllQuotasFull(researchId);
+  return { available: true };
 };
 
 /**
- * Check if a participant has already responded to a research
+ * Check if a participant has already submitted non-demographic responses.
+ * Excludes demographics-only rows so "answered screening only" can continue the survey.
  */
 export const getParticipantStatus = async (researchId: string, participantId: string) => {
   const result = await pool.query(
-    'SELECT COUNT(*) as count FROM responses WHERE research_id = ? AND participant_id = ?',
+    `SELECT COUNT(*) as count FROM responses
+     WHERE research_id = ? AND participant_id = ? AND module_id != 'demographics'`,
     [researchId, participantId]
   );
   const hasResponded = (result.rows[0]?.count ?? 0) > 0;
@@ -913,16 +943,12 @@ export const saveParticipantResponses = async (
     throw new Error('Research not found or not active');
   }
 
-  // Check participant limit if configured
   const researchConfig = await getResearchConfiguration(researchId);
-  if (researchConfig && researchConfig.participantLimit) {
-    const participantLimit = researchConfig.participantLimit as { enabled: boolean; value: number };
-
-    if (participantLimit.enabled) {
-      const currentCount = await getParticipantCount(researchId);
-      if (currentCount >= participantLimit.value) {
-        throw new Error('Participant limit reached. No more responses are being accepted for this research.');
-      }
+  const participantCap = getEffectiveParticipantLimitCap(researchConfig);
+  if (participantCap !== null) {
+    const currentCount = await getParticipantCount(researchId);
+    if (currentCount >= participantCap) {
+      throw new Error('Participant limit reached. No more responses are being accepted for this research.');
     }
   }
 

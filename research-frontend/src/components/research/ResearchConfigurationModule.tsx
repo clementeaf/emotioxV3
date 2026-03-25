@@ -23,6 +23,7 @@ interface BackendQuota {
     limit: number;
     enabled: boolean;
     enforcementMode?: string;
+    quotaType?: string;
 }
 
 /** Maps demographic key → quota field name used in modal-format quotas */
@@ -267,12 +268,18 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     const handleSaveDemographicConfig = (newConfig: Record<string, unknown>) => {
         if (!activeConfigModal) return;
 
-        // Transform modal data to backend format (without quotas — quotas are handled separately)
         const backendConfig = mapModalConfigToBackend(activeConfigModal, newConfig);
 
-        // Preserve existing quotas already in backend format
+        // Only preserve old quotas when this save payload did not include quota data (legacy modals
+        // that still rely on onQuotasSave + flush). If newConfig.quotas is present (including []),
+        // the mapper already reflects the intended state — do not overwrite with stale data.
         const currentDemographic = demographics[activeConfigModal] || {};
-        if (currentDemographic.quotas) {
+        const newHasQuotasKey = Object.prototype.hasOwnProperty.call(newConfig, 'quotas');
+        if (
+            !newHasQuotasKey &&
+            Array.isArray(currentDemographic.quotas) &&
+            currentDemographic.quotas.length > 0
+        ) {
             backendConfig.quotas = currentDemographic.quotas;
         }
 
@@ -319,7 +326,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             value: (q[fieldName] as string) || '',
             limit: q.quota,
             enabled: q.isActive,
-            enforcementMode: q.enforcementMode || 'immediate'
+            enforcementMode: 'immediate',
+            quotaType: 'percentage'
         }));
 
         const currentDemographics = demographicsRef.current;
@@ -344,9 +352,9 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             id: q.id,
             [fieldName]: q.value,
             quota: q.limit,
-            quotaType: 'absolute' as const,
+            quotaType: 'percentage' as const,
             isActive: q.enabled,
-            enforcementMode: q.enforcementMode || 'immediate'
+            enforcementMode: 'immediate' as const
         }));
     };
 
@@ -815,14 +823,14 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                 <AgeConfigModal
                     isOpen={true}
                     onClose={() => setActiveConfigModal(null)}
-                    onSave={(validAges, disqualifyingAges, orderedAll) => {
+                    onSave={(validAges, disqualifyingAges, orderedAll, quotasPayload) => {
                         handleSaveDemographicConfig({
                             validAges,
                             disqualifyingAges,
-                            orderedAll
+                            orderedAll,
+                            quotas: quotasPayload
                         });
                     }}
-                    onQuotasSave={(quotas) => handleQuotasSave('age', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('age', enabled)}
                     initialValidAges={demographics.age?.validAges ?? (() => {
                         // Reconstruct from backend format: validValues minus disqualification values

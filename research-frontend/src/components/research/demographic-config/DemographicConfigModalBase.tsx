@@ -93,8 +93,8 @@ export function DemographicConfigModalBase<
 
     onSave(qualifiedOptions, disqualifiedIds);
 
-    if (quotaConfig.quotasEnabled && onQuotasSave) {
-      onQuotasSave(quotaConfig.quotas);
+    if (onQuotasSave) {
+      onQuotasSave(quotaConfig.quotasEnabled ? quotaConfig.quotas : []);
     }
 
     onClose();

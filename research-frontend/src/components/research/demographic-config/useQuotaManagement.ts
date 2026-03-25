@@ -31,8 +31,8 @@ export function useQuotaManagement<TQuota extends BaseDemographicQuota>(
     if (isOpen) {
       const migratedQuotas = initialQuotas.map(quota => ({
         ...quota,
-        quotaType: quota.quotaType || 'absolute',
-        enforcementMode: quota.enforcementMode || 'immediate'
+        quotaType: 'percentage' as const,
+        enforcementMode: 'immediate' as const
       })) as TQuota[];
       setQuotas(migratedQuotas);
       setQuotasEnabled(initialQuotasEnabled);
@@ -43,8 +43,8 @@ export function useQuotaManagement<TQuota extends BaseDemographicQuota>(
     const newQuota: TQuota = {
       id: `quota-${Date.now()}`,
       field: fieldValue as TQuota['field'],
-      quota: 1,
-      quotaType: 'absolute',
+      quota: 10,
+      quotaType: 'percentage',
       isActive: true,
       enforcementMode: 'immediate'
     } as TQuota;

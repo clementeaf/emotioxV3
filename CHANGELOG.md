@@ -1,3 +1,51 @@
+## v0.39.1 — Participant limit + percentage quotas (2026-03-25)
+
+### backend
+- Fix: `getEffectiveParticipantLimitCap` — el límite global (*Limit number of participants*) se aplica tanto si `participantLimit` está guardado como **número** (legacy, igual que en research-frontend) como si es `{ enabled, value }`. Antes solo el objeto se interpretaba; con número, el backend ignoraba el límite y la conversión `% →` cupos absolutos en `tryIncrementQuota` no usaba **N**.
+- `validateDemographics`, `checkQuotaPreAvailability` y `saveParticipantResponses` usan la misma resolución.
+
+### deploy
+- Backend desplegado en cPanel (emotio.cx) con este cambio.
+
+---
+
+## v0.39.0 — Quota save + pre-check + participant flow (2026-03-25)
+
+### backend
+- `checkQuotaPreAvailability`: solo investigación activa y límite global de participantes; ya no usa agotamiento por buckets demográficos en el GET (evita falsos bloqueos y redirecciones antes de demografía).
+- `getParticipantStatus`: cuenta solo respuestas con `module_id != 'demographics'` (alineado con el límite global).
+- `checkAllQuotasFull` marcado como deprecated (lógica de “todos los buckets llenos” no aplicable si las opciones no cubren el 100% del espacio).
+
+### participant-frontend
+- Carga con `ECX`/panel: `getParticipantStatus` antes de quitar loading; reset de `thank-you` persistido sin respuestas reales; evita carrera con redirección a `complete`.
+
+### research-frontend
+- Guardado de cuotas de **edad**: `quotas` entra en el mismo `mapModalConfigToBackend` vía `onSave` (cuarto argumento); ya no depende solo del flush `onQuotasSave` + `useEffect`.
+- `handleSaveDemographicConfig`: no pisa cuotas con `[]` truthy; solo preserva cuotas antiguas si el payload no trae la clave `quotas`.
+- `DemographicConfigModalBase`: siempre llama `onQuotasSave` (vacío si cuotas desactivadas).
+- Copy en modales demográficos: cupo lleno = sobre cuota, no “descalificación” por perfil.
+
+### scripts
+- Tests de quota-availability / redirect ajustados al nuevo criterio de pre-check.
+
+---
+
+## v0.38.0 — Quotas always percentage, simplified UI (2026-03-25)
+
+### backend
+- Fix: Demographic quotas now store `quota_type` column — percentage values persist correctly instead of being lost on reload.
+- Fix: `tryIncrementQuota` and `checkAllQuotasFull` resolve percentage quotas to absolute limits using the research's `participantLimit` (e.g., 30% of 100 participants = 30 slots).
+- Fix: All quotas enforce immediately after demographics submission — removed unused `post_collection` enforcement path.
+- Migration 013: Adds `quota_type` column to `demographic_quotas`, migrates existing rows to `percentage` + `immediate`.
+
+### research-frontend
+- Fix: Quota type selector removed — quotas are always percentage (%). Previously saved as "percentage" but always displayed as "Número" on reload due to hardcoded `'absolute'` in `mapBackendQuotasToModal`.
+- Fix: Application mode selector removed — quotas always apply immediately after demographics. The "Filtro posterior" option never blocked participants and caused confusion.
+- UI: Quota row simplified from 4 columns (option, type, value, application) to 2 columns (option, percentage).
+- UI: Info text in all 8 demographic config modals updated to reflect percentage-only behavior.
+
+---
+
 ## v0.37.1 — Participant count fix, redirect screen (2026-03-24)
 
 ### backend

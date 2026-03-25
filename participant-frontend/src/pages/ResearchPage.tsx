@@ -428,17 +428,6 @@ export const ResearchPage = () => {
     useParticipantStore.getState().setParticipantId(participantId);
   }, [participantId, clearAllResponses, startNewSession]);
 
-  // Check if participant already responded (panel mode only)
-  useEffect(() => {
-    if (!researchId || !participantId || isPreviewMode) return;
-    let cancelled = false;
-    publicService.getParticipantStatus(researchId, participantId).then(({ hasResponded }) => {
-      if (!cancelled && hasResponded) setAlreadyResponded(true);
-    });
-    return () => { cancelled = true; };
-  }, [researchId, participantId, isPreviewMode]);
-
-
   // Initialize session timer
   useSessionTimer();
 
@@ -536,6 +525,7 @@ export const ResearchPage = () => {
         const params = new URLSearchParams(window.location.search);
         const urlParticipantId = params.get('participantId') ?? params.get('participantid') ?? params.get('ECX') ?? params.get('ecx');
         const explicitPreview = new URLSearchParams(window.location.search).get('preview') === 'true';
+        const reviewParam = params.get('review');
         const effectivePreview = explicitPreview || (!urlParticipantId && mode !== 'kiosk');
 
         // Step 3: If kiosk mode, always request a fresh session
@@ -550,6 +540,18 @@ export const ResearchPage = () => {
 
         // Fetch research data from backend
         const research = await publicService.getResearch(researchId, effectivePreview);
+
+        // Panel with ECX/participantId: block repeat submissions and avoid stale persisted thank-you / redirect race
+        if (urlParticipantId && !effectivePreview && !reviewParam) {
+          const { hasResponded } = await publicService.getParticipantStatus(researchId, urlParticipantId);
+          if (hasResponded) {
+            setAlreadyResponded(true);
+            setModules({});
+            setStepsOrder([]);
+            setLoading(false);
+            return;
+          }
+        }
 
         // Check mobile device restriction
         const linkConfig = getLinkConfig(research);
@@ -716,12 +718,19 @@ export const ResearchPage = () => {
         // In preview mode, always reset to the first step and clear previous responses
         // In review mode, don't clear — responses are loaded separately
         // In participant mode, only reset if user hasn't progressed yet
-        const reviewParam = params.get('review');
         const storedStep = useParticipantStore.getState().currentStep;
         if (effectivePreview && !reviewParam) {
           useParticipantStore.getState().clearAllResponses();
           useParticipantStore.getState().setCurrentStep(firstStep);
         } else if (!storedStep || storedStep === 'welcome' || !enabledSteps.includes(storedStep)) {
+          useParticipantStore.getState().setCurrentStep(firstStep);
+        } else if (
+          urlParticipantId &&
+          !effectivePreview &&
+          !reviewParam &&
+          storedStep === 'thank-you'
+        ) {
+          // Persisted thank-you from a prior session without completed responses — restart flow
           useParticipantStore.getState().setCurrentStep(firstStep);
         }
 

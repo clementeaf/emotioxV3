@@ -202,10 +202,9 @@ async function suiteA() {
   const v5 = await validate(researchId, { gender: 'Female' }, pid5);
   assert(v5.valid === true, 'A.8 Female 2/2 aceptado');
 
-  // A.9 — Ahora TODOS los slots están llenos → pre-check bloquea
+  // A.9 — Todos los slots llenos: validate bloquea; pre-check solo límite global / research activo
   const pc4 = await preCheck(researchId);
-  assert(pc4.available === false, 'A.9 Todas las cuotas gender agotadas → available:false');
-  assert(pc4.exhaustedType === 'gender', 'A.9 exhaustedType = gender', `got: ${pc4.exhaustedType}`);
+  assert(pc4.available === true, 'A.9 Pre-check sigue available:true (cuotas demográficas en validate-demographics)');
 
   // A.10 — Post-validate Female también rechaza
   const pid6 = await kioskSession(researchId);
@@ -217,7 +216,7 @@ async function suiteA() {
 // --- Suite B: multi-tipo (gender + age) --------------------------------
 
 async function suiteB() {
-  section('B. Multi-tipo: gender lleno + age disponible → pre-check bloquea');
+  section('B. Multi-tipo: gender lleno + age disponible → validate bloquea gender');
 
   const { researchId, configModuleId } = await createResearch(`[TEST-B] ${UNIQUE}`);
   researchIds.push(researchId);
@@ -251,10 +250,9 @@ async function suiteB() {
   const pid2 = await kioskSession(researchId);
   await validate(researchId, { gender: 'Female', age: '25-34' }, pid2);
 
-  // Gender exhausted, age has plenty of room
+  // Gender exhausted for configured buckets; pre-check does not evaluate demographic quotas
   const pc = await preCheck(researchId);
-  assert(pc.available === false, 'B.1 Gender lleno, age disponible → available:false (1 tipo basta)');
-  assert(pc.exhaustedType === 'gender', 'B.1 exhaustedType = gender');
+  assert(pc.available === true, 'B.1 Pre-check available:true (demographic enforcement at validate)');
 
   // Post-validate: even with un-exhausted age value, gender blocks
   const pid3 = await kioskSession(researchId);
@@ -290,9 +288,9 @@ async function suiteC() {
   const v1 = await validate(researchId, { gender: 'Male' }, pid1);
   assert(v1.valid === true, 'C.1 Male 1/1 aceptado');
 
-  // Pre-check: el único valor con cuota (Male) está lleno → available:false
+  // Male bucket full but Female has no quota row — pre-check must not block (Female can still enter)
   const pc = await preCheck(researchId);
-  assert(pc.available === false, 'C.2 Único valor con cuota lleno → available:false');
+  assert(pc.available === true, 'C.2 Pre-check available:true cuando solo Male tiene cuota y está llena');
 
   // Post-validate Male → QUOTA_FULL
   const pid2 = await kioskSession(researchId);
@@ -394,9 +392,8 @@ async function suiteE() {
   assert(accepted.length === 1, `E.1 Exactamente 1 aceptado de 8`, `got: ${accepted.length}`);
   assert(rejected.length === 7, `E.2 Exactamente 7 rechazados`, `got: ${rejected.length}`);
 
-  // Verify DB count didn't exceed limit
   const pc = await preCheck(researchId);
-  assert(pc.available === false, 'E.3 Pre-check confirma cuota agotada post-concurrencia');
+  assert(pc.available === true, 'E.3 Pre-check no usa agotamiento demográfico (validate ya aplicó límite)');
 }
 
 // --- Suite F: idempotencia (re-validar mismo participantId) ------------
@@ -560,9 +557,8 @@ async function suiteI() {
   const v4 = await validate(researchId, { age: '65+' }, pid4);
   assert(v4.valid === true, 'I.6 "65+" aceptado');
 
-  // All age quotas full → pre-check blocks
   const pc = await preCheck(researchId);
-  assert(pc.available === false, 'I.7 Todas las cuotas age agotadas → available:false');
+  assert(pc.available === true, 'I.7 Pre-check available:true (edad agotada se valida al enviar demografía)');
 }
 
 // --- Suite J: backlinks llegan al payload público ----------------------

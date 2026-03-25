@@ -5,7 +5,23 @@
 
 ---
 
-## Última actualización: 2026-03-20 (sesión 20)
+## Última actualización: 2026-03-25 (sesión 22)
+
+---
+
+## Sesión 22: 25 de marzo de 2026 — Límite global + cuotas % (v0.39.1)
+
+- **Backend:** `getEffectiveParticipantLimitCap` — el límite de participantes guardado como número (legacy) vuelve a aplicar en API; la conversión `% →` cupos usa **N** correctamente. Deploy cPanel.
+- Detalle: `CHANGELOG.md` v0.39.1.
+
+---
+
+## Sesión 21: 25 de marzo de 2026 — Quotas save, pre-check, participant UX (v0.39.0)
+
+- **Backend:** Pre-check público sin `checkAllQuotasFull`; `getParticipantStatus` sin respuestas solo-demografía.
+- **Participant:** Panel + ECX: estado respondido y reset de thank-you obsoleto antes de redirigir.
+- **Research UI:** Cuotas de edad persisten en un solo `onSave` con `quotas` en el mapper; copy sobre cuota vs descalificación.
+- Ver `CHANGELOG.md` v0.39.0 para detalle.
 
 ---
 

@@ -119,7 +119,7 @@ export function QuotasTab<
                     key={quota.id}
                     className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border"
                   >
-                    <div className="flex-1 grid grid-cols-4 gap-4">
+                    <div className="flex-1 grid grid-cols-2 gap-4">
                       {/* Field Select */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -144,74 +144,27 @@ export function QuotasTab<
                         </select>
                       </div>
 
-                      {/* Quota Type */}
+                      {/* Quota Value (always percentage) */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tipo
-                        </label>
-                        <select
-                          value={quota.quotaType}
-                          onChange={(e) => {
-                            const newType = e.target.value as 'absolute' | 'percentage';
-                            handleUpdateQuota(quota.id, 'quotaType', newType);
-                            if (newType === 'percentage' && quota.quota > 100) {
-                              handleUpdateQuota(quota.id, 'quota', 50);
-                            }
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="absolute">Número</option>
-                          <option value="percentage">Porcentaje</option>
-                        </select>
-                      </div>
-
-                      {/* Quota Value */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {quota.quotaType === 'percentage'
-                            ? 'Porcentaje (%)'
-                            : 'Cantidad'}
+                          Porcentaje (%)
                         </label>
                         <div className="relative">
                           <input
                             type="number"
-                            min={quota.quotaType === 'percentage' ? '0' : '1'}
-                            max={quota.quotaType === 'percentage' ? '100' : undefined}
+                            min="0"
+                            max="100"
                             value={quota.quota}
                             onChange={(e) => {
-                              let value = parseInt(e.target.value) || 1;
-                              if (quota.quotaType === 'percentage') {
-                                value = Math.max(0, Math.min(100, value));
-                              } else {
-                                value = Math.max(1, value);
-                              }
+                              const value = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
                               handleUpdateQuota(quota.id, 'quota', value);
                             }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
-                          {quota.quotaType === 'percentage' && (
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                              %
-                            </span>
-                          )}
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                            %
+                          </span>
                         </div>
-                      </div>
-
-                      {/* Enforcement Mode */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Aplicación
-                        </label>
-                        <select
-                          value={quota.enforcementMode || 'immediate'}
-                          onChange={(e) =>
-                            handleUpdateQuota(quota.id, 'enforcementMode', e.target.value as 'immediate' | 'post_collection')
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="immediate">Descarte inmediato</option>
-                          <option value="post_collection">Filtro posterior</option>
-                        </select>
                       </div>
                     </div>
 

@@ -198,19 +198,16 @@ async function main() {
   );
   assert(fakeResearch.available === true, '8.3 Non-existent research returns available (no quotas = no block)');
 
-  // Research with ALL quotas full (stress test research)
+  // Demographic quota exhaustion no longer gates pre-check (enforced at validate-demographics)
   const fullResearch = await apiGet<QuotaAvailabilityResult>(
     '/public/research/5d6882d3-4dc3-4465-a060-6edd1fa5fa2d/quota-availability'
   );
-  assert(fullResearch.available === false, '8.4 Fully exhausted research returns available=false');
-  assert(fullResearch.exhaustedType === 'age' || fullResearch.exhaustedType === 'gender',
-    '8.5 Exhausted type is reported', `got: ${fullResearch.exhaustedType}`);
+  assert(fullResearch.available === true, '8.4 Pre-check ignores demographic bucket exhaustion');
 
-  // Single-value quota fully consumed (Cognitive research)
   const singleFull = await apiGet<QuotaAvailabilityResult>(
     '/public/research/f39322f6-221b-11f1-9f6d-0200fd8285c9/quota-availability'
   );
-  assert(singleFull.available === false, '8.6 Single-value quota (1/1) returns available=false');
+  assert(singleFull.available === true, '8.5 Pre-check ignores single-bucket demographic exhaustion');
 
   // ─── PHASE 9: Validate → QUOTA_FULL on exhausted research ─────
   console.log('\n── PHASE 9: Validate on Exhausted Research ──');

@@ -12,6 +12,7 @@ interface BackendQuotaConfig {
     limit: number;
     enabled: boolean;
     enforcementMode: 'immediate' | 'post_collection';
+    quotaType: 'percentage';
 }
 
 interface BackendDisqualification {
@@ -96,15 +97,16 @@ export function mapAgeConfigToBackend(
         enabled: true
     }));
 
-    // Convert quotas to backend format
+    // Convert quotas to backend format (always percentage, always immediate)
     const backendQuotas: BackendQuotaConfig[] = (quotas || [])
         .filter(q => q.isActive)
         .map(q => ({
             id: q.id,
             value: q.ageRange,
-            limit: q.quotaType === 'percentage' ? q.quota : q.quota, // Backend handles both as limits
+            limit: q.quota,
             enabled: true,
-            enforcementMode: q.enforcementMode || 'immediate'
+            enforcementMode: 'immediate' as const,
+            quotaType: 'percentage' as const
         }));
 
     // Extract min/max from age ranges if possible
@@ -162,7 +164,7 @@ export function mapCountryConfigToBackend(
         enabled: true
     }));
 
-    // Convert quotas to backend format
+    // Convert quotas to backend format (always percentage, always immediate)
     const backendQuotas: BackendQuotaConfig[] = (quotas || [])
         .filter(q => q.isActive)
         .map(q => ({
@@ -170,7 +172,8 @@ export function mapCountryConfigToBackend(
             value: q.country,
             limit: q.quota,
             enabled: true,
-            enforcementMode: q.enforcementMode || 'immediate'
+            enforcementMode: 'immediate' as const,
+            quotaType: 'percentage' as const
         }));
 
     // validValues includes ALL enabled countries (qualifying + disqualifying)
@@ -209,7 +212,7 @@ export function mapGenderConfigToBackend(
         };
     });
 
-    // Convert quotas to backend format
+    // Convert quotas to backend format (always percentage, always immediate)
     const backendQuotas: BackendQuotaConfig[] = (quotas || [])
         .filter(q => q.isActive)
         .map(q => ({
@@ -217,7 +220,8 @@ export function mapGenderConfigToBackend(
             value: q.gender,
             limit: q.quota,
             enabled: true,
-            enforcementMode: q.enforcementMode || 'immediate'
+            enforcementMode: 'immediate' as const,
+            quotaType: 'percentage' as const
         }));
 
     // validValues includes ALL options so participants see the full list.
@@ -254,7 +258,7 @@ export function mapGenericOptionsToBackend(
         };
     });
 
-    // Convert quotas to backend format
+    // Convert quotas to backend format (always percentage, always immediate)
     const backendQuotas: BackendQuotaConfig[] = (quotas || [])
         .filter(q => q.isActive)
         .map(q => ({
@@ -262,7 +266,8 @@ export function mapGenericOptionsToBackend(
             value: q.value || '',
             limit: q.quota,
             enabled: true,
-            enforcementMode: (q.enforcementMode || 'immediate') as 'immediate' | 'post_collection'
+            enforcementMode: 'immediate' as const,
+            quotaType: 'percentage' as const
         }));
 
     // validValues includes ALL options so participants see the full list.

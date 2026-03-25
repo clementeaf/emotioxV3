@@ -179,12 +179,12 @@ async function createResearch(name: string, config: {
 }
 
 // ---------------------------------------------------------------------------
-// Scenario 1: Pre-check — all quotas exhausted → available: false
+// Scenario 1: Pre-check does not use demographic quota exhaustion (validate-demographics does)
 // ---------------------------------------------------------------------------
 
 async function scenario1_preCheckQuotasFull() {
   console.log('━'.repeat(70));
-  console.log('📋 Scenario 1: Pre-check blocks when ALL quotas exhausted');
+  console.log('📋 Scenario 1: Pre-check stays available; validate blocks when quotas full');
   console.log('━'.repeat(70));
 
   const { researchId } = await createResearch('Quota PreCheck', {
@@ -210,11 +210,19 @@ async function scenario1_preCheckQuotasFull() {
     }, false);
   }
 
-  // Pre-check should return available: false
+  // Pre-check only enforces research status + global participant limit — not per-demographic buckets
   const { data } = await api('GET', `/public/research/${researchId}/quota-availability`, undefined, false);
   const result = data as { available: boolean; exhaustedType?: string };
-  assert(result.available === false, 'Pre-check returns available=false when all quotas full');
-  assert(result.exhaustedType === 'gender', `exhaustedType='gender' (got '${result.exhaustedType}')`);
+  assert(result.available === true, 'Pre-check returns available=true (demographic enforcement at validate-demographics)');
+
+  const session = (await apiOk('POST', `/public/research/${researchId}/kiosk/session`, {}, false)) as { participantId: string };
+  const { data: valRes } = await api('POST', `/public/research/${researchId}/validate-demographics`, {
+    demographics: { gender: 'Male' },
+    participantId: session.participantId,
+  }, false);
+  const validation = (valRes as { validation: { valid: boolean; reason?: string } }).validation;
+  assert(validation.valid === false, 'Validation rejects when bucket full');
+  assert(validation.reason === 'QUOTA_FULL', `reason=QUOTA_FULL (got '${validation.reason}')`);
 
   console.log();
 }

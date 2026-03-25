@@ -700,16 +700,15 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                 }))}
                 quotaConfig={quotaConfig}
                 quotasTitle="Sistema de Cuotas por País"
-                quotasDescription={`Configura cuotas específicas para los ${priorityCountries.length} países prioritarios seleccionados. Cuando se alcance la cuota de un país, los participantes de ese país serán descalificados automáticamente.`}
+                quotasDescription={`Configura cuotas específicas para los ${priorityCountries.length} países prioritarios seleccionados. Cuando el cupo de un país esté lleno, aplica sobre cuota, no descalificación por reglas de perfil de país.`}
                 quotasInfoTitle="Cuotas para países prioritarios:"
                 quotasInfoItems={[
                   'Las cuotas solo se aplican a países marcados como prioritarios',
-                  'Cada país puede tener su propia cuota (número absoluto o porcentaje)',
-                  'Porcentajes: Se calculan sobre el total de participantes esperados',
-                  'El sistema contará automáticamente los participantes que se registren por país',
-                  'Cuando se alcance la cuota, nuevos participantes de ese país serán descalificados',
-                  '⚠️ Países sin cuota asignada: Si un país prioritario no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
-                  'Las cuotas inactivas no afectan la descalificación',
+                  'Cada país puede tener su propia cuota en porcentaje (%) del límite de participantes',
+                  'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
+                  'El sistema incrementa el contador al validar demografía (por país)',
+                  'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
+                  'Países sin cuota asignada: Si un país prioritario no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
                   'Si quitas la prioridad de un país, su cuota se mantendrá pero no se aplicará'
                 ]}
                 quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por país prioritario"

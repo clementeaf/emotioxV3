@@ -33,8 +33,11 @@ interface AgeQuota {
 interface AgeConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (validAges: string[], disqualifyingAges: string[], orderedAll: string[]) => void;
-  onQuotasSave?: (quotas: AgeQuota[]) => void;
+  /**
+   * Fourth argument is modal-format quotas for this save (empty when quotas system is off).
+   * Passed into mapModalConfigToBackend so quotas persist in one onChange (no flush race).
+   */
+  onSave: (validAges: string[], disqualifyingAges: string[], orderedAll: string[], quotas: AgeQuota[]) => void;
   onQuotasToggle?: (enabled: boolean) => void;
   initialValidAges?: string[];
   initialDisqualifyingAges?: string[];
@@ -79,7 +82,6 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  onQuotasSave,
   onQuotasToggle,
   initialValidAges = [],
   initialDisqualifyingAges = [],
@@ -187,12 +189,11 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
 
     // Pass the full ordered list so the mapper preserves the researcher's order
     const orderedAll = enabledInOrder.map(option => option.label);
-    onSave(validAges, disqualifyingAges, orderedAll);
+    const ageQuotas: AgeQuota[] = quotaConfig.quotasEnabled
+      ? quotaConfig.quotas.map(mapBaseToAgeQuota)
+      : [];
 
-    if (quotaConfig.quotasEnabled && onQuotasSave) {
-      const ageQuotas = quotaConfig.quotas.map(mapBaseToAgeQuota);
-      onQuotasSave(ageQuotas);
-    }
+    onSave(validAges, disqualifyingAges, orderedAll, ageQuotas);
 
     onClose();
   };
@@ -295,15 +296,14 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
           }))}
           quotaConfig={quotaConfig}
           quotasTitle="Sistema de Cuotas por Edad"
-          quotasDescription="Configura cuotas específicas por rango de edad. Cuando se alcance la cuota de un rango, los participantes de esa edad serán descalificados automáticamente."
+          quotasDescription="Configura cuotas específicas por rango de edad. Cuando el cupo de un rango esté lleno, aplica el flujo de sobre cuota (cupo agotado para ese rango), no la descalificación por reglas de perfil de la pestaña Opciones de Edad."
           quotasInfoTitle="Cómo funcionan las cuotas:"
           quotasInfoItems={[
-            'Cada rango de edad puede tener su propia cuota (número absoluto o porcentaje)',
-            'Porcentajes: Se calculan sobre el total de participantes esperados',
-            'El sistema automáticamente contará los participantes que se registren',
-            'Cuando se alcance la cuota, los participantes de esa edad serán descalificados automáticamente',
-            'Rangos sin cuota asignada: Si un rango habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
-            'Las cuotas inactivas no afectan la descalificación'
+            'Cada rango de edad puede tener su propia cuota en porcentaje (%) del límite de participantes',
+            'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
+            'El sistema incrementa el contador al validar demografía (orden de llegada dentro del rango)',
+            'Cuando el cupo de un rango esté lleno, el participante queda en sobre cuota al enviar demografía (misma lógica que «sin cupo»; enlace de sobre cuota del estudio si lo configuraste)',
+            'Rangos sin cuota asignada: si un rango habilitado no tiene cuota configurada, no se aplica límite por cuota para ese valor y puede recibir participantes sin tope porcentual'
           ]}
           quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por rango de edad"
           quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"

@@ -163,15 +163,14 @@ export const GenderConfigModal: React.FC<GenderConfigModalProps> = ({
       addCustomOptionText="Agregar género personalizado"
       statisticsLabel="Géneros calificados"
       quotasTitle="Sistema de Cuotas por Género"
-      quotasDescription="Configura cuotas específicas por género. Cuando se alcance la cuota de un género, los participantes de ese género serán descalificados automáticamente."
+      quotasDescription="Configura cuotas específicas por género. Cuando el cupo de un valor esté lleno, aplica sobre cuota, no descalificación por reglas de perfil."
       quotasInfoTitle="Cómo funcionan las cuotas:"
       quotasInfoItems={[
-        'Cada género puede tener su propia cuota (número absoluto o porcentaje)',
-        'Porcentajes: Se calculan sobre el total de participantes esperados',
-        'El sistema automáticamente contará los participantes que se registren',
-        'Cuando se alcance la cuota, los participantes de ese género serán descalificados automáticamente',
-        '⚠️ Géneros sin cuota asignada: Si un género habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
-        'Las cuotas inactivas no afectan la descalificación'
+        'Cada género puede tener su propia cuota en porcentaje (%) del límite de participantes',
+        'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
+        'El sistema incrementa el contador al validar demografía',
+        'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
+        'Géneros sin cuota asignada: Si un género habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción'
       ]}
       quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por género"
       quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
