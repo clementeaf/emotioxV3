@@ -1,3 +1,16 @@
+## v0.42.0 — Screener results analytics (2026-03-28)
+
+### backend
+- New endpoint `GET /analytics/research/:id/screener` — aggregates Screener responses.
+- `analytics.service.ts`: `getScreenerResults()` returns choice distribution (Qualify/Disqualify), participant status counts (overquota, disqualified, complete), daily distribution with per-choice breakdown, best/slowest day, and weekly time series.
+
+### research-frontend
+- New component `ScreenerResults` — stacked bar chart (distribution by choice/route), 3 status cards, best/slowest day, weekly line chart.
+- `ResearchResultsPage`: tab system refactored to data-driven (`TAB_DEFS`); Screener tab appears only when the research contains a Screener stage; auto-selects first available tab on load.
+- `analytics.service.ts` (frontend): new types and `getScreenerResults()` function.
+
+---
+
 ## v0.41.0 — Technique default stages + generic collection rendering (2026-03-28)
 
 ### database

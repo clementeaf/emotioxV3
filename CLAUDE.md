@@ -15,7 +15,8 @@ Default stages al seleccionar esta técnica: Screener → Welcome Screen → Imp
 - **Eye Tracking** (`single_module`): stimuli (imágenes/video), 2 modalidades: Stand Alone (imagen única) y Shelf (vitrina). Incluye Emotion Recognition y predicción de atención automáticos.
 - **`research_techniques.default_stages`** (JSON): cada técnica puede definir sus stages default. Al crear un research, se priorizan sobre `default_modules` del research type. El frontend los muestra en el form de creación.
 - **Rendering genérico**: `ResearchBuilderPage` usa lógica de `module_collection` generalizada — cualquier stage collection que no sea Smart VOC se renderiza con `CognitiveTaskModuleCard`. No hace falta agregar código específico por stage.
-- **Pendiente**: vistas de resultados/analytics para Screener, Implicit Association y Eye Tracking (actualmente excluidos de SmartVOC Results y Cognitive Task Results). Pendiente también: rendering en participant-frontend.
+- **Screener Results** (v0.42.0): endpoint `GET /analytics/research/:id/screener` + componente `ScreenerResults` en research-frontend. Histograma de distribución por choice, status cards (overquota/disqualified/complete), best/slowest day, weekly chart. Tab dinámica en `ResearchResultsPage`.
+- **Pendiente**: vistas de resultados/analytics para Implicit Association y Eye Tracking. Pendiente también: rendering en participant-frontend para Screener, Implicit Association y Eye Tracking.
 
 ## Tech Stack
 - **Backend:** Node.js + TypeScript, Express 5, MySQL (mysql2), JWT + Google OAuth, AWS SDK (S3 media, Cognito legacy), Passenger (cPanel)
@@ -104,6 +105,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/research/ResearchFormStep2.tsx` — paso 2 de creación; muestra stages de la técnica seleccionada
 - `scripts/stress-test-quotas.ts` — E2E stress test para cuotas atómicas (`npx tsx scripts/stress-test-quotas.ts`). Registra user temporal, crea research kiosk con cuotas, lanza 10 participantes concurrentes, verifica que no se exceden límites.
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
+- `research-frontend/src/components/results/screener/ScreenerResults.tsx` — Screener results panel: histograma apilado por choice/route (Recharts BarChart), 3 status cards (overquota/disqualified/complete), best/slowest day, weekly line chart. Datos desde `GET /analytics/research/:id/screener`.
 - `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios. CPV = CSAT positivo (4+5) - CES negativo (1+2). NPS agrupado por día en today/week con porcentajes para barras apiladas. NEV: lista canónica de 20 emociones (IDs alineados con participant EmotionSelector), normalización de claves al agregar, etiquetas solo en español.
 - `research-frontend/src/components/results/smart-voc/components/NPSAnalysis.tsx` — NPS: barras apiladas Promoters/Neutrals/Detractors normalizadas al 100% (datos en porcentajes; Today/Week desde SmartVOCResults, Month desde backend); gráfico ComposedChart + circular score + Loyalty Evolution.
 - `research-frontend/src/components/results/smart-voc/components/CPVCard.tsx` — CPV: pastilla compacta sticky en top-left. Muestra el ratio sin `%` (CPV = CSAT% / CES%, es un ratio, no un porcentaje)

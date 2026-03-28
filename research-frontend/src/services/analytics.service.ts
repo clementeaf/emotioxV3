@@ -270,6 +270,54 @@ export const getRankingResponses = async (
 };
 
 // ==========================================
+// SCREENER RESULTS
+// ==========================================
+
+export interface ScreenerChoiceDistribution {
+    choiceId: string;
+    label: string;
+    eligibility: 'Qualify' | 'Disqualify';
+    count: number;
+    percentage: number;
+}
+
+export interface ScreenerDayInfo {
+    date: string;
+    dayName: string;
+    hour: string;
+    count: number;
+    percentage: number;
+}
+
+export interface ScreenerResults {
+    totalResponses: number;
+    qualified: number;
+    disqualified: number;
+    overquota: number;
+    questionText: string;
+    choiceDistribution: ScreenerChoiceDistribution[];
+    dailyDistribution: Array<{
+        date: string;
+        count: number;
+        byChoice: Record<string, number>;
+    }>;
+    bestDay: ScreenerDayInfo | null;
+    slowestDay: ScreenerDayInfo | null;
+    weeklyTimeSeries: Array<{
+        date: string;
+        dayName: string;
+        count: number;
+    }>;
+}
+
+export const getScreenerResults = async (researchId: string): Promise<ScreenerResults> => {
+    const response = await apiClient.get<{ results: ScreenerResults }>(
+        `/analytics/research/${researchId}/screener`
+    );
+    return response.results;
+};
+
+// ==========================================
 // SMARTVOC RESULTS
 // ==========================================
 

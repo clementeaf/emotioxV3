@@ -26,6 +26,14 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ results }, 200, undefined, origin);
         }
 
+        // GET /analytics/research/:id/screener
+        const screenerMatch = path.match(/^\/analytics\/research\/([^\/]+)\/screener$/);
+        if (screenerMatch && httpMethod === 'GET') {
+            const researchId = screenerMatch[1];
+            const results = await analyticsService.getScreenerResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
         // GET /analytics/research/:id/demographics
         const demographicsMatch = path.match(/^\/analytics\/research\/([^\/]+)\/demographics$/);
         if (demographicsMatch && httpMethod === 'GET') {
