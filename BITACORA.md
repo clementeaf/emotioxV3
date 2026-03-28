@@ -5,7 +5,15 @@
 
 ---
 
-## Última actualización: 2026-03-28 (sesión 25)
+## Última actualización: 2026-03-28 (sesión 26)
+
+---
+
+## Sesión 26: 28 de marzo de 2026 — Google-only auth + design system (v0.46.0)
+
+- **Auth:** Eliminado login manual (email/password) y registro. Solo queda Google OAuth. Limpieza completa: store, service, types, ruta `/register`, `RegisterPage.tsx`.
+- **Design system:** Aplicada base del design system Vambe AI en modo light. Plus Jakarta Sans como font principal. Tokens `accent` en Tailwind. Login rediseñado: card blanca, fondo claro, botón Google único.
+- **Regla establecida:** Solo light theme, nunca dark theme.
 
 ---
 

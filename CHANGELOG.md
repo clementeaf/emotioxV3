@@ -1,3 +1,21 @@
+## v0.46.0 — Google-only auth + design system foundation (2026-03-28)
+
+### research-frontend
+- **Auth simplified to Google OAuth only.** Removed manual login form (email/password), register page, and all related code:
+  - Deleted `RegisterPage.tsx`.
+  - Removed `login()`, `register()` from `auth.store.ts`.
+  - Removed `login()`, `register()` from `auth.service.ts`.
+  - Removed `LoginCredentials`, `LoginRequest`, `RegisterCredentials`, `LoginResponse`, `RegisterResponse` from `types/auth.ts`.
+  - Removed `/register` route from `routes.tsx`.
+- **Design system foundation applied (light theme):**
+  - Added Plus Jakarta Sans (400, 600) via Google Fonts.
+  - Tailwind config: new `font-sans` (Plus Jakarta Sans), `accent` color tokens (`#006aff`, `#3b82f6`).
+  - `AuthLayout`: clean light background (`bg-slate-50`).
+  - `LoginPage`: white card with subtle border, "Emotiox" heading + "UX Research Platform" subtitle, single Google button.
+- Copied Vambe AI design system reference docs to `docs/design-system/`.
+
+---
+
 ## v0.45.0 — Participant rendering: Screener, Implicit Association, Eye Tracking (2026-03-28)
 
 ### participant-frontend
