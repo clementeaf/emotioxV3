@@ -5,7 +5,18 @@
 
 ---
 
-## Última actualización: 2026-03-28 (sesión 24)
+## Última actualización: 2026-03-28 (sesión 25)
+
+---
+
+## Sesión 25: 28 de marzo de 2026 — Participant rendering: Screener, IAT, Eye Tracking (v0.45.0)
+
+- **Screener:** `ScreenerRenderer` — reutiliza `ChoiceQuestion` existente. Muestra pregunta + choices con eligibilidad (Qualify/Disqualify). El ruteo se maneja server-side.
+- **Implicit Association:** `ImplicitAssociationRenderer` — motor IAT completo. Instrucciones → priming → trials (texto/imagen) → feedback → guardado automático. Teclado E/I + botones touch. Soporta Attribute Testing, Comparing Attribute, Objects Comparing. Extrae config del módulo (targets, attributes, priming time).
+- **Eye Tracking:** `EyeTrackingRenderer` — MVP con click/tap tracking como proxy de eye tracking. Instrucciones → imagen estímulo con countdown → registra clicks como fixations en coordenadas naturales. Resuelve URLs de S3 via mediaService.
+- **Integración:** `DynamicStep` delega a los 3 nuevos renderers. `useNavigation` incluye nuevos steps. `ResearchPage` mapea nombres, valida configuración, oculta botón para IAT/ET (auto-advance interno).
+- Los 3 renderers producen exactamente el formato de respuesta que los endpoints de analytics ya esperan.
+- Pendiente: webcam eye tracking (WebGazer.js) como mejora futura.
 
 ---
 

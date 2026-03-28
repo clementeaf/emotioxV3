@@ -1,3 +1,33 @@
+## v0.45.0 — Participant rendering: Screener, Implicit Association, Eye Tracking (2026-03-28)
+
+### participant-frontend
+- New `ScreenerRenderer` — renders Screener filtering question with Qualify/Disqualify choices. Reuses existing `ChoiceQuestion` component. Response: `component_id = 'choice'`, value = selected choice ID.
+- New `ImplicitAssociationRenderer` — full IAT trial engine with:
+  - Instructions screen with category labels and keyboard shortcuts (E/I or arrow keys).
+  - Priming phase (fixation point, configurable duration from module config).
+  - Trial phase: shows target (text or image), participant classifies via buttons or keyboard.
+  - Practice trials (1 per target) then test trials (target × attribute, shuffled).
+  - Visual feedback (correct/incorrect) between trials.
+  - Response: `component_id = 'iat-trials'`, value = `[{ targetId, criterionId, rt, correct, phase }]`.
+  - Supports all 3 test types: Attribute Testing, Comparing Attribute, Objects Comparing.
+- New `EyeTrackingRenderer` — click/tap tracking as proxy for gaze data:
+  - Instructions screen with task description and viewing duration.
+  - Stimulus display with countdown timer and crosshair cursor.
+  - Click/tap positions recorded as fixations in natural image coordinates.
+  - Visual feedback dots on recorded positions.
+  - Auto-completes after configurable duration (default 10s).
+  - Response: `component_id = 'eye-tracking-data'`, value = `{ fixations: [...], calibrationQuality: 'click-proxy', integrityScore: 1.0 }`.
+  - S3 stimulus URL resolution via `mediaService`.
+- `DynamicStep`: delegates to new renderers based on module name detection.
+- `useNavigation`: `DEFAULT_STEPS_ORDER` includes `screener`, `attribute-testing`, `comparing-attribute`, `objects-comparing`, `eye-tracking`.
+- `ResearchPage`:
+  - `getStepIdFromModuleName()`: explicit mappings for Screener, IAT module types, Eye Tracking.
+  - `isModuleConfigured()`: validation rules for Screener (has choices), IAT (has targets), Eye Tracking (has stimulus).
+  - `shouldShowButton()`: hides footer button for IAT and Eye Tracking (internal auto-advance).
+- `renderers/index.ts`: exports new renderers.
+
+---
+
 ## v0.44.0 — Eye Tracking results analytics (2026-03-28)
 
 ### backend

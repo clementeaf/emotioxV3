@@ -2,6 +2,9 @@ import React, { useMemo, useCallback } from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
+import { ScreenerRenderer } from '../renderers/ScreenerRenderer';
+import { ImplicitAssociationRenderer } from '../renderers/ImplicitAssociationRenderer';
+import { EyeTrackingRenderer } from '../renderers/EyeTrackingRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText, toStableString } from '../../utils/moduleComponent';
@@ -141,6 +144,27 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
         [module.name]
     );
 
+    // Check if this is a Screener module
+    const isScreener = useMemo(() => {
+        const lower = module.name.toLowerCase();
+        return lower === 'screener' || lower.includes('screener');
+    }, [module.name]);
+
+    // Check if this is an Implicit Association module
+    const isImplicitAssociation = useMemo(() => {
+        const lower = module.name.toLowerCase();
+        return lower.includes('attribute testing') ||
+            lower.includes('comparing attribute') ||
+            lower.includes('objects comparing') ||
+            lower.includes('object comparing');
+    }, [module.name]);
+
+    // Check if this is an Eye Tracking module
+    const isEyeTracking = useMemo(() => {
+        const lower = module.name.toLowerCase();
+        return lower === 'eye tracking' || lower.includes('eye tracking') || lower.includes('eyetracking');
+    }, [module.name]);
+
     // Memoize sorted components
     const sortedComponents = useMemo(() => {
         return [...module.structure.components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -199,6 +223,21 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     // If Cognitive Task, use specialized renderer
     if (isCognitiveTask) {
         return <CognitiveTaskRenderer module={module} onComplete={onComplete} />;
+    }
+
+    // If Screener, use screener renderer
+    if (isScreener) {
+        return <ScreenerRenderer module={module} onComplete={onComplete} />;
+    }
+
+    // If Implicit Association, use IAT renderer
+    if (isImplicitAssociation) {
+        return <ImplicitAssociationRenderer module={module} onComplete={onComplete} />;
+    }
+
+    // If Eye Tracking, use eye tracking renderer
+    if (isEyeTracking) {
+        return <EyeTrackingRenderer module={module} onComplete={onComplete} />;
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)
