@@ -1360,3 +1360,246 @@ const generateMonthlyMetricsData = (responses: any[]) => {
 
   return monthlyData;
 };
+
+// ==========================================
+// IMPLICIT ASSOCIATION RESULTS
+// ==========================================
+
+interface IATTarget {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
+interface IATAttribute {
+  id: string;
+  label: string;
+  imageUrl?: string;
+}
+
+interface IATModuleResult {
+  moduleId: string;
+  moduleName: string;
+  testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
+  primingTime: number;
+  targets: IATTarget[];
+  attributes: IATAttribute[];
+  totalResponses: number;
+  scores: Array<{
+    attributeId: string;
+    attributeLabel: string;
+    targetScores: Record<string, number>; // targetId → score (-100 to 100)
+  }>;
+}
+
+/**
+ * Detect the IAT test type from the module template name
+ */
+const detectIATTestType = (moduleName: string): IATModuleResult['testType'] => {
+  const lower = moduleName.toLowerCase();
+  if (lower.includes('objects comparing') || lower.includes('object comparing')) return 'objects_comparing';
+  if (lower.includes('comparing attribute') || lower.includes('comparing attr')) return 'comparing_attribute';
+  return 'attribute_testing';
+};
+
+/**
+ * Extract IAT configuration (targets, attributes, priming) from module config
+ */
+const extractIATConfig = (config: any, testType: IATModuleResult['testType']) => {
+  const structure = config?.structure ?? config;
+  const components: any[] = structure?.components ?? [];
+
+  const primingComp = components.find((c: any) => c.id === 'priming-time');
+  const primingTime = parseInt(primingComp?.value || '400', 10);
+
+  const targets: IATTarget[] = [];
+  const attributes: IATAttribute[] = [];
+
+  if (testType === 'objects_comparing') {
+    // Objects Comparing: object-N-name, object-N-image, dimension-1, dimension-2, criteria list
+    for (let i = 1; i <= 5; i++) {
+      const nameComp = components.find((c: any) => c.id === `object-${i}-name`);
+      if (nameComp?.value) {
+        const imageComp = components.find((c: any) => c.id === `object-${i}-image`);
+        targets.push({
+          id: `object-${i}`,
+          name: nameComp.value,
+          imageUrl: imageComp?.value || undefined,
+        });
+      }
+    }
+    // Dimensions become the "attributes" axis (2 dimensions)
+    const dim1 = components.find((c: any) => c.id === 'dimension-1');
+    const dim2 = components.find((c: any) => c.id === 'dimension-2');
+    if (dim1?.value || dim1?.placeholder?.text) {
+      attributes.push({ id: 'dimension-1', label: dim1.value || dim1.placeholder.text });
+    }
+    if (dim2?.value || dim2?.placeholder?.text) {
+      attributes.push({ id: 'dimension-2', label: dim2.value || dim2.placeholder.text });
+    }
+  } else {
+    // Attribute Testing / Comparing Attribute: target-N-name, target-N-image, criteria list
+    for (let i = 1; i <= 5; i++) {
+      const nameComp = components.find((c: any) => c.id === `target-${i}-name`);
+      if (nameComp?.value) {
+        const imageComp = components.find((c: any) => c.id === `target-${i}-image`);
+        targets.push({
+          id: `target-${i}`,
+          name: nameComp.value,
+          imageUrl: imageComp?.value || undefined,
+        });
+      }
+    }
+    // Criteria list from ranking-list component
+    const criteriaComp = components.find((c: any) => c.id === 'criteria');
+    if (criteriaComp?.value) {
+      const items = typeof criteriaComp.value === 'string'
+        ? JSON.parse(criteriaComp.value)
+        : criteriaComp.value;
+      const list = Array.isArray(items) ? items : items?.items ?? [];
+      for (const item of list) {
+        attributes.push({
+          id: item.id || item.value || String(list.indexOf(item)),
+          label: item.label || item.text || item.value || item.name || `Attribute ${list.indexOf(item) + 1}`,
+          imageUrl: item.imageUrl || item.image || undefined,
+        });
+      }
+    }
+  }
+
+  return { primingTime, targets, attributes };
+};
+
+/**
+ * Compute IAT scores from trial-level response data.
+ * Each response has component_id='iat-trials' and value = JSON array of trials:
+ * [{ targetId, criterionId, rt, correct, phase }]
+ *
+ * Score per (attribute, target) = association strength based on reaction times.
+ * D-score approach: (mean_RT_incongruent - mean_RT_congruent) / pooled_SD,
+ * then scaled to -100..100 range.
+ *
+ * When no data: returns 0 for all scores.
+ */
+const computeIATScores = (
+  responses: any[],
+  targets: IATTarget[],
+  attributes: IATAttribute[],
+  testType: IATModuleResult['testType'],
+): IATModuleResult['scores'] => {
+  // Parse all trials from all responses
+  type Trial = { targetId: string; criterionId: string; rt: number; correct: boolean; phase: string };
+  const allTrials: Trial[] = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+      // Only include test-phase trials (exclude exercise/practice)
+      for (const t of trials) {
+        if (t.phase === 'test' && t.correct !== false) {
+          allTrials.push(t);
+        }
+      }
+    } catch { /* skip malformed */ }
+  }
+
+  // Group trials by (criterionId, targetId) → array of reaction times
+  const rtMap: Record<string, Record<string, number[]>> = {};
+  for (const t of allTrials) {
+    if (!rtMap[t.criterionId]) rtMap[t.criterionId] = {};
+    if (!rtMap[t.criterionId][t.targetId]) rtMap[t.criterionId][t.targetId] = [];
+    rtMap[t.criterionId][t.targetId].push(t.rt);
+  }
+
+  // Compute overall mean RT and SD for normalization
+  const allRTs = allTrials.map(t => t.rt);
+  const overallMean = allRTs.length > 0 ? allRTs.reduce((a, b) => a + b, 0) / allRTs.length : 0;
+  const overallSD = allRTs.length > 1
+    ? Math.sqrt(allRTs.reduce((sum, rt) => sum + (rt - overallMean) ** 2, 0) / (allRTs.length - 1))
+    : 1;
+
+  return attributes.map(attr => {
+    const targetScores: Record<string, number> = {};
+
+    for (const target of targets) {
+      const rts = rtMap[attr.id]?.[target.id] ?? [];
+      if (rts.length === 0 || overallSD === 0) {
+        targetScores[target.id] = 0;
+        continue;
+      }
+      const meanRT = rts.reduce((a, b) => a + b, 0) / rts.length;
+      // D-score: how much faster/slower than overall mean, normalized by SD, scaled to -100..100
+      // Negative score = faster than average (stronger association)
+      const dScore = (overallMean - meanRT) / overallSD;
+      // Clamp to -100..100
+      targetScores[target.id] = Math.max(-100, Math.min(100, Math.round(dScore * 50)));
+    }
+
+    return {
+      attributeId: attr.id,
+      attributeLabel: attr.label,
+      targetScores,
+    };
+  });
+};
+
+export const getImplicitAssociationResults = async (researchId: string) => {
+  // 1. Find the Implicit Association stage
+  const stageQuery = `
+    SELECT s.id as stage_id, s.name as stage_name
+    FROM stages s
+    WHERE s.research_id = ?
+      AND LOWER(s.name) = 'implicit association'
+    LIMIT 1
+  `;
+  const stageResult = await pool.query(stageQuery, [researchId]);
+  if (stageResult.rows.length === 0) {
+    return { modules: [] };
+  }
+  const stageId = stageResult.rows[0].stage_id;
+
+  // 2. Get modules in this stage
+  const moduleQuery = `
+    SELECT id, name, config FROM modules
+    WHERE research_id = ? AND stage_id = ?
+    ORDER BY order_index
+  `;
+  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+
+  const modules: IATModuleResult[] = [];
+
+  for (const mod of moduleResult.rows) {
+    const testType = detectIATTestType(mod.name);
+    let config: any = {};
+    try {
+      config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+    } catch { /* ignore */ }
+
+    const { primingTime, targets, attributes } = extractIATConfig(config, testType);
+
+    // 3. Get responses for this module (component_id = 'iat-trials')
+    const responsesQuery = `
+      SELECT r.value, r.participant_id, r.created_at
+      FROM responses r
+      WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'iat-trials'
+      ORDER BY r.created_at ASC
+    `;
+    const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
+
+    const scores = computeIATScores(responsesResult.rows, targets, attributes, testType);
+
+    modules.push({
+      moduleId: mod.id,
+      moduleName: mod.name,
+      testType,
+      primingTime,
+      targets,
+      attributes,
+      totalResponses: responsesResult.rows.length,
+      scores,
+    });
+  }
+
+  return { modules };
+};

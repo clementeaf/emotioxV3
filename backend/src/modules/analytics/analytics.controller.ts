@@ -34,6 +34,14 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ results }, 200, undefined, origin);
         }
 
+        // GET /analytics/research/:id/implicit-association
+        const implicitMatch = path.match(/^\/analytics\/research\/([^\/]+)\/implicit-association$/);
+        if (implicitMatch && httpMethod === 'GET') {
+            const researchId = implicitMatch[1];
+            const results = await analyticsService.getImplicitAssociationResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
         // GET /analytics/research/:id/demographics
         const demographicsMatch = path.match(/^\/analytics\/research\/([^\/]+)\/demographics$/);
         if (demographicsMatch && httpMethod === 'GET') {

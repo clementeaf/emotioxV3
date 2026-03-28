@@ -5,7 +5,16 @@
 
 ---
 
-## Última actualización: 2026-03-25 (sesión 22)
+## Última actualización: 2026-03-28 (sesión 23)
+
+---
+
+## Sesión 23: 28 de marzo de 2026 — Implicit Association results (v0.43.0)
+
+- **Backend:** Nuevo endpoint analytics para Implicit Association. Detecta tipo de test por nombre del módulo, extrae targets/attributes/priming del config, computa D-scores desde tiempos de reacción.
+- **Research UI:** Componente `ImplicitAssociationResults` con 3 gráficos: RadarChart (Attribute Testing), BarChart agrupado (Comparing Attribute), BarChart horizontal divergente (Objects Comparing). Nueva tab en `ResearchResultsPage`.
+- Los gráficos muestran la configuración del módulo con scores en 0 hasta que existan respuestas de participantes (`component_id = 'iat-trials'`).
+- Ver `CHANGELOG.md` v0.43.0 para detalle.
 
 ---
 

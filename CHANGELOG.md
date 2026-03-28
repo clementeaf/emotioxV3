@@ -1,3 +1,19 @@
+## v0.43.0 — Implicit Association results analytics (2026-03-28)
+
+### backend
+- New endpoint `GET /analytics/research/:id/implicit-association` — finds Implicit Association stage modules, extracts config (targets, attributes, priming time), queries trial responses, and computes D-scores per (attribute, target) pair.
+- `analytics.service.ts`: `getImplicitAssociationResults()` detects test type from module name (Attribute Testing, Comparing Attribute, Objects Comparing), parses criteria from ranking-list component, and normalizes reaction times to -100..100 score range.
+
+### research-frontend
+- New component `ImplicitAssociationResults` with 3 chart types matching the reference designs:
+  - **Attribute Testing** → Recharts RadarChart (2 targets as filled polygons, attributes on axes, -100 to 100 range).
+  - **Comparing Attribute** → Grouped BarChart (targets side-by-side per attribute, 0-120 range, average reference line).
+  - **Objects Comparing** → Horizontal divergent BarChart (objects on Y axis, 2 dimensions as left/right bars, -100 to 100 range).
+- `ResearchResultsPage`: new "Implicit Association" tab (Zap icon), visible only when the research contains an Implicit Association stage.
+- `analytics.service.ts` (frontend): new types `IATModuleResult`, `ImplicitAssociationResults` and `getImplicitAssociationResults()` function.
+
+---
+
 ## v0.42.0 — Screener results analytics (2026-03-28)
 
 ### backend

@@ -318,6 +318,48 @@ export const getScreenerResults = async (researchId: string): Promise<ScreenerRe
 };
 
 // ==========================================
+// IMPLICIT ASSOCIATION RESULTS
+// ==========================================
+
+export interface IATTarget {
+    id: string;
+    name: string;
+    imageUrl?: string;
+}
+
+export interface IATAttribute {
+    id: string;
+    label: string;
+    imageUrl?: string;
+}
+
+export interface IATModuleResult {
+    moduleId: string;
+    moduleName: string;
+    testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
+    primingTime: number;
+    targets: IATTarget[];
+    attributes: IATAttribute[];
+    totalResponses: number;
+    scores: Array<{
+        attributeId: string;
+        attributeLabel: string;
+        targetScores: Record<string, number>;
+    }>;
+}
+
+export interface ImplicitAssociationResults {
+    modules: IATModuleResult[];
+}
+
+export const getImplicitAssociationResults = async (researchId: string): Promise<ImplicitAssociationResults> => {
+    const response = await apiClient.get<{ results: ImplicitAssociationResults }>(
+        `/analytics/research/${researchId}/implicit-association`
+    );
+    return response.results;
+};
+
+// ==========================================
 // SMARTVOC RESULTS
 // ==========================================
 
