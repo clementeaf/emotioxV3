@@ -1,3 +1,23 @@
+## v0.40.0 — Eye Tracking System (2026-03-28)
+
+### research-frontend
+- New `/labs/eye-tracking` page — BlazeGaze CNN gaze prediction from webcam
+- 17-point guided calibration → live gaze tracking (red dot)
+- BlazeGaze model (670KB, webeyetrack) uses eye image patches + head pose
+- Adaptive smoothing with deadzone, blink filtering (ignores closed-eye frames)
+- MediaPipe face mesh library: 478 landmarks, iris detection, head pose, ridge regression
+- Face detection overlay: wireframe volume lines, eye contours, iris circles (debug tool)
+- Live telemetry panel: model status, eyes open/closed, gaze coordinates
+- CSP updated for cdn.jsdelivr.net (WebEyeTrack's internal MediaPipe WASM)
+
+### participant-frontend
+- Refactored eyeTracking lib into modular structure (`lib/eyeTracking/`)
+
+### docs
+- Technical assessment: what works, what doesn't, options evaluated (docs/eye-tracking-assessment.md)
+
+---
+
 ## v0.39.1 — Participant limit + percentage quotas (2026-03-25)
 
 ### backend
