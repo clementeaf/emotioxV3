@@ -1603,3 +1603,234 @@ export const getImplicitAssociationResults = async (researchId: string) => {
 
   return { modules };
 };
+
+// ==========================================
+// EYE TRACKING RESULTS
+// ==========================================
+
+interface EyeTrackingStimulus {
+  moduleId: string;
+  moduleName: string;
+  stimulusUrl: string;
+  modality: 'stand_alone' | 'shelf';
+  taskDescription: string;
+  totalResponses: number;
+  uniqueParticipants: number;
+  avgDwellTime: number;
+  avgFixationCount: number;
+  heatmapData: Array<{ x: number; y: number; duration: number }>;
+  fixations: Array<{ x: number; y: number; duration: number; participantId: string; timestamp: number }>;
+  aois: Array<{
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dwellTimePercent: number;
+    fixationCount: number;
+    avgDuration: number;
+    participantCount: number;
+  }>;
+  participants: Array<{
+    participantId: string;
+    calibrationQuality: string;
+    integrityScore: string;
+    totalFixations: number;
+    totalDwellTime: number;
+  }>;
+}
+
+/**
+ * Extract Eye Tracking stimulus config from module config.
+ * Searches for file-upload components (stimulus image) and other ET-specific fields.
+ */
+const extractEyeTrackingConfig = (config: any) => {
+  const structure = config?.structure ?? config;
+  const components: any[] = structure?.components ?? [];
+
+  // Find stimulus image URL — look for file-upload component or known IDs
+  let stimulusUrl = '';
+  const fileUploadComp = components.find((c: any) =>
+    c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
+  );
+  if (fileUploadComp?.value) {
+    stimulusUrl = fileUploadComp.value;
+  }
+
+  // Modality: stand_alone or shelf
+  let modality: 'stand_alone' | 'shelf' = 'stand_alone';
+  const modalityComp = components.find((c: any) =>
+    c.id === 'modality' || c.id === 'test-mode' || c.id === 'display-mode'
+  );
+  if (modalityComp?.value) {
+    const val = String(modalityComp.value).toLowerCase();
+    if (val.includes('shelf') || val === 'shelf') modality = 'shelf';
+  }
+
+  // Task description
+  let taskDescription = '';
+  const descComp = components.find((c: any) =>
+    c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
+  );
+  if (descComp?.value) {
+    taskDescription = descComp.value;
+  } else if (descComp?.placeholder?.text) {
+    taskDescription = descComp.placeholder.text;
+  }
+
+  // AOIs from config (researcher-defined areas of interest)
+  const aoiComp = components.find((c: any) => c.id === 'aois' || c.id === 'areas-of-interest');
+  let configAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }> = [];
+  if (aoiComp?.value) {
+    try {
+      const parsed = typeof aoiComp.value === 'string' ? JSON.parse(aoiComp.value) : aoiComp.value;
+      configAois = Array.isArray(parsed) ? parsed : [];
+    } catch { /* ignore */ }
+  }
+
+  return { stimulusUrl, modality, taskDescription, configAois };
+};
+
+/**
+ * Compute Eye Tracking analytics from gaze response data.
+ * Expected response format: component_id = 'eye-tracking-data'
+ * value = { fixations: [{ x, y, duration, timestamp }], calibrationQuality, integrityScore }
+ */
+const computeEyeTrackingMetrics = (
+  responses: any[],
+  configAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }>,
+) => {
+  type Fixation = { x: number; y: number; duration: number; participantId: string; timestamp: number };
+  const allFixations: Fixation[] = [];
+  const participantMap = new Map<string, { calibrationQuality: string; integrityScore: string; totalFixations: number; totalDwellTime: number }>();
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const fixations: Array<{ x: number; y: number; duration: number; timestamp?: number }> = parsed?.fixations ?? [];
+      const pid = row.participant_id;
+
+      let totalDwell = 0;
+      for (const f of fixations) {
+        allFixations.push({ x: f.x, y: f.y, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
+        totalDwell += f.duration;
+      }
+
+      participantMap.set(pid, {
+        calibrationQuality: parsed?.calibrationQuality ?? 'unknown',
+        integrityScore: parsed?.integrityScore ?? 'unknown',
+        totalFixations: fixations.length,
+        totalDwellTime: totalDwell,
+      });
+    } catch { /* skip malformed */ }
+  }
+
+  // Heatmap data: aggregate fixation positions with duration as weight
+  const heatmapData = allFixations.map(f => ({ x: f.x, y: f.y, duration: f.duration }));
+
+  // Total dwell time across all fixations
+  const totalDwellTime = allFixations.reduce((sum, f) => sum + f.duration, 0);
+
+  // Compute AOI metrics
+  const aois = configAois.map(aoi => {
+    const insideFixations = allFixations.filter(f =>
+      f.x >= aoi.x && f.x <= aoi.x + aoi.width &&
+      f.y >= aoi.y && f.y <= aoi.y + aoi.height
+    );
+
+    const aoiDwellTime = insideFixations.reduce((sum, f) => sum + f.duration, 0);
+    const uniqueParticipants = new Set(insideFixations.map(f => f.participantId));
+
+    return {
+      ...aoi,
+      dwellTimePercent: totalDwellTime > 0 ? Math.round((aoiDwellTime / totalDwellTime) * 100) : 0,
+      fixationCount: insideFixations.length,
+      avgDuration: insideFixations.length > 0
+        ? Math.round(insideFixations.reduce((sum, f) => sum + f.duration, 0) / insideFixations.length)
+        : 0,
+      participantCount: uniqueParticipants.size,
+    };
+  });
+
+  const uniqueParticipants = new Set(allFixations.map(f => f.participantId));
+  const avgDwellTime = uniqueParticipants.size > 0
+    ? Math.round(totalDwellTime / uniqueParticipants.size)
+    : 0;
+  const avgFixationCount = uniqueParticipants.size > 0
+    ? Math.round(allFixations.length / uniqueParticipants.size)
+    : 0;
+
+  const participants = Array.from(participantMap.entries()).map(([pid, data]) => ({
+    participantId: pid,
+    ...data,
+  }));
+
+  return {
+    uniqueParticipants: uniqueParticipants.size,
+    avgDwellTime,
+    avgFixationCount,
+    heatmapData,
+    fixations: allFixations,
+    aois,
+    participants,
+  };
+};
+
+export const getEyeTrackingResults = async (researchId: string) => {
+  // 1. Find the Eye Tracking stage
+  const stageQuery = `
+    SELECT s.id as stage_id, s.name as stage_name
+    FROM stages s
+    WHERE s.research_id = ?
+      AND LOWER(s.name) = 'eye tracking'
+    LIMIT 1
+  `;
+  const stageResult = await pool.query(stageQuery, [researchId]);
+  if (stageResult.rows.length === 0) {
+    return { stimuli: [] };
+  }
+  const stageId = stageResult.rows[0].stage_id;
+
+  // 2. Get modules in this stage
+  const moduleQuery = `
+    SELECT id, name, config FROM modules
+    WHERE research_id = ? AND stage_id = ?
+    ORDER BY order_index
+  `;
+  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+
+  const stimuli: EyeTrackingStimulus[] = [];
+
+  for (const mod of moduleResult.rows) {
+    let config: any = {};
+    try {
+      config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+    } catch { /* ignore */ }
+
+    const { stimulusUrl, modality, taskDescription, configAois } = extractEyeTrackingConfig(config);
+
+    // 3. Get responses for this module (component_id = 'eye-tracking-data')
+    const responsesQuery = `
+      SELECT r.value, r.participant_id, r.created_at
+      FROM responses r
+      WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'eye-tracking-data'
+      ORDER BY r.created_at ASC
+    `;
+    const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
+
+    const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois);
+
+    stimuli.push({
+      moduleId: mod.id,
+      moduleName: mod.name,
+      stimulusUrl,
+      modality,
+      taskDescription,
+      totalResponses: responsesResult.rows.length,
+      ...metrics,
+    });
+  }
+
+  return { stimuli };
+};

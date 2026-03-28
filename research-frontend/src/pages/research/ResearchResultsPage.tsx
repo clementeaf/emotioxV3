@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { BarChart3, Brain, Filter, Zap } from 'lucide-react';
+import { BarChart3, Brain, Eye, Filter, Zap } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
 import { CognitiveTaskResults } from '../../components/results/cognitive-task/CognitiveTaskResults';
 import { ScreenerResults } from '../../components/results/screener/ScreenerResults';
 import { ImplicitAssociationResults } from '../../components/results/implicit-association/ImplicitAssociationResults';
+import { EyeTrackingResults } from '../../components/results/eye-tracking/EyeTrackingResults';
 import { useResearch } from '../../hooks/useResearchQuery';
 
-type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association';
+type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking';
 
 interface TabDef {
     id: TabId;
@@ -46,6 +47,12 @@ const TAB_DEFS: TabDef[] = [
         label: 'Implicit Association',
         icon: <Zap className="h-5 w-5" />,
         stageDetector: (name) => name.toLowerCase() === 'implicit association',
+    },
+    {
+        id: 'eye-tracking',
+        label: 'Eye Tracking',
+        icon: <Eye className="h-5 w-5" />,
+        stageDetector: (name) => name.toLowerCase() === 'eye tracking',
     },
 ];
 
@@ -122,6 +129,7 @@ export const ResearchResultsPage = () => {
                 {activeTab === 'smart-voc' && <SmartVOCResults researchId={id} />}
                 {activeTab === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
                 {activeTab === 'implicit-association' && <ImplicitAssociationResults researchId={id} />}
+                {activeTab === 'eye-tracking' && <EyeTrackingResults researchId={id} />}
             </div>
         </div>
     );

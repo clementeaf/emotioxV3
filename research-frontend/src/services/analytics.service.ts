@@ -360,6 +360,58 @@ export const getImplicitAssociationResults = async (researchId: string): Promise
 };
 
 // ==========================================
+// EYE TRACKING RESULTS
+// ==========================================
+
+export interface EyeTrackingAOI {
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dwellTimePercent: number;
+    fixationCount: number;
+    avgDuration: number;
+    participantCount: number;
+}
+
+export interface EyeTrackingParticipant {
+    participantId: string;
+    calibrationQuality: string;
+    integrityScore: string;
+    totalFixations: number;
+    totalDwellTime: number;
+}
+
+export interface EyeTrackingStimulus {
+    moduleId: string;
+    moduleName: string;
+    stimulusUrl: string;
+    modality: 'stand_alone' | 'shelf';
+    taskDescription: string;
+    totalResponses: number;
+    uniqueParticipants: number;
+    avgDwellTime: number;
+    avgFixationCount: number;
+    heatmapData: Array<{ x: number; y: number; duration: number }>;
+    fixations: Array<{ x: number; y: number; duration: number; participantId: string; timestamp: number }>;
+    aois: EyeTrackingAOI[];
+    participants: EyeTrackingParticipant[];
+}
+
+export interface EyeTrackingResults {
+    stimuli: EyeTrackingStimulus[];
+}
+
+export const getEyeTrackingResults = async (researchId: string): Promise<EyeTrackingResults> => {
+    const response = await apiClient.get<{ results: EyeTrackingResults }>(
+        `/analytics/research/${researchId}/eye-tracking`
+    );
+    return response.results;
+};
+
+// ==========================================
 // SMARTVOC RESULTS
 // ==========================================
 

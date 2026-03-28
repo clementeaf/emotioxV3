@@ -5,7 +5,16 @@
 
 ---
 
-## Última actualización: 2026-03-28 (sesión 23)
+## Última actualización: 2026-03-28 (sesión 24)
+
+---
+
+## Sesión 24: 28 de marzo de 2026 — Eye Tracking results (v0.44.0)
+
+- **Backend:** Endpoint `GET /analytics/research/:id/eye-tracking` — extrae config de estímulos y computa métricas de heatmap/fixaciones/AOI.
+- **Research UI:** `EyeTrackingResults` con cards por estímulo, toggle heatmap/image, lista AOI, descarga de imagen.
+- Nueva tab "Eye Tracking" en `ResearchResultsPage`.
+- Datos aparecerán cuando el participant-frontend implemente el flujo (`component_id = 'eye-tracking-data'`).
 
 ---
 

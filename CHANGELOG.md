@@ -1,3 +1,20 @@
+## v0.44.0 — Eye Tracking results analytics (2026-03-28)
+
+### backend
+- New endpoint `GET /analytics/research/:id/eye-tracking`.
+- Extracts stimulus config per module (image URL, modality, task description, AOIs).
+- Computes heatmap data, fixation metrics, and AOI stats from gaze responses (`component_id = 'eye-tracking-data'`).
+
+### research-frontend
+- New `EyeTrackingResults` component — per-stimulus cards with:
+  - Metrics bar (participants, responses, avg dwell time, avg fixations).
+  - Heatmap / Image view toggle (reuses `HeatmapRenderer`).
+  - AOI list with dwell %, fixation count, duration, viewer count.
+  - Download image button.
+- New "Eye Tracking" tab in `ResearchResultsPage`.
+
+---
+
 ## v0.43.0 — Implicit Association results analytics (2026-03-28)
 
 ### backend

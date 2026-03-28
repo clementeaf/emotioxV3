@@ -42,6 +42,14 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ results }, 200, undefined, origin);
         }
 
+        // GET /analytics/research/:id/eye-tracking
+        const eyeTrackingMatch = path.match(/^\/analytics\/research\/([^\/]+)\/eye-tracking$/);
+        if (eyeTrackingMatch && httpMethod === 'GET') {
+            const researchId = eyeTrackingMatch[1];
+            const results = await analyticsService.getEyeTrackingResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
         // GET /analytics/research/:id/demographics
         const demographicsMatch = path.match(/^\/analytics\/research\/([^\/]+)\/demographics$/);
         if (demographicsMatch && httpMethod === 'GET') {
