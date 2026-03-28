@@ -6,7 +6,16 @@
 - Mantener sincronizada la nota operativa de Obsidian en `Desktop/personal/Proyectos/Proyectos/Emotioxv3.md`: cada pendiente, tarea en curso y elemento completado debe quedar registrado allí también
 
 ## Project Overview
-EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores crear estudios con módulos SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), configurar demografía, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas vía URL/QR.
+EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores crear estudios con stages: SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), Screener, Implicit Association (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking. Configurar demografía, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas vía URL/QR.
+
+### Técnica "Biometric, Cognitive and Predictive"
+Default stages al seleccionar esta técnica: Screener → Welcome Screen → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+- **Screener** (`single_module`): pregunta de filtrado con choices Qualify/Disqualify.
+- **Implicit Association** (`module_collection`): 3 tipos de test IAT — Attribute Testing (2 targets), Comparing Attribute (hasta 5 targets), Objects Comparing (hasta 3 objects). Priming configurable.
+- **Eye Tracking** (`single_module`): stimuli (imágenes/video), 2 modalidades: Stand Alone (imagen única) y Shelf (vitrina). Incluye Emotion Recognition y predicción de atención automáticos.
+- **`research_techniques.default_stages`** (JSON): cada técnica puede definir sus stages default. Al crear un research, se priorizan sobre `default_modules` del research type. El frontend los muestra en el form de creación.
+- **Rendering genérico**: `ResearchBuilderPage` usa lógica de `module_collection` generalizada — cualquier stage collection que no sea Smart VOC se renderiza con `CognitiveTaskModuleCard`. No hace falta agregar código específico por stage.
+- **Pendiente**: vistas de resultados/analytics para Screener, Implicit Association y Eye Tracking (actualmente excluidos de SmartVOC Results y Cognitive Task Results). Pendiente también: rendering en participant-frontend.
 
 ## Tech Stack
 - **Backend:** Node.js + TypeScript, Express 5, MySQL (mysql2), JWT + Google OAuth, AWS SDK (S3 media, Cognito legacy), Passenger (cPanel)
@@ -28,7 +37,7 @@ emotioxV3/
 │   └── server-cpanel.js      # Passenger startup wrapper
 ├── research-frontend/    # Herramienta del investigador (dashboard, builder, config, results)
 ├── participant-frontend/  # Interfaz del participante (survey flow, steps, thank you)
-├── database/             # Migraciones MySQL (14 archivos)
+├── database/             # Migraciones MySQL (16 archivos)
 ├── infrastructure/       # Terraform (legacy AWS)
 └── scripts/              # Deploy scripts, migraciones, utilidades
 ```
@@ -73,7 +82,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/router.ts` — routing central, CORS, path normalization
 - `backend/server-cpanel.js` — entry point producción (Passenger)
 - `research-frontend/src/components/layout/ResearchBuilderSidebar.tsx` — sidebar con status modal (draft/active/completed), stage management
-- `research-frontend/src/components/research/ResearchBuilderPage.tsx` — builder principal
+- `research-frontend/src/pages/research/ResearchBuilderPage.tsx` — builder principal; lógica de `module_collection` generalizada (Smart VOC con card propio, todo lo demás con `CognitiveTaskModuleCard`)
 - `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía. Al habilitar un demográfico de opciones (Competencia técnica, etc.) se inyectan opciones por defecto (`DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC`) para que el participante vea siempre selector, no input de texto.
 - `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity
 - `participant-frontend/src/pages/ResearchPage.tsx` — flujo de encuesta del participante (incluye kiosk auto-reset)
@@ -90,6 +99,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template
+- `backend/src/modules/research-techniques/research-techniques.service.ts` — CRUD técnicas con `default_stages` (JSON parseado desde MySQL)
+- `research-frontend/src/hooks/useResearchForm.ts` — form de creación; prioriza `default_stages` de la técnica sobre `default_modules` del research type
+- `research-frontend/src/components/research/ResearchFormStep2.tsx` — paso 2 de creación; muestra stages de la técnica seleccionada
 - `scripts/stress-test-quotas.ts` — E2E stress test para cuotas atómicas (`npx tsx scripts/stress-test-quotas.ts`). Registra user temporal, crea research kiosk con cuotas, lanza 10 participantes concurrentes, verifica que no se exceden límites.
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
 - `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios. CPV = CSAT positivo (4+5) - CES negativo (1+2). NPS agrupado por día en today/week con porcentajes para barras apiladas. NEV: lista canónica de 20 emociones (IDs alineados con participant EmotionSelector), normalización de claves al agregar, etiquetas solo en español.

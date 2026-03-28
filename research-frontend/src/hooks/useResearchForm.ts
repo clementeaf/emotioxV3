@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { researchTypesService, type ModuleTemplateRef } from '../services/researchTypes.service';
-import { type ResearchTechnique } from '../services/researchTechniques.service';
+import { type ResearchTechnique, type DefaultStageRef } from '../services/researchTechniques.service';
 import { useCreateResearch } from './useResearchQuery';
 import type { CreateResearchData } from '../services/research.service';
 
@@ -270,6 +270,7 @@ export const useResearchForm = () => {
         try {
             // Extract default modules if enabled
             const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
+            const selectedTechnique = availableTechniques.find(t => t.id === formData.researchTechniqueId);
             const createData: CreateResearchData & Record<string, unknown> = {
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
@@ -290,17 +291,29 @@ export const useResearchForm = () => {
                 }
             });
 
-            if (formData.useDefaultModules && selectedType?.default_modules) {
-                // Ensure default_modules is an array before mapping
-                if (Array.isArray(selectedType.default_modules)) {
-                    const moduleNames = selectedType.default_modules
-                        .map((m: ModuleTemplateRef) => m?.name)
-                        .filter((name: string | undefined) => name !== undefined && name !== null);
-                    if (moduleNames.length > 0) {
-                        createData.use_default_modules = moduleNames;
+            if (formData.useDefaultModules) {
+                // Priority: technique default_stages > research type default_modules
+                const techniqueStages = selectedTechnique?.default_stages;
+                if (Array.isArray(techniqueStages) && techniqueStages.length > 0) {
+                    const stageNames = techniqueStages
+                        .sort((a: DefaultStageRef, b: DefaultStageRef) => a.order - b.order)
+                        .map((s: DefaultStageRef) => s.name)
+                        .filter((name: string) => !!name);
+                    if (stageNames.length > 0) {
+                        createData.use_default_modules = stageNames;
                     }
-                } else {
-                    console.warn('[useResearchForm] default_modules is not an array:', selectedType.default_modules);
+                } else if (selectedType?.default_modules) {
+                    // Fallback to research type default_modules
+                    if (Array.isArray(selectedType.default_modules)) {
+                        const moduleNames = selectedType.default_modules
+                            .map((m: ModuleTemplateRef) => m?.name)
+                            .filter((name: string | undefined) => name !== undefined && name !== null);
+                        if (moduleNames.length > 0) {
+                            createData.use_default_modules = moduleNames;
+                        }
+                    } else {
+                        console.warn('[useResearchForm] default_modules is not an array:', selectedType.default_modules);
+                    }
                 }
             }
 

@@ -344,7 +344,7 @@ export const getTechniquesByType = async (researchTypeId: string) => {
     const hasCreatedBy = columns.some((col: { COLUMN_NAME: string }) => col.COLUMN_NAME === 'created_by');
     
     // Build SELECT query based on available columns
-    const selectFields = ['rt.id', 'rt.name', 'rt.description', 'rt.created_at', 'rt.updated_at'];
+    const selectFields = ['rt.id', 'rt.name', 'rt.description', 'rt.default_stages', 'rt.created_at', 'rt.updated_at'];
     if (hasIsActive) {
         selectFields.push('rt.is_active');
     }
@@ -385,7 +385,18 @@ export const getTechniquesByType = async (researchTypeId: string) => {
         } else {
             technique.created_by = '';
         }
-        
+
+        // Parse default_stages from MySQL JSON string
+        let defaultStages = row.default_stages;
+        if (typeof defaultStages === 'string') {
+            try {
+                defaultStages = JSON.parse(defaultStages);
+            } catch {
+                defaultStages = null;
+            }
+        }
+        technique.default_stages = defaultStages || null;
+
         return technique;
     });
 };

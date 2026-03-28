@@ -1,3 +1,33 @@
+## v0.41.0 — Technique default stages + generic collection rendering (2026-03-28)
+
+### database
+- New column `research_techniques.default_stages` (JSON): permite a cada técnica definir sus propios stages default.
+- "Biometric, Cognitive and Predictive" configurada con: Screener → Welcome Screen → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+
+### backend
+- `research.service.ts`: `stageTemplateNames` incluye Screener, Implicit Association, Eye Tracking. `create()` prioriza `default_stages` de la técnica sobre `default_modules` del research type.
+- `research-techniques.service.ts`: queries incluyen y parsean `default_stages`.
+- `research-types.service.ts`: `getTechniquesByType` retorna `default_stages` de cada técnica.
+
+### research-frontend
+- `ResearchTechnique` type incluye campo `default_stages`.
+- `useResearchForm`: `handleSubmit` envía los stages de la técnica cuando existen.
+- `ResearchFormStep2`: muestra la lista de stages de la técnica seleccionada.
+- `ResearchBuilderPage`: lógica de `module_collection` generalizada — cualquier stage collection (Cognitive Tasks, Implicit Association, etc.) se renderiza con `CognitiveTaskModuleCard` automáticamente.
+- `ResearchBuilderHeader` y `StageEmptyState`: props genéricas para cualquier collection stage.
+
+---
+
+## v0.40.0 — New stages: Screener, Implicit Association, Eye Tracking (2026-03-28)
+
+### database
+- New stage **Screener** (`single_module`): pregunta de filtrado con choices Qualify/Disqualify.
+- New stage **Implicit Association** (`module_collection`): Attribute Testing, Comparing Attribute, Objects Comparing.
+- New stage **Eye Tracking** (`single_module`): stimuli, task config, Stand Alone y Shelf.
+- Total stage templates: 8. Total module templates: 22.
+
+---
+
 ## v0.39.1 — Participant limit + percentage quotas (2026-03-25)
 
 ### backend

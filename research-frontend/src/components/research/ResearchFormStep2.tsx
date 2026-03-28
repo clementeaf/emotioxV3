@@ -32,9 +32,32 @@ export const ResearchFormStep2 = ({
     onToggleDefaultModules,
 }: ResearchFormStep2Props) => {
     const selectedResearchType = researchTypes.find(rt => rt.id === researchTypeId);
-    // Safely check if default_modules exists and is an array with length
-    const hasDefaultModules = Array.isArray(selectedResearchType?.default_modules) && 
+    const selectedTechnique = availableTechniques.find(t => t.id === researchTechniqueId);
+
+    // Technique default_stages take priority over research type default_modules
+    const techniqueStages = selectedTechnique?.default_stages;
+    const hasTechniqueStages = Array.isArray(techniqueStages) && techniqueStages.length > 0;
+    const hasDefaultModules = Array.isArray(selectedResearchType?.default_modules) &&
                           selectedResearchType.default_modules.length > 0;
+    const showDefaultsCheckbox = hasTechniqueStages || hasDefaultModules;
+
+    // Build the display list of included stages/modules
+    const getIncludedStagesList = (): string => {
+        if (hasTechniqueStages) {
+            return techniqueStages
+                .sort((a, b) => a.order - b.order)
+                .map(s => s.name)
+                .join(', ');
+        }
+        if (hasDefaultModules && Array.isArray(selectedResearchType?.default_modules)) {
+            const stages = selectedResearchType.default_modules
+                .map((m: { name?: string }) => m?.name || 'Unknown')
+                .filter((name: string) => name !== 'Unknown')
+                .join(', ');
+            return `Welcome screen, Research Configuration, ${stages}, Thank you screen`;
+        }
+        return 'None';
+    };
 
     return (
         <div className="space-y-6">
@@ -83,7 +106,7 @@ export const ResearchFormStep2 = ({
                 />
             )}
 
-            {hasDefaultModules && (
+            {showDefaultsCheckbox && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start gap-3">
                         <label className="flex items-start gap-2 cursor-pointer flex-shrink-0 mt-0.5">
@@ -94,19 +117,12 @@ export const ResearchFormStep2 = ({
                                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5"
                             />
                             <span className="text-sm font-medium text-blue-900">
-                                Include default modules
+                                Include default {hasTechniqueStages ? 'stages' : 'modules'}
                             </span>
                         </label>
                         <div className="flex-1 min-w-0">
                             <p className="text-xs text-blue-700 mb-1.5">
-                                Includes: Welcome screen, Research Configuration, {
-                                    Array.isArray(selectedResearchType?.default_modules)
-                                        ? selectedResearchType.default_modules
-                                            .map((m: { name?: string }) => m?.name || 'Unknown')
-                                            .filter((name: string) => name !== 'Unknown')
-                                            .join(', ')
-                                        : 'None'
-                                }, Thank you screen
+                                Includes: {getIncludedStagesList()}
                             </p>
                             <p className="text-xs text-blue-600">
                                 Uncheck to start with an empty configuration.

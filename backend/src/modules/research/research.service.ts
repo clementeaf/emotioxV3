@@ -98,18 +98,33 @@ export const create = async (userId: string, data: ResearchData) => {
 
         // Validate research_technique_id exists if provided
         let validatedTechniqueId: string | null = null;
+        let techniqueDefaultStages: Array<{ name: string; order: number; is_default: boolean }> | null = null;
         if (research_technique_id && research_technique_id.trim() !== '') {
-            // Check if technique exists
-            const techniqueQuery = 'SELECT id, description FROM research_techniques WHERE id = ?';
+            // Check if technique exists and get default_stages
+            const techniqueQuery = 'SELECT id, description, default_stages FROM research_techniques WHERE id = ?';
             const techniqueResult = await client.query(techniqueQuery, [research_technique_id.trim()]);
             if (techniqueResult.rows.length === 0) {
                 throw new Error(`Research technique with id ${research_technique_id} not found`);
             }
             validatedTechniqueId = research_technique_id.trim();
-            
+
             // If description is not provided, use the technique's description
             if (!description && techniqueResult.rows[0].description) {
                 description = techniqueResult.rows[0].description;
+            }
+
+            // Parse default_stages from technique (MySQL may return as string)
+            let rawDefaultStages = techniqueResult.rows[0].default_stages;
+            if (typeof rawDefaultStages === 'string') {
+                try {
+                    rawDefaultStages = JSON.parse(rawDefaultStages);
+                } catch {
+                    rawDefaultStages = null;
+                }
+            }
+            if (Array.isArray(rawDefaultStages) && rawDefaultStages.length > 0) {
+                techniqueDefaultStages = rawDefaultStages;
+                console.log('[Research Service] Technique has default_stages:', techniqueDefaultStages.map(s => s.name));
             }
         }
 
@@ -150,25 +165,34 @@ export const create = async (userId: string, data: ResearchData) => {
         await addDefaultStage(client, research.id as string, userId);
 
         // Clone modules from template if requested and associate them to a stage
-        if (research_type_id) {
-            console.log(`[Research Service] Creating default modules for research type ${research_type_id}`);
+        // Priority: 1) technique default_stages, 2) use_default_modules from frontend, 3) research type default_modules
+        if (research_type_id || techniqueDefaultStages) {
+            console.log(`[Research Service] Creating default stages/modules. technique defaults:`, techniqueDefaultStages ? 'yes' : 'no', 'research_type_id:', research_type_id);
             console.log(`[Research Service] use_default_modules:`, use_default_modules);
-            
-            // If use_default_modules is provided, use it; otherwise, get all default modules from the research type
+
             let modulesToCreate: string[] = [];
-            
-            if (use_default_modules && use_default_modules.length > 0) {
+
+            // Priority 1: If the technique has default_stages, use those
+            if (techniqueDefaultStages) {
+                modulesToCreate = techniqueDefaultStages
+                    .sort((a, b) => a.order - b.order)
+                    .map(s => s.name);
+                console.log(`[Research Service] Using technique default_stages:`, modulesToCreate);
+            }
+            // Priority 2: If use_default_modules is provided from frontend, use it
+            else if (use_default_modules && use_default_modules.length > 0) {
                 modulesToCreate = use_default_modules;
                 console.log(`[Research Service] Using provided module names:`, modulesToCreate);
-            } else {
-                // Get all default modules from research type
+            }
+            // Priority 3: Fall back to research type default_modules
+            else if (research_type_id) {
                 const typeQuery = 'SELECT default_modules FROM research_types WHERE id = ?';
                 const typeResult = await client.query(typeQuery, [research_type_id]);
-                
+
                 if (typeResult.rows.length > 0 && typeResult.rows[0].default_modules) {
                     let defaultModules: any[] = [];
                     const rawDefaultModules = typeResult.rows[0].default_modules;
-                    
+
                     // Parse JSON if it's a string (MySQL stores JSON as string)
                     if (typeof rawDefaultModules === 'string') {
                         try {
@@ -184,7 +208,7 @@ export const create = async (userId: string, data: ResearchData) => {
                         console.warn(`[Research Service] default_modules is not an array or string for research type ${research_type_id}:`, typeof rawDefaultModules);
                         defaultModules = [];
                     }
-                    
+
                     if (defaultModules.length > 0) {
                         modulesToCreate = defaultModules.map((m: any) => m?.name).filter((name: string | undefined) => name !== undefined && name !== null);
                         console.log(`[Research Service] Auto-detected default modules from research type:`, modulesToCreate);
@@ -198,7 +222,7 @@ export const create = async (userId: string, data: ResearchData) => {
                 // Separate stage templates from individual modules
                 // "Smart VOC" and "Cognitive Task" are stage templates, not individual modules
                 // "Welcome Screen" and "Thank You Screen" are also stage templates (single_module)
-                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen'];
+                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen', 'Screener', 'Implicit Association', 'Eye Tracking'];
                 const individualModules: string[] = [];
                 const stagesToCreate: string[] = [];
                 
@@ -228,7 +252,7 @@ export const create = async (userId: string, data: ResearchData) => {
                 }
                 
                 // Then create any remaining individual modules in a default stage
-                if (individualModules.length > 0) {
+                if (individualModules.length > 0 && research_type_id) {
                     const defaultModulesStage = await createDefaultModulesStage(client, research.id as string, research_type_id);
                     console.log(`[Research Service] Created default modules stage:`, defaultModulesStage.id, defaultModulesStage.name);
                     console.log(`[Research Service] Creating ${individualModules.length} individual modules in stage ${defaultModulesStage.id}:`, individualModules);
