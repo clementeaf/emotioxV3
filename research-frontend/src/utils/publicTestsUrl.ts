@@ -3,11 +3,24 @@
  */
 let cachedParticipantBaseUrl: string | null = null;
 
+/** Default participant Vite dev URL (see participant-frontend/vite.config.ts server.port) */
+const DEFAULT_LOCAL_PARTICIPANT_ORIGIN = 'http://localhost:12600';
+
 /**
- * Load participantBaseUrl from runtime-config.json (once)
+ * Resolves participant app origin. In `vite` dev, production runtime-config is not used so the lab and links target the local participant build (eye-tracking, etc.) instead of cPanel until you deploy.
  */
 async function resolveParticipantBaseUrl(): Promise<string> {
     if (cachedParticipantBaseUrl) return cachedParticipantBaseUrl;
+
+    if (import.meta.env.DEV) {
+        const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
+        if (typeof envUrl === 'string' && envUrl.trim()) {
+            cachedParticipantBaseUrl = envUrl.replace(/\/+$/, '');
+            return cachedParticipantBaseUrl;
+        }
+        cachedParticipantBaseUrl = DEFAULT_LOCAL_PARTICIPANT_ORIGIN;
+        return cachedParticipantBaseUrl;
+    }
 
     try {
         const basePath = import.meta.env.BASE_URL || '/';
@@ -21,20 +34,25 @@ async function resolveParticipantBaseUrl(): Promise<string> {
         }
     } catch { /* fallback below */ }
 
-    // Fallback: VITE env
     const envUrl = import.meta.env.VITE_PARTICIPANT_FRONTEND_URL;
     if (typeof envUrl === 'string' && envUrl.trim()) {
         cachedParticipantBaseUrl = envUrl.replace(/\/+$/, '');
         return cachedParticipantBaseUrl;
     }
 
-    // Last resort: current origin + /participant
     cachedParticipantBaseUrl = `${window.location.protocol}//${window.location.hostname}/participant`;
     return cachedParticipantBaseUrl;
 }
 
 // Eagerly resolve on module load
 void resolveParticipantBaseUrl();
+
+/**
+ * Resolves the participant app origin (from runtime-config.json or fallbacks).
+ */
+export async function getParticipantBaseUrl(): Promise<string> {
+    return resolveParticipantBaseUrl();
+}
 
 /**
  * Genera la URL pública para acceder a los tests de un participante

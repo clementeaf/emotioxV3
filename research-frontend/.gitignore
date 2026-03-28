@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# MediaPipe WASM copied from node_modules by scripts/copy-mediapipe-wasm.mjs (postinstall / dev / build)
+public/mediapipe/
+
+# BlazeGaze model (webeyetrack) — downloaded from WebEyeTrack repo
+public/web/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

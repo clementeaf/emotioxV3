@@ -2,10 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- <link rel="icon" type="image/svg+xml" href="/favicon.svg" /> -->
+    <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Allow eval() in development for Vite HMR - Remove in production -->
-    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline'; object-src 'none'; base-uri 'self';" />
+    <!-- connect-src: API (emotio.cx), MediaPipe model (storage.googleapis.com), local backend in dev (localhost:3000) -->
+    <!-- connect-src: API, MediaPipe model+WASM (storage.googleapis.com, cdn.jsdelivr.net), local dev -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://storage.googleapis.com https://cdn.jsdelivr.net https://emotio.cx http://localhost:3000 http://127.0.0.1:3000; worker-src 'self' blob:; object-src 'none'; base-uri 'self';" />
     <title>research-frontend</title>
   </head>
   <body>

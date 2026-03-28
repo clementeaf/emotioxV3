@@ -10,15 +10,18 @@ import apiClient from './services/api/client'
  * Registra el Service Worker para caché offline
  */
 const registerServiceWorker = async (): Promise<void> => {
-  if ('serviceWorker' in navigator) {
-    try {
-      const registration = await navigator.serviceWorker.register('/research/sw.js', {
-        scope: '/research/',
-      });
-      console.log('Service Worker registered:', registration.scope);
-    } catch (error) {
-      console.warn('Service Worker registration failed:', error);
-    }
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+  const base = import.meta.env.BASE_URL;
+  const swUrl = `${base}sw.js`;
+  try {
+    const registration = await navigator.serviceWorker.register(swUrl, {
+      scope: base,
+    });
+    console.log('Service Worker registered:', registration.scope);
+  } catch (error) {
+    console.warn('Service Worker registration failed:', error);
   }
 };
 

@@ -132,33 +132,28 @@ class ConfigService {
      * @returns API base URL without trailing slash
      */
     private async resolveApiBaseUrl(): Promise<string> {
-        // In production, try runtime-config.json FIRST (highest priority)
-        // This allows runtime configuration without rebuilding
-        // Try /research/runtime-config.json first (for cPanel deployment)
-        // Fallback to /runtime-config.json for root deployment
-        try {
-            const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/research/runtime-config.json');
-            console.log('[ConfigService] Using runtime-config.json from /research/runtime-config.json');
-            return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
-        } catch (error) {
-            console.warn('[ConfigService] Failed to load /research/runtime-config.json, trying root:', error);
+        const paths = import.meta.env.DEV
+            ? ['/runtime-config.json', '/research/runtime-config.json']
+            : ['/research/runtime-config.json', '/runtime-config.json'];
+
+        for (const path of paths) {
             try {
-                const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
-                console.log('[ConfigService] Using runtime-config.json from /runtime-config.json');
+                const runtimeConfig = await this.fetchRuntimeConfigFromUrl(path);
+                console.log(`[ConfigService] Using runtime-config.json from ${path}`);
                 return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
-            } catch (rootError) {
-                console.warn('[ConfigService] Failed to load /runtime-config.json, trying VITE_API_URL:', rootError);
-                // Fallback to environment variable if runtime-config.json is not available
-                const envBaseUrl = this.getEnvApiBaseUrl();
-                if (envBaseUrl) {
-                    console.log('[ConfigService] Using VITE_API_URL from environment');
-                    return envBaseUrl;
-                }
-                // Final fallback to default production URL
-                console.warn('[ConfigService] Using default production URL');
-                return DEFAULT_PRODUCTION_API_BASE_URL;
+            } catch (error) {
+                console.warn(`[ConfigService] Failed to load ${path}:`, error);
             }
         }
+
+        const envBaseUrl = this.getEnvApiBaseUrl();
+        if (envBaseUrl) {
+            console.log('[ConfigService] Using VITE_API_URL from environment');
+            return envBaseUrl;
+        }
+
+        console.warn('[ConfigService] Using default production URL');
+        return DEFAULT_PRODUCTION_API_BASE_URL;
     }
 
     /**

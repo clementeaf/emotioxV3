@@ -121,7 +121,8 @@
   },
   "eyeTracking": {
     "keepLooking": "Keep looking at the point...",
-    "lookAndClick": "Look at the red point and click on it",
+    "lookAndClick": "Click where you are looking on the screen",
+    "clickWhereYouLook": "The red marker is a guide only; we use the exact pixel you click.",
     "pointOf": "Point {{current}} of {{total}}",
     "calibrationPoint": "Calibration point {{number}}",
     "gazeIndicator": "The green point indicates where you are looking",

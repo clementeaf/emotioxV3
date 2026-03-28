@@ -1,5 +1,6 @@
-import { type ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
+import { ProtectedRoute } from '../components/ProtectedRoute';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
 import { AuthCallbackPage } from '../pages/auth/AuthCallbackPage';
@@ -18,6 +19,10 @@ import { ModuleTemplateAssignationPage } from '../pages/research-types/ModuleTem
 import { ResearchTechniquesPage } from '../pages/research-techniques/ResearchTechniquesPage';
 import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/ResearchTechniqueBuilderPage';
 import { UserManagementPage } from '../pages/admin/UserManagementPage';
+
+const EyeTrackingLabPage = lazy(() =>
+    import('../pages/labs/EyeTrackingLabPage').then(m => ({ default: m.EyeTrackingLabPage })),
+);
 
 export interface RouteConfig {
     path: string;
@@ -61,6 +66,28 @@ export const routesConfig: RouteConfig[] = [
         element: <UserManagementPage />,
         layout: 'none',
         errorBoundary: { context: 'general', pageName: 'User Management' },
+    },
+
+    {
+        path: '/labs/eye-tracking',
+        element: (
+            <ProtectedRoute>
+                <Suspense
+                    fallback={
+                        <div className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-100">
+                            <div
+                                className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-600 border-t-blue-500"
+                                aria-hidden
+                            />
+                        </div>
+                    }
+                >
+                    <EyeTrackingLabPage />
+                </Suspense>
+            </ProtectedRoute>
+        ),
+        layout: 'none',
+        errorBoundary: { context: 'general', pageName: 'Eye Tracking Lab' },
     },
 
     // Protected routes - Dashboard
