@@ -371,12 +371,20 @@ export const ResearchBuilderPage = () => {
                     const currentComponents = moduleRef.getComponents();
                     const required = moduleRef.getRequired();
 
-                    const updatedComponents = currentComponents.map(comp => syncRankingConfig({
-                        ...comp,
-                        value: comp.type === 'file-upload'
-                            ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
-                            : (currentComponentValues[comp.id] || comp.value)
-                    }));
+                    const updatedComponents = currentComponents.map(comp => {
+                        const updated = syncRankingConfig({
+                            ...comp,
+                            value: comp.type === 'file-upload'
+                                ? sanitizeFileUploadSerializedValue(currentComponentValues[comp.id] || comp.value)
+                                : (currentComponentValues[comp.id] || comp.value)
+                        });
+                        // Sync selectRange.predefined with the selected value for select components (CES/CV scale)
+                        const selectedValue = currentComponentValues[comp.id];
+                        if (updated.type === 'select' && updated.selectRange && selectedValue && selectedValue.includes('-')) {
+                            updated.selectRange = { ...updated.selectRange, predefined: selectedValue as typeof updated.selectRange.predefined };
+                        }
+                        return updated;
+                    });
 
                     const configWithStructure = {
                         ...module.config,

@@ -239,17 +239,17 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                         { id: 'seguro', name: 'Seguro', color: '#86efac' },
                         { id: 'enfocado', name: 'Enfocado', color: '#86efac' },
                     ],
-                    // Fila 2 - Emociones de Atención (6) - Verde Medio
+                    // Fila 2 - Emociones de Atención (5) - Verde Medio
                     [
                         { id: 'indulgente', name: 'Indulgente', color: '#bbf7d0' },
                         { id: 'estimulado', name: 'Estimulado', color: '#bbf7d0' },
                         { id: 'exploratorio', name: 'Exploratorio', color: '#bbf7d0' },
                         { id: 'interesado', name: 'Interesado', color: '#bbf7d0' },
                         { id: 'energico', name: 'Enérgico', color: '#bbf7d0' },
-                        { id: 'descontento', name: 'Descontento', color: '#bbf7d0' },
                     ],
-                    // Fila 3 - Emociones Negativas (7) - Rojo Claro
+                    // Fila 3 - Emociones Negativas (8) - Rojo Claro
                     [
+                        { id: 'descontento', name: 'Descontento', color: '#fecaca' },
                         { id: 'frustrado', name: 'Frustrado', color: '#fecaca' },
                         { id: 'irritado', name: 'Irritado', color: '#fecaca' },
                         { id: 'decepcion', name: 'Decepción', color: '#fecaca' },

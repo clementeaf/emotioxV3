@@ -68,6 +68,10 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `Record<string, any>` solo donde es genuinamente dinámico (demographics config), marcado con eslint-disable
 - Commits en inglés, código en inglés, comentarios en español/inglés mixto
 - Branching: main (producción), feature branches ocasionales
+- **Backlink redirects** reemplazan `@id` con el participant ID real y agregan `https://` si falta protocolo. Lógica en `redirectTo` de `ResearchPage.tsx`.
+- **CES scale** en participant-frontend lee `comp.value` primero (lo que guardó el investigador), fallback a `selectRange.predefined` (default del template). En research-frontend el save sincroniza ambos campos.
+- **CES sentiment zones**: rojo (negativo), ámbar (neutral), verde (positivo). Rangos: 1-5 → 1-2/3/4-5, 1-7 → 1-3/4/5-7, 1-10 → 1-3/4-7/8-10. Solo aplica a CES, no a CV ni Linear Scale.
+- **NEV emociones**: 20 emociones canónicas. "Descontento" es negativa (rojo). Fila 1 = positivas (7), Fila 2 = atención (5), Fila 3 = negativas (8). Clasificación alineada entre participant-frontend, research-frontend preview y backend analytics.
 
 ## Key Files
 - `backend/src/router.ts` — routing central, CORS, path normalization

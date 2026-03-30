@@ -1,5 +1,14 @@
 import React from 'react';
 
+export interface SentimentZones {
+    /** Values in this range are negative (high effort / bad) */
+    negative: [number, number];
+    /** Values in this range are neutral */
+    neutral: [number, number];
+    /** Values in this range are positive (low effort / good) */
+    positive: [number, number];
+}
+
 interface ScaleSelectorProps {
     min: number;
     max: number;
@@ -8,6 +17,37 @@ interface ScaleSelectorProps {
     startLabel?: string;
     endLabel?: string;
     variant?: 'buttons' | 'slider';
+    /** Optional sentiment coloring for scale buttons (e.g. CES) */
+    sentimentZones?: SentimentZones;
+}
+
+/** Returns Tailwind classes for a button based on its sentiment zone */
+function getSentimentClasses(num: number, selected: boolean, zones?: SentimentZones): string {
+    if (!zones) {
+        // Default: blue when selected, gray otherwise
+        return selected
+            ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+            : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105';
+    }
+
+    if (selected) {
+        if (num >= zones.negative[0] && num <= zones.negative[1]) {
+            return 'bg-red-500 border-red-500 text-white shadow-lg scale-110';
+        }
+        if (num >= zones.neutral[0] && num <= zones.neutral[1]) {
+            return 'bg-amber-400 border-amber-400 text-white shadow-lg scale-110';
+        }
+        return 'bg-green-500 border-green-500 text-white shadow-lg scale-110';
+    }
+
+    // Unselected: tinted border/hover per zone
+    if (num >= zones.negative[0] && num <= zones.negative[1]) {
+        return 'bg-white border-red-200 text-red-600 hover:border-red-400 hover:bg-red-50 hover:scale-105';
+    }
+    if (num >= zones.neutral[0] && num <= zones.neutral[1]) {
+        return 'bg-white border-amber-200 text-amber-600 hover:border-amber-400 hover:bg-amber-50 hover:scale-105';
+    }
+    return 'bg-white border-green-200 text-green-600 hover:border-green-400 hover:bg-green-50 hover:scale-105';
 }
 
 export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
@@ -18,6 +58,7 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
     startLabel,
     endLabel,
     variant = 'buttons',
+    sentimentZones,
 }) => {
     const handleChange = (newValue: number): void => {
         onChange(newValue);
@@ -95,70 +136,36 @@ export const ScaleSelector: React.FC<ScaleSelectorProps> = ({
         );
     }
 
+    const renderButton = (num: number) => (
+        <button
+            key={num}
+            type="button"
+            onClick={() => handleChange(num)}
+            className={`
+                w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base
+                transition-all flex items-center justify-center flex-shrink-0
+                ${getSentimentClasses(num, value === num, sentimentZones)}
+            `}
+        >
+            {num}
+        </button>
+    );
+
     return (
         <div className="w-full space-y-4">
-            {/* Scale buttons */}
             {/* Scale buttons */}
             {numbers.length >= 10 ? (
                 <div className="flex flex-col gap-2 sm:gap-3">
                     <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
-                        {numbers.slice(0, Math.ceil(numbers.length / 2)).map((num) => (
-                            <button
-                                key={num}
-                                type="button"
-                                onClick={() => handleChange(num)}
-                                className={`
-                                    w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
-                                    transition-all flex items-center justify-center flex-shrink-0
-                                    ${value === num
-                                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
-                                    }
-                                `}
-                            >
-                                {num}
-                            </button>
-                        ))}
+                        {numbers.slice(0, Math.ceil(numbers.length / 2)).map(renderButton)}
                     </div>
                     <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
-                        {numbers.slice(Math.ceil(numbers.length / 2)).map((num) => (
-                            <button
-                                key={num}
-                                type="button"
-                                onClick={() => handleChange(num)}
-                                className={`
-                                    w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
-                                    transition-all flex items-center justify-center flex-shrink-0
-                                    ${value === num
-                                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                        : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
-                                    }
-                                `}
-                            >
-                                {num}
-                            </button>
-                        ))}
+                        {numbers.slice(Math.ceil(numbers.length / 2)).map(renderButton)}
                     </div>
                 </div>
             ) : (
                 <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
-                    {numbers.map((num) => (
-                        <button
-                            key={num}
-                            type="button"
-                            onClick={() => handleChange(num)}
-                            className={`
-                                w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 font-medium text-xs sm:text-base 
-                                transition-all flex items-center justify-center flex-shrink-0
-                                ${value === num
-                                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
-                                    : 'bg-white border-gray-300 text-gray-700 hover:border-blue-400 hover:bg-blue-50 hover:scale-105'
-                                }
-                            `}
-                        >
-                            {num}
-                        </button>
-                    ))}
+                    {numbers.map(renderButton)}
                 </div>
             )}
 

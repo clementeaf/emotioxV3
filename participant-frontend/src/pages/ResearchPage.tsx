@@ -388,11 +388,22 @@ export const ResearchPage = () => {
   const [alreadyResponded, setAlreadyResponded] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
 
-  /** Show redirect screen briefly, then navigate */
-  const redirectTo = useCallback((url: string) => {
+  /** Show redirect screen briefly, then navigate.
+   *  - Replaces `@id` placeholder with the real participant ID.
+   *  - Ensures the URL has a protocol so the browser treats it as absolute. */
+  const redirectTo = useCallback((rawUrl: string) => {
+    let url = rawUrl.trim();
+    // Replace @id placeholder with actual participant ID
+    if (participantId) {
+      url = url.replace(/@id/gi, encodeURIComponent(participantId));
+    }
+    // Ensure absolute URL — add https:// if no protocol present
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
     setRedirecting(true);
     setTimeout(() => { window.location.href = url; }, 1500);
-  }, []);
+  }, [participantId]);
 
   // Initialize device collector
   useDeviceCollector();

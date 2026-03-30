@@ -1,3 +1,18 @@
+## v0.39.2 — Redirect @id, CES scale fix, NEV emotion fix (2026-03-30)
+
+### participant-frontend
+- Fix: Backlink redirects (complete, overquota, disqualified) now replace `@id` placeholder with the real participant ID.
+- Fix: Backlink URLs without `https://` protocol are now treated as absolute URLs instead of relative paths (caused blank page).
+- Fix: CES scale ignored researcher's selection — always showed 1-7 regardless of config. Root cause: `selectRange.predefined` (template default) was read before `comp.value` (researcher's choice). Priority inverted.
+- Fix: CES buttons now display sentiment colors: red (negative/high effort), amber (neutral), green (positive/low effort). Zones per scale: 1-5 → 1-2/3/4-5, 1-7 → 1-3/4/5-7, 1-10 → 1-3/4-7/8-10.
+- Fix: NEV emotion "Descontento" moved from attention row (green) to negative row (red). Aligns with backend and results dashboard classification.
+
+### research-frontend
+- Fix: Saving a SmartVOC module now syncs `selectRange.predefined` with the value selected by the researcher. Previously only `comp.value` was saved, leaving `selectRange.predefined` stuck at the template default.
+- Fix: NEV preview emotion "Descontento" color corrected from green to red.
+
+---
+
 ## v0.39.1 — Participant limit + percentage quotas (2026-03-25)
 
 ### backend

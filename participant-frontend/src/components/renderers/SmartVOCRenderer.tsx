@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ModuleConfig } from '../../types/module';
-import { ScaleSelector } from '../ui/ScaleSelector';
+import { ScaleSelector, type SentimentZones } from '../ui/ScaleSelector';
 import { StarSelector } from '../ui/StarSelector';
 import { EmotionSelector } from '../ui/EmotionSelector';
 import { TextareaRenderer } from './TextareaRenderer';
@@ -145,19 +145,26 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
             let min = 1;
             let max = 5;
 
-            // Try to extract from selectRange or defaultValue
-            if (scaleComponent?.selectRange?.predefined) {
+            // Priority: comp.value (saved by researcher) > selectRange.predefined (template default)
+            const scaleRangeText = getComponentText(scaleComponent);
+            if (scaleRangeText.trim().length > 0 && scaleRangeText.includes('-')) {
+                const [minStr, maxStr] = String(scaleRangeText).split('-');
+                min = Number.parseInt(minStr, 10);
+                max = Number.parseInt(maxStr, 10);
+            } else if (scaleComponent?.selectRange?.predefined) {
                 const [minStr, maxStr] = scaleComponent.selectRange.predefined.split('-');
                 min = Number.parseInt(minStr, 10);
                 max = Number.parseInt(maxStr, 10);
-            } else {
-                const scaleRangeText = getComponentText(scaleComponent);
-                if (scaleRangeText.trim().length > 0) {
-                    const [minStr, maxStr] = String(scaleRangeText).split('-');
-                    min = Number.parseInt(minStr, 10);
-                    max = Number.parseInt(maxStr, 10);
-                }
             }
+
+            // CES sentiment zones by scale range
+            const cesSentiment: SentimentZones | undefined = isCES
+                ? max === 10
+                    ? { negative: [1, 3], neutral: [4, 7], positive: [8, 10] }   // 1-10
+                    : max === 7
+                        ? { negative: [1, 3], neutral: [4, 4], positive: [5, 7] } // 1-7
+                        : { negative: [1, 2], neutral: [3, 3], positive: [4, 5] } // 1-5 (default)
+                : undefined;
 
             return (
                 <ScaleSelector
@@ -167,6 +174,7 @@ export const SmartVOCRenderer: React.FC<SmartVOCRendererProps> = ({ module, onCo
                     onChange={(val) => saveComponentValue('scale', val ?? null)}
                     startLabel={getComponentText(startLabelComponent)}
                     endLabel={getComponentText(endLabelComponent)}
+                    sentimentZones={cesSentiment}
                 />
             );
         }
