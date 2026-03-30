@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ML / WASM binaries (served at runtime, not committed)
+public/mediapipe/
+public/web/
