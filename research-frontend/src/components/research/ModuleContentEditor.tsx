@@ -1,5 +1,10 @@
 import { Trash2, Plus } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import {
+    isImplicitAssociationModuleName,
+    partitionImplicitAssociationTargets,
+    type IatTargetColumn,
+} from '../../utils/implicitAssociationBuilder';
 import { isScreenerMultipleChoiceSelection, isScreenerSingleChoiceSelection } from '../../utils/screenerBuilder';
 import { EditableComponent } from './EditableComponent';
 
@@ -17,7 +22,8 @@ interface ModuleContentEditorProps {
 type ProcessedItem =
     | { type: 'group'; groupLabel: string; components: ComponentConfig[] }
     | { type: 'single'; component: ComponentConfig }
-    | { type: 'screener-header'; components: [ComponentConfig, ComponentConfig, ComponentConfig] };
+    | { type: 'screener-header'; components: [ComponentConfig, ComponentConfig, ComponentConfig] }
+    | { type: 'iat-targets-row'; columns: IatTargetColumn[] };
 
 /**
  * Finds the Screener header controls by component type (not JSON array order).
@@ -123,9 +129,22 @@ export const ModuleContentEditor = ({
         ? visibleComponents.filter((c) => !headerIds.has(c.id))
         : visibleComponents;
 
-    const displayItems: ProcessedItem[] = headerTriplet
-        ? [{ type: 'screener-header', components: headerTriplet }, ...buildProcessedItems(componentsForList)]
-        : buildProcessedItems(visibleComponents);
+    const isIatModule = isImplicitAssociationModuleName(moduleName);
+    const { columns: iatColumns, rest: componentsAfterIat } = isIatModule
+        ? partitionImplicitAssociationTargets(visibleComponents)
+        : { columns: [], rest: visibleComponents };
+
+    let displayItems: ProcessedItem[];
+    if (headerTriplet) {
+        displayItems = [
+            { type: 'screener-header', components: headerTriplet },
+            ...buildProcessedItems(componentsForList),
+        ];
+    } else if (isIatModule && iatColumns.length > 0) {
+        displayItems = [{ type: 'iat-targets-row', columns: iatColumns }, ...buildProcessedItems(componentsAfterIat)];
+    } else {
+        displayItems = buildProcessedItems(visibleComponents);
+    }
 
     const choiceTypeComp = headerTriplet?.[1];
     const rawChoiceType = choiceTypeComp ? (componentValues[choiceTypeComp.id] ?? '') : '';
@@ -141,6 +160,45 @@ export const ModuleContentEditor = ({
     return (
         <div className="space-y-6">
             {displayItems.map((item, index) => {
+                if (item.type === 'iat-targets-row' && item.columns.length > 0) {
+                    const colCount = item.columns.length;
+                    const rowGridClass =
+                        colCount <= 3
+                            ? 'grid grid-cols-1 gap-4 md:grid-cols-3 md:items-start'
+                            : colCount <= 4
+                              ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 md:items-start'
+                              : 'grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 md:items-start';
+                    return (
+                        <div key={`iat-targets-${index}`} className={rowGridClass}>
+                            {item.columns.map((col) => {
+                                const heading =
+                                    col.components[0]?.settings?.groupLabel != null
+                                        ? String(col.components[0].settings.groupLabel)
+                                        : `Target ${col.index}`;
+                                return (
+                                    <div
+                                        key={col.index}
+                                        className="min-w-0 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                                    >
+                                        <div className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-800">
+                                            {heading}
+                                        </div>
+                                        {col.components.map((comp) => (
+                                            <div key={comp.id} className="min-w-0 space-y-2">
+                                                <EditableComponent
+                                                    component={comp}
+                                                    value={componentValues[comp.id] || ''}
+                                                    onChange={(value) => onValueChange(comp.id, value)}
+                                                    researchId={researchId}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                }
                 if (item.type === 'group' && item.components) {
                     const canModifyChoices = !!onAddChoiceComponent && !!onRemoveChoiceComponent;
                     const choiceRows =
