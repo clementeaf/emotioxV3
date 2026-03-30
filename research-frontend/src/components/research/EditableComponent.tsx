@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Input } from '../ui/Input';
 import { Textarea } from '../ui/Textarea';
 import { CustomSelect } from '../ui/CustomSelect';
 import { Button } from '../ui/Button';
+import { Toggle } from '../ui/Toggle';
 import { Trash2, Plus } from 'lucide-react';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { LocalHitzoneEditor, type HitzoneArea } from '../ui/LocalHitzoneEditor';
@@ -13,6 +14,10 @@ interface RadioChoicesEditorProps {
     component: ComponentConfig;
     value: string;
     onChange: (value: string) => void;
+    /** Screener: Single Choice — one option row, no add/delete/randomize */
+    singleChoiceLocked?: boolean;
+    /** Screener: Multiple Choice — default minimum option rows (e.g. 3) */
+    screenerMultipleChoiceMinOptions?: number;
 }
 
 type ChoiceItem = {
@@ -25,7 +30,13 @@ type ChoiceItem = {
 /**
  * Editor especial para componentes radio con choices array
  */
-const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorProps) => {
+const RadioChoicesEditor = ({
+    component,
+    value,
+    onChange,
+    singleChoiceLocked = false,
+    screenerMultipleChoiceMinOptions,
+}: RadioChoicesEditorProps) => {
     // Build sensible initial choices: from saved value, settings.choices, or seed defaults
     const buildInitialChoices = (): ChoiceItem[] => {
         // 1. Try parsing saved value
@@ -40,7 +51,10 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
             return component.settings.choices as ChoiceItem[];
         }
         // 3. Seed with minOptions empty choices so the editor is not blank
-        const min = (component.settings?.minOptions as number) || 2;
+        const baseMin = (component.settings?.minOptions as number) || 2;
+        const min = singleChoiceLocked
+            ? 1
+            : (screenerMultipleChoiceMinOptions ?? baseMin);
         const defaults: ChoiceItem[] = [];
         for (let i = 0; i < min; i++) {
             defaults.push({ id: `choice-${i + 1}`, label: '', value: `option-${i + 1}`, eligibility: 'Qualify' });
@@ -49,20 +63,66 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
     };
 
     const [localChoices, setLocalChoices] = useState<ChoiceItem[]>(buildInitialChoices);
+    const prevMultipleModeRef = useRef<boolean>(false);
 
-    // Sync with external value changes
+    // Sync with external value changes (trim to one row when Screener Single Choice)
     useEffect(() => {
         if (value) {
             try {
                 const parsed = JSON.parse(value);
                 if (Array.isArray(parsed)) {
-                    setLocalChoices(parsed as ChoiceItem[]);
+                    let arr = parsed as ChoiceItem[];
+                    if (singleChoiceLocked && arr.length > 1) {
+                        arr = [arr[0]];
+                        onChange(JSON.stringify(arr));
+                    }
+                    setLocalChoices(arr);
                 }
             } catch {
                 // Invalid JSON, keep current state
             }
         }
-    }, [value]);
+    }, [value, singleChoiceLocked, onChange]);
+
+    useEffect(() => {
+        if (!singleChoiceLocked) {
+            return;
+        }
+        setLocalChoices((prev) => {
+            if (prev.length <= 1) {
+                return prev;
+            }
+            const trimmed = [prev[0]];
+            onChange(JSON.stringify(trimmed));
+            return trimmed;
+        });
+    }, [singleChoiceLocked, onChange]);
+
+    useEffect(() => {
+        const isMultiple = screenerMultipleChoiceMinOptions === 3;
+        const becameMultiple = isMultiple && !prevMultipleModeRef.current;
+        prevMultipleModeRef.current = isMultiple;
+        if (singleChoiceLocked || !isMultiple || !becameMultiple) {
+            return;
+        }
+        setLocalChoices((prev) => {
+            if (prev.length >= 3) {
+                return prev;
+            }
+            const need = 3 - prev.length;
+            const next = [...prev];
+            for (let i = 0; i < need; i++) {
+                next.push({
+                    id: `choice-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 9)}`,
+                    label: '',
+                    value: `option-${next.length + 1}`,
+                    eligibility: 'Qualify',
+                });
+            }
+            onChange(JSON.stringify(next));
+            return next;
+        });
+    }, [singleChoiceLocked, screenerMultipleChoiceMinOptions, onChange]);
 
     const handleChoiceChange = (choiceId: string, field: 'label' | 'eligibility', newValue: string) => {
         const updated = localChoices.map((choice) =>
@@ -73,6 +133,9 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
     };
 
     const handleAddChoice = () => {
+        if (singleChoiceLocked) {
+            return;
+        }
         const newChoice: ChoiceItem = {
             id: `choice-${Date.now()}`,
             label: `Option ${localChoices.length + 1}`,
@@ -85,22 +148,37 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
     };
 
     const handleDeleteChoice = (choiceId: string) => {
+        if (singleChoiceLocked) {
+            return;
+        }
         const updated = localChoices.filter((choice) => choice.id !== choiceId);
         setLocalChoices(updated);
         onChange(JSON.stringify(updated));
     };
+
+    const choiceGridClass =
+        'grid grid-cols-[minmax(0,1fr)_minmax(10rem,11rem)_2.5rem] items-center gap-x-3 gap-y-0';
 
     return (
         <div className="space-y-4">
             <label className="block text-sm font-medium text-gray-700">
                 {component.label}
             </label>
-            <div className="space-y-3">
-                {localChoices.map((choice) => {
-                    const canDelete = localChoices.length > 2;
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className={choiceGridClass + ' border-b border-gray-200 bg-gray-50/80 px-3 py-2'}>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Option</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Eligibility</span>
+                    <span className="sr-only">Actions</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                    {localChoices.map((choice) => {
+                    const canDelete = localChoices.length > 2 && !singleChoiceLocked;
                     return (
-                    <div key={choice.id} className="flex items-start gap-3">
-                        <div className="flex-1">
+                    <div
+                        key={choice.id}
+                        className={choiceGridClass + ' min-h-[3rem] px-3 py-2'}
+                    >
+                        <div className="min-w-0 self-center">
                             <Input
                                 id={`choice-${choice.id}-label`}
                                 label=""
@@ -109,10 +187,10 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                                 placeholder="Enter option text..."
                             />
                         </div>
-                        <div className="w-40">
+                        <div className="min-w-0 self-center">
                             <CustomSelect
                                 id={`choice-${choice.id}-eligibility`}
-                                label="Elegibility"
+                                label=""
                                 value={choice.eligibility ?? 'Qualify'}
                                 onChange={(val) => handleChoiceChange(choice.id, 'eligibility', val)}
                                 options={[
@@ -121,25 +199,33 @@ const RadioChoicesEditor = ({ component, value, onChange }: RadioChoicesEditorPr
                                 ]}
                             />
                         </div>
+                        <div className="flex justify-end self-center">
                         <button
+                            type="button"
                             onClick={() => handleDeleteChoice(choice.id)}
                             disabled={!canDelete}
-                            className={`mt-6 p-2 rounded transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed opacity-50'}`}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded p-2 transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'cursor-not-allowed text-gray-400 opacity-50'}`}
                             title={canDelete ? 'Delete option' : 'Minimum 2 options required'}
                         >
                             <Trash2 className="h-4 w-4" />
                         </button>
+                        </div>
                     </div>
                     );
                 })}
-                <Button
-                    onClick={handleAddChoice}
-                    variant="outline"
-                    className="w-full"
-                >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add another choice
-                </Button>
+                </div>
+                {!singleChoiceLocked && (
+                <div className="border-t border-gray-100 bg-gray-50/40 p-2">
+                    <Button
+                        onClick={handleAddChoice}
+                        variant="outline"
+                        className="w-full"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add another choice
+                    </Button>
+                </div>
+                )}
             </div>
         </div>
     );
@@ -149,6 +235,10 @@ interface RankingItemsEditorProps {
     component: ComponentConfig;
     value: string;
     onChange: (value: string) => void;
+    /** Screener: Single Choice — one option row, no add/delete/randomize */
+    singleChoiceLocked?: boolean;
+    /** Screener: Multiple Choice — default minimum option rows (e.g. 3) */
+    screenerMultipleChoiceMinOptions?: number;
 }
 
 type RankingItem = {
@@ -160,7 +250,13 @@ type RankingItem = {
 /**
  * Editor for ranking items — lets the researcher add/edit/remove items to rank
  */
-const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorProps) => {
+const RankingItemsEditor = ({
+    component,
+    value,
+    onChange,
+    singleChoiceLocked = false,
+    screenerMultipleChoiceMinOptions,
+}: RankingItemsEditorProps) => {
     const buildInitialState = (): { items: RankingItem[]; randomize: boolean } => {
         if (value) {
             try {
@@ -177,32 +273,87 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
         }
         const items = component.rankingConfig?.items;
         if (items && items.length > 0) return { items, randomize: false };
+        if (singleChoiceLocked) {
+            return {
+                items: [{ id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' }],
+                randomize: false,
+            };
+        }
+        const blankItems: RankingItem[] = [];
+        for (let i = 0; i < 3; i++) {
+            blankItems.push({ id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' });
+        }
         return {
-            items: [
-                { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' },
-                { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' },
-                { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' },
-            ],
+            items: blankItems,
             randomize: false,
         };
     };
 
     const [localItems, setLocalItems] = useState<RankingItem[]>(() => buildInitialState().items);
     const [randomize, setRandomize] = useState<boolean>(() => buildInitialState().randomize);
+    const prevMultipleModeRef = useRef<boolean>(false);
 
     useEffect(() => {
         if (value) {
             try {
                 const parsed = JSON.parse(value);
                 if (parsed && !Array.isArray(parsed) && parsed.items) {
-                    setLocalItems(parsed.items);
-                    setRandomize(!!parsed.randomize);
+                    let items = parsed.items as RankingItem[];
+                    if (singleChoiceLocked && items.length > 1) {
+                        items = [items[0]];
+                        onChange(JSON.stringify({ items, randomize: false }));
+                    }
+                    setLocalItems(items);
+                    setRandomize(singleChoiceLocked ? false : !!parsed.randomize);
                 } else if (Array.isArray(parsed)) {
-                    setLocalItems(parsed);
+                    let items = parsed as RankingItem[];
+                    if (singleChoiceLocked && items.length > 1) {
+                        items = [items[0]];
+                        onChange(JSON.stringify({ items, randomize: false }));
+                    }
+                    setLocalItems(items);
+                    setRandomize(false);
                 }
             } catch { /* keep current */ }
         }
-    }, [value]);
+    }, [value, singleChoiceLocked, onChange]);
+
+    useEffect(() => {
+        if (!singleChoiceLocked) {
+            return;
+        }
+        setRandomize(false);
+        setLocalItems((prev) => {
+            if (prev.length <= 1) {
+                return prev;
+            }
+            const trimmed = [prev[0]];
+            onChange(JSON.stringify({ items: trimmed, randomize: false }));
+            return trimmed;
+        });
+    }, [singleChoiceLocked, onChange]);
+
+    useEffect(() => {
+        const isMultiple = screenerMultipleChoiceMinOptions === 3;
+        const becameMultiple = isMultiple && !prevMultipleModeRef.current;
+        prevMultipleModeRef.current = isMultiple;
+        if (singleChoiceLocked || !isMultiple || !becameMultiple) {
+            return;
+        }
+        setLocalItems((prev) => {
+            if (prev.length >= 3) {
+                return prev;
+            }
+            const need = 3 - prev.length;
+            const next = [...prev];
+            for (let i = 0; i < need; i++) {
+                next.push({ id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' });
+            }
+            onChange(JSON.stringify({ items: next, randomize: false }));
+            setRandomize(false);
+            return next;
+        });
+    }, [singleChoiceLocked, screenerMultipleChoiceMinOptions, onChange]);
 
     const persist = (items: RankingItem[], rand: boolean) => {
         onChange(JSON.stringify({ items, randomize: rand }));
@@ -221,6 +372,9 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
     };
 
     const handleAdd = () => {
+        if (singleChoiceLocked) {
+            return;
+        }
         const newItem: RankingItem = { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' };
         const updated = [...localItems, newItem];
         setLocalItems(updated);
@@ -228,12 +382,18 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
     };
 
     const handleDelete = (itemId: string) => {
+        if (singleChoiceLocked) {
+            return;
+        }
         const updated = localItems.filter(item => item.id !== itemId);
         setLocalItems(updated);
         persist(updated, randomize);
     };
 
     const handleRandomizeChange = (checked: boolean) => {
+        if (singleChoiceLocked) {
+            return;
+        }
         setRandomize(checked);
         persist(localItems, checked);
     };
@@ -245,7 +405,7 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
             </label>
             <div className="space-y-3">
                 {localItems.map((item) => {
-                    const canDelete = localItems.length > 2;
+                    const canDelete = localItems.length > 2 && !singleChoiceLocked;
                     return (
                         <div key={item.id} className="flex items-center gap-3">
                             <div className="flex-1">
@@ -276,6 +436,7 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
                         </div>
                     );
                 })}
+                {!singleChoiceLocked && (
                 <Button
                     onClick={handleAdd}
                     variant="outline"
@@ -284,15 +445,17 @@ const RankingItemsEditor = ({ component, value, onChange }: RankingItemsEditorPr
                     <Plus className="h-4 w-4 mr-2" />
                     Add another choice
                 </Button>
-                <label className="flex items-center gap-2 cursor-pointer mt-2">
-                    <input
-                        type="checkbox"
+                )}
+                {!singleChoiceLocked && (
+                <div className="mt-2 flex items-center">
+                    <Toggle
+                        id={`ranking-randomize-${component.id}`}
+                        label="Randomize the order of questions"
                         checked={randomize}
                         onChange={(e) => handleRandomizeChange(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="text-sm text-gray-700">Randomize the order of questions</span>
-                </label>
+                </div>
+                )}
             </div>
         </div>
     );
@@ -424,15 +587,31 @@ interface EditableComponentProps {
     value: string;
     onChange: (value: string) => void;
     researchId?: string; // For S3 upload in file-upload components
+    /** Inline: label + control on one row (Screener header row). */
+    fieldLayout?: 'default' | 'inline';
+    /** Screener: Choice Type = Single Choice — lock options UI (see RadioChoicesEditor). */
+    screenerSingleChoiceLocked?: boolean;
+    /** Screener: Multiple Choice — default minimum option rows (e.g. 3). */
+    screenerMultipleChoiceMinOptions?: number;
 }
 
 /**
  * Componente que renderiza un componente editable según su tipo
  */
-export const EditableComponent = ({ component, value, onChange, researchId }: EditableComponentProps) => {
+export const EditableComponent = ({
+    component,
+    value,
+    onChange,
+    researchId,
+    fieldLayout = 'default',
+    screenerSingleChoiceLocked = false,
+    screenerMultipleChoiceMinOptions,
+}: EditableComponentProps) => {
     const placeholder = component.placeholder?.enabled
         ? component.placeholder.text || ''
         : undefined;
+
+    const labelPosition = fieldLayout === 'inline' ? 'inline' : 'above';
 
     switch (component.type) {
         case 'input': {
@@ -461,10 +640,11 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                 ? String(component.settings.defaultValue)
                 : '';
             return (
-                <div className="max-w-2xl">
+                <div className={fieldLayout === 'inline' ? 'min-w-0 flex-1' : 'max-w-2xl'}>
                     <Input
                         id={`module-${component.id}`}
                         label={component.label}
+                        labelPosition={labelPosition}
                         value={value || defaultValue}
                         onChange={(e) => onChange(e.target.value)}
                         placeholder={placeholder}
@@ -493,10 +673,11 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
             }
             
             return (
-                <div className="max-w-md">
+                <div className={fieldLayout === 'inline' ? 'min-w-0 flex-1 sm:max-w-xs' : 'max-w-md'}>
                     <CustomSelect
                         id={`module-${component.id}`}
                         label={component.label}
+                        labelPosition={labelPosition}
                         value={value}
                         onChange={onChange}
                         options={component.options || []}
@@ -519,23 +700,30 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                 </div>
             );
 
-        case 'checkbox':
+        case 'checkbox': {
+            const isRandomizeField =
+                (component.label ?? '').toLowerCase().includes('randomize') ||
+                (component.id ?? '').toLowerCase().includes('randomize');
+            if (screenerSingleChoiceLocked && fieldLayout !== 'inline' && isRandomizeField) {
+                return null;
+            }
             return (
-                <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                        {component.label}
-                    </label>
-                    <div className="flex items-center">
-                        <input
-                            type="checkbox"
-                            id={`module-${component.id}`}
-                            checked={value === 'true'}
-                            onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
-                            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                    </div>
+                <div
+                    className={
+                        fieldLayout === 'inline'
+                            ? 'flex shrink-0 items-center'
+                            : 'flex items-center'
+                    }
+                >
+                    <Toggle
+                        id={`module-${component.id}`}
+                        label={component.label}
+                        checked={value === 'true'}
+                        onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
+                    />
                 </div>
             );
+        }
 
         case 'radio':
             return (
@@ -543,6 +731,8 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                     component={component}
                     value={value}
                     onChange={onChange}
+                    singleChoiceLocked={screenerSingleChoiceLocked}
+                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
                 />
             );
 
@@ -553,6 +743,8 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                     component={component}
                     value={value}
                     onChange={onChange}
+                    singleChoiceLocked={screenerSingleChoiceLocked}
+                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
                 />
             );
 
@@ -563,6 +755,8 @@ export const EditableComponent = ({ component, value, onChange, researchId }: Ed
                     component={component}
                     value={value}
                     onChange={onChange}
+                    singleChoiceLocked={screenerSingleChoiceLocked}
+                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
                 />
             );
 

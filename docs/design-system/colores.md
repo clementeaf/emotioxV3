@@ -23,6 +23,8 @@
 | `accent-primary-hover` | `#3b82f6` | Hover de botones primarios |
 | `accent-gradient` | `linear-gradient(#006aff, #3b82f6)` | Botones hero, badges destacados |
 
+**Variantes de azul en producto (no son errores):** en documentacion de componentes embebidos (p. ej. webchat) puede aparecer un color primario configurable distinto, como `#2994FF`. Eso no sustituye al `#006aff` observado en marketing; refleja **superficie o tema** distintos (widget, white-label, etc.). Ver notas en [README.md](./README.md) (revision 2026-03-29).
+
 ## Status Colors
 
 | Token | Valor aprox. | Uso |
@@ -58,3 +60,5 @@ Vambe no usa sombras box-shadow tradicionales. La jerarquia visual se logra con:
 - Todo el sitio publico usa tema oscuro exclusivamente
 - Los colores de status no fueron extraidos como hex exactos (requiere acceso a la app)
 - El azul `#006aff` aparece consistentemente como accent en el sitio marketing y pagina /platform
+- **Implementacion EmotioX:** para la app de investigacion usar [emotiox-palette.md](./emotiox-palette.md), no este archivo como spec de tema
+- **Revision:** 2026-03-29 — alineacion de matices (variantes de azul, relacion con README)

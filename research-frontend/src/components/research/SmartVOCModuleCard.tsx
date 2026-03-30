@@ -198,6 +198,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                             componentValues={componentValues}
                             onValueChange={handleComponentValueChange}
                             researchId={researchId}
+                            moduleName={module.name}
                         />
                         {/* Preview especializado para Smart VOC */}
                         <SmartVOCPreview

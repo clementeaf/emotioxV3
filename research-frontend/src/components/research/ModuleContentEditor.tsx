@@ -1,5 +1,6 @@
 import { Trash2, Plus } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import { isScreenerMultipleChoiceSelection, isScreenerSingleChoiceSelection } from '../../utils/screenerBuilder';
 import { EditableComponent } from './EditableComponent';
 
 interface ModuleContentEditorProps {
@@ -9,6 +10,79 @@ interface ModuleContentEditorProps {
     onAddChoiceComponent?: (groupLabel: string, siblingComponent: ComponentConfig) => void;
     onRemoveChoiceComponent?: (componentId: string) => void;
     researchId?: string; // For S3 upload in file-upload components
+    /** When "Screener", first input + select + checkbox row renders on one line (Question, Choice Type, Enable last). */
+    moduleName?: string;
+}
+
+type ProcessedItem =
+    | { type: 'group'; groupLabel: string; components: ComponentConfig[] }
+    | { type: 'single'; component: ComponentConfig }
+    | { type: 'screener-header'; components: [ComponentConfig, ComponentConfig, ComponentConfig] };
+
+/**
+ * Finds the Screener header controls by component type (not JSON array order).
+ * Uses the first input, first select, and first checkbox by `order` among visible components.
+ * @param components - Visible module components (already sorted by order)
+ * @returns [Question input, Choice Type select, Enable checkbox] or null if any type is missing
+ */
+function findScreenerHeaderTriplet(
+    components: ComponentConfig[]
+): [ComponentConfig, ComponentConfig, ComponentConfig] | null {
+    const sorted = [...components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const input = sorted.find((c) => c.type === 'input');
+    const select = sorted.find((c) => c.type === 'select');
+    const checkbox = sorted.find((c) => c.type === 'checkbox');
+    if (!input || !select || !checkbox) {
+        return null;
+    }
+    return [input, select, checkbox];
+}
+
+/**
+ * Groups components into singles and choice groups (same logic as builder list).
+ * @param visibleComponents - Filtered visible components
+ * @returns Processed items for rendering
+ */
+function buildProcessedItems(visibleComponents: ComponentConfig[]): ProcessedItem[] {
+    const processedComponents: ProcessedItem[] = [];
+    let currentGroup: { groupLabel: string; components: ComponentConfig[] } | null = null;
+
+    visibleComponents.forEach((component) => {
+        const groupLabel = component.settings?.groupLabel;
+        const isChoice = component.settings?.isChoice;
+
+        if (groupLabel && isChoice) {
+            if (currentGroup && currentGroup.groupLabel === groupLabel) {
+                currentGroup.components.push(component);
+            } else {
+                if (currentGroup) {
+                    processedComponents.push({
+                        type: 'group',
+                        groupLabel: currentGroup.groupLabel,
+                        components: currentGroup.components,
+                    });
+                }
+                currentGroup = { groupLabel, components: [component] };
+            }
+        } else {
+            if (currentGroup) {
+                processedComponents.push({
+                    type: 'group',
+                    groupLabel: currentGroup.groupLabel,
+                    components: currentGroup.components,
+                });
+                currentGroup = null;
+            }
+            processedComponents.push({ type: 'single', component });
+        }
+    });
+
+    if (currentGroup !== null) {
+        const groupToAdd: { groupLabel: string; components: ComponentConfig[] } = currentGroup;
+        processedComponents.push({ type: 'group', groupLabel: groupToAdd.groupLabel, components: groupToAdd.components });
+    }
+
+    return processedComponents;
 }
 
 /**
@@ -22,6 +96,7 @@ export const ModuleContentEditor = ({
     onAddChoiceComponent,
     onRemoveChoiceComponent,
     researchId,
+    moduleName,
 }: ModuleContentEditorProps) => {
     const visibleComponents = components
         .filter(c => !c.hidden)
@@ -39,53 +114,48 @@ export const ModuleContentEditor = ({
         );
     }
 
-    // Group components that have groupLabel in settings, maintaining order
-    type ProcessedComponent = 
-        | { type: 'group'; groupLabel: string; components: ComponentConfig[] }
-        | { type: 'single'; component: ComponentConfig };
-    
-    const processedComponents: ProcessedComponent[] = [];
-    let currentGroup: { groupLabel: string; components: ComponentConfig[] } | null = null;
+    const isScreener = moduleName?.trim().toLowerCase() === 'screener';
+    const headerTriplet = isScreener ? findScreenerHeaderTriplet(visibleComponents) : null;
+    const headerIds = headerTriplet
+        ? new Set([headerTriplet[0].id, headerTriplet[1].id, headerTriplet[2].id])
+        : null;
+    const componentsForList = headerIds
+        ? visibleComponents.filter((c) => !headerIds.has(c.id))
+        : visibleComponents;
 
-    visibleComponents.forEach((component) => {
-        const groupLabel = component.settings?.groupLabel;
-        const isChoice = component.settings?.isChoice;
+    const displayItems: ProcessedItem[] = headerTriplet
+        ? [{ type: 'screener-header', components: headerTriplet }, ...buildProcessedItems(componentsForList)]
+        : buildProcessedItems(visibleComponents);
 
-        if (groupLabel && isChoice) {
-            if (currentGroup && currentGroup.groupLabel === groupLabel) {
-                currentGroup.components.push(component);
-            } else {
-                if (currentGroup) {
-                    processedComponents.push({ type: 'group', groupLabel: currentGroup.groupLabel, components: currentGroup.components });
-                }
-                currentGroup = { groupLabel, components: [component] };
-            }
-        } else {
-            if (currentGroup) {
-                processedComponents.push({ type: 'group', groupLabel: currentGroup.groupLabel, components: currentGroup.components });
-                currentGroup = null;
-            }
-            processedComponents.push({ type: 'single', component });
-        }
-    });
-
-    if (currentGroup !== null) {
-        const groupToAdd: { groupLabel: string; components: ComponentConfig[] } = currentGroup;
-        processedComponents.push({ type: 'group', groupLabel: groupToAdd.groupLabel, components: groupToAdd.components });
-    }
+    const choiceTypeComp = headerTriplet?.[1];
+    const rawChoiceType = choiceTypeComp ? (componentValues[choiceTypeComp.id] ?? '') : '';
+    const screenerSingleChoiceLocked =
+        isScreener && choiceTypeComp
+            ? isScreenerSingleChoiceSelection(choiceTypeComp, rawChoiceType)
+            : false;
+    const screenerMultipleChoiceMinOptions =
+        isScreener && choiceTypeComp && isScreenerMultipleChoiceSelection(choiceTypeComp, rawChoiceType)
+            ? 3
+            : undefined;
 
     return (
         <div className="space-y-6">
-            {processedComponents.map((item, index) => {
+            {displayItems.map((item, index) => {
                 if (item.type === 'group' && item.components) {
                     const canModifyChoices = !!onAddChoiceComponent && !!onRemoveChoiceComponent;
+                    const choiceRows =
+                        screenerSingleChoiceLocked && isScreener ? item.components.slice(0, 1) : item.components;
+                    const showRemoveRow =
+                        canModifyChoices &&
+                        item.components.length > 2 &&
+                        !screenerSingleChoiceLocked;
                     return (
                         <div key={`group-${index}`} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                             <label className="block text-sm font-medium text-gray-700 mb-4">
                                 {item.groupLabel}
                             </label>
                             <div className="space-y-3">
-                                {item.components.map((component) => {
+                                {choiceRows.map((component) => {
                                     const componentValue = componentValues[component.id] || '';
                                     return (
                                         <div key={component.id} className="flex items-start gap-2">
@@ -95,9 +165,11 @@ export const ModuleContentEditor = ({
                                                     value={componentValue}
                                                     onChange={(value) => onValueChange(component.id, value)}
                                                     researchId={researchId}
+                                                    screenerSingleChoiceLocked={screenerSingleChoiceLocked}
+                                                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
                                                 />
                                             </div>
-                                            {canModifyChoices && item.components.length > 2 && (
+                                            {showRemoveRow && (
                                                 <button
                                                     onClick={() => onRemoveChoiceComponent(component.id)}
                                                     className="mt-1 p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
@@ -109,7 +181,7 @@ export const ModuleContentEditor = ({
                                         </div>
                                     );
                                 })}
-                                {canModifyChoices && (
+                                {canModifyChoices && !screenerSingleChoiceLocked && (
                                     <button
                                         onClick={() => onAddChoiceComponent(item.groupLabel, item.components[item.components.length - 1])}
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:text-gray-700 transition-colors"
@@ -118,6 +190,48 @@ export const ModuleContentEditor = ({
                                         Add another choice
                                     </button>
                                 )}
+                            </div>
+                        </div>
+                    );
+                } else if (item.type === 'screener-header') {
+                    const [questionComp, choiceTypeComp, enableComp] = item.components;
+                    return (
+                        <div
+                            key="screener-header-row"
+                            className="flex min-w-0 flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-center lg:gap-6"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <EditableComponent
+                                    component={questionComp}
+                                    value={componentValues[questionComp.id] || ''}
+                                    onChange={(value) => onValueChange(questionComp.id, value)}
+                                    researchId={researchId}
+                                    fieldLayout="inline"
+                                    screenerSingleChoiceLocked={screenerSingleChoiceLocked}
+                                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+                                />
+                            </div>
+                            <div className="min-w-0 shrink-0 sm:max-w-xs">
+                                <EditableComponent
+                                    component={choiceTypeComp}
+                                    value={componentValues[choiceTypeComp.id] || ''}
+                                    onChange={(value) => onValueChange(choiceTypeComp.id, value)}
+                                    researchId={researchId}
+                                    fieldLayout="inline"
+                                    screenerSingleChoiceLocked={screenerSingleChoiceLocked}
+                                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+                                />
+                            </div>
+                            <div className="shrink-0 lg:ml-auto">
+                                <EditableComponent
+                                    component={enableComp}
+                                    value={componentValues[enableComp.id] || ''}
+                                    onChange={(value) => onValueChange(enableComp.id, value)}
+                                    researchId={researchId}
+                                    fieldLayout="inline"
+                                    screenerSingleChoiceLocked={screenerSingleChoiceLocked}
+                                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+                                />
                             </div>
                         </div>
                     );
@@ -130,6 +244,8 @@ export const ModuleContentEditor = ({
                                 value={componentValue}
                                 onChange={(value) => onValueChange(item.component!.id, value)}
                                 researchId={researchId}
+                                screenerSingleChoiceLocked={screenerSingleChoiceLocked}
+                                screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
                             />
                         </div>
                     );

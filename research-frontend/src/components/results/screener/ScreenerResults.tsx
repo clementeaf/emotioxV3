@@ -72,14 +72,12 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
             <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
               <span className="text-sm font-semibold text-gray-700">1.0.- Screener</span>
             </div>
-            {data.questionText && (
-              <>
-                <h2 className="text-xl font-semibold text-gray-900 mb-1">{data.questionText}</h2>
-                <p className="text-sm text-gray-500">
-                  Screening question to filter participants by eligibility criteria.
-                </p>
-              </>
-            )}
+            {data.questionText ? (
+              <h2 className="text-xl font-semibold text-gray-900 mb-1">{data.questionText}</h2>
+            ) : null}
+            <p className="text-sm text-gray-500">
+              Screening questions for participant qualification.
+            </p>
           </div>
 
           {/* Main grid: Distribution chart + Status cards */}

@@ -5,6 +5,8 @@ import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
 import { researchService, type Research, type Stage, type Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
+import { useScreenerSingleChoiceTrim } from '../../hooks/useScreenerSingleChoiceTrim';
+import { useScreenerMultipleChoiceGroupPad } from '../../hooks/useScreenerMultipleChoiceGroupPad';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
@@ -165,42 +167,64 @@ export const ResearchBuilderPage = () => {
         return [];
     }, [typedResearch]);
 
-    // Build list of study modules with choice options for conditionality
+    /**
+     * Modules whose answers can drive module conditionality (any stage with choice components).
+     * Includes Screener (single_module stage), Single/Multiple Choice in collections, etc.
+     */
     const studyModulesWithOptions = useMemo((): StudyModuleOption[] => {
-        const allModules = [...smartVOCModules, ...collectionModules];
+        if (!typedResearch?.stages) return [];
         const result: StudyModuleOption[] = [];
-        for (const mod of allModules) {
-            if (mod.name !== 'Single Choice' && mod.name !== 'Multiple Choice') continue;
-            const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
-            const components = structure?.components || [];
-            const choices = components.filter(c => c.settings?.isChoice || c.id.includes('choice-'));
-            if (choices.length === 0) continue;
-            const options = choices
-                .map(c => {
-                    const defaultVal = typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
-                    const label = (c.value && typeof c.value === 'string' && c.value.trim())
-                        || defaultVal
-                        || c.label
-                        || c.id;
-                    return { id: c.id, label };
-                })
-                .filter(o => o.label.trim().length > 0);
-            if (options.length === 0) continue;
-            result.push({
-                id: mod.id,
-                name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
-                orderIndex: mod.order_index,
-                componentId: 'choice',
-                options,
-            });
+        const seen = new Set<string>();
+
+        const sortedStages = [...typedResearch.stages].sort(
+            (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+        );
+
+        for (const stage of sortedStages) {
+            const modules = [...(stage.modules || [])].sort(
+                (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+            );
+            for (const mod of modules) {
+                if (seen.has(mod.id)) continue;
+                const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
+                const components = structure?.components || [];
+                const choices = components.filter(
+                    (c) => c.settings?.isChoice || c.id.includes('choice-')
+                );
+                if (choices.length === 0) continue;
+                const options = choices
+                    .map((c) => {
+                        const defaultVal =
+                            typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
+                        const label =
+                            (c.value && typeof c.value === 'string' && c.value.trim()) ||
+                            defaultVal ||
+                            c.label ||
+                            c.id;
+                        return { id: c.id, label };
+                    })
+                    .filter((o) => o.label.trim().length > 0);
+                if (options.length === 0) continue;
+                seen.add(mod.id);
+                result.push({
+                    id: mod.id,
+                    name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
+                    orderIndex: mod.order_index,
+                    componentId: 'choice',
+                    options,
+                });
+            }
         }
         return result;
-    }, [smartVOCModules, collectionModules]);
+    }, [typedResearch]);
 
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
 
-    const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
+    const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(activeModule);
+
+    useScreenerSingleChoiceTrim(activeModule?.name, components, componentValues, setComponents, setComponentValues);
+    useScreenerMultipleChoiceGroupPad(activeModule?.name, components, componentValues, setComponents, setComponentValues);
 
     // Initialize componentValues from config for Research Configuration module
     useEffect(() => {
@@ -809,6 +833,7 @@ export const ResearchBuilderPage = () => {
                                 componentValues={componentValues}
                                 onValueChange={handleComponentValueChange}
                                 researchId={id}
+                                moduleName={activeModule?.name}
                             />
                         </div>
                     </div>

@@ -1,4 +1,28 @@
-## v0.46.0 — Google-only auth + design system foundation (2026-03-28)
+## v0.47.0 — Design system, skeletons, dashboard responsive, auth fix (2026-03-29)
+
+### research-frontend
+
+- **Complete EmotioX light color system.** Paleta propia basada en principios Vambe AI, adaptada 100% a light. Tokens en Tailwind config + CSS variables:
+  - Surfaces: 5 niveles (`surface-app`, `primary`, `secondary`, `tertiary`, `sunken`).
+  - Text: 5 niveles semanticos (`heading`, `body`, `muted`, `faint`, `inverse`).
+  - Accent: 6 variantes (`DEFAULT`, `hover`, `pressed`, `light`, `muted`, `subtle`). Hover va mas oscuro (`#0058D4`).
+  - Semantic: success, warning, error, info — cada uno con bg, solid, text, border.
+  - Chart: 8 colores + auxiliares (grid, axis, reference). NPS: promoter, passive, detractor.
+  - Borders semi-transparentes (`rgba(0,0,0,N)`). Sombras solo funcionales (dropdown, modal).
+  - Referencia: `docs/design-system/emotiox-palette.md`.
+- **Accent color migration.** ~50 componentes migrados de `blue-*` hardcoded a tokens `accent`. Incluye: Button, Sidebar, toggles, checkboxes, inputs (focus rings), file uploads, tabs, links, info boxes, modals, stepper, badges.
+- **Loading states: full skeleton.** Eliminados todos los spinners de carga de datos. Nuevo `Skeleton.tsx` con 7 componentes reutilizables. Skeletons en: sidebar, builder, research list, modules grid, drawer, research types/techniques, stage selector modal. App shell skeleton para auth bootstrap y Suspense. Solo quedan spinners en Button (accion) y FileUpload (progreso).
+- **Dashboard responsive para desktop.** Tabla con `table-fixed` + `colgroup` porcentual (30/10/14/14/24/8). Name y Researcher con `truncate`. Sidebar derecho y bottom section en `xl+`. Filter pills `rounded-full`. Cards bottom en `flex` single-row.
+- **Dashboard filter fix.** Comparacion `String()` para `research_type_id` vs `type.id` (MySQL number vs frontend string).
+- **Auth bootstrap fix.** `bootstrapSession` no llama a `/auth/me` si no hay token almacenado.
+
+### backend
+
+- **Auth 400→401 fix.** El catch generico en `auth.controller.ts` sobreescribia `AuthError.statusCode=401` a 400 cuando el mensaje contenia "Invalid". Ahora `isAuthError` tiene prioridad con `else if`.
+
+---
+
+## v0.46.0 ��� Google-only auth + design system foundation (2026-03-28)
 
 ### research-frontend
 - **Auth simplified to Google OAuth only.** Removed manual login form (email/password), register page, and all related code:

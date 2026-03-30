@@ -6,6 +6,7 @@ import { CreateEnterpriseModal } from '../../components/research/CreateEnterpris
 import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
 import { ArrowRight, Calendar, Folder, Plus, Trash2 } from 'lucide-react';
 import type { Research } from '../../services/research.service';
 
@@ -172,11 +173,10 @@ export const ResearchPage = () => {
 
     if (isLoading) {
         return (
-            <div className="h-full w-full flex items-center justify-center">
-                <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                    <p className="mt-4 text-gray-600">Loading researches...</p>
-                </div>
+            <div className="flex h-full w-full flex-col gap-4 overflow-hidden p-4 sm:p-5 lg:p-6">
+                <ResearchCardSkeleton />
+                <ResearchCardSkeleton />
+                <ResearchCardSkeleton />
             </div>
         );
     }

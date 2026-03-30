@@ -3,6 +3,7 @@ import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/Card';
 import { Drawer } from '../../ui/Drawer';
+import { DrawerDetailsSkeleton } from '../../ui/Skeleton';
 import { researchInProgressService, type Participant, type ParticipantDetails, type ResearchConfiguration } from '../../../services/researchInProgress.service';
 import {
     AlertCircle,
@@ -10,7 +11,6 @@ import {
     CheckCircle,
     Clock,
     Eye,
-    Loader2,
     Trash2
 } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
@@ -486,9 +486,7 @@ export function ParticipantsTable({
                 width="md"
             >
                 {drawerLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-                    </div>
+                    <DrawerDetailsSkeleton />
                 ) : drawerDetails ? (
                     <div className="space-y-6">
                         {/* Summary */}

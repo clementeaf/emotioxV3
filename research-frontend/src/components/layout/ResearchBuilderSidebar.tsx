@@ -19,6 +19,7 @@ import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { Modal } from '../ui/Modal';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { SidebarSkeleton } from '../ui/Skeleton';
 import { useToast } from '../../hooks/useToast';
 import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
 import { useAuthStore } from '../../stores/auth.store';
@@ -299,11 +300,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
 
     if (loadingResearch) {
-        return (
-            <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg items-center justify-center">
-                <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-            </div>
-        );
+        return <SidebarSkeleton />;
     }
 
     if (!activeResearch) {

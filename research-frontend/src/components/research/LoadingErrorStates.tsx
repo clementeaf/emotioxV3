@@ -1,4 +1,5 @@
 import { Button } from '../ui/Button';
+import { BuilderContentSkeleton } from '../ui/Skeleton';
 
 interface LoadingStateProps {
   type: 'loading';
@@ -14,14 +15,7 @@ type LoadingErrorStatesProps = LoadingStateProps | ErrorStateProps;
 
 export const LoadingErrorStates = (props: LoadingErrorStatesProps) => {
   if (props.type === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading research...</p>
-        </div>
-      </div>
-    );
+    return <BuilderContentSkeleton />;
   }
 
   const errorMessage = props.error instanceof Error

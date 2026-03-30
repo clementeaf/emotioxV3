@@ -5,7 +5,18 @@
 
 ---
 
-## Última actualización: 2026-03-28 (sesión 26)
+## Última actualización: 2026-03-29 (sesión 27)
+
+---
+
+## Sesión 27: 29 de marzo de 2026 — Design system completo + skeletons + fixes (v0.47.0)
+
+- **Paleta EmotioX propia:** Sistema de colores light completo (surfaces, text, accent, semantic, chart, borders). Documentado en `docs/design-system/emotiox-palette.md`. El hover del accent va mas oscuro en light theme (#0058D4), no mas claro.
+- **Migración accent:** ~50 componentes migrados de `blue-*` hardcoded a tokens `accent` (botones, toggles, checkboxes, focus rings, tabs, links, etc.). Solo quedan `blue-*` en status badges y data viz.
+- **Skeletons:** Eliminados todos los spinners de carga de datos. Nuevo `Skeleton.tsx` con 7 componentes reutilizables. App shell skeleton para bootstrap/Suspense.
+- **Dashboard responsive:** Tabla con colgroup porcentual, truncate en Name/Researcher, sidebar derecho solo en xl+. Filter pills en flex single-row.
+- **Fix filtro tipos:** Comparación `String()` para evitar mismatch number vs string en research_type_id.
+- **Fix auth 400:** Backend sobreescribía AuthError 401 a 400 por "Invalid" en el mensaje. Frontend no llama `/auth/me` sin token.
 
 ---
 

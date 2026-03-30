@@ -9,6 +9,7 @@ import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
 import { SearchInput } from '../../components/ui/SearchInput';
+import { ModulesGridSkeleton } from '../../components/ui/Skeleton';
 import { cn } from '../../lib/utils';
 import { flat } from '../../utils/radashi';
 import { useModuleTemplates, useModuleTemplate, useDeleteModuleTemplate } from '../../hooks/useModuleTemplatesQuery';
@@ -562,9 +563,8 @@ export const ModulesPage = () => {
             )}
 
             {isLoading ? (
-                <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-500">Loading modules...</p>
+                <div className="py-8">
+                    <ModulesGridSkeleton count={8} />
                 </div>
             ) : error ? (
                 <div className="text-center py-12 text-red-600">
