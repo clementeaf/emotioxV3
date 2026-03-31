@@ -11,7 +11,7 @@ import { NPSAnalysis } from './components/NPSAnalysis';
 import { VOCComments } from './components/VOCComments';
 import { Filters, type DemographicFiltersState } from './components/Filters';
 import * as analyticsService from '../../../services/analytics.service';
-import { safeCalculatePercentage, calculateCSAT, calculateCES, calculateCV, hasScores } from '../shared/utils/calculations';
+import { safeCalculatePercentage, calculateCSAT, calculateCES, calculateCV, hasScores, getCESZones } from '../shared/utils/calculations';
 import { cn } from '../../../lib/utils';
 
 interface SmartVOCResultsProps {
@@ -248,11 +248,12 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     // Emotional states from filtered NEV responses
     const emotionalStates = computeEmotionalStates(nevFiltered);
 
-    // CPV
+    // CPV — uses dynamic CES zones
+    const cesZonesLocal = getCESZones(data?.scaleConfigs?.ces?.max ?? 5);
     const csatPct = csatValues.length > 0
       ? Math.round((csatValues.filter((s: number) => s >= 4).length / csatValues.length) * 100) : 0;
     const cesPct = cesValues.length > 0
-      ? Math.round((cesValues.filter((s: number) => s <= 2).length / cesValues.length) * 100) : 0;
+      ? Math.round((cesValues.filter((s: number) => s >= cesZonesLocal.negative[0] && s <= cesZonesLocal.negative[1]).length / cesValues.length) * 100) : 0;
     const cpvValue = csatPct - cesPct;
 
     return {
@@ -264,6 +265,9 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filterByParticipant depends on filteredParticipantIds
   }, [data, timeRange, filteredParticipantIds]);
+
+  // CES scale config from backend (supports 1-5, 1-7, 1-10)
+  const cesMax = data?.scaleConfigs?.ces?.max ?? 5;
 
   // Check which metrics have actual data (all-time, for panel visibility)
   const hasCSAT = hasScores(data?.metrics.csatScores);
@@ -296,13 +300,14 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
   };
 
   const csatChartData = buildChartData(data?.metrics.csatScores || [], v => v >= 4, v => v <= 2);
-  const cesChartData = buildChartData(data?.metrics.cesScores || [], v => v <= 2, v => v >= 4);
+  const cesChartZones = getCESZones(data?.scaleConfigs?.ces?.max ?? 5);
+  const cesChartData = buildChartData(data?.metrics.cesScores || [], v => v >= cesChartZones.positive[0] && v <= cesChartZones.positive[1], v => v >= cesChartZones.negative[0] && v <= cesChartZones.negative[1]);
   const cvChartData = buildChartData(data?.metrics.cvScores || [], v => v >= 4, v => v <= 2);
 
   // Filter visible metric cards — scores from filtered data
   const visibleMetricCards = [
     { show: hasCSAT, component: <MetricCard key="csat" title="Customer Satisfaction" abbreviation="CSAT" score={calculateCSAT(filtered?.csatValues)} question="How satisfied are you with our service?" monthlyData={csatChartData} /> },
-    { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(filtered?.cesValues)} question="How easy was it to use our service?" monthlyData={cesChartData} /> },
+    { show: hasCES, component: <MetricCard key="ces" title="Customer Effort Score" abbreviation="CES" score={calculateCES(filtered?.cesValues, cesMax)} question="How easy was it to use our service?" monthlyData={cesChartData} /> },
     { show: hasCV, component: <MetricCard key="cv" title="Cognitive Value" abbreviation="CV" score={calculateCV(filtered?.cvValues)} question="How valuable do you find our service?" monthlyData={cvChartData} /> }
   ].filter(card => card.show);
   // Determinar clases de grid para métricas
@@ -313,6 +318,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
 
   // Generate question cards — all using filtered data
   const qt = data?.questionTexts || {};
+  const cesZones = getCESZones(cesMax);
   let questionCounter = 0;
   const questionCards = [];
 
@@ -343,12 +349,12 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         questionNumber={`2.${questionCounter}`}
         title="CES"
         questionText={qt.ces || 'How easy was it to use our service?'}
-        score={Math.round(calculateCES(filtered?.cesValues))}
+        score={Math.round(calculateCES(filtered?.cesValues, cesMax))}
         responses={filtered?.cesValues?.length || 0}
         breakdown={[
-          { label: 'Little effort', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score <= 2), color: 'bg-green-500' },
-          { label: 'Neutral', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score === 3), color: 'bg-gray-400' },
-          { label: 'Much effort', percentage: safeCalculatePercentage(filtered?.cesValues, (score) => score >= 4), color: 'bg-red-500' }
+          { label: 'Little effort', percentage: safeCalculatePercentage(filtered?.cesValues, (s) => s >= cesZones.positive[0] && s <= cesZones.positive[1]), color: 'bg-green-500' },
+          { label: 'Neutral', percentage: safeCalculatePercentage(filtered?.cesValues, (s) => s >= cesZones.neutral[0] && s <= cesZones.neutral[1]), color: 'bg-gray-400' },
+          { label: 'Much effort', percentage: safeCalculatePercentage(filtered?.cesValues, (s) => s >= cesZones.negative[0] && s <= cesZones.negative[1]), color: 'bg-red-500' }
         ]}
       />
     );

@@ -27,14 +27,24 @@ export const calculateCSAT = (scores: number[] | undefined): number => {
 };
 
 /**
- * Calculate CES score: (% Little effort) - (% Much effort)
- * Little effort (positive) = scores 1 and 2 (easy)
- * Much effort (negative) = scores 4 and 5 (difficult)
+ * CES sentiment zones by scale max.
+ * Low scores = little effort (positive), high scores = much effort (negative).
  */
-export const calculateCES = (scores: number[] | undefined): number => {
+export const getCESZones = (scaleMax: number): { positive: [number, number]; neutral: [number, number]; negative: [number, number] } => {
+  if (scaleMax === 10) return { positive: [1, 3], neutral: [4, 7], negative: [8, 10] };
+  if (scaleMax === 7)  return { positive: [1, 3], neutral: [4, 4], negative: [5, 7] };
+  return { positive: [1, 2], neutral: [3, 3], negative: [4, 5] }; // 1-5 default
+};
+
+/**
+ * Calculate CES score: (% Little effort) - (% Much effort)
+ * Zones adapt to scale (1-5, 1-7, 1-10).
+ */
+export const calculateCES = (scores: number[] | undefined, scaleMax = 5): number => {
   if (!scores || scores.length === 0) return 0;
-  const littleEffort = scores.filter(score => score <= 2).length;
-  const muchEffort = scores.filter(score => score >= 4).length;
+  const zones = getCESZones(scaleMax);
+  const littleEffort = scores.filter(s => s >= zones.positive[0] && s <= zones.positive[1]).length;
+  const muchEffort = scores.filter(s => s >= zones.negative[0] && s <= zones.negative[1]).length;
   const total = scores.length;
 
   const littleEffortPct = (littleEffort / total) * 100;

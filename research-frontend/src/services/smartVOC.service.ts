@@ -85,6 +85,7 @@ export interface SmartVOCAnalytics {
     }>;
     emotionalStates: Record<string, number>;
     questionTexts?: Record<string, string>;
+    scaleConfigs?: Record<string, { min: number; max: number }>;
 }
 
 /**

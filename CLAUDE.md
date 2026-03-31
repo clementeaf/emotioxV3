@@ -72,6 +72,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **CES scale** en participant-frontend lee `comp.value` primero (lo que guardó el investigador), fallback a `selectRange.predefined` (default del template). En research-frontend el save sincroniza ambos campos.
 - **CES sentiment zones**: rojo (negativo), ámbar (neutral), verde (positivo). Rangos: 1-5 → 1-2/3/4-5, 1-7 → 1-3/4/5-7, 1-10 → 1-3/4-7/8-10. Solo aplica a CES, no a CV ni Linear Scale.
 - **NEV emociones**: 20 emociones canónicas. "Descontento" es negativa (rojo). Fila 1 = positivas (7), Fila 2 = atención (5), Fila 3 = negativas (8). Clasificación alineada entre participant-frontend, research-frontend preview y backend analytics.
+- **CES analytics dinámico**: backend extrae la escala configurada (`scaleConfigs`) y la envía al frontend. El dashboard de resultados usa `getCESZones(scaleMax)` para breakdown, MetricCard, CPV y chart data. No más rangos hardcodeados.
+- **View Progress completitud**: `participants.status = 'responded'` → 100% + "Completado". Resuelve el caso donde módulos condicionales inflan el denominador. Progress sin completar se capea a 99%.
 
 ## Key Files
 - `backend/src/router.ts` — routing central, CORS, path normalization
@@ -105,7 +107,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/modules/quotas/quota.service.ts` — cuotas demográficas. Siempre porcentaje, siempre inmediata. `resolveAbsoluteLimit` convierte `ceil(% × participantLimit / 100)`. `tryIncrementQuota` es la operación atómica (check+increment con `FOR UPDATE`). `matchesQuotaValue` hace fallback a comparación exacta de strings cuando `parseInt` retorna NaN (opciones como "Menor 18"). `checkAllQuotasFull` deprecated (no usar en pre-check público). `checkQuotaAvailability` e `incrementQuota` están deprecated.
 - `backend/src/modules/public/public.service.ts` — `getResearchConfiguration` lee el módulo **Research Configuration** (`modules.config`). `getEffectiveParticipantLimitCap` unifica `participantLimit` en número vs objeto. `validateDemographics` (status activo; `RESEARCH_CLOSED` si no). `checkQuotaPreAvailability`: activo + límite global; sin buckets en GET. `getParticipantStatus` sin solo-demografía. `saveParticipantResponses`: 410 si inactiva o límite global. `getParticipantCount` excluye `module_id = 'demographics'`.
 - `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC; NEV usa IDs canónicos (minúsculas, sin tildes) y normalizeEmotionKey para conteo y cálculo de NEV
-- `backend/src/modules/research/research-in-progress.service.ts` — progreso de participantes usa `component_id` (no `question_id`); el total para el 100% se calcula solo con componentes visibles/habilitados (excluye Research Configuration, módulos y componentes con `hidden: true`). LEFT JOIN con `participants` para mostrar status overquota/disqualified en View Progress.
+- `backend/src/modules/research/research-in-progress.service.ts` — progreso de participantes. Módulos visibles excluyen Research Configuration, Welcome/Thank You Screen y hidden. `participants.status = 'responded'` fuerza 100% + "Completado". LEFT JOIN con `participants` para overquota/disqualified/responded en View Progress.
 - `scripts/test-quota-redirect-scenarios.ts` — E2E test de 8 escenarios de cuotas/redirect/completion (`npx tsx scripts/test-quota-redirect-scenarios.ts`). Crea researches temporales, simula participantes, verifica bloqueos y limpia al final.
 
 ## Deploy

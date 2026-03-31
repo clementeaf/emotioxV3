@@ -592,6 +592,8 @@ export const getSmartVOCResults = async (researchId: string) => {
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
   const questionTexts: Record<string, string> = {};
+  // Scale configs extracted from module settings (e.g. CES scale 1-5, 1-7, 1-10)
+  const scaleConfigs: Record<string, { min: number; max: number }> = {};
   for (const mod of modulesResult.rows) {
     const key = mod.name.toLowerCase();
     try {
@@ -612,6 +614,19 @@ export const getSmartVOCResults = async (researchId: string) => {
       const text = titleComponent?.value || titleComponent?.placeholder?.text || '';
       if (text) {
         questionTexts[type] = text;
+      }
+      // Extract scale range for CES/CV (comp.value > selectRange.predefined > default)
+      if (type === 'ces' || type === 'cv') {
+        const scaleComp = structure?.components?.find((c: { id: string }) => c.id === `${type}-scale`);
+        if (scaleComp) {
+          const rangeStr = scaleComp.value || scaleComp.selectRange?.predefined || '1-5';
+          const [minStr, maxStr] = String(rangeStr).split('-');
+          const parsedMin = parseInt(minStr, 10);
+          const parsedMax = parseInt(maxStr, 10);
+          if (!isNaN(parsedMin) && !isNaN(parsedMax)) {
+            scaleConfigs[type] = { min: parsedMin, max: parsedMax };
+          }
+        }
       }
     } catch { /* ignore */ }
   }
@@ -666,10 +681,11 @@ export const getSmartVOCResults = async (researchId: string) => {
           csatScores.push({ value: score, date: row.created_at, participantId: row.participant_id });
         }
       }
-      // CES (scale 1-5)
+      // CES (scale 1-5, 1-7, or 1-10 depending on config)
       else if (moduleName.includes('ces')) {
         const score = parseInt(value);
-        if (!isNaN(score) && score >= 1 && score <= 5) {
+        const cesMax = scaleConfigs.ces?.max ?? 5;
+        if (!isNaN(score) && score >= 1 && score <= cesMax) {
           cesScores.push({ value: score, date: row.created_at, participantId: row.participant_id });
         }
       }
@@ -805,7 +821,8 @@ export const getSmartVOCResults = async (researchId: string) => {
     monthlyMetricsData,
     emotionalStates,
     nevResponsesData,
-    questionTexts
+    questionTexts,
+    scaleConfigs
   };
 };
 
@@ -932,7 +949,7 @@ const generateTimeSeriesData = (responses: any[]) => {
     const csat = calculateCSATPercentage(dayCSATScores);
 
     // CES
-    const dayCESScores = extractScores(dayResponses, 'ces', 1, 5);
+    const dayCESScores = extractScores(dayResponses, 'ces', 1, 10);
     const ces = calculateCESPercentage(dayCESScores);
 
     // CV
@@ -990,7 +1007,7 @@ const generateIntradayTimeSeriesData = (responses: any[]) => {
     const csat = calculateCSATPercentage(csatScores);
 
     // CES
-    const cesScores = extractScores(slotResponses, 'ces', 1, 5);
+    const cesScores = extractScores(slotResponses, 'ces', 1, 10);
     const ces = calculateCESPercentage(cesScores);
 
     // CV
@@ -1085,7 +1102,7 @@ const generateMonthlyMetricsData = (responses: any[]) => {
       ? Math.round((csatScores.filter(s => s <= 2).length / csatScores.length) * 100) : 0;
 
     // CES
-    const cesScores = extractScores(monthResponses, 'ces', 1, 5);
+    const cesScores = extractScores(monthResponses, 'ces', 1, 10);
     const cesPositive = cesScores.length > 0
       ? Math.round((cesScores.filter(s => s <= 2).length / cesScores.length) * 100) : 0;
     const cesNegative = cesScores.length > 0

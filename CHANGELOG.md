@@ -1,3 +1,16 @@
+## v0.39.3 — CES dynamic analytics, View Progress completion (2026-03-31)
+
+### backend
+- Fix: CES analytics now reads the configured scale (1-5, 1-7, 1-10) from the module config. Previously hardcoded to 1-5, discarding responses outside that range.
+- Fix: `scaleConfigs` included in SmartVOC analytics response so the frontend can compute sentiment zones dynamically.
+- Fix: View Progress — participants with `status = 'responded'` now show 100% progress and "Completado". Previously, conditional modules the participant never saw inflated the denominator, capping progress below 100%.
+- Fix: View Progress detail view includes `panel_status` via LEFT JOIN with `participants` table.
+
+### research-frontend
+- Fix: CES results dashboard (QuestionCard, MetricCard, CPV, chart data) uses dynamic sentiment zones from backend `scaleConfigs` instead of hardcoded 1-5 ranges.
+
+---
+
 ## v0.39.2 — Redirect @id, CES scale fix, NEV emotion fix (2026-03-30)
 
 ### participant-frontend

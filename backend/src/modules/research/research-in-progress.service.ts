@@ -259,14 +259,16 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
 
     const participants = result.rows.map(row => {
         const answered = parseInt(row.answered_modules || '0', 10);
-        const progress = totalComponents > 0
-            ? Math.min(100, Math.round((answered / totalComponents) * 100))
+        const panelStatus = row.panel_status as string | null;
+        // responded = completed the survey flow → always 100%
+        const isCompleted = panelStatus === 'responded' || (totalComponents > 0 && answered >= totalComponents);
+        const progress = isCompleted ? 100
+            : totalComponents > 0 ? Math.min(99, Math.round((answered / totalComponents) * 100))
             : 0;
         // Panel status (overquota/disqualified) overrides progress-based status
-        const panelStatus = row.panel_status as string | null;
         const status = panelStatus === 'overquota' ? 'Sobre cuota'
             : panelStatus === 'disqualified' ? 'Descalificado'
-            : progress >= 100 ? 'Completado'
+            : isCompleted ? 'Completado'
             : progress > 0 ? 'En proceso'
             : 'Por iniciar';
         const durationSeconds = row.first_response && row.last_response
@@ -343,29 +345,33 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         const placeholders = Array.from(visibleModuleIds).map(() => '?').join(',');
         participantQuery = `
             SELECT
-                participant_id as id,
-                COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
-                COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
-                COUNT(DISTINCT CASE WHEN module_id IN (${placeholders}) THEN module_id END) as answered_modules,
-                MIN(created_at) as first_response,
-                MAX(created_at) as last_response
-            FROM responses
-            WHERE research_id = ? AND participant_id = ?
-            GROUP BY participant_id
+                r.participant_id as id,
+                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                COUNT(DISTINCT CASE WHEN r.module_id IN (${placeholders}) THEN r.module_id END) as answered_modules,
+                MIN(r.created_at) as first_response,
+                MAX(r.created_at) as last_response,
+                p.status as panel_status
+            FROM responses r
+            LEFT JOIN participants p ON p.research_id = r.research_id AND p.participant_id = r.participant_id
+            WHERE r.research_id = ? AND r.participant_id = ?
+            GROUP BY r.participant_id, p.status
         `;
         queryParams = [...visibleModuleIds, researchId, participantId];
     } else {
         participantQuery = `
             SELECT
-                participant_id as id,
-                COALESCE(CAST(participant_id AS CHAR), 'Unknown') as name,
-                COALESCE(CAST(participant_id AS CHAR), 'unknown@example.com') as email,
+                r.participant_id as id,
+                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
                 0 as answered_modules,
-                MIN(created_at) as first_response,
-                MAX(created_at) as last_response
-            FROM responses
-            WHERE research_id = ? AND participant_id = ?
-            GROUP BY participant_id
+                MIN(r.created_at) as first_response,
+                MAX(r.created_at) as last_response,
+                p.status as panel_status
+            FROM responses r
+            LEFT JOIN participants p ON p.research_id = r.research_id AND p.participant_id = r.participant_id
+            WHERE r.research_id = ? AND r.participant_id = ?
+            GROUP BY r.participant_id, p.status
         `;
         queryParams = [researchId, participantId];
     }
@@ -378,10 +384,15 @@ export const getParticipantDetails = async (researchId: string, participantId: s
 
     const row = result.rows[0];
     const answered = parseInt(row.answered_modules || '0', 10);
-    const progress = totalComponents > 0
-        ? Math.min(100, Math.round((answered / totalComponents) * 100))
+    const panelStatus = row.panel_status as string | null;
+    const isCompleted = panelStatus === 'responded' || (totalComponents > 0 && answered >= totalComponents);
+    const progress = isCompleted ? 100
+        : totalComponents > 0 ? Math.min(99, Math.round((answered / totalComponents) * 100))
         : 0;
-    const status = progress >= 100 ? 'Completado' : (progress > 0 ? 'En proceso' : 'Por iniciar');
+    const status = panelStatus === 'overquota' ? 'Sobre cuota'
+        : panelStatus === 'disqualified' ? 'Descalificado'
+        : isCompleted ? 'Completado'
+        : progress > 0 ? 'En proceso' : 'Por iniciar';
 
     const durationMs = row.first_response && row.last_response
         ? new Date(row.last_response).getTime() - new Date(row.first_response).getTime()
