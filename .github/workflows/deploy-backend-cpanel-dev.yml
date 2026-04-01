@@ -1,0 +1,120 @@
+# Despliega el backend a un directorio separado en cPanel para el entorno dev (subdominio dev.emotio.cx).
+# Requiere aplicación Node/Passenger en cPanel apuntando a ~/emotioxv3/backend-dev y URL /api en el subdominio.
+name: Deploy Backend to cPanel (dev)
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend-cpanel-dev.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy backend (dev) to cPanel
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: "0"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Require branch dev
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/dev" ]; then
+            echo "::error::Este workflow solo debe ejecutarse en la rama dev (ref actual: ${GITHUB_REF})."
+            exit 1
+          fi
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+
+      - name: Add SSH known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT || '22' }} -H ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Verify .env exists on remote server (dev)
+        run: |
+          ENV_EXISTS=$(ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} \
+            'test -f ~/emotioxv3/backend-dev/.env && echo "yes" || echo "no"')
+
+          if [ "$ENV_EXISTS" = "no" ]; then
+            echo "No se encontró .env en ~/emotioxv3/backend-dev/"
+            echo "Crea el entorno dev en el servidor antes del primer deploy (copia desde .env.example y ajusta BD/URLs)."
+            exit 1
+          fi
+          echo "Archivo .env encontrado (dev)"
+
+      - name: Create remote directory structure
+        run: |
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            mkdir -p ~/emotioxv3/backend-dev
+            echo "Estructura de directorios creada"
+          '
+
+      - name: Transfer source code (excluding sensitive files)
+        run: |
+          rsync -avz --delete -e "ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }}" \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='*.log' \
+            --exclude='.git' \
+            backend/ \
+            ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/emotioxv3/backend-dev/
+
+      - name: Install dependencies on remote server
+        run: |
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend-dev
+            echo "Instalando dependencias (dev)..."
+            npm install --production=false
+            echo "Dependencias instaladas"
+          '
+
+      - name: Build TypeScript on remote server
+        run: |
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend-dev
+            echo "Compilando TypeScript (dev)..."
+            npm run build
+            echo "Compilación completada"
+          '
+
+      - name: Verify deployment files exist
+        run: |
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend-dev
+
+            if [ ! -f "server-cpanel.js" ]; then
+              echo "server-cpanel.js no encontrado"
+              exit 1
+            fi
+
+            if [ ! -f "passenger_startup.js" ]; then
+              echo "passenger_startup.js no encontrado"
+              exit 1
+            fi
+
+            echo "Archivos de despliegue verificados"
+          '
+
+      - name: Test server startup
+        run: |
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend-dev
+            echo "Probando inicio del servidor (dev)..."
+            timeout 5 npm start 2>&1 || echo "TIMEOUT_OK"
+          ' || echo "Test de inicio completado (timeout esperado)"
+
+      - name: Deployment summary
+        run: |
+          echo "Backend (dev) desplegado en ~/emotioxv3/backend-dev"
+          echo "Reinicia la aplicación Node para dev.emotio.cx desde cPanel si hace falta (touch tmp/restart.txt en el application root)."

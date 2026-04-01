@@ -96,6 +96,14 @@ Mismo flujo que research, con estas diferencias:
 | `deploy-research-frontend-cpanel.yml` | push a `main` en `research-frontend/**` | CI (Node 20) |
 | `deploy-participant-frontend-cpanel.yml` | push a `main` en `participant-frontend/**` | CI (Node 20) |
 
+Rama **`dev`** (solo `dev.emotio.cx`; no modifica producción):
+
+| Workflow | Trigger | Destino remoto |
+|---|---|---|
+| `deploy-backend-cpanel-dev.yml` | push a `dev` en `backend/**` | `~/emotioxv3/backend-dev/` |
+| `deploy-research-frontend-cpanel-dev.yml` | push a `dev` en `research-frontend/**` | `~/public_html/dev/research/` |
+| `deploy-participant-frontend-cpanel-dev.yml` | push a `dev` en `participant-frontend/**` | `~/public_html/dev/participant/` |
+
 Todos soportan `workflow_dispatch`.
 
 **Secrets:** `CPANEL_SSH_PRIVATE_KEY`, `CPANEL_SSH_HOST`, `CPANEL_SSH_USER`, `CPANEL_SSH_PORT`
@@ -103,7 +111,7 @@ Todos soportan `workflow_dispatch`.
 ### Diferencias CI vs scripts locales
 - Frontends: CI hace `npm ci` + build en runner, rsync del `dist/`. Scripts locales hacen `npm install` + build local.
 - Backend: ambos hacen rsync del source y build en remoto.
-- CI no escribe `.htaccess` para research (solo para participant). Scripts locales escriben `.htaccess` para ambos.
+- CI producción (`main`) no escribe `.htaccess` para research (solo participant). Los workflows **dev** escriben `.htaccess` en research y participant bajo `public_html/dev/`. Scripts locales escriben `.htaccess` para ambos en prod.
 
 ## Rutas remotas
 

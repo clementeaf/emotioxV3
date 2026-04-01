@@ -4,11 +4,19 @@ Este documento explica cómo configurar los workflows de GitHub Actions para des
 
 ## Workflows Creados
 
-Se han creado 3 workflows para automatizar los despliegues a cPanel:
+Se han creado 3 workflows para automatizar los despliegues a cPanel (rama **`main`** → producción `emotio.cx`):
 
 1. **`deploy-participant-frontend-cpanel.yml`** - Despliega Participant Frontend
 2. **`deploy-research-frontend-cpanel.yml`** - Despliega Research Frontend  
 3. **`deploy-backend-cpanel.yml`** - Despliega Backend
+
+Rama **`dev`** (entorno `dev.emotio.cx`, rutas bajo `~/public_html/dev/` y `~/emotioxv3/backend-dev/`):
+
+1. **`deploy-participant-frontend-cpanel-dev.yml`**
+2. **`deploy-research-frontend-cpanel-dev.yml`**
+3. **`deploy-backend-cpanel-dev.yml`**
+
+Detalle: [docs/cpanel-runbook.md](../docs/cpanel-runbook.md) (sección subdominio dev y CI/CD dev).
 
 ## Configuración de Secrets en GitHub
 

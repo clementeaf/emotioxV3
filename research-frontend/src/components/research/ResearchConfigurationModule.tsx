@@ -204,7 +204,9 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                 const url = envUrl.trim();
                 baseUrl = (url.startsWith('http://') || url.startsWith('https://')) ? url : `https://${url}`;
             } else if (host === 'emotio.cx' || host.includes('emotio.cx')) {
-                baseUrl = 'https://emotio.cx/participant';
+                baseUrl = host.startsWith('dev.')
+                    ? 'https://dev.emotio.cx/participant'
+                    : 'https://emotio.cx/participant';
             } else if (host === 'research.emotiox.org' || host.includes('emotiox.org')) {
                 baseUrl = 'https://participant.emotiox.org';
             }

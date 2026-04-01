@@ -15,6 +15,76 @@
 | `https://emotio.cx/participant` | Participant Frontend (encuestado) | `~/public_html/participant/` |
 | `https://emotio.cx/api` | Backend API (Express/Passenger) | `~/emotioxv3/backend/` |
 
+## Subdominio `dev.emotio.cx` (staging / preproducción)
+
+Usa el mismo patrón que producción pero con host `dev.emotio.cx` y, si aplica, **otra base de datos o `.env`** para no mezclar datos con producción.
+
+### 1. DNS
+
+- En el proveedor del dominio (o zona DNS de cPanel): crea un registro **A** (o **CNAME** al host principal) para `dev.emotio.cx` apuntando al **mismo servidor** que `emotio.cx`.
+
+### 2. Subdominio en cPanel
+
+- **Domains** / **Subdomains** (nombre puede variar): crea `dev.emotio.cx`.
+- **Document root** recomendado (ejemplo): `public_html/dev` (o el que te asigne el panel; lo importante es saber la ruta para desplegar).
+
+### 3. Estructura de archivos (espejo de producción)
+
+Bajo el document root del subdominio, replica las tres “patas”:
+
+```
+~/public_html/dev/
+├── research/          # dist del research-frontend + runtime-config.json + .htaccess
+├── participant/       # dist del participant-frontend + runtime-config.json + .htaccess
+```
+
+Los scripts `deploy-*-cpanel.sh` desplazan por defecto a `~/public_html/research` y `~/public_html/participant`. Para dev, o bien ajustas **destino remoto** en una copia del script, o haces **rsync manual** a `~/public_html/dev/research` y `~/public_html/dev/participant`.
+
+### 4. `runtime-config.json` en dev
+
+- **research** (`~/public_html/dev/research/runtime-config.json`):
+
+```json
+{
+  "apiBaseUrl": "https://dev.emotio.cx/api",
+  "participantBaseUrl": "https://dev.emotio.cx/participant"
+}
+```
+
+- **participant** (`~/public_html/dev/participant/runtime-config.json`):
+
+```json
+{
+  "apiBaseUrl": "https://dev.emotio.cx/api"
+}
+```
+
+### 5. Backend (Passenger) en el subdominio
+
+- En **Applications → Node.js**, crea una **segunda** aplicación cuya **URL base** sea el subdominio (p. ej. `dev.emotio.cx`) y el path de API acorde a cómo montes Express (típicamente `/api` como en producción).
+- Usa un **`.env` separado** (o variables distintas) si quieres BD de staging, credenciales distintas, etc.
+- **Google OAuth**: en Google Cloud Console, añade el redirect URI de dev, p. ej. `https://dev.emotio.cx/api/auth/google/callback`, y la pantalla de consentimiento si aplica.
+
+### 6. CORS y cookies
+
+El backend en `server-cpanel.ts` ya permite orígenes que contienen `emotio.cx` (incluye subdominios). Para redirects post-login, define `FRONTEND_URL` / `RESEARCH_FRONTEND_URL` en el `.env` del backend de dev apuntando a `https://dev.emotio.cx/research` si no confías solo en el header `Origin`.
+
+### 7. CI/CD (solo rama `dev`)
+
+Los pushes a **`dev`** disparan workflows distintos de los de **`main`**: despliegan solo al entorno del subdominio, sin tocar `~/public_html/research`, `~/public_html/participant` ni `~/emotioxv3/backend` de producción.
+
+| Workflow | Rutas que disparan el job | Destino en cPanel |
+|----------|---------------------------|-------------------|
+| `deploy-backend-cpanel-dev.yml` | `backend/**` | `~/emotioxv3/backend-dev/` |
+| `deploy-research-frontend-cpanel-dev.yml` | `research-frontend/**` | `~/public_html/dev/research/` |
+| `deploy-participant-frontend-cpanel-dev.yml` | `participant-frontend/**` | `~/public_html/dev/participant/` |
+
+- **Secrets:** los mismos que producción (`CPANEL_SSH_PRIVATE_KEY`, `CPANEL_SSH_HOST`, `CPANEL_SSH_USER`, `CPANEL_SSH_PORT`).
+- **Backend dev:** debe existir `~/emotioxv3/backend-dev/.env` antes del primer deploy (el workflow falla si no está).
+- **URLs embebidas en build:** `https://dev.emotio.cx/api` y `https://dev.emotio.cx/participant` en `runtime-config.json` generado en CI.
+- **`workflow_dispatch`:** cada workflow dev se puede ejecutar a mano desde GitHub Actions. Elige la rama **`dev`** al lanzarlo; si eliges `main`, el job falla a propósito (no se debe desplegar código de producción a rutas `dev/`).
+- **Qué dispara cada job:** cada workflow lista su propio `.yml` en `paths`, además de `backend/**`, `research-frontend/**` o `participant-frontend/**`. Un commit que **solo** cambie documentación u otros paths no dispara estos workflows; un commit que **edite** `deploy-research-frontend-cpanel-dev.yml` sí dispara el deploy del research dev (aunque no haya cambios en `research-frontend/src`).
+
 ## File Manager
 ```
 ~/
