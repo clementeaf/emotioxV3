@@ -1,3 +1,20 @@
+## v0.40.0 — City configuration in Country & City demographic (2026-04-01)
+
+### research-frontend
+- Feat: When geographic granularity is "País + Ciudad", a new **Cities** section appears in the Country config drawer. The researcher adds cities as free-text chips (type + Enter/Add).
+- Feat: Each city has a Clasifica/Desclasifica toggle — disqualifying cities block participants at demographics validation, qualifying cities are shown normally.
+- Feat: Quotas tab switches to **per-city quotas** (%) when cities are configured; reverts to per-country quotas when granularity is "Solo país".
+- Feat: City list and disqualification state persist across modal open/close via `demographics.country.cities` + `demographics.city.disqualifications`.
+
+### participant-frontend
+- Feat: When the researcher configured specific cities, the participant sees a **dropdown select** instead of a free-text input for the city field. All cities (qualifying + disqualifying) appear in the dropdown; the backend enforces disqualification.
+- No change for researches without configured cities — text input remains as before.
+
+### backend
+- No code changes. Existing `checkDisqualifications` and `tryIncrementQuota` in `quota.service.ts` already handle `demographic_type = 'city'` via exact string match and disqualification list iteration.
+
+---
+
 ## v0.39.3 — CES dynamic analytics, View Progress completion (2026-03-31)
 
 ### backend

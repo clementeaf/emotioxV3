@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Edit2, Globe, MapPin, Save, Search, Star, Target, Trash2, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Globe, MapPin, Plus, Save, Search, Star, Target, Trash2, Users, X } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import React, { useEffect, useMemo, useState } from 'react';
 import { QuotasTab } from './demographic-config/QuotasTab';
@@ -37,18 +37,37 @@ interface ContinentSection {
   isExpanded: boolean;
 }
 
+interface CityEntry {
+  name: string;
+  isDisqualifying: boolean;
+}
+
+interface CityQuota {
+  id: string;
+  city: string;
+  quota: number;
+  quotaType: 'absolute' | 'percentage';
+  isActive: boolean;
+  enforcementMode: 'immediate' | 'post_collection';
+}
+
 interface CountryConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (validCountries: string[], disqualifyingCountries: string[], priorityCountries: string[], granularity: LocationGranularity) => void;
+  onSave: (validCountries: string[], disqualifyingCountries: string[], priorityCountries: string[], granularity: LocationGranularity, cities: CityEntry[]) => void;
   onQuotasSave?: (quotas: CountryQuota[]) => void;
   onQuotasToggle?: (enabled: boolean) => void;
+  onCityQuotasSave?: (quotas: CityQuota[]) => void;
+  onCityQuotasToggle?: (enabled: boolean) => void;
   initialValidCountries?: string[];
   initialDisqualifyingCountries?: string[];
   initialPriorityCountries?: string[];
   initialGranularity?: LocationGranularity;
   initialQuotas?: CountryQuota[];
   quotasEnabled?: boolean;
+  initialCities?: CityEntry[];
+  initialCityQuotas?: CityQuota[];
+  cityQuotasEnabled?: boolean;
 }
 
 // Datos de países por continente
@@ -85,19 +104,28 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   onSave,
   onQuotasSave,
   onQuotasToggle,
+  onCityQuotasSave,
+  onCityQuotasToggle,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   initialValidCountries: _initialValidCountries = [],
   initialDisqualifyingCountries = [],
   initialPriorityCountries = [],
   initialGranularity = 'countryOnly',
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  initialCities = [],
+  initialCityQuotas = [],
+  cityQuotasEnabled = false
 }) => {
   const [continentSections, setContinentSections] = useState<ContinentSection[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingCountry, setEditingCountry] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'options' | 'quotas'>('options');
   const [granularity, setGranularity] = useState<LocationGranularity>(initialGranularity);
+
+  // City management state
+  const [cities, setCities] = useState<CityEntry[]>(initialCities);
+  const [cityInput, setCityInput] = useState('');
 
   // 🎯 USAR HOOK DE CUOTAS
   const baseQuotas = useMemo(
@@ -116,6 +144,69 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
     quotasEnabled,
     isOpen,
     onQuotasToggle
+  );
+
+  // City quota management
+  const baseCityQuotas = useMemo(
+    () => initialCityQuotas.map(quota => ({
+      id: quota.id,
+      field: quota.city,
+      quota: quota.quota,
+      quotaType: quota.quotaType || 'percentage',
+      isActive: quota.isActive
+    } as BaseDemographicQuota<string>)),
+    [initialCityQuotas]
+  );
+
+  const cityQuotaConfig = useQuotaManagement<BaseDemographicQuota<string>>(
+    baseCityQuotas,
+    cityQuotasEnabled,
+    isOpen,
+    onCityQuotasToggle
+  );
+
+  const handleAddCity = () => {
+    const trimmed = cityInput.trim();
+    if (trimmed && !cities.some(c => c.name === trimmed)) {
+      setCities(prev => [...prev, { name: trimmed, isDisqualifying: false }]);
+      setCityInput('');
+    }
+  };
+
+  const handleRemoveCity = (cityName: string) => {
+    setCities(prev => prev.filter(c => c.name !== cityName));
+    // Remove associated quota
+    cityQuotaConfig.setQuotas(prev =>
+      prev.filter((q: BaseDemographicQuota<string>) => q.field !== cityName)
+    );
+  };
+
+  const handleToggleCityDisqualifying = (cityName: string) => {
+    setCities(prev => prev.map(c =>
+      c.name === cityName
+        ? { ...c, isDisqualifying: !c.isDisqualifying }
+        : c
+    ));
+    // Remove quota if city becomes disqualifying
+    const city = cities.find(c => c.name === cityName);
+    if (city && !city.isDisqualifying) {
+      cityQuotaConfig.setQuotas(prev =>
+        prev.filter((q: BaseDemographicQuota<string>) => q.field !== cityName)
+      );
+    }
+  };
+
+  const handleCityInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddCity();
+    }
+  };
+
+  /** Qualifying cities (for quotas tab) */
+  const qualifyingCities = useMemo(
+    () => cities.filter(c => !c.isDisqualifying),
+    [cities]
   );
 
   // Crear secciones de continentes con países
@@ -147,8 +238,10 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
     if (isOpen) {
       setContinentSections(createContinentSections);
       setGranularity(initialGranularity);
+      setCities(initialCities);
+      setCityInput('');
     }
-  }, [isOpen, createContinentSections, initialGranularity]);
+  }, [isOpen, createContinentSections, initialGranularity, initialCities]);
 
   // Filtrar continentes y países por búsqueda
   const filteredSections = useMemo(() => {
@@ -311,17 +404,23 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
       .filter(country => country.isPriority && !country.isDisqualifying);
   }, [continentSections]);
 
-  // 🎯 FUNCIONES DE MAPEO PARA CUOTAS
-  const mapBaseToCountryQuota = (quota: BaseDemographicQuota<string>): CountryQuota => {
-    return {
-      id: quota.id,
-      country: quota.field,
-      quota: quota.quota,
-      quotaType: quota.quotaType,
-      isActive: quota.isActive,
-      enforcementMode: quota.enforcementMode
-    };
-  };
+  const mapBaseToCountryQuota = (quota: BaseDemographicQuota<string>): CountryQuota => ({
+    id: quota.id,
+    country: quota.field,
+    quota: quota.quota,
+    quotaType: quota.quotaType,
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
+  });
+
+  const mapBaseToCityQuota = (quota: BaseDemographicQuota<string>): CityQuota => ({
+    id: quota.id,
+    city: quota.field,
+    quota: quota.quota,
+    quotaType: quota.quotaType,
+    isActive: quota.isActive,
+    enforcementMode: quota.enforcementMode
+  });
 
   const handleSave = () => {
     const allCountries = continentSections.flatMap(section => section.countries);
@@ -338,12 +437,18 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
       .filter(country => country.isPriority && !country.isDisqualifying)
       .map(country => country.name);
 
-    onSave(validCountries, disqualifyingCountries, priorityCountries, granularity);
+    const effectiveCities = granularity === 'countryCity' ? cities : [];
+    onSave(validCountries, disqualifyingCountries, priorityCountries, granularity, effectiveCities as CityEntry[]);
 
-    // 🎯 GUARDAR CUOTAS SI ESTÁN HABILITADAS
-    if (quotaConfig.quotasEnabled && onQuotasSave) {
-      const countryQuotas = quotaConfig.quotas.map(mapBaseToCountryQuota);
-      onQuotasSave(countryQuotas);
+    // Save quotas: per city when countryCity, per country when countryOnly
+    if (granularity === 'countryCity') {
+      if (cityQuotaConfig.quotasEnabled && onCityQuotasSave) {
+        onCityQuotasSave(cityQuotaConfig.quotas.map(mapBaseToCityQuota));
+      }
+    } else {
+      if (quotaConfig.quotasEnabled && onQuotasSave) {
+        onQuotasSave(quotaConfig.quotas.map(mapBaseToCountryQuota));
+      }
     }
 
     onClose();
@@ -419,6 +524,85 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
           </div>
         </div>
 
+        {/* Cities section — shown when granularity is countryCity */}
+        {granularity === 'countryCity' && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin size={16} className="text-blue-600" />
+              <span className="text-sm font-medium text-gray-900">Ciudades configuradas</span>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Agrega las ciudades que el participante podrá seleccionar. Si no agregas ninguna, se mostrará un campo de texto libre.
+            </p>
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={cityInput}
+                onChange={(e) => setCityInput(e.target.value)}
+                onKeyDown={handleCityInputKeyDown}
+                placeholder="Nombre de la ciudad..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleAddCity}
+                disabled={!cityInput.trim() || cities.some(c => c.name === cityInput.trim())}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              >
+                <Plus size={14} />
+                Agregar
+              </button>
+            </div>
+            {cities.length > 0 ? (
+              <div className="space-y-2">
+                {cities.map(city => (
+                  <div
+                    key={city.name}
+                    className={`flex items-center justify-between p-2.5 rounded-lg border ${
+                      city.isDisqualifying
+                        ? 'bg-orange-50 border-orange-200'
+                        : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-gray-400" />
+                      <span className="text-sm font-medium">{city.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {/* Toggle Clasifica/Desclasifica */}
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs ${city.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
+                          {city.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
+                        </span>
+                        <button
+                          onClick={() => handleToggleCityDisqualifying(city.name)}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            city.isDisqualifying ? 'bg-orange-500' : 'bg-green-500'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                              city.isDisqualifying ? 'translate-x-4.5' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveCity(city.name)}
+                        className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">Sin ciudades — el participante verá un campo de texto libre.</p>
+            )}
+          </div>
+        )}
+
         {/* Tabs para opciones y cuotas */}
         <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
           <button
@@ -439,7 +623,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
               }`}
           >
             <Users className="inline w-4 h-4 mr-2" />
-            Cuotas Dinámicas
+            {granularity === 'countryCity' && qualifyingCities.length > 0 ? 'Cuotas por Ciudad' : 'Cuotas Dinámicas'}
           </button>
         </div>
 
@@ -684,7 +868,39 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
           </>
         ) : (
           <div className="p-6">
-            {priorityCountries.length === 0 ? (
+            {granularity === 'countryCity' && qualifyingCities.length > 0 ? (
+              /* City quotas when countryCity with qualifying cities */
+              <QuotasTab
+                options={qualifyingCities.map(city => ({
+                  id: city.name,
+                  label: city.name,
+                  isQualified: true,
+                  isCustom: false
+                }))}
+                quotaConfig={cityQuotaConfig}
+                quotasTitle="Sistema de Cuotas por Ciudad"
+                quotasDescription={`Configura cuotas específicas para las ${qualifyingCities.length} ciudades que clasifican. Cuando el cupo de una ciudad esté lleno, aplica sobre cuota.`}
+                quotasInfoTitle="Cuotas para ciudades:"
+                quotasInfoItems={[
+                  'Cada ciudad puede tener su propia cuota en porcentaje (%) del límite de participantes',
+                  'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
+                  'El sistema incrementa el contador al validar demografía (por ciudad)',
+                  'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía',
+                  'Ciudades sin cuota asignada: no se le aplicará ningún límite'
+                ]}
+                quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por ciudad"
+                quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+                quotasDisabledInfoText={[
+                  'Sin cuotas, la distribución de participantes entre ciudades será por "caída natural" (orden de llegada).',
+                  'Para asegurar una distribución controlada, habilita el sistema de cuotas dinámicas.'
+                ]}
+                getAvailableOptions={(options) => options}
+                getQuotaFieldValue={(option) => option.label}
+                getQuotaFieldLabel={(field) => field}
+                fieldSelectLabel="Ciudad"
+                Icon={MapPin}
+              />
+            ) : priorityCountries.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Star className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <p className="font-medium mb-2">No hay países prioritarios seleccionados</p>

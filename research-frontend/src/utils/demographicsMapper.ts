@@ -32,6 +32,8 @@ interface BackendDemographicConfig {
     // Keep original data for frontend use
     validValues?: string[];
     priorityValues?: string[];
+    // Configured cities (when granularity = countryCity)
+    cities?: string[];
     // Preserve modal-format fields for round-trip (reopening modals)
     validAges?: string[];
     disqualifyingAges?: string[];
@@ -155,7 +157,8 @@ export function mapCountryConfigToBackend(
     disqualifyingCountries: string[],
     priorityCountries: string[],
     quotas?: ModalCountryQuota[],
-    granularity?: LocationGranularity
+    granularity?: LocationGranularity,
+    cities?: Array<string | { name: string }>
 ): BackendDemographicConfig {
     // Convert disqualifying countries to disqualifications
     const disqualifications: BackendDisqualification[] = disqualifyingCountries.map(country => ({
@@ -187,6 +190,10 @@ export function mapCountryConfigToBackend(
         granularity: granularity || 'countryOnly',
         validValues: allValues,
         priorityValues: priorityCountries,
+        // Configured cities for countryCity granularity (store names only)
+        cities: cities && cities.length > 0
+            ? cities.map(c => typeof c === 'string' ? c : c.name)
+            : undefined,
         // Preserve modal fields for round-trip
         validCountries,
         disqualifyingCountries,
@@ -307,7 +314,8 @@ export function mapModalConfigToBackend(
                 (modalData.disqualifyingCountries as string[]) || [],
                 (modalData.priorityCountries as string[]) || [],
                 modalData.quotas as ModalCountryQuota[] | undefined,
-                modalData.granularity as LocationGranularity | undefined
+                modalData.granularity as LocationGranularity | undefined,
+                modalData.cities as string[] | undefined
             );
 
         case 'gender':

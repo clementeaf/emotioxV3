@@ -30,6 +30,7 @@ interface BackendQuota {
 const DEMOGRAPHIC_QUOTA_FIELD: Record<string, string> = {
     age: 'ageRange',
     country: 'country',
+    city: 'city',
     gender: 'gender',
     educationLevel: 'educationLevel',
     employmentStatus: 'employmentStatus',
@@ -283,12 +284,41 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             backendConfig.quotas = currentDemographic.quotas;
         }
 
+        const newDemographics = {
+            ...demographics,
+            [activeConfigModal]: backendConfig
+        };
+
+        // When saving country config, also manage demographics.city entry
+        if (activeConfigModal === 'country') {
+            const cityEntries = (newConfig.cities as Array<{ name: string; isDisqualifying: boolean }>) || [];
+            const gran = (newConfig.granularity as string) || 'countryOnly';
+            if (gran === 'countryCity' && cityEntries.length > 0) {
+                const allCityNames = cityEntries.map(c => c.name);
+                const disqualifyingCities = cityEntries.filter(c => c.isDisqualifying);
+                newDemographics.city = {
+                    ...(demographics.city || {}),
+                    enabled: true,
+                    validValues: allCityNames,
+                    disqualifications: disqualifyingCities.length > 0
+                        ? disqualifyingCities.map(c => ({
+                            id: `city-disq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                            value: c.name,
+                            enabled: true
+                        }))
+                        : undefined
+                };
+                // Also persist city entries in country config for round-trip
+                backendConfig.cities = allCityNames;
+            } else if (newDemographics.city) {
+                newDemographics.city = { enabled: false, validValues: [] };
+                backendConfig.cities = undefined;
+            }
+        }
+
         onChange({
             ...config,
-            demographics: {
-                ...demographics,
-                [activeConfigModal]: backendConfig
-            }
+            demographics: newDemographics
         });
     };
 
@@ -848,16 +878,19 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                 <CountryConfigModal
                     isOpen={true}
                     onClose={() => setActiveConfigModal(null)}
-                    onSave={(validCountries, disqualifyingCountries, priorityCountries, granularity) => {
+                    onSave={(validCountries, disqualifyingCountries, priorityCountries, granularity, cities) => {
                         handleSaveDemographicConfig({
                             validCountries,
                             disqualifyingCountries,
                             priorityCountries,
-                            granularity
+                            granularity,
+                            cities
                         });
                     }}
                     onQuotasSave={(quotas) => handleQuotasSave('country', quotas)}
                     onQuotasToggle={(enabled) => handleQuotasToggle('country', enabled)}
+                    onCityQuotasSave={(quotas) => handleQuotasSave('city', quotas)}
+                    onCityQuotasToggle={(enabled) => handleQuotasToggle('city', enabled)}
                     initialValidCountries={demographics.country?.validCountries ?? (() => {
                         const disqValues = new Set((demographics.country?.disqualifications || []).map((d: BackendQuota) => d.value));
                         return (demographics.country?.validValues || []).filter((v: string) => !disqValues.has(v));
@@ -867,6 +900,18 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     initialGranularity={demographics.country?.granularity || 'countryOnly'}
                     initialQuotas={mapBackendQuotasToModal(demographics.country?.quotas, 'country')}
                     quotasEnabled={isQuotasEnabled('country')}
+                    initialCities={(() => {
+                        const cityNames: string[] = demographics.country?.cities || [];
+                        const cityDisqValues = new Set(
+                            (demographics.city?.disqualifications || []).map((d: BackendQuota) => d.value)
+                        );
+                        return cityNames.map((name: string) => ({
+                            name,
+                            isDisqualifying: cityDisqValues.has(name)
+                        }));
+                    })()}
+                    initialCityQuotas={mapBackendQuotasToModal(demographics.city?.quotas, 'city')}
+                    cityQuotasEnabled={isQuotasEnabled('city')}
                 />
             )}
 

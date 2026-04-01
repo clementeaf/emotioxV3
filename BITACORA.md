@@ -5,7 +5,18 @@
 
 ---
 
-## Última actualización: 2026-03-25 (sesión 22)
+## Última actualización: 2026-04-01 (sesión 23)
+
+---
+
+## Sesión 23: 1 de abril de 2026 — Ciudades en Country & City (v0.40.0)
+
+- **Research UI:** `CountryConfigModal` — nueva sección de ciudades (chips texto libre) cuando granularidad es "País + Ciudad". Cada ciudad con toggle Clasifica/Desclasifica.
+- **Research UI:** Tab de cuotas cambia entre cuotas por ciudad (countryCity) o por país (countryOnly).
+- **Mapper:** `mapCountryConfigToBackend` incluye `cities` en el config. `handleSaveDemographicConfig` crea `demographics.city` como entry separado (validValues + disqualifications).
+- **Participant:** `DemographicsStep` detecta ciudades configuradas → `CustomSelect` en vez de texto libre. Sin ciudades → comportamiento anterior.
+- **Backend:** Sin cambios — `checkDisqualifications` y `tryIncrementQuota` ya manejan `demographic_type = 'city'`.
+- Detalle: `CHANGELOG.md` v0.40.0.
 
 ---
 

@@ -149,6 +149,21 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         return (cfg.granularity || 'countryOnly') === 'countryCity';
     }, [getConfig]);
 
+    /** Configured city options — when present, show a select instead of text input */
+    const cityOptions = useMemo((): string[] => {
+        // Check demographics.city.validValues first (canonical), then demographics.country.cities (round-trip)
+        const cityDem = demographics.city;
+        if (typeof cityDem === 'object' && cityDem !== null && !Array.isArray(cityDem)) {
+            const cityCfg = cityDem as DemographicConfig;
+            if (cityCfg.validValues && cityCfg.validValues.length > 0) return cityCfg.validValues;
+        }
+        const countryCfg = getConfig('country');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cities = (countryCfg as any).cities as string[] | undefined;
+        if (cities && cities.length > 0) return cities;
+        return [];
+    }, [demographics.city, getConfig]);
+
     const handleChange = (key: string, value: string) => {
         setValidationError(null);
         setAnswers(prev => {
@@ -209,7 +224,11 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                             return (
                                 <React.Fragment key={key}>
                                     {renderSelect('country', label, options.length > 0 ? options : ['Chile', 'Other'], answers.country)}
-                                    {showCity && answers.country && renderTextInput('city', t('demographics.city'), answers.city)}
+                                    {showCity && answers.country && (
+                                        cityOptions.length > 0
+                                            ? renderSelect('city', t('demographics.city'), cityOptions, answers.city)
+                                            : renderTextInput('city', t('demographics.city'), answers.city)
+                                    )}
                                 </React.Fragment>
                             );
                         }
