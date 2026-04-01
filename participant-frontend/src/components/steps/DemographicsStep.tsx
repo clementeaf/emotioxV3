@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ModuleConfig } from '../../types/module';
 import { useParticipantStore } from '../../stores/useParticipantStore';
-import { CustomSelect } from '../ui/CustomSelect';
+import { CustomSelect, type SelectOption } from '../ui/CustomSelect';
 
 interface DemographicsStepProps {
     module: ModuleConfig;
@@ -27,6 +27,8 @@ interface DemographicConfig {
     disqualified?: string[];
     // Backend/stored format (demographicsMapper): single list of allowed values
     validValues?: string[];
+    /** Country + City: city chips from research UI (strings or { name, country? } since v0.40.2) */
+    cities?: Array<string | { name: string; country?: string }>;
 }
 
 const DEMOGRAPHIC_ORDER = [
@@ -58,6 +60,46 @@ const optionToLabel = (o: string | Record<string, unknown>): string => {
     const label = obj.label ?? obj.value ?? obj.name;
     return typeof label === 'string' ? label : String(label ?? '');
 };
+
+/**
+ * Convierte una entrada de ciudad (string o objeto desde research config) a opción de select.
+ * El valor enviado al backend sigue siendo el nombre de ciudad (string), no el objeto.
+ * @param entry - Ciudad como string o { name, country? }
+ * @returns Opción con value/label string, o null si no es usable
+ */
+function cityEntryToSelectOption(entry: unknown): SelectOption | null {
+    if (typeof entry === 'string') {
+        const trimmed = entry.trim();
+        if (!trimmed) return null;
+        return { value: trimmed, label: trimmed };
+    }
+    if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
+        const rec = entry as Record<string, unknown>;
+        const rawName = rec.name;
+        const name = typeof rawName === 'string' ? rawName.trim() : '';
+        if (!name) return null;
+        const rawCountry = rec.country;
+        const country = typeof rawCountry === 'string' ? rawCountry.trim() : '';
+        return {
+            value: name,
+            label: country.length > 0 ? `${name} — ${country}` : name,
+        };
+    }
+    return null;
+}
+
+/**
+ * @param entries - Lista desde validValues o country.cities
+ * @returns Opciones listas para CustomSelect
+ */
+function cityEntriesToSelectOptions(entries: unknown[]): SelectOption[] {
+    const out: SelectOption[] = [];
+    for (const entry of entries) {
+        const opt = cityEntryToSelectOption(entry);
+        if (opt) out.push(opt);
+    }
+    return out;
+}
 
 /**
  * Extracts the selectable options for a given demographic from its config.
@@ -150,18 +192,21 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
     }, [getConfig]);
 
     /** Configured city options — when present, show a select instead of text input */
-    const cityOptions = useMemo((): string[] => {
-        // Check demographics.city.validValues first (canonical), then demographics.country.cities (round-trip)
+    const citySelectOptions = useMemo((): SelectOption[] => {
+        const raw: unknown[] = [];
         const cityDem = demographics.city;
         if (typeof cityDem === 'object' && cityDem !== null && !Array.isArray(cityDem)) {
             const cityCfg = cityDem as DemographicConfig;
-            if (cityCfg.validValues && cityCfg.validValues.length > 0) return cityCfg.validValues;
+            if (cityCfg.validValues && cityCfg.validValues.length > 0) {
+                raw.push(...(cityCfg.validValues as unknown[]));
+            }
         }
-        const countryCfg = getConfig('country');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const cities = (countryCfg as any).cities as string[] | undefined;
-        if (cities && cities.length > 0) return cities;
-        return [];
+        if (raw.length === 0) {
+            const countryCfg = getConfig('country') as DemographicConfig;
+            const cities = countryCfg.cities;
+            if (cities && cities.length > 0) raw.push(...cities);
+        }
+        return cityEntriesToSelectOptions(raw);
     }, [demographics.city, getConfig]);
 
     const handleChange = (key: string, value: string) => {
@@ -205,6 +250,19 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         </div>
     );
 
+    const renderSelectWithOptions = (key: string, label: string, selectOptions: SelectOption[], value: string, placeholder?: string) => (
+        <div key={key}>
+            <CustomSelect
+                id={key}
+                label={label}
+                options={selectOptions}
+                value={value || ''}
+                onChange={v => handleChange(key, v)}
+                placeholder={placeholder ?? t('common.select')}
+            />
+        </div>
+    );
+
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
             <div className="w-full max-w-lg space-y-8">
@@ -225,8 +283,8 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                                 <React.Fragment key={key}>
                                     {renderSelect('country', label, options.length > 0 ? options : ['Chile', 'Other'], answers.country)}
                                     {showCity && answers.country && (
-                                        cityOptions.length > 0
-                                            ? renderSelect('city', t('demographics.city'), cityOptions, answers.city)
+                                        citySelectOptions.length > 0
+                                            ? renderSelectWithOptions('city', t('demographics.city'), citySelectOptions, answers.city)
                                             : renderTextInput('city', t('demographics.city'), answers.city)
                                     )}
                                 </React.Fragment>
