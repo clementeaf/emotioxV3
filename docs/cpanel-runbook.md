@@ -9,11 +9,14 @@
 - **cPanel user:** emotvehe
 
 ## Domains & Subdomains
-| URL | Qué sirve | Document root |
+| URL | Qué sirve | Document root / app |
 |---|---|---|
 | `https://emotio.cx/research` | Research Frontend (investigador) | `~/public_html/research/` |
 | `https://emotio.cx/participant` | Participant Frontend (encuestado) | `~/public_html/participant/` |
-| `https://emotio.cx/api` | Backend API (Express/Passenger) | `~/emotioxv3/backend/` |
+| `https://emotio.cx/api` | Backend API (Express/Passenger) | Código en `~/emotioxv3/backend/`; Passenger montado desde `~/public_html/api/` (ver abajo) |
+| `https://dev.emotio.cx/research` | Research Frontend (rama `dev`) | `~/public_html/dev/research/` |
+| `https://dev.emotio.cx/participant` | Participant Frontend (rama `dev`) | `~/public_html/dev/participant/` |
+| `https://dev.emotio.cx/api` | Backend API dev | Código en `~/emotioxv3/backend-dev/`; Passenger montado desde `~/public_html/dev/api/` |
 
 ## Subdominio `dev.emotio.cx` (staging / preproducción)
 
@@ -30,15 +33,18 @@ Usa el mismo patrón que producción pero con host `dev.emotio.cx` y, si aplica,
 
 ### 3. Estructura de archivos (espejo de producción)
 
-Bajo el document root del subdominio, replica las tres “patas”:
+Bajo el document root del subdominio (`public_html/dev` para `dev.emotio.cx`):
 
 ```
 ~/public_html/dev/
-├── research/          # dist del research-frontend + runtime-config.json + .htaccess
-├── participant/       # dist del participant-frontend + runtime-config.json + .htaccess
+├── api/               # Solo Passenger: .htaccess (+ passenger_wsgi.py vacío) → ~/emotioxv3/backend-dev
+├── research/          # dist del research-frontend + runtime-config.json + .htaccess (CI)
+├── participant/       # dist del participant-frontend + runtime-config.json + .htaccess (CI)
 ```
 
-Los scripts `deploy-*-cpanel.sh` desplazan por defecto a `~/public_html/research` y `~/public_html/participant`. Para dev, o bien ajustas **destino remoto** en una copia del script, o haces **rsync manual** a `~/public_html/dev/research` y `~/public_html/dev/participant`.
+Los workflows de GitHub en la rama `dev` hacen rsync de frontends a `dev/research` y `dev/participant`. El **API** se despliega a `~/emotioxv3/backend-dev/`; el directorio **`dev/api`** no viene del repo: es configuración fija en el servidor (igual que `public_html/api` en producción apunta a `~/emotioxv3/backend`).
+
+Los scripts `deploy-*-cpanel.sh` locales apuntan por defecto a producción; para dev, usa los workflows o rsync manual a las rutas `dev/` anteriores.
 
 ### 4. `runtime-config.json` en dev
 
@@ -59,11 +65,27 @@ Los scripts `deploy-*-cpanel.sh` desplazan por defecto a `~/public_html/research
 }
 ```
 
-### 5. Backend (Passenger) en el subdominio
+### 5. Backend API (Passenger): prod vs dev
 
-- En **Applications → Node.js**, crea una **segunda** aplicación cuya **URL base** sea el subdominio (p. ej. `dev.emotio.cx`) y el path de API acorde a cómo montes Express (típicamente `/api` como en producción).
-- Usa un **`.env` separado** (o variables distintas) si quieres BD de staging, credenciales distintas, etc.
-- **Google OAuth**: en Google Cloud Console, añade el redirect URI de dev, p. ej. `https://dev.emotio.cx/api/auth/google/callback`, y la pantalla de consentimiento si aplica.
+Apache resuelve **`/api`** con un directorio bajo `public_html` que solo contiene directivas **Passenger** (no el código fuente del monorepo).
+
+| Entorno | Directorio Passenger | `PassengerAppRoot` | Código desplegado por CI/script |
+|---------|----------------------|--------------------|----------------------------------|
+| Producción | `~/public_html/api/` | `~/emotioxv3/backend` | `deploy-backend-cpanel` / push `main` |
+| Dev | `~/public_html/dev/api/` | `~/emotioxv3/backend-dev` | `deploy-backend-cpanel-dev` / push `dev` |
+
+El `.htaccess` debe definir al menos: `PassengerEnabled On`, `PassengerAppType node`, `PassengerStartupFile server-cpanel.js`, `PassengerNodejs` (ruta al binario Node del servidor, p. ej. alt-nodejs20), `PassengerAppRoot` como arriba. Opcional: `SetEnv NODE_ENV production`.
+
+**Reinicio** tras deploy: `touch ~/emotioxv3/backend-dev/tmp/restart.txt` (o el equivalente en `backend/` para prod).
+
+**`.env`:** en dev debe existir `~/emotioxv3/backend-dev/.env` (idealmente BD/credenciales distintas de producción).
+
+**SSL:** si el certificado aún no cubre `dev.emotio.cx`, HTTPS puede fallar la verificación del nombre hasta que **AutoSSL** (o instalación manual en **SSL/TLS**) emita el certificado.
+
+**Google OAuth:** en Google Cloud Console, añade `https://dev.emotio.cx/api/auth/google/callback` como redirect URI de dev.
+
+**Subdominio vía SSH (UAPI):** si hace falta crear el subdominio sin UI:  
+`uapi SubDomain addsubdomain domain=dev rootdomain=emotio.cx dir=public_html/dev`
 
 ### 6. CORS y cookies
 
@@ -89,22 +111,19 @@ Los pushes a **`dev`** disparan workflows distintos de los de **`main`**: despli
 ```
 ~/
 ├── public_html/
-│   ├── research/              # Build de research-frontend (Vite dist)
-│   │   ├── index.html
-│   │   ├── runtime-config.json   # {"apiBaseUrl":"https://emotio.cx/api","participantBaseUrl":"https://emotio.cx/participant"}
-│   │   └── .htaccess             # SPA routing + cache busting + security headers + gzip
-│   └── participant/           # Build de participant-frontend (Vite dist)
-│       ├── index.html
-│       ├── runtime-config.json   # {"apiBaseUrl":"https://emotio.cx/api"}
-│       └── .htaccess             # SPA routing + cache busting + security headers + gzip
+│   ├── api/                   # Passenger → ~/emotioxv3/backend (solo .htaccess + stub wsgi)
+│   ├── research/              # Build research-frontend (Vite dist)
+│   ├── participant/         # Build participant-frontend (Vite dist)
+│   └── dev/                   # Subdominio dev.emotio.cx (document root)
+│       ├── api/               # Passenger → ~/emotioxv3/backend-dev
+│       ├── research/          # CI rama dev + runtime-config dev
+│       └── participant/
 └── emotioxv3/
-    └── backend/               # Código fuente + dist compilado
-        ├── server-cpanel.js      # Entry point Passenger
-        ├── passenger_startup.js
-        ├── dist/                 # TypeScript compilado
-        ├── .env                  # Variables de entorno (NO en repo)
-        └── node_modules/
+    ├── backend/               # Producción: código + dist + .env
+    └── backend-dev/           # Dev: código + dist + .env (no mezclar BD con prod si es posible)
 ```
+
+Cada frontend (`research/`, `participant/`, y los análogos bajo `dev/`) incluye `index.html`, `runtime-config.json`, `.htaccess` según deploy.
 
 ## Databases
 - **Engine:** MySQL (cPanel)
