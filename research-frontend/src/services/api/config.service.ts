@@ -127,35 +127,44 @@ class ConfigService {
     }
 
     /**
+     * Returns the SPA base path (e.g. /research/) for resolving runtime-config next to index.html.
+     * @returns Path with trailing slash, or / when deployed at domain root
+     */
+    private getAppBasePath(): string {
+        if (import.meta.env.BASE_URL && import.meta.env.BASE_URL !== '/') {
+            return import.meta.env.BASE_URL.endsWith('/')
+                ? import.meta.env.BASE_URL
+                : `${import.meta.env.BASE_URL}/`;
+        }
+        return '/';
+    }
+
+    /**
      * Resolve the API base URL from environment or runtime config.
-     * Always uses AWS production backend (server.emotiox.org).
+     * Matches participant-frontend: VITE_API_URL wins when set (avoids fetch failures e.g. TLS on staging).
+     * Otherwise loads runtime-config.json beside the SPA.
      * @returns API base URL without trailing slash
      */
     private async resolveApiBaseUrl(): Promise<string> {
-        // In production, try runtime-config.json FIRST (highest priority)
-        // This allows runtime configuration without rebuilding
-        // Try /research/runtime-config.json first (for cPanel deployment)
-        // Fallback to /runtime-config.json for root deployment
+        const envBaseUrl = this.getEnvApiBaseUrl();
+        if (envBaseUrl) {
+            console.log('[ConfigService] Using VITE_API_URL from environment');
+            return envBaseUrl;
+        }
+
+        const primaryPath = `${this.getAppBasePath()}runtime-config.json`;
         try {
-            const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/research/runtime-config.json');
-            console.log('[ConfigService] Using runtime-config.json from /research/runtime-config.json');
+            const runtimeConfig = await this.fetchRuntimeConfigFromUrl(primaryPath);
+            console.log(`[ConfigService] Using runtime-config.json from ${primaryPath}`);
             return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
         } catch (error) {
-            console.warn('[ConfigService] Failed to load /research/runtime-config.json, trying root:', error);
+            console.warn(`[ConfigService] Failed to load ${primaryPath}, trying root:`, error);
             try {
                 const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
                 console.log('[ConfigService] Using runtime-config.json from /runtime-config.json');
                 return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
             } catch (rootError) {
-                console.warn('[ConfigService] Failed to load /runtime-config.json, trying VITE_API_URL:', rootError);
-                // Fallback to environment variable if runtime-config.json is not available
-                const envBaseUrl = this.getEnvApiBaseUrl();
-                if (envBaseUrl) {
-                    console.log('[ConfigService] Using VITE_API_URL from environment');
-                    return envBaseUrl;
-                }
-                // Final fallback to default production URL
-                console.warn('[ConfigService] Using default production URL');
+                console.warn('[ConfigService] Failed to load /runtime-config.json, using default production URL:', rootError);
                 return DEFAULT_PRODUCTION_API_BASE_URL;
             }
         }

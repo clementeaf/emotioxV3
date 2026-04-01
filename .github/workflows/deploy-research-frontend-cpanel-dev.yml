@@ -56,6 +56,7 @@ jobs:
       - name: Build for production
         working-directory: research-frontend
         env:
+          VITE_API_URL: https://dev.emotio.cx/api
           VITE_PARTICIPANT_FRONTEND_URL: https://dev.emotio.cx/participant
         run: npm run build
 

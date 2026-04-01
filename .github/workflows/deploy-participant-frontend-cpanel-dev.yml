@@ -54,6 +54,8 @@ jobs:
 
       - name: Build for production
         working-directory: participant-frontend
+        env:
+          VITE_API_URL: https://dev.emotio.cx/api
         run: npm run build
 
       - name: Setup SSH
