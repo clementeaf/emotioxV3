@@ -1,3 +1,17 @@
+## v0.48.0 — Technique stage creation fix, backend deploy (2026-04-01)
+
+### backend
+- **Fix: Research creation with technique `default_stages`.** `stageTemplateNames` now includes `"Research Configuration"` — previously it fell through to `individualModules`, creating a spurious stage named after the research type.
+- **Fix: Stage ordering for techniques.** When a technique's `default_stages` already includes "Research Configuration", `addDefaultStage` is skipped so stages respect the technique's defined order instead of always placing Research Configuration first.
+
+### database
+- **Fix: `default_stages` for "Biometric, Cognitive and Predictive".** Added "Research Configuration" at order 3. Full order: Screener → Welcome Screen → Research Configuration → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+
+### deploy
+- Backend deployed to cPanel (v0.42.0 → v0.48.0). Includes all changes from v0.41.0–v0.47.0.
+
+---
+
 ## v0.47.0 — Design system, skeletons, dashboard responsive, auth fix (2026-03-29)
 
 ### research-frontend

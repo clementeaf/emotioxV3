@@ -16,5 +16,5 @@ DEALLOCATE PREPARE stmt;
 -- 2. POPULATE default_stages for "Biometric, Cognitive and Predictive"
 -- ==========================================
 UPDATE research_techniques
-SET default_stages = '[{"name":"Screener","order":1,"is_default":true},{"name":"Welcome Screen","order":2,"is_default":true},{"name":"Implicit Association","order":3,"is_default":true},{"name":"Cognitive Tasks","order":4,"is_default":true},{"name":"Eye Tracking","order":5,"is_default":true},{"name":"Thank You Screen","order":6,"is_default":true}]'
+SET default_stages = '[{"name":"Screener","order":1,"is_default":true},{"name":"Welcome Screen","order":2,"is_default":true},{"name":"Research Configuration","order":3,"is_default":true},{"name":"Implicit Association","order":4,"is_default":true},{"name":"Cognitive Tasks","order":5,"is_default":true},{"name":"Eye Tracking","order":6,"is_default":true},{"name":"Thank You Screen","order":7,"is_default":true}]'
 WHERE name = 'Biometric, Cognitive and Predictive';

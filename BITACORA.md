@@ -5,7 +5,16 @@
 
 ---
 
-## Última actualización: 2026-03-29 (sesión 27)
+## Última actualización: 2026-04-01 (sesión 28)
+
+---
+
+## Sesión 28: 1 de abril de 2026 — Technique stage creation fix + backend deploy (v0.48.0)
+
+- **Fix `default_stages`:** "Biometric, Cognitive and Predictive" ahora incluye Research Configuration (order 3). Actualizado en BD producción + migración 016 local.
+- **Fix creación de stages:** `stageTemplateNames` incluye "Research Configuration". Cuando la técnica ya lo define, `addDefaultStage` se salta para respetar el orden de la técnica.
+- **Deploy backend:** cPanel actualizado de v0.42.0 a v0.48.0 (incluye v0.41–v0.47).
+- **Test research creado:** `8682b29e-64f1-4371-b79a-e3472ad86c63` con data en todos los stages para testing de participant-frontend.
 
 ---
 

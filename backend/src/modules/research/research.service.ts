@@ -162,7 +162,11 @@ export const create = async (userId: string, data: ResearchData) => {
         } as typeof rawResearch & { settings: Record<string, unknown>; id: string };
 
         // Automatically add "Research Configuration" stage to all new researches FIRST
-        await addDefaultStage(client, research.id as string, userId);
+        // Skip if technique default_stages already includes it (will be created in correct order)
+        const techniqueIncludesResearchConfig = techniqueDefaultStages?.some(s => s.name === 'Research Configuration');
+        if (!techniqueIncludesResearchConfig) {
+            await addDefaultStage(client, research.id as string, userId);
+        }
 
         // Clone modules from template if requested and associate them to a stage
         // Priority: 1) technique default_stages, 2) use_default_modules from frontend, 3) research type default_modules
@@ -222,7 +226,7 @@ export const create = async (userId: string, data: ResearchData) => {
                 // Separate stage templates from individual modules
                 // "Smart VOC" and "Cognitive Task" are stage templates, not individual modules
                 // "Welcome Screen" and "Thank You Screen" are also stage templates (single_module)
-                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen', 'Screener', 'Implicit Association', 'Eye Tracking'];
+                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen', 'Screener', 'Implicit Association', 'Eye Tracking', 'Research Configuration'];
                 const individualModules: string[] = [];
                 const stagesToCreate: string[] = [];
                 

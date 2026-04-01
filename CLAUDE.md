@@ -9,7 +9,7 @@
 EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores crear estudios con stages: SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), Screener, Implicit Association (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking. Configurar demografía, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas vía URL/QR.
 
 ### Técnica "Biometric, Cognitive and Predictive"
-Default stages al seleccionar esta técnica: Screener → Welcome Screen → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+Default stages al seleccionar esta técnica: Screener → Welcome Screen → Research Configuration → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
 - **Screener** (`single_module`): pregunta de filtrado con choices Qualify/Disqualify.
 - **Implicit Association** (`module_collection`): 3 tipos de test IAT — Attribute Testing (2 targets), Comparing Attribute (hasta 5 targets), Objects Comparing (hasta 3 objects). Priming configurable.
 - **Eye Tracking** (`single_module`): stimuli (imágenes/video), 2 modalidades: Stand Alone (imagen única) y Shelf (vitrina). Incluye Emotion Recognition y predicción de atención automáticos.
