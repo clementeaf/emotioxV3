@@ -13,6 +13,7 @@ EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores cr
 - **Research Frontend:** React 19, Vite, TypeScript, Zustand, React Query, Tailwind CSS, React Hook Form + Zod, i18n (ES/EN)
 - **Participant Frontend:** React 19, Vite, TypeScript, Zustand, React Query, Tailwind CSS, Recharts, i18n (ES/EN)
 - **Infra:** cPanel (emotio.cx), MySQL (emotvehe_emotiox), GitHub Actions CI/CD
+- **Staging:** rama `dev` → subdominio `dev.emotio.cx` (builds y rutas separadas; no afecta `emotio.cx`). Ver `docs/cpanel-runbook.md` y `skills/deploy.md`.
 - **Monorepo:** root package.json con Husky pre-commit hooks
 
 ## Architecture
@@ -67,7 +68,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - 0 errors, 0 warnings en lint + build (enforced por pre-commit)
 - `Record<string, any>` solo donde es genuinamente dinámico (demographics config), marcado con eslint-disable
 - Commits en inglés, código en inglés, comentarios en español/inglés mixto
-- Branching: main (producción), feature branches ocasionales
+- Branching: `main` (producción), rama `dev` (staging / preproducción en `dev.emotio.cx`), feature branches ocasionales
 - **Backlink redirects** reemplazan `@id` con el participant ID real y agregan `https://` si falta protocolo. Lógica en `redirectTo` de `ResearchPage.tsx`.
 - **CES scale** en participant-frontend lee `comp.value` primero (lo que guardó el investigador), fallback a `selectRange.predefined` (default del template). En research-frontend el save sincroniza ambos campos.
 - **CES sentiment zones**: rojo (negativo), ámbar (neutral), verde (positivo). Rangos: 1-5 → 1-2/3/4-5, 1-7 → 1-3/4/5-7, 1-10 → 1-3/4-7/8-10. Solo aplica a CES, no a CV ni Linear Scale.
@@ -124,17 +125,22 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 ```
 Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/restart.txt"`
 
-### CI/CD (GitHub Actions, auto en push a main)
-- `deploy-backend-cpanel.yml` — trigger: `backend/**`
-- `deploy-research-frontend-cpanel.yml` — trigger: `research-frontend/**`
-- `deploy-participant-frontend-cpanel.yml` — trigger: `participant-frontend/**`
+### CI/CD (GitHub Actions)
+- **Producción** (push a `main`): `deploy-backend-cpanel.yml`, `deploy-research-frontend-cpanel.yml`, `deploy-participant-frontend-cpanel.yml` — mismos paths `paths` que antes.
+- **Staging** (push a `dev`): `deploy-*-cpanel-dev.yml` — destinos bajo `~/public_html/dev/` y `~/emotioxv3/backend-dev` (no escribe producción).
 - Secrets: `CPANEL_SSH_PRIVATE_KEY`, `CPANEL_SSH_HOST`, `CPANEL_SSH_USER`, `CPANEL_SSH_PORT`
 
 ### Rutas remotas
 ```
-~/emotioxv3/backend/          → Backend (src + dist + .env + server-cpanel.js)
-~/public_html/research/       → Research Frontend (Vite dist + runtime-config.json + .htaccess)
-~/public_html/participant/    → Participant Frontend (Vite dist + runtime-config.json + .htaccess)
+~/emotioxv3/backend/           → Backend producción
+~/public_html/api/             → Passenger → backend (código arriba)
+~/public_html/research/        → Research frontend
+~/public_html/participant/     → Participant frontend
+
+~/emotioxv3/backend-dev/       → Backend staging (rama dev)
+~/public_html/dev/api/         → Passenger → backend-dev
+~/public_html/dev/research/    → Research staging
+~/public_html/dev/participant/ → Participant staging
 ```
 
 ## Participation Modes (Kiosko vs Panel)

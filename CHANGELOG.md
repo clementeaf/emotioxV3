@@ -1,3 +1,20 @@
+## v0.40.3 — Staging `dev.emotio.cx`: CI, runbook, TLS (2026-04-01)
+
+*Cambios integrados en la rama `dev`. Producción (`main` / `emotio.cx`) no se modifica.*
+
+### .github
+- CI: workflows `deploy-backend-cpanel-dev.yml`, `deploy-research-frontend-cpanel-dev.yml`, `deploy-participant-frontend-cpanel-dev.yml` — disparo solo en push a `dev` (paths acordes); destinos `~/public_html/dev/research|participant`, `~/emotioxv3/backend-dev`. `workflow_dispatch` exige `refs/heads/dev`.
+- Doc: `DEPLOY_CPANEL_SETUP.md` lista workflows dev.
+
+### docs / skills
+- `docs/cpanel-runbook.md` — subdominio dev, árbol `public_html/dev` + Passenger en `dev/api`, CI §7, certificado TLS (fallo *Failed to fetch* por TLS; AutoSSL vs autofirmado + `uapi SSL install_ssl`).
+- `skills/deploy.md` — tabla workflows dev.
+
+### research-frontend
+- Fallback de URL base del participante cuando el host es `dev.emotio.cx` y no hay `runtime-config` cargado (`https://dev.emotio.cx/participant`).
+
+---
+
 ## v0.40.2 — City-country association in demographics config (2026-04-01)
 
 ### research-frontend

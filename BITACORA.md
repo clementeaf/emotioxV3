@@ -5,7 +5,16 @@
 
 ---
 
-## Última actualización: 2026-04-01 (sesión 24)
+## Última actualización: 2026-04-01 (sesión 25)
+
+---
+
+## Sesión 25: 1 de abril de 2026 — Entorno staging `dev.emotio.cx` (v0.40.3, rama `dev`)
+
+- **Rama `dev` + CI:** tres workflows GitHub Actions despliegan solo a rutas `dev` en cPanel (frontends bajo `~/public_html/dev/`, backend en `~/emotioxv3/backend-dev`). `main` y despliegue de producción sin cambios.
+- **Servidor:** subdominio `dev.emotio.cx`, `public_html/dev/api` (Passenger → `backend-dev`), runbook y TLS documentados; cert autofirmado para dev si hace falta. **No** se tocan `public_html/research|participant|api` ni `~/emotioxv3/backend` de prod.
+- **Frontend:** fallback de URL participante para host `dev.emotio.cx` en `ResearchConfigurationModule`.
+- Detalle: `CHANGELOG.md` v0.40.3.
 
 ---
 
