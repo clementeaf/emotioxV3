@@ -127,6 +127,51 @@ class ConfigService {
     }
 
     /**
+     * When the SPA is served from emotio.cx (any subdomain), the cPanel API is mounted at /api on the same host.
+     * Uses the document origin so scheme/host match the loaded page (avoids cross-origin calls to emotio.cx from dev.emotio.cx).
+     * @returns Normalized API base URL, or null if not an emotio.cx host
+     */
+    private getSameHostEmotioApiBaseUrl(): string | null {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+        const { hostname } = window.location;
+        if (!hostname.endsWith('emotio.cx')) {
+            return null;
+        }
+        return this.normalizeBaseUrl(`${window.location.origin}/api`);
+    }
+
+    /**
+     * If the SPA runs on dev.emotio.cx but runtime-config points at production emotio.cx, same-origin requests would fail CORS.
+     * Prefer the dev host's /api in that case.
+     * @param apiBaseUrl - URL from runtime-config or env
+     * @returns URL to use for API calls
+     */
+    private rewriteStagingApiBaseIfNeeded(apiBaseUrl: string): string {
+        if (typeof window === 'undefined') {
+            return apiBaseUrl;
+        }
+        if (window.location.hostname !== 'dev.emotio.cx') {
+            return apiBaseUrl;
+        }
+        const same = this.getSameHostEmotioApiBaseUrl();
+        if (!same) {
+            return apiBaseUrl;
+        }
+        try {
+            const configured = new URL(this.normalizeBaseUrl(apiBaseUrl));
+            if (configured.hostname === 'emotio.cx' || configured.hostname === 'www.emotio.cx') {
+                console.warn('[ConfigService] dev.emotio.cx: runtime config targets production API; using same-host /api');
+                return same;
+            }
+        } catch {
+            return this.normalizeBaseUrl(apiBaseUrl);
+        }
+        return this.normalizeBaseUrl(apiBaseUrl);
+    }
+
+    /**
      * Returns the SPA base path (e.g. /research/) for resolving runtime-config next to index.html.
      * @returns Path with trailing slash, or / when deployed at domain root
      */
@@ -156,15 +201,21 @@ class ConfigService {
         try {
             const runtimeConfig = await this.fetchRuntimeConfigFromUrl(primaryPath);
             console.log(`[ConfigService] Using runtime-config.json from ${primaryPath}`);
-            return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
+            return this.rewriteStagingApiBaseIfNeeded(runtimeConfig.apiBaseUrl);
         } catch (error) {
             console.warn(`[ConfigService] Failed to load ${primaryPath}, trying root:`, error);
             try {
                 const runtimeConfig = await this.fetchRuntimeConfigFromUrl('/runtime-config.json');
                 console.log('[ConfigService] Using runtime-config.json from /runtime-config.json');
-                return this.normalizeBaseUrl(runtimeConfig.apiBaseUrl);
+                return this.rewriteStagingApiBaseIfNeeded(runtimeConfig.apiBaseUrl);
             } catch (rootError) {
-                console.warn('[ConfigService] Failed to load /runtime-config.json, using default production URL:', rootError);
+                console.warn('[ConfigService] Failed to load /runtime-config.json, trying same-host API:', rootError);
+                const sameHost = this.getSameHostEmotioApiBaseUrl();
+                if (sameHost) {
+                    console.log('[ConfigService] Using same-host /api for emotio.cx');
+                    return sameHost;
+                }
+                console.warn('[ConfigService] Using default production API URL');
                 return DEFAULT_PRODUCTION_API_BASE_URL;
             }
         }
