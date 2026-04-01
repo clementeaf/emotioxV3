@@ -1,3 +1,11 @@
+## v0.40.1 — View Progress: orphan modules fix (2026-04-01)
+
+### backend
+- Fix: `getVisibleModuleIdsForProgress` now uses `INNER JOIN stages` instead of just checking `stage_id IS NOT NULL`. Modules referencing a deleted stage were counted in the denominator, inflating it (e.g. 8/14 = 57% instead of 8/8 = 100%).
+- Fix: Added `isModuleConfiguredForProgress` check — mirrors participant-frontend's `isModuleConfigured` logic so unconfigured template modules (no title, no images, no items) are excluded from the denominator.
+
+---
+
 ## v0.40.0 — City configuration in Country & City demographic (2026-04-01)
 
 ### research-frontend

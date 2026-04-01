@@ -5,7 +5,17 @@
 
 ---
 
-## Última actualización: 2026-04-01 (sesión 23)
+## Última actualización: 2026-04-01 (sesión 24)
+
+---
+
+## Sesión 24: 1 de abril de 2026 — View Progress orphan modules fix (v0.40.1)
+
+- **Bug:** Participantes que completaron todo aparecían como "En proceso 57%". Causa: 6 módulos SmartVOC referenciaban un stage eliminado (`stage_id` apuntaba a un registro inexistente en `stages`). El backend los contaba como visibles (14 módulos) pero el participante solo veía 8.
+- **Fix 1:** `INNER JOIN stages` en `getVisibleModuleIdsForProgress` — solo cuenta módulos cuyo stage realmente existe.
+- **Fix 2:** `isModuleConfiguredForProgress` — excluye módulos sin contenido (sin título, sin imágenes, sin items). Replica la lógica de `isModuleConfigured` del participant-frontend.
+- Deploy backend cPanel. Verificado: participantes ahora muestran 100% "Completado".
+- Detalle: `CHANGELOG.md` v0.40.1.
 
 ---
 

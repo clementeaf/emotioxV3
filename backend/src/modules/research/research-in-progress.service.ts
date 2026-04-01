@@ -1,18 +1,21 @@
 import pool from '../../config/database';
 import { buildOwnershipClause } from './research.service';
 
-interface ProgressComponentConfig {
+interface ProgressComponent {
+    id?: string;
+    type?: string;
+    value?: unknown;
+    settings?: Record<string, unknown>;
+    placeholder?: { text?: string };
     hidden?: boolean;
-    config?: {
-        hidden?: boolean;
-    };
+    config?: { hidden?: boolean };
 }
 
 interface ProgressModuleConfig {
     structure?: {
-        components?: ProgressComponentConfig[];
+        components?: ProgressComponent[];
     };
-    components?: ProgressComponentConfig[];
+    components?: ProgressComponent[];
     hidden?: boolean;
 }
 
@@ -23,17 +26,97 @@ interface ProgressModuleRow {
 }
 
 /**
+ * Checks whether a module has been configured with content by the researcher.
+ * Mirrors participant-frontend's isModuleConfigured logic so the backend
+ * denominator matches what participants actually see.
+ */
+const isModuleConfiguredForProgress = (name: string, components: ProgressComponent[]): boolean => {
+    const trimmed = name.trim();
+
+    // SmartVOC modules are always considered configured
+    const smartVOCNames = ['CSAT', 'NPS', 'CES', 'CV', 'NEV', 'VOC'];
+    if (smartVOCNames.some(n => trimmed.includes(n))) return true;
+
+    // Navigation Flow / Preference Test: require file-upload with images
+    if (trimmed === 'Navigation Flow' || trimmed === 'Preference Test') {
+        const fileUpload = components.find(c => c.type === 'file-upload');
+        if (!fileUpload?.value) return false;
+        try {
+            const parsed = typeof fileUpload.value === 'string'
+                ? JSON.parse(fileUpload.value) : fileUpload.value;
+            if (!Array.isArray(parsed) || parsed.length === 0) return false;
+            return parsed.some((img: Record<string, unknown>) =>
+                Boolean(img && (img.s3Key || img.url)));
+        } catch {
+            return false;
+        }
+    }
+
+    // Ranking: requires items with labels (not just default template values)
+    if (trimmed === 'Ranking') {
+        const itemsComp = components.find(c =>
+            c.id === 'items' || (c.id === 'ranking-slider' && c.type === 'select'));
+        if (!itemsComp?.value) return false;
+        try {
+            const parsed = typeof itemsComp.value === 'string'
+                ? JSON.parse(itemsComp.value as string) : itemsComp.value;
+            const arr = Array.isArray(parsed) ? parsed
+                : (parsed && typeof parsed === 'object' && Array.isArray((parsed as { items?: unknown[] }).items))
+                    ? (parsed as { items: unknown[] }).items : null;
+            if (!Array.isArray(arr) || arr.length === 0) return false;
+            const defaultLabels = ['Item 1', 'Item 2', 'Item 3'];
+            return arr.some((item: Record<string, unknown>) =>
+                Boolean(item?.label && typeof item.label === 'string'
+                    && item.label.trim() && !defaultLabels.includes(item.label)));
+        } catch {
+            return Boolean(typeof itemsComp.value === 'string' && (itemsComp.value as string).trim());
+        }
+    }
+
+    // Cognitive Tasks: require at least title or description
+    const cognitiveNames = ['Short Text', 'Long Text', 'Single Choice', 'Multiple Choice', 'Linear Scale'];
+    if (cognitiveNames.includes(trimmed)) {
+        const titleComp = components.find(c =>
+            String(c.id || '').includes('title') || String(c.id || '').includes('question-title'));
+        const descComp = components.find(c =>
+            String(c.id || '').includes('description') || String(c.id || '').includes('question-description'));
+
+        const hasTitle = Boolean(titleComp?.value && typeof titleComp.value === 'string' && titleComp.value.trim());
+        const hasDesc = Boolean(descComp?.value && typeof descComp.value === 'string' && descComp.value.trim());
+
+        // Choice questions: also check if choices have content
+        if (trimmed === 'Single Choice' || trimmed === 'Multiple Choice') {
+            const choices = components.filter(c =>
+                c.settings?.isChoice || String(c.id || '').includes('choice-'));
+            const hasChoices = choices.some(c => {
+                const text = (typeof c.value === 'string' ? c.value : null)
+                    || c.placeholder?.text || null;
+                return Boolean(text && text.trim());
+            });
+            return hasTitle || hasDesc || hasChoices;
+        }
+
+        return hasTitle || hasDesc;
+    }
+
+    // Default: consider configured (unknown module types get included)
+    return true;
+};
+
+/**
  * Returns the IDs of visible modules that participants are expected to answer.
  * Excludes: orphan modules (no stage), Research Configuration, Welcome Screen,
- * Thank You Screen, and hidden modules.
+ * Thank You Screen, hidden modules, and unconfigured modules (mirrors
+ * participant-frontend's isModuleConfigured check).
  */
 const getVisibleModuleIdsForProgress = async (researchId: string): Promise<Set<string>> => {
     const EXCLUDED_NAMES = ['research configuration', 'welcome screen', 'thank you screen'];
     const modulesQuery = `
-        SELECT id, name, config
-        FROM modules
-        WHERE research_id = ? AND stage_id IS NOT NULL
-        ORDER BY order_index
+        SELECT m.id, m.name, m.config
+        FROM modules m
+        INNER JOIN stages s ON m.stage_id = s.id
+        WHERE m.research_id = ? AND m.stage_id IS NOT NULL
+        ORDER BY m.order_index
     `;
     const modulesResult = await pool.query(modulesQuery, [researchId]);
     const visibleIds = new Set<string>();
@@ -53,6 +136,10 @@ const getVisibleModuleIdsForProgress = async (researchId: string): Promise<Set<s
         }
 
         if (parsedConfig?.hidden === true) continue;
+
+        // Check if module is configured (has actual content, not just template defaults)
+        const components = parsedConfig?.structure?.components || parsedConfig?.components || [];
+        if (!isModuleConfiguredForProgress(mod.name, components)) continue;
 
         visibleIds.add(mod.id);
     }
