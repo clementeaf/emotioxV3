@@ -40,6 +40,7 @@ interface ContinentSection {
 interface CityEntry {
   name: string;
   isDisqualifying: boolean;
+  country?: string;
 }
 
 interface CityQuota {
@@ -126,6 +127,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
   // City management state
   const [cities, setCities] = useState<CityEntry[]>(initialCities);
   const [cityInput, setCityInput] = useState('');
+  const [cityCountry, setCityCountry] = useState('');
 
   // 🎯 USAR HOOK DE CUOTAS
   const baseQuotas = useMemo(
@@ -165,11 +167,20 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
     onCityQuotasToggle
   );
 
+  /** Qualifying countries available for city association */
+  const qualifyingCountries = useMemo(() => {
+    return continentSections
+      .flatMap(section => section.countries)
+      .filter(country => !country.isDisqualifying)
+      .map(country => country.name);
+  }, [continentSections]);
+
   const handleAddCity = () => {
     const trimmed = cityInput.trim();
     if (trimmed && !cities.some(c => c.name === trimmed)) {
-      setCities(prev => [...prev, { name: trimmed, isDisqualifying: false }]);
+      setCities(prev => [...prev, { name: trimmed, isDisqualifying: false, country: cityCountry || undefined }]);
       setCityInput('');
+      // Keep the country selection for adding multiple cities to the same country
     }
   };
 
@@ -240,6 +251,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
       setGranularity(initialGranularity);
       setCities(initialCities);
       setCityInput('');
+      setCityCountry('');
     }
   }, [isOpen, createContinentSections, initialGranularity, initialCities]);
 
@@ -535,6 +547,16 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
               Agrega las ciudades que el participante podrá seleccionar. Si no agregas ninguna, se mostrará un campo de texto libre.
             </p>
             <div className="flex gap-2 mb-3">
+              <select
+                value={cityCountry}
+                onChange={(e) => setCityCountry(e.target.value)}
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">País (opcional)</option>
+                {qualifyingCountries.map(country => (
+                  <option key={country} value={country}>{country}</option>
+                ))}
+              </select>
               <input
                 type="text"
                 value={cityInput}
@@ -566,6 +588,12 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                     <div className="flex items-center gap-2">
                       <MapPin size={14} className="text-gray-400" />
                       <span className="text-sm font-medium">{city.name}</span>
+                      {city.country && (
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Globe size={10} />
+                          {city.country}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       {/* Toggle Clasifica/Desclasifica */}

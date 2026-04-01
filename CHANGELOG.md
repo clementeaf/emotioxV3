@@ -1,3 +1,14 @@
+## v0.40.2 — City-country association in demographics config (2026-04-01)
+
+### research-frontend
+- Feat: When adding a city in the Country + City granularity config, the researcher can now select which qualifying country the city belongs to via a dropdown selector next to the city input.
+- Feat: Each city chip displays the associated country (e.g. "CDMX — México") for visual clarity.
+- Feat: Country selection persists between city additions for quick multi-city entry per country.
+- Data: `CityEntry` now carries an optional `country` field. Stored as `{ name, country? }` objects in `demographics.country.cities` for round-trip. Backward-compatible with legacy `string[]` format.
+- No participant-frontend or backend changes — `validValues` remains `string[]` of city names.
+
+---
+
 ## v0.40.1 — View Progress: orphan modules fix (2026-04-01)
 
 ### backend
