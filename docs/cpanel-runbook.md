@@ -80,12 +80,42 @@ El `.htaccess` debe definir al menos: `PassengerEnabled On`, `PassengerAppType n
 
 **`.env`:** en dev debe existir `~/emotioxv3/backend-dev/.env` (idealmente BD/credenciales distintas de producción).
 
-**SSL:** si el certificado aún no cubre `dev.emotio.cx`, HTTPS puede fallar la verificación del nombre hasta que **AutoSSL** (o instalación manual en **SSL/TLS**) emita el certificado.
-
 **Google OAuth:** en Google Cloud Console, añade `https://dev.emotio.cx/api/auth/google/callback` como redirect URI de dev.
 
 **Subdominio vía SSH (UAPI):** si hace falta crear el subdominio sin UI:  
 `uapi SubDomain addsubdomain domain=dev rootdomain=emotio.cx dir=public_html/dev`
+
+### 5.1 HTTPS / certificado para `dev.emotio.cx`
+
+**Síntoma en el navegador:** el research frontend muestra *Initialization failed* y *Failed to fetch* al cargar `/runtime-config.json` o la API, **aunque los archivos existan** en `~/public_html/dev/research/`. Suele deberse a **TLS**: el servidor presenta un certificado cuyo nombre no coincide con `dev.emotio.cx` (p. ej. solo `emotio.cx`), y el navegador bloquea `fetch`.
+
+**Opción recomendada (CA pública):** En cPanel: **SSL/TLS** → **SSL/TLS Status** / **Manage SSL Sites**, instala o renueva un certificado que incluya **`dev.emotio.cx`** (Let's Encrypt u otro DV). Si tu plan no ofrece AutoSSL al usuario, pídelo al hosting o usa el flujo de pedido de certificado del panel.
+
+**Opción desarrollo (autofirmado):** Certificado local con SAN para `dev.emotio.cx`, instalado con UAPI. El navegador mostrará advertencia hasta que el usuario acepte la excepción o sustituyas el cert por uno de una CA.
+
+```bash
+# SSH como usuario cPanel (ajusta rutas si hace falta)
+cd ~
+openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
+  -keyout ssl-dev.key \
+  -out ssl-dev.crt \
+  -subj "/CN=dev.emotio.cx" \
+  -extensions v3_req -config /dev/stdin <<'CNF'
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+[req_distinguished_name]
+CN = dev.emotio.cx
+[v3_req]
+subjectAltName = DNS:dev.emotio.cx, DNS:www.dev.emotio.cx
+CNF
+
+uapi SSL install_ssl domain=dev.emotio.cx cert=@ssl-dev.crt key=@ssl-dev.key cabundle=
+chmod 600 ssl-dev.key
+```
+
+**Notas:** `curl` sin `-k` fallará contra un cert autofirmado; es esperable. No subas `ssl-dev.key` ni el cert al repositorio. Cuando tengas Let's Encrypt u otro cert válido, sustituye el instalado en **Manage SSL Sites** para el mismo dominio.
 
 ### 6. CORS y cookies
 
