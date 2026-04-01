@@ -87,7 +87,7 @@ El `.htaccess` debe definir al menos: `PassengerEnabled On`, `PassengerAppType n
 
 ### 5.1 HTTPS / certificado para `dev.emotio.cx`
 
-**Síntoma en el navegador:** el research frontend muestra *Initialization failed* y *Failed to fetch* al cargar `/runtime-config.json` o la API, **aunque los archivos existan** en `~/public_html/dev/research/`. Suele deberse a **TLS**: el servidor presenta un certificado cuyo nombre no coincide con `dev.emotio.cx` (p. ej. solo `emotio.cx`), y el navegador bloquea `fetch`.
+**Síntoma en el navegador:** el research frontend muestra *Initialization failed* y *Failed to fetch* al cargar `/runtime-config.json` o la API, **aunque los archivos existan** en `~/public_html/dev/research/`. En **DevTools → Network** suele aparecer `net::ERR_CERT_AUTHORITY_INVALID` (certificado no confiable, autofirmado sin confiar, o SAN sin `dev.emotio.cx`). Suele deberse a **TLS**: el servidor presenta un certificado cuyo nombre no coincide con `dev.emotio.cx` (p. ej. solo `emotio.cx`), y el navegador bloquea `fetch`.
 
 **Opción recomendada (CA pública):** En cPanel: **SSL/TLS** → **SSL/TLS Status** / **Manage SSL Sites**, instala o renueva un certificado que incluya **`dev.emotio.cx`** (Let's Encrypt u otro DV). Si tu plan no ofrece AutoSSL al usuario, pídelo al hosting o usa el flujo de pedido de certificado del panel.
 

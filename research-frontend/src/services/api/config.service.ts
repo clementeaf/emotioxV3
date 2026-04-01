@@ -186,11 +186,18 @@ class ConfigService {
 
     /**
      * Resolve the API base URL from environment or runtime config.
-     * Matches participant-frontend: VITE_API_URL wins when set (avoids fetch failures e.g. TLS on staging).
-     * Otherwise loads runtime-config.json beside the SPA.
+     * On emotio.cx hosts, page origin + /api wins over VITE_API_URL so scheme matches the document
+     * (http://dev.emotio.cx vs https:// baked in build is a different origin and fetch fails).
+     * Otherwise VITE_API_URL, then runtime-config.json beside the SPA.
      * @returns API base URL without trailing slash
      */
     private async resolveApiBaseUrl(): Promise<string> {
+        const sameHostEmotio = this.getSameHostEmotioApiBaseUrl();
+        if (sameHostEmotio) {
+            console.log('[ConfigService] Using page origin /api for emotio.cx');
+            return sameHostEmotio;
+        }
+
         const envBaseUrl = this.getEnvApiBaseUrl();
         if (envBaseUrl) {
             console.log('[ConfigService] Using VITE_API_URL from environment');

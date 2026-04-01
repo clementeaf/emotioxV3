@@ -46,6 +46,9 @@ const BootstrapErrorScreen = (props: BootstrapErrorScreenProps): ReactElement =>
       <p style={{ margin: 0, marginTop: 12, color: '#444' }}>
         Provide <code>/runtime-config.json</code> with <code>{"{\"apiBaseUrl\":\"https://...\"}"}</code> or set <code>VITE_API_URL</code>.
       </p>
+      <p style={{ margin: '14px 0 0', color: '#666', fontSize: 13, lineHeight: 1.45 }}>
+        If DevTools shows <code>ERR_CERT_AUTHORITY_INVALID</code>, the browser does not trust this host&apos;s TLS certificate. Install a valid certificate in cPanel for <code>dev.emotio.cx</code> (Let&apos;s Encrypt / AutoSSL). See <code>docs/cpanel-runbook.md</code> section 5.1.
+      </p>
     </div>
   );
 };
