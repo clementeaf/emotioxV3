@@ -5,7 +5,16 @@
 
 ---
 
-## Última actualización: 2026-04-03 (sesión 29)
+## Última actualización: 2026-04-03 (sesión 30)
+
+---
+
+## Sesión 30: 3 de abril de 2026 — IAT Attribute Testing fixes (v0.49.1)
+
+- **Criteria images:** `IATAttribute` extendido con `imageUrl`/`imageStorageKey`. Resolución S3 unificada para targets y attributes. Trials de bloque 1 y 3 pasan imagen al estímulo.
+- **Criteria distribution:** Primera mitad → izquierda, segunda mitad → derecha. Antes solo criteria[0] iba a la izquierda. `handleSelect` bloque 1 usa `'attr-left'`/`'attr-right'` en vez de IDs fijos.
+- **show-results:** Extrae checkbox del config. Muestra accuracy y avg RT al participante al completar.
+- **Deploy:** participant-frontend desplegado a producción.
 
 ---
 

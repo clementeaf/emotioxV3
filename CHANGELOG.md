@@ -1,3 +1,13 @@
+## v0.49.1 — IAT Attribute Testing: criteria images, distribution fix, show-results (2026-04-03)
+
+### participant-frontend
+
+- **IAT criteria images.** El renderer ahora extrae y resuelve imágenes S3 de los items del ranking-list de criteria. Los estímulos de bloque 1 y 3 muestran imagen cuando el criterio la tiene.
+- **IAT criteria distribution fix.** Los criteria se distribuyen equitativamente entre izquierda y derecha (primera mitad / segunda mitad) en vez de asignar solo el primero a la izquierda y todos los demás a la derecha.
+- **IAT show-results.** Cuando el investigador activa el checkbox "Show results to respondents", al completar el test se muestra un panel con accuracy (%) y tiempo promedio de respuesta (ms).
+
+---
+
 ## v0.49.0 — IAT builder completo, Screener builder UX, participant renderers (2026-04-03)
 
 ### research-frontend

@@ -27,6 +27,8 @@ interface IATTarget {
 interface IATAttribute {
     id: string;
     label: string;
+    imageUrl?: string;
+    imageStorageKey?: string;
 }
 
 interface IATTrial {
@@ -147,7 +149,7 @@ const extractConfig = (module: ModuleConfig) => {
         );
         if (criteriaComp) {
             // research-frontend RankingItemsEditor persists JSON.stringify({ items, randomize }), not a bare array
-            let items: Array<{ id?: string; label?: string; value?: string }> | null = null;
+            let items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> | null = null;
             const directVal = criteriaComp.value;
             if (
                 directVal &&
@@ -156,7 +158,7 @@ const extractConfig = (module: ModuleConfig) => {
                 'items' in directVal &&
                 Array.isArray((directVal as { items: unknown }).items)
             ) {
-                items = (directVal as { items: Array<{ id?: string; label?: string; value?: string }> }).items;
+                items = (directVal as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> }).items;
             }
             const raw = getComponentText(criteriaComp);
             if (!items && raw) {
@@ -170,12 +172,12 @@ const extractConfig = (module: ModuleConfig) => {
                         'items' in parsed &&
                         Array.isArray((parsed as { items: unknown }).items)
                     ) {
-                        items = (parsed as { items: Array<{ id?: string; label?: string; value?: string }> }).items;
+                        items = (parsed as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> }).items;
                     }
                 } catch { /* ignore parse errors */ }
             }
             if (!items && Array.isArray(criteriaComp.settings?.items)) {
-                items = criteriaComp.settings.items as Array<{ id?: string; label?: string; value?: string }>;
+                items = criteriaComp.settings.items as Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }>;
             }
             if (items) {
                 items.forEach((item, idx) => {
@@ -183,9 +185,15 @@ const extractConfig = (module: ModuleConfig) => {
                     if (!label) {
                         return;
                     }
+                    // Extract image from criteria item (IATCriteriaEditor stores { s3Key, url })
+                    const img = item.image as { s3Key?: string; url?: string } | undefined;
+                    const imageUrl = img?.url?.trim() || undefined;
+                    const imageStorageKey = img?.s3Key || undefined;
                     attributes.push({
                         id: item.id || `attr-${idx}`,
                         label: label || `Attribute ${idx + 1}`,
+                        imageUrl,
+                        imageStorageKey,
                     });
                 });
             } else {
@@ -233,7 +241,10 @@ const extractConfig = (module: ModuleConfig) => {
     const exerciseInstructions = interpolateTargets(rawExercise);
     const testInstructions = interpolateTargets(rawTest);
 
-    return { testType, primingTime, targets, attributes, exerciseInstructions, testInstructions };
+    const showResultsComp = components.find(c => c.id === 'show-results');
+    const showResults = getComponentText(showResultsComp) === 'true';
+
+    return { testType, primingTime, targets, attributes, exerciseInstructions, testInstructions, showResults };
 };
 
 // ---------------------------------------------------------------------------
@@ -266,27 +277,30 @@ const buildBlocks = (
     const targetLeft = targets[0];
     const targetRight = targets[targets.length - 1];
 
-    // --- Block 1: attribute classification (text-only stimuli) ---
+    // --- Block 1: attribute classification (text or image stimuli) ---
+    // Distribute criteria evenly: first half → left, second half → right
     const block1Trials: IATTrial[] = [];
-    // Use each attribute label as a stimulus — assign to its own side
-    for (const attr of attributes) {
-        const correct = attr.id === attrLeft.id ? attrLeft.id : attrRight.id;
+    for (let idx = 0; idx < attributes.length; idx++) {
+        const attr = attributes[idx];
         block1Trials.push({
             targetId: attr.id,
             targetLabel: attr.label,
-            correctCriterionId: correct,
+            targetImage: attr.imageUrl,
+            correctCriterionId: idx < attributes.length / 2 ? 'attr-left' : 'attr-right',
             phase: 'test',
         });
     }
     // Repeat to get enough trials (min ~6)
     const minBlock1 = Math.max(6, attributes.length * 2);
     while (block1Trials.length < minBlock1) {
-        for (const attr of attributes) {
+        for (let idx = 0; idx < attributes.length; idx++) {
             if (block1Trials.length >= minBlock1) break;
+            const attr = attributes[idx];
             block1Trials.push({
                 targetId: attr.id,
                 targetLabel: attr.label,
-                correctCriterionId: attr.id === attrLeft.id ? attrLeft.id : attrRight.id,
+                targetImage: attr.imageUrl,
+                correctCriterionId: idx < attributes.length / 2 ? 'attr-left' : 'attr-right',
                 phase: 'test',
             });
         }
@@ -339,12 +353,13 @@ const buildBlocks = (
         });
     }
     // Attribute stimuli — correct = same side as block 1
-    for (const attr of attributes) {
-        const correct = attr.id === attrLeft.id ? 'combined-left' : 'combined-right';
+    for (let idx = 0; idx < attributes.length; idx++) {
+        const attr = attributes[idx];
         block3Trials.push({
             targetId: attr.id,
             targetLabel: attr.label,
-            correctCriterionId: correct,
+            targetImage: attr.imageUrl,
+            correctCriterionId: idx < attributes.length / 2 ? 'combined-left' : 'combined-right',
             phase: 'test',
         });
     }
@@ -361,12 +376,14 @@ const buildBlocks = (
                 phase: 'test',
             });
         }
-        for (const attr of attributes) {
+        for (let idx = 0; idx < attributes.length; idx++) {
             if (block3Trials.length >= minBlock3) break;
+            const attr = attributes[idx];
             block3Trials.push({
                 targetId: attr.id,
                 targetLabel: attr.label,
-                correctCriterionId: attr.id === attrLeft.id ? 'combined-left' : 'combined-right',
+                targetImage: attr.imageUrl,
+                correctCriterionId: idx < attributes.length / 2 ? 'combined-left' : 'combined-right',
                 phase: 'test',
             });
         }
@@ -432,47 +449,58 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const { t } = useTranslation();
     const { saveResponse } = useParticipantStore();
 
-    const { primingTime, targets, attributes, exerciseInstructions, testInstructions } = useMemo(
+    const { primingTime, targets, attributes, exerciseInstructions, testInstructions, showResults } = useMemo(
         () => extractConfig(module),
         [module]
     );
 
-    const [resolvedImageByTargetId, setResolvedImageByTargetId] = useState<Record<string, string>>({});
+    const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
 
     useEffect(() => {
         let cancelled = false;
         (async (): Promise<void> => {
             const next: Record<string, string> = {};
-            for (const t of targets) {
-                if (t.imageStorageKey && !t.imageUrl) {
-                    try {
-                        next[t.id] = await mediaService.getMediaUrl(t.imageStorageKey);
-                    } catch {
-                        /* ignore resolution errors */
-                    }
+            const pending = [
+                ...targets.filter(t => t.imageStorageKey && !t.imageUrl),
+                ...attributes.filter(a => a.imageStorageKey && !a.imageUrl),
+            ];
+            for (const item of pending) {
+                try {
+                    next[item.id] = await mediaService.getMediaUrl(item.imageStorageKey!);
+                } catch {
+                    /* ignore resolution errors */
                 }
             }
             if (!cancelled) {
-                setResolvedImageByTargetId(next);
+                setResolvedImages(next);
             }
         })();
         return () => {
             cancelled = true;
         };
-    }, [targets]);
+    }, [targets, attributes]);
 
     const targetsWithResolvedImages = useMemo(
         () =>
             targets.map((t) => ({
                 ...t,
-                imageUrl: t.imageUrl || resolvedImageByTargetId[t.id],
+                imageUrl: t.imageUrl || resolvedImages[t.id],
             })),
-        [targets, resolvedImageByTargetId]
+        [targets, resolvedImages]
+    );
+
+    const attributesWithResolvedImages = useMemo(
+        () =>
+            attributes.map((a) => ({
+                ...a,
+                imageUrl: a.imageUrl || resolvedImages[a.id],
+            })),
+        [attributes, resolvedImages]
     );
 
     const blocks = useMemo(
-        () => buildBlocks(targetsWithResolvedImages, attributes),
-        [targetsWithResolvedImages, attributes]
+        () => buildBlocks(targetsWithResolvedImages, attributesWithResolvedImages),
+        [targetsWithResolvedImages, attributesWithResolvedImages]
     );
 
     const [blockIndex, setBlockIndex] = useState(0);
@@ -525,7 +553,8 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         } else if (currentBlock.step === 2) {
             selectedCriterionId = side === 'left' ? targets[0].id : targets[targets.length - 1].id;
         } else {
-            selectedCriterionId = side === 'left' ? attributes[0].id : attributes[1].id;
+            // Block 1: side-based IDs matching block 1 trial construction
+            selectedCriterionId = side === 'left' ? 'attr-left' : 'attr-right';
         }
 
         const correct = selectedCriterionId === currentTrial.correctCriterionId;
@@ -842,6 +871,11 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     // -----------------------------------------------------------------------
 
     if (phase === 'complete') {
+        // Compute simple stats for results display
+        const correctCount = results.filter(r => r.correct).length;
+        const accuracy = results.length > 0 ? Math.round((correctCount / results.length) * 100) : 0;
+        const avgRT = results.length > 0 ? Math.round(results.reduce((sum, r) => sum + r.rt, 0) / results.length) : 0;
+
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
                 <div className="text-center space-y-4">
@@ -853,6 +887,23 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     <p className="text-lg font-medium text-gray-700">
                         {t('iat.complete', 'Test completed. Thank you!')}
                     </p>
+                    {showResults && results.length > 0 && (
+                        <div className="mt-6 w-full max-w-sm mx-auto bg-gray-50 rounded-xl p-5 space-y-4 text-left">
+                            <h3 className="text-sm font-semibold text-gray-900 text-center">
+                                {t('iat.yourResults', 'Your results')}
+                            </h3>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                                    <p className="text-2xl font-bold text-blue-600">{accuracy}%</p>
+                                    <p className="text-xs text-gray-500 mt-1">{t('iat.accuracy', 'Accuracy')}</p>
+                                </div>
+                                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                                    <p className="text-2xl font-bold text-blue-600">{avgRT}<span className="text-sm font-normal">ms</span></p>
+                                    <p className="text-xs text-gray-500 mt-1">{t('iat.avgResponseTime', 'Avg. response time')}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
