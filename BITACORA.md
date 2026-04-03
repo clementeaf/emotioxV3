@@ -5,7 +5,20 @@
 
 ---
 
-## Última actualización: 2026-04-01 (sesión 28)
+## Última actualización: 2026-04-03 (sesión 29)
+
+---
+
+## Sesión 29: 3 de abril de 2026 — IAT builder completo + Screener builder + participant renderers (v0.49.0)
+
+- **IAT stage type selector:** Drawer "Add Stage" muestra selector de tipo al elegir Implicit Association. Backend recibe `defaultModuleName` para crear el módulo correcto.
+- **IAT builder grid:** Targets/objects en columnas responsivas. `implicitAssociationBuilder.ts` particiona componentes por `groupLabel` (Target N / Object N).
+- **Stage filtering por técnica:** Drawer filtra stages disponibles según `default_stages` de la técnica. Backend expone `technique_default_stages` en el detalle del research.
+- **Screener builder:** Headers por tipo, toggle para checkboxes, `RadioChoicesEditor` grid, hooks de trim/pad para choices.
+- **FileUpload single:** Respeta `fileUpload.multiple` (default false). Fix overflow en grid.
+- **Participant renderers:** IAT motor reescrito (config robusta, imágenes S3, bloques estándar). Eye Tracking mejorado. Screener integrado.
+- **Migraciones 018-019:** Templates IAT corregidos (componentes y asociaciones al stage template).
+- **Verificación de flujo completo:** IAT se guarda correctamente en backend (`config.structure.components`), se entrega vía endpoint público (`extractStructure`), se normaliza en participant-frontend, y se renderiza según tipo detectado por nombre del módulo.
 
 ---
 

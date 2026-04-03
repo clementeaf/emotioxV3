@@ -1,3 +1,32 @@
+## v0.49.0 — IAT builder completo, Screener builder UX, participant renderers (2026-04-03)
+
+### research-frontend
+
+- **IAT stage type selector.** Al agregar un stage "Implicit Association" desde el drawer, se muestra un selector con los 3 tipos de test (Attribute Testing, Comparing Attribute, Objects Comparing). El backend crea el módulo correcto según la selección.
+- **IAT builder grid layout.** Los targets/objects de cada tipo IAT se renderizan en columnas responsivas (2-5 cols según cantidad). Utility `implicitAssociationBuilder.ts` detecta módulos IAT y particiona componentes por `groupLabel`.
+- **Technique-based stage filtering.** El drawer "Add Stage" filtra los stages disponibles según los `default_stages` de la técnica del research. Solo muestra stages que la técnica define.
+- **Screener builder UX.** Headers por tipo de componente (choice, checkbox, ranking). Toggle visual para checkboxes. `RadioChoicesEditor` en grid. Hooks `useScreenerSingleChoiceTrim` y `useScreenerMultipleChoiceGroupPad` para mantener choices consistentes.
+- **FileUpload single mode.** Respeta `component.fileUpload.multiple` (default `false`) — un solo archivo por target IAT. Fix overflow en `FileUploadAdvanced` para contenedores grid (`min-w-0`).
+
+### backend
+
+- **`defaultModuleName` en createStage.** Permite crear un stage Implicit Association con un tipo de módulo específico en vez de siempre Attribute Testing.
+- **`technique_default_stages` en research detail.** El endpoint de detalle ahora incluye los `default_stages` de la técnica para que el frontend filtre stages.
+
+### participant-frontend
+
+- **ImplicitAssociationRenderer reescrito.** Motor IAT mejorado: extracción robusta de config (4 formatos de criteria), resolución async de imágenes S3, bloques estándar (atributos → targets → combinado), priming configurable.
+- **EyeTrackingRenderer mejorado.** Resolución de estímulos S3, countdown timer, feedback visual de clicks.
+- **ScreenerRenderer mejorado.** Integración con utils de screener participant.
+- **DynamicStep simplificado.** Detección de módulos IAT/ET/Screener por nombre, delegación directa a renderers.
+
+### database
+
+- **Migración 018:** Fix de templates IAT — Attribute Testing (2 targets + criteria max 5), Comparing Attribute (3 objects + 2 dimensions + criteria max 15), Objects Comparing (5 targets + criteria-1/criteria-2 + criteria max 15).
+- **Migración 019:** Fix de asociaciones `stage_templates_module_templates` — los 3 tipos IAT correctamente asociados al stage template "Implicit Association".
+
+---
+
 ## v0.48.0 — Technique stage creation fix, backend deploy (2026-04-01)
 
 ### backend
