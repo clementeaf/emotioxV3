@@ -5,6 +5,10 @@ import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText } from '../../utils/moduleComponent';
 import { mediaService } from '../../services/media.service';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 interface EyeTrackingRendererProps {
     module: ModuleConfig;
     onComplete?: () => void;
@@ -17,16 +21,35 @@ interface Fixation {
     timestamp: number;
 }
 
-type ETPhase = 'instructions' | 'viewing' | 'complete';
+interface CalibrationPoint {
+    id: number;
+    x: number; // percentage
+    y: number; // percentage
+    completed: boolean;
+}
 
 /**
- * Extract Eye Tracking config from module structure.
- * Mirrors backend extractEyeTrackingConfig.
+ * Phases:
+ * intro → setup → preparing → calibration → viewing → complete
  */
+type ETPhase = 'intro' | 'setup' | 'preparing' | 'calibration' | 'viewing' | 'complete';
+
+const TOTAL_STEPS = 3;
+
+// 9-point calibration grid (3x3) — positions as % of viewport
+const CALIBRATION_POINTS: Omit<CalibrationPoint, 'completed'>[] = [
+    { id: 0, x: 5, y: 8 },   { id: 1, x: 50, y: 8 },   { id: 2, x: 95, y: 8 },
+    { id: 3, x: 5, y: 50 },  { id: 4, x: 50, y: 50 },  { id: 5, x: 95, y: 50 },
+    { id: 6, x: 5, y: 92 },  { id: 7, x: 50, y: 92 },  { id: 8, x: 95, y: 92 },
+];
+
+// ---------------------------------------------------------------------------
+// Config extraction (mirrors backend)
+// ---------------------------------------------------------------------------
+
 const extractConfig = (module: ModuleConfig) => {
     const components = module.structure?.components || [];
 
-    // Stimulus image — file-upload or known IDs
     let stimulusUrl = '';
     const fileUploadComp = components.find(c =>
         c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
@@ -34,7 +57,6 @@ const extractConfig = (module: ModuleConfig) => {
     if (fileUploadComp) {
         const raw = getComponentText(fileUploadComp);
         if (raw) {
-            // Could be a JSON array (like Navigation Flow images) or a direct URL
             try {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed) && parsed.length > 0) {
@@ -44,13 +66,11 @@ const extractConfig = (module: ModuleConfig) => {
                     stimulusUrl = parsed;
                 }
             } catch {
-                // Direct URL string
                 stimulusUrl = raw;
             }
         }
     }
 
-    // Modality
     let modality: 'stand_alone' | 'shelf' = 'stand_alone';
     const modalityComp = components.find(c =>
         c.id === 'modality' || c.id === 'test-mode' || c.id === 'display-mode'
@@ -60,7 +80,6 @@ const extractConfig = (module: ModuleConfig) => {
         if (val.includes('shelf')) modality = 'shelf';
     }
 
-    // Task description
     let taskDescription = '';
     const descComp = components.find(c =>
         c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
@@ -69,7 +88,6 @@ const extractConfig = (module: ModuleConfig) => {
         taskDescription = getComponentText(descComp) || descComp.placeholder?.text || '';
     }
 
-    // Viewing duration (ms) — default 10 seconds
     let viewingDuration = 10000;
     const durationComp = components.find(c =>
         c.id === 'viewing-duration' || c.id === 'duration' || c.id === 'exposure-time'
@@ -82,12 +100,27 @@ const extractConfig = (module: ModuleConfig) => {
     return { stimulusUrl, modality, taskDescription, viewingDuration };
 };
 
-/**
- * Eye Tracking renderer using click/tap tracking as proxy for gaze data.
- * Records click positions, timestamps, and durations on stimulus images.
- * Response format: component_id = 'eye-tracking-data',
- * value = { fixations: [...], calibrationQuality: 'click-proxy', integrityScore: 1.0 }
- */
+// ---------------------------------------------------------------------------
+// Step progress pill (shared with IAT)
+// ---------------------------------------------------------------------------
+
+const StepProgressPill: React.FC<{ step: number; total: number; percent: number }> = ({ step, total, percent }) => (
+    <div className="inline-flex items-center gap-3 bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium">
+        <span>Step {step} of {total}</span>
+        <div className="w-24 h-1.5 bg-blue-400 rounded-full overflow-hidden">
+            <div
+                className="h-full bg-white rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(percent, 100)}%` }}
+            />
+        </div>
+        <span>{Math.min(percent, 100)}%</span>
+    </div>
+);
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module, onComplete }) => {
     const { t } = useTranslation();
     const { saveResponse } = useParticipantStore();
@@ -97,7 +130,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         [module]
     );
 
-    const [phase, setPhase] = useState<ETPhase>('instructions');
+    const [phase, setPhase] = useState<ETPhase>('intro');
     const [resolvedUrl, setResolvedUrl] = useState<string>('');
     const [fixations, setFixations] = useState<Fixation[]>([]);
     const [timeLeft, setTimeLeft] = useState(Math.ceil(viewingDuration / 1000));
@@ -109,14 +142,24 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const naturalSizeRef = useRef<{ w: number; h: number } | null>(null);
     const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
-    // Resolve stimulus URL (s3Key → presigned URL)
+    // Setup checkboxes
+    const [checks, setChecks] = useState([false, false, false, false]);
+    const allChecked = checks.every(Boolean);
+
+    // Calibration state
+    const [calibrationPoints, setCalibrationPoints] = useState<CalibrationPoint[]>(
+        CALIBRATION_POINTS.map(p => ({ ...p, completed: false }))
+    );
+    const [activeCalibrationPoint, setActiveCalibrationPoint] = useState<number | null>(null);
+    const calibrationCompleted = calibrationPoints.every(p => p.completed);
+
+    // Resolve stimulus URL
     useEffect(() => {
         if (!stimulusUrl) return;
         let cancelled = false;
 
         const resolve = async () => {
             try {
-                // If it's an s3Key, resolve via media service
                 if (stimulusUrl.startsWith('/') || (!stimulusUrl.startsWith('http') && !stimulusUrl.startsWith('blob'))) {
                     const url = await mediaService.getMediaUrl(stimulusUrl);
                     if (!cancelled) setResolvedUrl(url);
@@ -146,7 +189,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             });
         }, 1000);
 
-        // End viewing after duration
         const timeout = setTimeout(() => {
             setPhase('complete');
         }, viewingDuration);
@@ -157,7 +199,22 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         };
     }, [phase, viewingDuration]);
 
-    // Save results when complete — use ref to capture final fixations
+    // "Preparing" phase auto-advance after 2s
+    useEffect(() => {
+        if (phase !== 'preparing') return;
+        const timer = setTimeout(() => setPhase('calibration'), 2000);
+        return () => clearTimeout(timer);
+    }, [phase]);
+
+    // Auto-advance from calibration to viewing when all points clicked
+    useEffect(() => {
+        if (phase === 'calibration' && calibrationCompleted) {
+            const timer = setTimeout(() => setPhase('viewing'), 600);
+            return () => clearTimeout(timer);
+        }
+    }, [phase, calibrationCompleted]);
+
+    // Save results when complete
     useEffect(() => {
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
@@ -174,15 +231,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             });
             saveResponse(module.id, 'eye-tracking-data', responseValue);
 
-            // Auto-advance after brief delay
-            const timer = setTimeout(() => {
-                onComplete?.();
-            }, 1200);
+            const timer = setTimeout(() => onComplete?.(), 1200);
             return () => clearTimeout(timer);
         }
     }, [phase, module.id, saveResponse, onComplete]);
 
-    // Handle image load — capture natural dimensions once
     const handleImageLoad = useCallback(() => {
         if (imgRef.current) {
             const size = {
@@ -194,7 +247,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }
     }, []);
 
-    // Handle click/tap on stimulus image — record as fixation
     const handleImageInteraction = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (phase !== 'viewing' || !imgRef.current) return;
 
@@ -215,7 +267,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             clientY = e.clientY;
         }
 
-        // Convert to natural image coordinates
         const relX = (clientX - rect.left) / rect.width;
         const relY = (clientY - rect.top) / rect.height;
         const x = Math.round(relX * naturalW);
@@ -224,14 +275,14 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         const now = performance.now();
         const duration = lastClickRef.current
             ? Math.round(now - lastClickRef.current.time)
-            : 200; // Default fixation duration for first click
+            : 200;
 
         lastClickRef.current = { time: now };
 
         const newFixation: Fixation = {
             x,
             y,
-            duration: Math.min(duration, 5000), // Cap at 5s
+            duration: Math.min(duration, 5000),
             timestamp: Math.round(now),
         };
 
@@ -242,7 +293,31 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         });
     }, [phase]);
 
-    // Unconfigured state
+    // Handle calibration point click
+    const handleCalibrationClick = useCallback((pointId: number) => {
+        setActiveCalibrationPoint(pointId);
+        // Brief feedback before marking as completed
+        setTimeout(() => {
+            setCalibrationPoints(prev =>
+                prev.map(p => p.id === pointId ? { ...p, completed: true } : p)
+            );
+            setActiveCalibrationPoint(null);
+        }, 300);
+    }, []);
+
+    // Toggle a setup checkbox
+    const toggleCheck = useCallback((index: number) => {
+        setChecks(prev => {
+            const next = [...prev];
+            next[index] = !next[index];
+            return next;
+        });
+    }, []);
+
+    // -----------------------------------------------------------------------
+    // Unconfigured
+    // -----------------------------------------------------------------------
+
     if (!stimulusUrl) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
@@ -253,47 +328,184 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     }
 
-    // Instructions screen
-    if (phase === 'instructions') {
+    // -----------------------------------------------------------------------
+    // Phase: intro — "In this section"
+    // -----------------------------------------------------------------------
+
+    if (phase === 'intro') {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
-                <div className="w-full max-w-lg space-y-6 text-center">
-                    <h2 className="text-2xl font-bold text-gray-900">
-                        {module.name}
+                <div className="w-full max-w-lg space-y-6">
+                    <h2 className="text-xl font-bold text-gray-900">
+                        {t('eyeTracking.introTitle', 'In this section')}
                     </h2>
                     {taskDescription && (
                         <p className="text-gray-600">{taskDescription}</p>
                     )}
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                        <p className="text-gray-600">
-                            {t('eyeTracking.instructions', 'An image will appear. Tap or click on the areas that catch your attention.')}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                            {t('eyeTracking.duration', 'You will have {{seconds}} seconds.', {
-                                seconds: Math.ceil(viewingDuration / 1000),
-                            })}
-                        </p>
-                    </div>
+                    <p className="text-gray-600">
+                        {t('eyeTracking.introDescription', 'You will be presented with images. Your eye movements will be tracked to understand what catches your attention.')}
+                    </p>
+                    <p className="text-gray-600">
+                        {t('eyeTracking.introSpeed', 'Try to look naturally at the content presented on screen.')}
+                    </p>
                     <button
-                        onClick={() => setPhase('viewing')}
-                        disabled={!resolvedUrl}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => setPhase('setup')}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                     >
-                        {resolvedUrl
-                            ? t('eyeTracking.start', 'Start')
-                            : t('eyeTracking.loading', 'Loading image...')}
+                        {t('eyeTracking.next', 'Next')}
                     </button>
                 </div>
             </div>
         );
     }
 
-    // Viewing phase — show stimulus, capture clicks
+    // -----------------------------------------------------------------------
+    // Phase: setup — camera preview placeholder + 4 checkboxes + "Ready"
+    // -----------------------------------------------------------------------
+
+    if (phase === 'setup') {
+        const checkLabels = [
+            t('eyeTracking.check1', 'I am sitting comfortably in front of my camera and will not lie down, stand, nor move out of position.'),
+            t('eyeTracking.check2', 'My device is stable and on the same level as my face.'),
+            t('eyeTracking.check3', 'My face is well lit with no bright light behind me or from my side.'),
+            t('eyeTracking.check4', 'I will not wear glasses, unless they are required for vision. If they are required, they are not reflecting light and my eyes are clearly visible.'),
+        ];
+
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
+                <StepProgressPill step={1} total={TOTAL_STEPS} percent={30} />
+
+                <div className="w-full max-w-lg space-y-6 mt-8">
+                    {/* Camera preview placeholder */}
+                    <div className="w-40 h-32 bg-gray-800 rounded-lg mx-auto flex items-center justify-center">
+                        <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                    </div>
+
+                    <h2 className="text-xl font-bold text-gray-900">
+                        {t('eyeTracking.setupTitle', 'To continue')}
+                    </h2>
+                    <p className="text-gray-500 text-sm">
+                        {t('eyeTracking.setupSubtitle', 'Please confirm that you meet all of the requirements mentioned below by ticking each of the checkboxes.')}
+                    </p>
+
+                    {/* 4 checkboxes */}
+                    <div className="space-y-4">
+                        {checkLabels.map((label, idx) => (
+                            <label key={idx} className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={checks[idx]}
+                                    onChange={() => toggleCheck(idx)}
+                                    className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700">{label}</span>
+                            </label>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={() => setPhase('preparing')}
+                        disabled={!allChecked}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {t('eyeTracking.ready', 'Ready')}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase: preparing — brief loading screen
+    // -----------------------------------------------------------------------
+
+    if (phase === 'preparing') {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
+                <StepProgressPill step={1} total={TOTAL_STEPS} percent={30} />
+
+                <div className="mt-12 text-center space-y-4">
+                    <h2 className="text-xl font-bold text-gray-900">
+                        {t('eyeTracking.preparing', 'Preparing eye tracking session...')}
+                    </h2>
+                    {/* Simple spinner */}
+                    <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                </div>
+            </div>
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase: calibration — 9 red points grid
+    // -----------------------------------------------------------------------
+
+    if (phase === 'calibration') {
+        const completedCount = calibrationPoints.filter(p => p.completed).length;
+        const calibrationPercent = Math.round(30 + (completedCount / calibrationPoints.length) * 35);
+
+        return (
+            <div className="relative w-full min-h-[400px]" style={{ height: '80vh' }}>
+                {/* Progress pill */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                    <StepProgressPill step={1} total={TOTAL_STEPS} percent={calibrationPercent} />
+                </div>
+
+                {/* Instruction text */}
+                {completedCount === 0 && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 text-center">
+                        <p className="text-sm text-gray-500">
+                            {t('eyeTracking.calibrationHint', 'Look at each red point and click on it')}
+                        </p>
+                    </div>
+                )}
+
+                {/* 9 calibration points */}
+                {calibrationPoints.map(point => (
+                    <button
+                        key={point.id}
+                        onClick={() => !point.completed && handleCalibrationClick(point.id)}
+                        disabled={point.completed}
+                        className="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-200"
+                        style={{
+                            left: `${point.x}%`,
+                            top: `${point.y}%`,
+                        }}
+                    >
+                        {point.completed ? (
+                            // Green check circle
+                            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        ) : activeCalibrationPoint === point.id ? (
+                            // Active/pulsing state
+                            <div className="w-8 h-8 rounded-full bg-red-400 animate-ping" />
+                        ) : (
+                            // Red dot
+                            <div className="w-6 h-6 rounded-full bg-red-500 hover:bg-red-400 transition-colors cursor-pointer shadow-md" />
+                        )}
+                    </button>
+                ))}
+            </div>
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase: viewing — stimulus image with click tracking
+    // -----------------------------------------------------------------------
+
     if (phase === 'viewing') {
+        const viewingPercent = Math.round(65 + (1 - timeLeft / Math.ceil(viewingDuration / 1000)) * 35);
+
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-2 py-4 select-none">
+                <StepProgressPill step={2} total={TOTAL_STEPS} percent={viewingPercent} />
+
                 {/* Timer */}
-                <div className="mb-3 text-center">
+                <div className="mt-4 mb-3 text-center">
                     <span className={`text-lg font-mono font-bold ${
                         timeLeft <= 3 ? 'text-red-500' : 'text-gray-500'
                     }`}>
@@ -338,7 +550,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     })}
                 </div>
 
-                {/* Fixation count */}
                 <p className="mt-3 text-xs text-gray-400">
                     {t('eyeTracking.clicks', '{{count}} points recorded', {
                         count: fixations.length,
@@ -348,12 +559,21 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     }
 
-    // Complete screen
+    // -----------------------------------------------------------------------
+    // Phase: complete
+    // -----------------------------------------------------------------------
+
     if (phase === 'complete') {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
-                <div className="text-center space-y-4">
-                    <div className="text-5xl">&#10003;</div>
+                <StepProgressPill step={3} total={TOTAL_STEPS} percent={100} />
+
+                <div className="mt-8 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mx-auto">
+                        <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
                     <p className="text-lg font-medium text-gray-700">
                         {t('eyeTracking.complete', 'Test completed. Thank you!')}
                     </p>

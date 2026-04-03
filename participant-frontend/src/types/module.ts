@@ -8,7 +8,18 @@ interface ModuleComponentSettings {
 export interface ModuleComponent {
     id: string;
     name?: string;
-    type: 'input' | 'textarea' | 'select' | 'file-upload' | 'checkbox' | 'radio' | 'choices';
+    /** Backend may send cognitive / Screener builder types beyond the minimal participant union */
+    type:
+        | 'input'
+        | 'textarea'
+        | 'select'
+        | 'file-upload'
+        | 'checkbox'
+        | 'radio'
+        | 'choices'
+        | 'option-list'
+        | 'checkbox-list'
+        | 'ranking-list';
     label?: string;
     /**
      * Legacy field. In the current backend contract, readonly defaults are typically in settings.defaultValue.

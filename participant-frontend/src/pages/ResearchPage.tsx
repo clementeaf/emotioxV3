@@ -698,22 +698,29 @@ export const ResearchPage = () => {
           };
         }
 
-        // Build dynamic steps order from backend order_index
+        // Build dynamic steps order: stages first (order_index), then modules within each stage.
+        // Do not sort all modules by module order_index globally — that interleaves different stages
+        // (e.g. Implicit Association + Cognitive Tasks) when order_index is scoped per-stage.
         const dynamicOrder: string[] = [];
 
-        // Collect all modules across stages, sorted by stage order then module order_index
-        const allModules: Array<{ module: unknown; order_index: number }> = [];
-        stages.forEach(stage => {
+        const sortedStages = [...stages].sort(
+          (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+        );
+
+        const allModules: Array<{ module: unknown }> = [];
+        for (const stage of sortedStages) {
           const mods = stage.modules || [];
-          mods.forEach(mod => {
-            const oi = isRecord(mod) && typeof (mod as Record<string, unknown>).order_index === 'number'
-              ? (mod as Record<string, unknown>).order_index as number
-              : 0;
-            allModules.push({ module: mod, order_index: oi });
+          const sortedMods = [...mods].sort((a, b) => {
+            const oi = (m: unknown): number =>
+              isRecord(m) && typeof (m as Record<string, unknown>).order_index === 'number'
+                ? ((m as Record<string, unknown>).order_index as number)
+                : 0;
+            return oi(a) - oi(b);
           });
-        });
-        // Sort by order_index (backend already sorts, but ensure client-side too)
-        allModules.sort((a, b) => a.order_index - b.order_index);
+          for (const mod of sortedMods) {
+            allModules.push({ module: mod });
+          }
+        }
 
         allModules.forEach(({ module }) => {
           try {
@@ -739,7 +746,7 @@ export const ResearchPage = () => {
         const orderedSteps: string[] = [];
         if (dynamicOrder.includes('welcome')) orderedSteps.push('welcome');
         if (dynamicOrder.includes('demographics') || modulesMap['demographics']) orderedSteps.push('demographics');
-        // Add all non-special steps in their order_index order
+        // Add all non-special steps in stage order, then module order within each stage
         dynamicOrder.forEach(s => {
           if (s !== 'welcome' && s !== 'demographics' && s !== 'thank-you') {
             orderedSteps.push(s);

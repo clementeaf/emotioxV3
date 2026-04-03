@@ -18,6 +18,7 @@ import { researchService } from '../../services/research.service';
 import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { Modal } from '../ui/Modal';
+import { Drawer } from '../ui/Drawer';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 import { SidebarSkeleton } from '../ui/Skeleton';
 import { useToast } from '../../hooks/useToast';
@@ -78,6 +79,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
     const [showStageSelector, setShowStageSelector] = useState(false);
     const [isAddingStage, setIsAddingStage] = useState(false);
+    const [showIatTypeSelector, setShowIatTypeSelector] = useState(false);
     const { stageId: activeStageId } = useParams<{ stageId?: string }>();
     const [deleteStageModalOpen, setDeleteStageModalOpen] = useState(false);
     const [stageToDelete, setStageToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -168,20 +170,36 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
     };
 
+    // Stages that can only exist once per research (singletons)
+    const SINGLETON_STAGES = new Set(['Welcome Screen', 'Thank You Screen', 'Research Configuration']);
+
     const loadStageTemplates = async () => {
         try {
             setLoadingStages(true);
             const allStages = await stageTemplatesService.getAll();
-            
-            // Filter out stages that already exist in the research
+
             const existingStageNames = new Set(
                 (activeResearch?.stages || []).map(stage => stage.name)
             );
-            
-            const availableStagesFiltered = allStages.filter(
-                stage => !existingStageNames.has(stage.name)
-            );
-            
+
+            // If the technique defines default_stages, only allow those stage names
+            const techniqueStageNames = activeResearch?.technique_default_stages
+                ? new Set(activeResearch.technique_default_stages.map(s => s.name))
+                : null;
+
+            const availableStagesFiltered = allStages.filter(stage => {
+                // If technique restricts stages, only show those
+                if (techniqueStageNames && !techniqueStageNames.has(stage.name)) {
+                    return false;
+                }
+                // Singleton stages: hide if already exists
+                if (SINGLETON_STAGES.has(stage.name)) {
+                    return !existingStageNames.has(stage.name);
+                }
+                // Repeatable stages (Screener, Cognitive Tasks, Implicit Association, etc.): always show
+                return true;
+            });
+
             setAvailableStages(availableStagesFiltered);
         } catch (error: unknown) {
             console.error('Failed to load stage templates', error);
@@ -195,14 +213,21 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
     };
 
-    const handleAddStage = async (stageName: string): Promise<void> => {
+    const IAT_MODULE_TYPES = [
+        { name: 'Attribute Testing', description: '2 targets, up to 5 criteria' },
+        { name: 'Comparing Attribute', description: 'Up to 3 objects, 2 dimensions, up to 15 criteria' },
+        { name: 'Objects Comparing', description: 'Up to 5 targets, positive/negative criteria' },
+    ];
+
+    const handleAddStage = async (stageName: string, defaultModuleName?: string): Promise<void> => {
         if (!activeResearch) return;
 
         try {
             setIsAddingStage(true);
-            await researchService.addStage(activeResearch.id, stageName);
+            await researchService.addStage(activeResearch.id, stageName, undefined, defaultModuleName);
             toast.success(`Stage "${stageName}" added successfully`);
             setShowStageSelector(false);
+            setShowIatTypeSelector(false);
             await invalidateActiveResearch(activeResearch.id);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to add stage';
@@ -540,13 +565,13 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 isLoading={isDeleting}
             />
 
-            <Modal
+            <Drawer
                 isOpen={showStageSelector}
-                onClose={() => setShowStageSelector(false)}
-                title="Select Stage to Add"
-                size="md"
+                onClose={() => { setShowStageSelector(false); setShowIatTypeSelector(false); }}
+                title={showIatTypeSelector ? 'Select Implicit Association type' : 'Add Stage'}
+                width="sm"
             >
-                <div className="space-y-2 py-4">
+                <div className="space-y-2">
                     {loadingStages ? (
                         <div className="text-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" />
@@ -557,13 +582,39 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             <p className="text-sm text-gray-500">No stages available</p>
                             <p className="text-xs text-gray-400 mt-1">Create stages in Module Management</p>
                         </div>
+                    ) : showIatTypeSelector ? (
+                        <div className="space-y-2">
+                            <button
+                                onClick={() => setShowIatTypeSelector(false)}
+                                className="text-sm text-gray-500 hover:text-gray-700 mb-3 flex items-center gap-1"
+                            >
+                                ← Back to stages
+                            </button>
+                            {IAT_MODULE_TYPES.map((iatType) => (
+                                <button
+                                    key={iatType.name}
+                                    onClick={() => void handleAddStage('Implicit Association', iatType.name)}
+                                    disabled={isAddingStage}
+                                    className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-accent-600 hover:bg-accent-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <div className="font-medium text-gray-900">{iatType.name}</div>
+                                    <div className="text-sm text-gray-500 mt-1">{iatType.description}</div>
+                                </button>
+                            ))}
+                        </div>
                     ) : (
                         availableStages.map((stage) => (
                             <button
                                 key={stage.id}
-                                onClick={() => void handleAddStage(stage.name)}
+                                onClick={() => {
+                                    if (stage.name === 'Implicit Association') {
+                                        setShowIatTypeSelector(true);
+                                    } else {
+                                        void handleAddStage(stage.name);
+                                    }
+                                }}
                                 disabled={isAddingStage}
-                                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-accent-600 hover:bg-accent-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <div className="font-medium text-gray-900">{stage.name}</div>
                                 {stage.description && (
@@ -578,7 +629,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         ))
                     )}
                 </div>
-            </Modal>
+            </Drawer>
 
             <Modal
                 isOpen={showStatusModal}

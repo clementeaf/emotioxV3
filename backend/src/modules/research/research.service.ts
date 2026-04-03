@@ -518,12 +518,15 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
     
     console.log(`[createStageFromTemplateInternal] Created stage "${normalizedName}" with ID: ${newStage.id}`);
     
-    // Get modules associated with this stage template
+    // Get modules associated with this stage template.
+    // For "Implicit Association", only auto-create the default module (display_order = 0 = "Attribute Testing").
+    // The other IAT modules (Comparing Attribute, Objects Comparing) are available via the template drawer.
+    const isImplicitAssociation = normalizedName === 'Implicit Association';
     let modulesQuery = `
         SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
         FROM stage_templates_module_templates stmt
         JOIN module_templates mt ON stmt.module_template_id = mt.id
-        WHERE stmt.stage_template_id = ? AND mt.is_active = true
+        WHERE stmt.stage_template_id = ? AND mt.is_active = true${isImplicitAssociation ? ' AND stmt.display_order = 0' : ''}
         ORDER BY stmt.display_order
     `;
     let modulesResult = await client.query(modulesQuery, [stageTemplateId]);
@@ -722,7 +725,8 @@ export const getById = async (researchId: string, userId: string, role?: string)
     const query = `
     SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.config, r.created_at, r.updated_at,
            rt.name as research_type_name,
-           rtech.name as research_technique_name
+           rtech.name as research_technique_name,
+           rtech.default_stages as technique_default_stages
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
@@ -745,11 +749,23 @@ export const getById = async (researchId: string, userId: string, role?: string)
             settings = {};
         }
     }
-    const { config, ...researchWithoutConfig } = rawResearch;
+    // Parse technique_default_stages from MySQL JSON string
+    let techniqueDefaultStages = rawResearch.technique_default_stages;
+    if (typeof techniqueDefaultStages === 'string') {
+        try {
+            techniqueDefaultStages = JSON.parse(techniqueDefaultStages);
+        } catch {
+            techniqueDefaultStages = null;
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { config: _cfg, technique_default_stages: _tds, ...researchWithoutConfig } = rawResearch;
     const research = {
         ...researchWithoutConfig,
-        settings: settings || {}
-    } as typeof rawResearch & { settings: Record<string, unknown> };
+        settings: settings || {},
+        technique_default_stages: techniqueDefaultStages || null,
+    } as Record<string, unknown>;
 
     // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
     // Step 1: Check if stage_type column exists
@@ -1030,7 +1046,7 @@ export const deleteResearch = async (researchId: string, userId: string, role?: 
  * @param description - Descripción opcional del stage
  * @returns Stage creado
  */
-export const createStage = async (researchId: string, userId: string, stageName: string, description?: string, role?: string) => {
+export const createStage = async (researchId: string, userId: string, stageName: string, description?: string, role?: string, defaultModuleName?: string) => {
     const client = await pool.connect();
     const ownership = buildOwnershipClause(userId, role, '');
 
@@ -1068,14 +1084,27 @@ export const createStage = async (researchId: string, userId: string, stageName:
             stageTemplateId = templateResult.rows[0].id;
             stageType = templateResult.rows[0].stage_type || 'module_collection';
 
-            // Obtener módulos asociados al stage template
+            // Obtener módulos asociados al stage template.
+            // Para Implicit Association, solo auto-crear el módulo seleccionado por el usuario (defaultModuleName).
+            // Si no se especifica, usa display_order=0 (Attribute Testing por defecto).
+            const isImplicitAssociation = stageName === 'Implicit Association';
+            let iatFilter = '';
+            const queryParams: unknown[] = [stageTemplateId];
+            if (isImplicitAssociation) {
+                if (defaultModuleName) {
+                    iatFilter = ' AND mt.name = ?';
+                    queryParams.push(defaultModuleName);
+                } else {
+                    iatFilter = ' AND stmt.display_order = 0';
+                }
+            }
             const modulesResult = await client.query(
                 `SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
                  FROM stage_templates_module_templates stmt
                  JOIN module_templates mt ON stmt.module_template_id = mt.id
-                 WHERE stmt.stage_template_id = ? AND mt.is_active = true
+                 WHERE stmt.stage_template_id = ? AND mt.is_active = true${iatFilter}
                  ORDER BY stmt.display_order`,
-                [stageTemplateId]
+                queryParams
             );
             modulesToClone = modulesResult.rows as Array<{ id: string; name: string; description: string; structure: Record<string, unknown>; display_order: number }>;
         }

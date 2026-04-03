@@ -1397,8 +1397,10 @@ interface IATModuleResult {
  */
 const detectIATTestType = (moduleName: string): IATModuleResult['testType'] => {
   const lower = moduleName.toLowerCase();
-  if (lower.includes('objects comparing') || lower.includes('object comparing')) return 'objects_comparing';
-  if (lower.includes('comparing attribute') || lower.includes('comparing attr')) return 'comparing_attribute';
+  // "Comparing Attribute" = objects + dimensions (objects_comparing extractor)
+  // "Objects Comparing" = targets + positive/negative criteria (comparing_attribute extractor)
+  if (lower.includes('comparing attribute') || lower.includes('comparing attr')) return 'objects_comparing';
+  if (lower.includes('objects comparing') || lower.includes('object comparing')) return 'comparing_attribute';
   return 'attribute_testing';
 };
 
@@ -1458,11 +1460,26 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
         : criteriaComp.value;
       const list = Array.isArray(items) ? items : items?.items ?? [];
       for (const item of list) {
+        const label = (item.label || item.text || item.value || item.name || '').toString().trim();
+        if (!label) continue;
         attributes.push({
           id: item.id || item.value || String(list.indexOf(item)),
-          label: item.label || item.text || item.value || item.name || `Attribute ${list.indexOf(item) + 1}`,
+          label: label || `Attribute ${list.indexOf(item) + 1}`,
           imageUrl: item.imageUrl || item.image || undefined,
         });
+      }
+    }
+
+    // Comparing Attribute template: Positive/Negative inputs when ranking list produced no items
+    if (testType === 'comparing_attribute' && attributes.length === 0) {
+      const c1 = components.find((c: any) => c.id === 'criteria-1');
+      const c2 = components.find((c: any) => c.id === 'criteria-2');
+      const l1 = (c1?.value ?? c1?.placeholder?.text ?? '').toString().trim();
+      const l2 = (c2?.value ?? c2?.placeholder?.text ?? '').toString().trim();
+      if (l1 && l2) {
+        attributes.length = 0;
+        attributes.push({ id: 'criteria-1', label: l1 });
+        attributes.push({ id: 'criteria-2', label: l2 });
       }
     }
   }

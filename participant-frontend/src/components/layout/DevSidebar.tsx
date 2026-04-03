@@ -31,13 +31,49 @@ function getModuleDisplayName(moduleKey: string, moduleName: string): string {
 const SMARTVOC_NAMES = new Set(['CSAT', 'NPS', 'CES', 'CV', 'NEV', 'VOC']);
 const COGNITIVE_NAMES = new Set(['Short Text', 'Long Text', 'Single Choice', 'Multiple Choice', 'Linear Scale', 'Ranking', 'Navigation Flow', 'Preference Test']);
 
-function getModuleGroup(key: string, mod: ModuleConfig): 'general' | 'smartvoc' | 'cognitive' | 'conclusion' {
-    if (key === 'welcome' || key === 'demographics') return 'general';
-    if (key === 'thank-you') return 'conclusion';
+type DevNavGroup =
+    | 'general'
+    | 'smartvoc'
+    | 'screener'
+    | 'implicitAssociation'
+    | 'cognitive'
+    | 'eyeTracking'
+    | 'other'
+    | 'conclusion';
+
+/**
+ * Buckets modules for the dev sidebar. Mirrors DynamicStep renderer selection (by module.name).
+ */
+function getModuleGroup(key: string, mod: ModuleConfig): DevNavGroup {
+    if (key === 'welcome' || key === 'demographics') {
+        return 'general';
+    }
+    if (key === 'thank-you') {
+        return 'conclusion';
+    }
     const name = mod.name || '';
-    if (SMARTVOC_NAMES.has(name) || [...SMARTVOC_NAMES].some(s => name.includes(s))) return 'smartvoc';
-    if (COGNITIVE_NAMES.has(name)) return 'cognitive';
-    return 'cognitive'; // default for unknown module types
+    const lower = name.toLowerCase();
+    if (SMARTVOC_NAMES.has(name) || [...SMARTVOC_NAMES].some((s) => name.includes(s))) {
+        return 'smartvoc';
+    }
+    if (lower === 'screener' || lower.includes('screener')) {
+        return 'screener';
+    }
+    if (
+        lower.includes('attribute testing') ||
+        lower.includes('comparing attribute') ||
+        lower.includes('objects comparing') ||
+        lower.includes('object comparing')
+    ) {
+        return 'implicitAssociation';
+    }
+    if (lower === 'eye tracking' || lower.includes('eye tracking') || lower.includes('eyetracking')) {
+        return 'eyeTracking';
+    }
+    if (COGNITIVE_NAMES.has(name)) {
+        return 'cognitive';
+    }
+    return 'other';
 }
 
 /**
@@ -45,10 +81,14 @@ function getModuleGroup(key: string, mod: ModuleConfig): 'general' | 'smartvoc' 
  * Supports both name-based keys (welcome, demographics, thank-you) and UUID keys.
  */
 function getGroupedModules(modules: Record<string, ModuleConfig>, stepsOrder?: string[]): { title: string; items: [string, ModuleConfig][] }[] {
-    const groups: Record<string, { title: string; items: [string, ModuleConfig][] }> = {
+    const groups: Record<DevNavGroup, { title: string; items: [string, ModuleConfig][] }> = {
         general: { title: 'General', items: [] },
         smartvoc: { title: 'SmartVOC', items: [] },
+        screener: { title: 'Screener', items: [] },
+        implicitAssociation: { title: 'Implicit Association', items: [] },
         cognitive: { title: 'Cognitive Tasks', items: [] },
+        eyeTracking: { title: 'Eye Tracking', items: [] },
+        other: { title: 'Other', items: [] },
         conclusion: { title: 'Conclusion', items: [] },
     };
 
@@ -64,7 +104,7 @@ function getGroupedModules(modules: Record<string, ModuleConfig>, stepsOrder?: s
         groups[group].items.push([key, mod]);
     }
 
-    return Object.values(groups);
+    return Object.values(groups).filter((g) => g.items.length > 0);
 }
 
 export const DevSidebar: React.FC<DevSidebarProps> = ({ isOpen, onToggle, modules, stepsOrder, isPreviewMode }) => {

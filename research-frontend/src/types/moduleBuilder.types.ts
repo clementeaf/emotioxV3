@@ -17,6 +17,7 @@ export interface FileUploadConfig {
     acceptedFormats?: string[];
     allowHitZones?: boolean;
     allowParticipantSelection?: boolean;
+    multiple?: boolean;
 }
 
 export interface ChoiceOption {

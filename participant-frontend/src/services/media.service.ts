@@ -15,7 +15,7 @@ interface MediaUrlResponse {
 /**
  * Resolves a relative media URL against the backend origin.
  */
-function resolveMediaUrl(url: string): string {
+export function resolveMediaUrl(url: string): string {
     if (!url || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
         return url;
     }

@@ -537,7 +537,7 @@ export const FileUploadAdvanced = ({
     const acceptString = acceptedFormats.join(',');
 
     return (
-        <div className={cn('w-full space-y-3', className)}>
+        <div className={cn('w-full min-w-0 space-y-3', className)}>
             {label && (
                 <label className="block text-sm font-medium text-gray-700">
                     {label}
@@ -583,7 +583,7 @@ export const FileUploadAdvanced = ({
                                     <div
                                         key={file.id}
                                         className={cn(
-                                            'flex items-center justify-between p-3 bg-white border rounded-lg transition-opacity',
+                                            'flex items-center justify-between p-3 bg-white border rounded-lg transition-opacity min-w-0 overflow-hidden',
                                             isUploading && 'opacity-60',
                                             hasError && 'border-red-300 bg-red-50'
                                         )}
