@@ -18,25 +18,41 @@ interface ImplicitAssociationRendererProps {
 interface IATTarget {
     id: string;
     name: string;
-    /** Ready-to-use URL when absolute, relative, or after resolution */
     imageUrl?: string;
-    /** When set, participant resolves via media API (S3 key from builder) */
     imageStorageKey?: string;
 }
 
-interface IATAttribute {
+interface IATCriteriaItem {
     id: string;
     label: string;
     imageUrl?: string;
     imageStorageKey?: string;
+    /** Target ID assigned by researcher — determines correct answer in Attribute Testing */
+    targetId?: string;
 }
 
 interface IATTrial {
-    targetId: string;
-    targetLabel: string;
-    targetImage?: string;
-    correctCriterionId: string;
+    /** Shown during priming phase (brief context). Null = fixation cross '+' */
+    primingLabel?: string;
+    primingImage?: string;
+    /** Shown during trial phase (stimulus to classify) */
+    stimulusId: string;
+    stimulusLabel: string;
+    stimulusImage?: string;
+    /** Secondary text shown below stimulus (e.g. criteria under object for Comparing Attribute) */
+    stimulusSecondaryLabel?: string;
+    /** Which button is correct */
+    correctSide: 'left' | 'right';
     phase: 'practice' | 'test';
+}
+
+interface IATBlock {
+    step: number;
+    leftLabel: string;
+    rightLabel: string;
+    leftId: string;
+    rightId: string;
+    trials: IATTrial[];
 }
 
 interface IATTrialResult {
@@ -47,35 +63,18 @@ interface IATTrialResult {
     phase: string;
 }
 
-/** A block = one step in the 3-step IAT flow */
-interface IATBlock {
-    /** 1-based step number */
-    step: number;
-    /** Left category label */
-    leftLabel: string;
-    /** Right category label */
-    rightLabel: string;
-    /** Trials belonging to this block */
-    trials: IATTrial[];
-}
-
-/**
- * Phases within a single block:
- * intro → take-note → priming → trial → feedback → (loop trial) → next block or complete
- */
 type IATPhase = 'intro' | 'keep-in-mind' | 'take-note' | 'priming' | 'trial' | 'feedback' | 'complete';
 
-/**
- * Maps file-upload to an absolute URL or an S3 key for async resolution (matches EyeTracking pattern).
- */
+// ---------------------------------------------------------------------------
+// Media resolution helper
+// ---------------------------------------------------------------------------
+
 function resolveTargetImageFromUpload(component: ModuleComponent | undefined): {
     imageUrl?: string;
     imageStorageKey?: string;
 } {
     const ref = getFileUploadMediaRef(component);
-    if (!ref) {
-        return {};
-    }
+    if (!ref) return {};
     if (ref.url) {
         const u = ref.url.trim();
         if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:')) {
@@ -83,343 +82,452 @@ function resolveTargetImageFromUpload(component: ModuleComponent | undefined): {
         }
         return { imageUrl: resolveMediaUrl(u) };
     }
-    if (ref.s3Key) {
-        return { imageStorageKey: ref.s3Key };
-    }
+    if (ref.s3Key) return { imageStorageKey: ref.s3Key };
     return {};
 }
 
 // ---------------------------------------------------------------------------
-// Config extraction (mirrors backend extractIATConfig)
+// Config extraction
 // ---------------------------------------------------------------------------
 
-const extractConfig = (module: ModuleConfig) => {
+interface IATExtractedConfig {
+    testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
+    primingTime: number;
+    targets: IATTarget[];
+    criteria: IATCriteriaItem[];
+    /** Objects Comparing: category labels (e.g. RIcoooo / Malooo) */
+    criteriaCategories?: { left: string; right: string; leftId: string; rightId: string };
+    /** Comparing Attribute: dimension labels (e.g. Extravagente / Convencional) */
+    dimensions?: { left: string; right: string };
+    exerciseInstructions: string;
+    testInstructions: string;
+    showResults: boolean;
+}
+
+function parseCriteriaRankingList(components: ModuleComponent[]): IATCriteriaItem[] {
+    const criteriaComp = components.find(c => c.id === 'criteria' || c.type === 'ranking-list');
+    if (!criteriaComp) return [];
+
+    let items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> | null = null;
+
+    const directVal = criteriaComp.value;
+    if (
+        directVal &&
+        typeof directVal === 'object' &&
+        !Array.isArray(directVal) &&
+        'items' in directVal &&
+        Array.isArray((directVal as { items: unknown }).items)
+    ) {
+        items = (directVal as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> }).items;
+    }
+
+    const raw = getComponentText(criteriaComp);
+    if (!items && raw) {
+        try {
+            const parsed: unknown = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                items = parsed;
+            } else if (
+                parsed &&
+                typeof parsed === 'object' &&
+                'items' in parsed &&
+                Array.isArray((parsed as { items: unknown }).items)
+            ) {
+                items = (parsed as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> }).items;
+            }
+        } catch { /* ignore */ }
+    }
+
+    if (!items && Array.isArray(criteriaComp.settings?.items)) {
+        items = criteriaComp.settings.items as Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }>;
+    }
+
+    if (!items) return [];
+
+    const result: IATCriteriaItem[] = [];
+    items.forEach((item, idx) => {
+        const label = (item.label || item.value || '').trim();
+        if (!label) return;
+        const img = item.image as { s3Key?: string; url?: string } | undefined;
+        result.push({
+            id: item.id || `crit-${idx}`,
+            label,
+            imageUrl: img?.url?.trim() || undefined,
+            imageStorageKey: img?.s3Key || undefined,
+            targetId: (item as { targetId?: string }).targetId || undefined,
+        });
+    });
+    return result;
+}
+
+const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
     const components = module.structure?.components || [];
     const moduleName = module.name.toLowerCase();
 
-    let testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing' = 'attribute_testing';
-    // "Comparing Attribute" = objects + dimensions (objects_comparing extractor)
-    // "Objects Comparing" = targets + positive/negative criteria (comparing_attribute extractor)
+    let testType: IATExtractedConfig['testType'] = 'attribute_testing';
     if (moduleName.includes('comparing attribute') || moduleName.includes('comparing attr')) {
-        testType = 'objects_comparing';
-    } else if (moduleName.includes('objects comparing') || moduleName.includes('object comparing')) {
         testType = 'comparing_attribute';
+    } else if (moduleName.includes('objects comparing') || moduleName.includes('object comparing')) {
+        testType = 'objects_comparing';
     }
 
     const primingComp = components.find(c => c.id === 'priming-time');
     const primingTime = parseInt(getComponentText(primingComp) || '400', 10) || 400;
 
     const targets: IATTarget[] = [];
-    const attributes: IATAttribute[] = [];
+    const criteria: IATCriteriaItem[] = [];
+    let criteriaCategories: IATExtractedConfig['criteriaCategories'];
+    let dimensions: IATExtractedConfig['dimensions'];
 
-    if (testType === 'objects_comparing') {
+    if (testType === 'comparing_attribute') {
+        // Objects: object-N-name/image (up to 3)
         for (let i = 1; i <= 5; i++) {
             const nameComp = components.find(c => c.id === `object-${i}-name`);
             const nameVal = getComponentText(nameComp);
             if (nameVal) {
                 const imageComp = components.find(c => c.id === `object-${i}-image`);
                 const img = resolveTargetImageFromUpload(imageComp);
-                targets.push({
-                    id: `object-${i}`,
-                    name: nameVal,
-                    ...img,
-                });
+                targets.push({ id: `object-${i}`, name: nameVal, ...img });
             }
         }
+        // Dimensions → button labels (e.g. Extravagente / Convencional)
         const dim1 = components.find(c => c.id === 'dimension-1');
         const dim2 = components.find(c => c.id === 'dimension-2');
-        if (dim1) attributes.push({ id: 'dimension-1', label: getComponentText(dim1) || dim1.placeholder?.text || 'Dimension 1' });
-        if (dim2) attributes.push({ id: 'dimension-2', label: getComponentText(dim2) || dim2.placeholder?.text || 'Dimension 2' });
-    } else {
+        const d1 = (getComponentText(dim1) || dim1?.placeholder?.text || 'Yes').trim();
+        const d2 = (getComponentText(dim2) || dim2?.placeholder?.text || 'No').trim();
+        dimensions = { left: d1, right: d2 };
+        criteria.push(...parseCriteriaRankingList(components));
+    } else if (testType === 'objects_comparing') {
+        // Targets: target-N-name/image (up to 5)
         for (let i = 1; i <= 5; i++) {
             const nameComp = components.find(c => c.id === `target-${i}-name`);
             const nameVal = getComponentText(nameComp);
             if (nameVal) {
                 const imageComp = components.find(c => c.id === `target-${i}-image`);
                 const img = resolveTargetImageFromUpload(imageComp);
-                targets.push({
-                    id: `target-${i}`,
-                    name: nameVal,
-                    ...img,
-                });
+                targets.push({ id: `target-${i}`, name: nameVal, ...img });
             }
         }
-        const criteriaComp = components.find(c =>
-            c.id === 'criteria' || c.type === 'ranking-list'
-        );
-        if (criteriaComp) {
-            // research-frontend RankingItemsEditor persists JSON.stringify({ items, randomize }), not a bare array
-            let items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> | null = null;
-            const directVal = criteriaComp.value;
-            if (
-                directVal &&
-                typeof directVal === 'object' &&
-                !Array.isArray(directVal) &&
-                'items' in directVal &&
-                Array.isArray((directVal as { items: unknown }).items)
-            ) {
-                items = (directVal as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> }).items;
-            }
-            const raw = getComponentText(criteriaComp);
-            if (!items && raw) {
-                try {
-                    const parsed: unknown = JSON.parse(raw);
-                    if (Array.isArray(parsed)) {
-                        items = parsed;
-                    } else if (
-                        parsed &&
-                        typeof parsed === 'object' &&
-                        'items' in parsed &&
-                        Array.isArray((parsed as { items: unknown }).items)
-                    ) {
-                        items = (parsed as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }> }).items;
-                    }
-                } catch { /* ignore parse errors */ }
-            }
-            if (!items && Array.isArray(criteriaComp.settings?.items)) {
-                items = criteriaComp.settings.items as Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }>;
-            }
-            if (items) {
-                items.forEach((item, idx) => {
-                    const label = (item.label || item.value || '').trim();
-                    if (!label) {
-                        return;
-                    }
-                    // Extract image from criteria item (IATCriteriaEditor stores { s3Key, url })
-                    const img = item.image as { s3Key?: string; url?: string } | undefined;
-                    const imageUrl = img?.url?.trim() || undefined;
-                    const imageStorageKey = img?.s3Key || undefined;
-                    attributes.push({
-                        id: item.id || `attr-${idx}`,
-                        label: label || `Attribute ${idx + 1}`,
-                        imageUrl,
-                        imageStorageKey,
-                    });
-                });
-            } else {
-                for (let i = 1; i <= 10; i++) {
-                    const dimComp = components.find(c => c.id === `dimension-${i}`);
-                    const dimVal = getComponentText(dimComp);
-                    if (dimVal) attributes.push({ id: `dimension-${i}`, label: dimVal });
-                }
-            }
-        } else {
-            for (let i = 1; i <= 10; i++) {
-                const dimComp = components.find(c => c.id === `dimension-${i}`);
-                const dimVal = getComponentText(dimComp);
-                if (dimVal) attributes.push({ id: `dimension-${i}`, label: dimVal });
+        // Criteria categories → button labels for Step 1 (e.g. RIcoooo / Malooo)
+        const c1 = components.find(c => c.id === 'criteria-1');
+        const c2 = components.find(c => c.id === 'criteria-2');
+        const l1 = (getComponentText(c1) || c1?.placeholder?.text || 'Positive').trim();
+        const l2 = (getComponentText(c2) || c2?.placeholder?.text || 'Negative').trim();
+        criteriaCategories = { left: l1, right: l2, leftId: 'criteria-1', rightId: 'criteria-2' };
+        criteria.push(...parseCriteriaRankingList(components));
+    } else {
+        // Attribute Testing: target-N-name/image (2 targets), criteria ranking-list
+        for (let i = 1; i <= 5; i++) {
+            const nameComp = components.find(c => c.id === `target-${i}-name`);
+            const nameVal = getComponentText(nameComp);
+            if (nameVal) {
+                const imageComp = components.find(c => c.id === `target-${i}-image`);
+                const img = resolveTargetImageFromUpload(imageComp);
+                targets.push({ id: `target-${i}`, name: nameVal, ...img });
             }
         }
-
-        // Comparing Attribute template: criteria-1 / criteria-2 when ranking list produced no items (researcher used only Positive/Negative fields)
-        if (testType === 'comparing_attribute' && attributes.length === 0) {
-            const c1 = components.find(c => c.id === 'criteria-1');
-            const c2 = components.find(c => c.id === 'criteria-2');
-            const l1 = (getComponentText(c1) || c1?.placeholder?.text || '').trim();
-            const l2 = (getComponentText(c2) || c2?.placeholder?.text || '').trim();
-            if (l1 && l2) {
-                attributes.length = 0;
-                attributes.push({ id: 'criteria-1', label: l1 });
-                attributes.push({ id: 'criteria-2', label: l2 });
-            }
-        }
+        criteria.push(...parseCriteriaRankingList(components));
     }
 
-    // Instruction texts (researcher may customise via builder textarea)
+    // Instruction texts
     const exerciseComp = components.find(c => c.id === 'exercise-instructions');
     const testComp = components.find(c => c.id === 'test-instructions');
-    const rawExercise = getComponentText(exerciseComp) || exerciseComp?.placeholder?.text || '';
-    const rawTest = getComponentText(testComp) || testComp?.placeholder?.text || '';
+    // Only use researcher-written text, NOT English placeholders — i18n handles fallback
+    const rawExercise = getComponentText(exerciseComp) || '';
+    const rawTest = getComponentText(testComp) || '';
 
-    // Interpolate [[Object N]] / [[Target N]] placeholders with real target names
     const interpolateTargets = (text: string): string =>
         text.replace(/\[\[(Object|Target)\s*(\d+)\]\]/gi, (_match, _label, num) => {
             const idx = parseInt(num, 10) - 1;
             return targets[idx]?.name ?? `Object ${num}`;
         });
 
-    const exerciseInstructions = interpolateTargets(rawExercise);
-    const testInstructions = interpolateTargets(rawTest);
-
     const showResultsComp = components.find(c => c.id === 'show-results');
     const showResults = getComponentText(showResultsComp) === 'true';
 
-    return { testType, primingTime, targets, attributes, exerciseInstructions, testInstructions, showResults };
+    return {
+        testType,
+        primingTime,
+        targets,
+        criteria,
+        criteriaCategories,
+        dimensions,
+        exerciseInstructions: interpolateTargets(rawExercise),
+        testInstructions: interpolateTargets(rawTest),
+        showResults,
+    };
 };
 
 // ---------------------------------------------------------------------------
-// Block / trial construction
+// Shuffle & pad
 // ---------------------------------------------------------------------------
 
-/** Fisher-Yates shuffle (in place) */
 const shuffle = <T,>(arr: T[]): T[] => {
-    for (let i = arr.length - 1; i > 0; i--) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+        [copy[i], copy[j]] = [copy[j], copy[i]];
     }
-    return arr;
+    return copy;
 };
+
+const padAndShuffle = (trials: IATTrial[], min: number): IATTrial[] => {
+    if (trials.length === 0) return [];
+    const padded = [...trials];
+    while (padded.length < min) {
+        padded.push(...trials.slice(0, min - padded.length));
+    }
+    return shuffle(padded);
+};
+
+// ---------------------------------------------------------------------------
+// Block builders per test type
+// ---------------------------------------------------------------------------
 
 /**
- * Build the 3-block IAT structure:
- *   Block 1 — Classify by attributes only (text stimuli = attribute labels)
- *   Block 2 — Classify by targets only (image/text stimuli = target names/images)
- *   Block 3 — Combined (targets categorised under combined labels)
+ * Attribute Testing — Implicit Priming Test (2 steps)
+ *
+ * Step 1 (Practice): Classify targets WITHOUT criteria context.
+ *   Stimulus = target image/name. Buttons = target names.
+ *
+ * Step 2 (Test): Criteria label shown as stimulus + target image below.
+ *   Correct answer = the target assigned by the researcher via targetId.
+ *   RT differences reveal implicit associations.
  */
-const buildBlocks = (
+function buildBlocksAttributeTesting(
     targets: IATTarget[],
-    attributes: IATAttribute[]
-): IATBlock[] => {
-    if (targets.length < 2 || attributes.length < 2) return [];
+    criteria: IATCriteriaItem[],
+): IATBlock[] {
+    if (targets.length < 2 || criteria.length === 0) return [];
 
-    const attrLeft = attributes[0];
-    const attrRight = attributes[1];
-    const targetLeft = targets[0];
-    const targetRight = targets[targets.length - 1];
+    const tLeft = targets[0];
+    const tRight = targets[targets.length - 1];
 
-    // --- Block 1: attribute classification (text or image stimuli) ---
-    // Distribute criteria evenly: first half → left, second half → right
-    const block1Trials: IATTrial[] = [];
-    for (let idx = 0; idx < attributes.length; idx++) {
-        const attr = attributes[idx];
-        block1Trials.push({
-            targetId: attr.id,
-            targetLabel: attr.label,
-            targetImage: attr.imageUrl,
-            correctCriterionId: idx < attributes.length / 2 ? 'attr-left' : 'attr-right',
+    // Map groupLabel IDs (e.g. "Target 1") to left/right side
+    const targetSideMap = new Map<string, 'left' | 'right'>();
+    targets.forEach((t, idx) => {
+        targetSideMap.set(t.id, idx === 0 ? 'left' : 'right');
+        // Also map groupLabel format (e.g. "Target 1", "Object 1")
+        const groupLabel = t.id.replace(/^(target|object)-/, (_, prefix) => `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)} `);
+        targetSideMap.set(groupLabel, idx === 0 ? 'left' : 'right');
+    });
+
+    // Step 1: Practice — classify targets alone
+    const step1Trials: IATTrial[] = [];
+    for (let idx = 0; idx < targets.length; idx++) {
+        const t = targets[idx];
+        step1Trials.push({
+            stimulusId: t.id,
+            stimulusLabel: t.name,
+            stimulusImage: t.imageUrl,
+            correctSide: idx === 0 ? 'left' : 'right',
+            phase: 'practice',
+        });
+    }
+
+    // Step 2: Test — criteria label + assigned target determines correct side
+    const step2Trials: IATTrial[] = [];
+    for (const crit of criteria) {
+        // Determine correct side from researcher's target assignment
+        const assignedSide = crit.targetId ? targetSideMap.get(crit.targetId) : undefined;
+        // Find assigned target to show its image
+        const assignedTarget = crit.targetId
+            ? targets.find(t => t.id === crit.targetId || `Target ${targets.indexOf(t) + 1}` === crit.targetId || `Object ${targets.indexOf(t) + 1}` === crit.targetId)
+            : undefined;
+
+        step2Trials.push({
+            stimulusId: crit.id,
+            stimulusLabel: crit.label,
+            stimulusImage: undefined, // criteria shown as text
+            stimulusSecondaryLabel: assignedTarget?.name,
+            correctSide: assignedSide ?? 'left', // fallback left if not assigned
             phase: 'test',
         });
     }
-    // Repeat to get enough trials (min ~6)
-    const minBlock1 = Math.max(6, attributes.length * 2);
-    while (block1Trials.length < minBlock1) {
-        for (let idx = 0; idx < attributes.length; idx++) {
-            if (block1Trials.length >= minBlock1) break;
-            const attr = attributes[idx];
-            block1Trials.push({
-                targetId: attr.id,
-                targetLabel: attr.label,
-                targetImage: attr.imageUrl,
-                correctCriterionId: idx < attributes.length / 2 ? 'attr-left' : 'attr-right',
-                phase: 'test',
-            });
-        }
-    }
-    shuffle(block1Trials);
-
-    // --- Block 2: target classification (image or text stimuli) ---
-    const block2Trials: IATTrial[] = [];
-    for (const target of targets) {
-        // Assign left/right: first half → left target, second half → right target
-        // Simple heuristic: compare index
-        const idx = targets.indexOf(target);
-        const correct = idx < targets.length / 2 ? targetLeft.id : targetRight.id;
-        block2Trials.push({
-            targetId: target.id,
-            targetLabel: target.name,
-            targetImage: target.imageUrl,
-            correctCriterionId: correct,
-            phase: 'test',
-        });
-    }
-    const minBlock2 = Math.max(6, targets.length * 2);
-    while (block2Trials.length < minBlock2) {
-        for (const target of targets) {
-            if (block2Trials.length >= minBlock2) break;
-            const idx = targets.indexOf(target);
-            block2Trials.push({
-                targetId: target.id,
-                targetLabel: target.name,
-                targetImage: target.imageUrl,
-                correctCriterionId: idx < targets.length / 2 ? targetLeft.id : targetRight.id,
-                phase: 'test',
-            });
-        }
-    }
-    shuffle(block2Trials);
-
-    // --- Block 3: combined (targets + attribute words mixed) ---
-    const block3Trials: IATTrial[] = [];
-    // Target stimuli — correct = same side as block 2
-    for (const target of targets) {
-        const idx = targets.indexOf(target);
-        const correct = idx < targets.length / 2 ? 'combined-left' : 'combined-right';
-        block3Trials.push({
-            targetId: target.id,
-            targetLabel: target.name,
-            targetImage: target.imageUrl,
-            correctCriterionId: correct,
-            phase: 'test',
-        });
-    }
-    // Attribute stimuli — correct = same side as block 1
-    for (let idx = 0; idx < attributes.length; idx++) {
-        const attr = attributes[idx];
-        block3Trials.push({
-            targetId: attr.id,
-            targetLabel: attr.label,
-            targetImage: attr.imageUrl,
-            correctCriterionId: idx < attributes.length / 2 ? 'combined-left' : 'combined-right',
-            phase: 'test',
-        });
-    }
-    const minBlock3 = Math.max(8, (targets.length + attributes.length) * 2);
-    while (block3Trials.length < minBlock3) {
-        for (const target of targets) {
-            if (block3Trials.length >= minBlock3) break;
-            const idx = targets.indexOf(target);
-            block3Trials.push({
-                targetId: target.id,
-                targetLabel: target.name,
-                targetImage: target.imageUrl,
-                correctCriterionId: idx < targets.length / 2 ? 'combined-left' : 'combined-right',
-                phase: 'test',
-            });
-        }
-        for (let idx = 0; idx < attributes.length; idx++) {
-            if (block3Trials.length >= minBlock3) break;
-            const attr = attributes[idx];
-            block3Trials.push({
-                targetId: attr.id,
-                targetLabel: attr.label,
-                targetImage: attr.imageUrl,
-                correctCriterionId: idx < attributes.length / 2 ? 'combined-left' : 'combined-right',
-                phase: 'test',
-            });
-        }
-    }
-    shuffle(block3Trials);
 
     return [
         {
             step: 1,
-            leftLabel: attrLeft.label,
-            rightLabel: attrRight.label,
-            trials: block1Trials,
+            leftLabel: tLeft.name,
+            rightLabel: tRight.name,
+            leftId: tLeft.id,
+            rightId: tRight.id,
+            trials: padAndShuffle(step1Trials, Math.max(6, targets.length * 2)),
         },
         {
             step: 2,
-            leftLabel: targetLeft.name,
-            rightLabel: targetRight.name,
-            trials: block2Trials,
+            leftLabel: tLeft.name,
+            rightLabel: tRight.name,
+            leftId: tLeft.id,
+            rightId: tRight.id,
+            trials: padAndShuffle(step2Trials, Math.max(8, criteria.length * targets.length)),
+        },
+    ];
+}
+
+/**
+ * Comparing Attribute — Reaction Time Test (1 step, Yes/No)
+ *
+ * Stimulus = Object name (bold) + Criteria word below.
+ * Buttons = dimension labels (e.g. Extravagente / Convencional).
+ * Cycles through all Object × Criteria combinations.
+ * No priming phase — stimulus appears directly.
+ */
+function buildBlocksComparingAttribute(
+    targets: IATTarget[],
+    criteria: IATCriteriaItem[],
+    dims: NonNullable<IATExtractedConfig['dimensions']>,
+): IATBlock[] {
+    if (targets.length === 0 || criteria.length === 0) return [];
+
+    const trials: IATTrial[] = [];
+    for (const obj of targets) {
+        for (const crit of criteria) {
+            // No correct answer in Yes/No — both sides are valid responses.
+            // We alternate default correctSide for balanced data, but RT is what matters.
+            trials.push({
+                stimulusId: `${obj.id}__${crit.id}`,
+                stimulusLabel: obj.name,
+                stimulusImage: obj.imageUrl,
+                stimulusSecondaryLabel: crit.label,
+                correctSide: 'left', // placeholder — both sides are valid
+                phase: 'test',
+            });
+        }
+    }
+
+    return [{
+        step: 1,
+        leftLabel: `< ${dims.left}`,
+        rightLabel: `${dims.right} >`,
+        leftId: 'dimension-1',
+        rightId: 'dimension-2',
+        trials: shuffle(trials),
+    }];
+}
+
+/**
+ * Objects Comparing — Reaction Time Test (3-step classic IAT)
+ *
+ * Step 1: Classify CRITERIA items → criteria category buttons (e.g. RIcoooo / Malooo).
+ *   Stimulus = criteria word/image. First half → left, second half → right.
+ *
+ * Step 2: Classify TARGETS → target name buttons.
+ *   Stimulus = target image/name.
+ *
+ * Step 3: Combined — both criteria and target stimuli mixed.
+ *   Buttons = combined labels (e.g. "Coca cola or RIcoooo" / "Fanta or Malooo").
+ */
+function buildBlocksObjectsComparing(
+    targets: IATTarget[],
+    criteria: IATCriteriaItem[],
+    categories: NonNullable<IATExtractedConfig['criteriaCategories']>,
+): IATBlock[] {
+    if (targets.length < 2 || criteria.length < 2) return [];
+
+    const tLeft = targets[0];
+    const tRight = targets[targets.length - 1];
+    const half = Math.ceil(criteria.length / 2);
+
+    // Step 1: Classify criteria items
+    const step1Trials: IATTrial[] = [];
+    for (let idx = 0; idx < criteria.length; idx++) {
+        const crit = criteria[idx];
+        step1Trials.push({
+            stimulusId: crit.id,
+            stimulusLabel: crit.label,
+            stimulusImage: crit.imageUrl,
+            correctSide: idx < half ? 'left' : 'right',
+            phase: 'test',
+        });
+    }
+
+    // Step 2: Classify targets
+    const step2Trials: IATTrial[] = [];
+    for (let idx = 0; idx < targets.length; idx++) {
+        const t = targets[idx];
+        step2Trials.push({
+            stimulusId: t.id,
+            stimulusLabel: t.name,
+            stimulusImage: t.imageUrl,
+            correctSide: idx < targets.length / 2 ? 'left' : 'right',
+            phase: 'test',
+        });
+    }
+
+    // Step 3: Combined (criteria + targets mixed)
+    const step3Trials: IATTrial[] = [];
+    for (let idx = 0; idx < targets.length; idx++) {
+        const t = targets[idx];
+        step3Trials.push({
+            stimulusId: t.id,
+            stimulusLabel: t.name,
+            stimulusImage: t.imageUrl,
+            correctSide: idx < targets.length / 2 ? 'left' : 'right',
+            phase: 'test',
+        });
+    }
+    for (let idx = 0; idx < criteria.length; idx++) {
+        const crit = criteria[idx];
+        step3Trials.push({
+            stimulusId: crit.id,
+            stimulusLabel: crit.label,
+            stimulusImage: crit.imageUrl,
+            correctSide: idx < half ? 'left' : 'right',
+            phase: 'test',
+        });
+    }
+
+    return [
+        {
+            step: 1,
+            leftLabel: categories.left,
+            rightLabel: categories.right,
+            leftId: categories.leftId,
+            rightId: categories.rightId,
+            trials: padAndShuffle(step1Trials, Math.max(6, criteria.length * 2)),
+        },
+        {
+            step: 2,
+            leftLabel: tLeft.name,
+            rightLabel: tRight.name,
+            leftId: tLeft.id,
+            rightId: tRight.id,
+            trials: padAndShuffle(step2Trials, Math.max(6, targets.length * 2)),
         },
         {
             step: 3,
-            leftLabel: `${targetLeft.name} or ${attrLeft.label.toLowerCase()}`,
-            rightLabel: `${targetRight.name} or ${attrRight.label.toLowerCase()}`,
-            trials: block3Trials,
+            leftLabel: `${tLeft.name} / ${categories.left}`,
+            rightLabel: `${tRight.name} / ${categories.right}`,
+            leftId: 'combined-left',
+            rightId: 'combined-right',
+            trials: padAndShuffle(step3Trials, Math.max(8, (targets.length + criteria.length) * 2)),
         },
     ];
-};
+}
+
+/** Route to the correct block builder */
+function buildBlocks(config: IATExtractedConfig, targets: IATTarget[], criteria: IATCriteriaItem[]): IATBlock[] {
+    switch (config.testType) {
+        case 'attribute_testing':
+            return buildBlocksAttributeTesting(targets, criteria);
+        case 'comparing_attribute':
+            return config.dimensions
+                ? buildBlocksComparingAttribute(targets, criteria, config.dimensions)
+                : [];
+        case 'objects_comparing':
+            return config.criteriaCategories
+                ? buildBlocksObjectsComparing(targets, criteria, config.criteriaCategories)
+                : [];
+        default:
+            return [];
+    }
+}
 
 // ---------------------------------------------------------------------------
-// Priming symbol
+// Instruction list helper
 // ---------------------------------------------------------------------------
 
-const PRIMING_SYMBOL = '+';
-const TOTAL_BLOCKS = 3;
-
-/** Splits instruction text into sentences and renders them as a numbered list. */
 const InstructionList: React.FC<{ text: string }> = ({ text }) => {
     const sentences = text
         .split(/(?<=[.!])\s+/)
@@ -449,11 +557,13 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const { t } = useTranslation();
     const { saveResponse } = useParticipantStore();
 
-    const { primingTime, targets, attributes, exerciseInstructions, testInstructions, showResults } = useMemo(
-        () => extractConfig(module),
-        [module]
-    );
+    const config = useMemo(() => extractConfig(module), [module]);
+    const { primingTime, exerciseInstructions, testInstructions, showResults } = config;
 
+    // Is this the Yes/No paradigm (Comparing Attribute)?
+    const isYesNo = config.testType === 'comparing_attribute';
+
+    // Resolve S3 images
     const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
 
     useEffect(() => {
@@ -461,48 +571,37 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         (async (): Promise<void> => {
             const next: Record<string, string> = {};
             const pending = [
-                ...targets.filter(t => t.imageStorageKey && !t.imageUrl),
-                ...attributes.filter(a => a.imageStorageKey && !a.imageUrl),
+                ...config.targets.filter(t => t.imageStorageKey && !t.imageUrl),
+                ...config.criteria.filter(c => c.imageStorageKey && !c.imageUrl),
             ];
             for (const item of pending) {
                 try {
                     next[item.id] = await mediaService.getMediaUrl(item.imageStorageKey!);
-                } catch {
-                    /* ignore resolution errors */
-                }
+                } catch { /* ignore */ }
             }
-            if (!cancelled) {
-                setResolvedImages(next);
-            }
+            if (!cancelled) setResolvedImages(next);
         })();
-        return () => {
-            cancelled = true;
-        };
-    }, [targets, attributes]);
+        return () => { cancelled = true; };
+    }, [config.targets, config.criteria]);
 
-    const targetsWithResolvedImages = useMemo(
-        () =>
-            targets.map((t) => ({
-                ...t,
-                imageUrl: t.imageUrl || resolvedImages[t.id],
-            })),
-        [targets, resolvedImages]
+    const targetsResolved = useMemo(
+        () => config.targets.map(t => ({ ...t, imageUrl: t.imageUrl || resolvedImages[t.id] })),
+        [config.targets, resolvedImages],
     );
 
-    const attributesWithResolvedImages = useMemo(
-        () =>
-            attributes.map((a) => ({
-                ...a,
-                imageUrl: a.imageUrl || resolvedImages[a.id],
-            })),
-        [attributes, resolvedImages]
+    const criteriaResolved = useMemo(
+        () => config.criteria.map(c => ({ ...c, imageUrl: c.imageUrl || resolvedImages[c.id] })),
+        [config.criteria, resolvedImages],
     );
 
     const blocks = useMemo(
-        () => buildBlocks(targetsWithResolvedImages, attributesWithResolvedImages),
-        [targetsWithResolvedImages, attributesWithResolvedImages]
+        () => buildBlocks(config, targetsResolved, criteriaResolved),
+        [config, targetsResolved, criteriaResolved],
     );
 
+    const totalBlocks = blocks.length;
+
+    // State
     const [blockIndex, setBlockIndex] = useState(0);
     const [phase, setPhase] = useState<IATPhase>('intro');
     const [trialIndex, setTrialIndex] = useState(0);
@@ -519,7 +618,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     useEffect(() => { trialIndexRef.current = trialIndex; }, [trialIndex]);
     useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
 
-    // Save results when all blocks complete
+    // Save results when complete
     useEffect(() => {
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
@@ -530,38 +629,34 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         }
     }, [phase, results, module.id, saveResponse, onComplete]);
 
-    // Start priming → trial
+    // Start priming → trial (or direct to trial for Yes/No)
     const startTrial = useCallback(() => {
-        setPhase('priming');
-        const id = setTimeout(() => {
+        if (isYesNo || !currentTrial?.primingLabel) {
+            // No priming for Yes/No or when no priming content — go straight to trial
             setPhase('trial');
             trialStartRef.current = performance.now();
-        }, primingTime);
-        timersRef.current.push(id);
-    }, [primingTime]);
+        } else {
+            setPhase('priming');
+            const id = setTimeout(() => {
+                setPhase('trial');
+                trialStartRef.current = performance.now();
+            }, primingTime);
+            timersRef.current.push(id);
+        }
+    }, [primingTime, isYesNo, currentTrial]);
 
-    // Handle category selection during trial
+    // Handle category selection
     const handleSelect = useCallback((side: 'left' | 'right') => {
         if (phase !== 'trial' || !currentTrial || !currentBlock) return;
 
         const rt = Math.round(performance.now() - trialStartRef.current);
-
-        // Determine which criterion ID the side maps to
-        let selectedCriterionId: string;
-        if (currentBlock.step === 3) {
-            selectedCriterionId = side === 'left' ? 'combined-left' : 'combined-right';
-        } else if (currentBlock.step === 2) {
-            selectedCriterionId = side === 'left' ? targets[0].id : targets[targets.length - 1].id;
-        } else {
-            // Block 1: side-based IDs matching block 1 trial construction
-            selectedCriterionId = side === 'left' ? 'attr-left' : 'attr-right';
-        }
-
-        const correct = selectedCriterionId === currentTrial.correctCriterionId;
+        // For Yes/No (Comparing Attribute), both sides are valid — always "correct"
+        const correct = isYesNo ? true : side === currentTrial.correctSide;
+        const criterionId = side === 'left' ? currentBlock.leftId : currentBlock.rightId;
 
         const result: IATTrialResult = {
-            targetId: currentTrial.targetId,
-            criterionId: selectedCriterionId,
+            targetId: currentTrial.stimulusId,
+            criterionId,
             rt,
             correct,
             phase: `block-${currentBlock.step}`,
@@ -569,75 +664,88 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
         setResults(prev => [...prev, result]);
         setLastCorrect(correct);
-        setPhase('feedback');
 
-        const feedbackId = setTimeout(() => {
+        if (isYesNo) {
+            // Yes/No: no feedback screen, advance immediately
             const nextIdx = trialIndexRef.current + 1;
             if (nextIdx >= currentBlock.trials.length) {
-                // Block finished — move to next block or complete
-                const nextBlock = blockIndex + 1;
-                if (nextBlock >= blocks.length) {
-                    setPhase('complete');
-                } else {
-                    setBlockIndex(nextBlock);
-                    setTrialIndex(0);
-                    setPhase('take-note');
-                }
+                setPhase('complete');
             } else {
                 setTrialIndex(nextIdx);
-                setPhase('priming');
-                const primingId = setTimeout(() => {
-                    setPhase('trial');
-                    trialStartRef.current = performance.now();
-                }, primingTime);
-                timersRef.current.push(primingId);
+                setPhase('trial');
+                trialStartRef.current = performance.now();
             }
-        }, 500);
-        timersRef.current.push(feedbackId);
-    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, targets, attributes, primingTime]);
+        } else {
+            // IAT/Priming: show feedback then advance
+            setPhase('feedback');
+            const feedbackId = setTimeout(() => {
+                const nextIdx = trialIndexRef.current + 1;
+                if (nextIdx >= currentBlock.trials.length) {
+                    const nextBlock = blockIndex + 1;
+                    if (nextBlock >= blocks.length) {
+                        setPhase('complete');
+                    } else {
+                        setBlockIndex(nextBlock);
+                        setTrialIndex(0);
+                        setPhase('take-note');
+                    }
+                } else {
+                    setTrialIndex(nextIdx);
+                    startTrial();
+                }
+            }, 500);
+            timersRef.current.push(feedbackId);
+        }
+    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, isYesNo, startTrial]);
 
-    // Keyboard: A (left) / L (right) as in reference design
+    // Keyboard: A (left) / L (right)
     useEffect(() => {
         if (phase !== 'trial') return;
-
         const handleKeyDown = (e: KeyboardEvent) => {
             const key = e.key.toLowerCase();
-            if (key === 'a' || key === 'arrowleft') {
-                handleSelect('left');
-            } else if (key === 'l' || key === 'arrowright') {
-                handleSelect('right');
-            }
+            if (key === 'a' || key === 'arrowleft') handleSelect('left');
+            else if (key === 'l' || key === 'arrowright') handleSelect('right');
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [phase, handleSelect]);
 
-    // Space / Enter to advance from intro screens
+    // Space / Enter to advance from take-note
     useEffect(() => {
         if (phase !== 'take-note') return;
-
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === ' ' || e.key === 'Enter') {
                 e.preventDefault();
                 startTrial();
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [phase, startTrial]);
 
-    // Block progress percentage
+    // Block progress
     const blockProgress = currentBlock && currentBlock.trials.length > 0
-        ? Math.round(((blockIndex * 100) + (trialIndex / currentBlock.trials.length) * 100) / TOTAL_BLOCKS)
-        : Math.round(((blockIndex + 1) / TOTAL_BLOCKS) * 100);
+        ? Math.round(((blockIndex * 100) + (trialIndex / currentBlock.trials.length) * 100) / Math.max(totalBlocks, 1))
+        : Math.round(((blockIndex + 1) / Math.max(totalBlocks, 1)) * 100);
 
     // -----------------------------------------------------------------------
     // Unconfigured
     // -----------------------------------------------------------------------
 
-    if (targets.length < 2 || attributes.length < 2 || blocks.length === 0) {
+    const isConfigured = (() => {
+        switch (config.testType) {
+            case 'attribute_testing':
+                return config.targets.length >= 2 && config.criteria.length >= 1;
+            case 'comparing_attribute':
+                return config.targets.length >= 1 && config.criteria.length >= 1 && !!config.dimensions;
+            case 'objects_comparing':
+                return config.targets.length >= 2 && config.criteria.length >= 2 && !!config.criteriaCategories;
+            default:
+                return false;
+        }
+    })();
+
+    if (!isConfigured || blocks.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
                 <p className="text-gray-400 text-center">
@@ -648,12 +756,14 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     }
 
     // -----------------------------------------------------------------------
-    // Intro screen (shown once at the very beginning)
+    // Intro screen
     // -----------------------------------------------------------------------
 
     if (phase === 'intro') {
-        // When exerciseInstructions is available, skip keep-in-mind (instructions are self-contained)
-        const nextPhase = exerciseInstructions ? 'take-note' : 'keep-in-mind';
+        // Yes/No skips keep-in-mind, goes to take-note (or directly to trial)
+        const nextPhase: IATPhase = exerciseInstructions
+            ? 'take-note'
+            : isYesNo ? 'take-note' : 'keep-in-mind';
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
                 <div className="w-full max-w-lg space-y-6">
@@ -665,7 +775,9 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     ) : (
                         <>
                             <p className="text-gray-600">
-                                {t('iat.introDescription', 'You will be presented with words or images to classify into categories using either the \'A\' or \'L\' key.')}
+                                {isYesNo
+                                    ? t('iat.introDescriptionYesNo', 'You will be presented with objects and characteristics. Respond as quickly as possible using the buttons below.')
+                                    : t('iat.introDescription', 'You will be presented with words or images to classify into categories using either the \'A\' or \'L\' key.')}
                             </p>
                             <p className="text-gray-600">
                                 {t('iat.introSpeed', 'Try to go as fast as possible while making as few mistakes as possible.')}
@@ -684,36 +796,22 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     }
 
     // -----------------------------------------------------------------------
-    // Keep in mind screen (only shown when no custom exerciseInstructions)
+    // Keep in mind screen (only for IAT/Priming, NOT Yes/No)
     // -----------------------------------------------------------------------
 
     if (phase === 'keep-in-mind') {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
-                {/* Step progress pill */}
-                <StepProgressPill step={1} total={TOTAL_BLOCKS} percent={0} />
-
+                <StepProgressPill step={1} total={totalBlocks} percent={0} />
                 <div className="w-full max-w-lg space-y-6 mt-8">
                     <h2 className="text-xl font-bold text-gray-900">
                         {t('iat.keepInMindTitle', 'Keep in mind')}
                     </h2>
                     <ol className="space-y-3 text-gray-600">
-                        <li>
-                            <span className="font-semibold">1)</span>{' '}
-                            {t('iat.rule1', 'Labels at the top of the screen indicate which category goes with which key.')}
-                        </li>
-                        <li>
-                            <span className="font-semibold">2)</span>{' '}
-                            {t('iat.rule2', 'Each word or image has a correct category classification.')}
-                        </li>
-                        <li>
-                            <span className="font-semibold">3)</span>{' '}
-                            {t('iat.rule3', 'Keep your index fingers on the A and L keys to enable a rapid response.')}
-                        </li>
-                        <li>
-                            <span className="font-semibold">4)</span>{' '}
-                            {t('iat.rule4', 'The test gives no results if you go slow, please try to go as fast as possible.')}
-                        </li>
+                        <li><span className="font-semibold">1)</span> {t('iat.rule1', 'Labels at the top of the screen indicate which category goes with which key.')}</li>
+                        <li><span className="font-semibold">2)</span> {t('iat.rule2', 'Each word or image has a correct category classification.')}</li>
+                        <li><span className="font-semibold">3)</span> {t('iat.rule3', 'Keep your index fingers on the A and L keys to enable a rapid response.')}</li>
+                        <li><span className="font-semibold">4)</span> {t('iat.rule4', 'The test gives no results if you go slow, please try to go as fast as possible.')}</li>
                     </ol>
                     <button
                         onClick={() => setPhase('take-note')}
@@ -727,7 +825,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     }
 
     // -----------------------------------------------------------------------
-    // Take note screen (shown before each block's trials)
+    // Take note screen (before each block)
     // -----------------------------------------------------------------------
 
     if (phase === 'take-note' && currentBlock) {
@@ -735,10 +833,9 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
                 <StepProgressPill
                     step={currentBlock.step}
-                    total={TOTAL_BLOCKS}
-                    percent={Math.round(((currentBlock.step - 1) / TOTAL_BLOCKS) * 100)}
+                    total={totalBlocks}
+                    percent={Math.round(((currentBlock.step - 1) / totalBlocks) * 100)}
                 />
-
                 <div className="w-full max-w-lg space-y-6 mt-8">
                     <h2 className="text-xl font-bold text-gray-900">
                         {t('iat.takeNoteTitle', 'Take note')}
@@ -758,20 +855,18 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     <p className="text-gray-500 text-sm">
                         {t('iat.takeNoteBegin', 'Press the space bar (or one of the buttons) to begin')}
                     </p>
-
-                    {/* Category buttons */}
                     <div className="flex gap-4">
                         <button
                             onClick={startTrial}
                             className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                         >
-                            A = {currentBlock.leftLabel}
+                            {isYesNo ? currentBlock.leftLabel : `A = ${currentBlock.leftLabel}`}
                         </button>
                         <button
                             onClick={startTrial}
                             className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                         >
-                            L = {currentBlock.rightLabel}
+                            {isYesNo ? currentBlock.rightLabel : `L = ${currentBlock.rightLabel}`}
                         </button>
                     </div>
                 </div>
@@ -780,17 +875,31 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     }
 
     // -----------------------------------------------------------------------
-    // Priming fixation point
+    // Priming phase (Attribute Testing Step 2 & Objects Comparing)
     // -----------------------------------------------------------------------
 
-    if (phase === 'priming') {
+    if (phase === 'priming' && currentTrial) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px]">
                 {currentBlock && (
-                    <StepProgressPill step={currentBlock.step} total={TOTAL_BLOCKS} percent={blockProgress} />
+                    <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
                 )}
-                <div className="flex-1 flex items-center justify-center mt-8">
-                    <span className="text-5xl font-bold text-gray-400 select-none">{PRIMING_SYMBOL}</span>
+                <div className="flex-1 flex flex-col items-center justify-center mt-8 gap-2">
+                    {currentTrial.primingLabel ? (
+                        currentTrial.primingImage ? (
+                            <img
+                                src={currentTrial.primingImage}
+                                alt={currentTrial.primingLabel}
+                                className="max-h-32 max-w-xs object-contain"
+                            />
+                        ) : (
+                            <span className="text-2xl font-semibold text-gray-500 select-none">
+                                {currentTrial.primingLabel}
+                            </span>
+                        )
+                    ) : (
+                        <span className="text-5xl font-bold text-gray-400 select-none">+</span>
+                    )}
                 </div>
             </div>
         );
@@ -803,36 +912,42 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     if (phase === 'trial' && currentTrial && currentBlock) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 select-none">
-                <StepProgressPill step={currentBlock.step} total={TOTAL_BLOCKS} percent={blockProgress} />
+                <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
 
-                {/* Target stimulus */}
-                <div className="flex items-center justify-center min-h-[200px] my-8">
-                    {currentTrial.targetImage ? (
+                {/* Stimulus */}
+                <div className="flex flex-col items-center justify-center min-h-[200px] my-8 gap-2">
+                    {currentTrial.stimulusImage ? (
                         <img
-                            src={currentTrial.targetImage}
-                            alt={currentTrial.targetLabel}
+                            src={currentTrial.stimulusImage}
+                            alt={currentTrial.stimulusLabel}
                             className="max-h-48 max-w-xs object-contain"
                         />
                     ) : (
                         <span className="text-3xl font-bold text-gray-900">
-                            {currentTrial.targetLabel}
+                            {currentTrial.stimulusLabel}
+                        </span>
+                    )}
+                    {/* Secondary label (Comparing Attribute: criteria below object name) */}
+                    {currentTrial.stimulusSecondaryLabel && (
+                        <span className="text-xl text-gray-600">
+                            {currentTrial.stimulusSecondaryLabel}
                         </span>
                     )}
                 </div>
 
-                {/* Category buttons (A / L) */}
+                {/* Category buttons */}
                 <div className="flex gap-4 w-full max-w-lg">
                     <button
                         onClick={() => handleSelect('left')}
                         className="flex-1 py-4 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
                     >
-                        A = {currentBlock.leftLabel}
+                        {isYesNo ? currentBlock.leftLabel : `A = ${currentBlock.leftLabel}`}
                     </button>
                     <button
                         onClick={() => handleSelect('right')}
                         className="flex-1 py-4 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
                     >
-                        L = {currentBlock.rightLabel}
+                        {isYesNo ? currentBlock.rightLabel : `L = ${currentBlock.rightLabel}`}
                     </button>
                 </div>
             </div>
@@ -840,14 +955,14 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     }
 
     // -----------------------------------------------------------------------
-    // Feedback screen
+    // Feedback screen (IAT/Priming only, not Yes/No)
     // -----------------------------------------------------------------------
 
     if (phase === 'feedback') {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px]">
                 {currentBlock && (
-                    <StepProgressPill step={currentBlock.step} total={TOTAL_BLOCKS} percent={blockProgress} />
+                    <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
                 )}
                 <div className="flex-1 flex items-center justify-center mt-8">
                     {lastCorrect ? (
@@ -871,7 +986,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     // -----------------------------------------------------------------------
 
     if (phase === 'complete') {
-        // Compute simple stats for results display
         const correctCount = results.filter(r => r.correct).length;
         const accuracy = results.length > 0 ? Math.round((correctCount / results.length) * 100) : 0;
         const avgRT = results.length > 0 ? Math.round(results.reduce((sum, r) => sum + r.rt, 0) / results.length) : 0;
@@ -913,7 +1027,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 };
 
 // ---------------------------------------------------------------------------
-// Step progress pill (reusable sub-component)
+// Step progress pill
 // ---------------------------------------------------------------------------
 
 const StepProgressPill: React.FC<{ step: number; total: number; percent: number }> = ({ step, total, percent }) => (

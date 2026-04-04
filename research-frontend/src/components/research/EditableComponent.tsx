@@ -5,11 +5,10 @@ import { Textarea } from '../ui/Textarea';
 import { CustomSelect } from '../ui/CustomSelect';
 import { Button } from '../ui/Button';
 import { Toggle } from '../ui/Toggle';
-import { Trash2, Plus, Image as ImageIcon, X } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { LocalHitzoneEditor, type HitzoneArea } from '../ui/LocalHitzoneEditor';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
-import { mediaService } from '../../services/media.service';
 
 interface RadioChoicesEditorProps {
     component: ComponentConfig;
@@ -464,18 +463,13 @@ const RankingItemsEditor = ({
 
 // ─── IAT Criteria Editor ────────────────────────────────────────────────────
 
-type IATCriterionImage = {
-    s3Key?: string;
-    mediaId?: string;
-    name?: string;
-    url?: string;
-    urlExpiresAt?: number;
-};
-
 type IATCriterionItem = {
     id: string;
     label: string;
-    image?: IATCriterionImage;
+    /** Target ID assigned by researcher (e.g. "Target 1") — determines correct answer */
+    targetId?: string;
+    /** @deprecated Legacy image field — replaced by targetId selector */
+    image?: unknown;
 };
 
 interface IATCriteriaEditorProps {
@@ -483,14 +477,16 @@ interface IATCriteriaEditorProps {
     value: string;
     onChange: (value: string) => void;
     researchId?: string;
+    /** Available targets/objects from the module for the target selector */
+    targets: IATTargetOption[];
 }
 
 /**
  * Editor para los criterios (attributes) de un test IAT.
- * Muestra una tabla: Orden | Nombre del atributo | Imagen | Eliminar.
- * Soporta upload de imagen por fila via S3.
+ * Muestra una tabla: Orden | Nombre del atributo | Target (selector) | Eliminar.
+ * El investigador asigna cada criteria a un target para determinar la respuesta correcta.
  */
-const IATCriteriaEditor = ({ component, value, onChange, researchId }: IATCriteriaEditorProps) => {
+const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCriteriaEditorProps) => {
     const minItems = (component.settings?.minItems as number) ?? 1;
     const maxItems = (component.settings?.maxItems as number) ?? 15;
 
@@ -507,16 +503,13 @@ const IATCriteriaEditor = ({ component, value, onChange, researchId }: IATCriter
         return Array.from({ length: count }, () => ({
             id: `criterion-${crypto.randomUUID()}`,
             label: '',
-            image: undefined,
+            targetId: undefined,
         }));
     };
 
     const [items, setItems] = useState<IATCriterionItem[]>(buildInitialItems);
-    const [uploadingRowId, setUploadingRowId] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const pendingRowIdRef = useRef<string | null>(null);
 
-    // Sync items from external value changes (e.g. on module load)
+    // Sync items from external value changes
     useEffect(() => {
         if (value) {
             try {
@@ -529,49 +522,8 @@ const IATCriteriaEditor = ({ component, value, onChange, researchId }: IATCriter
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Refresh presigned URLs for items with s3Key but expired/missing url
-    useEffect(() => {
-        const refreshUrls = async () => {
-            const now = Date.now();
-            const refreshBuffer = 5 * 60 * 1000;
-            const needsRefresh = items.filter(
-                (it) => it.image?.s3Key && (!it.image.url || (it.image.urlExpiresAt && now >= it.image.urlExpiresAt - refreshBuffer))
-            );
-            if (needsRefresh.length === 0) return;
-
-            const updated = [...items];
-            await Promise.all(
-                needsRefresh.map(async (it) => {
-                    try {
-                        const result = await mediaService.getMediaUrlByS3Key(it.image!.s3Key!);
-                        const idx = updated.findIndex((x) => x.id === it.id);
-                        if (idx !== -1) {
-                            updated[idx] = {
-                                ...updated[idx],
-                                image: {
-                                    ...updated[idx].image,
-                                    url: result.url,
-                                    urlExpiresAt: Date.now() + ((result.expires_in || 3600) * 1000),
-                                },
-                            };
-                        }
-                    } catch { /* ignore */ }
-                })
-            );
-            setItems(updated);
-        };
-        refreshUrls();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     const persist = useCallback((next: IATCriterionItem[]) => {
-        // Strip transient url/urlExpiresAt before persisting — they get refreshed on load
-        const toSave = next.map((it) => ({
-            ...it,
-            image: it.image?.s3Key
-                ? { s3Key: it.image.s3Key, mediaId: it.image.mediaId, name: it.image.name }
-                : undefined,
-        }));
+        const toSave = next.map(({ id, label, targetId }) => ({ id, label, targetId }));
         onChange(JSON.stringify(toSave));
     }, [onChange]);
 
@@ -581,9 +533,15 @@ const IATCriteriaEditor = ({ component, value, onChange, researchId }: IATCriter
         persist(next);
     };
 
+    const handleTargetChange = (id: string, targetId: string) => {
+        const next = items.map((it) => it.id === id ? { ...it, targetId: targetId || undefined } : it);
+        setItems(next);
+        persist(next);
+    };
+
     const handleAdd = () => {
         if (items.length >= maxItems) return;
-        const next = [...items, { id: `criterion-${crypto.randomUUID()}`, label: '', image: undefined }];
+        const next = [...items, { id: `criterion-${crypto.randomUUID()}`, label: '', targetId: undefined }];
         setItems(next);
         persist(next);
     };
@@ -595,160 +553,62 @@ const IATCriteriaEditor = ({ component, value, onChange, researchId }: IATCriter
         persist(next);
     };
 
-    const handleImageClick = (rowId: string) => {
-        pendingRowIdRef.current = rowId;
-        fileInputRef.current?.click();
-    };
-
-    const handleRemoveImage = (id: string) => {
-        const next = items.map((it) => it.id === id ? { ...it, image: undefined } : it);
-        setItems(next);
-        persist(next);
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        const rowId = pendingRowIdRef.current;
-        if (!file || !rowId) return;
-        // Reset input so same file can be re-selected
-        e.target.value = '';
-
-        setUploadingRowId(rowId);
-        try {
-            let imageData: IATCriterionImage;
-            if (!researchId) {
-                // Fallback: blob URL (no S3)
-                imageData = { name: file.name, url: URL.createObjectURL(file) };
-            } else {
-                const contentType = file.type || 'application/octet-stream';
-                const { upload_url, s3_key } = await mediaService.generateUploadUrl({
-                    research_id: researchId,
-                    file_name: file.name,
-                    content_type: contentType,
-                });
-                await fetch(upload_url, {
-                    method: 'PUT',
-                    body: file,
-                    headers: { 'Content-Type': contentType },
-                });
-                const { media } = await mediaService.saveMetadata({
-                    research_id: researchId,
-                    s3_key,
-                    metadata: { fileName: file.name, fileType: file.type, fileSize: file.size },
-                });
-                let url: string | undefined;
-                let urlExpiresAt: number | undefined;
-                try {
-                    const result = await mediaService.getMediaUrl(media.id);
-                    url = result.url;
-                    urlExpiresAt = Date.now() + ((result.expires_in || 3600) * 1000);
-                } catch { /* show without url */ }
-                imageData = { s3Key: s3_key, mediaId: media.id, name: file.name, url, urlExpiresAt };
-            }
-
-            setItems((prev) => {
-                const next = prev.map((it) => it.id === rowId ? { ...it, image: imageData } : it);
-                persist(next);
-                return next;
-            });
-        } catch (err) {
-            console.error('IAT image upload error:', err);
-        } finally {
-            setUploadingRowId(null);
-            pendingRowIdRef.current = null;
-        }
-    };
-
     return (
         <div className="space-y-3">
             <label className="block text-sm font-medium text-gray-700">{component.label}</label>
 
-            {/* Hidden file input shared across all rows */}
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                className="hidden"
-                onChange={handleFileChange}
-            />
-
             <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {/* Header */}
-                <div className="grid grid-cols-[2rem_3rem_1fr_auto] items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                <div className="grid grid-cols-[2rem_3rem_1fr_auto_auto] items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wide">
                     <span />
                     <span>Order</span>
                     <span>Attribute name</span>
+                    <span>Target</span>
                     <span className="text-right">Actions</span>
                 </div>
 
                 {/* Rows */}
-                {items.map((item, index) => {
-                    const isUploading = uploadingRowId === item.id;
-                    const hasImage = !!item.image;
-                    return (
-                        <div
-                            key={item.id}
-                            className="grid grid-cols-[2rem_3rem_1fr_auto] items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0"
-                        >
-                            {/* Drag handle (visual only) */}
-                            <span className="text-gray-300 cursor-grab select-none text-lg leading-none">⠿</span>
+                {items.map((item, index) => (
+                    <div
+                        key={item.id}
+                        className="grid grid-cols-[2rem_3rem_1fr_auto_auto] items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0"
+                    >
+                        {/* Drag handle (visual only) */}
+                        <span className="text-gray-300 cursor-grab select-none text-lg leading-none">⠿</span>
 
-                            {/* Order */}
-                            <span className="text-sm text-gray-500 font-mono">{String(index + 1).padStart(2, '0')}</span>
+                        {/* Order */}
+                        <span className="text-sm text-gray-500 font-mono">{String(index + 1).padStart(2, '0')}</span>
 
-                            {/* Attribute name input */}
-                            <input
-                                type="text"
-                                value={item.label}
-                                onChange={(e) => handleLabelChange(item.id, e.target.value)}
-                                placeholder="Attribute"
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        {/* Attribute name input */}
+                        <input
+                            type="text"
+                            value={item.label}
+                            onChange={(e) => handleLabelChange(item.id, e.target.value)}
+                            placeholder="Attribute"
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
+
+                        {/* Target selector */}
+                        <div className="min-w-[140px]">
+                            <CustomSelect
+                                value={item.targetId || ''}
+                                onChange={(val) => handleTargetChange(item.id, val)}
+                                options={targets.map((t) => ({ value: t.id, label: t.name }))}
+                                placeholder="— Select —"
                             />
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-2 shrink-0">
-                                {hasImage ? (
-                                    <div className="flex items-center gap-1">
-                                        {item.image?.url && (
-                                            <img
-                                                src={item.image.url}
-                                                alt={item.image.name || 'image'}
-                                                className="h-6 w-6 object-cover rounded border border-gray-200"
-                                            />
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRemoveImage(item.id)}
-                                            className="text-gray-400 hover:text-gray-600 transition-colors"
-                                            title="Remove image"
-                                        >
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleImageClick(item.id)}
-                                        disabled={isUploading}
-                                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50"
-                                    >
-                                        <ImageIcon className="h-3.5 w-3.5" />
-                                        {isUploading ? 'Uploading…' : 'Image'}
-                                    </button>
-                                )}
-                                <span className="text-gray-300">|</span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleDelete(item.id)}
-                                    disabled={items.length <= minItems}
-                                    className="text-sm text-red-500 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                >
-                                    Delete
-                                </button>
-                            </div>
                         </div>
-                    );
-                })}
+
+                        {/* Delete action */}
+                        <button
+                            type="button"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={items.length <= minItems}
+                            className="text-sm text-red-500 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                ))}
             </div>
 
             {items.length < maxItems && (
@@ -884,6 +744,12 @@ const FileUploadEditorComponent = ({ component, value, onChange, researchId }: F
     );
 };
 
+/** IAT target option for criteria target selector */
+export interface IATTargetOption {
+    id: string;
+    name: string;
+}
+
 interface EditableComponentProps {
     component: ComponentConfig;
     value: string;
@@ -895,6 +761,8 @@ interface EditableComponentProps {
     screenerSingleChoiceLocked?: boolean;
     /** Screener: Multiple Choice — default minimum option rows (e.g. 3). */
     screenerMultipleChoiceMinOptions?: number;
+    /** IAT: available targets for criteria assignment */
+    iatTargets?: IATTargetOption[];
 }
 
 /**
@@ -908,6 +776,7 @@ export const EditableComponent = ({
     fieldLayout = 'default',
     screenerSingleChoiceLocked = false,
     screenerMultipleChoiceMinOptions,
+    iatTargets,
 }: EditableComponentProps) => {
     const placeholder = component.placeholder?.enabled
         ? component.placeholder.text || ''
@@ -1048,6 +917,7 @@ export const EditableComponent = ({
                         value={value}
                         onChange={onChange}
                         researchId={researchId}
+                        targets={iatTargets || []}
                     />
                 );
             }

@@ -5,7 +5,21 @@
 
 ---
 
-## Última actualización: 2026-04-03 (sesión 30)
+## Última actualización: 2026-04-03 (sesión 31)
+
+---
+
+## Sesión 31: 3 de abril de 2026 — Implicit Association: 3 paradigmas + Notes + target selector (v0.50.0)
+
+- **Análisis de diseño.** Revisión de 3 imágenes de técnica (`technique-implicit-v1/v2/v3.png`) + 10 pantallas de Figma (`docs/participant-implicit/`) para entender los 3 paradigmas reales.
+- **Notes panel (research-frontend).** 2 columnas en `ModuleContentEditor`: contenido del builder (izq) + panel informativo (der, 280px) con instrucciones por tipo IAT.
+- **Criteria target selector.** Reemplazo del file upload por `CustomSelect` con opciones "Target 1", "Target 2", etc. Persiste `targetId` en cada criterion. Determina respuesta correcta en participant-frontend.
+- **Renderer reescrito con 3 paradigmas:**
+  - Attribute Testing: 2 pasos (práctica + priming con criteria asignados a targets).
+  - Comparing Attribute: 1 paso Yes/No (Object + Criteria, botones = dimensions).
+  - Objects Comparing: 3 pasos IAT clásico (criteria → targets → combinado).
+- **Traducciones IAT:** 22 claves ES/EN. Fallback i18n en vez de placeholders inglés del template.
+- **Datos verificados en producción:** Research "Probando nuevo" con los 3 tipos configurados (Fanta, Coca cola, Pepsi).
 
 ---
 

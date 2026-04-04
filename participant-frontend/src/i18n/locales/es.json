@@ -168,5 +168,28 @@
     "calibrationPoint": "Punto de calibración {{number}}",
     "gazeIndicator": "El punto verde indica hacia dónde estás mirando",
     "finish": "Finalizar"
+  },
+  "iat": {
+    "notConfigured": "Esta prueba de asociación implícita aún no ha sido configurada.",
+    "introTitle": "En esta sección",
+    "introDescription": "Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas 'A' o 'L'.",
+    "introDescriptionYesNo": "Se te presentarán objetos y características. Responde lo más rápido posible usando los botones.",
+    "introSpeed": "Intenta ir lo más rápido posible cometiendo la menor cantidad de errores.",
+    "start": "Comenzar",
+    "next": "Siguiente",
+    "keepInMindTitle": "Ten en cuenta",
+    "rule1": "Las etiquetas en la parte superior de la pantalla indican qué categoría corresponde a cada tecla.",
+    "rule2": "Cada palabra o imagen tiene una clasificación de categoría correcta.",
+    "rule3": "Mantén los dedos índice en las teclas A y L para responder rápidamente.",
+    "rule4": "La prueba no da resultados si vas lento, intenta ir lo más rápido posible.",
+    "takeNoteTitle": "Tomar nota",
+    "takeNoteCategories": "Toma nota de las categorías a continuación",
+    "takeNoteFingers": "Posiciona tus dedos índice",
+    "takeNoteBegin": "Presiona la barra espaciadora (o uno de los botones) para comenzar",
+    "oops": "¡ups!",
+    "complete": "Prueba completada. ¡Gracias!",
+    "yourResults": "Tus resultados",
+    "accuracy": "Precisión",
+    "avgResponseTime": "Tiempo de respuesta prom."
   }
 }

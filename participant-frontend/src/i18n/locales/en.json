@@ -168,5 +168,28 @@
     "calibrationPoint": "Calibration point {{number}}",
     "gazeIndicator": "The green point indicates where you are looking",
     "finish": "Finish"
+  },
+  "iat": {
+    "notConfigured": "This implicit association test has not been configured yet.",
+    "introTitle": "In this section",
+    "introDescription": "You will be presented with words or images to classify into categories using either the 'A' or 'L' key.",
+    "introDescriptionYesNo": "You will be presented with objects and characteristics. Respond as quickly as possible using the buttons below.",
+    "introSpeed": "Try to go as fast as possible while making as few mistakes as possible.",
+    "start": "Start",
+    "next": "Next",
+    "keepInMindTitle": "Keep in mind",
+    "rule1": "Labels at the top of the screen indicate which category goes with which key.",
+    "rule2": "Each word or image has a correct category classification.",
+    "rule3": "Keep your index fingers on the A and L keys to enable a rapid response.",
+    "rule4": "The test gives no results if you go slow, please try to go as fast as possible.",
+    "takeNoteTitle": "Take note",
+    "takeNoteCategories": "Take note of the categories below",
+    "takeNoteFingers": "Position your index fingers",
+    "takeNoteBegin": "Press the space bar (or one of the buttons) to begin",
+    "oops": "oops!",
+    "complete": "Test completed. Thank you!",
+    "yourResults": "Your results",
+    "accuracy": "Accuracy",
+    "avgResponseTime": "Avg. response time"
   }
 }

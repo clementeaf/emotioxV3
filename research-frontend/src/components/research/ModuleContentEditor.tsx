@@ -157,7 +157,25 @@ export const ModuleContentEditor = ({
             ? 3
             : undefined;
 
-    return (
+    const normalizedModuleName = moduleName?.trim().toLowerCase() ?? '';
+    const isAttributeTesting = normalizedModuleName === 'attribute testing';
+    const isComparingAttribute = normalizedModuleName === 'comparing attribute';
+    const isObjectsComparing = normalizedModuleName === 'objects comparing' || normalizedModuleName === 'object comparing';
+    const hasIatNotes = isAttributeTesting || isComparingAttribute || isObjectsComparing;
+
+    // Extract IAT target options for the criteria editor (target selector)
+    // Always show "Target 1", "Target 2", etc. — not the object name (which may be empty)
+    const iatTargetOptions = isIatModule
+        ? iatColumns.map((col) => {
+              const heading =
+                  col.components[0]?.settings?.groupLabel != null
+                      ? String(col.components[0].settings.groupLabel)
+                      : `Target ${col.index}`;
+              return { id: heading, name: heading };
+          })
+        : [];
+
+    const builderContent = (
         <div className="space-y-6">
             {displayItems.map((item, index) => {
                 if (item.type === 'iat-targets-row' && item.columns.length > 0) {
@@ -304,12 +322,131 @@ export const ModuleContentEditor = ({
                                 researchId={researchId}
                                 screenerSingleChoiceLocked={screenerSingleChoiceLocked}
                                 screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+                                iatTargets={iatTargetOptions}
                             />
                         </div>
                     );
                 }
                 return null;
             })}
+        </div>
+    );
+
+    if (!hasIatNotes) {
+        return builderContent;
+    }
+
+    return (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
+            {builderContent}
+            <aside className="space-y-4">
+                {isAttributeTesting && (
+                    <>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-blue-900 mb-2">Notes:</h4>
+                            <p className="text-sm font-medium text-blue-800 mb-1">Target Objects</p>
+                            <p className="text-sm text-blue-700 mb-3">
+                                You can add items that describe your objects in the best way. Please see the example:
+                            </p>
+                            <div className="grid grid-cols-2 gap-4 mb-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-blue-800 mb-1">Object A:</p>
+                                    <ul className="text-sm text-blue-700 space-y-0.5">
+                                        <li>Name A</li>
+                                        <li>Logo A</li>
+                                        <li>Image A</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-blue-800 mb-1">Object B:</p>
+                                    <ul className="text-sm text-blue-700 space-y-0.5">
+                                        <li>Name B</li>
+                                        <li>Logo B</li>
+                                        <li>Image B</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <p className="text-xs text-blue-600">
+                                Respondent will see the names of main objects on the buttons, while their items (Logo, Brand name, Product image, etc) will appear on the screen.
+                            </p>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-1">Criteria</h4>
+                            <p className="text-sm text-gray-600 mb-1">
+                                You can add up to 5 characteristics. For example, Tasty, Expensive, Innovative, etc.
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                The respondent will see added criteria before each object appeared during the test.
+                            </p>
+                        </div>
+                    </>
+                )}
+                {isComparingAttribute && (
+                    <>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-blue-900 mb-2">Notes:</h4>
+                            <p className="text-sm font-medium text-blue-800 mb-1">Object</p>
+                            <p className="text-sm text-blue-700 mb-3">
+                                You can add up to 3 objects. For example, MacOS, Windows, Android, etc.
+                            </p>
+                            <p className="text-xs text-blue-600 mb-4">
+                                The respondent will see added criteria before each object appeared during the test.
+                            </p>
+                            <p className="text-sm font-medium text-blue-800 mb-1">Dimensions:</p>
+                            <p className="text-sm text-blue-700 mb-3">
+                                Dimensions&apos; names appear with objects to be exposes with criteria attribute.
+                            </p>
+                            <p className="text-xs text-blue-600">
+                                Respondent will see the names of main objects on the buttons, while their items (Logo, Brand name, Product image, etc) will appear on the screen.
+                            </p>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-1">Criteria</h4>
+                            <p className="text-sm text-gray-600 mb-1">
+                                You can add up to 15 characteristics. For example, Tasty, Expensive, Innovative, etc.
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                The respondent will see added criteria before each object appeared during the test.
+                            </p>
+                        </div>
+                    </>
+                )}
+                {isObjectsComparing && (
+                    <>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-blue-900 mb-2">Notes:</h4>
+                            <p className="text-sm font-medium text-blue-800 mb-1">Target Objects</p>
+                            <p className="text-sm text-blue-700 mb-3">
+                                You can add up to 5 objects. For example, MacOS, Windows, Android, etc.
+                            </p>
+                            <p className="text-xs text-blue-600">
+                                Respondent will see the added object before each criterion appeared during the test.
+                            </p>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Criteria</h4>
+                            <p className="text-sm text-gray-600 mb-3">
+                                You can add attributes that describe your criteria in the best way. Please see the example:
+                            </p>
+                            <p className="text-sm font-semibold text-green-700 mb-1">Satisfaction</p>
+                            <ul className="text-sm text-gray-600 space-y-0.5 mb-3">
+                                <li>Acceptable price</li>
+                                <li>High quality</li>
+                                <li>Like it</li>
+                            </ul>
+                            <p className="text-sm font-semibold text-red-700 mb-1">Dissatisfaction</p>
+                            <ul className="text-sm text-gray-600 space-y-0.5 mb-3">
+                                <li>Unacceptable price</li>
+                                <li>Low quality</li>
+                                <li>Dislike it</li>
+                            </ul>
+                            <p className="text-xs text-gray-500">
+                                Respondent will see the names of main criteria on the button, while their attributes will appear on the screen.
+                            </p>
+                        </div>
+                    </>
+                )}
+            </aside>
         </div>
     );
 };

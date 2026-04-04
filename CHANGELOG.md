@@ -1,10 +1,23 @@
-## v0.49.1 — IAT Attribute Testing: criteria images, distribution fix, show-results (2026-04-03)
+## v0.50.0 — Implicit Association: 3 paradigmas diferenciados + Notes panel + criteria target selector (2026-04-03)
+
+### research-frontend
+
+- **Notes panel por tipo IAT.** Cada tipo de Implicit Association muestra un panel informativo en columna derecha (280px) con instrucciones para el investigador:
+  - Attribute Testing: Target Objects (ejemplo Object A/B) + Criteria (hasta 5).
+  - Comparing Attribute: Objects (hasta 3) + Dimensions + Criteria (hasta 15).
+  - Objects Comparing: Target Objects (hasta 5) + Criteria con ejemplo Satisfaction/Dissatisfaction.
+- **Criteria target selector.** La columna "Image" (file upload) en la tabla de criteria fue reemplazada por un selector de target (CustomSelect). El investigador asigna cada criteria a un target (Target 1, Target 2, etc.) para definir la respuesta correcta del participante.
 
 ### participant-frontend
 
-- **IAT criteria images.** El renderer ahora extrae y resuelve imágenes S3 de los items del ranking-list de criteria. Los estímulos de bloque 1 y 3 muestran imagen cuando el criterio la tiene.
-- **IAT criteria distribution fix.** Los criteria se distribuyen equitativamente entre izquierda y derecha (primera mitad / segunda mitad) en vez de asignar solo el primero a la izquierda y todos los demás a la derecha.
-- **IAT show-results.** Cuando el investigador activa el checkbox "Show results to respondents", al completar el test se muestra un panel con accuracy (%) y tiempo promedio de respuesta (ms).
+- **3 paradigmas IAT diferenciados.** El renderer único fue reemplazado por lógica específica por tipo:
+  - **Attribute Testing (Implicit Priming Test, 2 pasos):** Step 1 practica clasificar targets. Step 2 muestra criteria como estímulo; la respuesta correcta es el target asignado por el investigador.
+  - **Comparing Attribute (Reaction Time Test, 1 paso):** Muestra Object + Criteria juntos. Botones = dimension labels (ej: Extravagente/Convencional). Sin feedback correcto/incorrecto — solo mide RT.
+  - **Objects Comparing (IAT clásico, 3 pasos):** Step 1 clasifica criteria (botones = categorías Positive/Negative). Step 2 clasifica targets. Step 3 combinado.
+- **Sin swap de testType.** Cada tipo se mapea a su nombre real, eliminando el swap confuso entre Comparing Attribute ↔ Objects Comparing.
+- **Priming contextual.** El priming muestra contenido real (criteria o target según tipo) en vez del símbolo `+` genérico. Comparing Attribute no usa priming — estímulo directo.
+- **Traducciones IAT (ES/EN).** 22 claves i18n agregadas. Instrucciones fallback usan traducciones en vez de placeholders en inglés del template.
+- **Total de bloques dinámico.** Ya no hardcoded a 3 — se calcula según tipo y datos del test.
 
 ---
 
