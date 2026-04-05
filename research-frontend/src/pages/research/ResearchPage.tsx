@@ -153,9 +153,8 @@ export const ResearchPage = () => {
                     </div>
                 </div>
 
-                <CreateResearchForm onSuccess={(researchId) => {
+                <CreateResearchForm onSuccess={() => {
                     setShowCreateForm(false);
-                    navigate(`/research/${researchId}/builder`);
                 }} />
 
                 <CreateResearchTechniqueModal

@@ -13,6 +13,7 @@ import { ModuleContentEditor } from '../../components/research/ModuleContentEdit
 import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
 import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
+import { AttentionPredictionView } from '../../components/research/AttentionPredictionView';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
@@ -41,7 +42,7 @@ const DEMOGRAPHIC_LABELS: Record<string, string> = {
 };
 
 export const ResearchBuilderPage = () => {
-    const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
+    const { id, moduleId, stageId, stimulusId } = useParams<{ id: string; moduleId?: string; stageId?: string; stimulusId?: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const toast = useToast();
@@ -51,6 +52,20 @@ export const ResearchBuilderPage = () => {
 
     // Type assertion para TypeScript
     const typedResearch = research as Research | null;
+
+    const isAttentionPrediction = typedResearch?.research_type_name === 'Attention Prediction' || 
+                                 typedResearch?.research_type_name === "Attention's Prediction";
+
+    // Redirect to first stimulus for Attention Prediction if none selected
+    useEffect(() => {
+        if (isAttentionPrediction && !stimulusId && typedResearch?.settings) {
+            const stimuli = (typedResearch.settings as { stimuli?: Array<{ mediaId: string }> })?.stimuli || [];
+            if (stimuli.length > 0) {
+                navigate(`/research/${id}/builder/stimulus/${stimuli[0].mediaId}`, { replace: true });
+            }
+        }
+    }, [isAttentionPrediction, stimulusId, typedResearch, id, navigate]);
+
     const isSettings = location.pathname.endsWith('/settings');
     // Use useParams for moduleId instead of regex for better reactivity
     const activeModuleId = moduleId || null;
@@ -654,10 +669,17 @@ export const ResearchBuilderPage = () => {
 
             {/* Content Area */}
             <div className="flex-1 min-h-0 overflow-auto">
+                {isAttentionPrediction && stimulusId && typedResearch && (
+                    <AttentionPredictionView 
+                        research={typedResearch} 
+                        stimulusId={stimulusId} 
+                    />
+                )}
+
                 {isSettings && <ResearchSettingsView research={typedResearch} />}
 
                 {/* Smart VOC Stage: Show all modules in the same view */}
-                {isSmartVOCStage && smartVOCModules.length > 0 && (
+                {!isAttentionPrediction && isSmartVOCStage && smartVOCModules.length > 0 && (
                     <div className="space-y-6">
                     {smartVOCModules.map((module, idx) => (
                         <div
@@ -732,7 +754,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Smart VOC Stage Empty State */}
-                {isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
+                {!isAttentionPrediction && isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
                     <StageEmptyState
                         stageName={smartVOCStage.name}
                         stageType="smart-voc"
@@ -741,7 +763,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
-                {isCollectionStageActive && collectionModules.length > 0 && (
+                {!isAttentionPrediction && isCollectionStageActive && collectionModules.length > 0 && (
                     <div className="space-y-6">
                     {collectionModules.map((module, idx) => (
                         <div
@@ -816,7 +838,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Collection Stage Empty State */}
-                {isCollectionStageActive && collectionModules.length === 0 && collectionStage && (
+                {!isAttentionPrediction && isCollectionStageActive && collectionModules.length === 0 && collectionStage && (
                     <StageEmptyState
                         stageName={collectionStage.name}
                         stageType="collection"
@@ -825,7 +847,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Regular module view: Show single module */}
-                {!isSmartVOCStage && !isCollectionStageActive && !isResearchConfigModule && activeModule && (
+                {!isAttentionPrediction && !isSmartVOCStage && !isCollectionStageActive && !isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ModuleContentEditor
@@ -840,7 +862,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Research Configuration module: Show custom component */}
-                {!isSmartVOCStage && !isCollectionStageActive && isResearchConfigModule && activeModule && (
+                {!isAttentionPrediction && !isSmartVOCStage && !isCollectionStageActive && isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ResearchConfigurationModule

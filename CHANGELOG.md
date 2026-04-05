@@ -1,3 +1,15 @@
+## v0.51.0 — Attention Prediction: builder completo + settings modal (2026-04-05)
+
+### research-frontend
+
+- **Fix: stimulus upload usaba `apiClient.put()` en vez de `fetch()`.** Reemplazado por `fetch()` con body raw, alineado al patrón de `FileUploadAdvanced`. Los stimuli ahora se persisten correctamente en `research.config`.
+- **`AttentionPredictionCard`.** Componente dedicado para análisis de stimuli. Tabs: Prediction (heatmap + AOI drawing), Attention Video (placeholder), Image (original). Settings abre modal.
+- **Settings modal.** Preview en tiempo real con 3 modos: Heat map, Opacity map, Composición. Controles: Blur (slider), Opacity (slider), Threshold (slider), Prediction model (select). Composición agrega: Analysis window, Frames in fixation (min/max), Dispersion, Merge range. Cambios se aplican solo al confirmar.
+- **`HeatmapRenderer` — props `blur`, `opacity`, `threshold`.** Acepta parámetros de renderizado configurables desde el modal de settings.
+- **Builder guard para Attention Prediction.** SmartVOC, Cognitive Tasks, módulos regulares y Research Config no se renderizan cuando el research es Attention Prediction.
+
+---
+
 ## v0.50.0 — Implicit Association: 3 paradigmas diferenciados + Notes panel + criteria target selector (2026-04-03)
 
 ### research-frontend

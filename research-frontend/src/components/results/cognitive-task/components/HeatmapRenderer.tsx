@@ -15,12 +15,18 @@ interface HeatmapRendererProps {
     className?: string;
     radius?: number;
     blur?: number;
+    opacity?: number;
+    threshold?: number;
 }
 
 export const HeatmapRenderer = ({
     imageUrl,
     data,
     className = '',
+    radius: radiusProp,
+    blur: blurProp,
+    opacity: opacityProp,
+    threshold: thresholdProp,
 }: HeatmapRendererProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -54,8 +60,9 @@ export const HeatmapRenderer = ({
             // 1. Draw background image
             ctx.drawImage(img, 0, 0);
 
-            // 2. Dark overlay (~55% black)
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+            // 2. Dark overlay
+            const overlayOpacity = opacityProp != null ? opacityProp / 100 : 0.55;
+            ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
             ctx.fillRect(0, 0, w, h);
 
             // 3. Draw heatmap on a separate canvas, then composite
@@ -65,9 +72,10 @@ export const HeatmapRenderer = ({
 
             const heat = simpleheat(heatCanvas);
 
-            // Radius scales with image size
-            const r = Math.max(10, Math.round(Math.min(w, h) * 0.04));
-            heat.radius(r, r * 0.7);
+            // Radius scales with image size, overridable via prop
+            const r = radiusProp ?? Math.max(10, Math.round(Math.min(w, h) * 0.04));
+            const b = blurProp ?? Math.round(r * 0.7);
+            heat.radius(r, b);
 
             // Hotjar-style gradient: green → yellow → red
             heat.gradient({
@@ -95,13 +103,14 @@ export const HeatmapRenderer = ({
 
             heat.data(points);
             heat.max(Math.max(3, Math.ceil(points.length * 0.05)));
-            heat.draw(0.05);
+            const minOpacity = thresholdProp != null ? thresholdProp / 100 : 0.05;
+            heat.draw(minOpacity);
 
             // 4. Composite heatmap over the darkened image
             ctx.drawImage(heatCanvas, 0, 0);
         };
 
-    }, [imageLoaded, naturalSize, data, imageUrl]);
+    }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp]);
 
     if (!imageUrl) return <div className="bg-gray-200 h-64 flex items-center justify-center">No Image URL</div>;
 
@@ -109,7 +118,7 @@ export const HeatmapRenderer = ({
         <div className={`relative overflow-hidden rounded-lg shadow-sm border ${className}`}>
             <canvas
                 ref={canvasRef}
-                className="max-h-[700px] w-auto block"
+                className="max-h-[700px] w-full block"
                 style={{ maxHeight: '700px' }}
             />
             {!imageLoaded && (

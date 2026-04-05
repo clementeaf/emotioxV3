@@ -11,6 +11,7 @@ interface CreateResearchFormData {
     researchTypeId: string;
     researchTechniqueId: string;
     useDefaultModules: boolean;
+    stimulusFiles: File[];
 }
 
 interface ResearchFormErrors {
@@ -19,6 +20,7 @@ interface ResearchFormErrors {
     enterpriseName?: string;
     researchTypeId?: string;
     researchTechniqueId?: string;
+    stimulusFiles?: string;
 }
 
 export const useResearchForm = () => {
@@ -29,6 +31,7 @@ export const useResearchForm = () => {
         researchTypeId: '',
         researchTechniqueId: '',
         useDefaultModules: true,
+        stimulusFiles: [],
     });
     const [currentStep, setCurrentStep] = useState<number>(0);
     const [researchTypes, setResearchTypes] = useState<Array<{ id: string; name: string; default_modules?: ModuleTemplateRef[] }>>([]);
@@ -208,7 +211,11 @@ export const useResearchForm = () => {
             newErrors.researchTypeId = 'Research Type is required';
         }
 
-        if (!formData.researchTechniqueId) {
+        const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
+        const isAttentionPrediction = selectedType?.name === 'Attention Prediction' ||
+                                    selectedType?.name === "Attention's Prediction";
+
+        if (!isAttentionPrediction && !formData.researchTechniqueId) {
             newErrors.researchTechniqueId = 'Research Technique is required';
         }
 
@@ -216,7 +223,7 @@ export const useResearchForm = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleFieldChange = (field: keyof CreateResearchFormData, value: string | boolean): void => {
+    const handleFieldChange = (field: keyof CreateResearchFormData, value: string | boolean | File[] | null): void => {
         console.log('[useResearchForm] Field changed:', { field, value });
         setFormData((prev) => {
             const newData = { ...prev, [field]: value };
@@ -339,6 +346,7 @@ export const useResearchForm = () => {
             researchTypeId: '',
             researchTechniqueId: '',
             useDefaultModules: true,
+            stimulusFiles: [],
         });
         setFormErrors({});
         setSubmitError('');

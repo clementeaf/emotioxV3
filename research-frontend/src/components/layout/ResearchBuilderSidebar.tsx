@@ -11,7 +11,8 @@ import {
     Trash2,
     BarChart3,
     TrendingUp,
-    LogOut
+    LogOut,
+    Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { researchService } from '../../services/research.service';
@@ -89,6 +90,23 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
 
+    const isAttentionPrediction = activeResearch?.research_type_name === 'Attention Prediction' || 
+                                activeResearch?.research_type_name === "Attention's Prediction";
+
+    // Get stimuli from settings if it exists
+    const settings = (activeResearch?.settings as Record<string, unknown>) || {};
+    const stimuli = (settings.stimuli as Array<{ url: string; mediaId: string; name: string }>) || [];
+
+    useEffect(() => {
+        if (isAttentionPrediction && activeResearch) {
+            console.log('[ResearchBuilderSidebar] Attention Prediction debug:', {
+                settings,
+                stimuliCount: stimuli.length,
+                researchId: activeResearch.id
+            });
+        }
+    }, [isAttentionPrediction, settings, stimuli, activeResearch?.id]);
+
     // Use ref to track if we're currently adding stages (prevents race conditions)
     const isAddingStagesRef = useRef(false);
 
@@ -106,6 +124,11 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
 
         const researchId = activeResearch.id;
+
+        // Skip for Attention Prediction - we don't want automatic screens
+        if (isAttentionPrediction) {
+            return;
+        }
 
         // Skip if already checked this research (persists across StrictMode remounts)
         if (checkedResearchIds.has(researchId)) {
@@ -368,14 +391,16 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </p>
                 </div>
 
-                <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                        Research Technique
-                    </h3>
-                    <p className="text-sm font-medium text-gray-900">
-                        {activeResearch.research_technique_name || 'Unknown Technique'}
-                    </p>
-                </div>
+                {!isAttentionPrediction && (
+                    <div>
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                            Research Technique
+                        </h3>
+                        <p className="text-sm font-medium text-gray-900">
+                            {activeResearch.research_technique_name || 'Unknown Technique'}
+                        </p>
+                    </div>
+                )}
 
                 <div>
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
@@ -394,29 +419,52 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </button>
                 </div>
 
-                {/* Stages Section */}
+                {/* Stages Section or Stimuli Section for Attention Prediction */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            Stages
+                            {isAttentionPrediction ? 'Stimuli' : 'Stages'}
                         </h3>
-                        <button
-                            onClick={() => {
-                                setShowStageSelector(true);
-                                // Reset available stages to force reload with current research state
-                                setAvailableStages([]);
-                                void loadStageTemplates();
-                            }}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                            + Add Stage
-                        </button>
+                        {!isAttentionPrediction && (
+                            <button
+                                onClick={() => {
+                                    setShowStageSelector(true);
+                                    // Reset available stages to force reload with current research state
+                                    setAvailableStages([]);
+                                    void loadStageTemplates();
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                + Add Stage
+                            </button>
+                        )}
                     </div>
                     <div className="space-y-2 mt-2">
-                        {activeResearch.stages && activeResearch.stages.length > 0 ? (
-                            sortStages(activeResearch.stages)
-                                .filter((stage) => stage.description !== 'Automatically created during migration')
-                                .map((stage) => {
+                        {isAttentionPrediction ? (
+                            stimuli.length > 0 ? (
+                                stimuli.map((stimulus, index) => (
+                                    <Link
+                                        key={stimulus.mediaId || index}
+                                        to={`/research/${activeResearch.id}/builder/stimulus/${stimulus.mediaId}`}
+                                        className={cn(
+                                            'flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                            location.pathname.includes(`/stimulus/${stimulus.mediaId}`)
+                                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        )}
+                                    >
+                                        <ImageIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                                        <span className="truncate" title={stimulus.name}>{stimulus.name}</span>
+                                    </Link>
+                                ))
+                            ) : (
+                                <p className="text-xs text-gray-400 italic px-2">No stimuli uploaded</p>
+                            )
+                        ) : (
+                            activeResearch.stages && activeResearch.stages.length > 0 ? (
+                                sortStages(activeResearch.stages)
+                                    .filter((stage) => stage.description !== 'Automatically created during migration')
+                                    .map((stage) => {
                                     const isSingleModule = isStageSingleModule(stage);
                                     let singleModule = isSingleModule && stage.modules?.[0] ? stage.modules[0] : null;
 
@@ -483,59 +531,62 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                 })
                         ) : (
                             <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
-                        )}
+                        ))}
                     </div>
                 </div>
 
-                {/* Progress Section */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            Progress
-                        </h3>
+                {/* Progress Section - Hide for Attention Prediction */}
+                {!isAttentionPrediction && (
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Progress
+                            </h3>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/progress`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    location.pathname.includes('/builder/progress')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <TrendingUp className="h-4 w-4 mr-2" />
+                                View Progress
+                            </Link>
+                        </div>
                     </div>
-                    <div className="space-y-1 mt-2">
-                        <Link
-                            to={`/research/${activeResearch.id}/builder/progress`}
-                            className={cn(
-                                'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
-                                location.pathname.includes('/builder/progress')
-                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                    : 'text-gray-700 hover:bg-gray-50'
-                            )}
-                        >
-                            <TrendingUp className="h-4 w-4 mr-2" />
-                            View Progress
-                        </Link>
+                )}
+
+                {/* Results Section - Hide for Attention Prediction as analysis is on stimuli */}
+                {!isAttentionPrediction && (
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Results
+                            </h3>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/results`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    location.pathname.includes('/builder/results')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                View Results
+                            </Link>
+                        </div>
                     </div>
+                )}
                 </div>
 
-                {/* Results Section */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            Results
-                        </h3>
-                    </div>
-                    <div className="space-y-1 mt-2">
-                        <Link
-                            to={`/research/${activeResearch.id}/builder/results`}
-                            className={cn(
-                                'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
-                                location.pathname.includes('/builder/results')
-                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                    : 'text-gray-700 hover:bg-gray-50'
-                            )}
-                        >
-                            <BarChart3 className="h-4 w-4 mr-2" />
-                            View Results
-                        </Link>
-                    </div>
-                </div>
-            </div>
-
-            {/* Logout */}
-            <div className="p-4 border-t border-gray-100 space-y-2">
+                {/* Logout */}            <div className="p-4 border-t border-gray-100 space-y-2">
                 <button
                     onClick={handleLogout}
                     className={cn(

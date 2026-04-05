@@ -47,6 +47,7 @@ export interface Research {
     created_at: string;
     updated_at: string;
     stages?: Stage[];
+    settings?: Record<string, unknown>;
 }
 
 export interface CreateResearchData {
@@ -55,12 +56,15 @@ export interface CreateResearchData {
     research_type_id: string;
     enterprise_id?: string;
     research_technique_id?: string;
+    settings?: Record<string, unknown>;
 }
 
 export interface UpdateResearchData {
     title?: string;
+    name?: string;
     description?: string;
     research_type_id?: string;
+    settings?: Record<string, unknown>;
 }
 
 export interface ResearchResponse {

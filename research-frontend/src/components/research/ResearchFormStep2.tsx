@@ -1,6 +1,7 @@
 import { CustomSelect } from '../ui/CustomSelect';
 import { type ResearchTechnique } from '../../services/researchTechniques.service';
 import type { ModuleTemplateRef } from '../../services/researchTypes.service';
+import { cn } from '../../lib/utils';
 
 interface ResearchFormStep2Props {
     researchTypeId: string;
@@ -12,9 +13,11 @@ interface ResearchFormStep2Props {
     loadingResearchTypes: boolean;
     loadingTechniques: boolean;
     useDefaultModules: boolean;
+    stimulusFiles?: File[];
     onResearchTypeChange: (value: string) => void;
     onResearchTechniqueChange: (value: string) => void;
     onToggleDefaultModules: (value: boolean) => void;
+    onOpenStimulusDrawer?: () => void;
 }
 
 export const ResearchFormStep2 = ({
@@ -27,12 +30,16 @@ export const ResearchFormStep2 = ({
     loadingResearchTypes,
     loadingTechniques,
     useDefaultModules,
+    stimulusFiles = [],
     onResearchTypeChange,
     onResearchTechniqueChange,
     onToggleDefaultModules,
+    onOpenStimulusDrawer,
 }: ResearchFormStep2Props) => {
     const selectedResearchType = researchTypes.find(rt => rt.id === researchTypeId);
     const selectedTechnique = availableTechniques.find(t => t.id === researchTechniqueId);
+    const isAttentionPrediction = selectedResearchType?.name === 'Attention Prediction' || 
+                                selectedResearchType?.name === "Attention's Prediction";
 
     // Technique default_stages take priority over research type default_modules
     const techniqueStages = selectedTechnique?.default_stages;
@@ -76,37 +83,72 @@ export const ResearchFormStep2 = ({
                 required
             />
 
-            {availableTechniques.length === 0 && researchTypeId && !loadingTechniques ? (
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                        <strong>Warning:</strong> This Research Type has no techniques associated.
-                        Please contact an administrator to add techniques to this Research Type.
-                    </p>
+            {isAttentionPrediction && (
+                <div className={cn(
+                    "p-3 rounded-lg border flex items-center justify-between",
+                    stimulusFiles.length > 0 
+                        ? "bg-green-50 border-green-200 text-green-800"
+                        : "bg-amber-50 border-amber-200 text-amber-800"
+                )}>
+                    <div className="flex items-center gap-2">
+                        {stimulusFiles.length > 0 ? (
+                            <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        ) : (
+                            <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        )}
+                        <span className="text-sm">
+                            {stimulusFiles.length > 0 
+                                ? `${stimulusFiles.length} stimuli selected`
+                                : 'Attention Prediction requires at least one stimulus image.'}
+                        </span>
+                    </div>
+                    <button 
+                        type="button"
+                        onClick={onOpenStimulusDrawer}
+                        className="text-xs font-semibold underline hover:opacity-80"
+                    >
+                        {stimulusFiles.length > 0 ? 'Manage Images' : 'Upload Images'}
+                    </button>
                 </div>
-            ) : (
-                <CustomSelect
-                    id="researchTechniqueId"
-                    label="Research Technique"
-                    value={researchTechniqueId}
-                    onChange={onResearchTechniqueChange}
-                    error={researchTechniqueError}
-                    placeholder={
-                        loadingTechniques
-                            ? 'Loading...'
-                            : !researchTypeId
-                                ? 'Select Research Type first'
-                                : 'Select Research Technique'
-                    }
-                    options={availableTechniques.map((technique) => ({
-                        value: technique.id,
-                        label: technique.name,
-                    }))}
-                    disabled={loadingTechniques || !researchTypeId || availableTechniques.length === 0}
-                    required
-                />
             )}
 
-            {showDefaultsCheckbox && (
+            {!isAttentionPrediction && (
+                availableTechniques.length === 0 && researchTypeId && !loadingTechniques ? (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                            <strong>Warning:</strong> This Research Type has no techniques associated.
+                            Please contact an administrator to add techniques to this Research Type.
+                        </p>
+                    </div>
+                ) : (
+                    <CustomSelect
+                        id="researchTechniqueId"
+                        label="Research Technique"
+                        value={researchTechniqueId}
+                        onChange={onResearchTechniqueChange}
+                        error={researchTechniqueError}
+                        placeholder={
+                            loadingTechniques
+                                ? 'Loading...'
+                                : !researchTypeId
+                                    ? 'Select Research Type first'
+                                    : 'Select Research Technique'
+                        }
+                        options={availableTechniques.map((technique) => ({
+                            value: technique.id,
+                            label: technique.name,
+                        }))}
+                        disabled={loadingTechniques || !researchTypeId || availableTechniques.length === 0}
+                        required
+                    />
+                )
+            )}
+
+            {showDefaultsCheckbox && !isAttentionPrediction && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start gap-3">
                         <label className="flex items-start gap-2 cursor-pointer flex-shrink-0 mt-0.5">
