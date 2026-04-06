@@ -35,8 +35,8 @@ interface HeatmapSettings {
 }
 
 const DEFAULT_SETTINGS: HeatmapSettings = {
-    blur: 10,
-    opacity: 50,
+    blur: 15,
+    opacity: 72,
     threshold: 0,
     model: 'Simple',
     analysisWindow: 5,

@@ -645,27 +645,29 @@ export const ResearchBuilderPage = () => {
 
     return (
         <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
-            <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
-                <ResearchBuilderHeader
-                    research={typedResearch}
-                    activeModule={isSmartVOCStage || isCollectionStageActive ? null : activeModule}
-                    isSettings={isSettings}
-                    isSaving={isSaving}
-                    onSave={handleSaveModule}
-                    isSmartVOCStage={isSmartVOCStage}
-                    smartVOCStageName={smartVOCStage?.name}
-                    isCollectionStage={isCollectionStageActive}
-                    collectionStageName={collectionStage?.name}
-                    modules={isSmartVOCStage ? smartVOCModules : isCollectionStageActive ? collectionModules : []}
-                    onModuleJump={(moduleId) => {
-                        if (isSmartVOCStage) {
-                            scrollToModule(moduleId, 'smartvoc');
-                        } else if (isCollectionStageActive) {
-                            scrollToModule(moduleId, 'cognitive');
-                        }
-                    }}
-                />
-            </div>
+            {!isAttentionPrediction && (
+                <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
+                    <ResearchBuilderHeader
+                        research={typedResearch}
+                        activeModule={isSmartVOCStage || isCollectionStageActive ? null : activeModule}
+                        isSettings={isSettings}
+                        isSaving={isSaving}
+                        onSave={handleSaveModule}
+                        isSmartVOCStage={isSmartVOCStage}
+                        smartVOCStageName={smartVOCStage?.name}
+                        isCollectionStage={isCollectionStageActive}
+                        collectionStageName={collectionStage?.name}
+                        modules={isSmartVOCStage ? smartVOCModules : isCollectionStageActive ? collectionModules : []}
+                        onModuleJump={(moduleId) => {
+                            if (isSmartVOCStage) {
+                                scrollToModule(moduleId, 'smartvoc');
+                            } else if (isCollectionStageActive) {
+                                scrollToModule(moduleId, 'cognitive');
+                            }
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Content Area */}
             <div className="flex-1 min-h-0 overflow-auto">

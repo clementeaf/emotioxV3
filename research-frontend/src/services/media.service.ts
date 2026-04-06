@@ -147,6 +147,34 @@ class MediaService {
         }
     }
 
+    /**
+     * Starts attention prediction on a stimulus image (async — returns immediately).
+     * The backend processes in background and saves heatmapData to research config.
+     */
+    async predictAttention(researchId: string, mediaId: string, threshold?: number): Promise<{ status: string; mediaId: string }> {
+        try {
+            return await apiClient.post<{ status: string; mediaId: string }>(
+                `/attention-prediction/research/${researchId}/predict/${mediaId}`,
+                threshold != null ? { threshold } : {}
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to start attention prediction');
+        }
+    }
+
+    /**
+     * Checks prediction status for a stimulus.
+     */
+    async getPredictionStatus(researchId: string, mediaId: string): Promise<{ status: string; pointCount: number; processedAt: string | null }> {
+        try {
+            return await apiClient.get<{ status: string; pointCount: number; processedAt: string | null }>(
+                `/attention-prediction/research/${researchId}/status/${mediaId}`
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to check prediction status');
+        }
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;

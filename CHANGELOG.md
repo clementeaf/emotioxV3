@@ -1,3 +1,17 @@
+## v0.51.1 — Attention Prediction: saliency rendering basado en OGAMA (2026-04-06)
+
+### research-frontend
+
+- **`HeatmapRenderer` — dual renderer.** Saliencia usa colormap directo pixel a pixel (enfoque OGAMA/OpenCV) en vez de simpleheat. Cada valor mapea a color vía LUT de 256 entradas con alpha cuadrático. simpleheat se mantiene solo para datos de clicks/fijaciones sparse.
+- **Separación real de hotspots.** Threshold 0.4, alpha cuadrático (`val² × 140`), overlay 45%. Las zonas de atención se distinguen sin tapar la imagen subyacente.
+
+### backend
+
+- **Attention Prediction service.** TranSalNet ONNX con normalización relativa min/max, step=3, threshold configurable. Endpoint fire-and-forget para evitar timeout de LiteSpeed.
+- **Attention Prediction controller.** `POST /attention-prediction/research/:id/predict/:mediaId` (202 async) + `GET .../status/:mediaId`. Resultado se persiste en `researches.config.stimuli[].heatmapData`.
+
+---
+
 ## v0.51.0 — Attention Prediction: builder completo + settings modal (2026-04-05)
 
 ### research-frontend
