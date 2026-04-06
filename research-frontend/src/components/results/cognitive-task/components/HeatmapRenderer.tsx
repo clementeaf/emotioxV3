@@ -72,6 +72,8 @@ const renderSaliencyMap = (
     h: number,
     data: HeatmapPoint[],
     threshold: number,
+    blurRadius?: number,
+    opacityPercent?: number,
 ): void => {
     // Create an offscreen canvas for the colormap
     const offscreen = document.createElement('canvas');
@@ -109,9 +111,10 @@ const renderSaliencyMap = (
         const lutIdx = Math.min(255, Math.round(val * 255));
         const [r, g, b] = COLOR_LUT[lutIdx];
 
-        // Quadratic alpha capped at 140 (~55%) so the image always shows through.
-        // val=0.4→22, val=0.6→50, val=0.8→90, val=1.0→140
-        const alpha = Math.round(val * val * 140);
+        // Quadratic alpha — opacity slider (0-100%) scales the max cap.
+        // Default cap=140 (~55%). Slider at 50 → cap=70, at 100 → cap=140.
+        const maxAlpha = opacityPercent != null ? Math.round((opacityPercent / 100) * 140) : 140;
+        const alpha = Math.round(val * val * maxAlpha);
 
         // Fill the grid cell
         const x0 = Math.max(0, Math.floor(px - cellW / 2));
@@ -144,9 +147,11 @@ const renderSaliencyMap = (
 
     offCtx.putImageData(imageData, 0, 0);
 
-    // Light Gaussian blur to smooth cell edges (CSS filter on canvas)
+    // Blur: prop value (0-50 slider) scaled to image size, or default ~0.8% of shorter side
+    const defaultBlur = Math.max(4, Math.round(Math.min(w, h) * 0.008));
+    const blur = blurRadius != null ? Math.max(2, blurRadius) : defaultBlur;
     ctx.save();
-    ctx.filter = `blur(${Math.max(1, Math.round(Math.min(w, h) * 0.002))}px)`;
+    ctx.filter = `blur(${blur}px)`;
     ctx.drawImage(offscreen, 0, 0);
     ctx.restore();
 };
@@ -203,7 +208,7 @@ export const HeatmapRenderer = ({
             if (isSaliency) {
                 // Direct pixel-level colormap — OGAMA/OpenCV approach
                 const saliencyThreshold = thresholdProp != null ? thresholdProp / 100 : 0.4;
-                renderSaliencyMap(ctx, w, h, data, saliencyThreshold);
+                renderSaliencyMap(ctx, w, h, data, saliencyThreshold, blurProp, opacityProp);
             } else {
                 // simpleheat for sparse click/fixation data
                 const heatCanvas = document.createElement('canvas');

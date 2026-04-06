@@ -1,7 +1,20 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
 import { cn } from '../../lib/utils';
 import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRenderer';
+import { AttentionVideoPlayer } from '../results/cognitive-task/components/AttentionVideoPlayer';
+import { CustomSelect } from '../ui/CustomSelect';
+
+/** Debounces a value — returns the latest value after `delay` ms of inactivity. */
+const useDebouncedValue = <T,>(value: T, delay: number): T => {
+    const [debounced, setDebounced] = useState(value);
+    useEffect(() => {
+        const timer = setTimeout(() => setDebounced(value), delay);
+        return () => clearTimeout(timer);
+    }, [value, delay]);
+    return debounced;
+};
 
 interface HeatmapPoint {
     x: number;
@@ -37,7 +50,7 @@ interface HeatmapSettings {
 const DEFAULT_SETTINGS: HeatmapSettings = {
     blur: 15,
     opacity: 72,
-    threshold: 0,
+    threshold: 40,
     model: 'Simple',
     analysisWindow: 5,
     framesMin: 3,
@@ -72,6 +85,13 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
 
 const PREDICTION_MODELS = ['Simple', 'Advanced', 'Deep Learning'];
 
+/** Each model preset overrides blur, threshold, and opacity for a different detail level. */
+const MODEL_PRESETS: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
+    'Simple':        { blur: 20, threshold: 50, opacity: 60 },
+    'Advanced':      { blur: 12, threshold: 35, opacity: 72 },
+    'Deep Learning': { blur: 6,  threshold: 25, opacity: 85 },
+};
+
 /* ─── Settings Modal ─── */
 const SettingsModal = ({
     imageUrl,
@@ -87,6 +107,7 @@ const SettingsModal = ({
     onClose: () => void;
 }) => {
     const [local, setLocal] = useState<HeatmapSettings>({ ...settings });
+    const debouncedLocal = useDebouncedValue(local, 150);
     const [settingsTab, setSettingsTab] = useState<'heatmap' | 'opacity' | 'composition'>('heatmap');
     const previewRef = useRef<HTMLDivElement>(null);
 
@@ -159,9 +180,9 @@ const SettingsModal = ({
                                 <HeatmapRenderer
                                     imageUrl={imageUrl}
                                     data={heatmapData}
-                                    blur={local.blur}
-                                    opacity={settingsTab === 'opacity' ? local.opacity : undefined}
-                                    threshold={local.threshold}
+                                    blur={debouncedLocal.blur}
+                                    opacity={debouncedLocal.opacity}
+                                    threshold={debouncedLocal.threshold}
                                     className="w-full"
                                 />
                             )}
@@ -325,19 +346,20 @@ const SettingsModal = ({
 
                         {/* Prediction model — all tabs */}
                         <div>
-                            <div className="flex items-center justify-between mb-1">
-                                <label className="text-sm font-medium text-gray-700">Prediction model</label>
-                            </div>
                             <p className="text-xs text-gray-400 mb-1.5">Set model to be used</p>
-                            <select
+                            <CustomSelect
+                                label="Prediction model"
+                                options={PREDICTION_MODELS.map(m => ({ value: m, label: m }))}
                                 value={local.model}
-                                onChange={e => setLocal(prev => ({ ...prev, model: e.target.value }))}
-                                className="w-full px-3 py-1.5 text-sm border rounded bg-white"
-                            >
-                                {PREDICTION_MODELS.map(m => (
-                                    <option key={m} value={m}>{m}</option>
-                                ))}
-                            </select>
+                                onChange={value => {
+                                    const preset = MODEL_PRESETS[value];
+                                    setLocal(prev => ({
+                                        ...prev,
+                                        model: value,
+                                        ...(preset ?? {}),
+                                    }));
+                                }}
+                            />
                         </div>
 
                         {/* Apply button */}
@@ -605,15 +627,14 @@ export const AttentionPredictionCard = ({
                         </>
                     )}
 
-                    {/* Attention Video Tab — placeholder */}
+                    {/* Attention Video Tab — progressive scanpath reveal */}
                     {activeTab === 'attention-video' && (
-                        <div className="flex flex-col items-center justify-center h-64 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
-                            <svg className="w-12 h-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p className="text-sm font-medium">Attention Video</p>
-                            <p className="text-xs mt-1">Animated attention simulation will be available soon.</p>
+                        <div className="w-fit mx-auto">
+                            <AttentionVideoPlayer
+                                imageUrl={imageUrl}
+                                data={heatmapData}
+                                duration={5}
+                            />
                         </div>
                     )}
 
@@ -665,15 +686,16 @@ export const AttentionPredictionCard = ({
                 </div>
             </div>
 
-            {/* Settings Modal */}
-            {showSettings && (
+            {/* Settings Modal — portal to body to avoid ancestor transform/overflow breaking fixed positioning */}
+            {showSettings && createPortal(
                 <SettingsModal
                     imageUrl={imageUrl}
                     heatmapData={heatmapData}
                     settings={settings}
                     onApply={setSettings}
                     onClose={() => setShowSettings(false)}
-                />
+                />,
+                document.body
             )}
         </>
     );

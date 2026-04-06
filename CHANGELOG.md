@@ -1,3 +1,12 @@
+## v0.51.2 — Attention Prediction: settings funcionales + Attention Video (2026-04-06)
+
+### research-frontend
+
+- **Settings modal funcional.** Blur, Opacity y Threshold ahora controlan el heatmap en tiempo real (debounce 150ms). Prediction Model (Simple/Advanced/Deep Learning) aplica presets automáticos. `CustomSelect` reemplaza `<select>` nativo. Modal renderiza via portal.
+- **`AttentionVideoPlayer`.** Animación progresiva del scanpath predicho (5s). Puntos ordenados por saliencia — los más calientes aparecen primero. Controles: Play/Pause, Reset, barra de progreso, timer. Círculo indicador de fijación actual.
+
+---
+
 ## v0.51.1 — Attention Prediction: saliency rendering basado en OGAMA (2026-04-06)
 
 ### research-frontend
