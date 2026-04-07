@@ -212,10 +212,11 @@ export const useResearchForm = () => {
         }
 
         const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
-        const isAttentionPrediction = selectedType?.name === 'Attention Prediction' ||
-                                    selectedType?.name === "Attention's Prediction";
+        const isFileBasedResearch = selectedType?.name === 'Attention Prediction' ||
+                                   selectedType?.name === "Attention's Prediction" ||
+                                   selectedType?.name === 'Insights Finding';
 
-        if (!isAttentionPrediction && !formData.researchTechniqueId) {
+        if (!isFileBasedResearch && !formData.researchTechniqueId) {
             newErrors.researchTechniqueId = 'Research Technique is required';
         }
 
@@ -251,7 +252,7 @@ export const useResearchForm = () => {
         }
     };
 
-    const handleSubmit = async (enterpriseId?: string): Promise<string | null> => {
+    const handleSubmit = async (enterpriseId?: string, skipStepCheck = false): Promise<string | null> => {
         setSubmitError('');
         setSubmitSuccess(false);
 
@@ -259,9 +260,10 @@ export const useResearchForm = () => {
             currentStep,
             enterpriseId,
             formData,
+            skipStepCheck,
         });
 
-        if (currentStep === 0) {
+        if (!skipStepCheck && currentStep === 0) {
             handleNextStep();
             return null;
         }
@@ -278,11 +280,16 @@ export const useResearchForm = () => {
             // Extract default modules if enabled
             const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
             const selectedTechnique = availableTechniques.find(t => t.id === formData.researchTechniqueId);
+            const isFileBasedType = selectedType?.name === 'Attention Prediction' ||
+                                   selectedType?.name === "Attention's Prediction" ||
+                                   selectedType?.name === 'Insights Finding';
+
             const createData: CreateResearchData & Record<string, unknown> = {
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
                 research_type_id: formData.researchTypeId,
                 research_technique_id: formData.researchTechniqueId || undefined,
+                ...(isFileBasedType ? { skip_default_modules: true } : {}),
             };
 
             // Clean up data: remove undefined, null, or empty string values

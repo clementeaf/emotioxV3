@@ -90,8 +90,10 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
 
-    const isAttentionPrediction = activeResearch?.research_type_name === 'Attention Prediction' || 
+    const isAttentionPrediction = activeResearch?.research_type_name === 'Attention Prediction' ||
                                 activeResearch?.research_type_name === "Attention's Prediction";
+    const isInsightsFinding = activeResearch?.research_type_name === 'Insights Finding';
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
 
     // Get stimuli from settings if it exists
     const settings = (activeResearch?.settings as Record<string, unknown>) || {};
@@ -125,8 +127,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
         const researchId = activeResearch.id;
 
-        // Skip for Attention Prediction - we don't want automatic screens
-        if (isAttentionPrediction) {
+        // Skip for file-based research types - no automatic screens needed
+        if (isFileBasedResearch) {
             return;
         }
 
@@ -391,7 +393,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </p>
                 </div>
 
-                {!isAttentionPrediction && (
+                {!isFileBasedResearch && (
                     <div>
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
                             Research Technique
@@ -423,9 +425,9 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            {isAttentionPrediction ? 'Stimuli' : 'Stages'}
+                            {isFileBasedResearch ? (isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
                         </h3>
-                        {!isAttentionPrediction && (
+                        {!isFileBasedResearch && (
                             <button
                                 onClick={() => {
                                     setShowStageSelector(true);
@@ -440,7 +442,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         )}
                     </div>
                     <div className="space-y-2 mt-2">
-                        {isAttentionPrediction ? (
+                        {isFileBasedResearch ? (
                             stimuli.length > 0 ? (
                                 stimuli.map((stimulus, index) => (
                                     <Link
@@ -535,8 +537,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </div>
                 </div>
 
-                {/* Progress Section - Hide for Attention Prediction */}
-                {!isAttentionPrediction && (
+                {/* Progress Section - Hide for file-based research */}
+                {!isFileBasedResearch && (
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
@@ -560,8 +562,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </div>
                 )}
 
-                {/* Results Section - Hide for Attention Prediction as analysis is on stimuli */}
-                {!isAttentionPrediction && (
+                {/* Results Section - Hide for file-based research */}
+                {!isFileBasedResearch && (
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">

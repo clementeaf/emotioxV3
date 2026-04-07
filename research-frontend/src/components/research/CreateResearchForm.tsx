@@ -1,4 +1,6 @@
 import { type FormEvent, useState, useEffect } from 'react';
+import { analyzeSentimentLocal } from '../../utils/sentimentLocal';
+import { parseDocument } from '../../utils/documentParser';
 import { useNavigate } from 'react-router-dom';
 import { Stepper } from '../ui/Stepper';
 import { Button } from '../ui/Button';
@@ -42,22 +44,25 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
     } = useResearchForm();
 
     const selectedType = researchTypes.find((rt) => rt.id === formData.researchTypeId);
-    const isAttentionPrediction = selectedType?.name === 'Attention Prediction' || 
+    const isAttentionPrediction = selectedType?.name === 'Attention Prediction' ||
                                 selectedType?.name === "Attention's Prediction";
+    const isInsightsFinding = selectedType?.name === 'Insights Finding';
+    // Both types share: no stages, file upload drawer, sidebar shows files
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
 
-    // Open drawer when Attention Prediction is selected and no file is present
+    // Open drawer when file-based research is selected and no file is present
     useEffect(() => {
-        if (isAttentionPrediction && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
+        if (isFileBasedResearch && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
             setIsStimulusDrawerOpen(true);
         }
-    }, [formData.researchTypeId, isAttentionPrediction, (formData.stimulusFiles || []).length]);
+    }, [formData.researchTypeId, isFileBasedResearch, (formData.stimulusFiles || []).length]);
 
-    // Disable default modules for Attention Prediction (no stages needed)
+    // Disable default modules for file-based research (no stages needed)
     useEffect(() => {
-        if (isAttentionPrediction && formData.useDefaultModules) {
+        if (isFileBasedResearch && formData.useDefaultModules) {
             handleFieldChange('useDefaultModules', false);
         }
-    }, [isAttentionPrediction, formData.useDefaultModules]);
+    }, [isFileBasedResearch, formData.useDefaultModules]);
 
     const { enterprises, loadingEnterprises, createEnterprise } = useEnterprise();
 
@@ -135,68 +140,63 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
         console.log('[CreateResearchForm] handleSubmit returned:', researchId);
 
         if (researchId) {
-            // Handle multiple stimulus files upload if present
+            // Handle file-based research: Insights Finding parses client-side, Attention Prediction uploads to media service
             const filesToUpload = formData.stimulusFiles || [];
-            if (isAttentionPrediction && filesToUpload.length > 0) {
+            if (isInsightsFinding && filesToUpload.length > 0) {
+                // Insights Finding: parse documents client-side, store entries in config
+                // Limit entries & text length to stay under LiteSpeed ~100KB body limit
+                const MAX_ENTRIES = 200;
+                const MAX_TEXT_LENGTH = 300;
                 try {
-                    console.log(`[CreateResearchForm] Uploading ${filesToUpload.length} stimulus files for research:`, researchId);
-                    
+                    const parsedFiles = await Promise.all(filesToUpload.map(async (file) => {
+                        const texts = await parseDocument(file);
+                        const totalCount = texts.length;
+                        const capped = texts.slice(0, MAX_ENTRIES);
+                        const entries = capped.map(text => ({
+                            text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) + '...' : text,
+                            mood: analyzeSentimentLocal(text),
+                        }));
+                        return {
+                            mediaId: crypto.randomUUID(),
+                            name: file.name,
+                            entries,
+                            totalCount,
+                            processedAt: new Date().toISOString(),
+                        };
+                    }));
+                    if (parsedFiles.length > 0) {
+                        await researchService.update(researchId, { settings: { stimuli: parsedFiles } });
+                    }
+                    console.log('[CreateResearchForm] Documents parsed and saved:', parsedFiles.length);
+                } catch (error) {
+                    console.error('[CreateResearchForm] Failed to parse text files:', error);
+                }
+            } else if (isAttentionPrediction && filesToUpload.length > 0) {
+                // Attention Prediction: upload images via media service
+                try {
                     const uploadPromises = filesToUpload.map(async (file) => {
                         const contentType = file.type || 'application/octet-stream';
-
-                        // 1. Generate upload URL
                         const { upload_url, s3_key } = await mediaService.generateUploadUrl({
-                            research_id: researchId,
-                            file_name: file.name,
-                            content_type: contentType,
+                            research_id: researchId, file_name: file.name, content_type: contentType,
                         });
-
-                        // 2. Upload file via fetch (same as FileUploadAdvanced)
                         const uploadResponse = await fetch(upload_url, {
-                            method: 'PUT',
-                            body: file,
-                            headers: { 'Content-Type': contentType },
+                            method: 'PUT', body: file, headers: { 'Content-Type': contentType },
                         });
-                        if (!uploadResponse.ok) {
-                            throw new Error(`Upload failed: ${uploadResponse.status}`);
-                        }
-
-                        // 3. Save metadata
+                        if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.status}`);
                         const { media } = await mediaService.saveMetadata({
-                            research_id: researchId,
-                            s3_key,
-                            metadata: {
-                                fileName: file.name,
-                                fileType: file.type,
-                                fileSize: file.size,
-                            },
+                            research_id: researchId, s3_key,
+                            metadata: { fileName: file.name, fileType: file.type, fileSize: file.size },
                         });
-
-                        // 4. Get final URL
                         const mediaUrl = await mediaService.getMediaUrl(media.id);
-
-                        return {
-                            url: mediaUrl.url,
-                            mediaId: media.id,
-                            name: file.name,
-                        };
+                        return { url: mediaUrl.url, mediaId: media.id, name: file.name };
                     });
-
                     const uploadedStimuli = await Promise.all(uploadPromises);
-
-                    // 5. Update research settings with the array of stimuli
                     await researchService.update(researchId, {
-                        settings: {
-                            stimuli: uploadedStimuli,
-                            // Maintain compatibility with single stimulusUrl if needed by using the first one
-                            stimulusUrl: uploadedStimuli[0]?.url,
-                            stimulusMediaId: uploadedStimuli[0]?.mediaId,
-                        }
+                        settings: { stimuli: uploadedStimuli, stimulusUrl: uploadedStimuli[0]?.url, stimulusMediaId: uploadedStimuli[0]?.mediaId },
                     });
-
-                    console.log('[CreateResearchForm] All stimulus files uploaded and research updated successfully');
+                    console.log('[CreateResearchForm] Stimulus images uploaded:', uploadedStimuli.length);
                 } catch (error) {
-                    console.error('[CreateResearchForm] Failed to upload one or more stimulus files:', error);
+                    console.error('[CreateResearchForm] Failed to upload stimulus files:', error);
                 }
             }
 
@@ -208,7 +208,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
             let targetPath = `/research/${researchId}/builder`;
             
             // For Attention Prediction, if we have uploaded stimuli, try to go to the first one
-            if (isAttentionPrediction && (formData.stimulusFiles || []).length > 0) {
+            if (isFileBasedResearch && (formData.stimulusFiles || []).length > 0) {
                 try {
                     // We need to fetch the updated research to get the mediaId of the first stimulus
                     const updatedResearch = await researchService.getById(researchId);
@@ -355,32 +355,49 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
             <Drawer
                 isOpen={isStimulusDrawerOpen}
                 onClose={() => setIsStimulusDrawerOpen(false)}
-                title="Attention Prediction Stimuli"
+                title={isInsightsFinding ? 'Insights Finding — Text Files' : 'Attention Prediction Stimuli'}
                 width="md"
             >
                 <div className="space-y-6">
                     <div>
                         <p className="text-sm text-gray-600 mb-4">
-                            Attention Prediction requires one or more image stimuli. 
-                            Please upload the images that will be analyzed.
+                            {isInsightsFinding
+                                ? 'Upload documents to be analyzed for insights. Supported: CSV, TXT, XLSX, DOCX, PDF.'
+                                : 'Attention Prediction requires one or more image stimuli. Please upload the images that will be analyzed.'}
                         </p>
                         <FileUpload
                             id="stimuli-upload"
-                            label="Add Stimulus Images"
+                            label={isInsightsFinding ? 'Add Text Files' : 'Add Stimulus Images'}
                             multiple={true}
                             onFilesSelect={(files) => {
-                                if (files && files.length > 0) {
+                                if (!files || files.length === 0) return;
+                                if (isInsightsFinding) {
+                                    const validExts = ['.csv', '.txt', '.xlsx', '.xls', '.docx', '.pdf'];
+                                    const valid = Array.from(files).filter(f => {
+                                        const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'));
+                                        if (!validExts.includes(ext)) {
+                                            alert(`"${f.name}" is not supported. Accepted: CSV, TXT, XLSX, DOCX, PDF.`);
+                                            return false;
+                                        }
+                                        return true;
+                                    });
+                                    if (valid.length > 0) {
+                                        handleFieldChange('stimulusFiles', [...formData.stimulusFiles, ...valid]);
+                                    }
+                                } else {
                                     handleFieldChange('stimulusFiles', [...formData.stimulusFiles, ...files]);
                                 }
                             }}
-                            acceptedFormats="image/*"
-                            maxSizeMB={10}
+                            acceptedFormats={isInsightsFinding ? '.csv,.txt,.xlsx,.xls,.docx,.pdf' : 'image/*'}
+                            maxSizeMB={isInsightsFinding ? 50 : 10}
                         />
                     </div>
                     
                     {formData.stimulusFiles.length > 0 && (
                         <div className="space-y-2">
-                            <h4 className="text-sm font-medium text-gray-700">Selected Images ({formData.stimulusFiles.length})</h4>
+                            <h4 className="text-sm font-medium text-gray-700">
+                                {isInsightsFinding ? 'Selected Files' : 'Selected Images'} ({formData.stimulusFiles.length})
+                            </h4>
                             <div className="max-h-60 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-100">
                                 {formData.stimulusFiles.map((file, index) => (
                                     <div key={`${file.name}-${index}`} className="flex items-center justify-between p-3 bg-white hover:bg-gray-50 transition-colors">
@@ -415,20 +432,20 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                         <Button variant="outline" onClick={() => setIsStimulusDrawerOpen(false)}>
                             Cancel
                         </Button>
-                        <Button 
-                            variant="primary" 
-                            disabled={(formData.stimulusFiles || []).length === 0 || isCreating}
-                            isLoading={isCreating}
-                            onClick={(e) => {
-                                // Trigger the main form submission from the drawer
-                                void handleFormSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
+                        <Button
+                            variant="primary"
+                            disabled={(formData.stimulusFiles || []).length === 0}
+                            onClick={() => {
+                                setIsStimulusDrawerOpen(false);
+                                if (currentStep === 0) handleNextStep();
                             }}
                         >
-                            Create Research
+                            Continue
                         </Button>
                     </div>
                 </div>
             </Drawer>
+
         </div>
     );
 };

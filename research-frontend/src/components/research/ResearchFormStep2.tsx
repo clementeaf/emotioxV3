@@ -38,8 +38,10 @@ export const ResearchFormStep2 = ({
 }: ResearchFormStep2Props) => {
     const selectedResearchType = researchTypes.find(rt => rt.id === researchTypeId);
     const selectedTechnique = availableTechniques.find(t => t.id === researchTechniqueId);
-    const isAttentionPrediction = selectedResearchType?.name === 'Attention Prediction' || 
+    const isAttentionPrediction = selectedResearchType?.name === 'Attention Prediction' ||
                                 selectedResearchType?.name === "Attention's Prediction";
+    const isInsightsFinding = selectedResearchType?.name === 'Insights Finding';
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
 
     // Technique default_stages take priority over research type default_modules
     const techniqueStages = selectedTechnique?.default_stages;
@@ -83,10 +85,10 @@ export const ResearchFormStep2 = ({
                 required
             />
 
-            {isAttentionPrediction && (
+            {isFileBasedResearch && (
                 <div className={cn(
                     "p-3 rounded-lg border flex items-center justify-between",
-                    stimulusFiles.length > 0 
+                    stimulusFiles.length > 0
                         ? "bg-green-50 border-green-200 text-green-800"
                         : "bg-amber-50 border-amber-200 text-amber-800"
                 )}>
@@ -101,22 +103,26 @@ export const ResearchFormStep2 = ({
                             </svg>
                         )}
                         <span className="text-sm">
-                            {stimulusFiles.length > 0 
-                                ? `${stimulusFiles.length} stimuli selected`
-                                : 'Attention Prediction requires at least one stimulus image.'}
+                            {stimulusFiles.length > 0
+                                ? `${stimulusFiles.length} ${isInsightsFinding ? 'files' : 'stimuli'} selected`
+                                : isInsightsFinding
+                                    ? 'Insights Finding requires at least one text file (.csv or .txt).'
+                                    : 'Attention Prediction requires at least one stimulus image.'}
                         </span>
                     </div>
-                    <button 
+                    <button
                         type="button"
                         onClick={onOpenStimulusDrawer}
                         className="text-xs font-semibold underline hover:opacity-80"
                     >
-                        {stimulusFiles.length > 0 ? 'Manage Images' : 'Upload Images'}
+                        {stimulusFiles.length > 0
+                            ? (isInsightsFinding ? 'Manage Files' : 'Manage Images')
+                            : (isInsightsFinding ? 'Upload Files' : 'Upload Images')}
                     </button>
                 </div>
             )}
 
-            {!isAttentionPrediction && (
+            {!isFileBasedResearch && (
                 availableTechniques.length === 0 && researchTypeId && !loadingTechniques ? (
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <p className="text-sm text-yellow-800">
@@ -148,7 +154,7 @@ export const ResearchFormStep2 = ({
                 )
             )}
 
-            {showDefaultsCheckbox && !isAttentionPrediction && (
+            {showDefaultsCheckbox && !isFileBasedResearch && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start gap-3">
                         <label className="flex items-start gap-2 cursor-pointer flex-shrink-0 mt-0.5">

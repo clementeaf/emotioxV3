@@ -14,6 +14,7 @@ import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components
 import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { AttentionPredictionView } from '../../components/research/AttentionPredictionView';
+import { InsightsFindingView } from '../../components/research/InsightsFindingView';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
@@ -53,18 +54,20 @@ export const ResearchBuilderPage = () => {
     // Type assertion para TypeScript
     const typedResearch = research as Research | null;
 
-    const isAttentionPrediction = typedResearch?.research_type_name === 'Attention Prediction' || 
+    const isAttentionPrediction = typedResearch?.research_type_name === 'Attention Prediction' ||
                                  typedResearch?.research_type_name === "Attention's Prediction";
+    const isInsightsFinding = typedResearch?.research_type_name === 'Insights Finding';
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
 
-    // Redirect to first stimulus for Attention Prediction if none selected
+    // Redirect to first file/stimulus for file-based research if none selected
     useEffect(() => {
-        if (isAttentionPrediction && !stimulusId && typedResearch?.settings) {
+        if (isFileBasedResearch && !stimulusId && typedResearch?.settings) {
             const stimuli = (typedResearch.settings as { stimuli?: Array<{ mediaId: string }> })?.stimuli || [];
             if (stimuli.length > 0) {
                 navigate(`/research/${id}/builder/stimulus/${stimuli[0].mediaId}`, { replace: true });
             }
         }
-    }, [isAttentionPrediction, stimulusId, typedResearch, id, navigate]);
+    }, [isFileBasedResearch, stimulusId, typedResearch, id, navigate]);
 
     const isSettings = location.pathname.endsWith('/settings');
     // Use useParams for moduleId instead of regex for better reactivity
@@ -645,7 +648,7 @@ export const ResearchBuilderPage = () => {
 
     return (
         <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
-            {!isAttentionPrediction && (
+            {!isFileBasedResearch && (
                 <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
                     <ResearchBuilderHeader
                         research={typedResearch}
@@ -672,16 +675,23 @@ export const ResearchBuilderPage = () => {
             {/* Content Area */}
             <div className="flex-1 min-h-0 overflow-auto">
                 {isAttentionPrediction && stimulusId && typedResearch && (
-                    <AttentionPredictionView 
-                        research={typedResearch} 
-                        stimulusId={stimulusId} 
+                    <AttentionPredictionView
+                        research={typedResearch}
+                        stimulusId={stimulusId}
+                    />
+                )}
+
+                {isInsightsFinding && stimulusId && typedResearch && (
+                    <InsightsFindingView
+                        research={typedResearch}
+                        fileId={stimulusId}
                     />
                 )}
 
                 {isSettings && <ResearchSettingsView research={typedResearch} />}
 
                 {/* Smart VOC Stage: Show all modules in the same view */}
-                {!isAttentionPrediction && isSmartVOCStage && smartVOCModules.length > 0 && (
+                {!isFileBasedResearch && isSmartVOCStage && smartVOCModules.length > 0 && (
                     <div className="space-y-6">
                     {smartVOCModules.map((module, idx) => (
                         <div
@@ -756,7 +766,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Smart VOC Stage Empty State */}
-                {!isAttentionPrediction && isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
+                {!isFileBasedResearch && isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
                     <StageEmptyState
                         stageName={smartVOCStage.name}
                         stageType="smart-voc"
@@ -765,7 +775,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
-                {!isAttentionPrediction && isCollectionStageActive && collectionModules.length > 0 && (
+                {!isFileBasedResearch && isCollectionStageActive && collectionModules.length > 0 && (
                     <div className="space-y-6">
                     {collectionModules.map((module, idx) => (
                         <div
@@ -840,7 +850,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Collection Stage Empty State */}
-                {!isAttentionPrediction && isCollectionStageActive && collectionModules.length === 0 && collectionStage && (
+                {!isFileBasedResearch && isCollectionStageActive && collectionModules.length === 0 && collectionStage && (
                     <StageEmptyState
                         stageName={collectionStage.name}
                         stageType="collection"
@@ -849,7 +859,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Regular module view: Show single module */}
-                {!isAttentionPrediction && !isSmartVOCStage && !isCollectionStageActive && !isResearchConfigModule && activeModule && (
+                {!isFileBasedResearch && !isSmartVOCStage && !isCollectionStageActive && !isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ModuleContentEditor
@@ -864,7 +874,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Research Configuration module: Show custom component */}
-                {!isAttentionPrediction && !isSmartVOCStage && !isCollectionStageActive && isResearchConfigModule && activeModule && (
+                {!isFileBasedResearch && !isSmartVOCStage && !isCollectionStageActive && isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ResearchConfigurationModule

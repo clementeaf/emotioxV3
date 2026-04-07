@@ -27,6 +27,8 @@ Default stages al seleccionar esta técnica: Screener → Welcome Screen → Res
 - **Saliency rendering** (v0.51.1): `HeatmapRenderer` dual renderer. Saliencia → colormap pixel a pixel (OGAMA/OpenCV) con LUT 256, alpha cuadrático, threshold 0.4. Clicks → simpleheat.
 - **Settings modal funcional** (v0.51.2): Blur, Opacity, Threshold controlan heatmap en tiempo real (debounce 150ms). Prediction Model (Simple/Advanced/Deep Learning) aplica presets. Portal para overlay completo.
 - **`AttentionVideoPlayer`** (v0.51.2): animación progresiva del scanpath predicho (5s). Puntos por saliencia desc. Controles: play/pause, reset, barra de progreso. Círculo indicador de fijación actual.
+- **Insights Finding** (v0.52.0): research type sin stages/módulos (mismo patrón que Attention Prediction). Sube documentos (.csv, .txt, .xlsx, .docx, .pdf) desde Drawer al crear. Parseo client-side: SheetJS (csv/xlsx), Mammoth (docx), PDF.js (pdf), TextDecoder (txt). Entries (text + mood) se guardan en `researches.config.stimuli[].entries` con límite 200 entries × 300 chars. Builder: `InsightsFindingView` reutiliza `VOCComments`. Sidebar muestra "Files".
+- **`isFileBasedResearch` flag** (v0.52.0): unifica Attention Prediction e Insights Finding en CreateResearchForm, ResearchBuilderPage, ResearchBuilderSidebar, ResearchFormStep2. `skip_default_modules: true` evita creación de stages/módulos en backend.
 - **Pendiente**: webcam eye tracking (WebGazer.js) como mejora futura del proxy click-based.
 
 ## Tech Stack

@@ -23,6 +23,7 @@ export interface ResearchData {
     enterprise_id?: string;
     settings?: Record<string, unknown>;
     use_default_modules?: string[]; // Module names to clone from template
+    skip_default_modules?: boolean; // Skip all default module creation (file-based research)
 }
 
 export const list = async (userId: string, role?: string) => {
@@ -93,7 +94,7 @@ export const create = async (userId: string, data: ResearchData) => {
         await client.query('BEGIN');
 
         let { description } = data;
-        const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
+        const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [], skip_default_modules = false } = data;
         console.log('[Research Service] Extracted values - research_type_id:', research_type_id, 'research_technique_id:', research_technique_id, 'use_default_modules:', use_default_modules);
 
         // Validate research_technique_id exists if provided
@@ -170,7 +171,8 @@ export const create = async (userId: string, data: ResearchData) => {
 
         // Clone modules from template if requested and associate them to a stage
         // Priority: 1) technique default_stages, 2) use_default_modules from frontend, 3) research type default_modules
-        if (research_type_id || techniqueDefaultStages) {
+        // File-based research (Attention Prediction, Insights Finding) skips all default modules
+        if (!skip_default_modules && (research_type_id || techniqueDefaultStages)) {
             console.log(`[Research Service] Creating default stages/modules. technique defaults:`, techniqueDefaultStages ? 'yes' : 'no', 'research_type_id:', research_type_id);
             console.log(`[Research Service] use_default_modules:`, use_default_modules);
 
