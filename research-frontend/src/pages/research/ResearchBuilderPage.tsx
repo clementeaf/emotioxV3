@@ -15,6 +15,7 @@ import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { AttentionPredictionView } from '../../components/research/AttentionPredictionView';
 import { InsightsFindingView } from '../../components/research/InsightsFindingView';
+import { ClientsBenchmarkView } from '../../components/research/ClientsBenchmarkView';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
@@ -57,7 +58,8 @@ export const ResearchBuilderPage = () => {
     const isAttentionPrediction = typedResearch?.research_type_name === 'Attention Prediction' ||
                                  typedResearch?.research_type_name === "Attention's Prediction";
     const isInsightsFinding = typedResearch?.research_type_name === 'Insights Finding';
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
+    const isClientsBenchmark = typedResearch?.research_type_name === "Client's Benchmark";
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
 
     // Redirect to first file/stimulus for file-based research if none selected
     useEffect(() => {
@@ -685,6 +687,13 @@ export const ResearchBuilderPage = () => {
                     <InsightsFindingView
                         research={typedResearch}
                         fileId={stimulusId}
+                    />
+                )}
+
+                {isClientsBenchmark && stimulusId && typedResearch && (
+                    <ClientsBenchmarkView
+                        research={typedResearch}
+                        stimulusId={stimulusId}
                     />
                 )}
 

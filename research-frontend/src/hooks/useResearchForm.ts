@@ -214,7 +214,8 @@ export const useResearchForm = () => {
         const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
         const isFileBasedResearch = selectedType?.name === 'Attention Prediction' ||
                                    selectedType?.name === "Attention's Prediction" ||
-                                   selectedType?.name === 'Insights Finding';
+                                   selectedType?.name === 'Insights Finding' ||
+                                   selectedType?.name === "Client's Benchmark";
 
         if (!isFileBasedResearch && !formData.researchTechniqueId) {
             newErrors.researchTechniqueId = 'Research Technique is required';
@@ -282,7 +283,8 @@ export const useResearchForm = () => {
             const selectedTechnique = availableTechniques.find(t => t.id === formData.researchTechniqueId);
             const isFileBasedType = selectedType?.name === 'Attention Prediction' ||
                                    selectedType?.name === "Attention's Prediction" ||
-                                   selectedType?.name === 'Insights Finding';
+                                   selectedType?.name === 'Insights Finding' ||
+                                   selectedType?.name === "Client's Benchmark";
 
             const createData: CreateResearchData & Record<string, unknown> = {
                 name: formData.name.trim(),

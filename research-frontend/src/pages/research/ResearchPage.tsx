@@ -7,7 +7,7 @@ import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
-import { ArrowRight, Calendar, Folder, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Calendar, Folder, Plus, Trash2, FlaskConical, Building2 } from 'lucide-react';
 import type { Research } from '../../services/research.service';
 
 /**
@@ -48,7 +48,7 @@ const ResearchCard = memo(({
                         <p className="text-gray-600 mb-4">{research.description}</p>
                     )}
 
-                    <div className="flex items-center gap-6 text-sm text-gray-500">
+                    <div className="flex items-center gap-6 text-sm text-gray-500 flex-wrap">
                         <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
                             <span>Created {formattedDate}</span>
@@ -59,6 +59,18 @@ const ResearchCard = memo(({
                                 {research.research_type_name || 'Unknown Type'}
                             </span>
                         </div>
+                        {research.research_technique_name && (
+                            <div className="flex items-center gap-2">
+                                <FlaskConical className="h-4 w-4" />
+                                <span>{research.research_technique_name}</span>
+                            </div>
+                        )}
+                        {research.enterprise_name && (
+                            <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                <span>{research.enterprise_name}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 

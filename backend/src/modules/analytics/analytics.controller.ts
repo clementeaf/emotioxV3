@@ -50,6 +50,14 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ results }, 200, undefined, origin);
         }
 
+        // GET /analytics/benchmark/:id
+        const benchmarkMatch = path.match(/^\/analytics\/benchmark\/([^\/]+)$/);
+        if (benchmarkMatch && httpMethod === 'GET') {
+            const researchId = benchmarkMatch[1];
+            const results = await analyticsService.getBenchmarkResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
         // GET /analytics/research/:id/demographics
         const demographicsMatch = path.match(/^\/analytics\/research\/([^\/]+)\/demographics$/);
         if (demographicsMatch && httpMethod === 'GET') {

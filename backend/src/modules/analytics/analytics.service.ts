@@ -1676,6 +1676,7 @@ const extractEyeTrackingConfig = (config: any) => {
   }
 
   // Modality: stand_alone or shelf
+  // Detect via 'modality'/'test-mode'/'display-mode' component OR 'is-shelf-task' checkbox
   let modality: 'stand_alone' | 'shelf' = 'stand_alone';
   const modalityComp = components.find((c: any) =>
     c.id === 'modality' || c.id === 'test-mode' || c.id === 'display-mode'
@@ -1683,6 +1684,13 @@ const extractEyeTrackingConfig = (config: any) => {
   if (modalityComp?.value) {
     const val = String(modalityComp.value).toLowerCase();
     if (val.includes('shelf') || val === 'shelf') modality = 'shelf';
+  }
+  // Fallback: checkbox 'is-shelf-task' (value = "true"/"false")
+  if (modality === 'stand_alone') {
+    const shelfCheckbox = components.find((c: any) => c.id === 'is-shelf-task');
+    if (shelfCheckbox?.value === 'true' || shelfCheckbox?.value === true) {
+      modality = 'shelf';
+    }
   }
 
   // Task description
@@ -1850,4 +1858,131 @@ export const getEyeTrackingResults = async (researchId: string) => {
   }
 
   return { stimuli };
+};
+
+// ==========================================
+// CLIENT'S BENCHMARK RESULTS
+// ==========================================
+
+interface BenchmarkAOI {
+  id: string;
+  label: string;
+  dwellTimePercent: number;
+  fixationCount: number;
+  avgDuration: number;
+  participantCount: number;
+}
+
+interface BenchmarkResearchResult {
+  researchId: string;
+  researchName: string;
+  modules: Array<{
+    moduleId: string;
+    moduleName: string;
+    stimulusUrl: string;
+    uniqueParticipants: number;
+    totalResponses: number;
+    aois: BenchmarkAOI[];
+  }>;
+}
+
+/**
+ * Get benchmark comparison data for a Client's Benchmark research.
+ * Reads selected research IDs from config.stimuli, fetches Eye Tracking
+ * AOI metrics (% Attention + fixation count) from each.
+ */
+export const getBenchmarkResults = async (researchId: string) => {
+  // 1. Get the benchmark research config to find selected research IDs
+  const configQuery = `SELECT config FROM researches WHERE id = ?`;
+  const configResult = await pool.query(configQuery, [researchId]);
+  if (configResult.rows.length === 0) {
+    throw new Error('Benchmark research not found');
+  }
+
+  let config: any = {};
+  try {
+    config = typeof configResult.rows[0].config === 'string'
+      ? JSON.parse(configResult.rows[0].config)
+      : configResult.rows[0].config;
+  } catch { /* ignore */ }
+
+  const stimuli: Array<{ researchId: string }> = config?.stimuli || [];
+  const selectedResearchIds = stimuli.map(s => s.researchId).filter(Boolean);
+
+  if (selectedResearchIds.length === 0) {
+    return { researches: [] };
+  }
+
+  const researches: BenchmarkResearchResult[] = [];
+
+  for (const targetResearchId of selectedResearchIds) {
+    // Get research name
+    const nameQuery = `SELECT name FROM researches WHERE id = ?`;
+    const nameResult = await pool.query(nameQuery, [targetResearchId]);
+    const researchName = nameResult.rows[0]?.name || 'Unknown Research';
+
+    // Find Eye Tracking stage
+    const stageQuery = `
+      SELECT s.id as stage_id
+      FROM stages s
+      WHERE s.research_id = ? AND LOWER(s.name) = 'eye tracking'
+      LIMIT 1
+    `;
+    const stageResult = await pool.query(stageQuery, [targetResearchId]);
+    if (stageResult.rows.length === 0) {
+      researches.push({ researchId: targetResearchId, researchName, modules: [] });
+      continue;
+    }
+    const stageId = stageResult.rows[0].stage_id;
+
+    // Get modules in the Eye Tracking stage
+    const moduleQuery = `
+      SELECT id, name, config FROM modules
+      WHERE research_id = ? AND stage_id = ?
+      ORDER BY order_index
+    `;
+    const moduleResult = await pool.query(moduleQuery, [targetResearchId, stageId]);
+
+    const modules: BenchmarkResearchResult['modules'] = [];
+
+    for (const mod of moduleResult.rows) {
+      let modConfig: any = {};
+      try {
+        modConfig = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+      } catch { /* ignore */ }
+
+      const { stimulusUrl, configAois } = extractEyeTrackingConfig(modConfig);
+
+      // Get responses
+      const responsesQuery = `
+        SELECT r.value, r.participant_id
+        FROM responses r
+        WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'eye-tracking-data'
+        ORDER BY r.created_at ASC
+      `;
+      const responsesResult = await pool.query(responsesQuery, [targetResearchId, mod.id]);
+
+      const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois);
+
+      modules.push({
+        moduleId: mod.id,
+        moduleName: mod.name,
+        stimulusUrl,
+        uniqueParticipants: metrics.uniqueParticipants,
+        totalResponses: responsesResult.rows.length,
+        aois: metrics.aois.map(aoi => ({
+          id: aoi.id,
+          label: aoi.label,
+          dwellTimePercent: aoi.dwellTimePercent,
+          fixationCount: aoi.fixationCount,
+          avgDuration: aoi.avgDuration,
+          participantCount: aoi.participantCount,
+        })),
+      });
+    }
+
+    researches.push({ researchId: targetResearchId, researchName, modules });
+  }
+
+  return { researches };
 };

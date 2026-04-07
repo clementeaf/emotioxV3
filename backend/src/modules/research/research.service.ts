@@ -34,9 +34,13 @@ export const list = async (userId: string, role?: string) => {
         const query = `
         SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.config, r.created_at, r.updated_at,
                rt.name as research_type_name,
+               rtech.name as research_technique_name,
+               e.name as enterprise_name,
                u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
         FROM researches r
         LEFT JOIN research_types rt ON r.research_type_id = rt.id
+        LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
+        LEFT JOIN enterprises e ON r.enterprise_id = e.id
         LEFT JOIN users u ON r.created_by = u.id
         WHERE ${ownership.clause} AND r.deleted_at IS NULL
         ORDER BY r.created_at DESC

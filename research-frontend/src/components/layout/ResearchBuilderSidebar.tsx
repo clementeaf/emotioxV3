@@ -93,7 +93,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const isAttentionPrediction = activeResearch?.research_type_name === 'Attention Prediction' ||
                                 activeResearch?.research_type_name === "Attention's Prediction";
     const isInsightsFinding = activeResearch?.research_type_name === 'Insights Finding';
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
+    const isClientsBenchmark = activeResearch?.research_type_name === "Client's Benchmark";
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
 
     // Get stimuli from settings if it exists
     const settings = (activeResearch?.settings as Record<string, unknown>) || {};
@@ -425,7 +426,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            {isFileBasedResearch ? (isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
+                            {isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
                         </h3>
                         {!isFileBasedResearch && (
                             <button
@@ -455,12 +456,16 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                                 : 'text-gray-700 hover:bg-gray-50'
                                         )}
                                     >
-                                        <ImageIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                                        {isClientsBenchmark
+                                            ? <BarChart3 className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                                            : <ImageIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />}
                                         <span className="truncate" title={stimulus.name}>{stimulus.name}</span>
                                     </Link>
                                 ))
                             ) : (
-                                <p className="text-xs text-gray-400 italic px-2">No stimuli uploaded</p>
+                                <p className="text-xs text-gray-400 italic px-2">
+                                    {isClientsBenchmark ? 'No researches selected' : 'No stimuli uploaded'}
+                                </p>
                             )
                         ) : (
                             activeResearch.stages && activeResearch.stages.length > 0 ? (

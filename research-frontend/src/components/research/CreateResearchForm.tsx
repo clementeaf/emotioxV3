@@ -1,4 +1,4 @@
-import { type FormEvent, useState, useEffect } from 'react';
+import { type FormEvent, useState, useEffect, useCallback } from 'react';
 import { analyzeSentimentLocal } from '../../utils/sentimentLocal';
 import { parseDocument } from '../../utils/documentParser';
 import { useNavigate } from 'react-router-dom';
@@ -11,9 +11,17 @@ import { useEnterprise } from '../../hooks/useEnterprise';
 import { type AutocompleteOption } from '../ui/Autocomplete';
 import { Drawer } from '../ui/Drawer';
 import { FileUpload } from '../ui/FileUpload';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Search, Eye, Loader2 } from 'lucide-react';
 import { mediaService } from '../../services/media.service';
-import { researchService } from '../../services/research.service';
+import { researchService, type Research } from '../../services/research.service';
+
+interface BenchmarkResearchOption {
+    id: string;
+    name: string;
+    status: string;
+    created_at: string;
+    etModuleCount: number;
+}
 
 interface CreateResearchFormProps {
     onSuccess?: (researchId: string) => void;
@@ -47,15 +55,72 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
     const isAttentionPrediction = selectedType?.name === 'Attention Prediction' ||
                                 selectedType?.name === "Attention's Prediction";
     const isInsightsFinding = selectedType?.name === 'Insights Finding';
-    // Both types share: no stages, file upload drawer, sidebar shows files
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
+    const isClientsBenchmark = selectedType?.name === "Client's Benchmark";
+    // These types share: no stages, file upload drawer, sidebar shows files
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+
+    // Client's Benchmark: state for research selection
+    const [benchmarkResearches, setBenchmarkResearches] = useState<BenchmarkResearchOption[]>([]);
+    const [selectedBenchmarkIds, setSelectedBenchmarkIds] = useState<Set<string>>(new Set());
+    const [loadingBenchmarkResearches, setLoadingBenchmarkResearches] = useState(false);
+    const [benchmarkSearchTerm, setBenchmarkSearchTerm] = useState('');
+
+    const loadBenchmarkResearches = useCallback(async () => {
+        setLoadingBenchmarkResearches(true);
+        try {
+            const response = await researchService.list();
+            const researches = response.researches || [];
+            // Filter: researches that have Eye Tracking stages
+            const withEyeTracking: BenchmarkResearchOption[] = researches
+                .filter((r: Research) => {
+                    if (!r.stages) return false;
+                    return r.stages.some(s =>
+                        s.name.toLowerCase() === 'eye tracking' &&
+                        (s.modules?.length ?? 0) > 0
+                    );
+                })
+                .map((r: Research) => {
+                    const etModuleCount = (r.stages || [])
+                        .filter(s => s.name.toLowerCase() === 'eye tracking')
+                        .flatMap(s => s.modules || []).length;
+                    return {
+                        id: r.id,
+                        name: r.name,
+                        status: r.status,
+                        created_at: r.created_at,
+                        etModuleCount,
+                    };
+                });
+            setBenchmarkResearches(withEyeTracking);
+        } catch (error) {
+            console.error('[CreateResearchForm] Failed to load benchmark researches:', error);
+        } finally {
+            setLoadingBenchmarkResearches(false);
+        }
+    }, []);
+
+    const toggleBenchmarkResearch = useCallback((researchId: string) => {
+        setSelectedBenchmarkIds(prev => {
+            const next = new Set(prev);
+            if (next.has(researchId)) {
+                next.delete(researchId);
+            } else {
+                next.add(researchId);
+            }
+            return next;
+        });
+    }, []);
 
     // Open drawer when file-based research is selected and no file is present
+    // For Client's Benchmark, open drawer when no researches are selected
     useEffect(() => {
-        if (isFileBasedResearch && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
+        if (isClientsBenchmark && selectedBenchmarkIds.size === 0 && !isStimulusDrawerOpen) {
+            setIsStimulusDrawerOpen(true);
+            void loadBenchmarkResearches();
+        } else if (!isClientsBenchmark && isFileBasedResearch && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
             setIsStimulusDrawerOpen(true);
         }
-    }, [formData.researchTypeId, isFileBasedResearch, (formData.stimulusFiles || []).length]);
+    }, [formData.researchTypeId, isFileBasedResearch, isClientsBenchmark, (formData.stimulusFiles || []).length, selectedBenchmarkIds.size]);
 
     // Disable default modules for file-based research (no stages needed)
     useEffect(() => {
@@ -140,7 +205,26 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
         console.log('[CreateResearchForm] handleSubmit returned:', researchId);
 
         if (researchId) {
-            // Handle file-based research: Insights Finding parses client-side, Attention Prediction uploads to media service
+            // Handle file-based research post-creation
+            if (isClientsBenchmark && selectedBenchmarkIds.size > 0) {
+                // Client's Benchmark: save selected research IDs as stimuli references
+                try {
+                    const stimuli = Array.from(selectedBenchmarkIds).map(rId => {
+                        const r = benchmarkResearches.find(br => br.id === rId);
+                        return {
+                            researchId: rId,
+                            mediaId: rId, // use researchId as mediaId for sidebar navigation
+                            name: r?.name || 'Unknown Research',
+                            etModuleCount: r?.etModuleCount || 0,
+                        };
+                    });
+                    await researchService.update(researchId, { settings: { stimuli } });
+                    console.log('[CreateResearchForm] Benchmark researches saved:', stimuli.length);
+                } catch (error) {
+                    console.error('[CreateResearchForm] Failed to save benchmark researches:', error);
+                }
+            }
+
             const filesToUpload = formData.stimulusFiles || [];
             if (isInsightsFinding && filesToUpload.length > 0) {
                 // Insights Finding: parse documents client-side, store entries in config
@@ -207,8 +291,11 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
             // Handle navigation
             let targetPath = `/research/${researchId}/builder`;
             
-            // For Attention Prediction, if we have uploaded stimuli, try to go to the first one
-            if (isFileBasedResearch && (formData.stimulusFiles || []).length > 0) {
+            // For file-based research, navigate to first stimulus/research in builder
+            if (isClientsBenchmark && selectedBenchmarkIds.size > 0) {
+                const firstId = Array.from(selectedBenchmarkIds)[0];
+                targetPath = `/research/${researchId}/builder/stimulus/${firstId}`;
+            } else if (isFileBasedResearch && (formData.stimulusFiles || []).length > 0) {
                 try {
                     // We need to fetch the updated research to get the mediaId of the first stimulus
                     const updatedResearch = await researchService.getById(researchId);
@@ -284,6 +371,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                         loadingResearchTypes={loadingResearchTypes}
                                         loadingTechniques={loadingTechniquesForType}
                                         stimulusFiles={formData.stimulusFiles}
+                                        selectedBenchmarkCount={selectedBenchmarkIds.size}
                                         onResearchTypeChange={(value) => {
                                             handleFieldChange('researchTypeId', value);
                                             void loadTechniquesForType(value);
@@ -328,12 +416,16 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                                 Next
                                             </Button>
                                         ) : (
-                                            <Button 
-                                                type="submit" 
-                                                isLoading={isCreating} 
-                                                disabled={isCreating || (isAttentionPrediction && (formData.stimulusFiles || []).length === 0)}
+                                            <Button
+                                                type="submit"
+                                                isLoading={isCreating}
+                                                disabled={isCreating || (isAttentionPrediction && (formData.stimulusFiles || []).length === 0) || (isClientsBenchmark && selectedBenchmarkIds.size === 0)}
                                             >
-                                                {isAttentionPrediction && (formData.stimulusFiles || []).length === 0 ? 'Upload Images to Create' : 'Create Research'}
+                                                {isAttentionPrediction && (formData.stimulusFiles || []).length === 0
+                                                    ? 'Upload Images to Create'
+                                                    : isClientsBenchmark && selectedBenchmarkIds.size === 0
+                                                        ? 'Select Researches to Create'
+                                                        : 'Create Research'}
                                             </Button>
                                         )}
                                         <Button
@@ -352,8 +444,94 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 </div>
             </div>
 
+            {/* Client's Benchmark: Research selection drawer */}
             <Drawer
-                isOpen={isStimulusDrawerOpen}
+                isOpen={isStimulusDrawerOpen && isClientsBenchmark}
+                onClose={() => setIsStimulusDrawerOpen(false)}
+                title="Client's Benchmark — Select Researches"
+                width="md"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                        Select researches with Eye Tracking data to include in the benchmark comparison.
+                    </p>
+
+                    {/* Search */}
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search researches..."
+                            value={benchmarkSearchTerm}
+                            onChange={(e) => setBenchmarkSearchTerm(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+                        />
+                    </div>
+
+                    {loadingBenchmarkResearches ? (
+                        <div className="text-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-accent" />
+                            <p className="mt-2 text-sm text-gray-500">Loading researches...</p>
+                        </div>
+                    ) : benchmarkResearches.length === 0 ? (
+                        <div className="text-center py-8">
+                            <Eye className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No researches with Eye Tracking found.</p>
+                            <p className="text-xs text-gray-400 mt-1">Create a research with Eye Tracking first.</p>
+                        </div>
+                    ) : (
+                        <div className="max-h-80 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-100">
+                            {benchmarkResearches
+                                .filter(r => !benchmarkSearchTerm || r.name.toLowerCase().includes(benchmarkSearchTerm.toLowerCase()))
+                                .map(r => (
+                                    <label
+                                        key={r.id}
+                                        className="flex items-center gap-3 p-3 bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedBenchmarkIds.has(r.id)}
+                                            onChange={() => toggleBenchmarkResearch(r.id)}
+                                            className="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{r.name}</p>
+                                            <p className="text-xs text-gray-500">
+                                                {r.etModuleCount} ET module{r.etModuleCount !== 1 ? 's' : ''} · {r.status} · {new Date(r.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    </label>
+                                ))}
+                        </div>
+                    )}
+
+                    {selectedBenchmarkIds.size > 0 && (
+                        <p className="text-sm font-medium text-accent">
+                            {selectedBenchmarkIds.size} research{selectedBenchmarkIds.size !== 1 ? 'es' : ''} selected
+                        </p>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                        <Button variant="outline" onClick={() => setIsStimulusDrawerOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="primary"
+                            disabled={selectedBenchmarkIds.size === 0}
+                            onClick={() => {
+                                setIsStimulusDrawerOpen(false);
+                                if (currentStep === 0) handleNextStep();
+                            }}
+                        >
+                            Continue ({selectedBenchmarkIds.size} selected)
+                        </Button>
+                    </div>
+                </div>
+            </Drawer>
+
+            {/* File-based research: File upload drawer (Attention Prediction / Insights Finding) */}
+            <Drawer
+                isOpen={isStimulusDrawerOpen && !isClientsBenchmark}
                 onClose={() => setIsStimulusDrawerOpen(false)}
                 title={isInsightsFinding ? 'Insights Finding — Text Files' : 'Attention Prediction Stimuli'}
                 width="md"

@@ -14,6 +14,7 @@ interface ResearchFormStep2Props {
     loadingTechniques: boolean;
     useDefaultModules: boolean;
     stimulusFiles?: File[];
+    selectedBenchmarkCount?: number;
     onResearchTypeChange: (value: string) => void;
     onResearchTechniqueChange: (value: string) => void;
     onToggleDefaultModules: (value: boolean) => void;
@@ -31,6 +32,7 @@ export const ResearchFormStep2 = ({
     loadingTechniques,
     useDefaultModules,
     stimulusFiles = [],
+    selectedBenchmarkCount = 0,
     onResearchTypeChange,
     onResearchTechniqueChange,
     onToggleDefaultModules,
@@ -41,7 +43,8 @@ export const ResearchFormStep2 = ({
     const isAttentionPrediction = selectedResearchType?.name === 'Attention Prediction' ||
                                 selectedResearchType?.name === "Attention's Prediction";
     const isInsightsFinding = selectedResearchType?.name === 'Insights Finding';
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding;
+    const isClientsBenchmark = selectedResearchType?.name === "Client's Benchmark";
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
 
     // Technique default_stages take priority over research type default_modules
     const techniqueStages = selectedTechnique?.default_stages;
@@ -85,42 +88,50 @@ export const ResearchFormStep2 = ({
                 required
             />
 
-            {isFileBasedResearch && (
-                <div className={cn(
-                    "p-3 rounded-lg border flex items-center justify-between",
-                    stimulusFiles.length > 0
-                        ? "bg-green-50 border-green-200 text-green-800"
-                        : "bg-amber-50 border-amber-200 text-amber-800"
-                )}>
-                    <div className="flex items-center gap-2">
-                        {stimulusFiles.length > 0 ? (
-                            <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                        ) : (
-                            <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        )}
-                        <span className="text-sm">
-                            {stimulusFiles.length > 0
-                                ? `${stimulusFiles.length} ${isInsightsFinding ? 'files' : 'stimuli'} selected`
-                                : isInsightsFinding
-                                    ? 'Insights Finding requires at least one text file (.csv or .txt).'
-                                    : 'Attention Prediction requires at least one stimulus image.'}
-                        </span>
+            {isFileBasedResearch && (() => {
+                const hasSelection = isClientsBenchmark ? selectedBenchmarkCount > 0 : stimulusFiles.length > 0;
+                const statusText = isClientsBenchmark
+                    ? (hasSelection ? `${selectedBenchmarkCount} research${selectedBenchmarkCount !== 1 ? 'es' : ''} selected` : "Client's Benchmark requires at least one research with Eye Tracking.")
+                    : (hasSelection
+                        ? `${stimulusFiles.length} ${isInsightsFinding ? 'files' : 'stimuli'} selected`
+                        : isInsightsFinding
+                            ? 'Insights Finding requires at least one text file (.csv or .txt).'
+                            : 'Attention Prediction requires at least one stimulus image.');
+                const actionText = isClientsBenchmark
+                    ? (hasSelection ? 'Change Selection' : 'Select Researches')
+                    : (hasSelection
+                        ? (isInsightsFinding ? 'Manage Files' : 'Manage Images')
+                        : (isInsightsFinding ? 'Upload Files' : 'Upload Images'));
+
+                return (
+                    <div className={cn(
+                        "p-3 rounded-lg border flex items-center justify-between",
+                        hasSelection
+                            ? "bg-green-50 border-green-200 text-green-800"
+                            : "bg-amber-50 border-amber-200 text-amber-800"
+                    )}>
+                        <div className="flex items-center gap-2">
+                            {hasSelection ? (
+                                <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                            ) : (
+                                <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            )}
+                            <span className="text-sm">{statusText}</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onOpenStimulusDrawer}
+                            className="text-xs font-semibold underline hover:opacity-80"
+                        >
+                            {actionText}
+                        </button>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onOpenStimulusDrawer}
-                        className="text-xs font-semibold underline hover:opacity-80"
-                    >
-                        {stimulusFiles.length > 0
-                            ? (isInsightsFinding ? 'Manage Files' : 'Manage Images')
-                            : (isInsightsFinding ? 'Upload Files' : 'Upload Images')}
-                    </button>
-                </div>
-            )}
+                );
+            })()}
 
             {!isFileBasedResearch && (
                 availableTechniques.length === 0 && researchTypeId && !loadingTechniques ? (

@@ -412,6 +412,45 @@ export const getEyeTrackingResults = async (researchId: string): Promise<EyeTrac
 };
 
 // ==========================================
+// CLIENT'S BENCHMARK RESULTS
+// ==========================================
+
+export interface BenchmarkAOI {
+    id: string;
+    label: string;
+    dwellTimePercent: number;
+    fixationCount: number;
+    avgDuration: number;
+    participantCount: number;
+}
+
+export interface BenchmarkModule {
+    moduleId: string;
+    moduleName: string;
+    stimulusUrl: string;
+    uniqueParticipants: number;
+    totalResponses: number;
+    aois: BenchmarkAOI[];
+}
+
+export interface BenchmarkResearchResult {
+    researchId: string;
+    researchName: string;
+    modules: BenchmarkModule[];
+}
+
+export interface BenchmarkResults {
+    researches: BenchmarkResearchResult[];
+}
+
+export const getBenchmarkResults = async (researchId: string): Promise<BenchmarkResults> => {
+    const response = await apiClient.get<{ results: BenchmarkResults }>(
+        `/analytics/benchmark/${researchId}`
+    );
+    return response.results;
+};
+
+// ==========================================
 // SMARTVOC RESULTS
 // ==========================================
 

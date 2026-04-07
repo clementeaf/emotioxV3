@@ -39,6 +39,7 @@ export interface Research {
     research_type_id: string;
     research_type_name?: string;
     research_technique_name?: string;
+    enterprise_name?: string;
     technique_default_stages?: { name: string; order: number; is_default?: boolean }[] | null;
     created_by?: string;
     creator_first_name?: string;
