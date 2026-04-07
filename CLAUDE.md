@@ -101,6 +101,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Ciudades en Country & City** (v0.40.2): cuando granularidad es "País + Ciudad", el investigador agrega ciudades con un selector de país qualifying + input de nombre en `CountryConfigModal`. Cada ciudad tiene toggle Clasifica/Desclasifica y muestra el país asociado. Datos: `demographics.country.cities` (`{ name, country? }[]` para round-trip, backward-compatible con `string[]`) + `demographics.city` (entry separado con `validValues` string[] y `disqualifications` para el sistema de cuotas). Participante: si hay ciudades configuradas → `CustomSelect`; si no → no muestra campo de ciudad. Cuotas: por ciudad cuando countryCity, por país cuando countryOnly, nunca ambos.
 - **Study Logo** (v0.41.0): `config.studyLogo: { enabled: boolean, s3Key?: string }` en Research Configuration. Participant-frontend muestra logo en top-left: client logo si s3Key existe, EmotioCX default si no, oculto si `enabled: false`.
 - **Loading states**: usar skeleton (`animate-pulse` + bloques grises), nunca spinners.
+- **Eye Tracking híbrido** (v0.41.1): ruta `/eye-tracking-hybrid` en participant-frontend. Desktop usa BlazeGaze (`webeyetrack` npm) con calibración mejorada (100 maxPoints, 4 frames/punto, 5 gradient steps, `ptType: 'calib'`). Tablet/móvil usa attention proxy (tap + viewport + scroll). Dos pipelines coexisten: MediaPipe ridge (`/eye-tracking-test`) y BlazeGaze CNN (`/eye-tracking-hybrid`).
 
 ## Key Files
 - `backend/src/router.ts` — routing central, CORS, path normalization
@@ -113,6 +114,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/pages/clients/ClientsPage.tsx` — vista Clients: benchmark scatter, explicación, best option, latest projects, tabla de researches
 - `research-frontend/src/components/layout/StandardSidebar.tsx` — sidebar principal con nav items (Home, Research, Research's History, Clients, Research Type Builder, Modules)
 - `backend/src/modules/enterprises/enterprises.controller.ts` — CRUD enterprises + `GET /enterprises/:id/researches`
+- `participant-frontend/src/pages/EyeTrackingHybridPage.tsx` — test page híbrida: BlazeGaze en desktop, attention proxy en tablet/móvil
+- `participant-frontend/src/hooks/useBlazeGaze.ts` — BlazeGaze CNN con calibración mejorada (multi-frame, multi-step adapt, permanent calib data)
 - `participant-frontend/src/pages/ResearchPage.tsx` — flujo de encuesta del participante (incluye kiosk auto-reset)
 - `participant-frontend/src/hooks/usePreviewMode.ts` — detecta preview vs participant vs kiosk mode
 - `participant-frontend/src/stores/useParticipantStore.ts` — estado participante + participationMode

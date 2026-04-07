@@ -29,6 +29,7 @@
     "react-router-dom": "^7.9.6",
     "react-window": "^2.2.3",
     "tailwind-merge": "^3.4.0",
+    "webeyetrack": "^0.0.2",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

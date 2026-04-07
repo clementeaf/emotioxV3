@@ -1,3 +1,15 @@
+## v0.41.1 — Hybrid Eye Tracking test page (2026-04-07)
+
+### participant-frontend
+- Feat: New `/eye-tracking-hybrid` route — device-adaptive eye tracking test page.
+  - **Desktop**: BlazeGaze webcam gaze tracking with improved calibration (17 points, 4 frames/point, 5 gradient steps, permanent calibration data). Shows red gaze dot over stimulus.
+  - **Tablet/mobile**: Touch + viewport attention proxy (taps, scroll velocity, viewport visibility). No webcam needed.
+- Feat: `useBlazeGaze` hook rewritten with enhanced calibration — `maxPoints: 100`, `clickTTL: 24h`, multi-frame sampling, `adapt()` with `ptType: 'calib'` and higher learning rate. Continuous refinement via `refinementCalibrate()`.
+- Feat: Results screen with AOI breakdown (dwell time on desktop, tap count on mobile).
+- UI: Sampling feedback (amber pulse during frame capture), calibration counter, device type badge.
+
+---
+
 ## v0.41.0 — Research History, Clients, Study Logo, Demographics & CES fixes (2026-04-07)
 
 ### research-frontend
