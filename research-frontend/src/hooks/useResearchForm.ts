@@ -305,7 +305,7 @@ export const useResearchForm = () => {
                 }
             });
 
-            if (formData.useDefaultModules) {
+            if (formData.useDefaultModules && !isFileBasedType) {
                 // Priority: technique default_stages > research type default_modules
                 const techniqueStages = selectedTechnique?.default_stages;
                 if (Array.isArray(techniqueStages) && techniqueStages.length > 0) {

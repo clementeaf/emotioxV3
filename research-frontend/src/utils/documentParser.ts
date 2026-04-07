@@ -6,8 +6,8 @@ import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
-// PDF.js worker — use CDN to avoid bundling issues
-GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.6.205/pdf.worker.min.mjs`;
+// Disable external worker to avoid CSP issues — uses built-in fake worker
+GlobalWorkerOptions.workerSrc = '';
 
 /**
  * Extracts text lines from a file.

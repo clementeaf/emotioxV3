@@ -175,6 +175,28 @@ class MediaService {
         }
     }
 
+    /** Triggers LLM analysis for an Insights Finding file (fire-and-forget, returns 202) */
+    async analyzeInsights(researchId: string, fileMediaId: string): Promise<{ status: string }> {
+        try {
+            return await apiClient.post<{ status: string }>(
+                `/insights/research/${researchId}/analyze/${fileMediaId}`
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to start insights analysis');
+        }
+    }
+
+    /** Polls analysis status for an Insights Finding file */
+    async getInsightsStatus(researchId: string, fileMediaId: string): Promise<{ status: string; analyzedAt: string | null }> {
+        try {
+            return await apiClient.get<{ status: string; analyzedAt: string | null }>(
+                `/insights/research/${researchId}/status/${fileMediaId}`
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to check insights status');
+        }
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;

@@ -1,17 +1,19 @@
-## v0.52.0 — Insights Finding: document analysis research type (2026-04-07)
+## v0.52.0 — Insights Finding: document analysis + LLM analysis (2026-04-07)
 
 ### research-frontend
 
-- **Insights Finding.** Nuevo tipo de research sin stages/módulos. El investigador sube documentos (.csv, .txt, .xlsx, .docx, .pdf) desde un Drawer al crear. Los archivos se parsean client-side y se analizan con sentimiento léxico (ES/EN).
-- **Document parser** (`documentParser.ts`). Extrae texto de 5 formatos: SheetJS (.csv/.xlsx), Mammoth (.docx), PDF.js (.pdf), TextDecoder (.txt con fallback UTF-8/Latin-1).
-- **`InsightsFindingView`.** Reutiliza `VOCComments` para mostrar Comment + Mood + Sentiment + Themes + Keywords por archivo.
-- **`isFileBasedResearch` flag.** Unifica lógica compartida entre Attention Prediction e Insights Finding (no stages, drawer, sidebar, builder guards) en 4 archivos clave.
-- **Delete optimista.** `useDeleteResearch` ahora remueve el item de la lista inmediatamente (cache es array plano, no `{ researches }`) con rollback en error.
+- **Insights Finding.** Nuevo tipo de research sin stages/módulos. El investigador sube documentos (.csv, .txt, .xlsx, .docx, .pdf) desde un Drawer al crear. Parseo client-side + sentimiento léxico (ES/EN).
+- **Document parser** (`documentParser.ts`). 5 formatos: SheetJS (.csv/.xlsx), Mammoth (.docx), PDF.js (.pdf), TextDecoder (.txt). Límite 200 entries × 300 chars para body size.
+- **`InsightsFindingView`.** Panel izquierdo: tabla de entries con mood badges. Panel derecho: tabs Sentiment (resumen + accionables LLM), Themes (tabla con magnitude + sentiment score), Keywords (tags con sentimiento). Auto-trigger de análisis LLM con polling.
+- **`isFileBasedResearch` flag.** Unifica Attention Prediction e Insights Finding en 4 archivos clave.
+- **Delete optimista.** `useDeleteResearch` remueve inmediatamente de la lista con rollback en error.
 
 ### backend
 
-- **`skip_default_modules` flag.** Research types file-based no crean stages/módulos default al crear.
-- **`express.json({ limit: '10mb' })`** en server.ts y server-cpanel.ts.
+- **Insights analysis service** (`insights.service.ts`). GPT-4o vía OpenAI SDK. Genera: sentiment summary + actionables, themes con magnitude/sentimentScore, keywords con sentimiento. Prompt bilingüe ES/EN, response_format JSON.
+- **Insights controller.** `POST /insights/research/:id/analyze/:fileMediaId` (202 fire-and-forget) + `GET .../status/:fileMediaId`. Resultado se persiste en `config.stimuli[].analysis`.
+- **`skip_default_modules` flag.** Research types file-based no crean stages/módulos default.
+- **`express.json({ limit: '10mb' })`** en ambos servers.
 
 ---
 
