@@ -26,9 +26,8 @@ export function EyeTrackingTestPage() {
     setPhase('calibrating');
   }, [webcam, eyeTracking]);
 
-  const handleCalibrationDotClick = useCallback(() => {
-    eyeTracking.recordCalibrationPoint(() => {
-      // Called when all calibration points are done
+  const handleCalibrationDotClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    eyeTracking.recordCalibrationPoint([event.clientX, event.clientY], () => {
       eyeTracking.startTracking();
       setPhase('tracking');
     });

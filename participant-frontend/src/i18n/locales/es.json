@@ -121,7 +121,8 @@
   },
   "eyeTracking": {
     "keepLooking": "Mantén la mirada en el punto...",
-    "lookAndClick": "Mira el punto rojo y haz click en él",
+    "lookAndClick": "Haz clic donde estés mirando en la pantalla",
+    "clickWhereYouLook": "El punto rojo es solo una guía; usamos el píxel exacto donde haces clic.",
     "pointOf": "Punto {{current}} de {{total}}",
     "calibrationPoint": "Punto de calibración {{number}}",
     "gazeIndicator": "El punto verde indica hacia dónde estás mirando",

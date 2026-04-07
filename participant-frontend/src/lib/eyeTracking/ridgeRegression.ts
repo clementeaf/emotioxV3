@@ -1,6 +1,6 @@
 /**
- * Ridge Regression for mapping iris coordinates to screen positions.
- * Pure matrix algebra implementation — no external dependencies.
+ * Ridge regression for mapping gaze features to screen coordinates.
+ * Pure matrix algebra — no external dependencies.
  */
 
 type Matrix = number[][];
@@ -52,7 +52,6 @@ function scaleMatrix(m: Matrix, s: number): Matrix {
 /** Gauss-Jordan inversion for small matrices */
 function invert(m: Matrix): Matrix {
   const n = m.length;
-  // Augmented matrix [m | I]
   const aug: Matrix = m.map((row, i) => {
     const iRow = new Array(n).fill(0);
     iRow[i] = 1;
@@ -60,7 +59,6 @@ function invert(m: Matrix): Matrix {
   });
 
   for (let col = 0; col < n; col++) {
-    // Partial pivoting
     let maxRow = col;
     for (let row = col + 1; row < n; row++) {
       if (Math.abs(aug[row][col]) > Math.abs(aug[maxRow][col])) maxRow = row;
@@ -97,15 +95,14 @@ export class RidgeRegression {
   private weightsX: Vector | null = null;
   private weightsY: Vector | null = null;
 
-  /** Add a calibration sample: features (iris coords) → target (screen x, y) */
+  /** Add a calibration sample: features → target (screen x, y) */
   addSample(features: number[], target: [number, number]): void {
-    // Add bias term
     this.samplesX.push([...features, 1]);
     this.samplesYx.push(target[0]);
     this.samplesYy.push(target[1]);
   }
 
-  /** Train the model using Ridge Regression: w = (X^T X + λI)^-1 X^T y */
+  /** Train: w = (X^T X + λI)^-1 X^T y */
   train(lambda = 1.0): void {
     const X: Matrix = this.samplesX;
     const n = X[0].length;
@@ -116,7 +113,6 @@ export class RidgeRegression {
     const inv = invert(XtX_reg);
     const XtInv = multiply(inv, Xt);
 
-    // Convert y vectors to column matrices for multiplication
     const yx: Matrix = this.samplesYx.map(v => [v]);
     const yy: Matrix = this.samplesYy.map(v => [v]);
 
@@ -127,12 +123,12 @@ export class RidgeRegression {
     this.weightsY = wy.map(r => r[0]);
   }
 
-  /** Predict screen position from iris features */
+  /** Predict screen position from feature vector */
   predict(features: number[]): [number, number] {
     if (!this.weightsX || !this.weightsY) {
       throw new Error('Model not trained yet');
     }
-    const f = [...features, 1]; // bias term
+    const f = [...features, 1];
     const x = multiplyMV([this.weightsX], f)[0];
     const y = multiplyMV([this.weightsY], f)[0];
     return [x, y];

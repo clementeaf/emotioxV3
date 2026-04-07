@@ -39,20 +39,32 @@
 
 ---
 
-## v0.40.0 — City configuration in Country & City demographic (2026-04-01)
+## v0.40.0 — Eye Tracking System + City demographic (2026-03-28 / 2026-04-01)
 
 ### research-frontend
 - Feat: When geographic granularity is "País + Ciudad", a new **Cities** section appears in the Country config drawer. The researcher adds cities as free-text chips (type + Enter/Add).
 - Feat: Each city has a Clasifica/Desclasifica toggle — disqualifying cities block participants at demographics validation, qualifying cities are shown normally.
 - Feat: Quotas tab switches to **per-city quotas** (%) when cities are configured; reverts to per-country quotas when granularity is "Solo país".
 - Feat: City list and disqualification state persist across modal open/close via `demographics.country.cities` + `demographics.city.disqualifications`.
+- New `/labs/eye-tracking` page — BlazeGaze CNN gaze prediction from webcam
+- 17-point guided calibration → live gaze tracking (red dot)
+- BlazeGaze model (670KB, webeyetrack) uses eye image patches + head pose
+- Adaptive smoothing with deadzone, blink filtering (ignores closed-eye frames)
+- MediaPipe face mesh library: 478 landmarks, iris detection, head pose, ridge regression
+- Face detection overlay: wireframe volume lines, eye contours, iris circles (debug tool)
+- Live telemetry panel: model status, eyes open/closed, gaze coordinates
+- CSP updated for cdn.jsdelivr.net (WebEyeTrack's internal MediaPipe WASM)
 
 ### participant-frontend
 - Feat: When the researcher configured specific cities, the participant sees a **dropdown select** instead of a free-text input for the city field. All cities (qualifying + disqualifying) appear in the dropdown; the backend enforces disqualification.
 - No change for researches without configured cities — text input remains as before.
+- Refactored eyeTracking lib into modular structure (`lib/eyeTracking/`)
 
 ### backend
 - No code changes. Existing `checkDisqualifications` and `tryIncrementQuota` in `quota.service.ts` already handle `demographic_type = 'city'` via exact string match and disqualification list iteration.
+
+### docs
+- Technical assessment: what works, what doesn't, options evaluated (docs/eye-tracking-assessment.md)
 
 ---
 

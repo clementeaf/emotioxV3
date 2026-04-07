@@ -157,6 +157,21 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Participant-frontend: `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), y kiosk (sin params, modo detectado del backend)
 - Kiosk auto-reset: ref guard en ResearchPage evita programar múltiples timeouts de transición (fix loop en Safari al llegar a thank-you)
 
+## Eye Tracking (v0.40.0, branch feature/eye-tracking-system)
+- **Lab page:** `/labs/eye-tracking` en research-frontend — prototipo de gaze tracking por webcam
+- **Motor de gaze:** BlazeGaze CNN (670KB, paquete `webeyetrack`) — usa imagen de ojos + head pose, no solo landmarks
+- **Pipeline:** WebEyeTrack corre su propio MediaPipe internamente; un solo pipeline (sin duplicación)
+- **Calibración:** 17 puntos guiados → cada click alimenta `adapt()` (few-shot). `useBlazeGaze.calibrate()` resetea debounce interno
+- **Smoothing:** Adaptativo (alpha 0.12–0.4 según distancia), deadzone 4px, blink filtering (ignora frames con ojos cerrados)
+- **Limitación conocida:** Iris ratios de MediaPipe tienen rango dinámico muy bajo (~0.008 delta por 55% pantalla) — insuficiente para gaze solo con landmarks. BlazeGaze resuelve esto usando la imagen completa del ojo
+- **Assessment completo:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
+- **Key files:**
+  - `research-frontend/src/pages/labs/EyeTrackingLabPage.tsx` — página principal del lab
+  - `research-frontend/src/hooks/useBlazeGaze.ts` — hook BlazeGaze (gaze prediction)
+  - `research-frontend/src/hooks/useFaceDetection.ts` — hook MediaPipe (detección facial)
+  - `research-frontend/src/lib/eyeTracking/` — librería compartida (landmarks, features, ridge, overlay)
+  - `research-frontend/public/web/model.json` — modelo BlazeGaze TF.js (gitignored, copiar desde WebEyeTrack repo)
+
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)
 - [BITACORA](BITACORA.md) — notas de sesiones de desarrollo
