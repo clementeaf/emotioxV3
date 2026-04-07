@@ -85,6 +85,32 @@ export const list = async (userId: string, role?: string) => {
     }
 };
 
+export const listByEnterprise = async (enterpriseId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
+    const query = `
+        SELECT r.id, r.name, r.description, r.status, r.config, r.created_at, r.updated_at,
+               r.enterprise_id,
+               e.name as enterprise_name,
+               rt.name as research_type_name,
+               u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
+        FROM researches r
+        LEFT JOIN enterprises e ON e.id = r.enterprise_id
+        LEFT JOIN research_types rt ON r.research_type_id = rt.id
+        LEFT JOIN users u ON r.created_by = u.id
+        WHERE ${ownership.clause} AND r.enterprise_id = ? AND r.deleted_at IS NULL
+        ORDER BY r.created_at DESC
+    `;
+    const result = await pool.query(query, [...ownership.params, enterpriseId]);
+    return result.rows.map((row: Record<string, unknown>) => {
+        let settings = row.config;
+        if (typeof settings === 'string') {
+            try { settings = JSON.parse(settings as string); } catch { settings = {}; }
+        }
+        const { config, ...rest } = row;
+        return { ...rest, settings: settings || {} };
+    });
+};
+
 export const create = async (userId: string, data: ResearchData) => {
     console.log('[Research Service] create() called with data:', JSON.stringify(data, null, 2));
     const client = await pool.connect();

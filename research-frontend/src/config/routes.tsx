@@ -9,6 +9,8 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ResearchPage } from '../pages/research/ResearchPage';
 import { ResearchBuilderPage } from '../pages/research/ResearchBuilderPage';
 import { ResearchResultsPage } from '../pages/research/ResearchResultsPage';
+import { ResearchHistoryPage } from '../pages/research/ResearchHistoryPage';
+import { ClientsPage } from '../pages/clients/ClientsPage';
 import { ResearchProgressPage } from '../pages/research/ResearchProgressPage';
 import { ModulesPage } from '../pages/modules/ModulesPage';
 import { ModuleBuilderPage } from '../pages/modules/ModuleBuilderPage';
@@ -126,6 +128,20 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Results' },
+    },
+    {
+        path: '/research-history',
+        element: <ResearchHistoryPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research History' },
+    },
+    {
+        path: '/clients',
+        element: <ClientsPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Clients' },
     },
     {
         path: '/modules',

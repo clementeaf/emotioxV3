@@ -187,9 +187,10 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
     }, [answers, module.id, updateResponse]);
 
     const showCity = useMemo((): boolean => {
+        if (!isEnabled('country')) return false;
         const cfg = getConfig('country');
         return (cfg.granularity || 'countryOnly') === 'countryCity';
-    }, [getConfig]);
+    }, [isEnabled, getConfig]);
 
     /** Configured city options — when present, show a select instead of text input */
     const citySelectOptions = useMemo((): SelectOption[] => {
@@ -223,19 +224,6 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
             updateResponse(module.id, key, value);
         }
     };
-
-    const renderTextInput = (key: string, label: string, value: string) => (
-        <div key={key} className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">{label}</label>
-            <input
-                type="text"
-                className="focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                placeholder={t('demographics.enterYour', { label: label.toLowerCase() })}
-                value={value || ''}
-                onChange={e => handleChange(key, e.target.value)}
-            />
-        </div>
-    );
 
     const renderSelect = (key: string, label: string, options: string[], value: string, placeholder?: string) => (
         <div key={key}>
@@ -282,10 +270,8 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                             return (
                                 <React.Fragment key={key}>
                                     {renderSelect('country', label, options.length > 0 ? options : ['Chile', 'Other'], answers.country)}
-                                    {showCity && answers.country && (
-                                        citySelectOptions.length > 0
-                                            ? renderSelectWithOptions('city', t('demographics.city'), citySelectOptions, answers.city)
-                                            : renderTextInput('city', t('demographics.city'), answers.city)
+                                    {showCity && answers.country && citySelectOptions.length > 0 && (
+                                        renderSelectWithOptions('city', t('demographics.city'), citySelectOptions, answers.city)
                                     )}
                                 </React.Fragment>
                             );

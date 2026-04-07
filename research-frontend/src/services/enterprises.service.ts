@@ -29,6 +29,26 @@ export interface EnterpriseListResponse {
     enterprises: Enterprise[];
 }
 
+export interface EnterpriseResearch {
+    id: string;
+    name: string;
+    description?: string;
+    status: string;
+    enterprise_id: string;
+    enterprise_name: string;
+    research_type_name?: string;
+    creator_first_name?: string;
+    creator_last_name?: string;
+    creator_email?: string;
+    settings: Record<string, unknown>;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface EnterpriseResearchesResponse {
+    researches: EnterpriseResearch[];
+}
+
 export interface DeleteResponse {
     message: string;
 }
@@ -105,6 +125,14 @@ class EnterprisesService {
             return await apiClient.delete<DeleteResponse>(`/enterprises/${id}`);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to delete enterprise');
+        }
+    }
+
+    async listResearches(enterpriseId: string): Promise<EnterpriseResearchesResponse> {
+        try {
+            return await apiClient.get<EnterpriseResearchesResponse>(`/enterprises/${enterpriseId}/researches`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to fetch enterprise researches');
         }
     }
 

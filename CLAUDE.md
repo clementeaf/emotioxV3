@@ -74,15 +74,21 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **NEV emociones**: 20 emociones canónicas. "Descontento" es negativa (rojo). Fila 1 = positivas (7), Fila 2 = atención (5), Fila 3 = negativas (8). Clasificación alineada entre participant-frontend, research-frontend preview y backend analytics.
 - **CES analytics dinámico**: backend extrae la escala configurada (`scaleConfigs`) y la envía al frontend. El dashboard de resultados usa `getCESZones(scaleMax)` para breakdown, MetricCard, CPV y chart data. No más rangos hardcodeados.
 - **View Progress completitud**: `getVisibleModuleIdsForProgress` usa `INNER JOIN stages` para excluir módulos con stage eliminado, y `isModuleConfiguredForProgress` para excluir módulos sin contenido. `panelStatus = 'responded'` fuerza 100%. Progress sin completar se capea a 99%.
-- **Ciudades en Country & City** (v0.40.2): cuando granularidad es "País + Ciudad", el investigador agrega ciudades con un selector de país qualifying + input de nombre en `CountryConfigModal`. Cada ciudad tiene toggle Clasifica/Desclasifica y muestra el país asociado. Datos: `demographics.country.cities` (`{ name, country? }[]` para round-trip, backward-compatible con `string[]`) + `demographics.city` (entry separado con `validValues` string[] y `disqualifications` para el sistema de cuotas). Participante: si hay ciudades configuradas → `CustomSelect`; si no → texto libre (retrocompatible). Cuotas: por ciudad cuando countryCity, por país cuando countryOnly, nunca ambos.
+- **Ciudades en Country & City** (v0.40.2): cuando granularidad es "País + Ciudad", el investigador agrega ciudades con un selector de país qualifying + input de nombre en `CountryConfigModal`. Cada ciudad tiene toggle Clasifica/Desclasifica y muestra el país asociado. Datos: `demographics.country.cities` (`{ name, country? }[]` para round-trip, backward-compatible con `string[]`) + `demographics.city` (entry separado con `validValues` string[] y `disqualifications` para el sistema de cuotas). Participante: si hay ciudades configuradas → `CustomSelect`; si no → no muestra campo de ciudad. Cuotas: por ciudad cuando countryCity, por país cuando countryOnly, nunca ambos.
+- **Study Logo** (v0.41.0): `config.studyLogo: { enabled: boolean, s3Key?: string }` en Research Configuration. Participant-frontend muestra logo en top-left: client logo si s3Key existe, EmotioCX default si no, oculto si `enabled: false`.
+- **Loading states**: usar skeleton (`animate-pulse` + bloques grises), nunca spinners.
 
 ## Key Files
 - `backend/src/router.ts` — routing central, CORS, path normalization
 - `backend/server-cpanel.js` — entry point producción (Passenger)
 - `research-frontend/src/components/layout/ResearchBuilderSidebar.tsx` — sidebar con status modal (draft/active/completed), stage management
 - `research-frontend/src/components/research/ResearchBuilderPage.tsx` — builder principal
-- `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía. Al habilitar un demográfico de opciones (Competencia técnica, etc.) se inyectan opciones por defecto (`DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC`) para que el participante vea siempre selector, no input de texto.
+- `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía, study logo. Al habilitar un demográfico de opciones (Competencia técnica, etc.) se inyectan opciones por defecto (`DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC`) para que el participante vea siempre selector, no input de texto.
 - `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity
+- `research-frontend/src/pages/research/ResearchHistoryPage.tsx` — historial de investigaciones por enterprise, chart lineal, "Who is", tabla de researches
+- `research-frontend/src/pages/clients/ClientsPage.tsx` — vista Clients: benchmark scatter, explicación, best option, latest projects, tabla de researches
+- `research-frontend/src/components/layout/StandardSidebar.tsx` — sidebar principal con nav items (Home, Research, Research's History, Clients, Research Type Builder, Modules)
+- `backend/src/modules/enterprises/enterprises.controller.ts` — CRUD enterprises + `GET /enterprises/:id/researches`
 - `participant-frontend/src/pages/ResearchPage.tsx` — flujo de encuesta del participante (incluye kiosk auto-reset)
 - `participant-frontend/src/hooks/usePreviewMode.ts` — detecta preview vs participant vs kiosk mode
 - `participant-frontend/src/stores/useParticipantStore.ts` — estado participante + participationMode

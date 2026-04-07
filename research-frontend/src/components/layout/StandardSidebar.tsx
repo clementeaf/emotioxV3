@@ -5,6 +5,8 @@ import {
     LayoutDashboard,
     Boxes,
     Wrench,
+    History,
+    Users,
     LogOut,
     ChevronLeft,
     ChevronRight
@@ -22,6 +24,8 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/dashboard', label: 'Home', icon: LayoutDashboard },
     { path: '/research', label: 'Research', icon: Boxes },
+    { path: '/research-history', label: "Research's History", icon: History },
+    { path: '/clients', label: 'Clients', icon: Users },
     { path: '/research-types', label: 'Research Type Builder', icon: Wrench },
     { path: '/modules', label: 'Modules', icon: Boxes },
 ];

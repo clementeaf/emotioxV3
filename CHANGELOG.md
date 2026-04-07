@@ -1,3 +1,25 @@
+## v0.41.0 — Research History, Clients, Study Logo, Demographics & CES fixes (2026-04-07)
+
+### research-frontend
+- Feat: New **Research's History** page — lists all researches by enterprise with chart, "Who is" panel, and full table. Accessible from sidebar.
+- Feat: New **Clients** page — Affordances & Signifiers' Benchmark (scatter chart), explanatory panel, best option highlight, latest projects cards, and research table. Accessible from sidebar.
+- Feat: **Study Logo** section in Research Configuration — toggle to show/hide logo in participant survey, upload client logo (max 2MB), preview with remove. Stored as `config.studyLogo: { enabled, s3Key }`.
+- Fix: Unchecking the "country" demographic now also disables the associated "city" demographic automatically.
+- Fix: "Descontento" emotion was already correctly classified as negative (`#fecaca`) in SmartVOCPreview — deployed to production.
+
+### participant-frontend
+- Feat: **Study logo** displayed in top-left corner of survey. Shows client logo if configured, EmotioCX default if not, hidden if toggle is off.
+- Fix: City field no longer shows a free-text input to participants. Only displays a dropdown when the researcher has configured specific cities.
+- Fix: `showCity` now checks `isEnabled('country')` before evaluating granularity — city never appears if country is disabled.
+- Fix: CES sentiment zone colors (red/amber/green) and dynamic scale support deployed to production.
+- Fix: NEV "Descontento" emotion color correction deployed to production.
+
+### backend
+- Feat: New endpoint `GET /enterprises/:id/researches` — returns researches filtered by enterprise with creator info.
+- Feat: `listByEnterprise()` in research service with ownership clause + enterprise filter.
+
+---
+
 ## v0.40.2 — City-country association in demographics config (2026-04-01)
 
 ### research-frontend

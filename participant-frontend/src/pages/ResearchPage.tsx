@@ -295,6 +295,28 @@ const getDemographicsConfig = (research: ResearchData): Record<string, unknown> 
 };
 
 /**
+ * Extracts study logo config from Research Configuration module.
+ * Returns { enabled, s3Key } or null if not configured.
+ */
+const getStudyLogo = (research: ResearchData): { enabled: boolean; s3Key?: string } | null => {
+  const stages = research.stages || [{ id: 'legacy', name: 'Legacy', description: '', order_index: 0, modules: research.modules || [] }];
+  for (const stage of stages) {
+    for (const module of stage.modules || []) {
+      if (module.name !== 'Research Configuration') continue;
+      const config = module.config;
+      if (isRecord(config) && isRecord(config.studyLogo)) {
+        const logo = config.studyLogo;
+        return {
+          enabled: typeof logo.enabled === 'boolean' ? logo.enabled : true,
+          s3Key: typeof logo.s3Key === 'string' ? logo.s3Key : undefined,
+        };
+      }
+    }
+  }
+  return null;
+};
+
+/**
  * Converts a backend module name to a stable stepId used by the participant flow.
  * @param moduleName - Human readable module name
  * @returns stepId or null if module should not be part of the participant flow
@@ -387,6 +409,8 @@ export const ResearchPage = () => {
   const [backlinks, setBacklinks] = useState<Record<string, string>>({});
   const [alreadyResponded, setAlreadyResponded] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [studyLogoUrl, setStudyLogoUrl] = useState<string | null>(null);
+  const [studyLogoEnabled, setStudyLogoEnabled] = useState(true);
 
   /** Show redirect screen briefly, then navigate.
    *  - Replaces `@id` placeholder with the real participant ID.
@@ -581,6 +605,15 @@ export const ResearchPage = () => {
         // Get backlinks configuration
         const researchBacklinks = getBacklinks(research);
         setBacklinks(researchBacklinks);
+
+        // Resolve study logo
+        const logoConfig = getStudyLogo(research);
+        if (logoConfig) {
+          setStudyLogoEnabled(logoConfig.enabled);
+          if (logoConfig.enabled && logoConfig.s3Key) {
+            mediaService.getMediaUrl(logoConfig.s3Key).then(url => setStudyLogoUrl(url)).catch(() => setStudyLogoUrl(null));
+          }
+        }
 
         // Pre-check: are all quota slots exhausted? If so, redirect before demographics
         if (!effectivePreview) {
@@ -1250,6 +1283,17 @@ export const ResearchPage = () => {
       ) : null}
 
       <LanguageSelector />
+
+      {/* Study logo — top-left corner */}
+      {studyLogoEnabled && (
+        <div className="fixed top-3 left-3 z-40">
+          <img
+            src={studyLogoUrl || `${import.meta.env.BASE_URL}EmotioCX-logo.svg`}
+            alt="Logo"
+            className="h-8 object-contain"
+          />
+        </div>
+      )}
 
       <MainLayout
         footer={

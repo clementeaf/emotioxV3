@@ -3,6 +3,7 @@ import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth';
 import * as enterprisesService from './enterprises.service';
 import * as authService from '../auth/auth.service';
+import * as researchService from '../research/research.service';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleEnterprisesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -34,6 +35,14 @@ export const handleEnterprisesRoutes = async (event: APIGatewayProxyEvent): Prom
             const body = JSON.parse(event.body || '{}');
             const enterprise = await enterprisesService.create(body, user.id);
             return success({ enterprise }, 201, undefined, origin);
+        }
+
+        // GET /enterprises/:id/researches
+        const researchesMatch = path.match(/^\/enterprises\/([^\/]+)\/researches$/);
+        if (researchesMatch && httpMethod === 'GET') {
+            const enterpriseId = researchesMatch[1];
+            const researches = await researchService.listByEnterprise(enterpriseId, user.id, user.role);
+            return success({ researches }, 200, undefined, origin);
         }
 
         // GET /enterprises/:id
