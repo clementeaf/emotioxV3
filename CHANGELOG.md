@@ -1,12 +1,12 @@
-## v0.41.1 — Hybrid Eye Tracking test page (2026-04-07)
+## v0.41.1 — Hybrid Eye Tracking with zone heatmap (2026-04-07)
 
 ### participant-frontend
 - Feat: New `/eye-tracking-hybrid` route — device-adaptive eye tracking test page.
-  - **Desktop**: BlazeGaze webcam gaze tracking with improved calibration (17 points, 4 frames/point, 5 gradient steps, permanent calibration data). Shows red gaze dot over stimulus.
-  - **Tablet/mobile**: Touch + viewport attention proxy (taps, scroll velocity, viewport visibility). No webcam needed.
-- Feat: `useBlazeGaze` hook rewritten with enhanced calibration — `maxPoints: 100`, `clickTTL: 24h`, multi-frame sampling, `adapt()` with `ptType: 'calib'` and higher learning rate. Continuous refinement via `refinementCalibrate()`.
-- Feat: Results screen with AOI breakdown (dwell time on desktop, tap count on mobile).
-- UI: Sampling feedback (amber pulse during frame capture), calibration counter, device type badge.
+  - **Desktop**: BlazeGaze webcam gaze tracking with 9-point calibration (instant click, no blocking). Silent tracking during stimulus — no visible gaze dot.
+  - **Tablet/mobile**: Touch + viewport attention proxy. No webcam needed.
+- Feat: Zone-based attention heatmap (3x3 grid) over stimulus image as result, replacing imprecise pixel-level gaze dot. Color scale: blue (low) → green → yellow → red (peak). Percentage per zone.
+- Feat: Instruction step before stimulus — researcher defines what the participant should look for.
+- Feat: `useBlazeGaze` hook — `maxPoints: 100`, `clickTTL: 24h`, instant `handleClick` calibration (no frame capture blocking), `refinementCalibrate()` for continuous improvement during tracking.
 
 ---
 

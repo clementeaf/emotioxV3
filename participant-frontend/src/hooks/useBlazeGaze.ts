@@ -16,10 +16,7 @@ import type { GazeResult } from 'webeyetrack';
 
 const MAX_POINTS = 100;
 const CLICK_TTL = 86400; // 24h — effectively never expires
-const FRAMES_PER_CAL_POINT = 4;
-const FRAME_INTERVAL_MS = 80; // ~12fps sampling during calibration
-const ADAPT_STEPS = 5;
-const ADAPT_LR = 1e-4; // 10x higher than default for faster convergence
+const ADAPT_LR = 5e-4; // higher LR for refinement adapt
 
 export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>) {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -75,40 +72,16 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
     }, [videoRef]);
 
     /**
-     * Calibrate with a screen point using multi-frame sampling + dedicated adapt().
-     * normX, normY: normalized screen coords centered at 0 (range ~[-0.5, 0.5])
+     * Calibrate with a screen point — instant, no inference.
+     * Stores the click; adaptation happens lazily on the next step() during tracking.
      */
-    const calibrate = useCallback(async (normX: number, normY: number): Promise<boolean> => {
+    const calibrate = useCallback((normX: number, normY: number): void => {
         const tracker = trackerRef.current;
-        if (!tracker) return false;
-
-        const eyePatches: ImageData[] = [];
-        const headVectors: number[][] = [];
-        const faceOrigins: number[][] = [];
-        const targets: number[][] = [];
-
-        // Collect multiple frames for this calibration point
-        for (let i = 0; i < FRAMES_PER_CAL_POINT; i++) {
-            const result = await captureFrame();
-            if (result && result.gazeState === 'open' && result.eyePatch) {
-                eyePatches.push(result.eyePatch);
-                headVectors.push(result.headVector);
-                faceOrigins.push(result.faceOrigin3D);
-                targets.push([normX, normY]);
-            }
-            // Wait between frames to get diverse samples
-            if (i < FRAMES_PER_CAL_POINT - 1) {
-                await new Promise(r => setTimeout(r, FRAME_INTERVAL_MS));
-            }
-        }
-
-        if (eyePatches.length === 0) return false;
-
-        // Call adapt directly with 'calib' type (never expires) and more gradient steps
-        tracker.adapt(eyePatches, headVectors, faceOrigins, targets, ADAPT_STEPS, ADAPT_LR, 'calib');
+        if (!tracker) return;
+        tracker.latestMouseClick = null; // reset debounce so click registers
+        tracker.handleClick(normX, normY);
         setCalibrationCount(prev => prev + 1);
-        return true;
-    }, [captureFrame]);
+    }, []);
 
     /**
      * Quick calibrate from a click during tracking (continuous refinement).
