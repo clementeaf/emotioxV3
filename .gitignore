@@ -55,6 +55,10 @@ migration-backups/
 docs/credentials/*
 !docs/credentials/README.md
 
+# Eye tracking assets (feature branch only)
+research-frontend/public/mediapipe/
+research-frontend/public/web/
+
 # Terraform
 infrastructure/.terraform/
 infrastructure/.terraform.lock.hcl

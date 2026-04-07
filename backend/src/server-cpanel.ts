@@ -68,7 +68,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Configure multer for file uploads (memory storage for direct processing)
 const upload = multer({

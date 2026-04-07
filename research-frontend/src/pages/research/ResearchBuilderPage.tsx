@@ -5,12 +5,17 @@ import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
 import { researchService, type Research, type Stage, type Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
+import { useScreenerSingleChoiceTrim } from '../../hooks/useScreenerSingleChoiceTrim';
+import { useScreenerMultipleChoiceGroupPad } from '../../hooks/useScreenerMultipleChoiceGroupPad';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
 import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
 import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
+import { AttentionPredictionView } from '../../components/research/AttentionPredictionView';
+import { InsightsFindingView } from '../../components/research/InsightsFindingView';
+import { ClientsBenchmarkView } from '../../components/research/ClientsBenchmarkView';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
@@ -39,7 +44,7 @@ const DEMOGRAPHIC_LABELS: Record<string, string> = {
 };
 
 export const ResearchBuilderPage = () => {
-    const { id, moduleId, stageId } = useParams<{ id: string; moduleId?: string; stageId?: string }>();
+    const { id, moduleId, stageId, stimulusId } = useParams<{ id: string; moduleId?: string; stageId?: string; stimulusId?: string }>();
     const navigate = useNavigate();
     const location = useLocation();
     const toast = useToast();
@@ -49,6 +54,23 @@ export const ResearchBuilderPage = () => {
 
     // Type assertion para TypeScript
     const typedResearch = research as Research | null;
+
+    const isAttentionPrediction = typedResearch?.research_type_name === 'Attention Prediction' ||
+                                 typedResearch?.research_type_name === "Attention's Prediction";
+    const isInsightsFinding = typedResearch?.research_type_name === 'Insights Finding';
+    const isClientsBenchmark = typedResearch?.research_type_name === "Client's Benchmark";
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+
+    // Redirect to first file/stimulus for file-based research if none selected
+    useEffect(() => {
+        if (isFileBasedResearch && !stimulusId && typedResearch?.settings) {
+            const stimuli = (typedResearch.settings as { stimuli?: Array<{ mediaId: string }> })?.stimuli || [];
+            if (stimuli.length > 0) {
+                navigate(`/research/${id}/builder/stimulus/${stimuli[0].mediaId}`, { replace: true });
+            }
+        }
+    }, [isFileBasedResearch, stimulusId, typedResearch, id, navigate]);
+
     const isSettings = location.pathname.endsWith('/settings');
     // Use useParams for moduleId instead of regex for better reactivity
     const activeModuleId = moduleId || null;
@@ -101,42 +123,41 @@ export const ResearchBuilderPage = () => {
         smartVOCModules.some(m => m.id === activeModuleId)
     );
 
-    // Cognitive Tasks stage logic (same structure as Smart VOC)
-    const cognitiveTasksStage = useMemo((): Stage | null => {
+    // Generic collection stage logic: any module_collection stage that is NOT Smart VOC
+    // Covers Cognitive Tasks, Implicit Association, and any future collection stages
+    const collectionStage = useMemo((): Stage | null => {
         if (!typedResearch?.stages) return null;
 
-        // Check if activeStageFromUrl is Cognitive Tasks
-        if (activeStageFromUrl && (
-            activeStageFromUrl.name.toLowerCase().includes('cognitive task') ||
-            activeStageFromUrl.name.toLowerCase() === 'cognitive tasks'
-        )) {
+        const isSmartVOCName = (name: string) =>
+            name.toLowerCase().includes('smart voc') || name.toLowerCase() === 'smart voc';
+
+        const isCollectionStage = (s: Stage) =>
+            s.stage_type === 'module_collection' && !isSmartVOCName(s.name);
+
+        // Check if activeStageFromUrl is a collection stage (not Smart VOC)
+        if (activeStageFromUrl && isCollectionStage(activeStageFromUrl)) {
             return activeStageFromUrl;
         }
 
-        let stage = typedResearch.stages.find((s: Stage) =>
-            s.name.toLowerCase().includes('cognitive task') ||
-            s.name.toLowerCase() === 'cognitive tasks'
-        );
-
-        if (!stage && activeModule && typedResearch.stages) {
-            stage = typedResearch.stages.find((s: Stage) =>
-                s.modules?.some((m: Module) => m.id === activeModule.id) &&
-                (s.name.toLowerCase().includes('cognitive task') || s.name.toLowerCase() === 'cognitive tasks')
+        // If active module belongs to a collection stage, use that
+        if (activeModule && typedResearch.stages) {
+            const stage = typedResearch.stages.find((s: Stage) =>
+                isCollectionStage(s) && s.modules?.some((m: Module) => m.id === activeModule.id)
             );
+            if (stage) return stage;
         }
 
-        return stage || null;
+        return null;
     }, [typedResearch, activeModule, activeStageFromUrl]);
 
-    const cognitiveTaskModules = useMemo((): Module[] => {
-        if (!cognitiveTasksStage || !cognitiveTasksStage.modules) return [];
-        return [...cognitiveTasksStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-    }, [cognitiveTasksStage]);
+    const collectionModules = useMemo((): Module[] => {
+        if (!collectionStage || !collectionStage.modules) return [];
+        return [...collectionStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    }, [collectionStage]);
 
-    const isCognitiveTasksStage = cognitiveTasksStage !== null && (
-        (stageId && cognitiveTasksStage.id === stageId) ||
-        (!stageId && !activeModuleId && !isSmartVOCStage) ||
-        cognitiveTaskModules.some(m => m.id === activeModuleId)
+    const isCollectionStageActive = collectionStage !== null && (
+        (stageId && collectionStage.id === stageId) ||
+        collectionModules.some(m => m.id === activeModuleId)
     );
 
     // Extract enabled demographics from Research Configuration
@@ -166,42 +187,64 @@ export const ResearchBuilderPage = () => {
         return [];
     }, [typedResearch]);
 
-    // Build list of study modules with choice options for conditionality
+    /**
+     * Modules whose answers can drive module conditionality (any stage with choice components).
+     * Includes Screener (single_module stage), Single/Multiple Choice in collections, etc.
+     */
     const studyModulesWithOptions = useMemo((): StudyModuleOption[] => {
-        const allModules = [...smartVOCModules, ...cognitiveTaskModules];
+        if (!typedResearch?.stages) return [];
         const result: StudyModuleOption[] = [];
-        for (const mod of allModules) {
-            if (mod.name !== 'Single Choice' && mod.name !== 'Multiple Choice') continue;
-            const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
-            const components = structure?.components || [];
-            const choices = components.filter(c => c.settings?.isChoice || c.id.includes('choice-'));
-            if (choices.length === 0) continue;
-            const options = choices
-                .map(c => {
-                    const defaultVal = typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
-                    const label = (c.value && typeof c.value === 'string' && c.value.trim())
-                        || defaultVal
-                        || c.label
-                        || c.id;
-                    return { id: c.id, label };
-                })
-                .filter(o => o.label.trim().length > 0);
-            if (options.length === 0) continue;
-            result.push({
-                id: mod.id,
-                name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
-                orderIndex: mod.order_index,
-                componentId: 'choice',
-                options,
-            });
+        const seen = new Set<string>();
+
+        const sortedStages = [...typedResearch.stages].sort(
+            (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+        );
+
+        for (const stage of sortedStages) {
+            const modules = [...(stage.modules || [])].sort(
+                (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+            );
+            for (const mod of modules) {
+                if (seen.has(mod.id)) continue;
+                const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
+                const components = structure?.components || [];
+                const choices = components.filter(
+                    (c) => c.settings?.isChoice || c.id.includes('choice-')
+                );
+                if (choices.length === 0) continue;
+                const options = choices
+                    .map((c) => {
+                        const defaultVal =
+                            typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
+                        const label =
+                            (c.value && typeof c.value === 'string' && c.value.trim()) ||
+                            defaultVal ||
+                            c.label ||
+                            c.id;
+                        return { id: c.id, label };
+                    })
+                    .filter((o) => o.label.trim().length > 0);
+                if (options.length === 0) continue;
+                seen.add(mod.id);
+                result.push({
+                    id: mod.id,
+                    name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
+                    orderIndex: mod.order_index,
+                    componentId: 'choice',
+                    options,
+                });
+            }
         }
         return result;
-    }, [smartVOCModules, cognitiveTaskModules]);
+    }, [typedResearch]);
 
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
 
-    const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
+    const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(activeModule);
+
+    useScreenerSingleChoiceTrim(activeModule?.name, components, componentValues, setComponents, setComponentValues);
+    useScreenerMultipleChoiceGroupPad(activeModule?.name, components, componentValues, setComponents, setComponentValues);
 
     // Initialize componentValues from config for Research Configuration module
     useEffect(() => {
@@ -218,15 +261,15 @@ export const ResearchBuilderPage = () => {
     const smartVOCModuleRefs = useRef<Map<string, SmartVOCModuleCardRef>>(new Map());
 
     // Refs for Cognitive Task module cards to access their component values
-    const cognitiveTaskModuleRefs = useRef<Map<string, CognitiveTaskModuleCardRef>>(new Map());
+    const collectionModuleRefs = useRef<Map<string, CognitiveTaskModuleCardRef>>(new Map());
 
     // Refs for DOM elements to scroll to modules
     const smartVOCModuleElementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-    const cognitiveTaskModuleElementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const collectionModuleElementRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     // Function to scroll to a specific module
     const scrollToModule = useCallback((moduleId: string, type: 'smartvoc' | 'cognitive') => {
-        const refs = type === 'smartvoc' ? smartVOCModuleElementRefs : cognitiveTaskModuleElementRefs;
+        const refs = type === 'smartvoc' ? smartVOCModuleElementRefs : collectionModuleElementRefs;
         const element = refs.current.get(moduleId);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -412,13 +455,13 @@ export const ResearchBuilderPage = () => {
                 if (id) {
                     await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
                 }
-            } else if (isCognitiveTasksStage && cognitiveTaskModules.length > 0) {
+            } else if (isCollectionStageActive && collectionModules.length > 0) {
                 // Save all Cognitive Task modules with their current component values (same structure as Smart VOC)
-                const updatePromises = cognitiveTaskModules.map(module => {
-                    const moduleRef = cognitiveTaskModuleRefs.current.get(module.id);
+                const updatePromises = collectionModules.map(module => {
+                    const moduleRef = collectionModuleRefs.current.get(module.id);
                     if (!moduleRef) {
                         console.warn(`No ref found for module ${module.id}`);
-                        return saveOrCreateModule(module, module.config, cognitiveTasksStage?.id);
+                        return saveOrCreateModule(module, module.config, collectionStage?.id);
                     }
 
                     const currentComponentValues = moduleRef.getComponentValues();
@@ -449,10 +492,10 @@ export const ResearchBuilderPage = () => {
                         conditionality ? ccConfig : null
                     );
 
-                    return saveOrCreateModule(module, config, cognitiveTasksStage?.id);
+                    return saveOrCreateModule(module, config, collectionStage?.id);
                 });
                 await Promise.all(updatePromises);
-                toast.success(`Saved ${cognitiveTaskModules.length} Cognitive Task module(s) successfully`);
+                toast.success(`Saved ${collectionModules.length} ${collectionStage?.name || 'collection'} module(s) successfully`);
                 
                 // Invalidate and refetch research data to update the UI
                 if (id) {
@@ -615,34 +658,57 @@ export const ResearchBuilderPage = () => {
 
     return (
         <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
-            <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
-                <ResearchBuilderHeader
-                    research={typedResearch}
-                    activeModule={isSmartVOCStage || isCognitiveTasksStage ? null : activeModule}
-                    isSettings={isSettings}
-                    isSaving={isSaving}
-                    onSave={handleSaveModule}
-                    isSmartVOCStage={isSmartVOCStage}
-                    smartVOCStageName={smartVOCStage?.name}
-                    isCognitiveTasksStage={isCognitiveTasksStage}
-                    cognitiveTasksStageName={cognitiveTasksStage?.name}
-                    modules={isSmartVOCStage ? smartVOCModules : isCognitiveTasksStage ? cognitiveTaskModules : []}
-                    onModuleJump={(moduleId) => {
-                        if (isSmartVOCStage) {
-                            scrollToModule(moduleId, 'smartvoc');
-                        } else if (isCognitiveTasksStage) {
-                            scrollToModule(moduleId, 'cognitive');
-                        }
-                    }}
-                />
-            </div>
+            {!isFileBasedResearch && (
+                <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
+                    <ResearchBuilderHeader
+                        research={typedResearch}
+                        activeModule={isSmartVOCStage || isCollectionStageActive ? null : activeModule}
+                        isSettings={isSettings}
+                        isSaving={isSaving}
+                        onSave={handleSaveModule}
+                        isSmartVOCStage={isSmartVOCStage}
+                        smartVOCStageName={smartVOCStage?.name}
+                        isCollectionStage={isCollectionStageActive}
+                        collectionStageName={collectionStage?.name}
+                        modules={isSmartVOCStage ? smartVOCModules : isCollectionStageActive ? collectionModules : []}
+                        onModuleJump={(moduleId) => {
+                            if (isSmartVOCStage) {
+                                scrollToModule(moduleId, 'smartvoc');
+                            } else if (isCollectionStageActive) {
+                                scrollToModule(moduleId, 'cognitive');
+                            }
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Content Area */}
             <div className="flex-1 min-h-0 overflow-auto">
+                {isAttentionPrediction && stimulusId && typedResearch && (
+                    <AttentionPredictionView
+                        research={typedResearch}
+                        stimulusId={stimulusId}
+                    />
+                )}
+
+                {isInsightsFinding && stimulusId && typedResearch && (
+                    <InsightsFindingView
+                        research={typedResearch}
+                        fileId={stimulusId}
+                    />
+                )}
+
+                {isClientsBenchmark && stimulusId && typedResearch && (
+                    <ClientsBenchmarkView
+                        research={typedResearch}
+                        stimulusId={stimulusId}
+                    />
+                )}
+
                 {isSettings && <ResearchSettingsView research={typedResearch} />}
 
                 {/* Smart VOC Stage: Show all modules in the same view */}
-                {isSmartVOCStage && smartVOCModules.length > 0 && (
+                {!isFileBasedResearch && isSmartVOCStage && smartVOCModules.length > 0 && (
                     <div className="space-y-6">
                     {smartVOCModules.map((module, idx) => (
                         <div
@@ -717,7 +783,7 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Smart VOC Stage Empty State */}
-                {isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
+                {!isFileBasedResearch && isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
                     <StageEmptyState
                         stageName={smartVOCStage.name}
                         stageType="smart-voc"
@@ -726,25 +792,25 @@ export const ResearchBuilderPage = () => {
                 )}
 
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
-                {isCognitiveTasksStage && cognitiveTaskModules.length > 0 && (
+                {!isFileBasedResearch && isCollectionStageActive && collectionModules.length > 0 && (
                     <div className="space-y-6">
-                    {cognitiveTaskModules.map((module, idx) => (
+                    {collectionModules.map((module, idx) => (
                         <div
                             key={module.id}
                             ref={(el) => {
                                 if (el) {
-                                    cognitiveTaskModuleElementRefs.current.set(module.id, el);
+                                    collectionModuleElementRefs.current.set(module.id, el);
                                 } else {
-                                    cognitiveTaskModuleElementRefs.current.delete(module.id);
+                                    collectionModuleElementRefs.current.delete(module.id);
                                 }
                             }}
                             className="flex gap-2 items-start"
                         >
                             {/* Reorder arrows */}
-                            {cognitiveTaskModules.length > 1 && (
+                            {collectionModules.length > 1 && (
                                 <div className="flex flex-col gap-1 pt-4 flex-shrink-0">
                                     <button
-                                        onClick={() => handleMoveModule(cognitiveTaskModules, cognitiveTasksStage!, idx, 'up')}
+                                        onClick={() => handleMoveModule(collectionModules, collectionStage!, idx, 'up')}
                                         disabled={idx === 0}
                                         className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
                                         title="Move up"
@@ -754,8 +820,8 @@ export const ResearchBuilderPage = () => {
                                         </svg>
                                     </button>
                                     <button
-                                        onClick={() => handleMoveModule(cognitiveTaskModules, cognitiveTasksStage!, idx, 'down')}
-                                        disabled={idx === cognitiveTaskModules.length - 1}
+                                        onClick={() => handleMoveModule(collectionModules, collectionStage!, idx, 'down')}
+                                        disabled={idx === collectionModules.length - 1}
                                         className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
                                         title="Move down"
                                     >
@@ -769,9 +835,9 @@ export const ResearchBuilderPage = () => {
                             <CognitiveTaskModuleCard
                                 ref={(ref) => {
                                     if (ref) {
-                                        cognitiveTaskModuleRefs.current.set(module.id, ref);
+                                        collectionModuleRefs.current.set(module.id, ref);
                                     } else {
-                                        cognitiveTaskModuleRefs.current.delete(module.id);
+                                        collectionModuleRefs.current.delete(module.id);
                                     }
                                 }}
                                 module={module}
@@ -786,31 +852,31 @@ export const ResearchBuilderPage = () => {
                         </div>
                     ))}
 
-                    {/* Add another question button */}
-                    {cognitiveTasksStage && (
+                    {/* Add another module button */}
+                    {collectionStage && (
                         <div className="flex justify-end">
                             <button
-                                onClick={() => handleOpenTemplateModal(cognitiveTasksStage)}
+                                onClick={() => handleOpenTemplateModal(collectionStage)}
                                 className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
                             >
-                                Add another question
+                                Add another module
                             </button>
                         </div>
                     )}
                     </div>
                 )}
 
-                {/* Cognitive Tasks Stage Empty State */}
-                {isCognitiveTasksStage && cognitiveTaskModules.length === 0 && cognitiveTasksStage && (
+                {/* Collection Stage Empty State */}
+                {!isFileBasedResearch && isCollectionStageActive && collectionModules.length === 0 && collectionStage && (
                     <StageEmptyState
-                        stageName={cognitiveTasksStage.name}
-                        stageType="cognitive-tasks"
-                        onAddModule={() => handleOpenTemplateModal(cognitiveTasksStage)}
+                        stageName={collectionStage.name}
+                        stageType="collection"
+                        onAddModule={() => handleOpenTemplateModal(collectionStage)}
                     />
                 )}
 
                 {/* Regular module view: Show single module */}
-                {!isSmartVOCStage && !isCognitiveTasksStage && !isResearchConfigModule && activeModule && (
+                {!isFileBasedResearch && !isSmartVOCStage && !isCollectionStageActive && !isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ModuleContentEditor
@@ -818,13 +884,14 @@ export const ResearchBuilderPage = () => {
                                 componentValues={componentValues}
                                 onValueChange={handleComponentValueChange}
                                 researchId={id}
+                                moduleName={activeModule?.name}
                             />
                         </div>
                     </div>
                 )}
 
                 {/* Research Configuration module: Show custom component */}
-                {!isSmartVOCStage && !isCognitiveTasksStage && isResearchConfigModule && activeModule && (
+                {!isFileBasedResearch && !isSmartVOCStage && !isCollectionStageActive && isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
                         <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
                             <ResearchConfigurationModule

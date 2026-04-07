@@ -8,17 +8,32 @@ interface FileUploadProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 't
     acceptedFormats?: string;
     maxSizeMB?: number;
     onFileSelect?: (file: File | null) => void;
+    onFilesSelect?: (files: File[]) => void;
 }
 
 const FileUpload = forwardRef<HTMLInputElement, FileUploadProps>(
-    ({ className, label, error, description, id, acceptedFormats, maxSizeMB, onFileSelect, ...props }, ref) => {
+    ({ className, label, error, description, id, acceptedFormats, maxSizeMB, onFileSelect, onFilesSelect, ...props }, ref) => {
         const [fileName, setFileName] = useState<string>('');
         const [isDragging, setIsDragging] = useState(false);
 
         const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-            const file = e.target.files?.[0] || null;
-            setFileName(file?.name || '');
-            onFileSelect?.(file);
+            const files = e.target.files;
+            if (!files || files.length === 0) {
+                setFileName('');
+                onFileSelect?.(null);
+                onFilesSelect?.([]);
+                return;
+            }
+
+            if (props.multiple) {
+                const fileList = Array.from(files);
+                setFileName(`${fileList.length} files selected`);
+                onFilesSelect?.(fileList);
+            } else {
+                const file = files[0];
+                setFileName(file.name);
+                onFileSelect?.(file);
+            }
         };
 
         const handleDragOver = (e: React.DragEvent<HTMLDivElement>): void => {
@@ -33,8 +48,15 @@ const FileUpload = forwardRef<HTMLInputElement, FileUploadProps>(
         const handleDrop = (e: React.DragEvent<HTMLDivElement>): void => {
             e.preventDefault();
             setIsDragging(false);
-            const file = e.dataTransfer.files?.[0] || null;
-            if (file) {
+            const files = e.dataTransfer.files;
+            if (!files || files.length === 0) return;
+
+            if (props.multiple) {
+                const fileList = Array.from(files);
+                setFileName(`${fileList.length} files selected`);
+                onFilesSelect?.(fileList);
+            } else {
+                const file = files[0];
                 setFileName(file.name);
                 onFileSelect?.(file);
             }

@@ -6,7 +6,31 @@
 - Mantener sincronizada la nota operativa de Obsidian en `Desktop/personal/Proyectos/Proyectos/Emotioxv3.md`: cada pendiente, tarea en curso y elemento completado debe quedar registrado allí también
 
 ## Project Overview
-EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores crear estudios con módulos SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), configurar demografía, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas vía URL/QR.
+EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores crear estudios con stages: SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), Screener, Implicit Association (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking. Configurar demografía, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas vía URL/QR.
+
+### Técnica "Biometric, Cognitive and Predictive"
+Default stages al seleccionar esta técnica: Screener → Welcome Screen → Research Configuration → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+- **Screener** (`single_module`): pregunta de filtrado con choices Qualify/Disqualify.
+- **Implicit Association** (`module_collection`): 3 paradigmas diferenciados:
+  - **Attribute Testing** (Implicit Priming Test, 2 pasos): 2 targets + hasta 5 criteria. Cada criteria se asigna a un target (selector en builder). Step 1 = práctica de targets. Step 2 = criteria como estímulo, respuesta correcta = target asignado.
+  - **Comparing Attribute** (Reaction Time Test, 1 paso): hasta 3 objects + 2 dimensions + hasta 15 criteria. Muestra Object + Criteria juntos, botones = dimension labels. Sin correcto/incorrecto, solo RT.
+  - **Objects Comparing** (IAT clásico, 3 pasos): hasta 5 targets + criteria-1/criteria-2 (categorías) + hasta 15 criteria items. Step 1 = clasificar criteria. Step 2 = clasificar targets. Step 3 = combinado.
+- **Eye Tracking** (`single_module`): stimuli (imágenes/video), 2 modalidades: Stand Alone (imagen única) y Shelf (vitrina). Incluye Emotion Recognition y predicción de atención automáticos.
+- **`research_techniques.default_stages`** (JSON): cada técnica puede definir sus stages default. Al crear un research, se priorizan sobre `default_modules` del research type. El frontend los muestra en el form de creación.
+- **Rendering genérico**: `ResearchBuilderPage` usa lógica de `module_collection` generalizada — cualquier stage collection que no sea Smart VOC se renderiza con `CognitiveTaskModuleCard`. No hace falta agregar código específico por stage.
+- **Screener Results** (v0.42.0): endpoint `GET /analytics/research/:id/screener` + componente `ScreenerResults` en research-frontend. Histograma de distribución por choice, status cards (overquota/disqualified/complete), best/slowest day, weekly chart. Tab dinámica en `ResearchResultsPage`.
+- **Implicit Association Results** (v0.43.0): endpoint `GET /analytics/research/:id/implicit-association` + componente `ImplicitAssociationResults`. 3 visualizaciones: RadarChart (Attribute Testing), BarChart agrupado (Comparing Attribute), BarChart horizontal divergente (Objects Comparing). Detecta tipo de test por nombre del módulo. Computa D-scores desde trial responses (`component_id = 'iat-trials'`). Muestra config con scores vacíos cuando no hay respuestas.
+- **Eye Tracking Results** (v0.44.0): endpoint `GET /analytics/research/:id/eye-tracking` + componente `EyeTrackingResults`. Per-stimulus cards con heatmap/image toggle, AOI list, métricas. Respuestas esperadas: `component_id = 'eye-tracking-data'`, value = `{ fixations: [{ x, y, duration, timestamp }], calibrationQuality, integrityScore }`. Tab dinámica en `ResearchResultsPage`.
+- **Participant rendering** (v0.50.0): `ScreenerRenderer` (choice question), `ImplicitAssociationRenderer` (3 paradigmas: Attribute Testing 2 pasos con target assignment, Comparing Attribute Yes/No con dimensions, Objects Comparing IAT clásico 3 pasos. Teclado A/L + touch), `EyeTrackingRenderer` (click/tap tracking como proxy, countdown timer, resolución S3). Los 3 producen el formato exacto que esperan los endpoints de analytics.
+- **Attention Prediction** (v0.51.0): research type sin stages/módulos. Stimuli se suben desde Drawer al crear. Media vía `fetch PUT` (mismo flujo que Navigation Flow). Config: `{ stimuli: [{ url, mediaId, name, heatmapData?, processedAt? }] }`. Builder: `AttentionPredictionView` → `AttentionPredictionCard` (tabs Prediction/Video/Image, AOI drawing, Settings modal). Sidebar muestra stimuli. Ruta: `/research/:id/builder/stimulus/:stimulusId`. Tipo en BD: `"Attention's Prediction"`.
+- **Attention Prediction backend** (v0.51.1): TranSalNet ONNX (`backend/models/transalnet_res.onnx`). Servicio: preprocesa imagen (384×288, ImageNet norm), inferencia CPU, postproceso con normalización relativa min/max (step=3, ~12K candidatos). Controller fire-and-forget: `POST /attention-prediction/research/:id/predict/:mediaId` → 202, procesa async, guarda `heatmapData` en config. `GET .../status/:mediaId` para polling.
+- **Saliency rendering** (v0.51.1): `HeatmapRenderer` dual renderer. Saliencia → colormap pixel a pixel (OGAMA/OpenCV) con LUT 256, alpha cuadrático, threshold 0.4. Clicks → simpleheat.
+- **Settings modal funcional** (v0.51.2): Blur, Opacity, Threshold controlan heatmap en tiempo real (debounce 150ms). Prediction Model (Simple/Advanced/Deep Learning) aplica presets. Portal para overlay completo.
+- **`AttentionVideoPlayer`** (v0.51.2): animación progresiva del scanpath predicho (5s). Puntos por saliencia desc. Controles: play/pause, reset, barra de progreso. Círculo indicador de fijación actual.
+- **Insights Finding** (v0.52.0): research type sin stages/módulos. Sube documentos (.csv, .txt, .xlsx, .docx, .pdf) desde Drawer. Parseo client-side: SheetJS, Mammoth, PDF.js, TextDecoder. Config: `stimuli[].entries` (200 max × 300 chars) + `stimuli[].analysis` (LLM). Builder: `InsightsFindingView` con tabla de entries (izq) + panel análisis (der, tabs Sentiment/Themes/Keywords).
+- **Insights LLM analysis** (v0.52.0): GPT-4o (OpenAI) vía `insights.service.ts`. Fire-and-forget: `POST /insights/research/:id/analyze/:fileMediaId` → 202. Genera sentiment summary + actionables, themes con magnitude/sentimentScore, keywords. Resultado en `config.stimuli[].analysis`. Frontend auto-dispara y pollea cada 3s.
+- **`isFileBasedResearch`** (v0.52.0): unifica Attention Prediction e Insights Finding. `skip_default_modules: true` en backend.
+- **Pendiente**: webcam eye tracking (WebGazer.js) como mejora futura del proxy click-based.
 
 ## Tech Stack
 - **Backend:** Node.js + TypeScript, Express 5, MySQL (mysql2), JWT + Google OAuth, AWS SDK (S3 media, Cognito legacy), Passenger (cPanel)
@@ -28,7 +52,7 @@ emotioxV3/
 │   └── server-cpanel.js      # Passenger startup wrapper
 ├── research-frontend/    # Herramienta del investigador (dashboard, builder, config, results)
 ├── participant-frontend/  # Interfaz del participante (survey flow, steps, thank you)
-├── database/             # Migraciones MySQL (14 archivos)
+├── database/             # Migraciones MySQL (16 archivos)
 ├── infrastructure/       # Terraform (legacy AWS)
 └── scripts/              # Deploy scripts, migraciones, utilidades
 ```
@@ -82,7 +106,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/router.ts` — routing central, CORS, path normalization
 - `backend/server-cpanel.js` — entry point producción (Passenger)
 - `research-frontend/src/components/layout/ResearchBuilderSidebar.tsx` — sidebar con status modal (draft/active/completed), stage management
-- `research-frontend/src/components/research/ResearchBuilderPage.tsx` — builder principal
+- `research-frontend/src/pages/research/ResearchBuilderPage.tsx` — builder principal; lógica de `module_collection` generalizada (Smart VOC con card propio, todo lo demás con `CognitiveTaskModuleCard`)
 - `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía, study logo. Al habilitar un demográfico de opciones (Competencia técnica, etc.) se inyectan opciones por defecto (`DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC`) para que el participante vea siempre selector, no input de texto.
 - `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity
 - `research-frontend/src/pages/research/ResearchHistoryPage.tsx` — historial de investigaciones por enterprise, chart lineal, "Who is", tabla de researches
@@ -103,8 +127,17 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, import CSV, status tracking
 - `research-frontend/src/components/research/PanelParticipantsSection.tsx` — UI import CSV, tabla participantes, links, export
 - `backend/src/modules/email/email.service.ts` — Nodemailer transporter + HTML invitation template
+- `backend/src/modules/research-techniques/research-techniques.service.ts` — CRUD técnicas con `default_stages` (JSON parseado desde MySQL)
+- `research-frontend/src/hooks/useResearchForm.ts` — form de creación; prioriza `default_stages` de la técnica sobre `default_modules` del research type
+- `research-frontend/src/components/research/ResearchFormStep2.tsx` — paso 2 de creación; muestra stages de la técnica seleccionada
 - `scripts/stress-test-quotas.ts` — E2E stress test para cuotas atómicas (`npx tsx scripts/stress-test-quotas.ts`). Registra user temporal, crea research kiosk con cuotas, lanza 10 participantes concurrentes, verifica que no se exceden límites.
 - `.cursorrules` — reglas de calidad (pre-commit verification obligatoria)
+- `research-frontend/src/components/results/screener/ScreenerResults.tsx` — Screener results panel: histograma apilado por choice/route (Recharts BarChart), 3 status cards (overquota/disqualified/complete), best/slowest day, weekly line chart. Datos desde `GET /analytics/research/:id/screener`.
+- `research-frontend/src/components/results/implicit-association/ImplicitAssociationResults.tsx` — Implicit Association results: 3 chart types (RadarChart para Attribute Testing, BarChart agrupado para Comparing Attribute, BarChart horizontal divergente para Objects Comparing). Datos desde `GET /analytics/research/:id/implicit-association`.
+- `research-frontend/src/components/results/eye-tracking/EyeTrackingResults.tsx` — Eye Tracking results: per-stimulus cards, heatmap/image toggle, AOI list. Datos desde `GET /analytics/research/:id/eye-tracking`.
+- `participant-frontend/src/components/renderers/ScreenerRenderer.tsx` — Screener: reutiliza `ChoiceQuestion`, response `component_id = 'choice'`.
+- `participant-frontend/src/components/renderers/ImplicitAssociationRenderer.tsx` — IAT: 3 paradigmas (Attribute Testing = priming 2 pasos con targetId, Comparing Attribute = Yes/No 1 paso con dimensions, Objects Comparing = IAT clásico 3 pasos). Teclado A/L + botones touch. Response `component_id = 'iat-trials'`.
+- `participant-frontend/src/components/renderers/EyeTrackingRenderer.tsx` — Eye Tracking: click/tap proxy, countdown timer, resolución S3. Response `component_id = 'eye-tracking-data'`.
 - `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — SmartVOC panel, NEV, NPS, CSAT, CES, CV, VOC, filtros, clusters, tooltips, exportación CSV de comentarios. CPV = CSAT positivo (4+5) - CES negativo (1+2). NPS agrupado por día en today/week con porcentajes para barras apiladas. NEV: lista canónica de 20 emociones (IDs alineados con participant EmotionSelector), normalización de claves al agregar, etiquetas solo en español.
 - `research-frontend/src/components/results/smart-voc/components/NPSAnalysis.tsx` — NPS: barras apiladas Promoters/Neutrals/Detractors normalizadas al 100% (datos en porcentajes; Today/Week desde SmartVOCResults, Month desde backend); gráfico ComposedChart + circular score + Loyalty Evolution.
 - `research-frontend/src/components/results/smart-voc/components/CPVCard.tsx` — CPV: pastilla compacta sticky en top-left. Muestra el ratio sin `%` (CPV = CSAT% / CES%, es un ratio, no un porcentaje)
@@ -116,6 +149,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC; NEV usa IDs canónicos (minúsculas, sin tildes) y normalizeEmotionKey para conteo y cálculo de NEV
 - `backend/src/modules/research/research-in-progress.service.ts` — progreso de participantes. `getVisibleModuleIdsForProgress`: INNER JOIN con stages (excluye módulos con stage borrado), excluye Research Configuration/Welcome/ThankYou/hidden, y `isModuleConfiguredForProgress` excluye módulos sin contenido. `panelStatus = 'responded'` fuerza 100%. LEFT JOIN con `participants` para overquota/disqualified/responded en View Progress.
 - `scripts/test-quota-redirect-scenarios.ts` — E2E test de 8 escenarios de cuotas/redirect/completion (`npx tsx scripts/test-quota-redirect-scenarios.ts`). Crea researches temporales, simula participantes, verifica bloqueos y limpia al final.
+- `research-frontend/src/components/research/AttentionPredictionView.tsx` — vista del builder para Attention Prediction: si hay stimulus activo muestra `AttentionPredictionCard`, si no muestra uploader con `FileUploadAdvanced`.
+- `research-frontend/src/components/research/AttentionPredictionCard.tsx` — card de análisis por stimulus. Tabs: Prediction (heatmap + AOI drawing), Attention Video, Image. Settings abre modal con controles de Blur/Opacity/Threshold/Model + controles de Composición (Analysis window, Frames in fixation, Dispersion, Merge range). Usa `HeatmapRenderer` con props configurables.
+- `research-frontend/src/components/research/CreateResearchForm.tsx` — form de creación; incluye Drawer de stimuli para Attention Prediction. Upload usa `fetch()` (no Axios) para enviar binarios al mismo endpoint que `FileUploadAdvanced`.
 
 ## Deploy
 - **Referencia completa:** [Deploy Skill](skills/deploy.md) + [cPanel Runbook](docs/cpanel-runbook.md)

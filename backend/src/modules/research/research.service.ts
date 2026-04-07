@@ -23,6 +23,7 @@ export interface ResearchData {
     enterprise_id?: string;
     settings?: Record<string, unknown>;
     use_default_modules?: string[]; // Module names to clone from template
+    skip_default_modules?: boolean; // Skip all default module creation (file-based research)
 }
 
 export const list = async (userId: string, role?: string) => {
@@ -33,9 +34,13 @@ export const list = async (userId: string, role?: string) => {
         const query = `
         SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.config, r.created_at, r.updated_at,
                rt.name as research_type_name,
+               rtech.name as research_technique_name,
+               e.name as enterprise_name,
                u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
         FROM researches r
         LEFT JOIN research_types rt ON r.research_type_id = rt.id
+        LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
+        LEFT JOIN enterprises e ON r.enterprise_id = e.id
         LEFT JOIN users u ON r.created_by = u.id
         WHERE ${ownership.clause} AND r.deleted_at IS NULL
         ORDER BY r.created_at DESC
@@ -119,23 +124,38 @@ export const create = async (userId: string, data: ResearchData) => {
         await client.query('BEGIN');
 
         let { description } = data;
-        const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [] } = data;
+        const { name, research_type_id, research_technique_id, enterprise_id, settings = {}, use_default_modules = [], skip_default_modules = false } = data;
         console.log('[Research Service] Extracted values - research_type_id:', research_type_id, 'research_technique_id:', research_technique_id, 'use_default_modules:', use_default_modules);
 
         // Validate research_technique_id exists if provided
         let validatedTechniqueId: string | null = null;
+        let techniqueDefaultStages: Array<{ name: string; order: number; is_default: boolean }> | null = null;
         if (research_technique_id && research_technique_id.trim() !== '') {
-            // Check if technique exists
-            const techniqueQuery = 'SELECT id, description FROM research_techniques WHERE id = ?';
+            // Check if technique exists and get default_stages
+            const techniqueQuery = 'SELECT id, description, default_stages FROM research_techniques WHERE id = ?';
             const techniqueResult = await client.query(techniqueQuery, [research_technique_id.trim()]);
             if (techniqueResult.rows.length === 0) {
                 throw new Error(`Research technique with id ${research_technique_id} not found`);
             }
             validatedTechniqueId = research_technique_id.trim();
-            
+
             // If description is not provided, use the technique's description
             if (!description && techniqueResult.rows[0].description) {
                 description = techniqueResult.rows[0].description;
+            }
+
+            // Parse default_stages from technique (MySQL may return as string)
+            let rawDefaultStages = techniqueResult.rows[0].default_stages;
+            if (typeof rawDefaultStages === 'string') {
+                try {
+                    rawDefaultStages = JSON.parse(rawDefaultStages);
+                } catch {
+                    rawDefaultStages = null;
+                }
+            }
+            if (Array.isArray(rawDefaultStages) && rawDefaultStages.length > 0) {
+                techniqueDefaultStages = rawDefaultStages;
+                console.log('[Research Service] Technique has default_stages:', techniqueDefaultStages.map(s => s.name));
             }
         }
 
@@ -173,28 +193,42 @@ export const create = async (userId: string, data: ResearchData) => {
         } as typeof rawResearch & { settings: Record<string, unknown>; id: string };
 
         // Automatically add "Research Configuration" stage to all new researches FIRST
-        await addDefaultStage(client, research.id as string, userId);
+        // Skip if technique default_stages already includes it (will be created in correct order)
+        const techniqueIncludesResearchConfig = techniqueDefaultStages?.some(s => s.name === 'Research Configuration');
+        if (!techniqueIncludesResearchConfig) {
+            await addDefaultStage(client, research.id as string, userId);
+        }
 
         // Clone modules from template if requested and associate them to a stage
-        if (research_type_id) {
-            console.log(`[Research Service] Creating default modules for research type ${research_type_id}`);
+        // Priority: 1) technique default_stages, 2) use_default_modules from frontend, 3) research type default_modules
+        // File-based research (Attention Prediction, Insights Finding) skips all default modules
+        if (!skip_default_modules && (research_type_id || techniqueDefaultStages)) {
+            console.log(`[Research Service] Creating default stages/modules. technique defaults:`, techniqueDefaultStages ? 'yes' : 'no', 'research_type_id:', research_type_id);
             console.log(`[Research Service] use_default_modules:`, use_default_modules);
-            
-            // If use_default_modules is provided, use it; otherwise, get all default modules from the research type
+
             let modulesToCreate: string[] = [];
-            
-            if (use_default_modules && use_default_modules.length > 0) {
+
+            // Priority 1: If the technique has default_stages, use those
+            if (techniqueDefaultStages) {
+                modulesToCreate = techniqueDefaultStages
+                    .sort((a, b) => a.order - b.order)
+                    .map(s => s.name);
+                console.log(`[Research Service] Using technique default_stages:`, modulesToCreate);
+            }
+            // Priority 2: If use_default_modules is provided from frontend, use it
+            else if (use_default_modules && use_default_modules.length > 0) {
                 modulesToCreate = use_default_modules;
                 console.log(`[Research Service] Using provided module names:`, modulesToCreate);
-            } else {
-                // Get all default modules from research type
+            }
+            // Priority 3: Fall back to research type default_modules
+            else if (research_type_id) {
                 const typeQuery = 'SELECT default_modules FROM research_types WHERE id = ?';
                 const typeResult = await client.query(typeQuery, [research_type_id]);
-                
+
                 if (typeResult.rows.length > 0 && typeResult.rows[0].default_modules) {
                     let defaultModules: any[] = [];
                     const rawDefaultModules = typeResult.rows[0].default_modules;
-                    
+
                     // Parse JSON if it's a string (MySQL stores JSON as string)
                     if (typeof rawDefaultModules === 'string') {
                         try {
@@ -210,7 +244,7 @@ export const create = async (userId: string, data: ResearchData) => {
                         console.warn(`[Research Service] default_modules is not an array or string for research type ${research_type_id}:`, typeof rawDefaultModules);
                         defaultModules = [];
                     }
-                    
+
                     if (defaultModules.length > 0) {
                         modulesToCreate = defaultModules.map((m: any) => m?.name).filter((name: string | undefined) => name !== undefined && name !== null);
                         console.log(`[Research Service] Auto-detected default modules from research type:`, modulesToCreate);
@@ -224,7 +258,7 @@ export const create = async (userId: string, data: ResearchData) => {
                 // Separate stage templates from individual modules
                 // "Smart VOC" and "Cognitive Task" are stage templates, not individual modules
                 // "Welcome Screen" and "Thank You Screen" are also stage templates (single_module)
-                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen'];
+                const stageTemplateNames = ['Smart VOC', 'Cognitive Task', 'Cognitive Tasks', 'Welcome Screen', 'Thank You Screen', 'Thank you screen', 'Screener', 'Implicit Association', 'Eye Tracking', 'Research Configuration'];
                 const individualModules: string[] = [];
                 const stagesToCreate: string[] = [];
                 
@@ -254,7 +288,7 @@ export const create = async (userId: string, data: ResearchData) => {
                 }
                 
                 // Then create any remaining individual modules in a default stage
-                if (individualModules.length > 0) {
+                if (individualModules.length > 0 && research_type_id) {
                     const defaultModulesStage = await createDefaultModulesStage(client, research.id as string, research_type_id);
                     console.log(`[Research Service] Created default modules stage:`, defaultModulesStage.id, defaultModulesStage.name);
                     console.log(`[Research Service] Creating ${individualModules.length} individual modules in stage ${defaultModulesStage.id}:`, individualModules);
@@ -516,12 +550,15 @@ const createStageFromTemplateInternal = async (client: PoolClient, researchId: s
     
     console.log(`[createStageFromTemplateInternal] Created stage "${normalizedName}" with ID: ${newStage.id}`);
     
-    // Get modules associated with this stage template
+    // Get modules associated with this stage template.
+    // For "Implicit Association", only auto-create the default module (display_order = 0 = "Attribute Testing").
+    // The other IAT modules (Comparing Attribute, Objects Comparing) are available via the template drawer.
+    const isImplicitAssociation = normalizedName === 'Implicit Association';
     let modulesQuery = `
         SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
         FROM stage_templates_module_templates stmt
         JOIN module_templates mt ON stmt.module_template_id = mt.id
-        WHERE stmt.stage_template_id = ? AND mt.is_active = true
+        WHERE stmt.stage_template_id = ? AND mt.is_active = true${isImplicitAssociation ? ' AND stmt.display_order = 0' : ''}
         ORDER BY stmt.display_order
     `;
     let modulesResult = await client.query(modulesQuery, [stageTemplateId]);
@@ -720,7 +757,8 @@ export const getById = async (researchId: string, userId: string, role?: string)
     const query = `
     SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.config, r.created_at, r.updated_at,
            rt.name as research_type_name,
-           rtech.name as research_technique_name
+           rtech.name as research_technique_name,
+           rtech.default_stages as technique_default_stages
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
@@ -743,11 +781,23 @@ export const getById = async (researchId: string, userId: string, role?: string)
             settings = {};
         }
     }
-    const { config, ...researchWithoutConfig } = rawResearch;
+    // Parse technique_default_stages from MySQL JSON string
+    let techniqueDefaultStages = rawResearch.technique_default_stages;
+    if (typeof techniqueDefaultStages === 'string') {
+        try {
+            techniqueDefaultStages = JSON.parse(techniqueDefaultStages);
+        } catch {
+            techniqueDefaultStages = null;
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { config: _cfg, technique_default_stages: _tds, ...researchWithoutConfig } = rawResearch;
     const research = {
         ...researchWithoutConfig,
-        settings: settings || {}
-    } as typeof rawResearch & { settings: Record<string, unknown> };
+        settings: settings || {},
+        technique_default_stages: techniqueDefaultStages || null,
+    } as Record<string, unknown>;
 
     // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
     // Step 1: Check if stage_type column exists
@@ -1028,7 +1078,7 @@ export const deleteResearch = async (researchId: string, userId: string, role?: 
  * @param description - Descripción opcional del stage
  * @returns Stage creado
  */
-export const createStage = async (researchId: string, userId: string, stageName: string, description?: string, role?: string) => {
+export const createStage = async (researchId: string, userId: string, stageName: string, description?: string, role?: string, defaultModuleName?: string) => {
     const client = await pool.connect();
     const ownership = buildOwnershipClause(userId, role, '');
 
@@ -1066,14 +1116,27 @@ export const createStage = async (researchId: string, userId: string, stageName:
             stageTemplateId = templateResult.rows[0].id;
             stageType = templateResult.rows[0].stage_type || 'module_collection';
 
-            // Obtener módulos asociados al stage template
+            // Obtener módulos asociados al stage template.
+            // Para Implicit Association, solo auto-crear el módulo seleccionado por el usuario (defaultModuleName).
+            // Si no se especifica, usa display_order=0 (Attribute Testing por defecto).
+            const isImplicitAssociation = stageName === 'Implicit Association';
+            let iatFilter = '';
+            const queryParams: unknown[] = [stageTemplateId];
+            if (isImplicitAssociation) {
+                if (defaultModuleName) {
+                    iatFilter = ' AND mt.name = ?';
+                    queryParams.push(defaultModuleName);
+                } else {
+                    iatFilter = ' AND stmt.display_order = 0';
+                }
+            }
             const modulesResult = await client.query(
                 `SELECT mt.id, mt.name, mt.description, mt.structure, stmt.display_order
                  FROM stage_templates_module_templates stmt
                  JOIN module_templates mt ON stmt.module_template_id = mt.id
-                 WHERE stmt.stage_template_id = ? AND mt.is_active = true
+                 WHERE stmt.stage_template_id = ? AND mt.is_active = true${iatFilter}
                  ORDER BY stmt.display_order`,
-                [stageTemplateId]
+                queryParams
             );
             modulesToClone = modulesResult.rows as Array<{ id: string; name: string; description: string; structure: Record<string, unknown>; display_order: number }>;
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { researchTypesService, type ModuleTemplateRef } from '../services/researchTypes.service';
-import { type ResearchTechnique } from '../services/researchTechniques.service';
+import { type ResearchTechnique, type DefaultStageRef } from '../services/researchTechniques.service';
 import { useCreateResearch } from './useResearchQuery';
 import type { CreateResearchData } from '../services/research.service';
 
@@ -11,6 +11,7 @@ interface CreateResearchFormData {
     researchTypeId: string;
     researchTechniqueId: string;
     useDefaultModules: boolean;
+    stimulusFiles: File[];
 }
 
 interface ResearchFormErrors {
@@ -19,6 +20,7 @@ interface ResearchFormErrors {
     enterpriseName?: string;
     researchTypeId?: string;
     researchTechniqueId?: string;
+    stimulusFiles?: string;
 }
 
 export const useResearchForm = () => {
@@ -29,6 +31,7 @@ export const useResearchForm = () => {
         researchTypeId: '',
         researchTechniqueId: '',
         useDefaultModules: true,
+        stimulusFiles: [],
     });
     const [currentStep, setCurrentStep] = useState<number>(0);
     const [researchTypes, setResearchTypes] = useState<Array<{ id: string; name: string; default_modules?: ModuleTemplateRef[] }>>([]);
@@ -208,7 +211,13 @@ export const useResearchForm = () => {
             newErrors.researchTypeId = 'Research Type is required';
         }
 
-        if (!formData.researchTechniqueId) {
+        const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
+        const isFileBasedResearch = selectedType?.name === 'Attention Prediction' ||
+                                   selectedType?.name === "Attention's Prediction" ||
+                                   selectedType?.name === 'Insights Finding' ||
+                                   selectedType?.name === "Client's Benchmark";
+
+        if (!isFileBasedResearch && !formData.researchTechniqueId) {
             newErrors.researchTechniqueId = 'Research Technique is required';
         }
 
@@ -216,7 +225,7 @@ export const useResearchForm = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleFieldChange = (field: keyof CreateResearchFormData, value: string | boolean): void => {
+    const handleFieldChange = (field: keyof CreateResearchFormData, value: string | boolean | File[] | null): void => {
         console.log('[useResearchForm] Field changed:', { field, value });
         setFormData((prev) => {
             const newData = { ...prev, [field]: value };
@@ -244,7 +253,7 @@ export const useResearchForm = () => {
         }
     };
 
-    const handleSubmit = async (enterpriseId?: string): Promise<string | null> => {
+    const handleSubmit = async (enterpriseId?: string, skipStepCheck = false): Promise<string | null> => {
         setSubmitError('');
         setSubmitSuccess(false);
 
@@ -252,9 +261,10 @@ export const useResearchForm = () => {
             currentStep,
             enterpriseId,
             formData,
+            skipStepCheck,
         });
 
-        if (currentStep === 0) {
+        if (!skipStepCheck && currentStep === 0) {
             handleNextStep();
             return null;
         }
@@ -270,11 +280,18 @@ export const useResearchForm = () => {
         try {
             // Extract default modules if enabled
             const selectedType = researchTypes.find(rt => rt.id === formData.researchTypeId);
+            const selectedTechnique = availableTechniques.find(t => t.id === formData.researchTechniqueId);
+            const isFileBasedType = selectedType?.name === 'Attention Prediction' ||
+                                   selectedType?.name === "Attention's Prediction" ||
+                                   selectedType?.name === 'Insights Finding' ||
+                                   selectedType?.name === "Client's Benchmark";
+
             const createData: CreateResearchData & Record<string, unknown> = {
                 name: formData.name.trim(),
                 enterprise_id: enterpriseId || formData.enterpriseId || undefined,
                 research_type_id: formData.researchTypeId,
                 research_technique_id: formData.researchTechniqueId || undefined,
+                ...(isFileBasedType ? { skip_default_modules: true } : {}),
             };
 
             // Clean up data: remove undefined, null, or empty string values
@@ -290,17 +307,29 @@ export const useResearchForm = () => {
                 }
             });
 
-            if (formData.useDefaultModules && selectedType?.default_modules) {
-                // Ensure default_modules is an array before mapping
-                if (Array.isArray(selectedType.default_modules)) {
-                    const moduleNames = selectedType.default_modules
-                        .map((m: ModuleTemplateRef) => m?.name)
-                        .filter((name: string | undefined) => name !== undefined && name !== null);
-                    if (moduleNames.length > 0) {
-                        createData.use_default_modules = moduleNames;
+            if (formData.useDefaultModules && !isFileBasedType) {
+                // Priority: technique default_stages > research type default_modules
+                const techniqueStages = selectedTechnique?.default_stages;
+                if (Array.isArray(techniqueStages) && techniqueStages.length > 0) {
+                    const stageNames = techniqueStages
+                        .sort((a: DefaultStageRef, b: DefaultStageRef) => a.order - b.order)
+                        .map((s: DefaultStageRef) => s.name)
+                        .filter((name: string) => !!name);
+                    if (stageNames.length > 0) {
+                        createData.use_default_modules = stageNames;
                     }
-                } else {
-                    console.warn('[useResearchForm] default_modules is not an array:', selectedType.default_modules);
+                } else if (selectedType?.default_modules) {
+                    // Fallback to research type default_modules
+                    if (Array.isArray(selectedType.default_modules)) {
+                        const moduleNames = selectedType.default_modules
+                            .map((m: ModuleTemplateRef) => m?.name)
+                            .filter((name: string | undefined) => name !== undefined && name !== null);
+                        if (moduleNames.length > 0) {
+                            createData.use_default_modules = moduleNames;
+                        }
+                    } else {
+                        console.warn('[useResearchForm] default_modules is not an array:', selectedType.default_modules);
+                    }
                 }
             }
 
@@ -326,6 +355,7 @@ export const useResearchForm = () => {
             researchTypeId: '',
             researchTechniqueId: '',
             useDefaultModules: true,
+            stimulusFiles: [],
         });
         setFormErrors({});
         setSubmitError('');

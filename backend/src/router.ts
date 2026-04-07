@@ -200,6 +200,18 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleAnalyticsRoutes(normalizedEvent);
         }
 
+        // Attention Prediction routes
+        if (path.startsWith('/attention-prediction')) {
+            const { handleAttentionPredictionRoutes } = await import('./modules/attention-prediction/attention-prediction.controller');
+            return await handleAttentionPredictionRoutes(normalizedEvent);
+        }
+
+        // Insights Finding routes (LLM text analysis)
+        if (path.startsWith('/insights')) {
+            const { handleInsightsRoutes } = await import('./modules/insights/insights.controller');
+            return await handleInsightsRoutes(normalizedEvent);
+        }
+
         // Cache routes (admin only - add auth check as needed)
         if (path.startsWith('/cache')) {
             const { handleCacheRoutes } = await import('./modules/cache/cache.controller');

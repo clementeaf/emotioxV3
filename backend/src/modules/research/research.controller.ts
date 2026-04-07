@@ -139,7 +139,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             if (!body.name) {
                 return error('Stage name is required', 400, undefined, origin);
             }
-            const stage = await researchService.createStage(id, user.id, body.name, body.description, user.role);
+            const stage = await researchService.createStage(id, user.id, body.name, body.description, user.role, body.defaultModuleName);
             return success({ stage }, 201, undefined, origin);
         }
 

@@ -6,6 +6,9 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+      },
       colors: {
         primary: {
           50: '#f0f9ff',
@@ -18,7 +21,11 @@ export default {
           700: '#0369a1',
           800: '#075985',
           900: '#0c4a6e',
-        }
+        },
+        accent: {
+          DEFAULT: '#006aff',
+          hover: '#3b82f6',
+        },
       }
     },
   },

@@ -2,20 +2,17 @@ import { Button } from '../ui/Button';
 
 interface StageEmptyStateProps {
   stageName: string;
-  stageType: 'smart-voc' | 'cognitive-tasks';
+  stageType: 'smart-voc' | 'collection';
   onAddModule: () => void;
 }
 
-export const StageEmptyState = ({ stageType, onAddModule }: StageEmptyStateProps) => {
+export const StageEmptyState = ({ stageName, stageType, onAddModule }: StageEmptyStateProps) => {
   const isSmartVOC = stageType === 'smart-voc';
 
-  const title = isSmartVOC ? 'No Smart VOC Modules' : 'No Cognitive Task Modules';
+  const title = isSmartVOC ? 'No Smart VOC Modules' : `No ${stageName} Modules`;
   const description = isSmartVOC
     ? "This Smart VOC stage doesn't have any modules yet. You can add modules from templates."
-    : "This Cognitive Tasks stage doesn't have any modules yet. You can add task modules from templates.";
-  const deleteSuggestion = isSmartVOC
-    ? "Or delete this stage if you don't need it for your research."
-    : "Or delete this stage if you only want to use Smart VOC in your research.";
+    : `This ${stageName} stage doesn't have any modules yet. You can add modules from templates.`;
 
   return (
     <div className="flex flex-col items-center justify-center h-96 text-center">
@@ -32,7 +29,7 @@ export const StageEmptyState = ({ stageType, onAddModule }: StageEmptyStateProps
           Add Module from Template
         </Button>
         <p className="text-xs text-gray-500 mt-4">
-          {deleteSuggestion}
+          Or delete this stage if you don&apos;t need it for your research.
         </p>
       </div>
     </div>

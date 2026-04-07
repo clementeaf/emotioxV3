@@ -270,6 +270,187 @@ export const getRankingResponses = async (
 };
 
 // ==========================================
+// SCREENER RESULTS
+// ==========================================
+
+export interface ScreenerChoiceDistribution {
+    choiceId: string;
+    label: string;
+    eligibility: 'Qualify' | 'Disqualify';
+    count: number;
+    percentage: number;
+}
+
+export interface ScreenerDayInfo {
+    date: string;
+    dayName: string;
+    hour: string;
+    count: number;
+    percentage: number;
+}
+
+export interface ScreenerResults {
+    totalResponses: number;
+    qualified: number;
+    disqualified: number;
+    overquota: number;
+    questionText: string;
+    choiceDistribution: ScreenerChoiceDistribution[];
+    dailyDistribution: Array<{
+        date: string;
+        count: number;
+        byChoice: Record<string, number>;
+    }>;
+    bestDay: ScreenerDayInfo | null;
+    slowestDay: ScreenerDayInfo | null;
+    weeklyTimeSeries: Array<{
+        date: string;
+        dayName: string;
+        count: number;
+    }>;
+}
+
+export const getScreenerResults = async (researchId: string): Promise<ScreenerResults> => {
+    const response = await apiClient.get<{ results: ScreenerResults }>(
+        `/analytics/research/${researchId}/screener`
+    );
+    return response.results;
+};
+
+// ==========================================
+// IMPLICIT ASSOCIATION RESULTS
+// ==========================================
+
+export interface IATTarget {
+    id: string;
+    name: string;
+    imageUrl?: string;
+}
+
+export interface IATAttribute {
+    id: string;
+    label: string;
+    imageUrl?: string;
+}
+
+export interface IATModuleResult {
+    moduleId: string;
+    moduleName: string;
+    testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
+    primingTime: number;
+    targets: IATTarget[];
+    attributes: IATAttribute[];
+    totalResponses: number;
+    scores: Array<{
+        attributeId: string;
+        attributeLabel: string;
+        targetScores: Record<string, number>;
+    }>;
+}
+
+export interface ImplicitAssociationResults {
+    modules: IATModuleResult[];
+}
+
+export const getImplicitAssociationResults = async (researchId: string): Promise<ImplicitAssociationResults> => {
+    const response = await apiClient.get<{ results: ImplicitAssociationResults }>(
+        `/analytics/research/${researchId}/implicit-association`
+    );
+    return response.results;
+};
+
+// ==========================================
+// EYE TRACKING RESULTS
+// ==========================================
+
+export interface EyeTrackingAOI {
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dwellTimePercent: number;
+    fixationCount: number;
+    avgDuration: number;
+    participantCount: number;
+}
+
+export interface EyeTrackingParticipant {
+    participantId: string;
+    calibrationQuality: string;
+    integrityScore: string;
+    totalFixations: number;
+    totalDwellTime: number;
+}
+
+export interface EyeTrackingStimulus {
+    moduleId: string;
+    moduleName: string;
+    stimulusUrl: string;
+    modality: 'stand_alone' | 'shelf';
+    taskDescription: string;
+    totalResponses: number;
+    uniqueParticipants: number;
+    avgDwellTime: number;
+    avgFixationCount: number;
+    heatmapData: Array<{ x: number; y: number; duration: number }>;
+    fixations: Array<{ x: number; y: number; duration: number; participantId: string; timestamp: number }>;
+    aois: EyeTrackingAOI[];
+    participants: EyeTrackingParticipant[];
+}
+
+export interface EyeTrackingResults {
+    stimuli: EyeTrackingStimulus[];
+}
+
+export const getEyeTrackingResults = async (researchId: string): Promise<EyeTrackingResults> => {
+    const response = await apiClient.get<{ results: EyeTrackingResults }>(
+        `/analytics/research/${researchId}/eye-tracking`
+    );
+    return response.results;
+};
+
+// ==========================================
+// CLIENT'S BENCHMARK RESULTS
+// ==========================================
+
+export interface BenchmarkAOI {
+    id: string;
+    label: string;
+    dwellTimePercent: number;
+    fixationCount: number;
+    avgDuration: number;
+    participantCount: number;
+}
+
+export interface BenchmarkModule {
+    moduleId: string;
+    moduleName: string;
+    stimulusUrl: string;
+    uniqueParticipants: number;
+    totalResponses: number;
+    aois: BenchmarkAOI[];
+}
+
+export interface BenchmarkResearchResult {
+    researchId: string;
+    researchName: string;
+    modules: BenchmarkModule[];
+}
+
+export interface BenchmarkResults {
+    researches: BenchmarkResearchResult[];
+}
+
+export const getBenchmarkResults = async (researchId: string): Promise<BenchmarkResults> => {
+    const response = await apiClient.get<{ results: BenchmarkResults }>(
+        `/analytics/benchmark/${researchId}`
+    );
+    return response.results;
+};
+
+// ==========================================
 // SMARTVOC RESULTS
 // ==========================================
 

@@ -147,11 +147,36 @@ export const useDeleteResearch = () => {
 
     return useMutation({
         mutationFn: (id: string) => researchService.delete(id),
+        onMutate: async (id: string) => {
+            // Cancel outgoing refetches so they don't overwrite optimistic update
+            await queryClient.cancelQueries({ queryKey: researchKeys.lists() });
+
+            // Snapshot previous value for rollback
+            const previousData = queryClient.getQueriesData({ queryKey: researchKeys.lists() });
+
+            // Optimistically remove from all list caches
+            // Cache stores a flat array (queryFn returns response.researches)
+            queryClient.setQueriesData(
+                { queryKey: researchKeys.lists() },
+                (old: unknown) => {
+                    if (!Array.isArray(old)) return old;
+                    return (old as Array<{ id: string }>).filter(r => r.id !== id);
+                }
+            );
+
+            return { previousData };
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: researchKeys.lists() });
             toast.success('Research deleted successfully');
         },
-        onError: (error: Error) => {
+        onError: (error: Error, _id, context) => {
+            // Rollback on error
+            if (context?.previousData) {
+                for (const [key, data] of context.previousData) {
+                    queryClient.setQueryData(key, data);
+                }
+            }
             console.error('Failed to delete research:', error);
             toast.error('Failed to delete research');
         },

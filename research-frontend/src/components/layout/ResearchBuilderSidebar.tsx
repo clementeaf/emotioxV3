@@ -11,14 +11,17 @@ import {
     Trash2,
     BarChart3,
     TrendingUp,
-    LogOut
+    LogOut,
+    Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { researchService } from '../../services/research.service';
 import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { Modal } from '../ui/Modal';
+import { Drawer } from '../ui/Drawer';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { SidebarSkeleton } from '../ui/Skeleton';
 import { useToast } from '../../hooks/useToast';
 import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
 import { useAuthStore } from '../../stores/auth.store';
@@ -77,6 +80,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
     const [showStageSelector, setShowStageSelector] = useState(false);
     const [isAddingStage, setIsAddingStage] = useState(false);
+    const [showIatTypeSelector, setShowIatTypeSelector] = useState(false);
     const { stageId: activeStageId } = useParams<{ stageId?: string }>();
     const [deleteStageModalOpen, setDeleteStageModalOpen] = useState(false);
     const [stageToDelete, setStageToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -85,6 +89,26 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
+
+    const isAttentionPrediction = activeResearch?.research_type_name === 'Attention Prediction' ||
+                                activeResearch?.research_type_name === "Attention's Prediction";
+    const isInsightsFinding = activeResearch?.research_type_name === 'Insights Finding';
+    const isClientsBenchmark = activeResearch?.research_type_name === "Client's Benchmark";
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+
+    // Get stimuli from settings if it exists
+    const settings = (activeResearch?.settings as Record<string, unknown>) || {};
+    const stimuli = (settings.stimuli as Array<{ url: string; mediaId: string; name: string }>) || [];
+
+    useEffect(() => {
+        if (isAttentionPrediction && activeResearch) {
+            console.log('[ResearchBuilderSidebar] Attention Prediction debug:', {
+                settings,
+                stimuliCount: stimuli.length,
+                researchId: activeResearch.id
+            });
+        }
+    }, [isAttentionPrediction, settings, stimuli, activeResearch?.id]);
 
     // Use ref to track if we're currently adding stages (prevents race conditions)
     const isAddingStagesRef = useRef(false);
@@ -103,6 +127,11 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
 
         const researchId = activeResearch.id;
+
+        // Skip for file-based research types - no automatic screens needed
+        if (isFileBasedResearch) {
+            return;
+        }
 
         // Skip if already checked this research (persists across StrictMode remounts)
         if (checkedResearchIds.has(researchId)) {
@@ -167,20 +196,36 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
     };
 
+    // Stages that can only exist once per research (singletons)
+    const SINGLETON_STAGES = new Set(['Welcome Screen', 'Thank You Screen', 'Research Configuration']);
+
     const loadStageTemplates = async () => {
         try {
             setLoadingStages(true);
             const allStages = await stageTemplatesService.getAll();
-            
-            // Filter out stages that already exist in the research
+
             const existingStageNames = new Set(
                 (activeResearch?.stages || []).map(stage => stage.name)
             );
-            
-            const availableStagesFiltered = allStages.filter(
-                stage => !existingStageNames.has(stage.name)
-            );
-            
+
+            // If the technique defines default_stages, only allow those stage names
+            const techniqueStageNames = activeResearch?.technique_default_stages
+                ? new Set(activeResearch.technique_default_stages.map(s => s.name))
+                : null;
+
+            const availableStagesFiltered = allStages.filter(stage => {
+                // If technique restricts stages, only show those
+                if (techniqueStageNames && !techniqueStageNames.has(stage.name)) {
+                    return false;
+                }
+                // Singleton stages: hide if already exists
+                if (SINGLETON_STAGES.has(stage.name)) {
+                    return !existingStageNames.has(stage.name);
+                }
+                // Repeatable stages (Screener, Cognitive Tasks, Implicit Association, etc.): always show
+                return true;
+            });
+
             setAvailableStages(availableStagesFiltered);
         } catch (error: unknown) {
             console.error('Failed to load stage templates', error);
@@ -194,14 +239,21 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         }
     };
 
-    const handleAddStage = async (stageName: string): Promise<void> => {
+    const IAT_MODULE_TYPES = [
+        { name: 'Attribute Testing', description: '2 targets, up to 5 criteria' },
+        { name: 'Comparing Attribute', description: 'Up to 3 objects, 2 dimensions, up to 15 criteria' },
+        { name: 'Objects Comparing', description: 'Up to 5 targets, positive/negative criteria' },
+    ];
+
+    const handleAddStage = async (stageName: string, defaultModuleName?: string): Promise<void> => {
         if (!activeResearch) return;
 
         try {
             setIsAddingStage(true);
-            await researchService.addStage(activeResearch.id, stageName);
+            await researchService.addStage(activeResearch.id, stageName, undefined, defaultModuleName);
             toast.success(`Stage "${stageName}" added successfully`);
             setShowStageSelector(false);
+            setShowIatTypeSelector(false);
             await invalidateActiveResearch(activeResearch.id);
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : 'Failed to add stage';
@@ -299,11 +351,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
 
     if (loadingResearch) {
-        return (
-            <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg items-center justify-center">
-                <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
-            </div>
-        );
+        return <SidebarSkeleton />;
     }
 
     if (!activeResearch) {
@@ -346,14 +394,16 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </p>
                 </div>
 
-                <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                        Research Technique
-                    </h3>
-                    <p className="text-sm font-medium text-gray-900">
-                        {activeResearch.research_technique_name || 'Unknown Technique'}
-                    </p>
-                </div>
+                {!isFileBasedResearch && (
+                    <div>
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                            Research Technique
+                        </h3>
+                        <p className="text-sm font-medium text-gray-900">
+                            {activeResearch.research_technique_name || 'Unknown Technique'}
+                        </p>
+                    </div>
+                )}
 
                 <div>
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
@@ -372,29 +422,56 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </button>
                 </div>
 
-                {/* Stages Section */}
+                {/* Stages Section or Stimuli Section for Attention Prediction */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            Stages
+                            {isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
                         </h3>
-                        <button
-                            onClick={() => {
-                                setShowStageSelector(true);
-                                // Reset available stages to force reload with current research state
-                                setAvailableStages([]);
-                                void loadStageTemplates();
-                            }}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                        >
-                            + Add Stage
-                        </button>
+                        {!isFileBasedResearch && (
+                            <button
+                                onClick={() => {
+                                    setShowStageSelector(true);
+                                    // Reset available stages to force reload with current research state
+                                    setAvailableStages([]);
+                                    void loadStageTemplates();
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                + Add Stage
+                            </button>
+                        )}
                     </div>
                     <div className="space-y-2 mt-2">
-                        {activeResearch.stages && activeResearch.stages.length > 0 ? (
-                            sortStages(activeResearch.stages)
-                                .filter((stage) => stage.description !== 'Automatically created during migration')
-                                .map((stage) => {
+                        {isFileBasedResearch ? (
+                            stimuli.length > 0 ? (
+                                stimuli.map((stimulus, index) => (
+                                    <Link
+                                        key={stimulus.mediaId || index}
+                                        to={`/research/${activeResearch.id}/builder/stimulus/${stimulus.mediaId}`}
+                                        className={cn(
+                                            'flex items-center gap-2 px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                            location.pathname.includes(`/stimulus/${stimulus.mediaId}`)
+                                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                                : 'text-gray-700 hover:bg-gray-50'
+                                        )}
+                                    >
+                                        {isClientsBenchmark
+                                            ? <BarChart3 className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                                            : <ImageIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />}
+                                        <span className="truncate" title={stimulus.name}>{stimulus.name}</span>
+                                    </Link>
+                                ))
+                            ) : (
+                                <p className="text-xs text-gray-400 italic px-2">
+                                    {isClientsBenchmark ? 'No researches selected' : 'No stimuli uploaded'}
+                                </p>
+                            )
+                        ) : (
+                            activeResearch.stages && activeResearch.stages.length > 0 ? (
+                                sortStages(activeResearch.stages)
+                                    .filter((stage) => stage.description !== 'Automatically created during migration')
+                                    .map((stage) => {
                                     const isSingleModule = isStageSingleModule(stage);
                                     let singleModule = isSingleModule && stage.modules?.[0] ? stage.modules[0] : null;
 
@@ -461,59 +538,62 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                 })
                         ) : (
                             <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
-                        )}
+                        ))}
                     </div>
                 </div>
 
-                {/* Progress Section */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            Progress
-                        </h3>
+                {/* Progress Section - Hide for file-based research */}
+                {!isFileBasedResearch && (
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Progress
+                            </h3>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/progress`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    location.pathname.includes('/builder/progress')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <TrendingUp className="h-4 w-4 mr-2" />
+                                View Progress
+                            </Link>
+                        </div>
                     </div>
-                    <div className="space-y-1 mt-2">
-                        <Link
-                            to={`/research/${activeResearch.id}/builder/progress`}
-                            className={cn(
-                                'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
-                                location.pathname.includes('/builder/progress')
-                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                    : 'text-gray-700 hover:bg-gray-50'
-                            )}
-                        >
-                            <TrendingUp className="h-4 w-4 mr-2" />
-                            View Progress
-                        </Link>
+                )}
+
+                {/* Results Section - Hide for file-based research */}
+                {!isFileBasedResearch && (
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                Results
+                            </h3>
+                        </div>
+                        <div className="space-y-1 mt-2">
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/results`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    location.pathname.includes('/builder/results')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                View Results
+                            </Link>
+                        </div>
                     </div>
+                )}
                 </div>
 
-                {/* Results Section */}
-                <div>
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                            Results
-                        </h3>
-                    </div>
-                    <div className="space-y-1 mt-2">
-                        <Link
-                            to={`/research/${activeResearch.id}/builder/results`}
-                            className={cn(
-                                'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
-                                location.pathname.includes('/builder/results')
-                                    ? 'bg-blue-50 text-blue-600 font-medium'
-                                    : 'text-gray-700 hover:bg-gray-50'
-                            )}
-                        >
-                            <BarChart3 className="h-4 w-4 mr-2" />
-                            View Results
-                        </Link>
-                    </div>
-                </div>
-            </div>
-
-            {/* Logout */}
-            <div className="p-4 border-t border-gray-100 space-y-2">
+                {/* Logout */}            <div className="p-4 border-t border-gray-100 space-y-2">
                 <button
                     onClick={handleLogout}
                     className={cn(
@@ -543,13 +623,13 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 isLoading={isDeleting}
             />
 
-            <Modal
+            <Drawer
                 isOpen={showStageSelector}
-                onClose={() => setShowStageSelector(false)}
-                title="Select Stage to Add"
-                size="md"
+                onClose={() => { setShowStageSelector(false); setShowIatTypeSelector(false); }}
+                title={showIatTypeSelector ? 'Select Implicit Association type' : 'Add Stage'}
+                width="sm"
             >
-                <div className="space-y-2 py-4">
+                <div className="space-y-2">
                     {loadingStages ? (
                         <div className="text-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600" />
@@ -560,13 +640,39 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             <p className="text-sm text-gray-500">No stages available</p>
                             <p className="text-xs text-gray-400 mt-1">Create stages in Module Management</p>
                         </div>
+                    ) : showIatTypeSelector ? (
+                        <div className="space-y-2">
+                            <button
+                                onClick={() => setShowIatTypeSelector(false)}
+                                className="text-sm text-gray-500 hover:text-gray-700 mb-3 flex items-center gap-1"
+                            >
+                                ← Back to stages
+                            </button>
+                            {IAT_MODULE_TYPES.map((iatType) => (
+                                <button
+                                    key={iatType.name}
+                                    onClick={() => void handleAddStage('Implicit Association', iatType.name)}
+                                    disabled={isAddingStage}
+                                    className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-accent-600 hover:bg-accent-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <div className="font-medium text-gray-900">{iatType.name}</div>
+                                    <div className="text-sm text-gray-500 mt-1">{iatType.description}</div>
+                                </button>
+                            ))}
+                        </div>
                     ) : (
                         availableStages.map((stage) => (
                             <button
                                 key={stage.id}
-                                onClick={() => void handleAddStage(stage.name)}
+                                onClick={() => {
+                                    if (stage.name === 'Implicit Association') {
+                                        setShowIatTypeSelector(true);
+                                    } else {
+                                        void handleAddStage(stage.name);
+                                    }
+                                }}
                                 disabled={isAddingStage}
-                                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-accent-600 hover:bg-accent-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <div className="font-medium text-gray-900">{stage.name}</div>
                                 {stage.description && (
@@ -581,7 +687,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         ))
                     )}
                 </div>
-            </Modal>
+            </Drawer>
 
             <Modal
                 isOpen={showStatusModal}

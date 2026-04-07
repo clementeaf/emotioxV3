@@ -573,10 +573,7 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
         let statusCode = 500;
         if (isAuthError(err)) {
             statusCode = err.statusCode;
-        }
-
-        // Errores de autenticación (Cognito)
-        if (errorMessage.includes('Incorrect username or password') ||
+        } else if (errorMessage.includes('Incorrect username or password') ||
             errorMessage.includes('NotAuthorizedException') ||
             errorMessage.includes('UserNotFoundException')) {
             statusCode = 401;

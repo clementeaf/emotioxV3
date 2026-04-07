@@ -2,6 +2,9 @@ import React, { useMemo, useCallback } from 'react';
 import type { ModuleConfig } from '../../types/module';
 import { SmartVOCRenderer } from '../renderers/SmartVOCRenderer';
 import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
+import { ScreenerRenderer } from '../renderers/ScreenerRenderer';
+import { ImplicitAssociationRenderer } from '../renderers/ImplicitAssociationRenderer';
+import { EyeTrackingRenderer } from '../renderers/EyeTrackingRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText, toStableString } from '../../utils/moduleComponent';
@@ -13,12 +16,7 @@ interface DynamicStepProps {
 
 export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) => {
     const { getResponse, saveResponse } = useParticipantStore();
-    
-    // Log version to verify new code is loaded
-    React.useEffect(() => {
-        console.log('[DynamicStep] ✅ VERSION 1bd5f18 - New filtering code loaded!', new Date().toISOString());
-    }, []);
-    
+
     /**
      * Checks if a component is the start_button_text component that should be hidden
      * @param component - Component to check
@@ -57,23 +55,6 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
         
         return false;
     }, []);
-    
-    // Log module details when it's Welcome Screen
-    React.useEffect(() => {
-        if (module.name === 'Welcome Screen') {
-            console.log('[DynamicStep] Welcome Screen module received:', module);
-            console.log('[DynamicStep] Module structure:', module.structure);
-            console.log('[DynamicStep] Module components:', module.structure?.components?.map(c => ({
-                id: c.id,
-                type: c.type,
-                label: c.label,
-                name: c.name,
-                value: c.value,
-                defaultValue: c.defaultValue,
-                settings: c.settings
-            })));
-        }
-    }, [module]);
 
     /**
      * Obtiene el valor de una respuesta previa o el valor por defecto
@@ -141,6 +122,27 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
         [module.name]
     );
 
+    // Check if this is a Screener module
+    const isScreener = useMemo(() => {
+        const lower = module.name.toLowerCase();
+        return lower === 'screener' || lower.includes('screener');
+    }, [module.name]);
+
+    // Check if this is an Implicit Association module
+    const isImplicitAssociation = useMemo(() => {
+        const lower = module.name.toLowerCase();
+        return lower.includes('attribute testing') ||
+            lower.includes('comparing attribute') ||
+            lower.includes('objects comparing') ||
+            lower.includes('object comparing');
+    }, [module.name]);
+
+    // Check if this is an Eye Tracking module
+    const isEyeTracking = useMemo(() => {
+        const lower = module.name.toLowerCase();
+        return lower === 'eye tracking' || lower.includes('eye tracking') || lower.includes('eyetracking');
+    }, [module.name]);
+
     // Memoize sorted components
     const sortedComponents = useMemo(() => {
         return [...module.structure.components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -152,43 +154,7 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
 
     // Filter out start_button_text components before rendering
     const filteredComponents = useMemo(() => {
-        console.log('[DynamicStep] All components before filtering:', sortedComponents.map(c => ({ 
-            id: c.id, 
-            type: c.type, 
-            label: c.label, 
-            name: c.name,
-            fullComponent: c
-        })));
-        const filtered = sortedComponents.filter(component => {
-            const shouldFilter = isStartButtonComponent(component);
-            
-            if (shouldFilter) {
-                console.warn('[DynamicStep] ⚠️ FILTERING OUT start_button_text component:', {
-                    id: component.id,
-                    label: component.label,
-                    name: component.name,
-                    type: component.type,
-                    fullComponent: component
-                });
-            } else {
-                // Log components that are NOT being filtered (for debugging)
-                const id = component.id?.toLowerCase() || '';
-                const label = component.label?.toLowerCase() || '';
-                const name = component.name?.toLowerCase() || '';
-                if (id.includes('button') || label.includes('button') || name.includes('button')) {
-                    console.log('[DynamicStep] Component with "button" in id/label/name but NOT filtered:', {
-                        id: component.id,
-                        label: component.label,
-                        name: component.name,
-                        type: component.type
-                    });
-                }
-            }
-            return !shouldFilter;
-        });
-        console.log('[DynamicStep] Filtered components after filtering:', filtered.map(c => ({ id: c.id, type: c.type, label: c.label })));
-        console.log('[DynamicStep] Total components:', sortedComponents.length, 'Filtered out:', sortedComponents.length - filtered.length, 'Remaining:', filtered.length);
-        return filtered;
+        return sortedComponents.filter((component) => !isStartButtonComponent(component));
     }, [sortedComponents, isStartButtonComponent]);
 
     // If SmartVOC, use specialized renderer
@@ -199,6 +165,21 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     // If Cognitive Task, use specialized renderer
     if (isCognitiveTask) {
         return <CognitiveTaskRenderer module={module} onComplete={onComplete} />;
+    }
+
+    // If Screener, use screener renderer
+    if (isScreener) {
+        return <ScreenerRenderer module={module} onComplete={onComplete} />;
+    }
+
+    // If Implicit Association, use IAT renderer
+    if (isImplicitAssociation) {
+        return <ImplicitAssociationRenderer module={module} onComplete={onComplete} />;
+    }
+
+    // If Eye Tracking, use eye tracking renderer
+    if (isEyeTracking) {
+        return <EyeTrackingRenderer module={module} onComplete={onComplete} />;
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)
@@ -247,43 +228,22 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
                         return null;
                     }
 
-                    // Double-check: Never render start_button_text as input (safety check)
+                    // Double-check: never render start_button_text as input (safety if filter missed an edge case)
                     if (isStartButtonComponent(component)) {
-                        console.error('[DynamicStep] ❌ ERROR: start_button_text component passed filter! This should not happen. Component:', {
-                            id: component.id,
-                            label: component.label,
-                            name: component.name,
-                            type: component.type,
-                            fullComponent: component
-                        });
-                        return null;
-                    }
-                    
-                    // Additional safety: check if component label contains "Start button text" (case insensitive)
-                    const componentLabel = component.label?.toLowerCase() || '';
-                    const componentName = component.name?.toLowerCase() || '';
-                    if ((componentLabel.includes('start button text') || componentName.includes('start button text')) && component.type === 'input') {
-                        console.error('[DynamicStep] ❌ ERROR: Found input component with "Start button text" label that passed all filters!', {
-                            id: component.id,
-                            label: component.label,
-                            name: component.name,
-                            type: component.type
-                        });
                         return null;
                     }
 
-                    // Final safety check before rendering input: if label contains "Start button text", don't render
+                    const componentLabel = component.label?.toLowerCase() || '';
+                    const componentName = component.name?.toLowerCase() || '';
+                    if ((componentLabel.includes('start button text') || componentName.includes('start button text')) && component.type === 'input') {
+                        return null;
+                    }
+
                     if (component.type === 'input') {
                         const label = component.label?.toLowerCase() || '';
                         const name = component.name?.toLowerCase() || '';
-                        if (label === 'start button text' || name === 'start button text' || 
+                        if (label === 'start button text' || name === 'start button text' ||
                             (label.includes('start') && label.includes('button') && label.includes('text'))) {
-                            console.error('[DynamicStep] ❌ BLOCKED: Input component with "Start button text" label attempted to render!', {
-                                id: component.id,
-                                label: component.label,
-                                name: component.name,
-                                type: component.type
-                            });
                             return null;
                         }
                     }

@@ -230,6 +230,34 @@ const isModuleConfigured = (module: Module): boolean => {
     return true;
   }
 
+  // Screener: configured if it has at least one choice component
+  if (module.name === 'Screener') {
+    const hasChoices = components.some(c => c.settings?.isChoice || c.id.includes('choice-'));
+    return hasChoices;
+  }
+
+  // Implicit Association modules: configured if they have at least one target
+  const iatNames = ['Attribute Testing', 'Comparing Attribute', 'Objects Comparing', 'Object Comparing'];
+  if (iatNames.some(name => module.name.includes(name))) {
+    const hasTarget = components.some(c =>
+      (c.id.startsWith('target-') && c.id.endsWith('-name') && getComponentText(c)) ||
+      (c.id.startsWith('object-') && c.id.endsWith('-name') && getComponentText(c))
+    );
+    return hasTarget;
+  }
+
+  // Eye Tracking: configured if it has a stimulus image
+  if (module.name === 'Eye Tracking' || module.name.toLowerCase().includes('eye tracking')) {
+    const hasStimulus = components.some(c =>
+      c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
+    );
+    if (!hasStimulus) return false;
+    const fileComp = components.find(c =>
+      c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
+    );
+    return Boolean(fileComp && getComponentText(fileComp));
+  }
+
   // Default: consider configured if module exists
   // (for unknown module types, show them to avoid breaking the flow)
   return true;
@@ -348,6 +376,17 @@ const getStepIdFromModuleName = (moduleName: string): string | null => {
   if (trimmed.includes('CV')) return 'cv';
   if (trimmed.includes('NEV')) return 'nev';
   if (trimmed.includes('VOC')) return 'voc';
+
+  // Screener
+  if (trimmed === 'Screener') return 'screener';
+
+  // Implicit Association (individual module names within the stage)
+  if (trimmed.includes('Attribute Testing')) return 'attribute-testing';
+  if (trimmed.includes('Comparing Attribute')) return 'comparing-attribute';
+  if (trimmed.includes('Objects Comparing') || trimmed.includes('Object Comparing')) return 'objects-comparing';
+
+  // Eye Tracking
+  if (trimmed === 'Eye Tracking') return 'eye-tracking';
 
   return trimmed
     .toLowerCase()
@@ -703,22 +742,29 @@ export const ResearchPage = () => {
           };
         }
 
-        // Build dynamic steps order from backend order_index
+        // Build dynamic steps order: stages first (order_index), then modules within each stage.
+        // Do not sort all modules by module order_index globally — that interleaves different stages
+        // (e.g. Implicit Association + Cognitive Tasks) when order_index is scoped per-stage.
         const dynamicOrder: string[] = [];
 
-        // Collect all modules across stages, sorted by stage order then module order_index
-        const allModules: Array<{ module: unknown; order_index: number }> = [];
-        stages.forEach(stage => {
+        const sortedStages = [...stages].sort(
+          (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+        );
+
+        const allModules: Array<{ module: unknown }> = [];
+        for (const stage of sortedStages) {
           const mods = stage.modules || [];
-          mods.forEach(mod => {
-            const oi = isRecord(mod) && typeof (mod as Record<string, unknown>).order_index === 'number'
-              ? (mod as Record<string, unknown>).order_index as number
-              : 0;
-            allModules.push({ module: mod, order_index: oi });
+          const sortedMods = [...mods].sort((a, b) => {
+            const oi = (m: unknown): number =>
+              isRecord(m) && typeof (m as Record<string, unknown>).order_index === 'number'
+                ? ((m as Record<string, unknown>).order_index as number)
+                : 0;
+            return oi(a) - oi(b);
           });
-        });
-        // Sort by order_index (backend already sorts, but ensure client-side too)
-        allModules.sort((a, b) => a.order_index - b.order_index);
+          for (const mod of sortedMods) {
+            allModules.push({ module: mod });
+          }
+        }
 
         allModules.forEach(({ module }) => {
           try {
@@ -744,7 +790,7 @@ export const ResearchPage = () => {
         const orderedSteps: string[] = [];
         if (dynamicOrder.includes('welcome')) orderedSteps.push('welcome');
         if (dynamicOrder.includes('demographics') || modulesMap['demographics']) orderedSteps.push('demographics');
-        // Add all non-special steps in their order_index order
+        // Add all non-special steps in stage order, then module order within each stage
         dynamicOrder.forEach(s => {
           if (s !== 'welcome' && s !== 'demographics' && s !== 'thank-you') {
             orderedSteps.push(s);
@@ -937,6 +983,19 @@ export const ResearchPage = () => {
 
     // Navigation Flow - internal completion handling
     if (moduleName === 'Navigation Flow') {
+      return false;
+    }
+
+    // Implicit Association - internal trial engine handles advancement
+    if (moduleName.includes('Attribute Testing') ||
+        moduleName.includes('Comparing Attribute') ||
+        moduleName.includes('Objects Comparing') ||
+        moduleName.includes('Object Comparing')) {
+      return false;
+    }
+
+    // Eye Tracking - internal timer handles advancement
+    if (moduleName === 'Eye Tracking' || moduleName.toLowerCase().includes('eye tracking')) {
       return false;
     }
 

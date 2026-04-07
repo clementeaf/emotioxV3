@@ -96,6 +96,274 @@
 
 ---
 
+## v0.52.0 — Insights Finding: document analysis + LLM analysis (2026-04-07)
+
+### research-frontend
+
+- **Insights Finding.** Nuevo tipo de research sin stages/módulos. El investigador sube documentos (.csv, .txt, .xlsx, .docx, .pdf) desde un Drawer al crear. Parseo client-side + sentimiento léxico (ES/EN).
+- **Document parser** (`documentParser.ts`). 5 formatos: SheetJS (.csv/.xlsx), Mammoth (.docx), PDF.js (.pdf), TextDecoder (.txt). Límite 200 entries × 300 chars para body size.
+- **`InsightsFindingView`.** Panel izquierdo: tabla de entries con mood badges. Panel derecho: tabs Sentiment (resumen + accionables LLM), Themes (tabla con magnitude + sentiment score), Keywords (tags con sentimiento). Auto-trigger de análisis LLM con polling.
+- **`isFileBasedResearch` flag.** Unifica Attention Prediction e Insights Finding en 4 archivos clave.
+- **Delete optimista.** `useDeleteResearch` remueve inmediatamente de la lista con rollback en error.
+
+### backend
+
+- **Insights analysis service** (`insights.service.ts`). GPT-4o vía OpenAI SDK. Genera: sentiment summary + actionables, themes con magnitude/sentimentScore, keywords con sentimiento. Prompt bilingüe ES/EN, response_format JSON.
+- **Insights controller.** `POST /insights/research/:id/analyze/:fileMediaId` (202 fire-and-forget) + `GET .../status/:fileMediaId`. Resultado se persiste en `config.stimuli[].analysis`.
+- **`skip_default_modules` flag.** Research types file-based no crean stages/módulos default.
+- **`express.json({ limit: '10mb' })`** en ambos servers.
+
+---
+
+## v0.51.2 — Attention Prediction: settings funcionales + Attention Video (2026-04-06)
+
+### research-frontend
+
+- **Settings modal funcional.** Blur, Opacity y Threshold ahora controlan el heatmap en tiempo real (debounce 150ms). Prediction Model (Simple/Advanced/Deep Learning) aplica presets automáticos. `CustomSelect` reemplaza `<select>` nativo. Modal renderiza via portal.
+- **`AttentionVideoPlayer`.** Animación progresiva del scanpath predicho (5s). Puntos ordenados por saliencia — los más calientes aparecen primero. Controles: Play/Pause, Reset, barra de progreso, timer. Círculo indicador de fijación actual.
+
+---
+
+## v0.51.1 — Attention Prediction: saliency rendering basado en OGAMA (2026-04-06)
+
+### research-frontend
+
+- **`HeatmapRenderer` — dual renderer.** Saliencia usa colormap directo pixel a pixel (enfoque OGAMA/OpenCV) en vez de simpleheat. Cada valor mapea a color vía LUT de 256 entradas con alpha cuadrático. simpleheat se mantiene solo para datos de clicks/fijaciones sparse.
+- **Separación real de hotspots.** Threshold 0.4, alpha cuadrático (`val² × 140`), overlay 45%. Las zonas de atención se distinguen sin tapar la imagen subyacente.
+
+### backend
+
+- **Attention Prediction service.** TranSalNet ONNX con normalización relativa min/max, step=3, threshold configurable. Endpoint fire-and-forget para evitar timeout de LiteSpeed.
+- **Attention Prediction controller.** `POST /attention-prediction/research/:id/predict/:mediaId` (202 async) + `GET .../status/:mediaId`. Resultado se persiste en `researches.config.stimuli[].heatmapData`.
+
+---
+
+## v0.51.0 — Attention Prediction: builder completo + settings modal (2026-04-05)
+
+### research-frontend
+
+- **Fix: stimulus upload usaba `apiClient.put()` en vez de `fetch()`.** Reemplazado por `fetch()` con body raw, alineado al patrón de `FileUploadAdvanced`. Los stimuli ahora se persisten correctamente en `research.config`.
+- **`AttentionPredictionCard`.** Componente dedicado para análisis de stimuli. Tabs: Prediction (heatmap + AOI drawing), Attention Video (placeholder), Image (original). Settings abre modal.
+- **Settings modal.** Preview en tiempo real con 3 modos: Heat map, Opacity map, Composición. Controles: Blur (slider), Opacity (slider), Threshold (slider), Prediction model (select). Composición agrega: Analysis window, Frames in fixation (min/max), Dispersion, Merge range. Cambios se aplican solo al confirmar.
+- **`HeatmapRenderer` — props `blur`, `opacity`, `threshold`.** Acepta parámetros de renderizado configurables desde el modal de settings.
+- **Builder guard para Attention Prediction.** SmartVOC, Cognitive Tasks, módulos regulares y Research Config no se renderizan cuando el research es Attention Prediction.
+
+---
+
+## v0.50.0 — Implicit Association: 3 paradigmas diferenciados + Notes panel + criteria target selector (2026-04-03)
+
+### research-frontend
+
+- **Notes panel por tipo IAT.** Cada tipo de Implicit Association muestra un panel informativo en columna derecha (280px) con instrucciones para el investigador:
+  - Attribute Testing: Target Objects (ejemplo Object A/B) + Criteria (hasta 5).
+  - Comparing Attribute: Objects (hasta 3) + Dimensions + Criteria (hasta 15).
+  - Objects Comparing: Target Objects (hasta 5) + Criteria con ejemplo Satisfaction/Dissatisfaction.
+- **Criteria target selector.** La columna "Image" (file upload) en la tabla de criteria fue reemplazada por un selector de target (CustomSelect). El investigador asigna cada criteria a un target (Target 1, Target 2, etc.) para definir la respuesta correcta del participante.
+
+### participant-frontend
+
+- **3 paradigmas IAT diferenciados.** El renderer único fue reemplazado por lógica específica por tipo:
+  - **Attribute Testing (Implicit Priming Test, 2 pasos):** Step 1 practica clasificar targets. Step 2 muestra criteria como estímulo; la respuesta correcta es el target asignado por el investigador.
+  - **Comparing Attribute (Reaction Time Test, 1 paso):** Muestra Object + Criteria juntos. Botones = dimension labels (ej: Extravagente/Convencional). Sin feedback correcto/incorrecto — solo mide RT.
+  - **Objects Comparing (IAT clásico, 3 pasos):** Step 1 clasifica criteria (botones = categorías Positive/Negative). Step 2 clasifica targets. Step 3 combinado.
+- **Sin swap de testType.** Cada tipo se mapea a su nombre real, eliminando el swap confuso entre Comparing Attribute ↔ Objects Comparing.
+- **Priming contextual.** El priming muestra contenido real (criteria o target según tipo) en vez del símbolo `+` genérico. Comparing Attribute no usa priming — estímulo directo.
+- **Traducciones IAT (ES/EN).** 22 claves i18n agregadas. Instrucciones fallback usan traducciones en vez de placeholders en inglés del template.
+- **Total de bloques dinámico.** Ya no hardcoded a 3 — se calcula según tipo y datos del test.
+
+---
+
+## v0.49.0 — IAT builder completo, Screener builder UX, participant renderers (2026-04-03)
+
+### research-frontend
+
+- **IAT stage type selector.** Al agregar un stage "Implicit Association" desde el drawer, se muestra un selector con los 3 tipos de test (Attribute Testing, Comparing Attribute, Objects Comparing). El backend crea el módulo correcto según la selección.
+- **IAT builder grid layout.** Los targets/objects de cada tipo IAT se renderizan en columnas responsivas (2-5 cols según cantidad). Utility `implicitAssociationBuilder.ts` detecta módulos IAT y particiona componentes por `groupLabel`.
+- **Technique-based stage filtering.** El drawer "Add Stage" filtra los stages disponibles según los `default_stages` de la técnica del research. Solo muestra stages que la técnica define.
+- **Screener builder UX.** Headers por tipo de componente (choice, checkbox, ranking). Toggle visual para checkboxes. `RadioChoicesEditor` en grid. Hooks `useScreenerSingleChoiceTrim` y `useScreenerMultipleChoiceGroupPad` para mantener choices consistentes.
+- **FileUpload single mode.** Respeta `component.fileUpload.multiple` (default `false`) — un solo archivo por target IAT. Fix overflow en `FileUploadAdvanced` para contenedores grid (`min-w-0`).
+
+### backend
+
+- **`defaultModuleName` en createStage.** Permite crear un stage Implicit Association con un tipo de módulo específico en vez de siempre Attribute Testing.
+- **`technique_default_stages` en research detail.** El endpoint de detalle ahora incluye los `default_stages` de la técnica para que el frontend filtre stages.
+
+### participant-frontend
+
+- **ImplicitAssociationRenderer reescrito.** Motor IAT mejorado: extracción robusta de config (4 formatos de criteria), resolución async de imágenes S3, bloques estándar (atributos → targets → combinado), priming configurable.
+- **EyeTrackingRenderer mejorado.** Resolución de estímulos S3, countdown timer, feedback visual de clicks.
+- **ScreenerRenderer mejorado.** Integración con utils de screener participant.
+- **DynamicStep simplificado.** Detección de módulos IAT/ET/Screener por nombre, delegación directa a renderers.
+
+### database
+
+- **Migración 018:** Fix de templates IAT — Attribute Testing (2 targets + criteria max 5), Comparing Attribute (3 objects + 2 dimensions + criteria max 15), Objects Comparing (5 targets + criteria-1/criteria-2 + criteria max 15).
+- **Migración 019:** Fix de asociaciones `stage_templates_module_templates` — los 3 tipos IAT correctamente asociados al stage template "Implicit Association".
+
+---
+
+## v0.48.0 — Technique stage creation fix, backend deploy (2026-04-01)
+
+### backend
+- **Fix: Research creation with technique `default_stages`.** `stageTemplateNames` now includes `"Research Configuration"` — previously it fell through to `individualModules`, creating a spurious stage named after the research type.
+- **Fix: Stage ordering for techniques.** When a technique's `default_stages` already includes "Research Configuration", `addDefaultStage` is skipped so stages respect the technique's defined order instead of always placing Research Configuration first.
+
+### database
+- **Fix: `default_stages` for "Biometric, Cognitive and Predictive".** Added "Research Configuration" at order 3. Full order: Screener → Welcome Screen → Research Configuration → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+
+### deploy
+- Backend deployed to cPanel (v0.42.0 → v0.48.0). Includes all changes from v0.41.0–v0.47.0.
+
+---
+
+## v0.47.0 — Design system, skeletons, dashboard responsive, auth fix (2026-03-29)
+
+### research-frontend
+
+- **Complete EmotioX light color system.** Paleta propia basada en principios Vambe AI, adaptada 100% a light. Tokens en Tailwind config + CSS variables:
+  - Surfaces: 5 niveles (`surface-app`, `primary`, `secondary`, `tertiary`, `sunken`).
+  - Text: 5 niveles semanticos (`heading`, `body`, `muted`, `faint`, `inverse`).
+  - Accent: 6 variantes (`DEFAULT`, `hover`, `pressed`, `light`, `muted`, `subtle`). Hover va mas oscuro (`#0058D4`).
+  - Semantic: success, warning, error, info — cada uno con bg, solid, text, border.
+  - Chart: 8 colores + auxiliares (grid, axis, reference). NPS: promoter, passive, detractor.
+  - Borders semi-transparentes (`rgba(0,0,0,N)`). Sombras solo funcionales (dropdown, modal).
+  - Referencia: `docs/design-system/emotiox-palette.md`.
+- **Accent color migration.** ~50 componentes migrados de `blue-*` hardcoded a tokens `accent`. Incluye: Button, Sidebar, toggles, checkboxes, inputs (focus rings), file uploads, tabs, links, info boxes, modals, stepper, badges.
+- **Loading states: full skeleton.** Eliminados todos los spinners de carga de datos. Nuevo `Skeleton.tsx` con 7 componentes reutilizables. Skeletons en: sidebar, builder, research list, modules grid, drawer, research types/techniques, stage selector modal. App shell skeleton para auth bootstrap y Suspense. Solo quedan spinners en Button (accion) y FileUpload (progreso).
+- **Dashboard responsive para desktop.** Tabla con `table-fixed` + `colgroup` porcentual (30/10/14/14/24/8). Name y Researcher con `truncate`. Sidebar derecho y bottom section en `xl+`. Filter pills `rounded-full`. Cards bottom en `flex` single-row.
+- **Dashboard filter fix.** Comparacion `String()` para `research_type_id` vs `type.id` (MySQL number vs frontend string).
+- **Auth bootstrap fix.** `bootstrapSession` no llama a `/auth/me` si no hay token almacenado.
+
+### backend
+
+- **Auth 400→401 fix.** El catch generico en `auth.controller.ts` sobreescribia `AuthError.statusCode=401` a 400 cuando el mensaje contenia "Invalid". Ahora `isAuthError` tiene prioridad con `else if`.
+
+---
+
+## v0.46.0 ��� Google-only auth + design system foundation (2026-03-28)
+
+### research-frontend
+- **Auth simplified to Google OAuth only.** Removed manual login form (email/password), register page, and all related code:
+  - Deleted `RegisterPage.tsx`.
+  - Removed `login()`, `register()` from `auth.store.ts`.
+  - Removed `login()`, `register()` from `auth.service.ts`.
+  - Removed `LoginCredentials`, `LoginRequest`, `RegisterCredentials`, `LoginResponse`, `RegisterResponse` from `types/auth.ts`.
+  - Removed `/register` route from `routes.tsx`.
+- **Design system foundation applied (light theme):**
+  - Added Plus Jakarta Sans (400, 600) via Google Fonts.
+  - Tailwind config: new `font-sans` (Plus Jakarta Sans), `accent` color tokens (`#006aff`, `#3b82f6`).
+  - `AuthLayout`: clean light background (`bg-slate-50`).
+  - `LoginPage`: white card with subtle border, "Emotiox" heading + "UX Research Platform" subtitle, single Google button.
+- Copied Vambe AI design system reference docs to `docs/design-system/`.
+
+---
+
+## v0.45.0 — Participant rendering: Screener, Implicit Association, Eye Tracking (2026-03-28)
+
+### participant-frontend
+- New `ScreenerRenderer` — renders Screener filtering question with Qualify/Disqualify choices. Reuses existing `ChoiceQuestion` component. Response: `component_id = 'choice'`, value = selected choice ID.
+- New `ImplicitAssociationRenderer` — full IAT trial engine with:
+  - Instructions screen with category labels and keyboard shortcuts (E/I or arrow keys).
+  - Priming phase (fixation point, configurable duration from module config).
+  - Trial phase: shows target (text or image), participant classifies via buttons or keyboard.
+  - Practice trials (1 per target) then test trials (target × attribute, shuffled).
+  - Visual feedback (correct/incorrect) between trials.
+  - Response: `component_id = 'iat-trials'`, value = `[{ targetId, criterionId, rt, correct, phase }]`.
+  - Supports all 3 test types: Attribute Testing, Comparing Attribute, Objects Comparing.
+- New `EyeTrackingRenderer` — click/tap tracking as proxy for gaze data:
+  - Instructions screen with task description and viewing duration.
+  - Stimulus display with countdown timer and crosshair cursor.
+  - Click/tap positions recorded as fixations in natural image coordinates.
+  - Visual feedback dots on recorded positions.
+  - Auto-completes after configurable duration (default 10s).
+  - Response: `component_id = 'eye-tracking-data'`, value = `{ fixations: [...], calibrationQuality: 'click-proxy', integrityScore: 1.0 }`.
+  - S3 stimulus URL resolution via `mediaService`.
+- `DynamicStep`: delegates to new renderers based on module name detection.
+- `useNavigation`: `DEFAULT_STEPS_ORDER` includes `screener`, `attribute-testing`, `comparing-attribute`, `objects-comparing`, `eye-tracking`.
+- `ResearchPage`:
+  - `getStepIdFromModuleName()`: explicit mappings for Screener, IAT module types, Eye Tracking.
+  - `isModuleConfigured()`: validation rules for Screener (has choices), IAT (has targets), Eye Tracking (has stimulus).
+  - `shouldShowButton()`: hides footer button for IAT and Eye Tracking (internal auto-advance).
+- `renderers/index.ts`: exports new renderers.
+
+---
+
+## v0.44.0 — Eye Tracking results analytics (2026-03-28)
+
+### backend
+- New endpoint `GET /analytics/research/:id/eye-tracking`.
+- Extracts stimulus config per module (image URL, modality, task description, AOIs).
+- Computes heatmap data, fixation metrics, and AOI stats from gaze responses (`component_id = 'eye-tracking-data'`).
+
+### research-frontend
+- New `EyeTrackingResults` component — per-stimulus cards with:
+  - Metrics bar (participants, responses, avg dwell time, avg fixations).
+  - Heatmap / Image view toggle (reuses `HeatmapRenderer`).
+  - AOI list with dwell %, fixation count, duration, viewer count.
+  - Download image button.
+- New "Eye Tracking" tab in `ResearchResultsPage`.
+
+---
+
+## v0.43.0 — Implicit Association results analytics (2026-03-28)
+
+### backend
+- New endpoint `GET /analytics/research/:id/implicit-association` — finds Implicit Association stage modules, extracts config (targets, attributes, priming time), queries trial responses, and computes D-scores per (attribute, target) pair.
+- `analytics.service.ts`: `getImplicitAssociationResults()` detects test type from module name (Attribute Testing, Comparing Attribute, Objects Comparing), parses criteria from ranking-list component, and normalizes reaction times to -100..100 score range.
+
+### research-frontend
+- New component `ImplicitAssociationResults` with 3 chart types matching the reference designs:
+  - **Attribute Testing** → Recharts RadarChart (2 targets as filled polygons, attributes on axes, -100 to 100 range).
+  - **Comparing Attribute** → Grouped BarChart (targets side-by-side per attribute, 0-120 range, average reference line).
+  - **Objects Comparing** → Horizontal divergent BarChart (objects on Y axis, 2 dimensions as left/right bars, -100 to 100 range).
+- `ResearchResultsPage`: new "Implicit Association" tab (Zap icon), visible only when the research contains an Implicit Association stage.
+- `analytics.service.ts` (frontend): new types `IATModuleResult`, `ImplicitAssociationResults` and `getImplicitAssociationResults()` function.
+
+---
+
+## v0.42.0 — Screener results analytics (2026-03-28)
+
+### backend
+- New endpoint `GET /analytics/research/:id/screener` — aggregates Screener responses.
+- `analytics.service.ts`: `getScreenerResults()` returns choice distribution (Qualify/Disqualify), participant status counts (overquota, disqualified, complete), daily distribution with per-choice breakdown, best/slowest day, and weekly time series.
+
+### research-frontend
+- New component `ScreenerResults` — stacked bar chart (distribution by choice/route), 3 status cards, best/slowest day, weekly line chart.
+- `ResearchResultsPage`: tab system refactored to data-driven (`TAB_DEFS`); Screener tab appears only when the research contains a Screener stage; auto-selects first available tab on load.
+- `analytics.service.ts` (frontend): new types and `getScreenerResults()` function.
+
+---
+
+## v0.41.0 — Technique default stages + generic collection rendering (2026-03-28)
+
+### database
+- New column `research_techniques.default_stages` (JSON): permite a cada técnica definir sus propios stages default.
+- "Biometric, Cognitive and Predictive" configurada con: Screener → Welcome Screen → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+
+### backend
+- `research.service.ts`: `stageTemplateNames` incluye Screener, Implicit Association, Eye Tracking. `create()` prioriza `default_stages` de la técnica sobre `default_modules` del research type.
+- `research-techniques.service.ts`: queries incluyen y parsean `default_stages`.
+- `research-types.service.ts`: `getTechniquesByType` retorna `default_stages` de cada técnica.
+
+### research-frontend
+- `ResearchTechnique` type incluye campo `default_stages`.
+- `useResearchForm`: `handleSubmit` envía los stages de la técnica cuando existen.
+- `ResearchFormStep2`: muestra la lista de stages de la técnica seleccionada.
+- `ResearchBuilderPage`: lógica de `module_collection` generalizada — cualquier stage collection (Cognitive Tasks, Implicit Association, etc.) se renderiza con `CognitiveTaskModuleCard` automáticamente.
+- `ResearchBuilderHeader` y `StageEmptyState`: props genéricas para cualquier collection stage.
+
+---
+
+## v0.40.0 — New stages: Screener, Implicit Association, Eye Tracking (2026-03-28)
+
+### database
+- New stage **Screener** (`single_module`): pregunta de filtrado con choices Qualify/Disqualify.
+- New stage **Implicit Association** (`module_collection`): Attribute Testing, Comparing Attribute, Objects Comparing.
+- New stage **Eye Tracking** (`single_module`): stimuli, task config, Stand Alone y Shelf.
+- Total stage templates: 8. Total module templates: 22.
+
+---
+
 ## v0.39.1 — Participant limit + percentage quotas (2026-03-25)
 
 ### backend

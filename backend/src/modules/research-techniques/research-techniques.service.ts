@@ -1,9 +1,23 @@
 import pool from '../../config/database';
 import cache, { CacheKeys, CacheTTL } from '../../config/cache';
 
+/** Parse default_stages from MySQL JSON string to array */
+const parseDefaultStages = (row: Record<string, unknown>): Record<string, unknown> => {
+    let defaultStages = row.default_stages;
+    if (typeof defaultStages === 'string') {
+        try {
+            defaultStages = JSON.parse(defaultStages);
+        } catch {
+            defaultStages = null;
+        }
+    }
+    return { ...row, default_stages: defaultStages || null };
+};
+
 export interface ResearchTechniqueData {
     name: string;
     description: string;
+    default_stages?: Array<{ name: string; order: number; is_default: boolean }>;
 }
 
 export const list = async () => {
@@ -11,12 +25,12 @@ export const list = async () => {
         CacheKeys.RESEARCH_TECHNIQUES_LIST,
         async () => {
             const query = `
-            SELECT id, name, description, created_at, updated_at
+            SELECT id, name, description, default_stages, created_at, updated_at
             FROM research_techniques
             ORDER BY name
           `;
             const result = await pool.query(query);
-            return result.rows;
+            return result.rows.map(parseDefaultStages);
         },
         CacheTTL.LONG // Cache for 15 minutes
     );
@@ -29,7 +43,7 @@ export const getById = async (id: string) => {
         cacheKey,
         async () => {
             const query = `
-            SELECT id, name, description, created_at, updated_at
+            SELECT id, name, description, default_stages, created_at, updated_at
             FROM research_techniques
             WHERE id = ?
           `;
@@ -39,7 +53,7 @@ export const getById = async (id: string) => {
                 throw new Error('Research technique not found');
             }
 
-            return result.rows[0];
+            return parseDefaultStages(result.rows[0]);
         },
         CacheTTL.LONG
     );
@@ -72,7 +86,6 @@ export const update = async (id: string, data: Partial<ResearchTechniqueData>) =
 
     const updates: string[] = [];
     const values: unknown[] = [];
-    let paramIndex = 1;
 
     // MySQL compatible: use ? placeholders
     if (name !== undefined) {

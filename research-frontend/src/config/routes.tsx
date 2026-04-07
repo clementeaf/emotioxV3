@@ -2,7 +2,6 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ProtectedRoute';
 import { LoginPage } from '../pages/auth/LoginPage';
-import { RegisterPage } from '../pages/auth/RegisterPage';
 import { AuthCallbackPage } from '../pages/auth/AuthCallbackPage';
 import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ErrorPage } from '../pages/ErrorPage';
@@ -49,13 +48,7 @@ export const routesConfig: RouteConfig[] = [
         layout: 'auth',
         errorBoundary: { context: 'auth', pageName: 'Login' },
     },
-    {
-        path: '/register',
-        element: <RegisterPage />,
-        layout: 'auth',
-        errorBoundary: { context: 'auth', pageName: 'Register' },
-    },
-    {
+{
         path: '/auth/callback',
         element: <AuthCallbackPage />,
         layout: 'none',
@@ -141,6 +134,13 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Stage Builder' },
+    },
+    {
+        path: '/research/:id/builder/stimulus/:stimulusId',
+        element: <ResearchBuilderPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Stimulus Analysis' },
     },
     {
         path: '/research/:id/builder/progress',

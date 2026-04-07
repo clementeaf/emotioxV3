@@ -11,6 +11,8 @@ interface CustomSelectProps {
     id?: string;
     label?: string;
     error?: string;
+    /** Inline: label and trigger on one row (e.g. Screener header). */
+    labelPosition?: 'above' | 'inline';
     options: SelectOption[];
     placeholder?: string;
     value?: string;
@@ -29,6 +31,7 @@ export const CustomSelect = ({
     id: propId,
     label,
     error,
+    labelPosition = 'above',
     options,
     placeholder = 'Select an option',
     value,
@@ -100,14 +103,27 @@ export const CustomSelect = ({
         }
     };
 
+    const isInline = labelPosition === 'inline';
+
     return (
         <div className="w-full min-w-0 overflow-hidden">
-            {label && (
-                <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1.5">
-                    {label}
-                </label>
-            )}
-            <div ref={selectRef} className="relative w-full min-w-0 overflow-hidden">
+            <div
+                className={cn(
+                    isInline && label && 'flex flex-row flex-wrap items-center gap-3 min-w-0'
+                )}
+            >
+                {label && (
+                    <label
+                        htmlFor={id}
+                        className={cn(
+                            'text-sm font-medium text-gray-700',
+                            isInline ? 'shrink-0 whitespace-nowrap' : 'mb-1.5 block'
+                        )}
+                    >
+                        {label}
+                    </label>
+                )}
+                <div ref={selectRef} className={cn('relative min-w-0 overflow-hidden', isInline && label ? 'flex-1' : 'w-full')}>
                 <button
                     type="button"
                     id={id}
@@ -166,6 +182,7 @@ export const CustomSelect = ({
                     </div>,
                     document.body
                 )}
+                </div>
             </div>
             {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
         </div>

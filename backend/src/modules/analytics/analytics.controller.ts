@@ -26,6 +26,38 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ results }, 200, undefined, origin);
         }
 
+        // GET /analytics/research/:id/screener
+        const screenerMatch = path.match(/^\/analytics\/research\/([^\/]+)\/screener$/);
+        if (screenerMatch && httpMethod === 'GET') {
+            const researchId = screenerMatch[1];
+            const results = await analyticsService.getScreenerResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
+        // GET /analytics/research/:id/implicit-association
+        const implicitMatch = path.match(/^\/analytics\/research\/([^\/]+)\/implicit-association$/);
+        if (implicitMatch && httpMethod === 'GET') {
+            const researchId = implicitMatch[1];
+            const results = await analyticsService.getImplicitAssociationResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
+        // GET /analytics/research/:id/eye-tracking
+        const eyeTrackingMatch = path.match(/^\/analytics\/research\/([^\/]+)\/eye-tracking$/);
+        if (eyeTrackingMatch && httpMethod === 'GET') {
+            const researchId = eyeTrackingMatch[1];
+            const results = await analyticsService.getEyeTrackingResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
+        // GET /analytics/benchmark/:id
+        const benchmarkMatch = path.match(/^\/analytics\/benchmark\/([^\/]+)$/);
+        if (benchmarkMatch && httpMethod === 'GET') {
+            const researchId = benchmarkMatch[1];
+            const results = await analyticsService.getBenchmarkResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
         // GET /analytics/research/:id/demographics
         const demographicsMatch = path.match(/^\/analytics\/research\/([^\/]+)\/demographics$/);
         if (demographicsMatch && httpMethod === 'GET') {

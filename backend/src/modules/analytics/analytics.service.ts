@@ -531,6 +531,250 @@ export const getRankingResponses = async (researchId: string, moduleId: string) 
 };
 
 // ==========================================
+// SCREENER RESULTS
+// ==========================================
+
+export const getScreenerResults = async (researchId: string) => {
+  // 1. Find the Screener stage and its module(s)
+  const stageQuery = `
+    SELECT s.id as stage_id, s.name as stage_name
+    FROM stages s
+    WHERE s.research_id = ?
+      AND LOWER(s.name) = 'screener'
+    LIMIT 1
+  `;
+  const stageResult = await pool.query(stageQuery, [researchId]);
+  if (stageResult.rows.length === 0) {
+    return { totalResponses: 0, qualified: 0, disqualified: 0, overquota: 0, choiceDistribution: [], dailyDistribution: [], bestDay: null, slowestDay: null, weeklyTimeSeries: [] };
+  }
+  const stageId = stageResult.rows[0].stage_id;
+
+  // 2. Get Screener module(s) with config to extract choices and question text
+  const moduleQuery = `
+    SELECT id, name, config FROM modules
+    WHERE research_id = ? AND stage_id = ?
+    ORDER BY order_index
+  `;
+  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+
+  // Extract choices config (Qualify/Disqualify labels) and question text from module
+  const choicesMeta: Array<{ id: string; label: string; eligibility: string }> = [];
+  let questionText = '';
+  const moduleIds: string[] = [];
+  for (const mod of moduleResult.rows) {
+    moduleIds.push(mod.id);
+    try {
+      const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+      const structure = config?.structure ?? config;
+      // Question title
+      const titleComp = structure?.components?.find((c: any) => c.id === 'question-title');
+      if (titleComp?.value && !questionText) questionText = titleComp.value;
+      // Choices with eligibility
+      const choiceComps = (structure?.components ?? []).filter((c: any) => c.settings?.isChoice);
+      for (const c of choiceComps) {
+        choicesMeta.push({
+          id: c.id,
+          label: c.value || c.name || c.id,
+          eligibility: c.settings?.eligibility || 'Qualify',
+        });
+      }
+      // Also check choicesConfig format
+      const choicesComp = structure?.components?.find((c: any) => c.choicesConfig);
+      if (choicesComp?.choicesConfig?.choices) {
+        for (const ch of choicesComp.choicesConfig.choices) {
+          if (!choicesMeta.some(m => m.id === ch.id)) {
+            choicesMeta.push({
+              id: ch.id,
+              label: ch.label || ch.id,
+              eligibility: ch.eligibility || 'Qualify',
+            });
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (moduleIds.length === 0) {
+    return { totalResponses: 0, qualified: 0, disqualified: 0, overquota: 0, choiceDistribution: [], dailyDistribution: [], bestDay: null, slowestDay: null, weeklyTimeSeries: [], questionText };
+  }
+
+  // 3. Get all responses for Screener modules
+  const placeholders = moduleIds.map(() => '?').join(',');
+  const responsesQuery = `
+    SELECT
+      r.value,
+      r.participant_id,
+      r.component_id,
+      r.created_at
+    FROM responses r
+    WHERE r.research_id = ?
+      AND r.module_id IN (${placeholders})
+      AND r.component_id = 'choice'
+    ORDER BY r.created_at ASC
+  `;
+  const responsesResult = await pool.query(responsesQuery, [researchId, ...moduleIds]);
+
+  // 4. Get participant statuses from participants table
+  const statusQuery = `
+    SELECT status, COUNT(*) as cnt
+    FROM participants
+    WHERE research_id = ?
+    GROUP BY status
+  `;
+  const statusResult = await pool.query(statusQuery, [researchId]);
+  const statusCounts: Record<string, number> = {};
+  for (const row of statusResult.rows) {
+    statusCounts[row.status] = parseInt(row.cnt);
+  }
+
+  // 5. Also count from participant_demographics for disqualifications (kiosk mode doesn't use participants table)
+  // Use responses-based counting as primary source
+  const responses = responsesResult.rows.map(row => {
+    let value: string | string[];
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      value = Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      value = [String(row.value)];
+    }
+    return {
+      participantId: row.participant_id,
+      choices: Array.isArray(value) ? value : [value],
+      createdAt: row.created_at,
+    };
+  });
+
+  // 6. Build choice label map
+  const choiceLabels: Record<string, string> = {};
+  const choiceEligibility: Record<string, string> = {};
+  for (const c of choicesMeta) {
+    choiceLabels[c.id] = c.label;
+    choiceEligibility[c.id] = c.eligibility;
+  }
+
+  // 7. Aggregate choice distribution
+  const choiceCounts: Record<string, number> = {};
+  for (const r of responses) {
+    for (const choice of r.choices) {
+      choiceCounts[choice] = (choiceCounts[choice] || 0) + 1;
+    }
+  }
+
+  // Include all configured choices (even with 0 responses)
+  const allChoiceIds = new Set([
+    ...Object.keys(choiceCounts),
+    ...choicesMeta.map(c => c.id),
+  ]);
+
+  const totalResponses = responses.length;
+  const choiceDistribution = Array.from(allChoiceIds).map(choiceId => ({
+    choiceId,
+    label: choiceLabels[choiceId] || choiceId,
+    eligibility: choiceEligibility[choiceId] || 'Qualify',
+    count: choiceCounts[choiceId] || 0,
+    percentage: totalResponses > 0 ? Math.round(((choiceCounts[choiceId] || 0) / totalResponses) * 100 * 10) / 10 : 0,
+  }));
+
+  // 8. Count qualified vs disqualified from responses (based on choice eligibility)
+  let qualifiedFromResponses = 0;
+  let disqualifiedFromResponses = 0;
+  for (const r of responses) {
+    const isDisqualified = r.choices.some((c: string) => choiceEligibility[c] === 'Disqualify');
+    if (isDisqualified) {
+      disqualifiedFromResponses++;
+    } else {
+      qualifiedFromResponses++;
+    }
+  }
+
+  // Use participants table counts if available, otherwise fall back to response-based
+  const disqualified = statusCounts['disqualified'] || disqualifiedFromResponses;
+  const overquota = statusCounts['overquota'] || 0;
+  const complete = statusCounts['responded'] || qualifiedFromResponses;
+
+  // 9. Daily distribution (last 30 days)
+  const dailyDistribution: Array<{ date: string; count: number; byChoice: Record<string, number> }> = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+
+    const dayResponses = responses.filter(r => {
+      const responseDate = new Date(r.createdAt).toISOString().split('T')[0];
+      return responseDate === dateStr;
+    });
+
+    const byChoice: Record<string, number> = {};
+    for (const r of dayResponses) {
+      for (const choice of r.choices) {
+        const label = choiceLabels[choice] || choice;
+        byChoice[label] = (byChoice[label] || 0) + 1;
+      }
+    }
+
+    dailyDistribution.push({
+      date: dateStr,
+      count: dayResponses.length,
+      byChoice,
+    });
+  }
+
+  // 10. Best and slowest day
+  const daysWithData = dailyDistribution.filter(d => d.count > 0);
+  let bestDay = null;
+  let slowestDay = null;
+  if (daysWithData.length > 0) {
+    const sorted = [...daysWithData].sort((a, b) => b.count - a.count);
+    const best = sorted[0];
+    const slowest = sorted[sorted.length - 1];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    const bestDate = new Date(best.date);
+    bestDay = {
+      date: best.date,
+      dayName: dayNames[bestDate.getDay()],
+      hour: '2:00 AM', // Approximate peak — would need hourly data for precision
+      count: best.count,
+      percentage: totalResponses > 0 ? Math.round((best.count / totalResponses) * 100 * 10) / 10 : 0,
+    };
+
+    const slowestDate = new Date(slowest.date);
+    slowestDay = {
+      date: slowest.date,
+      dayName: dayNames[slowestDate.getDay()],
+      hour: '6:00 AM',
+      count: slowest.count,
+      percentage: totalResponses > 0 ? Math.round((slowest.count / totalResponses) * 100 * 10) / 10 : 0,
+    };
+  }
+
+  // 11. Weekly time series (last 7 days)
+  const weeklyTimeSeries = dailyDistribution.slice(-7).map(d => {
+    const date = new Date(d.date);
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return {
+      date: d.date,
+      dayName: dayNames[date.getDay()],
+      count: d.count,
+    };
+  });
+
+  return {
+    totalResponses,
+    qualified: complete,
+    disqualified,
+    overquota,
+    questionText,
+    choiceDistribution,
+    dailyDistribution,
+    bestDay,
+    slowestDay,
+    weeklyTimeSeries,
+  };
+};
+
+// ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 
@@ -1132,4 +1376,630 @@ const generateMonthlyMetricsData = (responses: any[]) => {
   }
 
   return monthlyData;
+};
+
+// ==========================================
+// IMPLICIT ASSOCIATION RESULTS
+// ==========================================
+
+interface IATTarget {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
+interface IATAttribute {
+  id: string;
+  label: string;
+  imageUrl?: string;
+}
+
+interface IATModuleResult {
+  moduleId: string;
+  moduleName: string;
+  testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
+  primingTime: number;
+  targets: IATTarget[];
+  attributes: IATAttribute[];
+  totalResponses: number;
+  scores: Array<{
+    attributeId: string;
+    attributeLabel: string;
+    targetScores: Record<string, number>; // targetId → score (-100 to 100)
+  }>;
+}
+
+/**
+ * Detect the IAT test type from the module template name
+ */
+const detectIATTestType = (moduleName: string): IATModuleResult['testType'] => {
+  const lower = moduleName.toLowerCase();
+  // "Comparing Attribute" = objects + dimensions (objects_comparing extractor)
+  // "Objects Comparing" = targets + positive/negative criteria (comparing_attribute extractor)
+  if (lower.includes('comparing attribute') || lower.includes('comparing attr')) return 'objects_comparing';
+  if (lower.includes('objects comparing') || lower.includes('object comparing')) return 'comparing_attribute';
+  return 'attribute_testing';
+};
+
+/**
+ * Extract IAT configuration (targets, attributes, priming) from module config
+ */
+const extractIATConfig = (config: any, testType: IATModuleResult['testType']) => {
+  const structure = config?.structure ?? config;
+  const components: any[] = structure?.components ?? [];
+
+  const primingComp = components.find((c: any) => c.id === 'priming-time');
+  const primingTime = parseInt(primingComp?.value || '400', 10);
+
+  const targets: IATTarget[] = [];
+  const attributes: IATAttribute[] = [];
+
+  if (testType === 'objects_comparing') {
+    // Objects Comparing: object-N-name, object-N-image, dimension-1, dimension-2, criteria list
+    for (let i = 1; i <= 5; i++) {
+      const nameComp = components.find((c: any) => c.id === `object-${i}-name`);
+      if (nameComp?.value) {
+        const imageComp = components.find((c: any) => c.id === `object-${i}-image`);
+        targets.push({
+          id: `object-${i}`,
+          name: nameComp.value,
+          imageUrl: imageComp?.value || undefined,
+        });
+      }
+    }
+    // Dimensions become the "attributes" axis (2 dimensions)
+    const dim1 = components.find((c: any) => c.id === 'dimension-1');
+    const dim2 = components.find((c: any) => c.id === 'dimension-2');
+    if (dim1?.value || dim1?.placeholder?.text) {
+      attributes.push({ id: 'dimension-1', label: dim1.value || dim1.placeholder.text });
+    }
+    if (dim2?.value || dim2?.placeholder?.text) {
+      attributes.push({ id: 'dimension-2', label: dim2.value || dim2.placeholder.text });
+    }
+  } else {
+    // Attribute Testing / Comparing Attribute: target-N-name, target-N-image, criteria list
+    for (let i = 1; i <= 5; i++) {
+      const nameComp = components.find((c: any) => c.id === `target-${i}-name`);
+      if (nameComp?.value) {
+        const imageComp = components.find((c: any) => c.id === `target-${i}-image`);
+        targets.push({
+          id: `target-${i}`,
+          name: nameComp.value,
+          imageUrl: imageComp?.value || undefined,
+        });
+      }
+    }
+    // Criteria list from ranking-list component
+    const criteriaComp = components.find((c: any) => c.id === 'criteria');
+    if (criteriaComp?.value) {
+      const items = typeof criteriaComp.value === 'string'
+        ? JSON.parse(criteriaComp.value)
+        : criteriaComp.value;
+      const list = Array.isArray(items) ? items : items?.items ?? [];
+      for (const item of list) {
+        const label = (item.label || item.text || item.value || item.name || '').toString().trim();
+        if (!label) continue;
+        attributes.push({
+          id: item.id || item.value || String(list.indexOf(item)),
+          label: label || `Attribute ${list.indexOf(item) + 1}`,
+          imageUrl: item.imageUrl || item.image || undefined,
+        });
+      }
+    }
+
+    // Comparing Attribute template: Positive/Negative inputs when ranking list produced no items
+    if (testType === 'comparing_attribute' && attributes.length === 0) {
+      const c1 = components.find((c: any) => c.id === 'criteria-1');
+      const c2 = components.find((c: any) => c.id === 'criteria-2');
+      const l1 = (c1?.value ?? c1?.placeholder?.text ?? '').toString().trim();
+      const l2 = (c2?.value ?? c2?.placeholder?.text ?? '').toString().trim();
+      if (l1 && l2) {
+        attributes.length = 0;
+        attributes.push({ id: 'criteria-1', label: l1 });
+        attributes.push({ id: 'criteria-2', label: l2 });
+      }
+    }
+  }
+
+  return { primingTime, targets, attributes };
+};
+
+/**
+ * Compute IAT scores from trial-level response data.
+ * Each response has component_id='iat-trials' and value = JSON array of trials:
+ * [{ targetId, criterionId, rt, correct, phase }]
+ *
+ * Score per (attribute, target) = association strength based on reaction times.
+ * D-score approach: (mean_RT_incongruent - mean_RT_congruent) / pooled_SD,
+ * then scaled to -100..100 range.
+ *
+ * When no data: returns 0 for all scores.
+ */
+const computeIATScores = (
+  responses: any[],
+  targets: IATTarget[],
+  attributes: IATAttribute[],
+  testType: IATModuleResult['testType'],
+): IATModuleResult['scores'] => {
+  // Parse all trials from all responses
+  type Trial = { targetId: string; criterionId: string; rt: number; correct: boolean; phase: string };
+  const allTrials: Trial[] = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+      // Only include test-phase trials (exclude exercise/practice)
+      for (const t of trials) {
+        if (t.phase === 'test' && t.correct !== false) {
+          allTrials.push(t);
+        }
+      }
+    } catch { /* skip malformed */ }
+  }
+
+  // Group trials by (criterionId, targetId) → array of reaction times
+  const rtMap: Record<string, Record<string, number[]>> = {};
+  for (const t of allTrials) {
+    if (!rtMap[t.criterionId]) rtMap[t.criterionId] = {};
+    if (!rtMap[t.criterionId][t.targetId]) rtMap[t.criterionId][t.targetId] = [];
+    rtMap[t.criterionId][t.targetId].push(t.rt);
+  }
+
+  // Compute overall mean RT and SD for normalization
+  const allRTs = allTrials.map(t => t.rt);
+  const overallMean = allRTs.length > 0 ? allRTs.reduce((a, b) => a + b, 0) / allRTs.length : 0;
+  const overallSD = allRTs.length > 1
+    ? Math.sqrt(allRTs.reduce((sum, rt) => sum + (rt - overallMean) ** 2, 0) / (allRTs.length - 1))
+    : 1;
+
+  return attributes.map(attr => {
+    const targetScores: Record<string, number> = {};
+
+    for (const target of targets) {
+      const rts = rtMap[attr.id]?.[target.id] ?? [];
+      if (rts.length === 0 || overallSD === 0) {
+        targetScores[target.id] = 0;
+        continue;
+      }
+      const meanRT = rts.reduce((a, b) => a + b, 0) / rts.length;
+      // D-score: how much faster/slower than overall mean, normalized by SD, scaled to -100..100
+      // Negative score = faster than average (stronger association)
+      const dScore = (overallMean - meanRT) / overallSD;
+      // Clamp to -100..100
+      targetScores[target.id] = Math.max(-100, Math.min(100, Math.round(dScore * 50)));
+    }
+
+    return {
+      attributeId: attr.id,
+      attributeLabel: attr.label,
+      targetScores,
+    };
+  });
+};
+
+export const getImplicitAssociationResults = async (researchId: string) => {
+  // 1. Find the Implicit Association stage
+  const stageQuery = `
+    SELECT s.id as stage_id, s.name as stage_name
+    FROM stages s
+    WHERE s.research_id = ?
+      AND LOWER(s.name) = 'implicit association'
+    LIMIT 1
+  `;
+  const stageResult = await pool.query(stageQuery, [researchId]);
+  if (stageResult.rows.length === 0) {
+    return { modules: [] };
+  }
+  const stageId = stageResult.rows[0].stage_id;
+
+  // 2. Get modules in this stage
+  const moduleQuery = `
+    SELECT id, name, config FROM modules
+    WHERE research_id = ? AND stage_id = ?
+    ORDER BY order_index
+  `;
+  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+
+  const modules: IATModuleResult[] = [];
+
+  for (const mod of moduleResult.rows) {
+    const testType = detectIATTestType(mod.name);
+    let config: any = {};
+    try {
+      config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+    } catch { /* ignore */ }
+
+    const { primingTime, targets, attributes } = extractIATConfig(config, testType);
+
+    // 3. Get responses for this module (component_id = 'iat-trials')
+    const responsesQuery = `
+      SELECT r.value, r.participant_id, r.created_at
+      FROM responses r
+      WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'iat-trials'
+      ORDER BY r.created_at ASC
+    `;
+    const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
+
+    const scores = computeIATScores(responsesResult.rows, targets, attributes, testType);
+
+    modules.push({
+      moduleId: mod.id,
+      moduleName: mod.name,
+      testType,
+      primingTime,
+      targets,
+      attributes,
+      totalResponses: responsesResult.rows.length,
+      scores,
+    });
+  }
+
+  return { modules };
+};
+
+// ==========================================
+// EYE TRACKING RESULTS
+// ==========================================
+
+interface EyeTrackingStimulus {
+  moduleId: string;
+  moduleName: string;
+  stimulusUrl: string;
+  modality: 'stand_alone' | 'shelf';
+  taskDescription: string;
+  totalResponses: number;
+  uniqueParticipants: number;
+  avgDwellTime: number;
+  avgFixationCount: number;
+  heatmapData: Array<{ x: number; y: number; duration: number }>;
+  fixations: Array<{ x: number; y: number; duration: number; participantId: string; timestamp: number }>;
+  aois: Array<{
+    id: string;
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    dwellTimePercent: number;
+    fixationCount: number;
+    avgDuration: number;
+    participantCount: number;
+  }>;
+  participants: Array<{
+    participantId: string;
+    calibrationQuality: string;
+    integrityScore: string;
+    totalFixations: number;
+    totalDwellTime: number;
+  }>;
+}
+
+/**
+ * Extract Eye Tracking stimulus config from module config.
+ * Searches for file-upload components (stimulus image) and other ET-specific fields.
+ */
+const extractEyeTrackingConfig = (config: any) => {
+  const structure = config?.structure ?? config;
+  const components: any[] = structure?.components ?? [];
+
+  // Find stimulus image URL — look for file-upload component or known IDs
+  let stimulusUrl = '';
+  const fileUploadComp = components.find((c: any) =>
+    c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
+  );
+  if (fileUploadComp?.value) {
+    stimulusUrl = fileUploadComp.value;
+  }
+
+  // Modality: stand_alone or shelf
+  // Detect via 'modality'/'test-mode'/'display-mode' component OR 'is-shelf-task' checkbox
+  let modality: 'stand_alone' | 'shelf' = 'stand_alone';
+  const modalityComp = components.find((c: any) =>
+    c.id === 'modality' || c.id === 'test-mode' || c.id === 'display-mode'
+  );
+  if (modalityComp?.value) {
+    const val = String(modalityComp.value).toLowerCase();
+    if (val.includes('shelf') || val === 'shelf') modality = 'shelf';
+  }
+  // Fallback: checkbox 'is-shelf-task' (value = "true"/"false")
+  if (modality === 'stand_alone') {
+    const shelfCheckbox = components.find((c: any) => c.id === 'is-shelf-task');
+    if (shelfCheckbox?.value === 'true' || shelfCheckbox?.value === true) {
+      modality = 'shelf';
+    }
+  }
+
+  // Task description
+  let taskDescription = '';
+  const descComp = components.find((c: any) =>
+    c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
+  );
+  if (descComp?.value) {
+    taskDescription = descComp.value;
+  } else if (descComp?.placeholder?.text) {
+    taskDescription = descComp.placeholder.text;
+  }
+
+  // AOIs from config (researcher-defined areas of interest)
+  const aoiComp = components.find((c: any) => c.id === 'aois' || c.id === 'areas-of-interest');
+  let configAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }> = [];
+  if (aoiComp?.value) {
+    try {
+      const parsed = typeof aoiComp.value === 'string' ? JSON.parse(aoiComp.value) : aoiComp.value;
+      configAois = Array.isArray(parsed) ? parsed : [];
+    } catch { /* ignore */ }
+  }
+
+  return { stimulusUrl, modality, taskDescription, configAois };
+};
+
+/**
+ * Compute Eye Tracking analytics from gaze response data.
+ * Expected response format: component_id = 'eye-tracking-data'
+ * value = { fixations: [{ x, y, duration, timestamp }], calibrationQuality, integrityScore }
+ */
+const computeEyeTrackingMetrics = (
+  responses: any[],
+  configAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }>,
+) => {
+  type Fixation = { x: number; y: number; duration: number; participantId: string; timestamp: number };
+  const allFixations: Fixation[] = [];
+  const participantMap = new Map<string, { calibrationQuality: string; integrityScore: string; totalFixations: number; totalDwellTime: number }>();
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const fixations: Array<{ x: number; y: number; duration: number; timestamp?: number }> = parsed?.fixations ?? [];
+      const pid = row.participant_id;
+
+      let totalDwell = 0;
+      for (const f of fixations) {
+        allFixations.push({ x: f.x, y: f.y, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
+        totalDwell += f.duration;
+      }
+
+      participantMap.set(pid, {
+        calibrationQuality: parsed?.calibrationQuality ?? 'unknown',
+        integrityScore: parsed?.integrityScore ?? 'unknown',
+        totalFixations: fixations.length,
+        totalDwellTime: totalDwell,
+      });
+    } catch { /* skip malformed */ }
+  }
+
+  // Heatmap data: aggregate fixation positions with duration as weight
+  const heatmapData = allFixations.map(f => ({ x: f.x, y: f.y, duration: f.duration }));
+
+  // Total dwell time across all fixations
+  const totalDwellTime = allFixations.reduce((sum, f) => sum + f.duration, 0);
+
+  // Compute AOI metrics
+  const aois = configAois.map(aoi => {
+    const insideFixations = allFixations.filter(f =>
+      f.x >= aoi.x && f.x <= aoi.x + aoi.width &&
+      f.y >= aoi.y && f.y <= aoi.y + aoi.height
+    );
+
+    const aoiDwellTime = insideFixations.reduce((sum, f) => sum + f.duration, 0);
+    const uniqueParticipants = new Set(insideFixations.map(f => f.participantId));
+
+    return {
+      ...aoi,
+      dwellTimePercent: totalDwellTime > 0 ? Math.round((aoiDwellTime / totalDwellTime) * 100) : 0,
+      fixationCount: insideFixations.length,
+      avgDuration: insideFixations.length > 0
+        ? Math.round(insideFixations.reduce((sum, f) => sum + f.duration, 0) / insideFixations.length)
+        : 0,
+      participantCount: uniqueParticipants.size,
+    };
+  });
+
+  const uniqueParticipants = new Set(allFixations.map(f => f.participantId));
+  const avgDwellTime = uniqueParticipants.size > 0
+    ? Math.round(totalDwellTime / uniqueParticipants.size)
+    : 0;
+  const avgFixationCount = uniqueParticipants.size > 0
+    ? Math.round(allFixations.length / uniqueParticipants.size)
+    : 0;
+
+  const participants = Array.from(participantMap.entries()).map(([pid, data]) => ({
+    participantId: pid,
+    ...data,
+  }));
+
+  return {
+    uniqueParticipants: uniqueParticipants.size,
+    avgDwellTime,
+    avgFixationCount,
+    heatmapData,
+    fixations: allFixations,
+    aois,
+    participants,
+  };
+};
+
+export const getEyeTrackingResults = async (researchId: string) => {
+  // 1. Find the Eye Tracking stage
+  const stageQuery = `
+    SELECT s.id as stage_id, s.name as stage_name
+    FROM stages s
+    WHERE s.research_id = ?
+      AND LOWER(s.name) = 'eye tracking'
+    LIMIT 1
+  `;
+  const stageResult = await pool.query(stageQuery, [researchId]);
+  if (stageResult.rows.length === 0) {
+    return { stimuli: [] };
+  }
+  const stageId = stageResult.rows[0].stage_id;
+
+  // 2. Get modules in this stage
+  const moduleQuery = `
+    SELECT id, name, config FROM modules
+    WHERE research_id = ? AND stage_id = ?
+    ORDER BY order_index
+  `;
+  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+
+  const stimuli: EyeTrackingStimulus[] = [];
+
+  for (const mod of moduleResult.rows) {
+    let config: any = {};
+    try {
+      config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+    } catch { /* ignore */ }
+
+    const { stimulusUrl, modality, taskDescription, configAois } = extractEyeTrackingConfig(config);
+
+    // 3. Get responses for this module (component_id = 'eye-tracking-data')
+    const responsesQuery = `
+      SELECT r.value, r.participant_id, r.created_at
+      FROM responses r
+      WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'eye-tracking-data'
+      ORDER BY r.created_at ASC
+    `;
+    const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
+
+    const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois);
+
+    stimuli.push({
+      moduleId: mod.id,
+      moduleName: mod.name,
+      stimulusUrl,
+      modality,
+      taskDescription,
+      totalResponses: responsesResult.rows.length,
+      ...metrics,
+    });
+  }
+
+  return { stimuli };
+};
+
+// ==========================================
+// CLIENT'S BENCHMARK RESULTS
+// ==========================================
+
+interface BenchmarkAOI {
+  id: string;
+  label: string;
+  dwellTimePercent: number;
+  fixationCount: number;
+  avgDuration: number;
+  participantCount: number;
+}
+
+interface BenchmarkResearchResult {
+  researchId: string;
+  researchName: string;
+  modules: Array<{
+    moduleId: string;
+    moduleName: string;
+    stimulusUrl: string;
+    uniqueParticipants: number;
+    totalResponses: number;
+    aois: BenchmarkAOI[];
+  }>;
+}
+
+/**
+ * Get benchmark comparison data for a Client's Benchmark research.
+ * Reads selected research IDs from config.stimuli, fetches Eye Tracking
+ * AOI metrics (% Attention + fixation count) from each.
+ */
+export const getBenchmarkResults = async (researchId: string) => {
+  // 1. Get the benchmark research config to find selected research IDs
+  const configQuery = `SELECT config FROM researches WHERE id = ?`;
+  const configResult = await pool.query(configQuery, [researchId]);
+  if (configResult.rows.length === 0) {
+    throw new Error('Benchmark research not found');
+  }
+
+  let config: any = {};
+  try {
+    config = typeof configResult.rows[0].config === 'string'
+      ? JSON.parse(configResult.rows[0].config)
+      : configResult.rows[0].config;
+  } catch { /* ignore */ }
+
+  const stimuli: Array<{ researchId: string }> = config?.stimuli || [];
+  const selectedResearchIds = stimuli.map(s => s.researchId).filter(Boolean);
+
+  if (selectedResearchIds.length === 0) {
+    return { researches: [] };
+  }
+
+  const researches: BenchmarkResearchResult[] = [];
+
+  for (const targetResearchId of selectedResearchIds) {
+    // Get research name
+    const nameQuery = `SELECT name FROM researches WHERE id = ?`;
+    const nameResult = await pool.query(nameQuery, [targetResearchId]);
+    const researchName = nameResult.rows[0]?.name || 'Unknown Research';
+
+    // Find Eye Tracking stage
+    const stageQuery = `
+      SELECT s.id as stage_id
+      FROM stages s
+      WHERE s.research_id = ? AND LOWER(s.name) = 'eye tracking'
+      LIMIT 1
+    `;
+    const stageResult = await pool.query(stageQuery, [targetResearchId]);
+    if (stageResult.rows.length === 0) {
+      researches.push({ researchId: targetResearchId, researchName, modules: [] });
+      continue;
+    }
+    const stageId = stageResult.rows[0].stage_id;
+
+    // Get modules in the Eye Tracking stage
+    const moduleQuery = `
+      SELECT id, name, config FROM modules
+      WHERE research_id = ? AND stage_id = ?
+      ORDER BY order_index
+    `;
+    const moduleResult = await pool.query(moduleQuery, [targetResearchId, stageId]);
+
+    const modules: BenchmarkResearchResult['modules'] = [];
+
+    for (const mod of moduleResult.rows) {
+      let modConfig: any = {};
+      try {
+        modConfig = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
+      } catch { /* ignore */ }
+
+      const { stimulusUrl, configAois } = extractEyeTrackingConfig(modConfig);
+
+      // Get responses
+      const responsesQuery = `
+        SELECT r.value, r.participant_id
+        FROM responses r
+        WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'eye-tracking-data'
+        ORDER BY r.created_at ASC
+      `;
+      const responsesResult = await pool.query(responsesQuery, [targetResearchId, mod.id]);
+
+      const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois);
+
+      modules.push({
+        moduleId: mod.id,
+        moduleName: mod.name,
+        stimulusUrl,
+        uniqueParticipants: metrics.uniqueParticipants,
+        totalResponses: responsesResult.rows.length,
+        aois: metrics.aois.map(aoi => ({
+          id: aoi.id,
+          label: aoi.label,
+          dwellTimePercent: aoi.dwellTimePercent,
+          fixationCount: aoi.fixationCount,
+          avgDuration: aoi.avgDuration,
+          participantCount: aoi.participantCount,
+        })),
+      });
+    }
+
+    researches.push({ researchId: targetResearchId, researchName, modules });
+  }
+
+  return { researches };
 };

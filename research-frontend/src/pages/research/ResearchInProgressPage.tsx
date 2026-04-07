@@ -4,6 +4,7 @@ import { type Research } from '../../services/research.service';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
+import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
 import { ClipboardList, ArrowRight, Calendar, Folder, Trash2 } from 'lucide-react';
 
 export const ResearchInProgressPage = () => {
@@ -48,11 +49,10 @@ export const ResearchInProgressPage = () => {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                    <p className="mt-4 text-gray-600">Loading researches...</p>
-                </div>
+            <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 sm:px-6 lg:px-8">
+                <ResearchCardSkeleton />
+                <ResearchCardSkeleton />
+                <ResearchCardSkeleton />
             </div>
         );
     }

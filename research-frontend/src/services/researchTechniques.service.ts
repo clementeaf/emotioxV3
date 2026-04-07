@@ -1,10 +1,17 @@
 import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
 
+export interface DefaultStageRef {
+    name: string;
+    order: number;
+    is_default: boolean;
+}
+
 export interface ResearchTechnique {
     id: string;
     name: string;
     description: string;
+    default_stages?: DefaultStageRef[] | null;
     created_by: string;
     is_active: boolean;
     created_at: string;

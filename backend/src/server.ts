@@ -66,7 +66,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Convert Express request to Lambda event format and handle with context
 app.use(async (req, res) => {

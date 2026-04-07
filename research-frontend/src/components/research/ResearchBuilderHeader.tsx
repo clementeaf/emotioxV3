@@ -11,6 +11,10 @@ interface ResearchBuilderHeaderProps {
     onSave: () => void;
     isSmartVOCStage?: boolean;
     smartVOCStageName?: string;
+    /** Generic collection stage (Cognitive Tasks, Implicit Association, etc.) */
+    isCollectionStage?: boolean;
+    collectionStageName?: string;
+    // Legacy props — mapped internally
     isCognitiveTasksStage?: boolean;
     cognitiveTasksStageName?: string;
     modules?: Module[];
@@ -29,11 +33,19 @@ export const ResearchBuilderHeader = ({
     onSave,
     isSmartVOCStage = false,
     smartVOCStageName,
+    isCollectionStage: isCollectionStageProp,
+    collectionStageName: collectionStageNameProp,
     isCognitiveTasksStage = false,
     cognitiveTasksStageName,
     modules = [],
     onModuleJump,
 }: ResearchBuilderHeaderProps) => {
+    // Support both new generic props and legacy Cognitive Tasks props
+    const isCollectionStage = isCollectionStageProp ?? isCognitiveTasksStage;
+    const collectionStageName = collectionStageNameProp ?? cognitiveTasksStageName ?? 'Module Collection';
+
+    const isMultiModuleStage = isSmartVOCStage || isCollectionStage;
+
     return (
         <div className="mb-8 border-b border-gray-200 pb-4">
             <div className="flex items-center justify-between">
@@ -49,10 +61,10 @@ export const ResearchBuilderHeader = ({
                                 <Boxes className="h-6 w-6 text-gray-400" />
                                 {smartVOCStageName || 'Smart VOC'}
                             </>
-                        ) : isCognitiveTasksStage ? (
+                        ) : isCollectionStage ? (
                             <>
                                 <Boxes className="h-6 w-6 text-gray-400" />
-                                {cognitiveTasksStageName || 'Cognitive Tasks'}
+                                {collectionStageName}
                             </>
                         ) : activeModule ? (
                             <>
@@ -68,15 +80,15 @@ export const ResearchBuilderHeader = ({
                             ? 'Manage general settings and information'
                             : isSmartVOCStage
                                 ? 'Configure all Smart VOC questions in a unified view'
-                                : isCognitiveTasksStage
-                                    ? 'Configure all Cognitive Task modules in a unified view'
+                                : isCollectionStage
+                                    ? `Configure all ${collectionStageName} modules in a unified view`
                                     : activeModule
                                         ? activeModule.description || 'Configure this module'
                                         : 'Research Builder'}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {(isSmartVOCStage || isCognitiveTasksStage) && modules.length > 0 && onModuleJump && (
+                    {isMultiModuleStage && modules.length > 0 && onModuleJump && (
                         <div className="w-48">
                             <Select
                                 placeholder="Jump to module..."
@@ -86,7 +98,7 @@ export const ResearchBuilderHeader = ({
                             />
                         </div>
                     )}
-                    {(activeModule || isSmartVOCStage || isCognitiveTasksStage) && (
+                    {(activeModule || isMultiModuleStage) && (
                         <Button onClick={onSave} isLoading={isSaving} disabled={isSaving}>
                             <Save className="h-4 w-4 mr-2" />
                             Save Changes
@@ -97,4 +109,3 @@ export const ResearchBuilderHeader = ({
         </div>
     );
 };
-

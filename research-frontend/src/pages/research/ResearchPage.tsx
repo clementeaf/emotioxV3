@@ -6,7 +6,8 @@ import { CreateEnterpriseModal } from '../../components/research/CreateEnterpris
 import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { ArrowRight, Calendar, Folder, Plus, Trash2 } from 'lucide-react';
+import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
+import { ArrowRight, Calendar, Folder, Plus, Trash2, FlaskConical, Building2 } from 'lucide-react';
 import type { Research } from '../../services/research.service';
 
 /**
@@ -47,7 +48,7 @@ const ResearchCard = memo(({
                         <p className="text-gray-600 mb-4">{research.description}</p>
                     )}
 
-                    <div className="flex items-center gap-6 text-sm text-gray-500">
+                    <div className="flex items-center gap-6 text-sm text-gray-500 flex-wrap">
                         <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
                             <span>Created {formattedDate}</span>
@@ -58,6 +59,18 @@ const ResearchCard = memo(({
                                 {research.research_type_name || 'Unknown Type'}
                             </span>
                         </div>
+                        {research.research_technique_name && (
+                            <div className="flex items-center gap-2">
+                                <FlaskConical className="h-4 w-4" />
+                                <span>{research.research_technique_name}</span>
+                            </div>
+                        )}
+                        {research.enterprise_name && (
+                            <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                <span>{research.enterprise_name}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -152,9 +165,8 @@ export const ResearchPage = () => {
                     </div>
                 </div>
 
-                <CreateResearchForm onSuccess={(researchId) => {
+                <CreateResearchForm onSuccess={() => {
                     setShowCreateForm(false);
-                    navigate(`/research/${researchId}/builder`);
                 }} />
 
                 <CreateResearchTechniqueModal
@@ -172,11 +184,10 @@ export const ResearchPage = () => {
 
     if (isLoading) {
         return (
-            <div className="h-full w-full flex items-center justify-center">
-                <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-                    <p className="mt-4 text-gray-600">Loading researches...</p>
-                </div>
+            <div className="flex h-full w-full flex-col gap-4 overflow-hidden p-4 sm:p-5 lg:p-6">
+                <ResearchCardSkeleton />
+                <ResearchCardSkeleton />
+                <ResearchCardSkeleton />
             </div>
         );
     }

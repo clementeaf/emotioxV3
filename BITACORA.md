@@ -5,28 +5,100 @@
 
 ---
 
-## Última actualización: 2026-04-01 (sesión 24)
+## Última actualización: 2026-04-07 (sesión 32)
 
 ---
 
-## Sesión 24: 1 de abril de 2026 — View Progress orphan modules fix (v0.40.1)
+## Sesión 31: 3 de abril de 2026 — Implicit Association: 3 paradigmas + Notes + target selector (v0.50.0)
 
-- **Bug:** Participantes que completaron todo aparecían como "En proceso 57%". Causa: 6 módulos SmartVOC referenciaban un stage eliminado (`stage_id` apuntaba a un registro inexistente en `stages`). El backend los contaba como visibles (14 módulos) pero el participante solo veía 8.
-- **Fix 1:** `INNER JOIN stages` en `getVisibleModuleIdsForProgress` — solo cuenta módulos cuyo stage realmente existe.
-- **Fix 2:** `isModuleConfiguredForProgress` — excluye módulos sin contenido (sin título, sin imágenes, sin items). Replica la lógica de `isModuleConfigured` del participant-frontend.
-- Deploy backend cPanel. Verificado: participantes ahora muestran 100% "Completado".
-- Detalle: `CHANGELOG.md` v0.40.1.
+- **Análisis de diseño.** Revisión de 3 imágenes de técnica (`technique-implicit-v1/v2/v3.png`) + 10 pantallas de Figma (`docs/participant-implicit/`) para entender los 3 paradigmas reales.
+- **Notes panel (research-frontend).** 2 columnas en `ModuleContentEditor`: contenido del builder (izq) + panel informativo (der, 280px) con instrucciones por tipo IAT.
+- **Criteria target selector.** Reemplazo del file upload por `CustomSelect` con opciones "Target 1", "Target 2", etc. Persiste `targetId` en cada criterion. Determina respuesta correcta en participant-frontend.
+- **Renderer reescrito con 3 paradigmas:**
+  - Attribute Testing: 2 pasos (práctica + priming con criteria asignados a targets).
+  - Comparing Attribute: 1 paso Yes/No (Object + Criteria, botones = dimensions).
+  - Objects Comparing: 3 pasos IAT clásico (criteria → targets → combinado).
+- **Traducciones IAT:** 22 claves ES/EN. Fallback i18n en vez de placeholders inglés del template.
+- **Datos verificados en producción:** Research "Probando nuevo" con los 3 tipos configurados (Fanta, Coca cola, Pepsi).
 
 ---
 
-## Sesión 23: 1 de abril de 2026 — Ciudades en Country & City (v0.40.0)
+## Sesión 30: 3 de abril de 2026 — IAT Attribute Testing fixes (v0.49.1)
 
-- **Research UI:** `CountryConfigModal` — nueva sección de ciudades (chips texto libre) cuando granularidad es "País + Ciudad". Cada ciudad con toggle Clasifica/Desclasifica.
-- **Research UI:** Tab de cuotas cambia entre cuotas por ciudad (countryCity) o por país (countryOnly).
-- **Mapper:** `mapCountryConfigToBackend` incluye `cities` en el config. `handleSaveDemographicConfig` crea `demographics.city` como entry separado (validValues + disqualifications).
-- **Participant:** `DemographicsStep` detecta ciudades configuradas → `CustomSelect` en vez de texto libre. Sin ciudades → comportamiento anterior.
-- **Backend:** Sin cambios — `checkDisqualifications` y `tryIncrementQuota` ya manejan `demographic_type = 'city'`.
-- Detalle: `CHANGELOG.md` v0.40.0.
+- **Criteria images:** `IATAttribute` extendido con `imageUrl`/`imageStorageKey`. Resolución S3 unificada para targets y attributes. Trials de bloque 1 y 3 pasan imagen al estímulo.
+- **Criteria distribution:** Primera mitad → izquierda, segunda mitad → derecha. Antes solo criteria[0] iba a la izquierda. `handleSelect` bloque 1 usa `'attr-left'`/`'attr-right'` en vez de IDs fijos.
+- **show-results:** Extrae checkbox del config. Muestra accuracy y avg RT al participante al completar.
+- **Deploy:** participant-frontend desplegado a producción.
+
+---
+
+## Sesión 29: 3 de abril de 2026 — IAT builder completo + Screener builder + participant renderers (v0.49.0)
+
+- **IAT stage type selector:** Drawer "Add Stage" muestra selector de tipo al elegir Implicit Association. Backend recibe `defaultModuleName` para crear el módulo correcto.
+- **IAT builder grid:** Targets/objects en columnas responsivas. `implicitAssociationBuilder.ts` particiona componentes por `groupLabel` (Target N / Object N).
+- **Stage filtering por técnica:** Drawer filtra stages disponibles según `default_stages` de la técnica. Backend expone `technique_default_stages` en el detalle del research.
+- **Screener builder:** Headers por tipo, toggle para checkboxes, `RadioChoicesEditor` grid, hooks de trim/pad para choices.
+- **FileUpload single:** Respeta `fileUpload.multiple` (default false). Fix overflow en grid.
+- **Participant renderers:** IAT motor reescrito (config robusta, imágenes S3, bloques estándar). Eye Tracking mejorado. Screener integrado.
+- **Migraciones 018-019:** Templates IAT corregidos (componentes y asociaciones al stage template).
+- **Verificación de flujo completo:** IAT se guarda correctamente en backend (`config.structure.components`), se entrega vía endpoint público (`extractStructure`), se normaliza en participant-frontend, y se renderiza según tipo detectado por nombre del módulo.
+
+---
+
+## Sesión 28: 1 de abril de 2026 — Technique stage creation fix + backend deploy (v0.48.0)
+
+- **Fix `default_stages`:** "Biometric, Cognitive and Predictive" ahora incluye Research Configuration (order 3). Actualizado en BD producción + migración 016 local.
+- **Fix creación de stages:** `stageTemplateNames` incluye "Research Configuration". Cuando la técnica ya lo define, `addDefaultStage` se salta para respetar el orden de la técnica.
+- **Deploy backend:** cPanel actualizado de v0.42.0 a v0.48.0 (incluye v0.41–v0.47).
+- **Test research creado:** `8682b29e-64f1-4371-b79a-e3472ad86c63` con data en todos los stages para testing de participant-frontend.
+
+---
+
+## Sesión 27: 29 de marzo de 2026 — Design system completo + skeletons + fixes (v0.47.0)
+
+- **Paleta EmotioX propia:** Sistema de colores light completo (surfaces, text, accent, semantic, chart, borders). Documentado en `docs/design-system/emotiox-palette.md`. El hover del accent va mas oscuro en light theme (#0058D4), no mas claro.
+- **Migración accent:** ~50 componentes migrados de `blue-*` hardcoded a tokens `accent` (botones, toggles, checkboxes, focus rings, tabs, links, etc.). Solo quedan `blue-*` en status badges y data viz.
+- **Skeletons:** Eliminados todos los spinners de carga de datos. Nuevo `Skeleton.tsx` con 7 componentes reutilizables. App shell skeleton para bootstrap/Suspense.
+- **Dashboard responsive:** Tabla con colgroup porcentual, truncate en Name/Researcher, sidebar derecho solo en xl+. Filter pills en flex single-row.
+- **Fix filtro tipos:** Comparación `String()` para evitar mismatch number vs string en research_type_id.
+- **Fix auth 400:** Backend sobreescribía AuthError 401 a 400 por "Invalid" en el mensaje. Frontend no llama `/auth/me` sin token.
+
+---
+
+## Sesión 26: 28 de marzo de 2026 — Google-only auth + design system (v0.46.0)
+
+- **Auth:** Eliminado login manual (email/password) y registro. Solo queda Google OAuth. Limpieza completa: store, service, types, ruta `/register`, `RegisterPage.tsx`.
+- **Design system:** Aplicada base del design system Vambe AI en modo light. Plus Jakarta Sans como font principal. Tokens `accent` en Tailwind. Login rediseñado: card blanca, fondo claro, botón Google único.
+- **Regla establecida:** Solo light theme, nunca dark theme.
+
+---
+
+## Sesión 25: 28 de marzo de 2026 — Participant rendering: Screener, IAT, Eye Tracking (v0.45.0)
+
+- **Screener:** `ScreenerRenderer` — reutiliza `ChoiceQuestion` existente. Muestra pregunta + choices con eligibilidad (Qualify/Disqualify). El ruteo se maneja server-side.
+- **Implicit Association:** `ImplicitAssociationRenderer` — motor IAT completo. Instrucciones → priming → trials (texto/imagen) → feedback → guardado automático. Teclado E/I + botones touch. Soporta Attribute Testing, Comparing Attribute, Objects Comparing. Extrae config del módulo (targets, attributes, priming time).
+- **Eye Tracking:** `EyeTrackingRenderer` — MVP con click/tap tracking como proxy de eye tracking. Instrucciones → imagen estímulo con countdown → registra clicks como fixations en coordenadas naturales. Resuelve URLs de S3 via mediaService.
+- **Integración:** `DynamicStep` delega a los 3 nuevos renderers. `useNavigation` incluye nuevos steps. `ResearchPage` mapea nombres, valida configuración, oculta botón para IAT/ET (auto-advance interno).
+- Los 3 renderers producen exactamente el formato de respuesta que los endpoints de analytics ya esperan.
+- Pendiente: webcam eye tracking (WebGazer.js) como mejora futura.
+
+---
+
+## Sesión 24: 28 de marzo de 2026 — Eye Tracking results (v0.44.0)
+
+- **Backend:** Endpoint `GET /analytics/research/:id/eye-tracking` — extrae config de estímulos y computa métricas de heatmap/fixaciones/AOI.
+- **Research UI:** `EyeTrackingResults` con cards por estímulo, toggle heatmap/image, lista AOI, descarga de imagen.
+- Nueva tab "Eye Tracking" en `ResearchResultsPage`.
+- Datos aparecerán cuando el participant-frontend implemente el flujo (`component_id = 'eye-tracking-data'`).
+
+---
+
+## Sesión 23: 28 de marzo de 2026 — Implicit Association results (v0.43.0)
+
+- **Backend:** Nuevo endpoint analytics para Implicit Association. Detecta tipo de test por nombre del módulo, extrae targets/attributes/priming del config, computa D-scores desde tiempos de reacción.
+- **Research UI:** Componente `ImplicitAssociationResults` con 3 gráficos: RadarChart (Attribute Testing), BarChart agrupado (Comparing Attribute), BarChart horizontal divergente (Objects Comparing). Nueva tab en `ResearchResultsPage`.
+- Los gráficos muestran la configuración del módulo con scores en 0 hasta que existan respuestas de participantes (`component_id = 'iat-trials'`).
+- Ver `CHANGELOG.md` v0.43.0 para detalle.
 
 ---
 

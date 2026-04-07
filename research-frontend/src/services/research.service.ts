@@ -39,6 +39,8 @@ export interface Research {
     research_type_id: string;
     research_type_name?: string;
     research_technique_name?: string;
+    enterprise_name?: string;
+    technique_default_stages?: { name: string; order: number; is_default?: boolean }[] | null;
     created_by?: string;
     creator_first_name?: string;
     creator_last_name?: string;
@@ -46,6 +48,7 @@ export interface Research {
     created_at: string;
     updated_at: string;
     stages?: Stage[];
+    settings?: Record<string, unknown>;
 }
 
 export interface CreateResearchData {
@@ -54,12 +57,15 @@ export interface CreateResearchData {
     research_type_id: string;
     enterprise_id?: string;
     research_technique_id?: string;
+    settings?: Record<string, unknown>;
 }
 
 export interface UpdateResearchData {
     title?: string;
+    name?: string;
     description?: string;
     research_type_id?: string;
+    settings?: Record<string, unknown>;
 }
 
 export interface ResearchResponse {
@@ -235,12 +241,13 @@ class ResearchService {
      * @returns Stage creado
      * @throws ApiErrorResponse si falla la creación
      */
-    async addStage(researchId: string, name: string, description?: string): Promise<{ stage: Stage }> {
+    async addStage(researchId: string, name: string, description?: string, defaultModuleName?: string): Promise<{ stage: Stage }> {
         try {
             const endpoint = configService.getEndpoint('research', 'stages', { id: researchId });
             return await apiClient.post<{ stage: Stage }>(endpoint, {
                 name,
                 description,
+                ...(defaultModuleName ? { defaultModuleName } : {}),
             });
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to add stage');

@@ -8,11 +8,17 @@ import type { Module } from '../services/public.service';
 const DEFAULT_STEPS_ORDER = [
     'welcome',
     'demographics',
+    // Screener
+    'screener',
     // SmartVOC
     'csat', 'nps', 'ces', 'cv', 'nev', 'voc',
+    // Implicit Association (individual module types)
+    'attribute-testing', 'comparing-attribute', 'objects-comparing',
     // Cognitive Tasks
     'short-text', 'long-text', 'single-choice', 'multiple-choice',
     'linear-scale', 'ranking', 'navigation-flow', 'preference-test',
+    // Eye Tracking
+    'eye-tracking',
     'thank-you'
 ];
 
