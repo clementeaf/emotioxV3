@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         working-directory: research-frontend
         run: |
-          rm -rf node_modules package-lock.json
           npm install --no-audit
+          npm install @rollup/rollup-linux-x64-gnu --no-save
 
       - name: Clean previous build
         working-directory: research-frontend
