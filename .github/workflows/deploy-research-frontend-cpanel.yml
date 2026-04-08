@@ -24,12 +24,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: research-frontend/package-lock.json
 
       - name: Install dependencies
         working-directory: research-frontend
-        run: npm install --prefer-offline --no-audit --include=optional
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install --no-audit
 
       - name: Clean previous build
         working-directory: research-frontend
