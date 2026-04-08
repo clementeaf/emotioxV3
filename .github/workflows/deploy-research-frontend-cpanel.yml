@@ -29,7 +29,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: research-frontend
-        run: npm install
+        run: npm install --prefer-offline --no-audit --include=optional
 
       - name: Clean previous build
         working-directory: research-frontend
