@@ -713,6 +713,7 @@ const FileUploadEditorComponent = ({ component, value, onChange, researchId }: F
                 onHitzoneEdit={showHitzoneEditor ? handleHitzoneEdit : undefined}
                 showHitzoneEditor={showHitzoneEditor}
                 researchId={researchId}
+                listOnly={component.settings?.listOnly === true}
             />
             {hitzoneModalOpen && hitzoneFile && typeof window !== 'undefined' && ReactDOM.createPortal(
                 <div className="fixed inset-0 w-screen h-screen top-0 left-0 flex items-center justify-center bg-black bg-opacity-40 m-0 p-0" style={{ zIndex: 10000 }}>

@@ -47,6 +47,8 @@ interface FileUploadAdvancedProps {
     disabled?: boolean;
     className?: string;
     researchId?: string; // For S3 upload
+    /** When true, show only filename list instead of image previews */
+    listOnly?: boolean;
     onUploadStart?: () => void;
     onUploadComplete?: () => void;
     onUploadError?: (error: Error) => void;
@@ -71,6 +73,7 @@ export const FileUploadAdvanced = ({
     disabled = false,
     className,
     researchId,
+    listOnly = false,
     onUploadStart,
     onUploadComplete,
     onUploadError,
@@ -544,6 +547,10 @@ export const FileUploadAdvanced = ({
                 </label>
             )}
 
+            {description && (
+                <p className="text-sm text-gray-500">{description}</p>
+            )}
+
             <div
                 className={cn(
                     'relative border-2 border-dashed rounded-lg p-6 transition-colors',
@@ -569,7 +576,7 @@ export const FileUploadAdvanced = ({
                     disabled={disabled}
                 />
 
-                {localFiles.length > 0 ? (
+                {localFiles.length > 0 && !listOnly ? (
                     <div className="w-full space-y-3">
                         <div className="grid gap-3">
                             {localFiles.map((file) => {
@@ -765,15 +772,36 @@ export const FileUploadAdvanced = ({
                 )}
             </div>
 
-            {description && (
-                <p className="text-sm text-gray-500">{description}</p>
-            )}
-
             {error && (
                 <p className="text-sm text-red-500">{error}</p>
             )}
 
-            {localFiles.length > 0 && (
+            {/* listOnly: simple filename list with delete buttons */}
+            {listOnly && localFiles.length > 0 && (
+                <div className="space-y-1">
+                    {localFiles.map((file, i) => {
+                        const hasError = file.status === 'error';
+                        return (
+                            <div key={file.id} className="flex items-center justify-between py-1.5 text-sm">
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-gray-400">📎</span>
+                                    <span className={hasError ? 'text-red-500' : 'text-gray-700'}>{file.name || `File-${String(i + 1).padStart(2, '0')}`}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(file.id)}
+                                    className="p-1 text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+                                    title="Delete"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {localFiles.length > 0 && !listOnly && (
                 <div className="bg-gray-50 p-3 border border-gray-200 rounded-md">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Preview - How participants will see this

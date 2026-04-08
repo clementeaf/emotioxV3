@@ -75,6 +75,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const { moduleId } = useParams<{ moduleId?: string }>();
     const queryClient = useQueryClient();
     const toast = useToast();
+    const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
     
     const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
@@ -385,6 +386,24 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
             {/* Research Details */}
             <div className="flex-1 p-4 space-y-6 overflow-y-auto scrollbar-hide">
+                <div>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                        User
+                    </h3>
+                    <p className="text-sm font-medium text-gray-900">
+                        {user ? `${user.first_name} ${user.last_name}` : '—'}
+                    </p>
+                </div>
+
+                <div>
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                        Enterprise
+                    </h3>
+                    <p className="text-sm font-medium text-gray-900">
+                        {activeResearch.enterprise_name || '—'}
+                    </p>
+                </div>
+
                 <div>
                     <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
                         Research Type

@@ -1683,20 +1683,19 @@ const extractEyeTrackingConfig = (config: any) => {
   const structure = config?.structure ?? config;
   const components: any[] = structure?.components ?? [];
 
-  // Find stimulus image URL — look for file-upload component or known IDs
+  // Find stimulus image URL — canonical ID: 'stimuli', fallback to known IDs
   let stimulusUrl = '';
   const fileUploadComp = components.find((c: any) =>
-    c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
+    c.id === 'stimuli' || c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
   );
   if (fileUploadComp?.value) {
     stimulusUrl = fileUploadComp.value;
   }
 
-  // Modality: stand_alone or shelf
-  // Detect via 'modality'/'test-mode'/'display-mode' component OR 'is-shelf-task' checkbox
+  // Modality — canonical ID: 'display-mode', fallback to legacy IDs
   let modality: 'stand_alone' | 'shelf' = 'stand_alone';
   const modalityComp = components.find((c: any) =>
-    c.id === 'modality' || c.id === 'test-mode' || c.id === 'display-mode'
+    c.id === 'display-mode' || c.id === 'modality' || c.id === 'test-mode'
   );
   if (modalityComp?.value) {
     const val = String(modalityComp.value).toLowerCase();
@@ -1710,10 +1709,10 @@ const extractEyeTrackingConfig = (config: any) => {
     }
   }
 
-  // Task description
+  // Task description — canonical ID: 'task-instructions', fallback to legacy IDs
   let taskDescription = '';
   const descComp = components.find((c: any) =>
-    c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
+    c.id === 'task-instructions' || c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
   );
   if (descComp?.value) {
     taskDescription = descComp.value;

@@ -7,7 +7,7 @@ import { configService } from './api/config.service';
  * Backend returns paths like /api/media/research/... which need the backend origin prepended
  * when the frontend runs on a different origin (e.g. localhost dev).
  */
-function resolveMediaUrl(url: string): string {
+export function resolveMediaUrl(url: string): string {
     if (!url || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
         return url;
     }

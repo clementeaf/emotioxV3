@@ -4,6 +4,7 @@ import type { ModuleConfig } from '../../types/module';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText } from '../../utils/moduleComponent';
 import { mediaService } from '../../services/media.service';
+import { useBlazeGaze } from '../../hooks/useBlazeGaze';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +44,20 @@ const CALIBRATION_POINTS: Omit<CalibrationPoint, 'completed'>[] = [
     { id: 6, x: 5, y: 92 },  { id: 7, x: 50, y: 92 },  { id: 8, x: 95, y: 92 },
 ];
 
+// Gaze collection polling interval (ms)
+const GAZE_POLL_MS = 50;
+
+// ---------------------------------------------------------------------------
+// Device detection
+// ---------------------------------------------------------------------------
+
+function getDeviceType(): 'desktop' | 'tablet' | 'mobile' {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('ipad') || (ua.includes('tablet') && !ua.includes('mobile'))) return 'tablet';
+    if (/android|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(ua)) return 'mobile';
+    return 'desktop';
+}
+
 // ---------------------------------------------------------------------------
 // Config extraction (mirrors backend)
 // ---------------------------------------------------------------------------
@@ -50,9 +65,10 @@ const CALIBRATION_POINTS: Omit<CalibrationPoint, 'completed'>[] = [
 const extractConfig = (module: ModuleConfig) => {
     const components = module.structure?.components || [];
 
+    // Stimulus URL — canonical ID: 'stimuli', fallback to any file-upload
     let stimulusUrl = '';
     const fileUploadComp = components.find(c =>
-        c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
+        c.id === 'stimuli' || c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
     );
     if (fileUploadComp) {
         const raw = getComponentText(fileUploadComp);
@@ -71,37 +87,49 @@ const extractConfig = (module: ModuleConfig) => {
         }
     }
 
-    let modality: 'stand_alone' | 'shelf' = 'stand_alone';
-    const modalityComp = components.find(c =>
-        c.id === 'modality' || c.id === 'test-mode' || c.id === 'display-mode'
-    );
-    if (modalityComp) {
-        const val = getComponentText(modalityComp).toLowerCase();
-        if (val.includes('shelf')) modality = 'shelf';
-    }
-
+    // Task description — canonical ID: 'task-instructions'
     let taskDescription = '';
     const descComp = components.find(c =>
-        c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
+        c.id === 'task-instructions' || c.id === 'task-description' || c.id === 'question-title' || c.id === 'description'
     );
     if (descComp) {
         taskDescription = getComponentText(descComp) || descComp.placeholder?.text || '';
     }
 
+    // Viewing duration — canonical ID: 'priming-time' (value in seconds, convert to ms)
     let viewingDuration = 10000;
     const durationComp = components.find(c =>
-        c.id === 'viewing-duration' || c.id === 'duration' || c.id === 'exposure-time'
+        c.id === 'priming-time' || c.id === 'viewing-duration' || c.id === 'duration' || c.id === 'exposure-time'
     );
     if (durationComp) {
-        const parsed = parseInt(getComponentText(durationComp), 10);
-        if (!isNaN(parsed) && parsed > 0) viewingDuration = parsed;
+        const raw = getComponentText(durationComp);
+        const parsed = parseInt(raw, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+            // priming-time stores seconds (5, 10, 15, 20, 30); legacy stores ms
+            viewingDuration = parsed <= 60 ? parsed * 1000 : parsed;
+        }
     }
 
-    return { stimulusUrl, modality, taskDescription, viewingDuration };
+    // Display mode — canonical ID: 'display-mode'
+    let displayMode: 'stand_alone' | 'shelf' = 'stand_alone';
+    const modeComp = components.find(c => c.id === 'display-mode');
+    if (modeComp) {
+        const val = getComponentText(modeComp).toLowerCase();
+        if (val === 'shelf') displayMode = 'shelf';
+    }
+
+    // Feature toggles
+    const emotionRecognition = components.find(c => c.id === 'emotion-recognition');
+    const hasEmotionRecognition = emotionRecognition ? getComponentText(emotionRecognition) === 'true' : true;
+
+    const attentionMeasurement = components.find(c => c.id === 'attention-measurement');
+    const hasAttentionMeasurement = attentionMeasurement ? getComponentText(attentionMeasurement) === 'true' : true;
+
+    return { stimulusUrl, taskDescription, viewingDuration, displayMode, hasEmotionRecognition, hasAttentionMeasurement };
 };
 
 // ---------------------------------------------------------------------------
-// Step progress pill (shared with IAT)
+// Step progress pill
 // ---------------------------------------------------------------------------
 
 const StepProgressPill: React.FC<{ step: number; total: number; percent: number }> = ({ step, total, percent }) => (
@@ -125,10 +153,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const { t } = useTranslation();
     const { saveResponse } = useParticipantStore();
 
-    const { stimulusUrl, taskDescription, viewingDuration } = useMemo(
-        () => extractConfig(module),
-        [module]
-    );
+    const deviceType = useMemo(() => getDeviceType(), []);
+    const isDesktop = deviceType === 'desktop';
+
+    const { stimulusUrl, taskDescription, viewingDuration } = useMemo(() => extractConfig(module), [module]);
 
     const [phase, setPhase] = useState<ETPhase>('intro');
     const [resolvedUrl, setResolvedUrl] = useState<string>('');
@@ -141,6 +169,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const fixationsRef = useRef<Fixation[]>([]);
     const naturalSizeRef = useRef<{ w: number; h: number } | null>(null);
     const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
+    const [finalPointCount, setFinalPointCount] = useState(0);
 
     // Setup checkboxes
     const [checks, setChecks] = useState([false, false, false, false]);
@@ -152,6 +181,34 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     );
     const [activeCalibrationPoint, setActiveCalibrationPoint] = useState<number | null>(null);
     const calibrationCompleted = calibrationPoints.every(p => p.completed);
+
+    // --- BlazeGaze (desktop only) ---
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const blaze = useBlazeGaze(videoRef);
+    const gazePointsRef = useRef<{ x: number; y: number; t: number }[]>([]);
+
+    // Camera management
+    const startCamera = useCallback(async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+            });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play();
+            }
+        } catch (err) {
+            console.error('[EyeTrackingRenderer] Camera error:', err);
+        }
+    }, []);
+
+    const stopCamera = useCallback(() => {
+        const video = videoRef.current;
+        if (video?.srcObject) {
+            (video.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+            video.srcObject = null;
+        }
+    }, []);
 
     // Resolve stimulus URL
     useEffect(() => {
@@ -175,6 +232,21 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         return () => { cancelled = true; };
     }, [stimulusUrl]);
 
+    // Gaze collection during viewing phase (desktop with BlazeGaze)
+    useEffect(() => {
+        if (phase !== 'viewing' || !isDesktop) return;
+        const interval = setInterval(() => {
+            if (blaze.gazePos && blaze.gazeState === 'open') {
+                gazePointsRef.current.push({
+                    x: blaze.gazePos.x,
+                    y: blaze.gazePos.y,
+                    t: performance.now(),
+                });
+            }
+        }, GAZE_POLL_MS);
+        return () => clearInterval(interval);
+    }, [phase, isDesktop, blaze.gazePos, blaze.gazeState]);
+
     // Countdown timer during viewing phase
     useEffect(() => {
         if (phase !== 'viewing') return;
@@ -190,6 +262,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }, 1000);
 
         const timeout = setTimeout(() => {
+            setFinalPointCount(isDesktop ? gazePointsRef.current.length : fixationsRef.current.length);
             setPhase('complete');
         }, viewingDuration);
 
@@ -199,26 +272,78 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         };
     }, [phase, viewingDuration]);
 
-    // "Preparing" phase auto-advance after 2s
+    // "Preparing" phase: start camera on desktop, auto-advance
     useEffect(() => {
         if (phase !== 'preparing') return;
+
+        if (isDesktop) {
+            void startCamera();
+        }
+
         const timer = setTimeout(() => setPhase('calibration'), 2000);
         return () => clearTimeout(timer);
-    }, [phase]);
+    }, [phase, isDesktop, startCamera]);
 
     // Auto-advance from calibration to viewing when all points clicked
     useEffect(() => {
         if (phase === 'calibration' && calibrationCompleted) {
+            if (isDesktop) {
+                // Start BlazeGaze tracking loop before viewing
+                blaze.start();
+            }
             const timer = setTimeout(() => setPhase('viewing'), 600);
             return () => clearTimeout(timer);
         }
-    }, [phase, calibrationCompleted]);
+    }, [phase, calibrationCompleted, isDesktop, blaze]);
 
     // Save results when complete
     useEffect(() => {
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
-            const finalFixations = fixationsRef.current;
+
+            // Stop gaze tracking and camera on desktop
+            if (isDesktop) {
+                blaze.stop();
+                stopCamera();
+            }
+
+            let finalFixations: Fixation[];
+            let calibrationQuality: string;
+
+            if (isDesktop && gazePointsRef.current.length > 0) {
+                // Convert gaze screen points to image-relative fixations
+                const img = imgRef.current;
+                const rect = img?.getBoundingClientRect();
+                const natW = naturalSizeRef.current?.w || img?.naturalWidth || 1;
+                const natH = naturalSizeRef.current?.h || img?.naturalHeight || 1;
+
+                finalFixations = gazePointsRef.current
+                    .filter(pt => {
+                        // Only include points that fall on the image
+                        if (!rect) return false;
+                        return pt.x >= rect.left && pt.x <= rect.right &&
+                               pt.y >= rect.top && pt.y <= rect.bottom;
+                    })
+                    .map((pt, i, arr) => {
+                        const relX = (pt.x - (rect?.left || 0)) / (rect?.width || 1);
+                        const relY = (pt.y - (rect?.top || 0)) / (rect?.height || 1);
+                        const duration = i < arr.length - 1
+                            ? Math.round(arr[i + 1].t - pt.t)
+                            : GAZE_POLL_MS;
+                        return {
+                            x: Math.round(relX * natW),
+                            y: Math.round(relY * natH),
+                            duration: Math.min(duration, 5000),
+                            timestamp: Math.round(pt.t),
+                        };
+                    });
+                calibrationQuality = `blazegaze-${blaze.calibrationCount}pt`;
+            } else {
+                // Fallback: click-proxy fixations
+                finalFixations = fixationsRef.current;
+                calibrationQuality = 'click-proxy';
+            }
+
             const responseValue = JSON.stringify({
                 fixations: finalFixations.map(f => ({
                     x: f.x,
@@ -226,15 +351,18 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     duration: f.duration,
                     timestamp: f.timestamp,
                 })),
-                calibrationQuality: 'click-proxy',
-                integrityScore: 1.0,
+                calibrationQuality,
+                integrityScore: isDesktop ? Math.min(gazePointsRef.current.length / 100, 1.0) : 1.0,
+                trackingMethod: isDesktop ? 'blazegaze' : 'click-proxy',
+                deviceType,
+                gazePointCount: isDesktop ? gazePointsRef.current.length : undefined,
             });
             saveResponse(module.id, 'eye-tracking-data', responseValue);
 
             const timer = setTimeout(() => onComplete?.(), 1200);
             return () => clearTimeout(timer);
         }
-    }, [phase, module.id, saveResponse, onComplete]);
+    }, [phase, module.id, saveResponse, onComplete, isDesktop, blaze, stopCamera, deviceType]);
 
     const handleImageLoad = useCallback(() => {
         if (imgRef.current) {
@@ -247,8 +375,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }
     }, []);
 
+    // Click/tap proxy for mobile/tablet during viewing
     const handleImageInteraction = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
         if (phase !== 'viewing' || !imgRef.current) return;
+        // Desktop uses BlazeGaze — skip click capture
+        if (isDesktop) return;
 
         const img = imgRef.current;
         const rect = img.getBoundingClientRect();
@@ -291,19 +422,28 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             fixationsRef.current = next;
             return next;
         });
-    }, [phase]);
+    }, [phase, isDesktop]);
 
-    // Handle calibration point click
+    // Handle calibration point click — feeds BlazeGaze on desktop
     const handleCalibrationClick = useCallback((pointId: number) => {
+        const point = CALIBRATION_POINTS.find(p => p.id === pointId);
+        if (!point) return;
+
+        if (isDesktop) {
+            // Feed BlazeGaze normalized coords (0,0 = center, range -0.5 to 0.5)
+            const normX = (point.x / 100) - 0.5;
+            const normY = (point.y / 100) - 0.5;
+            blaze.calibrate(normX, normY);
+        }
+
         setActiveCalibrationPoint(pointId);
-        // Brief feedback before marking as completed
         setTimeout(() => {
             setCalibrationPoints(prev =>
                 prev.map(p => p.id === pointId ? { ...p, completed: true } : p)
             );
             setActiveCalibrationPoint(null);
         }, 300);
-    }, []);
+    }, [isDesktop, blaze]);
 
     // Toggle a setup checkbox
     const toggleCheck = useCallback((index: number) => {
@@ -313,6 +453,29 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             return next;
         });
     }, []);
+
+    // -----------------------------------------------------------------------
+    // Render helpers (phase content)
+    // -----------------------------------------------------------------------
+
+    const checkLabelsDesktop = [
+        t('eyeTracking.check1', 'I am sitting comfortably in front of my camera and will not lie down, stand, nor move out of position.'),
+        t('eyeTracking.check2', 'My device is stable and on the same level as my face.'),
+        t('eyeTracking.check3', 'My face is well lit with no bright light behind me or from my side.'),
+        t('eyeTracking.check4', 'I will not wear glasses, unless they are required for vision. If they are required, they are not reflecting light and my eyes are clearly visible.'),
+    ];
+    const checkLabelsMobile = [
+        t('eyeTracking.checkMobile1', 'I am holding my device comfortably and it is stable.'),
+        t('eyeTracking.checkMobile2', 'I will focus on the image and tap where my attention goes.'),
+        t('eyeTracking.checkMobile3', 'I am in a quiet environment without distractions.'),
+        t('eyeTracking.checkMobile4', 'I understand my taps will be recorded as attention points.'),
+    ];
+    const checkLabels = isDesktop ? checkLabelsDesktop : checkLabelsMobile;
+
+    const completedCount = calibrationPoints.filter(p => p.completed).length;
+    const calibrationPercent = Math.round(30 + (completedCount / calibrationPoints.length) * 35);
+    const viewingPercent = Math.round(65 + (1 - timeLeft / Math.ceil(viewingDuration / 1000)) * 35);
+    // pointCount: use state (set in save effect) to avoid reading ref during render
 
     // -----------------------------------------------------------------------
     // Unconfigured
@@ -329,11 +492,13 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     }
 
     // -----------------------------------------------------------------------
-    // Phase: intro — "In this section"
+    // Main render — persistent <video> + phase content
     // -----------------------------------------------------------------------
 
+    let phaseContent: React.ReactNode = null;
+
     if (phase === 'intro') {
-        return (
+        phaseContent = (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
                 <div className="w-full max-w-lg space-y-6">
                     <h2 className="text-xl font-bold text-gray-900">
@@ -343,44 +508,50 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         <p className="text-gray-600">{taskDescription}</p>
                     )}
                     <p className="text-gray-600">
-                        {t('eyeTracking.introDescription', 'You will be presented with images. Your eye movements will be tracked to understand what catches your attention.')}
+                        {isDesktop
+                            ? t('eyeTracking.introDescriptionDesktop', 'Your eye movements will be tracked using your webcam to understand what catches your attention.')
+                            : t('eyeTracking.introDescription', 'You will be presented with images. Tap on the areas that catch your attention.')}
                     </p>
-                    <p className="text-gray-600">
-                        {t('eyeTracking.introSpeed', 'Try to look naturally at the content presented on screen.')}
-                    </p>
+                    {isDesktop && (
+                        <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span>{t('eyeTracking.webcamRequired', 'Webcam access will be required')}</span>
+                        </div>
+                    )}
+                    {isDesktop && !blaze.isLoaded && (
+                        <p className="text-amber-600 text-xs">{t('eyeTracking.loadingModel', 'Loading gaze model...')}</p>
+                    )}
                     <button
                         onClick={() => setPhase('setup')}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                        disabled={isDesktop && !blaze.isLoaded}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                        {t('eyeTracking.next', 'Next')}
+                        {isDesktop && !blaze.isLoaded
+                            ? t('eyeTracking.loading', 'Loading...')
+                            : t('eyeTracking.next', 'Next')}
                     </button>
                 </div>
             </div>
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // Phase: setup — camera preview placeholder + 4 checkboxes + "Ready"
-    // -----------------------------------------------------------------------
-
-    if (phase === 'setup') {
-        const checkLabels = [
-            t('eyeTracking.check1', 'I am sitting comfortably in front of my camera and will not lie down, stand, nor move out of position.'),
-            t('eyeTracking.check2', 'My device is stable and on the same level as my face.'),
-            t('eyeTracking.check3', 'My face is well lit with no bright light behind me or from my side.'),
-            t('eyeTracking.check4', 'I will not wear glasses, unless they are required for vision. If they are required, they are not reflecting light and my eyes are clearly visible.'),
-        ];
-
-        return (
+    } else if (phase === 'setup') {
+        phaseContent = (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
                 <StepProgressPill step={1} total={TOTAL_STEPS} percent={30} />
 
                 <div className="w-full max-w-lg space-y-6 mt-8">
                     {/* Camera preview placeholder */}
-                    <div className="w-40 h-32 bg-gray-800 rounded-lg mx-auto flex items-center justify-center">
-                        <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                        </svg>
+                    <div className="w-40 h-32 bg-gray-800 rounded-lg mx-auto flex items-center justify-center overflow-hidden">
+                        {isDesktop ? (
+                            <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        ) : (
+                            <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />
+                            </svg>
+                        )}
                     </div>
 
                     <h2 className="text-xl font-bold text-gray-900">
@@ -390,7 +561,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         {t('eyeTracking.setupSubtitle', 'Please confirm that you meet all of the requirements mentioned below by ticking each of the checkboxes.')}
                     </p>
 
-                    {/* 4 checkboxes */}
+                    {/* Checkboxes */}
                     <div className="space-y-4">
                         {checkLabels.map((label, idx) => (
                             <label key={idx} className="flex items-start gap-3 cursor-pointer">
@@ -415,37 +586,23 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 </div>
             </div>
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // Phase: preparing — brief loading screen
-    // -----------------------------------------------------------------------
-
-    if (phase === 'preparing') {
-        return (
+    } else if (phase === 'preparing') {
+        phaseContent = (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
                 <StepProgressPill step={1} total={TOTAL_STEPS} percent={30} />
 
                 <div className="mt-12 text-center space-y-4">
                     <h2 className="text-xl font-bold text-gray-900">
-                        {t('eyeTracking.preparing', 'Preparing eye tracking session...')}
+                        {isDesktop
+                            ? t('eyeTracking.preparingCamera', 'Starting camera...')
+                            : t('eyeTracking.preparing', 'Preparing session...')}
                     </h2>
-                    {/* Simple spinner */}
                     <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
                 </div>
             </div>
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // Phase: calibration — 9 red points grid
-    // -----------------------------------------------------------------------
-
-    if (phase === 'calibration') {
-        const completedCount = calibrationPoints.filter(p => p.completed).length;
-        const calibrationPercent = Math.round(30 + (completedCount / calibrationPoints.length) * 35);
-
-        return (
+    } else if (phase === 'calibration') {
+        phaseContent = (
             <div className="relative w-full min-h-[400px]" style={{ height: '80vh' }}>
                 {/* Progress pill */}
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
@@ -474,33 +631,22 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         }}
                     >
                         {point.completed ? (
-                            // Green check circle
                             <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
                                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
                         ) : activeCalibrationPoint === point.id ? (
-                            // Active/pulsing state
                             <div className="w-8 h-8 rounded-full bg-red-400 animate-ping" />
                         ) : (
-                            // Red dot
                             <div className="w-6 h-6 rounded-full bg-red-500 hover:bg-red-400 transition-colors cursor-pointer shadow-md" />
                         )}
                     </button>
                 ))}
             </div>
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // Phase: viewing — stimulus image with click tracking
-    // -----------------------------------------------------------------------
-
-    if (phase === 'viewing') {
-        const viewingPercent = Math.round(65 + (1 - timeLeft / Math.ceil(viewingDuration / 1000)) * 35);
-
-        return (
+    } else if (phase === 'viewing') {
+        phaseContent = (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-2 py-4 select-none">
                 <StepProgressPill step={2} total={TOTAL_STEPS} percent={viewingPercent} />
 
@@ -516,7 +662,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 {/* Stimulus image container */}
                 <div
                     ref={containerRef}
-                    className="relative cursor-crosshair max-w-full"
+                    className={`relative max-w-full ${isDesktop ? '' : 'cursor-crosshair'}`}
                     onClick={handleImageInteraction}
                     onTouchStart={handleImageInteraction}
                     onContextMenu={(e) => e.preventDefault()}
@@ -530,8 +676,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         draggable={false}
                         onLoad={handleImageLoad}
                     />
-                    {/* Click indicators */}
-                    {fixations.map((fix, idx) => {
+                    {/* Click indicators (mobile/tablet only — desktop is silent) */}
+                    {!isDesktop && fixations.map((fix, idx) => {
                         const natW = naturalSize?.w || 1;
                         const natH = naturalSize?.h || 1;
                         const left = (fix.x / natW) * 100;
@@ -550,21 +696,17 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     })}
                 </div>
 
-                <p className="mt-3 text-xs text-gray-400">
-                    {t('eyeTracking.clicks', '{{count}} points recorded', {
-                        count: fixations.length,
-                    })}
-                </p>
+                {!isDesktop && (
+                    <p className="mt-3 text-xs text-gray-400">
+                        {t('eyeTracking.clicks', '{{count}} points recorded', {
+                            count: fixations.length,
+                        })}
+                    </p>
+                )}
             </div>
         );
-    }
-
-    // -----------------------------------------------------------------------
-    // Phase: complete
-    // -----------------------------------------------------------------------
-
-    if (phase === 'complete') {
-        return (
+    } else if (phase === 'complete') {
+        phaseContent = (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
                 <StepProgressPill step={3} total={TOTAL_STEPS} percent={100} />
 
@@ -578,14 +720,20 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         {t('eyeTracking.complete', 'Test completed. Thank you!')}
                     </p>
                     <p className="text-sm text-gray-500">
-                        {t('eyeTracking.pointsRecorded', '{{count}} attention points recorded.', {
-                            count: fixations.length,
-                        })}
+                        {isDesktop
+                            ? t('eyeTracking.gazePointsRecorded', '{{count}} gaze samples recorded.', { count: finalPointCount })
+                            : t('eyeTracking.pointsRecorded', '{{count}} attention points recorded.', { count: finalPointCount })}
                     </p>
                 </div>
             </div>
         );
     }
 
-    return null;
+    return (
+        <>
+            {/* Persistent hidden video — never unmounts across phases */}
+            {isDesktop && <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }} />}
+            {phaseContent}
+        </>
+    );
 };

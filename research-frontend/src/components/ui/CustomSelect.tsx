@@ -69,10 +69,15 @@ export const CustomSelect = ({
             document.addEventListener('mousedown', handleClickOutside);
 
             // Calculate dropdown position (viewport coords for position:fixed)
+            // Opens upward if not enough space below
             if (selectRef.current) {
                 const rect = selectRef.current.getBoundingClientRect();
+                // Estimate dropdown height: ~36px per option, capped at 240px
+                const estimatedHeight = Math.min(Math.max(options.length, 1) * 36 + 8, 240);
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const openUpward = spaceBelow < estimatedHeight && rect.top > estimatedHeight;
                 setDropdownPosition({
-                    top: rect.bottom + 4,
+                    top: openUpward ? rect.top - estimatedHeight - 4 : rect.bottom + 4,
                     left: rect.left,
                     width: rect.width
                 });

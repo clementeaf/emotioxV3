@@ -1,3 +1,29 @@
+## v0.42.0 — Eye Tracking: BlazeGaze in survey flow, AOI drawing, canonical IDs (2026-04-08)
+
+### participant-frontend
+- Feat: **BlazeGaze integrated into EyeTrackingRenderer** — desktop participants get real webcam gaze tracking inside the survey flow (not just the standalone test page). Tablet/mobile keeps click-proxy as fallback.
+- Feat: Persistent `<video>` element across all phases — camera stream no longer drops between calibration → viewing transitions.
+- Feat: Response metadata now includes `trackingMethod` (blazegaze/click-proxy), `deviceType`, `gazePointCount`, and real `calibrationQuality` (e.g. `blazegaze-9pt`).
+- Feat: Silent tracking during stimulus on desktop — no visible gaze indicator, gaze collected at 50ms intervals.
+
+### research-frontend
+- Feat: **AOI drawing** in Eye Tracking builder — when a stimulus is uploaded, an "Areas of Interest" section appears below the config. Researcher draws rectangular AOIs on the image, stored as JSON in the `aois` component.
+- Feat: New reusable `AOIDrawer` component — click-drag drawing, SVG overlay, thumbnail list with remove.
+- Feat: **User and Enterprise** shown in builder sidebar before Research Type.
+- Fix: `getById` query now JOINs `enterprises` table so `enterprise_name` is available in research detail.
+- Fix: Exported `resolveMediaUrl` from media service for use outside the service.
+
+### backend
+- Feat: Eye Tracking module template (migration 020) — 10 canonical components: `task-instructions`, `stimuli`, `emotion-recognition`, `attention-measurement`, `priming-time`, `display-mode`, `randomize-stimuli`, `shelf-count`, `shelf-items`, `aois`.
+- Fix: `extractEyeTrackingConfig` in analytics now prioritizes canonical IDs (`stimuli`, `task-instructions`, `display-mode`) with fallback to legacy IDs.
+- Fix: `getById` includes `enterprise_name` via LEFT JOIN.
+
+### alignment
+- All 3 layers (builder, renderer, analytics) now use the same canonical component IDs for Eye Tracking configuration.
+- Template linked to stage template in production — new Eye Tracking stages auto-create a module with all components.
+
+---
+
 ## v0.41.1 — Hybrid Eye Tracking with zone heatmap (2026-04-07)
 
 ### participant-frontend

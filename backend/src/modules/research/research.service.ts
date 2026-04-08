@@ -758,10 +758,12 @@ export const getById = async (researchId: string, userId: string, role?: string)
     SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.config, r.created_at, r.updated_at,
            rt.name as research_type_name,
            rtech.name as research_technique_name,
-           rtech.default_stages as technique_default_stages
+           rtech.default_stages as technique_default_stages,
+           e.name as enterprise_name
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
+    LEFT JOIN enterprises e ON r.enterprise_id = e.id
     WHERE r.id = ? AND ${ownership.clause} AND r.deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, ...ownership.params]);

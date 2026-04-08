@@ -7,6 +7,9 @@ import {
 } from '../../utils/implicitAssociationBuilder';
 import { isScreenerMultipleChoiceSelection, isScreenerSingleChoiceSelection } from '../../utils/screenerBuilder';
 import { EditableComponent } from './EditableComponent';
+import { CustomSelect } from '../ui/CustomSelect';
+import { AOIDrawer, type AOI } from './AOIDrawer';
+import { resolveMediaUrl } from '../../services/media.service';
 
 interface ModuleContentEditorProps {
     components: ComponentConfig[];
@@ -158,6 +161,7 @@ export const ModuleContentEditor = ({
             : undefined;
 
     const normalizedModuleName = moduleName?.trim().toLowerCase() ?? '';
+    const isEyeTracking = normalizedModuleName === 'eye tracking';
     const isAttributeTesting = normalizedModuleName === 'attribute testing';
     const isComparingAttribute = normalizedModuleName === 'comparing attribute';
     const isObjectsComparing = normalizedModuleName === 'objects comparing' || normalizedModuleName === 'object comparing';
@@ -331,6 +335,193 @@ export const ModuleContentEditor = ({
             })}
         </div>
     );
+
+    // Eye Tracking: 3-column layout — stimuli (left), config (center), notes (right)
+    if (isEyeTracking) {
+        const instructionComp = visibleComponents.find(c => c.id === 'task-instructions');
+        const stimuliComp = visibleComponents.find(c => c.type === 'file-upload');
+        const toggleComps = visibleComponents.filter(c => c.type === 'checkbox' && c.id !== 'randomize-stimuli');
+        const primingComp = visibleComponents.find(c => c.id === 'priming-time');
+
+        // AOI state: parse from component value, serialize back on change
+        const aoisRaw = componentValues['aois'] || '[]';
+        let parsedAois: AOI[] = [];
+        try { parsedAois = JSON.parse(aoisRaw); } catch { /* keep empty */ }
+
+        // Resolve first stimulus image URL for AOI drawing
+        const stimuliRaw = stimuliComp ? (componentValues[stimuliComp.id] || '') : '';
+        let firstStimulusUrl = '';
+        try {
+            const parsed = JSON.parse(stimuliRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                const first = parsed[0] as { url?: string; s3Key?: string };
+                const raw = first.url || first.s3Key || '';
+                firstStimulusUrl = raw ? resolveMediaUrl(raw) : '';
+            }
+        } catch { /* no stimulus yet */ }
+
+        return (
+            <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[280px_1fr_240px]">
+                {/* Instruction spans left + center columns — rendered as input, not textarea */}
+                {instructionComp && (
+                    <div className="lg:col-span-2">
+                        <EditableComponent
+                            component={{ ...instructionComp, type: 'input' }}
+                            value={componentValues[instructionComp.id] || ''}
+                            onChange={(value) => onValueChange(instructionComp.id, value)}
+                            researchId={researchId}
+                        />
+                    </div>
+                )}
+                {/* Empty cell for the notes column on the instruction row */}
+                {instructionComp && <div className="hidden lg:block" />}
+
+                {/* Left: Stimuli upload + file list */}
+                    <div className="space-y-3" style={{ minHeight: 380 }}>
+                        {stimuliComp && (
+                            <EditableComponent
+                                component={{ ...stimuliComp, settings: { ...stimuliComp.settings, listOnly: true } }}
+                                value={componentValues[stimuliComp.id] || ''}
+                                onChange={(value) => onValueChange(stimuliComp.id, value)}
+                                researchId={researchId}
+                            />
+                        )}
+                        {/* For Shelf only: Randomize */}
+                        <div className="pt-2 border-t border-gray-100">
+                            <p className="text-xs font-semibold text-gray-900 mb-2">For Shelf only:</p>
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-gray-300 text-blue-600"
+                                    checked={componentValues['randomize-stimuli'] === 'true'}
+                                    onChange={(e) => onValueChange('randomize-stimuli', e.target.checked ? 'true' : 'false')}
+                                />
+                                <span className="font-medium">Randomize options (images)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Center: Task configuration + Priming + Shelf */}
+                    <div className="space-y-5">
+                        <div className="flex items-center gap-3">
+                            <h4 className="text-sm font-semibold text-gray-900">Task configuration</h4>
+                            <span className="text-xs text-gray-400">Please select</span>
+                        </div>
+                        {/* Checkboxes (not toggles) */}
+                        <div className="space-y-3">
+                            {toggleComps.map(comp => (
+                                <label key={comp.id} className="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                                        checked={componentValues[comp.id] === 'true'}
+                                        onChange={(e) => onValueChange(comp.id, e.target.checked ? 'true' : 'false')}
+                                    />
+                                    {comp.label}
+                                </label>
+                            ))}
+                        </div>
+                        {/* Priming display time as tab buttons */}
+                        {primingComp && (
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">{primingComp.label}</label>
+                                <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                                    {(primingComp.options || []).map((opt: { label: string; value: string }) => {
+                                        const selected = (componentValues[primingComp.id] || primingComp.value || '10') === opt.value;
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() => onValueChange(primingComp.id, opt.value)}
+                                                className={`px-4 py-2 text-sm font-medium transition-colors ${
+                                                    selected
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                                                } border-r border-gray-200 last:border-r-0`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        {/* Shelf configuration — always visible */}
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4" style={{ width: 390, minHeight: 352 }}>
+                            <h4 className="text-sm font-semibold text-gray-900 mb-3">Shelf configuration</h4>
+                            <div className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white flex items-center justify-center" style={{ height: 220 }}>
+                                <div className="text-center text-gray-400">
+                                    <svg className="mx-auto h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                                    </svg>
+                                    <p className="text-sm">Shelf preview</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-4 mt-4">
+                                <div className="flex-1">
+                                    <CustomSelect
+                                        label="Number of Shelfs"
+                                        value={componentValues['shelf-count'] || '2'}
+                                        onChange={(val) => onValueChange('shelf-count', val)}
+                                        options={[1, 2, 3, 4, 5].map(n => ({ value: String(n), label: String(n) }))}
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <CustomSelect
+                                        label="Items per Shelf"
+                                        value={componentValues['shelf-items'] || '5'}
+                                        onChange={(val) => onValueChange('shelf-items', val)}
+                                        options={[3, 4, 5, 6, 7, 8, 10].map(n => ({ value: String(n), label: String(n) }))}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right: Techniques notes panel */}
+                    <aside className="space-y-4">
+                        <div className="bg-blue-600 text-white rounded-lg p-4">
+                            <h4 className="text-sm font-bold mb-1">Techniques</h4>
+                            <p className="text-xs text-blue-100">
+                                Get started with notes for better consumer neurosciences research
+                            </p>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                            <p className="text-sm font-semibold text-gray-900">Biometrics:</p>
+                            <p className="text-sm text-gray-700">Eye Tracking</p>
+                            <p className="text-xs font-semibold text-red-600 mt-2">Notes:</p>
+                            <p className="text-xs text-gray-600">
+                                All Eye Tracking tasks include Emotion and Attention measurement.
+                            </p>
+                            <p className="text-xs text-gray-600">
+                                <strong>Eye Tracking</strong> shows what engages people visually. This uncovers nonconscious reactions to visual stimuli that oftentimes is not articulated in survey data alone.
+                            </p>
+                            <p className="text-xs text-gray-600">
+                                <strong>Gaze tracking</strong> reveals what is noticed, what is engaging, and what is not. This allows brands to optimize marketing concepts and assets for both conscious and nonconscious impact.
+                            </p>
+                        </div>
+                    </aside>
+                </div>
+
+                {/* AOI Drawing — shown when a stimulus image is uploaded */}
+                {firstStimulusUrl && (
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3">Areas of Interest (AOI)</h4>
+                        <p className="text-xs text-gray-500 mb-3">
+                            Draw rectangular regions on the stimulus to define areas of interest for analytics.
+                        </p>
+                        <AOIDrawer
+                            imageUrl={firstStimulusUrl}
+                            aois={parsedAois}
+                            onChange={(newAois) => onValueChange('aois', JSON.stringify(newAois))}
+                            maxHeight={400}
+                        />
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     if (!hasIatNotes) {
         return builderContent;

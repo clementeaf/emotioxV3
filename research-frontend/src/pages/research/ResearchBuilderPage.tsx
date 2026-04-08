@@ -657,9 +657,9 @@ export const ResearchBuilderPage = () => {
     }
 
     return (
-        <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
+        <div className="h-full w-full flex flex-col p-3 sm:p-4 lg:p-4 overflow-hidden">
             {!isFileBasedResearch && (
-                <div className="flex-shrink-0 mb-4 sm:mb-5 lg:mb-6">
+                <div className="flex-shrink-0 mb-3">
                     <ResearchBuilderHeader
                         research={typedResearch}
                         activeModule={isSmartVOCStage || isCollectionStageActive ? null : activeModule}
@@ -878,7 +878,7 @@ export const ResearchBuilderPage = () => {
                 {/* Regular module view: Show single module */}
                 {!isFileBasedResearch && !isSmartVOCStage && !isCollectionStageActive && !isResearchConfigModule && activeModule && (
                     <div className="space-y-6">
-                        <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
+                        <div className="rounded-lg shadow-sm border border-gray-100 p-4">
                             <ModuleContentEditor
                                 components={components}
                                 componentValues={componentValues}
