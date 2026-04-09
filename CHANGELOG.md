@@ -1,3 +1,15 @@
+## v0.42.1 — Eye Tracking hybrid: 4×4 grid, calibration & countdown fixes (2026-04-08)
+
+### participant-frontend
+- **Fix: Countdown never finished.** `finishStimulus` in useEffect dependencies caused the interval to restart on every render. Solved with a stable ref.
+- **Fix: Zone mapping used window bounds instead of image bounds.** Gaze points are now mapped relative to the stimulus image's `getBoundingClientRect()`, so zones align with what the participant actually sees.
+- **Improvement: 4×4 grid (16 zones) replaces 3×3 (9 zones).** Each zone covers 25% per axis — better resolution without exceeding BlazeGaze's accuracy.
+- **Improvement: Stronger calibration.** `calibrate()` now captures 3 frames and runs explicit `adapt()` with 5 gradient steps (was lazy `handleClick` only). Runs fire-and-forget so UI stays instant.
+- **Improvement: Less aggressive smoothing.** Alpha raised from 0.10–0.45 to 0.25–0.55 for more responsive zone-level tracking.
+- **Cleanup: Removed legacy `/eye-tracking-test` route** and `EyeTrackingTestPage.tsx`. Only `/eye-tracking-hybrid` remains.
+
+---
+
 ## v0.42.0 — Eye Tracking: BlazeGaze in survey flow, AOI drawing, canonical IDs (2026-04-08)
 
 ### participant-frontend

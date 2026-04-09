@@ -3,20 +3,15 @@ import { WebEyeTrack } from 'webeyetrack';
 import type { GazeResult } from 'webeyetrack';
 
 /**
- * Enhanced BlazeGaze gaze prediction with improved calibration.
- *
- * Key improvements over default WebEyeTrack usage:
- * 1. maxPoints raised to 100 (default 5) — affine correction needs many points
- * 2. clickTTL set to 86400 (24h) — calibration data never expires during session
- * 3. Multi-frame sampling per calibration point (averages out noise)
- * 4. Uses adapt() directly with ptType='calib' and 5 gradient steps (default 1)
- * 5. Continuous refinement: clicks during tracking feed back as calibration data
- * 6. Adaptive smoothing with deadzone for stable output
+ * BlazeGaze gaze prediction hook.
+ * - maxPoints 100, clickTTL 24h (calibration persists during session)
+ * - handleClick + immediate step() for proper eye-feature association
+ * - Light smoothing (alpha 0.5) — optimized for zone-level detection
  */
 
 const MAX_POINTS = 100;
-const CLICK_TTL = 86400; // 24h — effectively never expires
-const ADAPT_LR = 5e-4; // higher LR for refinement adapt
+const CLICK_TTL = 86400;
+const X_OFFSET = 0.03; // compensate consistent left bias
 
 export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>) {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -44,10 +39,7 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
         return () => { cancelled = true; };
     }, []);
 
-    /**
-     * Capture a single frame and return the raw gaze result.
-     * Used internally for multi-frame calibration sampling.
-     */
+    /** Capture a single frame and return raw gaze result. */
     const captureFrame = useCallback(async (): Promise<GazeResult | null> => {
         const video = videoRef.current;
         const tracker = trackerRef.current;
@@ -71,42 +63,14 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
         }
     }, [videoRef]);
 
-    /**
-     * Calibrate with a screen point — instant, no inference.
-     * Stores the click; adaptation happens lazily on the next step() during tracking.
-     */
+    /** Instant calibrate — stores click for lazy adaptation in tracking loop. */
     const calibrate = useCallback((normX: number, normY: number): void => {
         const tracker = trackerRef.current;
         if (!tracker) return;
-        tracker.latestMouseClick = null; // reset debounce so click registers
+        tracker.latestMouseClick = null;
         tracker.handleClick(normX, normY);
         setCalibrationCount(prev => prev + 1);
     }, []);
-
-    /**
-     * Quick calibrate from a click during tracking (continuous refinement).
-     * Uses fewer frames and 'click' type so it eventually expires.
-     */
-    const refinementCalibrate = useCallback(async (screenX: number, screenY: number) => {
-        const tracker = trackerRef.current;
-        if (!tracker) return;
-
-        const normX = (screenX / window.innerWidth) - 0.5;
-        const normY = (screenY / window.innerHeight) - 0.5;
-
-        const result = await captureFrame();
-        if (result && result.gazeState === 'open' && result.eyePatch) {
-            tracker.adapt(
-                [result.eyePatch],
-                [result.headVector],
-                [result.faceOrigin3D],
-                [[normX, normY]],
-                2, // fewer steps for quick refinement
-                ADAPT_LR,
-                'click',
-            );
-        }
-    }, [captureFrame]);
 
     // Tracking loop
     const start = useCallback(() => {
@@ -118,22 +82,12 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
 
             const result = await captureFrame();
             if (result && result.gazeState === 'open' && result.normPog) {
-                const screenX = (result.normPog[0] + 0.5) * window.innerWidth;
+                const screenX = (result.normPog[0] + X_OFFSET + 0.5) * window.innerWidth;
                 const screenY = (result.normPog[1] + 0.5) * window.innerHeight;
 
                 const prev = lastPosRef.current;
                 if (prev) {
-                    const dist = Math.hypot(screenX - prev.x, screenY - prev.y);
-
-                    // Deadzone: ignore jitter under 4px
-                    if (dist < 4) {
-                        setGazeState('open');
-                        if (runningRef.current) rafRef.current = requestAnimationFrame(loop);
-                        return;
-                    }
-
-                    // Adaptive smoothing: heavy for small moves (noise), light for large (saccade)
-                    const alpha = Math.min(0.45, 0.10 + (dist / 250) * 0.35);
+                    const alpha = 0.5;
                     const smoothed = {
                         x: prev.x + alpha * (screenX - prev.x),
                         y: prev.y + alpha * (screenY - prev.y),
@@ -170,6 +124,5 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
         start,
         stop,
         calibrate,
-        refinementCalibrate,
     };
 }

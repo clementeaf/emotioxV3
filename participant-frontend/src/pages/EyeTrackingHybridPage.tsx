@@ -15,36 +15,37 @@ interface TouchPoint { x: number; y: number; t: number }
 
 type Phase = 'intro' | 'instruction' | 'calibrating' | 'stimulus' | 'results';
 
-// --- Calibration targets (9 points — fast) ---
+// --- Calibration targets (16 points — 4x4 grid) ---
 const CALIBRATION_TARGETS: [number, number][] = [
-    [10, 10], [50, 10], [90, 10],
-    [10, 50], [50, 50], [90, 50],
-    [10, 90], [50, 90], [90, 90],
+    [10, 10], [37, 10], [63, 10], [90, 10],
+    [10, 37], [37, 37], [63, 37], [90, 37],
+    [10, 63], [37, 63], [63, 63], [90, 63],
+    [10, 90], [37, 90], [63, 90], [90, 90],
 ];
 
 // --- Stimulus config ---
-const STIMULUS_DURATION_MS = 10_000;
+const NOISE_THRESHOLD_PCT = 10; // Hide zones below this % to filter gaze noise
+// const STIMULUS_DURATION_MS = 10_000; // TODO: re-enable with iris tracking
 const STIMULUS_URL = 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=1200&h=800&fit=crop';
 
-// --- 3x3 AOI grid ---
-const AOI_GRID = [
-    { id: 'tl', label: 'Top Left',      col: 0, row: 0 },
-    { id: 'tc', label: 'Top Center',    col: 1, row: 0 },
-    { id: 'tr', label: 'Top Right',     col: 2, row: 0 },
-    { id: 'ml', label: 'Middle Left',   col: 0, row: 1 },
-    { id: 'mc', label: 'Center',        col: 1, row: 1 },
-    { id: 'mr', label: 'Middle Right',  col: 2, row: 1 },
-    { id: 'bl', label: 'Bottom Left',   col: 0, row: 2 },
-    { id: 'bc', label: 'Bottom Center', col: 1, row: 2 },
-    { id: 'br', label: 'Bottom Right',  col: 2, row: 2 },
-];
+// --- 4x4 AOI grid (16 zones) ---
+const GRID_SIZE = 4;
+const ROW_LABELS = ['Top', 'Upper', 'Lower', 'Bottom'];
+const COL_LABELS = ['Left', 'Center-Left', 'Center-Right', 'Right'];
+const AOI_GRID = Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => {
+    const row = Math.floor(i / GRID_SIZE);
+    const col = i % GRID_SIZE;
+    return { id: `r${row}c${col}`, label: `${ROW_LABELS[row]} ${COL_LABELS[col]}`, col, row };
+});
 
-/** Map a screen point to a 3x3 grid cell id */
-function pointToZone(x: number, y: number, w: number, h: number): string | null {
-    const col = Math.floor((x / w) * 3);
-    const row = Math.floor((y / h) * 3);
-    if (col < 0 || col > 2 || row < 0 || row > 2) return null;
-    return AOI_GRID.find(z => z.col === col && z.row === row)?.id ?? null;
+/** Map a screen point to a 4x4 grid cell id, relative to the image bounds */
+function pointToZone(x: number, y: number, rect: DOMRect): string | null {
+    const relX = x - rect.left;
+    const relY = y - rect.top;
+    if (relX < 0 || relX > rect.width || relY < 0 || relY > rect.height) return null;
+    const col = Math.min(Math.floor((relX / rect.width) * GRID_SIZE), GRID_SIZE - 1);
+    const row = Math.min(Math.floor((relY / rect.height) * GRID_SIZE), GRID_SIZE - 1);
+    return `r${row}c${col}`;
 }
 
 /** Heatmap color from 0-1 intensity */
@@ -61,8 +62,9 @@ export function EyeTrackingHybridPage() {
 
     const [phase, setPhase] = useState<Phase>('intro');
     const [calIndex, setCalIndex] = useState(0);
-    const [countdown, setCountdown] = useState(STIMULUS_DURATION_MS / 1000);
+    // const [countdown, setCountdown] = useState(STIMULUS_DURATION_MS / 1000); // TODO: re-enable with iris tracking
     const videoRef = useRef<HTMLVideoElement>(null);
+    const stimulusImgRef = useRef<HTMLImageElement>(null);
 
     // Data collection
     const gazePoints = useRef<GazePoint[]>([]);
@@ -74,6 +76,9 @@ export function EyeTrackingHybridPage() {
     // Heatmap state (populated by finishStimulus)
     type ZoneHeat = Record<string, number>;
     const [heatmap, setHeatmap] = useState<ZoneHeat | null>(null);
+
+    // Real-time active zone during stimulus
+    const [activeZone, setActiveZone] = useState<string | null>(null);
 
     // --- Camera ---
     const startCamera = useCallback(async () => {
@@ -98,16 +103,36 @@ export function EyeTrackingHybridPage() {
         }
     }, []);
 
-    // --- Gaze collection during stimulus (desktop, silent — no dot) ---
+    // Ref to always have latest gaze data without re-creating effects
+    const blazeRef = useRef(blaze);
+    useEffect(() => { blazeRef.current = blaze; }, [blaze]);
+
+    // --- Gaze collection during stimulus + real-time zone highlight ---
     useEffect(() => {
         if (phase !== 'stimulus' || !isDesktop) return;
-        const interval = setInterval(() => {
-            if (blaze.gazePos && blaze.gazeState === 'open') {
-                gazePoints.current.push({ x: blaze.gazePos.x, y: blaze.gazePos.y, t: Date.now() });
+        let raf = 0;
+        let lastCollect = 0;
+        const loop = () => {
+            const b = blazeRef.current;
+            const now = Date.now();
+            if (b.gazePos && b.gazeState === 'open') {
+                // Collect gaze point every ~50ms
+                if (now - lastCollect >= 50) {
+                    gazePoints.current.push({ x: b.gazePos.x, y: b.gazePos.y, t: now });
+                    lastCollect = now;
+                }
+                // Update active zone every frame for responsive highlight
+                const img = stimulusImgRef.current;
+                if (img) {
+                    const rect = img.getBoundingClientRect();
+                    setActiveZone(pointToZone(b.gazePos.x, b.gazePos.y, rect));
+                }
             }
-        }, 50);
-        return () => clearInterval(interval);
-    }, [phase, isDesktop, blaze.gazePos, blaze.gazeState]);
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => { cancelAnimationFrame(raf); setActiveZone(null); };
+    }, [phase, isDesktop]);
 
     // --- Touch/tap collection (tablet/mobile) ---
     useEffect(() => {
@@ -134,40 +159,36 @@ export function EyeTrackingHybridPage() {
 
         const zoneCounts: ZoneHeat = {};
         AOI_GRID.forEach(z => { zoneCounts[z.id] = 0; });
-        const w = window.innerWidth;
-        const h = window.innerHeight;
 
-        if (isDesktop) {
-            gazePoints.current.forEach(pt => {
-                const zoneId = pointToZone(pt.x, pt.y, w, h);
-                if (zoneId) zoneCounts[zoneId]++;
-            });
-        } else {
-            touchPoints.current.forEach(pt => {
-                const zoneId = pointToZone(pt.x, pt.y, w, h);
-                if (zoneId) zoneCounts[zoneId]++;
-            });
-        }
+        // Use the stimulus image bounding rect — fallback to window if unavailable
+        const rect = stimulusImgRef.current?.getBoundingClientRect()
+            ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+
+        const points = isDesktop ? gazePoints.current : touchPoints.current;
+        points.forEach(pt => {
+            const zoneId = pointToZone(pt.x, pt.y, rect);
+            if (zoneId) zoneCounts[zoneId]++;
+        });
 
         setHeatmap(zoneCounts);
         setPhase('results');
     }, [isDesktop, blaze, stopCamera]);
 
-    // --- Countdown ---
-    useEffect(() => {
-        if (phase !== 'stimulus') return;
-        const interval = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    clearInterval(interval);
-                    finishStimulus();
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [phase, finishStimulus]);
+    // Stable ref to finishStimulus so countdown effect doesn't restart on every render
+    const finishStimulusRef = useRef(finishStimulus);
+    useEffect(() => { finishStimulusRef.current = finishStimulus; }, [finishStimulus]);
+
+    // --- Countdown disabled: manual stop button instead ---
+    // useEffect(() => {
+    //     if (phase !== 'stimulus') return;
+    //     const interval = setInterval(() => {
+    //         setCountdown(prev => {
+    //             if (prev <= 1) { clearInterval(interval); finishStimulusRef.current(); return 0; }
+    //             return prev - 1;
+    //         });
+    //     }, 1000);
+    //     return () => clearInterval(interval);
+    // }, [phase]);
 
     // --- Handlers ---
     const handleStart = useCallback(() => {
@@ -182,12 +203,18 @@ export function EyeTrackingHybridPage() {
             setCalIndex(0);
             setPhase('calibrating');
         } else {
-            setCountdown(STIMULUS_DURATION_MS / 1000);
             setPhase('stimulus');
         }
     }, [isDesktop, startCamera]);
 
     const handleCalibrationClick = useCallback((e: React.MouseEvent) => {
+        // Only accept clicks near the green dot (within 60px)
+        const target = CALIBRATION_TARGETS[calIndex];
+        const dotX = (target[0] / 100) * window.innerWidth;
+        const dotY = (target[1] / 100) * window.innerHeight;
+        const dist = Math.hypot(e.clientX - dotX, e.clientY - dotY);
+        if (dist > 60) return;
+
         const normX = (e.clientX / window.innerWidth) - 0.5;
         const normY = (e.clientY / window.innerHeight) - 0.5;
         blaze.calibrate(normX, normY);
@@ -195,7 +222,6 @@ export function EyeTrackingHybridPage() {
         const next = calIndex + 1;
         if (next >= CALIBRATION_TARGETS.length) {
             blaze.start();
-            setCountdown(STIMULUS_DURATION_MS / 1000);
             setPhase('stimulus');
         } else {
             setCalIndex(next);
@@ -308,18 +334,38 @@ export function EyeTrackingHybridPage() {
                 </div>
             )}
 
-            {/* === STIMULUS (no gaze dot — silent tracking) === */}
+            {/* === STIMULUS with real-time zone highlight === */}
             {phase === 'stimulus' && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950">
-                    <div className="absolute top-4 right-4 z-10 rounded-full bg-white/10 px-4 py-1.5 text-sm font-mono text-white">
-                        {countdown}s
+                    <button
+                        onClick={() => finishStimulusRef.current()}
+                        className="absolute top-4 right-4 z-10 rounded-full bg-white/10 hover:bg-white/20 px-5 py-2 text-sm font-medium text-white transition"
+                    >
+                        Stop
+                    </button>
+                    <div className="relative">
+                        <img
+                            ref={stimulusImgRef}
+                            src={STIMULUS_URL}
+                            alt="Stimulus"
+                            className="max-w-[95vw] max-h-[95vh] object-contain"
+                            crossOrigin="anonymous"
+                        />
+                        {/* 4x4 real-time zone overlay */}
+                        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 pointer-events-none">
+                            {AOI_GRID.map(zone => (
+                                <div
+                                    key={zone.id}
+                                    className="border border-white/5 transition-colors duration-150"
+                                    style={{
+                                        backgroundColor: activeZone === zone.id
+                                            ? 'rgba(239, 68, 68, 0.35)'
+                                            : 'transparent',
+                                    }}
+                                />
+                            ))}
+                        </div>
                     </div>
-                    <img
-                        src={STIMULUS_URL}
-                        alt="Stimulus"
-                        className="max-w-[95vw] max-h-[95vh] object-contain"
-                        crossOrigin="anonymous"
-                    />
                 </div>
             )}
 
@@ -343,18 +389,19 @@ export function EyeTrackingHybridPage() {
                             className="max-w-[90vw] max-h-[65vh] object-contain"
                             crossOrigin="anonymous"
                         />
-                        {/* 3x3 heatmap grid overlay */}
-                        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                        {/* 4x4 heatmap grid overlay */}
+                        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
                             {AOI_GRID.map(zone => {
-                                const intensity = normalizedHeat[zone.id] || 0;
                                 const pct = heatmap ? Math.round((heatmap[zone.id] / Math.max(totalSamples, 1)) * 100) : 0;
+                                const aboveThreshold = pct >= NOISE_THRESHOLD_PCT;
+                                const intensity = aboveThreshold ? (normalizedHeat[zone.id] || 0) : 0;
                                 return (
                                     <div
                                         key={zone.id}
                                         className="relative border border-white/10 flex items-center justify-center transition-colors"
                                         style={{ backgroundColor: heatColor(intensity) }}
                                     >
-                                        {pct > 0 && (
+                                        {aboveThreshold && (
                                             <span className="text-white font-bold text-lg drop-shadow-md">
                                                 {pct}%
                                             </span>
@@ -374,17 +421,18 @@ export function EyeTrackingHybridPage() {
                     </div>
 
                     {/* Zone breakdown table */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-4 w-full max-w-lg">
+                    <div className="bg-white rounded-lg border border-gray-200 p-4 w-full max-w-2xl">
                         <h3 className="text-sm font-semibold text-gray-900 mb-3">Zone breakdown</h3>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-4 gap-2">
                             {AOI_GRID.map(zone => {
                                 const count = heatmap?.[zone.id] || 0;
                                 const pct = totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0;
-                                const intensity = normalizedHeat[zone.id] || 0;
+                                const aboveThreshold = pct >= NOISE_THRESHOLD_PCT;
+                                const intensity = aboveThreshold ? (normalizedHeat[zone.id] || 0) : 0;
                                 return (
                                     <div key={zone.id} className="rounded p-2 text-center" style={{ backgroundColor: heatColor(intensity) }}>
                                         <p className="text-xs font-medium text-gray-800">{zone.label}</p>
-                                        <p className="text-lg font-bold text-gray-900">{pct}%</p>
+                                        <p className="text-lg font-bold text-gray-900">{aboveThreshold ? `${pct}%` : '—'}</p>
                                     </div>
                                 );
                             })}
