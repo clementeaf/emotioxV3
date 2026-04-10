@@ -24,8 +24,9 @@ import {
     type HybridCalibrationResidual,
 } from '../lib/eyeTracking';
 
-/** Calmer BlazeGaze EMA on this page only (EyeTrackingRenderer keeps default 0.72). */
-const HYBRID_BLAZE_SMOOTH_ALPHA = 0.38;
+/** One-Euro params for calmer gaze on hybrid lab page. */
+const HYBRID_ONE_EURO_MIN_CUTOFF = 0.8;
+const HYBRID_ONE_EURO_BETA = 0.005;
 
 // --- Device detection ---
 function getDeviceType(): 'desktop' | 'tablet' | 'mobile' {
@@ -61,7 +62,10 @@ export function EyeTrackingHybridPage() {
     const calibrationResidualsRef = useRef<HybridCalibrationResidual[]>([]);
 
     // Desktop: BlazeGaze (same stack as EyeTrackingRenderer — CNN on eye crops, not iris landmarks alone)
-    const blaze = useBlazeGaze(videoRef, { smoothAlpha: HYBRID_BLAZE_SMOOTH_ALPHA });
+    const blaze = useBlazeGaze(videoRef, {
+        oneEuroMinCutoff: HYBRID_ONE_EURO_MIN_CUTOFF,
+        oneEuroBeta: HYBRID_ONE_EURO_BETA,
+    });
 
     useEffect(() => {
         blazeRef.current = blaze;

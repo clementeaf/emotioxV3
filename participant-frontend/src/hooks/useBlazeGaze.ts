@@ -2,17 +2,19 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type { RefObject } from 'react';
 import { WebEyeTrack } from 'webeyetrack';
 import type { GazeResult } from 'webeyetrack';
+import { OneEuroFilter1D } from '../lib/eyeTracking';
 
 /**
  * BlazeGaze gaze prediction hook (WebEyeTrack CNN on full video frames).
  *
  * Hardware sets a rough ceiling: small eye region in the image means limited angular detail per frame.
- * The model raises quality within that envelope; temporal EMA and calibration improve stability and mapping.
+ * The model raises quality within that envelope; One-Euro filter and calibration improve stability and mapping.
  *
  * - One `tracker.step(imageData)` per rAF tick while running (~display refresh rate).
  * - maxPoints 100, clickTTL 24h (calibration points persist for the session).
  * - calibrate() wires handleClick for lazy adaptation in the tracking loop.
- * - gazePos: EMA-smoothed screen coords; rawGazePos: same mapping without EMA (snappier live UI).
+ * - gazePos: One-Euro filtered screen coords (adaptive: smooth during fixation, responsive during saccade).
+ * - rawGazePos: same mapping without filtering (snappier live UI).
  */
 
 const MAX_POINTS = 100;
@@ -27,12 +29,24 @@ const X_OFFSET = 0.03;
  */
 const Y_NORM_SCALE = 1.1;
 
-/** Default EMA blend toward new sample (higher = snappier, more jitter). */
-const DEFAULT_SMOOTH_ALPHA = 0.72;
+// --- One-Euro Filter defaults (Casiez et al. 2012) tuned for webcam gaze ---
+/** Low minCutoff = very smooth during fixation (Hz). */
+const DEFAULT_ONE_EURO_MIN_CUTOFF = 1.5;
+/** Beta controls lag reduction during saccades; higher = snappier transitions. */
+const DEFAULT_ONE_EURO_BETA = 0.007;
+/** Derivative cutoff — smooths velocity estimate. */
+const DEFAULT_ONE_EURO_D_CUTOFF = 1.0;
 
 /** Optional tuning for calmer gaze output (e.g. hybrid lab page). */
 export interface UseBlazeGazeOptions {
-    /** EMA blend toward new sample; lower reduces jitter when fixation is steady. Default 0.72 */
+    /**
+     * One-Euro minCutoff (Hz): lower = smoother at rest. Default 1.5.
+     * For calmer output (e.g. hybrid lab), use ~0.8.
+     */
+    oneEuroMinCutoff?: number;
+    /** One-Euro beta: higher = less lag during fast eye movement. Default 0.007. */
+    oneEuroBeta?: number;
+    /** @deprecated Use oneEuroMinCutoff/oneEuroBeta instead. Ignored when One-Euro params are set. */
     smoothAlpha?: number;
 }
 
@@ -68,8 +82,8 @@ export function useBlazeGaze(
     const rafRef = useRef(0);
     const canvasRef = useRef<OffscreenCanvas | null>(null);
     const runningRef = useRef(false);
-    const lastPosRef = useRef<{ x: number; y: number } | null>(null);
-    const smoothAlphaRef = useRef<number>(options?.smoothAlpha ?? DEFAULT_SMOOTH_ALPHA);
+    const filterXRef = useRef<OneEuroFilter1D | null>(null);
+    const filterYRef = useRef<OneEuroFilter1D | null>(null);
     const frameStatsRef = useRef<Pick<BlazeGazeFrameStats, 'invalidFrames' | 'noValidGazeFrames' | 'validGazeFrames'>>({
         invalidFrames: 0,
         noValidGazeFrames: 0,
@@ -79,9 +93,13 @@ export function useBlazeGaze(
     const lastCaptureDimensionsRef = useRef<{ w: number; h: number } | null>(null);
     const lastEmittedGazeStateRef = useRef<'open' | 'closed'>('closed');
 
+    // Rebuild One-Euro filters when params change
+    const oneEuroMinCutoff = options?.oneEuroMinCutoff ?? DEFAULT_ONE_EURO_MIN_CUTOFF;
+    const oneEuroBeta = options?.oneEuroBeta ?? DEFAULT_ONE_EURO_BETA;
     useEffect(() => {
-        smoothAlphaRef.current = options?.smoothAlpha ?? DEFAULT_SMOOTH_ALPHA;
-    }, [options?.smoothAlpha]);
+        filterXRef.current = new OneEuroFilter1D(oneEuroMinCutoff, oneEuroBeta, DEFAULT_ONE_EURO_D_CUTOFF);
+        filterYRef.current = new OneEuroFilter1D(oneEuroMinCutoff, oneEuroBeta, DEFAULT_ONE_EURO_D_CUTOFF);
+    }, [oneEuroMinCutoff, oneEuroBeta]);
 
     // Initialize model
     useEffect(() => {
@@ -154,6 +172,8 @@ export function useBlazeGaze(
         frameStatsRef.current = { invalidFrames: 0, noValidGazeFrames: 0, validGazeFrames: 0 };
         lastCaptureDimensionsRef.current = null;
         lastEmittedGazeStateRef.current = 'closed';
+        filterXRef.current?.reset();
+        filterYRef.current?.reset();
 
         const loop = async () => {
             if (!runningRef.current) return;
@@ -180,25 +200,22 @@ export function useBlazeGaze(
                 const screenX = (nx + X_OFFSET + 0.5) * vw;
                 const screenY = (nyScaled + 0.5) * vh;
 
-                setRawGazePos({
-                    x: Math.max(0, Math.min(vw, screenX)),
-                    y: Math.max(0, Math.min(vh, screenY)),
-                });
-
                 const sx = Math.max(0, Math.min(vw, screenX));
                 const sy = Math.max(0, Math.min(vh, screenY));
 
-                const prev = lastPosRef.current;
-                if (prev) {
-                    const a = smoothAlphaRef.current;
+                setRawGazePos({ x: sx, y: sy });
+
+                // One-Euro adaptive filter: smooth during fixation, responsive during saccade
+                const tSec = performance.now() / 1000;
+                const fx = filterXRef.current;
+                const fy = filterYRef.current;
+                if (fx && fy) {
                     const smoothed = {
-                        x: prev.x + a * (sx - prev.x),
-                        y: prev.y + a * (sy - prev.y),
+                        x: Math.max(0, Math.min(vw, fx.filter(sx, tSec))),
+                        y: Math.max(0, Math.min(vh, fy.filter(sy, tSec))),
                     };
-                    lastPosRef.current = smoothed;
                     setGazePos(smoothed);
                 } else {
-                    lastPosRef.current = { x: sx, y: sy };
                     setGazePos({ x: sx, y: sy });
                 }
                 if (lastEmittedGazeStateRef.current !== 'open') {
@@ -217,7 +234,8 @@ export function useBlazeGaze(
         runningRef.current = false;
         if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
         setRawGazePos(null);
-        lastPosRef.current = null;
+        filterXRef.current?.reset();
+        filterYRef.current?.reset();
     }, []);
 
     useEffect(() => {

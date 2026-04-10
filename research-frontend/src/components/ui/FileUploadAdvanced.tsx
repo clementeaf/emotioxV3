@@ -94,7 +94,7 @@ export const FileUploadAdvanced = ({
 
     useEffect(() => {
         // Solo actualizar si los files realmente cambiaron (comparar por JSON para evitar loops)
-        const filesKey = JSON.stringify(files.map(f => ({ id: f.id, url: f.url, s3Key: f.s3Key })));
+        const filesKey = JSON.stringify(files.map(f => ({ id: f.id, url: f.url, s3Key: f.s3Key, hz: f.hitZones?.length ?? 0 })));
         if (filesKey !== lastFilesRef.current) {
             lastFilesRef.current = filesKey;
             setLocalFiles(files);

@@ -1,6 +1,6 @@
 /**
- * Zone grid and gaze-to-cell mapping for `/eye-tracking-hybrid` (lab page only).
- * Survey flow uses `EyeTrackingRenderer` (viewport calibration, response payload for analytics).
+ * Zone grid and gaze-to-cell mapping for `/eye-tracking-hybrid` (lab page).
+ * Survey `EyeTrackingRenderer` uses the same {@link HYBRID_IMAGE_CALIBRATION_POINTS} and hybrid IDW field for fixations.
  */
 
 /** 2×2 = 4 cuadrantes sobre el rect del estímulo (formato simple para probabilidades iniciales). */
@@ -77,15 +77,30 @@ export const HYBRID_ZONE_SAMPLE_MS = 36;
 export const HYBRID_FIXATION_DWELL_MS = 520;
 
 /**
- * Cuatro puntos al centro de cada cuadrante (% de la imagen, mismo plano que la rejilla 2×2).
- * Orden: fila superior izq → der, luego inferior izq → der.
+ * Nine calibration points in a 3×3 grid (% of image).
+ * Covers corners, edge midpoints, and center for denser IDW residual field.
+ * Order: top-left → top-center → top-right → mid-left → center → mid-right → bot-left → bot-center → bot-right.
  */
 export const HYBRID_IMAGE_CALIBRATION_POINTS: readonly [number, number][] = [
-    [25, 25],
-    [75, 25],
-    [25, 75],
-    [75, 75],
+    [15, 15],
+    [50, 15],
+    [85, 15],
+    [15, 50],
+    [50, 50],
+    [85, 50],
+    [15, 85],
+    [50, 85],
+    [85, 85],
 ];
+
+/**
+ * Single validation point after calibration — off-grid position to test accuracy.
+ * If RMSE at this point exceeds threshold, the participant can re-calibrate.
+ */
+export const HYBRID_VALIDATION_POINT: readonly [number, number] = [62, 38];
+
+/** RMSE threshold (viewport px) above which re-calibration is offered. */
+export const HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX = 120;
 
 /**
  * Maps a point given as % of image box to BlazeGaze normalized coords (-0.5..0.5, center = screen center).

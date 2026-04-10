@@ -5,7 +5,21 @@
 
 ---
 
-## Última actualización: 2026-04-10 (sesión 33)
+## Última actualización: 2026-04-10 (sesión 35)
+
+---
+
+## Sesión 35: 10 de abril de 2026 — Builder fixes para estudio cliente (v0.42.4)
+
+- **File upload múltiple:** Navigation Flow y Preference Test solo dejaban subir 1 imagen. El template en BD no tenía `multiple: true` y el default era `false`. Cambiado default a `true` para todos los `file-upload`.
+- **Hitzones no persistían:** `FileUploadAdvanced` comparaba archivos por `id/url/s3Key` para evitar re-renders. Las hitzones no estaban en la clave de comparación, así que al actualizar desde el padre el componente no se enteraba. Agregado conteo de hitzones a la clave.
+
+---
+
+## Sesión 34: 10 de abril de 2026 — Eye Tracking encuesta: pipeline híbrido IDW (v0.42.3)
+
+- **`EyeTrackingRenderer`:** Calibración 4 puntos sobre la imagen (mismos centros de cuadrante que el lab), campo IDW al muestrear mirada en fase viewing, BlazeGaze activo ya en calibración, EMA 0.38. Payload: `gazePipeline`, `calibrationRmsePx`.
+- **i18n:** `calibrationHint4Point` ES/EN.
 
 ---
 

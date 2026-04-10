@@ -1,3 +1,31 @@
+## v0.42.5 — Eye Tracking: One-Euro filter, I-DT fixations, 9-point calibration (2026-04-10)
+
+### participant-frontend
+- **One-Euro adaptive filter** replaces static EMA in `useBlazeGaze`. Smooth during fixations, responsive during saccades. Configurable via `oneEuroMinCutoff` / `oneEuroBeta`.
+- **I-DT fixation detection** (`fixationDetector.ts`): groups raw gaze samples into proper fixations with centroid, duration, and point count. Dispersion threshold 85px, min duration 120ms.
+- **`EyeTrackingRenderer`** now saves detected fixations (I-DT) instead of raw gaze points. Response includes `fixationMethod`, `fixationCount`, pipeline `hybrid-idw-idt`.
+- **Calibration expanded from 4 to 9 points** (3×3 grid covering corners, edges, and center) for a denser IDW residual field.
+- **Post-calibration validation**: new `validating` phase shows an off-grid yellow dot. If gaze error exceeds 120px, offers "Re-calibrate" (up to 2 retries) or "Continue anyway".
+- **i18n**: new keys for validation, re-calibration, desktop intro, and mobile check labels (ES/EN).
+
+---
+
+## v0.42.4 — Builder fixes: multi-upload and hitzone persistence (2026-04-10)
+
+### research-frontend
+- **Fix: File upload `multiple` default.** Navigation Flow and Preference Test templates were missing `multiple: true` in their `fileUpload` config, limiting uploads to a single image. Default changed from `false` to `true` for all `file-upload` components.
+- **Fix: Hitzones lost on modal reopen.** `FileUploadAdvanced` sync key only compared `id`, `url`, and `s3Key` — it ignored `hitZones`. After drawing and saving hitzones, reopening the editor showed an empty canvas. Added hitzone count to the sync key so parent updates propagate correctly.
+
+---
+
+## v0.42.3 — Eye Tracking survey: hybrid IDW calibration (2026-04-10)
+
+### participant-frontend
+- **`EyeTrackingRenderer`:** Replaced 9-point viewport calibration with the same 4-point image-relative flow as `/eye-tracking-hybrid` (`HYBRID_IMAGE_CALIBRATION_POINTS`), IDW residual field (`hybridApplyCalibrationField` + `HYBRID_CALIBRATION_FIELD_STRENGTH`), and `hybridImagePercentToBlazeNorm` for `blaze.calibrate()`. BlazeGaze runs during calibration (for residuals) and viewing; `smoothAlpha` 0.38 aligned with hybrid lab.
+- **Response payload:** `gazePipeline: 'hybrid-idw'` on desktop, optional `calibrationRmsePx` (viewport RMSE of residuals).
+
+---
+
 ## v0.42.2 — Eye Tracking hybrid: zone pipeline, webcam, diagnostics (2026-04-10)
 
 ### participant-frontend

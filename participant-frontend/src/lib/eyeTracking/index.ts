@@ -4,7 +4,7 @@
  * - **Detection**: `@mediapipe/tasks-vision` Face Landmarker (browser WASM).
  * - **Gaze mapping**: `RidgeRegression` on engineered features (iris-in-eye, head pose from 4x4 matrix, polynomials, iris×translation crosses).
  * - **Hybrid lab grid** (`hybridZoneGrid`): BlazeGaze 2×2 quadrants on stimulus image for `/eye-tracking-hybrid`.
- *   Production eye tracking uses `useBlazeGaze` in `EyeTrackingRenderer`; Ridge/MediaPipe utilities remain for experiments.
+ *   `EyeTrackingRenderer` uses the same hybrid IDW calibration (`hybridCalibrationField`) for survey fixations. Ridge/MediaPipe utilities remain for experiments.
  */
 
 export {
@@ -65,6 +65,8 @@ export {
   HYBRID_ZONE_SAMPLE_MS,
   HYBRID_FIXATION_DWELL_MS,
   HYBRID_IMAGE_CALIBRATION_POINTS,
+  HYBRID_VALIDATION_POINT,
+  HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX,
   hybridImagePercentToBlazeNorm,
     hybridStretchFromCenter01,
     hybridStretchFromCenter01MiddleSoft,
@@ -93,3 +95,13 @@ export {
     BLAZE_GAZE_CAPTURE_SHORT_EDGE_WARN_PX,
     isBlazeGazeCaptureResolutionLow,
 } from './blazeCameraConstraints';
+
+export {
+    IDT_DEFAULT_DISPERSION_THRESHOLD_PX,
+    IDT_DEFAULT_MIN_DURATION_MS,
+    IDT_MAX_SAMPLE_GAP_MS,
+    detectFixationsIDT,
+    mapFixationsToImageCoords,
+} from './fixationDetector';
+
+export type { GazeSample, DetectedFixation } from './fixationDetector';
