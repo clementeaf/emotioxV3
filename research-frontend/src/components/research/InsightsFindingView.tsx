@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
@@ -47,8 +47,10 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const triggeredRef = useRef<string | null>(null); // prevent re-trigger loop
 
-    const settings = (research.settings as { stimuli?: FileItem[] }) || {};
-    const files = settings.stimuli || [];
+    const files = useMemo(() => {
+        const settings = (research.settings as { stimuli?: FileItem[] }) || {};
+        return settings.stimuli || [];
+    }, [research.settings]);
     const activeFile = files.find(f => f.mediaId === fileId) || files[0];
     const hasEntries = activeFile?.entries && activeFile.entries.length > 0;
     const hasAnalysis = !!activeFile?.analysis;

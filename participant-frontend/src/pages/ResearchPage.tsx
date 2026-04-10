@@ -26,7 +26,7 @@ import { publicService, type Module, type ResearchData } from '../services/publi
 import { responseService } from '../services/response.service';
 import { getComponentText } from '../utils/moduleComponent';
 import { mediaService } from '../services/media.service';
-import { queryClient } from '../providers/QueryProvider';
+import { queryClient } from '../providers/queryClient';
 import type { ModuleStructure, ModuleComponent } from '../types/module';
 
 /** Delay in ms before kiosk auto-resets to welcome for next participant */
@@ -577,7 +577,7 @@ export const ResearchPage = () => {
     if (linkConfig?.allowMultiple === true) {
       setShowRestartOption(true);
     }
-  }, [currentStep, isPreviewMode, participationMode, backlinks]);
+  }, [currentStep, isPreviewMode, participationMode, backlinks, redirectTo]);
 
   // Load research configuration
   useEffect(() => {
@@ -869,7 +869,7 @@ export const ResearchPage = () => {
     };
 
     void loadResearch();
-  }, [researchId, setConfig, startNewSession, t]);
+  }, [researchId, setConfig, startNewSession, t, redirectTo]);
 
   // Check if we're in development mode
   const isDev = useMemo(() => import.meta.env.DEV, []);
@@ -1235,7 +1235,7 @@ export const ResearchPage = () => {
       const errorMessage = result.errors.map(e => e.message).join('\n');
       alert(errorMessage);
     }
-  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks, t]);
+  }, [isPreviewMode, participantId, researchId, currentModule, getResponsesByModule, goNext, showRestartOption, startNewSession, clearAllResponses, currentStep, backlinks, t, redirectTo]);
 
   // Enter key → "Guardar y continuar" (accessibility)
   useEffect(() => {

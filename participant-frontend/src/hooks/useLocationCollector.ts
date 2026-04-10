@@ -103,6 +103,7 @@ export const useLocationCollector = (): UseLocationCollectorReturn => {
                 return () => clearTimeout(timer);
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- trackingEnabled derived from config (already in deps)
     }, [config, hasConsent, error, requestLocation]);
 
     /**

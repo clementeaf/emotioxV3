@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
@@ -29,8 +29,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [isProcessing, setIsProcessing] = useState(false);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
-    const settings = (research.settings as { stimuli?: StimulusItem[] }) || {};
-    const stimuli = settings.stimuli || [];
+    const stimuli = useMemo(() => {
+        const settings = (research.settings as { stimuli?: StimulusItem[] }) || {};
+        return settings.stimuli || [];
+    }, [research.settings]);
 
     const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
     const hasHeatmap = activeStimulus?.heatmapData && activeStimulus.heatmapData.length > 0;

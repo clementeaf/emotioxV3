@@ -8,6 +8,9 @@ import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import * as analyticsService from '../../../services/analytics.service';
 import type { IATModuleResult } from '../../../services/analytics.service';
 
+// Recharts Label `content` callback uses internal Props with RenderableText (includes `false`).
+// A custom interface can't satisfy the overload without importing private types — eslint-disable is the pragmatic fix.
+
 interface ImplicitAssociationResultsProps {
   researchId: string;
   className?: string;
@@ -157,7 +160,8 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
                   position: 'top' as const,
                   fontSize: 11,
                   fill: TARGET_COLORS[i % TARGET_COLORS.length],
-                  content: ({ value, x, y, width }: any) => (
+                  content: ({ value, x, y, width // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label.Props internal type
+}: any) => (
                     <text
                       x={(x ?? 0) + (width ?? 0) / 2}
                       y={(y ?? 0) - 6}
@@ -263,7 +267,8 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
                 position: 'left' as const,
                 fontSize: 10,
                 fill: TARGET_COLORS[0],
-                content: ({ value, x, y, height }: any) => (
+                content: ({ value, x, y, height // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label.Props internal type
+}: any) => (
                   <text
                     x={(x ?? 0) - 6}
                     y={(y ?? 0) + (height ?? 0) / 2 + 4}
@@ -284,7 +289,8 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
                 position: 'right' as const,
                 fontSize: 10,
                 fill: TARGET_COLORS[1],
-                content: ({ value, x, y, width, height }: any) => (
+                content: ({ value, x, y, width, height // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label.Props internal type
+}: any) => (
                   <text
                     x={(x ?? 0) + (width ?? 0) + 6}
                     y={(y ?? 0) + (height ?? 0) / 2 + 4}

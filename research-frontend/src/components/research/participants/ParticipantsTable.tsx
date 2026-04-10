@@ -63,8 +63,6 @@ const statusConfig = {
  */
 export function ParticipantsTable({
     participants,
-    // onViewDetails is kept in props interface for compatibility but handled internally via Drawer
-    onViewDetails: _onViewDetails,
     researchId,
     onParticipantDeleted,
     isLoading = false,

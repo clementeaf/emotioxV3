@@ -39,6 +39,7 @@ export const ClientsPage = () => {
                 setSelectedEnterpriseId(res.enterprises[0].id);
             }
         }).catch(() => toast.error('Failed to load clients')).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount; toast is stable
     }, []);
 
     // Load selected enterprise details + researches

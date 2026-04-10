@@ -61,6 +61,7 @@ export const ModuleTemplateSelectionModal = ({
         if (isOpen) {
             loadTemplates();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadTemplates defined below; only trigger on modal open
     }, [isOpen]);
 
     const loadTemplates = async () => {

@@ -120,13 +120,15 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
         } else if (!isClientsBenchmark && isFileBasedResearch && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
             setIsStimulusDrawerOpen(true);
         }
-    }, [formData.researchTypeId, isFileBasedResearch, isClientsBenchmark, (formData.stimulusFiles || []).length, selectedBenchmarkIds.size]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- drawer opens on type change; deps intentionally limited to avoid re-open loops
+    }, [formData.researchTypeId, isFileBasedResearch, isClientsBenchmark]);
 
     // Disable default modules for file-based research (no stages needed)
     useEffect(() => {
         if (isFileBasedResearch && formData.useDefaultModules) {
             handleFieldChange('useDefaultModules', false);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleFieldChange is stable; only re-run when these values change
     }, [isFileBasedResearch, formData.useDefaultModules]);
 
     const { enterprises, loadingEnterprises, createEnterprise } = useEnterprise();

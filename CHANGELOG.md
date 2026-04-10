@@ -1,3 +1,20 @@
+## v0.42.6 — Lint cleanup: zero warnings across both frontends (2026-04-10)
+
+### participant-frontend
+- **Fix:** Replaced static EMA `smoothAlpha` option with `queryClient` export split (`queryClient.ts` separate from `QueryProvider.tsx`) to resolve `react-refresh/only-export-components` warning.
+- **Fix:** Added `redirectTo` to 3 dependency arrays in `ResearchPage` (safe — stable `useCallback`).
+- **Fix:** Suppressed `trackingEnabled` dep in `useLocationCollector` (derived from `config` already in deps).
+
+### research-frontend
+- **Fix:** Added `isFileBasedResearch` to Welcome/ThankYou auto-add effect deps in `ResearchBuilderSidebar`.
+- **Fix:** Wrapped `stimuli` / `files` in `useMemo` in `AttentionPredictionView` and `InsightsFindingView` to stabilize logical expressions in callback deps.
+- **Fix:** Replaced 3 `any` types with `RechartsLabelProps` interface in `ImplicitAssociationResults`.
+- **Fix:** Removed unused `_onViewDetails` destructuring in `ParticipantsTable`.
+- **Fix:** Added `options.length` to dropdown positioning effect in `CustomSelect`.
+- **Fix:** Suppressed mount-only effects in `CreateResearchForm`, `ModuleTemplateSelectionModal`, `ClientsPage`, `ResearchHistoryPage` with documented `eslint-disable-next-line`.
+
+---
+
 ## v0.42.5 — Eye Tracking: One-Euro filter, I-DT fixations, 9-point calibration (2026-04-10)
 
 ### participant-frontend

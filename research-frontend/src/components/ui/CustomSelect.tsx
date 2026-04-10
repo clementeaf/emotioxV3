@@ -96,7 +96,7 @@ export const CustomSelect = ({
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isOpen]);
+    }, [isOpen, options.length]);
 
     const selectedOption = options.find((opt) => opt.value === selectedValue);
 

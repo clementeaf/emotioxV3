@@ -109,6 +109,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 researchId: activeResearch.id
             });
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeResearch read only for .id (already in deps via ?.id)
     }, [isAttentionPrediction, settings, stimuli, activeResearch?.id]);
 
     // Use ref to track if we're currently adding stages (prevents race conditions)
@@ -191,7 +192,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 }
             })();
         }
-    }, [activeResearch, loadingResearch, queryClient]);
+    }, [activeResearch, loadingResearch, queryClient, isFileBasedResearch]);
 
     const invalidateActiveResearch = async (id: string): Promise<void> => {
         await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
