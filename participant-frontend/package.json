@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/ensure-mediapipe-sourcemap.mjs",
     "sync-runtime-config": "node scripts/sync-runtime-config.mjs",
     "dev": "npm run sync-runtime-config && vite",
     "dev:local": "vite --mode development",

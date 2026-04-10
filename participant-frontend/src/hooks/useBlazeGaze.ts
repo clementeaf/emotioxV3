@@ -1,21 +1,66 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import type { RefObject } from 'react';
 import { WebEyeTrack } from 'webeyetrack';
 import type { GazeResult } from 'webeyetrack';
 
 /**
- * BlazeGaze gaze prediction hook.
- * - maxPoints 100, clickTTL 24h (calibration persists during session)
- * - handleClick + immediate step() for proper eye-feature association
- * - Light smoothing (alpha 0.5) — optimized for zone-level detection
+ * BlazeGaze gaze prediction hook (WebEyeTrack CNN on full video frames).
+ *
+ * Hardware sets a rough ceiling: small eye region in the image means limited angular detail per frame.
+ * The model raises quality within that envelope; temporal EMA and calibration improve stability and mapping.
+ *
+ * - One `tracker.step(imageData)` per rAF tick while running (~display refresh rate).
+ * - maxPoints 100, clickTTL 24h (calibration points persist for the session).
+ * - calibrate() wires handleClick for lazy adaptation in the tracking loop.
+ * - gazePos: EMA-smoothed screen coords; rawGazePos: same mapping without EMA (snappier live UI).
  */
 
 const MAX_POINTS = 100;
 const CLICK_TTL = 86400;
-const X_OFFSET = 0.03; // compensate consistent left bias
 
-export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>) {
+/** Mild horizontal bias correction in normalized space (positive = shift right on screen). */
+const X_OFFSET = 0.03;
+
+/**
+ * Vertical normalized coord scale — webcam gaze often undershoots top/bottom; slight stretch helps
+ * corner rows without changing horizontal mapping.
+ */
+const Y_NORM_SCALE = 1.1;
+
+/** Default EMA blend toward new sample (higher = snappier, more jitter). */
+const DEFAULT_SMOOTH_ALPHA = 0.72;
+
+/** Optional tuning for calmer gaze output (e.g. hybrid lab page). */
+export interface UseBlazeGazeOptions {
+    /** EMA blend toward new sample; lower reduces jitter when fixation is steady. Default 0.72 */
+    smoothAlpha?: number;
+}
+
+/** Counters for tracking loop quality (Eyedid-style: drops vs valid gaze). Reset on each start(). */
+export interface BlazeGazeFrameStats {
+    /** captureFrame returned null or threw */
+    invalidFrames: number;
+    /** Frame arrived but eyes closed or missing normPog */
+    noValidGazeFrames: number;
+    /** Open eyes with valid POG */
+    validGazeFrames: number;
+    /**
+     * Last video frame width/height (px) passed to the model as ImageData — debug signal for capture quality.
+     * null until a frame with positive videoWidth/videoHeight is read.
+     */
+    captureWidthPx: number | null;
+    captureHeightPx: number | null;
+}
+
+export function useBlazeGaze(
+    videoRef: RefObject<HTMLVideoElement | null>,
+    options?: UseBlazeGazeOptions,
+) {
     const [isLoaded, setIsLoaded] = useState(false);
+    /** Smoothed screen position (saved samples / stable analytics). */
     const [gazePos, setGazePos] = useState<{ x: number; y: number } | null>(null);
+    /** Same frame mapping as gazePos but without EMA — use for live AOI highlight. */
+    const [rawGazePos, setRawGazePos] = useState<{ x: number; y: number } | null>(null);
     const [gazeState, setGazeState] = useState<'open' | 'closed'>('closed');
     const [calibrationCount, setCalibrationCount] = useState(0);
 
@@ -24,6 +69,19 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
     const canvasRef = useRef<OffscreenCanvas | null>(null);
     const runningRef = useRef(false);
     const lastPosRef = useRef<{ x: number; y: number } | null>(null);
+    const smoothAlphaRef = useRef<number>(options?.smoothAlpha ?? DEFAULT_SMOOTH_ALPHA);
+    const frameStatsRef = useRef<Pick<BlazeGazeFrameStats, 'invalidFrames' | 'noValidGazeFrames' | 'validGazeFrames'>>({
+        invalidFrames: 0,
+        noValidGazeFrames: 0,
+        validGazeFrames: 0,
+    });
+    /** Last dimensions of the bitmap fed to tracker.step (from HTMLVideoElement). */
+    const lastCaptureDimensionsRef = useRef<{ w: number; h: number } | null>(null);
+    const lastEmittedGazeStateRef = useRef<'open' | 'closed'>('closed');
+
+    useEffect(() => {
+        smoothAlphaRef.current = options?.smoothAlpha ?? DEFAULT_SMOOTH_ALPHA;
+    }, [options?.smoothAlpha]);
 
     // Initialize model
     useEffect(() => {
@@ -47,6 +105,9 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
 
         const w = video.videoWidth;
         const h = video.videoHeight;
+        if (w > 0 && h > 0) {
+            lastCaptureDimensionsRef.current = { w, h };
+        }
         if (!canvasRef.current || canvasRef.current.width !== w || canvasRef.current.height !== h) {
             canvasRef.current = new OffscreenCanvas(w, h);
         }
@@ -72,33 +133,78 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
         setCalibrationCount(prev => prev + 1);
     }, []);
 
+    const getFrameStats = useCallback((): BlazeGazeFrameStats => {
+        const dim = lastCaptureDimensionsRef.current;
+        return {
+            ...frameStatsRef.current,
+            captureWidthPx: dim?.w ?? null,
+            captureHeightPx: dim?.h ?? null,
+        };
+    }, []);
+
+    const resetFrameStats = useCallback((): void => {
+        frameStatsRef.current = { invalidFrames: 0, noValidGazeFrames: 0, validGazeFrames: 0 };
+        lastCaptureDimensionsRef.current = null;
+    }, []);
+
     // Tracking loop
     const start = useCallback(() => {
         if (runningRef.current) return;
         runningRef.current = true;
+        frameStatsRef.current = { invalidFrames: 0, noValidGazeFrames: 0, validGazeFrames: 0 };
+        lastCaptureDimensionsRef.current = null;
+        lastEmittedGazeStateRef.current = 'closed';
 
         const loop = async () => {
             if (!runningRef.current) return;
 
             const result = await captureFrame();
-            if (result && result.gazeState === 'open' && result.normPog) {
-                const screenX = (result.normPog[0] + X_OFFSET + 0.5) * window.innerWidth;
-                const screenY = (result.normPog[1] + 0.5) * window.innerHeight;
+            if (!result) {
+                frameStatsRef.current.invalidFrames += 1;
+                if (lastEmittedGazeStateRef.current !== 'closed') {
+                    lastEmittedGazeStateRef.current = 'closed';
+                    setGazeState('closed');
+                }
+            } else if (result.gazeState !== 'open' || !result.normPog) {
+                frameStatsRef.current.noValidGazeFrames += 1;
+                if (lastEmittedGazeStateRef.current !== 'closed') {
+                    lastEmittedGazeStateRef.current = 'closed';
+                    setGazeState('closed');
+                }
+            } else {
+                frameStatsRef.current.validGazeFrames += 1;
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const nx = result.normPog[0];
+                const nyScaled = result.normPog[1] * Y_NORM_SCALE;
+                const screenX = (nx + X_OFFSET + 0.5) * vw;
+                const screenY = (nyScaled + 0.5) * vh;
+
+                setRawGazePos({
+                    x: Math.max(0, Math.min(vw, screenX)),
+                    y: Math.max(0, Math.min(vh, screenY)),
+                });
+
+                const sx = Math.max(0, Math.min(vw, screenX));
+                const sy = Math.max(0, Math.min(vh, screenY));
 
                 const prev = lastPosRef.current;
                 if (prev) {
-                    const alpha = 0.5;
+                    const a = smoothAlphaRef.current;
                     const smoothed = {
-                        x: prev.x + alpha * (screenX - prev.x),
-                        y: prev.y + alpha * (screenY - prev.y),
+                        x: prev.x + a * (sx - prev.x),
+                        y: prev.y + a * (sy - prev.y),
                     };
                     lastPosRef.current = smoothed;
                     setGazePos(smoothed);
                 } else {
-                    lastPosRef.current = { x: screenX, y: screenY };
-                    setGazePos({ x: screenX, y: screenY });
+                    lastPosRef.current = { x: sx, y: sy };
+                    setGazePos({ x: sx, y: sy });
                 }
-                setGazeState('open');
+                if (lastEmittedGazeStateRef.current !== 'open') {
+                    lastEmittedGazeStateRef.current = 'open';
+                    setGazeState('open');
+                }
             }
 
             if (runningRef.current) rafRef.current = requestAnimationFrame(loop);
@@ -110,6 +216,8 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
     const stop = useCallback(() => {
         runningRef.current = false;
         if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
+        setRawGazePos(null);
+        lastPosRef.current = null;
     }, []);
 
     useEffect(() => {
@@ -119,10 +227,13 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
     return {
         isLoaded,
         gazePos,
+        rawGazePos,
         gazeState,
         calibrationCount,
         start,
         stop,
         calibrate,
+        getFrameStats,
+        resetFrameStats,
     };
 }

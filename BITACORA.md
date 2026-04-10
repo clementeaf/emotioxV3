@@ -5,7 +5,15 @@
 
 ---
 
-## Última actualización: 2026-04-07 (sesión 32)
+## Última actualización: 2026-04-10 (sesión 33)
+
+---
+
+## Sesión 33: 10 de abril de 2026 — Eye Tracking hybrid: rejilla, cámara y diagnóstico (v0.42.2)
+
+- **Rejilla 2×2 (lab):** Menos correcciones apiladas (sin segundo EMA en zona; campo IDW principal). Ajustes iterativos en `hybridZoneGrid` (nudges, sesgos fila/columna, stretch Y solo en mitad izquierda para separar sup/inf izquierdos). Limpieza de hooks `useEyeTracking` no usados.
+- **Cámara BlazeGaze:** Constante compartida `ideal` 1280×720; estadísticas con última resolución de captura; aviso no bloqueante si el lado corto del frame es bajo.
+- **Documentación:** `docs/eye-tracking-heatmap.md` alineado con el pipeline (resolución, frames, rol del modelo).
 
 ---
 

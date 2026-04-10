@@ -3,8 +3,8 @@
  *
  * - **Detection**: `@mediapipe/tasks-vision` Face Landmarker (browser WASM).
  * - **Gaze mapping**: `RidgeRegression` on engineered features (iris-in-eye, head pose from 4x4 matrix, polynomials, iris×translation crosses).
- *
- * React integration lives in `hooks/useEyeTracking.ts`.
+ * - **Hybrid lab grid** (`hybridZoneGrid`): BlazeGaze 2×2 quadrants on stimulus image for `/eye-tracking-hybrid`.
+ *   Production eye tracking uses `useBlazeGaze` in `EyeTrackingRenderer`; Ridge/MediaPipe utilities remain for experiments.
  */
 
 export {
@@ -33,4 +33,63 @@ export { parseFacialTransformationMatrix } from './headPose';
 
 export { RidgeRegression } from './ridgeRegression';
 
+export { OneEuroFilter1D } from './oneEuroFilter';
+
 export { createFaceLandmarker } from './faceLandmarker';
+
+export {
+    HYBRID_CALIBRATION_FIELD_STRENGTH,
+    HYBRID_CALIB_CONFIDENCE_K,
+    hybridApplyCalibrationField,
+    hybridCalibrationRmsePx,
+    hybridCalibrationConfidenceWeightUv,
+} from './hybridCalibrationField';
+
+export type { HybridCalibrationResidual } from './hybridCalibrationField';
+
+export {
+  HYBRID_GRID_SIZE,
+  HYBRID_AOI_GRID,
+  HYBRID_NOISE_THRESHOLD_PCT,
+  HYBRID_EDGE_STRETCH_X,
+  HYBRID_EDGE_STRETCH_Y,
+  HYBRID_LEFT_HALF_VERTICAL_STRETCH_MULT,
+  HYBRID_EDGE_LEFT_HALF_FACTOR,
+  HYBRID_EDGE_RIGHT_HALF_FACTOR,
+  HYBRID_EDGE_TOP_OUTER_FACTOR,
+  HYBRID_EDGE_BOTTOM_OUTER_FACTOR,
+  HYBRID_ZONE_ROW_BIAS,
+  HYBRID_ZONE_COL_BIAS,
+  HYBRID_ZONE_VOTE_HISTORY,
+  HYBRID_ZONE_VOTE_LEAD_MIN,
+  HYBRID_ZONE_SAMPLE_MS,
+  HYBRID_FIXATION_DWELL_MS,
+  HYBRID_IMAGE_CALIBRATION_POINTS,
+  hybridImagePercentToBlazeNorm,
+    hybridStretchFromCenter01,
+    hybridStretchFromCenter01MiddleSoft,
+    hybridViewportToStretched01,
+    hybridPointToZone,
+    hybridPointToSoftZoneWeights,
+    hybridModeZoneFromHistory,
+    hybridHeatColor,
+} from './hybridZoneGrid';
+
+export type { HybridZoneMeta } from './hybridZoneGrid';
+
+export {
+    HYBRID_GAP_FILL_MAX_MS,
+    HYBRID_GAP_FILL_STEP_MS,
+    HYBRID_GAP_FILL_MIN_SEGMENT_MS,
+    HYBRID_GAP_FILL_SYNTHETIC_WEIGHT,
+    hybridMinimumJerkPositive01,
+    expandGazeWithMinimumJerkGapFill,
+} from './gazeGapFill';
+
+export type { HybridGazeSample } from './gazeGapFill';
+
+export {
+    BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS,
+    BLAZE_GAZE_CAPTURE_SHORT_EDGE_WARN_PX,
+    isBlazeGazeCaptureResolutionLow,
+} from './blazeCameraConstraints';

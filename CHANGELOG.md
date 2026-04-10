@@ -1,3 +1,15 @@
+## v0.42.2 — Eye Tracking hybrid: zone pipeline, webcam, diagnostics (2026-04-10)
+
+### participant-frontend
+- **Lab `/eye-tracking-hybrid`:** Simplified stacked corrections (removed extra EMA on zone mapping; IDW field stays central). `hybridZoneGrid` retuned: half-plane nudges, row/column bias, optional left-half vertical stretch for clearer top/bottom on the left column; corner boosts removed earlier. Related tweaks to calibration field strength and gap-fill synthetic weight.
+- **BlazeGaze:** Shared `BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS` (ideal 1280×720) for hybrid page and `EyeTrackingRenderer`. `BlazeGazeFrameStats` adds last capture width/height; soft warning on hybrid results if capture short edge is below 480px.
+- **Cleanup:** Removed unused Ridge/MediaPipe `useEyeTracking` hooks and aligned `lib/eyeTracking` exports.
+
+### docs
+- `docs/eye-tracking-heatmap.md`: short notes on resolution, frames, model role, camera constraints, and the low-res hint.
+
+---
+
 ## v0.42.1 — Eye Tracking hybrid: 4×4 grid, calibration & countdown fixes (2026-04-08)
 
 ### participant-frontend

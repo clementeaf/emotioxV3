@@ -1,5 +1,31 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useBlazeGaze } from '../hooks/useBlazeGaze';
+import { useBlazeGaze, type BlazeGazeFrameStats } from '../hooks/useBlazeGaze';
+import {
+    BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS,
+    isBlazeGazeCaptureResolutionLow,
+    HYBRID_AOI_GRID,
+    HYBRID_CALIBRATION_FIELD_STRENGTH,
+    HYBRID_FIXATION_DWELL_MS,
+    HYBRID_IMAGE_CALIBRATION_POINTS,
+    HYBRID_NOISE_THRESHOLD_PCT,
+    HYBRID_ZONE_SAMPLE_MS,
+    HYBRID_ZONE_VOTE_HISTORY,
+    hybridApplyCalibrationField,
+    hybridCalibrationConfidenceWeightUv,
+    HYBRID_GAP_FILL_MAX_MS,
+    HYBRID_GAP_FILL_SYNTHETIC_WEIGHT,
+    hybridCalibrationRmsePx,
+    expandGazeWithMinimumJerkGapFill,
+    hybridHeatColor,
+    hybridImagePercentToBlazeNorm,
+    hybridModeZoneFromHistory,
+    hybridPointToSoftZoneWeights,
+    hybridPointToZone,
+    type HybridCalibrationResidual,
+} from '../lib/eyeTracking';
+
+/** Calmer BlazeGaze EMA on this page only (EyeTrackingRenderer keeps default 0.72). */
+const HYBRID_BLAZE_SMOOTH_ALPHA = 0.38;
 
 // --- Device detection ---
 function getDeviceType(): 'desktop' | 'tablet' | 'mobile' {
@@ -15,77 +41,51 @@ interface TouchPoint { x: number; y: number; t: number }
 
 type Phase = 'intro' | 'instruction' | 'calibrating' | 'stimulus' | 'results';
 
-// --- Calibration targets (16 points — 4x4 grid) ---
-const CALIBRATION_TARGETS: [number, number][] = [
-    [10, 10], [37, 10], [63, 10], [90, 10],
-    [10, 37], [37, 37], [63, 37], [90, 37],
-    [10, 63], [37, 63], [63, 63], [90, 63],
-    [10, 90], [37, 90], [63, 90], [90, 90],
-];
-
-// --- Stimulus config ---
-const NOISE_THRESHOLD_PCT = 10; // Hide zones below this % to filter gaze noise
-// const STIMULUS_DURATION_MS = 10_000; // TODO: re-enable with iris tracking
+// --- Stimulus config (lab demo) ---
 const STIMULUS_URL = 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=1200&h=800&fit=crop';
-
-// --- 4x4 AOI grid (16 zones) ---
-const GRID_SIZE = 4;
-const ROW_LABELS = ['Top', 'Upper', 'Lower', 'Bottom'];
-const COL_LABELS = ['Left', 'Center-Left', 'Center-Right', 'Right'];
-const AOI_GRID = Array.from({ length: GRID_SIZE * GRID_SIZE }, (_, i) => {
-    const row = Math.floor(i / GRID_SIZE);
-    const col = i % GRID_SIZE;
-    return { id: `r${row}c${col}`, label: `${ROW_LABELS[row]} ${COL_LABELS[col]}`, col, row };
-});
-
-/** Map a screen point to a 4x4 grid cell id, relative to the image bounds */
-function pointToZone(x: number, y: number, rect: DOMRect): string | null {
-    const relX = x - rect.left;
-    const relY = y - rect.top;
-    if (relX < 0 || relX > rect.width || relY < 0 || relY > rect.height) return null;
-    const col = Math.min(Math.floor((relX / rect.width) * GRID_SIZE), GRID_SIZE - 1);
-    const row = Math.min(Math.floor((relY / rect.height) * GRID_SIZE), GRID_SIZE - 1);
-    return `r${row}c${col}`;
-}
-
-/** Heatmap color from 0-1 intensity */
-function heatColor(intensity: number): string {
-    if (intensity < 0.25) return 'rgba(59, 130, 246, 0.15)';   // blue — low
-    if (intensity < 0.50) return 'rgba(34, 197, 94, 0.30)';    // green
-    if (intensity < 0.75) return 'rgba(250, 204, 21, 0.45)';   // yellow
-    return 'rgba(239, 68, 68, 0.60)';                           // red — high
-}
 
 export function EyeTrackingHybridPage() {
     const deviceType = useMemo(() => getDeviceType(), []);
     const isDesktop = deviceType === 'desktop';
 
     const [phase, setPhase] = useState<Phase>('intro');
-    const [calIndex, setCalIndex] = useState(0);
-    // const [countdown, setCountdown] = useState(STIMULUS_DURATION_MS / 1000); // TODO: re-enable with iris tracking
+    const [calibrationIndex, setCalibrationIndex] = useState(0);
     const videoRef = useRef<HTMLVideoElement>(null);
     const stimulusImgRef = useRef<HTMLImageElement>(null);
+    const blazeRef = useRef<ReturnType<typeof useBlazeGaze> | null>(null);
 
     // Data collection
     const gazePoints = useRef<GazePoint[]>([]);
     const touchPoints = useRef<TouchPoint[]>([]);
+    /** Residuos (objetivo − mirada) por punto de calibración; interp. IDW en estímulo. */
+    const calibrationResidualsRef = useRef<HybridCalibrationResidual[]>([]);
 
-    // Desktop: BlazeGaze
-    const blaze = useBlazeGaze(videoRef);
+    // Desktop: BlazeGaze (same stack as EyeTrackingRenderer — CNN on eye crops, not iris landmarks alone)
+    const blaze = useBlazeGaze(videoRef, { smoothAlpha: HYBRID_BLAZE_SMOOTH_ALPHA });
 
-    // Heatmap state (populated by finishStimulus)
+    useEffect(() => {
+        blazeRef.current = blaze;
+    }, [blaze]);
+
+    // Heatmap state (soft mass per zone, sum ≈ weighted sample count)
     type ZoneHeat = Record<string, number>;
     const [heatmap, setHeatmap] = useState<ZoneHeat | null>(null);
-
-    // Real-time active zone during stimulus
+    const [calibrationRmsePx, setCalibrationRmsePx] = useState<number | null>(null);
+    const [sessionFrameStats, setSessionFrameStats] = useState<BlazeGazeFrameStats | null>(null);
+    const [gapFillSummary, setGapFillSummary] = useState<{ measured: number; synthetic: number } | null>(null);
     const [activeZone, setActiveZone] = useState<string | null>(null);
+    /** Same cell held ~HYBRID_FIXATION_DWELL_MS — gold ring (independent of vote smoothing). */
+    const [fixatedZone, setFixatedZone] = useState<string | null>(null);
+    const zoneVoteHistoryRef = useRef<(string | null)[]>([]);
+    const lastStableZoneRef = useRef<string | null>(null);
+    const dwellInstantRef = useRef<string | null>(null);
+    const dwellSinceRef = useRef<number>(0);
+    const fixatedReportedRef = useRef<string | null>(null);
 
     // --- Camera ---
     const startCamera = useCallback(async () => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-            });
+            const stream = await navigator.mediaDevices.getUserMedia(BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS);
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play();
@@ -103,35 +103,83 @@ export function EyeTrackingHybridPage() {
         }
     }, []);
 
-    // Ref to always have latest gaze data without re-creating effects
-    const blazeRef = useRef(blaze);
-    useEffect(() => { blazeRef.current = blaze; }, [blaze]);
+    /** BlazeGaze EMA-smoothed coords — heatmap samples and live zone input. */
+    const gazePosRef = useRef<[number, number]>([0, 0]);
+    useEffect(() => {
+        if (blaze.gazePos) {
+            gazePosRef.current = [blaze.gazePos.x, blaze.gazePos.y];
+        }
+    }, [blaze.gazePos]);
 
-    // --- Gaze collection during stimulus + real-time zone highlight ---
+    // --- Gaze collection during stimulus + real-time zone highlight (majority vote reduces flicker) ---
     useEffect(() => {
         if (phase !== 'stimulus' || !isDesktop) return;
+        zoneVoteHistoryRef.current = [];
+        lastStableZoneRef.current = null;
+        dwellInstantRef.current = null;
+        dwellSinceRef.current = 0;
+        fixatedReportedRef.current = null;
         let raf = 0;
         let lastCollect = 0;
+        let lastVoteAt = 0;
+        const voteMs = HYBRID_ZONE_SAMPLE_MS;
+        const fieldStrength = HYBRID_CALIBRATION_FIELD_STRENGTH;
         const loop = () => {
             const b = blazeRef.current;
+            const [gx, gy] = gazePosRef.current;
             const now = Date.now();
-            if (b.gazePos && b.gazeState === 'open') {
-                // Collect gaze point every ~50ms
-                if (now - lastCollect >= 50) {
-                    gazePoints.current.push({ x: b.gazePos.x, y: b.gazePos.y, t: now });
-                    lastCollect = now;
+            const img = stimulusImgRef.current;
+            const rect = img?.getBoundingClientRect();
+            const corrected = rect
+                ? hybridApplyCalibrationField(gx, gy, rect, calibrationResidualsRef.current, fieldStrength)
+                : { x: gx, y: gy };
+            const cx = corrected.x;
+            const cy = corrected.y;
+            if (b?.gazeState === 'open' && now - lastCollect >= 50) {
+                gazePoints.current.push({ x: cx, y: cy, t: now });
+                lastCollect = now;
+            }
+            if (img && rect) {
+                const instant = hybridPointToZone(cx, cy, rect);
+                const hist = zoneVoteHistoryRef.current;
+                if (now - lastVoteAt >= voteMs) {
+                    lastVoteAt = now;
+                    hist.push(instant);
+                    if (hist.length > HYBRID_ZONE_VOTE_HISTORY) hist.shift();
                 }
-                // Update active zone every frame for responsive highlight
-                const img = stimulusImgRef.current;
-                if (img) {
-                    const rect = img.getBoundingClientRect();
-                    setActiveZone(pointToZone(b.gazePos.x, b.gazePos.y, rect));
+                const stable = hybridModeZoneFromHistory(hist, lastStableZoneRef.current);
+                if (stable !== lastStableZoneRef.current) {
+                    lastStableZoneRef.current = stable;
+                    setActiveZone(stable);
+                }
+
+                const dwellKey = stable ?? instant;
+                if (dwellKey !== dwellInstantRef.current) {
+                    dwellInstantRef.current = dwellKey;
+                    dwellSinceRef.current = now;
+                    if (fixatedReportedRef.current !== null) {
+                        fixatedReportedRef.current = null;
+                        setFixatedZone(null);
+                    }
+                } else if (dwellKey !== null && now - dwellSinceRef.current >= HYBRID_FIXATION_DWELL_MS) {
+                    if (fixatedReportedRef.current !== dwellKey) {
+                        fixatedReportedRef.current = dwellKey;
+                        setFixatedZone(dwellKey);
+                    }
                 }
             }
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
-        return () => { cancelAnimationFrame(raf); setActiveZone(null); };
+        return () => {
+            cancelAnimationFrame(raf);
+            zoneVoteHistoryRef.current = [];
+            lastStableZoneRef.current = null;
+            dwellInstantRef.current = null;
+            fixatedReportedRef.current = null;
+            setActiveZone(null);
+            setFixatedZone(null);
+        };
     }, [phase, isDesktop]);
 
     // --- Touch/tap collection (tablet/mobile) ---
@@ -155,78 +203,114 @@ export function EyeTrackingHybridPage() {
 
     // --- Compute heatmap and transition to results ---
     const finishStimulus = useCallback(() => {
-        if (isDesktop) { blaze.stop(); stopCamera(); }
+        if (isDesktop) {
+            const blaze = blazeRef.current;
+            if (blaze) {
+                setSessionFrameStats(blaze.getFrameStats());
+            }
+            blaze?.stop();
+            stopCamera();
+        } else {
+            setSessionFrameStats(null);
+            setGapFillSummary(null);
+        }
 
-        const zoneCounts: ZoneHeat = {};
-        AOI_GRID.forEach(z => { zoneCounts[z.id] = 0; });
+        const zoneMass: ZoneHeat = {};
+        HYBRID_AOI_GRID.forEach(z => { zoneMass[z.id] = 0; });
 
-        // Use the stimulus image bounding rect — fallback to window if unavailable
         const rect = stimulusImgRef.current?.getBoundingClientRect()
             ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
 
-        const points = isDesktop ? gazePoints.current : touchPoints.current;
-        points.forEach(pt => {
-            const zoneId = pointToZone(pt.x, pt.y, rect);
-            if (zoneId) zoneCounts[zoneId]++;
-        });
+        if (isDesktop) {
+            const residuals = calibrationResidualsRef.current;
+            const expanded = expandGazeWithMinimumJerkGapFill(gazePoints.current);
+            setGapFillSummary({
+                measured: gazePoints.current.length,
+                synthetic: expanded.filter(p => p.interpolated).length,
+            });
+            for (const pt of expanded) {
+                const u = rect.width > 0 ? (pt.x - rect.left) / rect.width : 0;
+                const v = rect.height > 0 ? (pt.y - rect.top) / rect.height : 0;
+                const baseConf = hybridCalibrationConfidenceWeightUv(u, v, residuals);
+                const conf = pt.interpolated ? baseConf * HYBRID_GAP_FILL_SYNTHETIC_WEIGHT : baseConf;
+                const soft = hybridPointToSoftZoneWeights(pt.x, pt.y, rect);
+                for (const z of HYBRID_AOI_GRID) {
+                    zoneMass[z.id] += soft[z.id] * conf;
+                }
+            }
+        } else {
+            for (const pt of touchPoints.current) {
+                const soft = hybridPointToSoftZoneWeights(pt.x, pt.y, rect);
+                for (const z of HYBRID_AOI_GRID) {
+                    zoneMass[z.id] += soft[z.id];
+                }
+            }
+        }
 
-        setHeatmap(zoneCounts);
+        setHeatmap(zoneMass);
         setPhase('results');
-    }, [isDesktop, blaze, stopCamera]);
+    }, [isDesktop, stopCamera]);
 
-    // Stable ref to finishStimulus so countdown effect doesn't restart on every render
     const finishStimulusRef = useRef(finishStimulus);
     useEffect(() => { finishStimulusRef.current = finishStimulus; }, [finishStimulus]);
-
-    // --- Countdown disabled: manual stop button instead ---
-    // useEffect(() => {
-    //     if (phase !== 'stimulus') return;
-    //     const interval = setInterval(() => {
-    //         setCountdown(prev => {
-    //             if (prev <= 1) { clearInterval(interval); finishStimulusRef.current(); return 0; }
-    //             return prev - 1;
-    //         });
-    //     }, 1000);
-    //     return () => clearInterval(interval);
-    // }, [phase]);
 
     // --- Handlers ---
     const handleStart = useCallback(() => {
         gazePoints.current = [];
         touchPoints.current = [];
+        calibrationResidualsRef.current = [];
+        setCalibrationIndex(0);
+        setCalibrationRmsePx(null);
+        setSessionFrameStats(null);
+        setGapFillSummary(null);
         setPhase('instruction');
     }, []);
 
     const handleInstructionNext = useCallback(async () => {
         if (isDesktop) {
+            calibrationResidualsRef.current = [];
+            setCalibrationIndex(0);
             await startCamera();
-            setCalIndex(0);
+            blaze.start();
             setPhase('calibrating');
         } else {
             setPhase('stimulus');
         }
-    }, [isDesktop, startCamera]);
+    }, [isDesktop, startCamera, blaze]);
 
-    const handleCalibrationClick = useCallback((e: React.MouseEvent) => {
-        // Only accept clicks near the green dot (within 60px)
-        const target = CALIBRATION_TARGETS[calIndex];
-        const dotX = (target[0] / 100) * window.innerWidth;
-        const dotY = (target[1] / 100) * window.innerHeight;
-        const dist = Math.hypot(e.clientX - dotX, e.clientY - dotY);
-        if (dist > 60) return;
+    /**
+     * One click per dot: calibrate using the dot center in viewport space (aligned with the stimulus image).
+     */
+    const handleCalibrationClick = useCallback(() => {
+        if (phase !== 'calibrating') return;
+        const img = stimulusImgRef.current;
+        if (!img) return;
+        const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
+        const rect = img.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
 
-        const normX = (e.clientX / window.innerWidth) - 0.5;
-        const normY = (e.clientY / window.innerHeight) - 0.5;
+        const [ipx, ipy] = pts[calibrationIndex];
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const targetX = rect.left + (ipx / 100) * rect.width;
+        const targetY = rect.top + (ipy / 100) * rect.height;
+        const [gx, gy] = gazePosRef.current;
+        calibrationResidualsRef.current.push({
+            u: ipx / 100,
+            v: ipy / 100,
+            dx: targetX - gx,
+            dy: targetY - gy,
+        });
+        const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
         blaze.calibrate(normX, normY);
-
-        const next = calIndex + 1;
-        if (next >= CALIBRATION_TARGETS.length) {
-            blaze.start();
+        if (calibrationIndex + 1 >= pts.length) {
+            setCalibrationRmsePx(hybridCalibrationRmsePx(calibrationResidualsRef.current));
+            blaze.resetFrameStats();
             setPhase('stimulus');
         } else {
-            setCalIndex(next);
+            setCalibrationIndex(calibrationIndex + 1);
         }
-    }, [calIndex, blaze]);
+    }, [phase, calibrationIndex, blaze]);
 
     // Normalize heatmap to 0-1
     const normalizedHeat = useMemo(() => {
@@ -242,7 +326,7 @@ export function EyeTrackingHybridPage() {
         return Object.values(heatmap).reduce((a, b) => a + b, 0);
     }, [heatmap]);
 
-    const calTarget = CALIBRATION_TARGETS[calIndex];
+    const calDotImagePct = phase === 'calibrating' ? HYBRID_IMAGE_CALIBRATION_POINTS[calibrationIndex] : undefined;
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -252,26 +336,26 @@ export function EyeTrackingHybridPage() {
             {phase === 'intro' && (
                 <div className="flex min-h-screen items-center justify-center px-4">
                     <div className="max-w-md text-center">
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">Eye Tracking Test</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 mb-2">Prueba de seguimiento ocular</h1>
                         <div className="inline-block px-3 py-1 rounded-full text-xs font-medium mb-4 bg-blue-100 text-blue-700">
-                            {deviceType === 'desktop' ? 'Desktop — Webcam gaze tracking' :
-                             deviceType === 'tablet' ? 'Tablet — Tap tracking' :
-                             'Mobile — Tap tracking'}
+                            {deviceType === 'desktop' ? 'Escritorio — BlazeGaze (webcam)' :
+                             deviceType === 'tablet' ? 'Tableta — registro por toques' :
+                             'Móvil — registro por toques'}
                         </div>
                         <p className="text-gray-600 text-sm mb-6">
                             {isDesktop
-                                ? 'We will calibrate your webcam, give you an instruction, then show an image for 10 seconds while we track where you look.'
-                                : 'We will give you an instruction, then show an image for 10 seconds. Tap on the areas that catch your attention.'}
+                                ? 'Verás una instrucción, luego cuatro puntos de calibración (uno por cuadrante). El resultado es un mapa en 4 zonas con probabilidades aproximadas, no un punto exacto de mirada.'
+                                : 'Verás una instrucción y después una imagen. Toca las zonas que te llamen la atención. Los resultados son aproximados por cuadrante.'}
                         </p>
                         {isDesktop && !blaze.isLoaded && (
-                            <p className="text-amber-600 text-xs mb-4">Loading gaze model...</p>
+                            <p className="text-amber-600 text-xs mb-4">Cargando modelo de mirada...</p>
                         )}
                         <button
                             onClick={handleStart}
                             disabled={isDesktop && !blaze.isLoaded}
                             className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition"
                         >
-                            {isDesktop && !blaze.isLoaded ? 'Loading...' : 'Start'}
+                            {isDesktop && !blaze.isLoaded ? 'Cargando...' : 'Empezar'}
                         </button>
                     </div>
                 </div>
@@ -288,84 +372,106 @@ export function EyeTrackingHybridPage() {
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900 mb-2">Instruction</h2>
+                            <h2 className="text-xl font-bold text-gray-900 mb-2">Instrucción</h2>
                             <p className="text-gray-700 text-base leading-relaxed">
-                                You will see an image of a business meeting. <strong>Look at the people in the image and try to identify who is leading the conversation.</strong>
+                                Verás una imagen de una reunión. <strong>Mira a las personas e intenta identificar quién lidera la conversación.</strong>
                             </p>
                         </div>
                         <p className="text-gray-500 text-sm">
                             {isDesktop
-                                ? 'First we need to calibrate your camera. Then the image will appear for 10 seconds.'
-                                : 'The image will appear for 10 seconds. Tap on the areas that draw your attention.'}
+                                ? 'Calibrarás con cuatro puntos (centro de cada cuadrante): mira cada punto verde y haz clic. Luego el seguimiento usa la misma imagen dividida en 4 zonas.'
+                                : 'Aparecerá la imagen. Toca las zonas que te resulten más relevantes.'}
                         </p>
                         <button
                             onClick={handleInstructionNext}
                             className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
                         >
-                            {isDesktop ? 'Calibrate' : 'Show image'}
+                            {isDesktop ? 'Calibrar' : 'Ver imagen'}
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* === CALIBRATION (desktop only) === */}
-            {phase === 'calibrating' && calTarget && (
-                <div className="fixed inset-0 z-50 bg-neutral-950">
-                    <button
-                        type="button"
-                        className="fixed inset-0 cursor-crosshair bg-transparent"
-                        onClick={handleCalibrationClick}
-                    />
-                    <div className="pointer-events-none absolute left-1/2 top-12 z-10 -translate-x-1/2 text-center">
-                        <p className="text-base font-medium text-white">Look at the green dot, then click on it</p>
-                        <p className="mt-1 text-sm text-white/80">Point {calIndex + 1} of {CALIBRATION_TARGETS.length}</p>
-                    </div>
-                    <div
-                        className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2"
-                        style={{ left: `${calTarget[0]}%`, top: `${calTarget[1]}%` }}
-                    >
-                        <div className="h-5 w-5 rounded-full shadow-lg bg-green-400 shadow-green-400/50" />
-                    </div>
-                    <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 w-48 -translate-x-1/2">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white/20">
-                            <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${(calIndex / CALIBRATION_TARGETS.length) * 100}%` }} />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* === STIMULUS with real-time zone highlight === */}
-            {phase === 'stimulus' && (
+            {/* === CALIBRATION + STIMULUS: same image, grid, layout (desktop) === */}
+            {(phase === 'calibrating' || phase === 'stimulus') && isDesktop && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950">
-                    <button
-                        onClick={() => finishStimulusRef.current()}
-                        className="absolute top-4 right-4 z-10 rounded-full bg-white/10 hover:bg-white/20 px-5 py-2 text-sm font-medium text-white transition"
-                    >
-                        Stop
-                    </button>
+                    {phase === 'stimulus' && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => finishStimulusRef.current()}
+                                className="absolute top-4 right-4 z-[60] rounded-full bg-white/10 hover:bg-white/20 px-5 py-2 text-sm font-medium text-white transition"
+                            >
+                                Detener
+                            </button>
+                            <p className="pointer-events-none absolute left-1/2 top-16 z-[60] max-w-xl -translate-x-1/2 px-4 text-center text-xs text-white/70">
+                                El cuadrante resaltado indica la zona donde cae tu mirada (estimación aproximada). El anillo dorado marca que el mismo cuadrante se mantiene unos instantes.
+                            </p>
+                        </>
+                    )}
+
+                    {phase === 'calibrating' && (
+                        <>
+                            <div className="pointer-events-none absolute left-1/2 top-4 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
+                                <p className="text-base font-medium text-white">
+                                    Mira el punto verde en la imagen y luego haz clic en cualquier sitio
+                                </p>
+                                <p className="mt-1 text-sm text-white/80">
+                                    Punto {calibrationIndex + 1} de {HYBRID_IMAGE_CALIBRATION_POINTS.length}
+                                </p>
+                            </div>
+                            <div className="pointer-events-none absolute bottom-6 left-1/2 z-[70] w-48 -translate-x-1/2">
+                                <div className="h-1.5 overflow-hidden rounded-full bg-white/20">
+                                    <div
+                                        className="h-full rounded-full bg-green-500 transition-all"
+                                        style={{ width: `${(calibrationIndex / HYBRID_IMAGE_CALIBRATION_POINTS.length) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
                     <div className="relative">
                         <img
                             ref={stimulusImgRef}
                             src={STIMULUS_URL}
-                            alt="Stimulus"
+                            alt="Estímulo"
                             className="max-w-[95vw] max-h-[95vh] object-contain"
                             crossOrigin="anonymous"
                         />
-                        {/* 4x4 real-time zone overlay */}
-                        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 pointer-events-none">
-                            {AOI_GRID.map(zone => (
-                                <div
-                                    key={zone.id}
-                                    className="border border-white/5 transition-colors duration-150"
-                                    style={{
-                                        backgroundColor: activeZone === zone.id
-                                            ? 'rgba(239, 68, 68, 0.35)'
-                                            : 'transparent',
-                                    }}
-                                />
-                            ))}
+                        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 pointer-events-none">
+                            {HYBRID_AOI_GRID.map(zone => {
+                                const isActive = phase === 'stimulus' && activeZone === zone.id;
+                                const isFix = phase === 'stimulus' && fixatedZone === zone.id;
+                                return (
+                                    <div
+                                        key={zone.id}
+                                        className={`border border-white/10 transition-colors duration-300 ${
+                                            isFix ? 'ring-2 ring-amber-300/90 ring-inset' : ''
+                                        }`}
+                                        style={{
+                                            backgroundColor: isActive ? 'rgba(239, 68, 68, 0.38)' : 'transparent',
+                                        }}
+                                    />
+                                );
+                            })}
                         </div>
+                        {phase === 'calibrating' && calDotImagePct && (
+                            <div
+                                className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-400 shadow-lg shadow-green-400/50"
+                                style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
+                            />
+                        )}
                     </div>
+
+                    {phase === 'calibrating' && (
+                        <button
+                            type="button"
+                            className="fixed inset-0 z-[60] cursor-crosshair bg-transparent"
+                            aria-label="Registrar punto de calibración"
+                            onClick={handleCalibrationClick}
+                        />
+                    )}
                 </div>
             )}
 
@@ -373,11 +479,56 @@ export function EyeTrackingHybridPage() {
             {phase === 'results' && normalizedHeat && (
                 <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8 gap-6">
                     <div className="text-center">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-1">Attention Heatmap</h2>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-1">Mapa de atención</h2>
                         <p className="text-sm text-gray-500">
                             {isDesktop
-                                ? `${totalSamples} gaze samples collected at 20 Hz`
-                                : `${totalSamples} touch points recorded`}
+                                ? `${totalSamples.toFixed(1)} unidades de masa acumulada (mirada corregida, reparto suave entre celdas vecinas)`
+                                : `${totalSamples.toFixed(1)} unidades de masa acumulada (toques, reparto suave entre celdas)`}
+                        </p>
+                        {isDesktop && calibrationRmsePx !== null && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                Error medio tras calibración (RMSE): {calibrationRmsePx.toFixed(0)} px en pantalla — valores más bajos suelen indicar mejor alineación.
+                            </p>
+                        )}
+                        {isDesktop && sessionFrameStats !== null && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                Frames en el estímulo: {sessionFrameStats.validGazeFrames} con mirada válida;{' '}
+                                {sessionFrameStats.noValidGazeFrames} sin mirada (ojos cerrados o sin señal);{' '}
+                                {sessionFrameStats.invalidFrames} fallidos (cámara o modelo).
+                                {sessionFrameStats.captureWidthPx !== null &&
+                                    sessionFrameStats.captureHeightPx !== null && (
+                                    <>
+                                        {' '}
+                                        Resolución de captura (vídeo → modelo):{' '}
+                                        {sessionFrameStats.captureWidthPx}×{sessionFrameStats.captureHeightPx} px.
+                                    </>
+                                )}
+                            </p>
+                        )}
+                        {isDesktop &&
+                            sessionFrameStats !== null &&
+                            sessionFrameStats.captureWidthPx !== null &&
+                            sessionFrameStats.captureHeightPx !== null &&
+                            isBlazeGazeCaptureResolutionLow(
+                                sessionFrameStats.captureWidthPx,
+                                sessionFrameStats.captureHeightPx,
+                            ) && (
+                                <p className="text-xs text-amber-800/90 mt-1 max-w-lg mx-auto">
+                                    La resolución de la cámara es baja; el seguimiento puede ser menos estable. Si puedes,
+                                    acércate un poco a la pantalla o revisa la cámara o el permiso de resolución en el
+                                    navegador.
+                                </p>
+                            )}
+                        {isDesktop && gapFillSummary !== null && (
+                            <p className="text-xs text-gray-500 mt-1">
+                                Serie para el mapa: {gapFillSummary.measured} muestras medidas
+                                {gapFillSummary.synthetic > 0
+                                    ? ` + ${gapFillSummary.synthetic} intermedias (mínimo jerk entre puntos válidos, huecos ≤ ${HYBRID_GAP_FILL_MAX_MS} ms; peso ${Math.round(HYBRID_GAP_FILL_SYNTHETIC_WEIGHT * 100)} % vs medidas)`
+                                    : ' (sin huecos rellenados)'}.
+                            </p>
+                        )}
+                        <p className="text-xs text-amber-800/90 mt-2 max-w-lg mx-auto">
+                            Interpreta los porcentajes como distribución aproximada de atención por región, no como precisión de laboratorio.
                         </p>
                     </div>
 
@@ -385,21 +536,20 @@ export function EyeTrackingHybridPage() {
                     <div className="relative inline-block rounded-lg overflow-hidden shadow-xl">
                         <img
                             src={STIMULUS_URL}
-                            alt="Stimulus"
+                            alt="Estímulo"
                             className="max-w-[90vw] max-h-[65vh] object-contain"
                             crossOrigin="anonymous"
                         />
-                        {/* 4x4 heatmap grid overlay */}
-                        <div className="absolute inset-0 grid grid-cols-4 grid-rows-4">
-                            {AOI_GRID.map(zone => {
-                                const pct = heatmap ? Math.round((heatmap[zone.id] / Math.max(totalSamples, 1)) * 100) : 0;
-                                const aboveThreshold = pct >= NOISE_THRESHOLD_PCT;
+                        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+                            {HYBRID_AOI_GRID.map(zone => {
+                                const pct = heatmap ? Math.round((heatmap[zone.id] / Math.max(totalSamples, 1e-9)) * 100) : 0;
+                                const aboveThreshold = pct >= HYBRID_NOISE_THRESHOLD_PCT;
                                 const intensity = aboveThreshold ? (normalizedHeat[zone.id] || 0) : 0;
                                 return (
                                     <div
                                         key={zone.id}
                                         className="relative border border-white/10 flex items-center justify-center transition-colors"
-                                        style={{ backgroundColor: heatColor(intensity) }}
+                                        style={{ backgroundColor: hybridHeatColor(intensity) }}
                                     >
                                         {aboveThreshold && (
                                             <span className="text-white font-bold text-lg drop-shadow-md">
@@ -414,23 +564,23 @@ export function EyeTrackingHybridPage() {
 
                     {/* Legend */}
                     <div className="flex items-center gap-4 text-xs text-gray-600">
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.3)' }} /> Low</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.5)' }} /> Medium</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(250,204,21,0.6)' }} /> High</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.7)' }} /> Peak</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(59,130,246,0.3)' }} /> Baja</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(34,197,94,0.5)' }} /> Media</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(250,204,21,0.6)' }} /> Alta</span>
+                        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(239,68,68,0.7)' }} /> Máxima</span>
                     </div>
 
                     {/* Zone breakdown table */}
                     <div className="bg-white rounded-lg border border-gray-200 p-4 w-full max-w-2xl">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Zone breakdown</h3>
-                        <div className="grid grid-cols-4 gap-2">
-                            {AOI_GRID.map(zone => {
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Desglose por zona</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                            {HYBRID_AOI_GRID.map(zone => {
                                 const count = heatmap?.[zone.id] || 0;
                                 const pct = totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0;
-                                const aboveThreshold = pct >= NOISE_THRESHOLD_PCT;
+                                const aboveThreshold = pct >= HYBRID_NOISE_THRESHOLD_PCT;
                                 const intensity = aboveThreshold ? (normalizedHeat[zone.id] || 0) : 0;
                                 return (
-                                    <div key={zone.id} className="rounded p-2 text-center" style={{ backgroundColor: heatColor(intensity) }}>
+                                    <div key={zone.id} className="rounded p-2 text-center" style={{ backgroundColor: hybridHeatColor(intensity) }}>
                                         <p className="text-xs font-medium text-gray-800">{zone.label}</p>
                                         <p className="text-lg font-bold text-gray-900">{aboveThreshold ? `${pct}%` : '—'}</p>
                                     </div>
@@ -443,7 +593,7 @@ export function EyeTrackingHybridPage() {
                         onClick={() => window.location.reload()}
                         className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
                     >
-                        Run again
+                        Repetir
                     </button>
                 </div>
             )}

@@ -26,7 +26,7 @@ const injectCacheVersion = () => {
 export default defineConfig(({ mode }) => ({
   base: mode === 'development' ? '/' : '/participant/',
   plugins: [
-    react(), 
+    react(),
     injectCacheVersion(),
     // Inject build time as env variable
     {

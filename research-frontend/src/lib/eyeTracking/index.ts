@@ -3,8 +3,6 @@
  *
  * - **Detection**: `@mediapipe/tasks-vision` Face Landmarker (browser WASM).
  * - **Gaze mapping**: `RidgeRegression` on engineered features (iris-in-eye, head pose from 4x4 matrix, polynomials, iris×translation crosses).
- *
- * React integration lives in `hooks/useEyeTracking.ts`.
  */
 
 export {
