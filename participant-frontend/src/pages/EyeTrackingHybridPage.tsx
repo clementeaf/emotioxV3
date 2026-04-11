@@ -443,7 +443,7 @@ export function EyeTrackingHybridPage() {
                             className="max-w-[95vw] max-h-[95vh] object-contain"
                             crossOrigin="anonymous"
                         />
-                        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 pointer-events-none">
+                        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
                             {HYBRID_AOI_GRID.map(zone => {
                                 const isActive = phase === 'stimulus' && activeZone === zone.id;
                                 const isFix = phase === 'stimulus' && fixatedZone === zone.id;
@@ -544,7 +544,7 @@ export function EyeTrackingHybridPage() {
                             className="max-w-[90vw] max-h-[65vh] object-contain"
                             crossOrigin="anonymous"
                         />
-                        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+                        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
                             {HYBRID_AOI_GRID.map(zone => {
                                 const pct = heatmap ? Math.round((heatmap[zone.id] / Math.max(totalSamples, 1e-9)) * 100) : 0;
                                 const aboveThreshold = pct >= HYBRID_NOISE_THRESHOLD_PCT;
@@ -577,7 +577,7 @@ export function EyeTrackingHybridPage() {
                     {/* Zone breakdown table */}
                     <div className="bg-white rounded-lg border border-gray-200 p-4 w-full max-w-2xl">
                         <h3 className="text-sm font-semibold text-gray-900 mb-3">Desglose por zona</h3>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-3 gap-2">
                             {HYBRID_AOI_GRID.map(zone => {
                                 const count = heatmap?.[zone.id] || 0;
                                 const pct = totalSamples > 0 ? Math.round((count / totalSamples) * 100) : 0;

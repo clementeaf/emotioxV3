@@ -1,3 +1,13 @@
+## v0.53.1 — Eye Tracking hybrid: upgrade to 3×3 grid (2026-04-11)
+
+### participant-frontend
+- **Grid upgrade:** `HYBRID_GRID_SIZE` from 2×2 (4 zones) to 3×3 (9 zones). New zones: center column and center row.
+- **Retuned stretch/nudge parameters:** All values halved to prevent the center band from being compressed. Stretch X 1.12→1.06, Y 1.22→1.10, nudge factors ~50%, biases reduced proportionally.
+- **Noise threshold:** Lowered from 10% to 5% (uniform distribution is ~11% per zone in 3×3).
+- **UI:** Grid overlays and results breakdown updated to `grid-cols-3 grid-rows-3`.
+
+---
+
 ## v0.53.0 — Custom screening questions & editable demographic labels (2026-04-11)
 
 ### research-frontend

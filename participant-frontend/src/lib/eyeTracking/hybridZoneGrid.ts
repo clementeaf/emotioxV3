@@ -3,8 +3,8 @@
  * Survey `EyeTrackingRenderer` uses the same {@link HYBRID_IMAGE_CALIBRATION_POINTS} and hybrid IDW field for fixations.
  */
 
-/** 2×2 = 4 cuadrantes sobre el rect del estímulo (formato simple para probabilidades iniciales). */
-export const HYBRID_GRID_SIZE = 2;
+/** 3×3 = 9 zonas sobre el rect del estímulo. */
+export const HYBRID_GRID_SIZE = 3;
 
 export interface HybridZoneMeta {
     readonly id: string;
@@ -13,57 +13,59 @@ export interface HybridZoneMeta {
     readonly row: number;
 }
 
-/** Lista estable de 4 cuadrantes (orden row-major). */
+/** Lista estable de 9 zonas (orden row-major). */
 export const HYBRID_AOI_GRID: readonly HybridZoneMeta[] = [
     { id: 'r0c0', label: 'Superior izquierda', col: 0, row: 0 },
-    { id: 'r0c1', label: 'Superior derecha', col: 1, row: 0 },
-    { id: 'r1c0', label: 'Inferior izquierda', col: 0, row: 1 },
-    { id: 'r1c1', label: 'Inferior derecha', col: 1, row: 1 },
+    { id: 'r0c1', label: 'Superior centro', col: 1, row: 0 },
+    { id: 'r0c2', label: 'Superior derecha', col: 2, row: 0 },
+    { id: 'r1c0', label: 'Centro izquierda', col: 0, row: 1 },
+    { id: 'r1c1', label: 'Centro', col: 1, row: 1 },
+    { id: 'r1c2', label: 'Centro derecha', col: 2, row: 1 },
+    { id: 'r2c0', label: 'Inferior izquierda', col: 0, row: 2 },
+    { id: 'r2c1', label: 'Inferior centro', col: 1, row: 2 },
+    { id: 'r2c2', label: 'Inferior derecha', col: 2, row: 2 },
 ];
 
-/** Hide cell label in results when share of samples is below this (noise filter). */
-export const HYBRID_NOISE_THRESHOLD_PCT = 10;
+/** Hide cell label in results when share of samples is below this (noise filter). Lower for 3×3 since each cell gets ~11% share on uniform. */
+export const HYBRID_NOISE_THRESHOLD_PCT = 5;
 
 /**
- * Stretch from image center (k>1 expands outer bands). Tuned for webcam gaze pulled toward center.
+ * Stretch from image center (k>1 expands outer bands). Reduced for 3×3 to preserve center band width.
  */
-export const HYBRID_EDGE_STRETCH_X = 1.12;
+export const HYBRID_EDGE_STRETCH_X = 1.06;
 
-/** Y algo más que X: empuja hacia bordes verticales (inferior suele estar sub-representado). */
-export const HYBRID_EDGE_STRETCH_Y = 1.22;
+/** Y stretch: mild push toward vertical edges. Lower than 2×2 to keep middle row viable. */
+export const HYBRID_EDGE_STRETCH_Y = 1.10;
 
 /**
- * En la mitad izquierda del estímulo (antes de nudges horizontales: relX bajo 50 % del ancho),
- * multiplica el stretch Y para separar mejor fila superior/inferior en la columna izquierda (r0c0 vs r1c0).
+ * Left-half vertical stretch multiplier. Reduced for 3×3 (center row needs space).
  */
-export const HYBRID_LEFT_HALF_VERTICAL_STRETCH_MULT = 1.048;
+export const HYBRID_LEFT_HALF_VERTICAL_STRETCH_MULT = 1.02;
 
-/** Nudge hacia borde izquierdo (subido vs. derecha: mirada webcam suele caer algo a la derecha del estímulo). */
-export const HYBRID_EDGE_LEFT_HALF_FACTOR = 0.11;
+/** Nudge toward left edge (compensates webcam rightward drift). Halved for 3×3. */
+export const HYBRID_EDGE_LEFT_HALF_FACTOR = 0.055;
 
-/** Nudge hacia borde derecho (ligeramente menor que antes para no desplazar tanto la columna derecha). */
-export const HYBRID_EDGE_RIGHT_HALF_FACTOR = 0.15;
+/** Nudge toward right edge. Halved for 3×3. */
+export const HYBRID_EDGE_RIGHT_HALF_FACTOR = 0.075;
 
-/** Nudge hacia arriba en la mitad superior (equilibrio con inferior: demasiado bajo deja poca “banda” para r0). */
-export const HYBRID_EDGE_TOP_OUTER_FACTOR = 0.088;
+/** Nudge upward in top half. Reduced for 3×3. */
+export const HYBRID_EDGE_TOP_OUTER_FACTOR = 0.044;
 
-/** Nudge hacia abajo en la mitad inferior (webcam suele subir el punto; no tan fuerte como para comerse la fila superior). */
-export const HYBRID_EDGE_BOTTOM_OUTER_FACTOR = 0.195;
+/** Nudge downward in bottom half. Reduced for 3×3. */
+export const HYBRID_EDGE_BOTTOM_OUTER_FACTOR = 0.10;
 
 /**
- * Desplaza el corte fila sup/inf en coords estiradas. Valores altos favorecen inferiores y estrechan superiores.
- * Compromiso tras ajustes por cuadrantes inferiores.
+ * Row bias in stretched coords. Reduced for 3×3 — with 3 rows the cut lines are at 1/3 and 2/3.
  */
-export const HYBRID_ZONE_ROW_BIAS = 0.026;
+export const HYBRID_ZONE_ROW_BIAS = 0.012;
 
 /**
- * Sesgo en coords estiradas para columna izq/der: negativo mueve el corte hacia la izquierda
- * (ayuda al cuadrante inferior izquierdo cuando X queda ligeramente a la derecha del centro).
+ * Column bias in stretched coords. Reduced for 3×3.
  */
-export const HYBRID_ZONE_COL_BIAS = -0.034;
+export const HYBRID_ZONE_COL_BIAS = -0.016;
 
 /**
- * Recent zone ids for live highlight — con 4 cuadrantes hay menos fronteras; ventana moderada.
+ * Recent zone ids for live highlight — sliding window for zone classifier stability.
  */
 export const HYBRID_ZONE_VOTE_HISTORY = 12;
 
@@ -183,7 +185,7 @@ export function hybridViewportToStretched01(
 }
 
 /**
- * Pesos bilineales en la rejilla 2×2 (suma 1). Mismo espacio estirado que hybridPointToZone.
+ * Pesos bilineales en la rejilla NxN (suma 1). Mismo espacio estirado que hybridPointToZone.
  * @returns Per-zone weights; empty map if rect invalid
  */
 export function hybridPointToSoftZoneWeights(
@@ -223,7 +225,7 @@ export function hybridPointToSoftZoneWeights(
 }
 
 /**
- * Asigna un punto viewport a un cuadrante 2×2. Compensa sub-disparo (half-planes, boosts de esquina, stretch).
+ * Asigna un punto viewport a una zona NxN. Compensa sub-disparo (half-planes, stretch).
  * @returns Zone id (`r{row}c{col}`), or null if the image has no layout size
  */
 export function hybridPointToZone(x: number, y: number, rect: DOMRect): string | null {
