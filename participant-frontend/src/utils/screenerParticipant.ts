@@ -5,6 +5,8 @@ import { getComponentText } from './moduleComponent';
 export interface ScreenerChoiceOption {
     id: string;
     label: string;
+    /** Routing set by researcher: 'Qualify' keeps participant, 'Disqualify' blocks */
+    eligibility?: 'Qualify' | 'Disqualify';
 }
 
 /**
@@ -66,11 +68,15 @@ export function parseScreenerJsonChoices(value: unknown): ScreenerChoiceOption[]
     }
     return arr.map((item, i) => {
         if (item && typeof item === 'object' && 'id' in item) {
-            const o = item as { id?: string; label?: string; value?: string };
-            return {
+            const o = item as { id?: string; label?: string; value?: string; eligibility?: string };
+            const opt: ScreenerChoiceOption = {
                 id: String(o.id ?? `opt-${i}`),
                 label: String(o.label ?? o.value ?? `Option ${i + 1}`),
             };
+            if (o.eligibility === 'Qualify' || o.eligibility === 'Disqualify') {
+                opt.eligibility = o.eligibility;
+            }
+            return opt;
         }
         return { id: `opt-${i}`, label: String(item) };
     });

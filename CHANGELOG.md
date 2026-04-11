@@ -1,3 +1,16 @@
+## v0.54.1 — Screener flow fix, DevSidebar & ResearchPage cleanup (2026-04-11)
+
+### participant-frontend
+- **Screener step ordering fix:** Demographics was hardcoded as second step, before Screener. Participants got disqualified at demographics without ever reaching the Screener. Now: `welcome → screener → demographics → rest → thank-you`. Screener is a special step like welcome and thank-you.
+- **Screener real-time disqualification:** `ScreenerChoiceOption` now preserves `eligibility` field from module config. When participant selects a "Disqualify" choice, they are blocked immediately (backlink redirect or restriction screen). Previously, Screener choices were passive — only categorized in analytics.
+- **DevSidebar rewrite:** Extracted SVG icons as components, moved helpers outside render (`formatDuration`, `getDisplayName`, `getModuleGroup`). Replaced mutable `globalIndex` with `useMemo`+`flatItems`. Replaced `document.querySelector` with `useRef`. Removed dead `MOCK_MODULES` import and unreachable `'screener'` group.
+- **ResearchPage extraction:** Moved 9 utility functions (400+ lines) to `utils/researchPageHelpers.ts`. DRY'd `isModuleConfigured` with shared `hasValidFileUpload()`. Moved `normalizeModule` from inside useEffect to standalone function. Removed 12 dead "Removed excessive logging" comments. File reduced from 1425 → 990 lines.
+
+### backend
+- **Disqualification logging:** `checkDisqualifications` now logs the exact demographic key, participant answer, and matching disqualification value on block.
+
+---
+
 ## v0.54.0 — Design system alignment & dashboard table fix (2026-04-11)
 
 ### research-frontend

@@ -162,10 +162,12 @@ function checkDisqualifications(
             const numValue = parseInt(answer);
             if (!isNaN(numValue)) {
                 if (config.min && numValue < config.min) {
-                    return { disqualified: true, reason: `${type} below minimum` };
+                    console.warn(`[Disqualification] ${type}: answer=${answer} below min=${config.min}`);
+                    return { disqualified: true, reason: `${type} below minimum (${config.min})` };
                 }
                 if (config.max && numValue > config.max) {
-                    return { disqualified: true, reason: `${type} above maximum` };
+                    console.warn(`[Disqualification] ${type}: answer=${answer} above max=${config.max}`);
+                    return { disqualified: true, reason: `${type} above maximum (${config.max})` };
                 }
             }
         }
@@ -176,6 +178,7 @@ function checkDisqualifications(
                 if (!disq.enabled) continue;
 
                 if (matchesQuotaValue(answer, disq.value, type)) {
+                    console.warn(`[Disqualification] ${type}: answer="${answer}" matches disqualification value="${disq.value}"`);
                     return { disqualified: true, reason: `${type} = ${disq.value}` };
                 }
             }
@@ -184,7 +187,8 @@ function checkDisqualifications(
         // Check geographic restrictions
         if (type === 'country') {
             if (config.value && config.value !== 'All' && answer !== config.value) {
-                return { disqualified: true, reason: 'Country not allowed' };
+                console.warn(`[Disqualification] country: answer="${answer}" does not match config.value="${config.value}"`);
+                return { disqualified: true, reason: `Country not allowed (expected: ${config.value})` };
             }
         }
     }
