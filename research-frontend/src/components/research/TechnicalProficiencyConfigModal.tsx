@@ -39,6 +39,7 @@ interface TechnicalProficiencyConfigModalProps {
   currentDisqualified?: string[];
   initialQuotas?: TechnicalProficiencyQuota[];
   quotasEnabled?: boolean;
+  headerContent?: React.ReactNode;
 }
 
 const DEFAULT_PROFICIENCY_LEVELS: ProficiencyOption[] = [
@@ -97,7 +98,8 @@ export const TechnicalProficiencyConfigModal: React.FC<TechnicalProficiencyConfi
   currentOptions = DEFAULT_PROFICIENCY_LEVELS,
   currentDisqualified = [],
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  headerContent
 }) => {
   const baseOptions = useMemo(
     () => currentOptions.map(mapProficiencyOptionToBase),
@@ -175,6 +177,7 @@ export const TechnicalProficiencyConfigModal: React.FC<TechnicalProficiencyConfi
       getQuotaFieldLabel={getQuotaFieldLabel}
       fieldSelectLabel="Nivel de Competencia"
       QuotasIcon={Code}
+      headerContent={headerContent}
     />
   );
 };

@@ -39,6 +39,7 @@ interface HouseholdIncomeConfigModalProps {
   currentDisqualified?: string[];
   initialQuotas?: HouseholdIncomeQuota[];
   quotasEnabled?: boolean;
+  headerContent?: React.ReactNode;
 }
 
 const DEFAULT_INCOME_LEVELS: IncomeOption[] = [
@@ -98,7 +99,8 @@ export const HouseholdIncomeConfigModal: React.FC<HouseholdIncomeConfigModalProp
   currentOptions = DEFAULT_INCOME_LEVELS,
   currentDisqualified = [],
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  headerContent
 }) => {
   const baseOptions = useMemo(
     () => currentOptions.map(mapIncomeOptionToBase),
@@ -176,6 +178,7 @@ export const HouseholdIncomeConfigModal: React.FC<HouseholdIncomeConfigModalProp
       getQuotaFieldLabel={getQuotaFieldLabel}
       fieldSelectLabel="Nivel de Ingresos"
       QuotasIcon={DollarSign}
+      headerContent={headerContent}
     />
   );
 };

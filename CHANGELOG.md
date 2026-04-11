@@ -1,3 +1,28 @@
+## v0.53.0 — Custom screening questions & editable demographic labels (2026-04-11)
+
+### research-frontend
+- **Custom screening questions:** Researchers can add single-choice filtering questions in the Demographics section. Each question opens the same Drawer as predefined demographics (options with Qualify/Disqualify + quotas). Stored as `demographics.customQuestion_<id>` in Research Configuration.
+- **Editable demographic labels:** All demographic config drawers now include a "Question label" field. Researchers can rename any question (e.g. "Ingresos Familiares" → "Ingresos Mensuales"). Label shows in parentheses next to the default name in the builder row.
+- **New files:** `CustomScreeningQuestionConfigModal.tsx`.
+- **Modified:** `DemographicConfigModalBase` (new `headerContent` prop), all 6 generic config modals (forward `headerContent`), `ResearchConfigurationModule` (custom questions section, label editor, label flush), `demographicsMapper` (handles `customQuestion_*` keys, `questionLabel` field).
+
+### participant-frontend
+- **Render custom screening questions:** `DemographicsStep` discovers `customQuestion_*` keys and renders them as selects using `questionLabel` as label.
+- **Editable label override:** Predefined demographics also use `questionLabel` when set by the researcher.
+- **Validation fix:** `ResearchPage` demographics validation now uses `Object.keys(demoConfig)` instead of hardcoded `DEMO_KEYS`, so custom questions are required before advancing.
+
+### backend
+- No changes needed. `checkDisqualifications` and `tryIncrementQuota` already iterate all demographics keys dynamically. Tables use `VARCHAR(50)`, not enums.
+
+---
+
+## v0.52.1 — Fix: Navigation Flow stuck on letterbox clicks (2026-04-11)
+
+### participant-frontend
+- **Fix:** Clicks on letterboxing bars (black areas around the image in `object-contain` mode) were silently ignored — no failed attempt counted, so the participant could never trigger the 3-miss auto-advance. Now clicks outside the rendered image area count as failed attempts when hitzones are defined.
+
+---
+
 ## v0.42.6 — Lint cleanup: zero warnings across both frontends (2026-04-10)
 
 ### participant-frontend

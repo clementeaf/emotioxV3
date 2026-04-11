@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
-import { ExternalLink, QrCode, Copy, Settings, Upload, X } from 'lucide-react';
+import { ExternalLink, QrCode, Copy, Settings, Upload, X, Plus, Trash2 } from 'lucide-react';
 import { PanelParticipantsSection } from './PanelParticipantsSection';
 import { useUrlValidation } from '../../hooks/useUrlValidation';
 import { mapModalConfigToBackend } from '../../utils/demographicsMapper';
@@ -15,6 +15,7 @@ import EmploymentStatusConfigModal from './EmploymentStatusConfigModal';
 import HouseholdIncomeConfigModal from './HouseholdIncomeConfigModal';
 import DailyHoursOnlineConfigModal from './DailyHoursOnlineConfigModal';
 import TechnicalProficiencyConfigModal from './TechnicalProficiencyConfigModal';
+import CustomScreeningQuestionConfigModal from './CustomScreeningQuestionConfigModal';
 import { useToast } from '../../hooks/useToast';
 import { mediaService } from '../../services/media.service';
 
@@ -122,7 +123,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
 
     // Demographics config is genuinely dynamic — each key (age, gender, etc.) has a different shape
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const demographics = (config.demographics || {}) as Record<string, any>;
+    const demographics = useMemo(() => (config.demographics || {}) as Record<string, any>, [config.demographics]);
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
     const backlinks = useMemo(() => (config.backlinks || {}) as Record<string, string>, [config.backlinks]);
     const participantLimit = typeof savedParticipantLimit === 'object' && savedParticipantLimit !== null
@@ -132,6 +133,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     const [quotasEnabledState, setQuotasEnabledState] = useState<Record<string, boolean>>({});
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pendingQuotasRef = useRef<{ key: string; quotas: any[] } | null>(null);
+    const pendingLabelRef = useRef<{ key: string; label: string } | null>(null);
     const [runtimeParticipantBaseUrl, setRuntimeParticipantBaseUrl] = useState<string | null>(null);
     const [runtimeConfigLoaded, setRuntimeConfigLoaded] = useState(false);
 
@@ -277,6 +279,13 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
 
         const backendConfig = mapModalConfigToBackend(activeConfigModal, newConfig);
 
+        // Preserve questionLabel (custom label override for any demographic)
+        if (typeof newConfig.questionLabel === 'string') {
+            backendConfig.questionLabel = newConfig.questionLabel;
+        } else if (pendingLabelRef.current?.key === activeConfigModal && pendingLabelRef.current.label) {
+            backendConfig.questionLabel = pendingLabelRef.current.label;
+        }
+
         // Only preserve old quotas when this save payload did not include quota data (legacy modals
         // that still rely on onQuotasSave + flush). If newConfig.quotas is present (including []),
         // the mapper already reflects the intended state — do not overwrite with stale data.
@@ -358,7 +367,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
         pendingQuotasRef.current = null;
 
         // Convert modal-format quotas to backend format using field mapping
-        const fieldName = DEMOGRAPHIC_QUOTA_FIELD[key] || key;
+        const fieldName = DEMOGRAPHIC_QUOTA_FIELD[key] || (key.startsWith('customQuestion_') ? 'optionValue' : key);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const backendQuotas = quotas.map((q: any) => ({
             id: q.id,
@@ -379,6 +388,49 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             }
         });
     }, [activeConfigModal]);
+
+    // Flush pending label after modal closes — merges the edited label into demographics config.
+    useEffect(() => {
+        if (activeConfigModal !== null || !pendingLabelRef.current) return;
+
+        const { key, label } = pendingLabelRef.current;
+        pendingLabelRef.current = null;
+
+        const currentDemographics = demographicsRef.current;
+        const current = currentDemographics[key] || {};
+        // Only persist if the label is non-empty (empty = use default)
+        const updatedLabel = label.trim() || undefined;
+        if (updatedLabel !== current.questionLabel) {
+            onChangeRef.current({
+                ...configRef.current,
+                demographics: {
+                    ...currentDemographics,
+                    [key]: { ...current, questionLabel: updatedLabel }
+                }
+            });
+        }
+    }, [activeConfigModal]);
+
+    /** Returns the editable label input JSX for a demographic modal */
+    const renderLabelEditor = (demographicKey: string, defaultLabel: string) => {
+        return (
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Question label</label>
+                <input
+                    type="text"
+                    defaultValue={demographics[demographicKey]?.questionLabel || ''}
+                    onChange={(e) => {
+                        pendingLabelRef.current = { key: demographicKey, label: e.target.value };
+                    }}
+                    placeholder={defaultLabel}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                    Customize the label shown to participants. Leave empty to use the default.
+                </p>
+            </div>
+        );
+    };
 
     const handleQuotasToggle = (demographicKey: string, enabled: boolean) => {
         setQuotasEnabledState(prev => ({ ...prev, [demographicKey]: enabled }));
@@ -431,6 +483,30 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     };
 
     const DEMOGRAPHIC_KEYS = ['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'];
+
+    /** Keys of custom screening questions stored in demographics config */
+    const customQuestionKeys = useMemo(() => {
+        return Object.keys(demographics).filter(k => k.startsWith('customQuestion_'));
+    }, [demographics]);
+
+    const handleAddCustomQuestion = () => {
+        const id = `customQuestion_${Date.now()}`;
+        handleDemographicChange(id, {
+            enabled: true,
+            questionLabel: '',
+            validValues: [],
+            disqualifications: [],
+            options: [],
+            disqualified: []
+        });
+        setActiveConfigModal(id);
+    };
+
+    const handleDeleteCustomQuestion = (key: string) => {
+        const newDemographics = { ...demographics };
+        delete newDemographics[key];
+        onChange({ ...config, demographics: newDemographics });
+    };
 
     const handleLinkConfigChange = (key: string, value: boolean) => {
         onChange({
@@ -602,6 +678,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                     age: 'Age Range',
                                 };
                                 const demographicLabel = DEMOGRAPHIC_LABELS[key] ?? key.replaceAll(/([A-Z])/g, ' $1').trim();
+                                const customLabel = demographics[key]?.questionLabel;
 
                                 const defaultValidValues = DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC[key] ?? [];
 
@@ -669,10 +746,11 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                                 onClick={(e) => e.stopPropagation()}
                                                 aria-label={`Enable ${demographicLabel}`}
                                             />
-                                            <span
-                                                className={`capitalize ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                                            >
-                                                {demographicLabel}
+                                            <span className={`${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                                                <span className="capitalize">{demographicLabel}</span>
+                                                {customLabel && (
+                                                    <span className="text-xs text-gray-500 ml-1.5">({customLabel})</span>
+                                                )}
                                             </span>
                                         </label>
 
@@ -695,6 +773,79 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                             })}
                         </div>
                     </div>
+                </div>
+                )}
+
+                {/* Custom Screening Questions — hidden in kiosk mode */}
+                {!isKiosk && demographicEnabled && (
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                            <h3 className="text-sm font-medium text-gray-900">Screening questions</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">Custom single-choice questions that can disqualify participants</p>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleAddCustomQuestion}
+                            className="flex items-center gap-1"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add question
+                        </Button>
+                    </div>
+
+                    {customQuestionKeys.length > 0 && (
+                        <div className="space-y-2 px-4">
+                            {customQuestionKeys.map((key) => {
+                                const qCfg = demographics[key] || {};
+                                const qLabel = qCfg.questionLabel || 'Untitled question';
+                                const optCount = (qCfg.validValues || []).length;
+
+                                return (
+                                    <div
+                                        key={key}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => setActiveConfigModal(key)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveConfigModal(key); }}
+                                        className="flex w-full items-center justify-between p-3 border rounded-md transition-colors cursor-pointer hover:bg-gray-50"
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm font-medium text-gray-900 truncate block">{qLabel}</span>
+                                            <span className="text-xs text-gray-500">{optCount} option{optCount !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveConfigModal(key);
+                                                }}
+                                                className="h-8 w-8 p-0"
+                                                title="Configure"
+                                            >
+                                                <Settings className="h-4 w-4 text-gray-500" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteCustomQuestion(key);
+                                                }}
+                                                className="h-8 w-8 p-0"
+                                                title="Delete question"
+                                            >
+                                                <Trash2 className="h-4 w-4 text-red-400 hover:text-red-600" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
                 )}
 
@@ -1045,6 +1196,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     currentDisqualified={getModalDisqualified('gender')}
                     initialQuotas={mapBackendQuotasToModal(demographics.gender?.quotas, 'gender')}
                     quotasEnabled={isQuotasEnabled('gender')}
+                    headerContent={renderLabelEditor('gender', 'Gender')}
                 />
             )}
 
@@ -1064,6 +1216,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     currentDisqualified={getModalDisqualified('educationLevel')}
                     initialQuotas={mapBackendQuotasToModal(demographics.educationLevel?.quotas, 'educationLevel')}
                     quotasEnabled={isQuotasEnabled('educationLevel')}
+                    headerContent={renderLabelEditor('educationLevel', 'Education Level')}
                 />
             )}
 
@@ -1083,6 +1236,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     currentDisqualified={getModalDisqualified('employmentStatus')}
                     initialQuotas={mapBackendQuotasToModal(demographics.employmentStatus?.quotas, 'employmentStatus')}
                     quotasEnabled={isQuotasEnabled('employmentStatus')}
+                    headerContent={renderLabelEditor('employmentStatus', 'Employment Status')}
                 />
             )}
 
@@ -1102,6 +1256,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     currentDisqualified={getModalDisqualified('annualIncome')}
                     initialQuotas={mapBackendQuotasToModal(demographics.annualIncome?.quotas, 'incomeLevel')}
                     quotasEnabled={isQuotasEnabled('annualIncome')}
+                    headerContent={renderLabelEditor('annualIncome', 'Household Income')}
                 />
             )}
 
@@ -1121,6 +1276,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     currentDisqualified={getModalDisqualified('dailyHoursOnline')}
                     initialQuotas={mapBackendQuotasToModal(demographics.dailyHoursOnline?.quotas, 'hoursRange')}
                     quotasEnabled={isQuotasEnabled('dailyHoursOnline')}
+                    headerContent={renderLabelEditor('dailyHoursOnline', 'Daily Hours Online')}
                 />
             )}
 
@@ -1140,6 +1296,29 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     currentDisqualified={getModalDisqualified('technicalProficiency')}
                     initialQuotas={mapBackendQuotasToModal(demographics.technicalProficiency?.quotas, 'proficiencyLevel')}
                     quotasEnabled={isQuotasEnabled('technicalProficiency')}
+                    headerContent={renderLabelEditor('technicalProficiency', 'Technical Proficiency')}
+                />
+            )}
+
+            {/* Custom Screening Question Modals */}
+            {activeConfigModal?.startsWith('customQuestion_') && (
+                <CustomScreeningQuestionConfigModal
+                    isOpen={true}
+                    onClose={() => setActiveConfigModal(null)}
+                    questionLabel={demographics[activeConfigModal]?.questionLabel || ''}
+                    onSave={(questionLabel, options, disqualified) => {
+                        handleSaveDemographicConfig({
+                            options,
+                            disqualified,
+                            questionLabel
+                        });
+                    }}
+                    onQuotasSave={(quotas) => handleQuotasSave(activeConfigModal, quotas)}
+                    onQuotasToggle={(enabled) => handleQuotasToggle(activeConfigModal, enabled)}
+                    currentOptions={getModalOptions(activeConfigModal)}
+                    currentDisqualified={getModalDisqualified(activeConfigModal)}
+                    initialQuotas={mapBackendQuotasToModal(demographics[activeConfigModal]?.quotas, 'optionValue')}
+                    quotasEnabled={isQuotasEnabled(activeConfigModal)}
                 />
             )}
         </div>

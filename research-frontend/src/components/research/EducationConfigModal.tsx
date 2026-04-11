@@ -39,6 +39,7 @@ interface EducationConfigModalProps {
   currentDisqualified?: string[];
   initialQuotas?: EducationLevelQuota[];
   quotasEnabled?: boolean;
+  headerContent?: React.ReactNode;
 }
 
 const DEFAULT_EDUCATION_LEVELS: EducationOption[] = [
@@ -98,7 +99,8 @@ export const EducationConfigModal: React.FC<EducationConfigModalProps> = ({
   currentOptions = DEFAULT_EDUCATION_LEVELS,
   currentDisqualified = [],
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  headerContent
 }) => {
   const baseOptions = useMemo(
     () => currentOptions.map(mapEducationOptionToBase),
@@ -176,6 +178,7 @@ export const EducationConfigModal: React.FC<EducationConfigModalProps> = ({
       getQuotaFieldLabel={getQuotaFieldLabel}
       fieldSelectLabel="Nivel de Educación"
       QuotasIcon={GraduationCap}
+      headerContent={headerContent}
     />
   );
 };

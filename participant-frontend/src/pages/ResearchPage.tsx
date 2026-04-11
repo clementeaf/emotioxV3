@@ -1050,11 +1050,10 @@ export const ResearchPage = () => {
         }
       });
 
-      // Check that ALL enabled demographics have been answered
+      // Check that ALL enabled demographics (predefined + custom screening questions) have been answered
       const demoConfig = currentModule?.config?.demographics as Record<string, unknown> | undefined;
-      const DEMO_KEYS = ['age', 'gender', 'country', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'];
       const enabledDemoKeys = demoConfig
-        ? DEMO_KEYS.filter(k => {
+        ? Object.keys(demoConfig).filter(k => {
             const v = demoConfig[k];
             if (v === true) return true;
             if (typeof v === 'object' && v !== null && (v as Record<string, unknown>).enabled === true) return true;

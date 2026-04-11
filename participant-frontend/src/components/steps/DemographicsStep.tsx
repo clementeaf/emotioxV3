@@ -29,6 +29,8 @@ interface DemographicConfig {
     validValues?: string[];
     /** Country + City: city chips from research UI (strings or { name, country? } since v0.40.2) */
     cities?: Array<string | { name: string; country?: string }>;
+    /** Custom screening question label (only for customQuestion_* keys) */
+    questionLabel?: string;
 }
 
 const DEMOGRAPHIC_ORDER = [
@@ -177,6 +179,18 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
         [isEnabled]
     );
 
+    /** Custom screening question keys (customQuestion_*) that are enabled */
+    const customQuestionKeys = useMemo(() => {
+        return Object.keys(demographics).filter(k => {
+            if (!k.startsWith('customQuestion_')) return false;
+            const val = demographics[k];
+            if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+                return (val as DemographicConfig).enabled === true;
+            }
+            return false;
+        });
+    }, [demographics]);
+
     // Persist answers to store on every change so "Guardar y continuar" picks them up
     useEffect(() => {
         Object.entries(answers).forEach(([key, value]) => {
@@ -262,7 +276,7 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                 <div className="space-y-6">
                     {enabledKeys.map(key => {
                         const cfg = getConfig(key);
-                        const label = getDemographicLabel(key);
+                        const label = cfg.questionLabel || getDemographicLabel(key);
                         const options = getOptionsForDemographic(key, cfg);
 
                         // Country: optionally show city field based on granularity config
@@ -295,6 +309,18 @@ export const DemographicsStep: React.FC<DemographicsStepProps> = ({ module }) =>
                                 />
                             </div>
                         );
+                    })}
+
+                    {/* Custom screening questions */}
+                    {customQuestionKeys.map(key => {
+                        const cfg = getConfig(key);
+                        const label = cfg.questionLabel || key;
+                        const options = getOptionsForDemographic(key, cfg);
+
+                        if (options.length > 0) {
+                            return renderSelect(key, label, options, answers[key]);
+                        }
+                        return null;
                     })}
                 </div>
 

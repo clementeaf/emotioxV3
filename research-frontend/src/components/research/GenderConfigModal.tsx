@@ -38,6 +38,7 @@ interface GenderConfigModalProps {
   currentDisqualified?: string[];
   initialQuotas?: GenderQuota[];
   quotasEnabled?: boolean;
+  headerContent?: React.ReactNode;
 }
 
 const DEFAULT_GENDERS: GenderOption[] = [
@@ -107,7 +108,8 @@ export const GenderConfigModal: React.FC<GenderConfigModalProps> = ({
   currentOptions = DEFAULT_GENDERS,
   currentDisqualified = [],
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  headerContent
 }) => {
   const baseOptions = useMemo(
     () => currentOptions.map(mapGenderOptionToBase),
@@ -184,6 +186,7 @@ export const GenderConfigModal: React.FC<GenderConfigModalProps> = ({
       getQuotaFieldValue={getQuotaFieldValue}
       getQuotaFieldLabel={getQuotaFieldLabel}
       fieldSelectLabel="Género"
+      headerContent={headerContent}
     />
   );
 };

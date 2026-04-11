@@ -43,6 +43,8 @@ interface BackendDemographicConfig {
     priorityCountries?: string[];
     options?: ModalGenericOption[];
     disqualified?: string[];
+    /** Custom screening question label (only for customQuestion_* keys) */
+    questionLabel?: string;
 }
 
 // Modal output types
@@ -338,6 +340,14 @@ export function mapModalConfigToBackend(
             );
 
         default:
+            // Custom screening questions (customQuestion_*) use generic mapper
+            if (demographicType.startsWith('customQuestion_')) {
+                return mapGenericOptionsToBackend(
+                    (modalData.options as ModalGenericOption[]) || [],
+                    (modalData.disqualified as string[]) || [],
+                    modalData.quotas as Array<{ id: string; value?: string; quota: number; quotaType: string; isActive: boolean }> | undefined
+                );
+            }
             // Fallback: return as-is with enabled flag
             return {
                 enabled: true,

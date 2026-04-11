@@ -60,13 +60,16 @@ export function DemographicConfigModalBase<
   getQuotaFieldValue,
   getQuotaFieldLabel,
   fieldSelectLabel,
-  QuotasIcon
+  QuotasIcon,
+  headerContent
 }: DemographicConfigModalBaseProps<TOption, TQuota> & {
   getAvailableOptions: (options: TOption[]) => TOption[];
   getQuotaFieldValue: (option: TOption) => string;
   getQuotaFieldLabel: (field: TQuota['field']) => string;
   fieldSelectLabel?: string;
   QuotasIcon?: React.ComponentType<{ size?: number; className?: string }>;
+  /** Optional content rendered above the tabs (e.g. editable question label) */
+  headerContent?: React.ReactNode;
 }): React.ReactElement | null {
   const [activeTab, setActiveTab] = useState<'options' | 'quotas'>('options');
 
@@ -126,6 +129,7 @@ export function DemographicConfigModalBase<
 
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title={title} width="lg" footer={footer}>
+      {headerContent && <div className="mb-4">{headerContent}</div>}
       {/* Tabs */}
       <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
         <button

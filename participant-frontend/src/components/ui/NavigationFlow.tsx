@@ -324,7 +324,24 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         const relX = clientX - rendered.left;
         const relY = clientY - rendered.top;
 
-        if (relX < 0 || relY < 0 || relX > rendered.width || relY > rendered.height) return;
+        // Clicks outside the rendered image area (letterboxing bars) count as failed
+        // attempts so the user is never stuck if they can't find the hitzone.
+        if (relX < 0 || relY < 0 || relX > rendered.width || relY > rendered.height) {
+            if (hasHitzoneDefs) {
+                setFailedClicks(prev => {
+                    const next = prev + 1;
+                    if (next >= MAX_ATTEMPTS_PER_IMAGE) {
+                        setTimeout(() => {
+                            setIsComplete(true);
+                            saveNavigationResponse(false);
+                            if (onComplete) setTimeout(() => onComplete(), 800);
+                        }, 400);
+                    }
+                    return next;
+                });
+            }
+            return;
+        }
 
         const x = (relX / rendered.width) * 100;
         const y = (relY / rendered.height) * 100;

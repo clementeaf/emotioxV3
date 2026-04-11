@@ -39,6 +39,7 @@ interface EmploymentStatusConfigModalProps {
   currentDisqualified?: string[];
   initialQuotas?: EmploymentStatusQuota[];
   quotasEnabled?: boolean;
+  headerContent?: React.ReactNode;
 }
 
 const DEFAULT_EMPLOYMENT_STATUSES: EmploymentOption[] = [
@@ -97,7 +98,8 @@ export const EmploymentStatusConfigModal: React.FC<EmploymentStatusConfigModalPr
   currentOptions = DEFAULT_EMPLOYMENT_STATUSES,
   currentDisqualified = [],
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  headerContent
 }) => {
   const baseOptions = useMemo(
     () => currentOptions.map(mapEmploymentOptionToBase),
@@ -175,6 +177,7 @@ export const EmploymentStatusConfigModal: React.FC<EmploymentStatusConfigModalPr
       getQuotaFieldLabel={getQuotaFieldLabel}
       fieldSelectLabel="Situación Laboral"
       QuotasIcon={Briefcase}
+      headerContent={headerContent}
     />
   );
 };

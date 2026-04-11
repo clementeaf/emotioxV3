@@ -39,6 +39,7 @@ interface DailyHoursOnlineConfigModalProps {
   currentDisqualified?: string[];
   initialQuotas?: DailyHoursOnlineQuota[];
   quotasEnabled?: boolean;
+  headerContent?: React.ReactNode;
 }
 
 const DEFAULT_HOURS_RANGES: HoursOption[] = [
@@ -98,7 +99,8 @@ export const DailyHoursOnlineConfigModal: React.FC<DailyHoursOnlineConfigModalPr
   currentOptions = DEFAULT_HOURS_RANGES,
   currentDisqualified = [],
   initialQuotas = [],
-  quotasEnabled = false
+  quotasEnabled = false,
+  headerContent
 }) => {
   const baseOptions = useMemo(
     () => currentOptions.map(mapHoursOptionToBase),
@@ -176,6 +178,7 @@ export const DailyHoursOnlineConfigModal: React.FC<DailyHoursOnlineConfigModalPr
       getQuotaFieldLabel={getQuotaFieldLabel}
       fieldSelectLabel="Rango de Horas"
       QuotasIcon={Clock}
+      headerContent={headerContent}
     />
   );
 };
