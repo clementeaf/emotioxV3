@@ -1,3 +1,12 @@
+## v0.54.0 — Design system alignment & dashboard table fix (2026-04-11)
+
+### research-frontend
+- **Login aligned to design system:** AuthLayout background → `#F1F5F9` (surface-app). Card: removed decorative shadow, border → semi-transparent `black/[0.08]`. Text colors → slate palette (slate-900 heading, slate-500 subtitle). Error alert → red-800 text, red-300 border per spec. Google button border → semi-transparent with proper hover state.
+- **Font import:** Added Plus Jakarta Sans (Google Fonts) in `index.css` to match tailwind config and design system spec.
+- **Dashboard table overlap fix:** On 13" screens, ACTIONS column overlapped RESEARCHER. Researcher column now hidden below `xl` breakpoint (was `lg`). Column widths redistribute dynamically: Name 35%, Status/Created/Updated 15% each at `<xl`. Researcher cell content truncated at 180px for long names.
+
+---
+
 ## v0.53.1 — Eye Tracking hybrid: upgrade to 3×3 grid (2026-04-11)
 
 ### participant-frontend

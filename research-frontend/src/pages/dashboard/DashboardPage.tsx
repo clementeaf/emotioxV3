@@ -72,10 +72,12 @@ const ResearchTableRow = memo(({
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">
                 {formattedUpdatedDate}
             </td>
-            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden lg:table-cell">
-                {research.creator_first_name
-                    ? `${research.creator_first_name} ${research.creator_last_name || ''}`.trim()
-                    : research.creator_email || '—'}
+            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden xl:table-cell">
+                <span className="block truncate max-w-[180px]">
+                    {research.creator_first_name
+                        ? `${research.creator_first_name} ${research.creator_last_name || ''}`.trim()
+                        : research.creator_email || '—'}
+                </span>
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-sm font-medium">
                 <button
@@ -110,7 +112,7 @@ const TableSkeletonRow = memo(() => {
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap hidden md:table-cell">
                 <div className="h-3 sm:h-4 bg-gray-200 rounded w-20 sm:w-24"></div>
             </td>
-            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap hidden lg:table-cell">
+            <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap hidden xl:table-cell">
                 <div className="h-3 sm:h-4 bg-gray-200 rounded w-20 sm:w-24"></div>
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap">
@@ -229,19 +231,19 @@ export const DashboardPage = () => {
                         <table className="w-full min-w-[600px] table-fixed">
                                 <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[28%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%] xl:w-[28%]">
                                             Name
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%] xl:w-[12%]">
                                             Status
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[15%] xl:w-[12%]">
                                             Created
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[15%] xl:w-[12%]">
                                             Updated
                                         </th>
-                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[18%]">
+                                        <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell w-[18%]">
                                             Researcher
                                         </th>
                                         <th className="px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">

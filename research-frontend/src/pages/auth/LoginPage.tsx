@@ -15,16 +15,16 @@ export const LoginPage = () => {
     };
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
-            <h1 className="text-center text-3xl font-semibold leading-tight text-gray-900 pb-2">
+        <div className="rounded-xl border border-black/[0.08] bg-white p-8">
+            <h1 className="text-center text-3xl font-semibold leading-tight text-slate-900 pb-2">
                 Emotiox
             </h1>
-            <p className="text-center text-sm text-gray-500 pb-8">
+            <p className="text-center text-sm text-slate-500 pb-8">
                 UX Research Platform
             </p>
 
             {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-100 mb-6">
+                <div className="p-3 text-sm text-red-800 bg-red-50 rounded-lg border border-red-300 mb-6">
                     {error}
                 </div>
             )}
@@ -32,7 +32,7 @@ export const LoginPage = () => {
             <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-gray-800 font-semibold hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-black/[0.08] rounded-lg bg-white text-slate-800 font-semibold hover:bg-slate-50 hover:border-black/[0.15] transition-colors"
             >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path
