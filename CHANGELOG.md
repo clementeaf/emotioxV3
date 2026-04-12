@@ -1,9 +1,13 @@
-## v0.57.0 — Screening toggle UI, conditionality label fixes (2026-04-12)
+## v0.57.0 — Screening toggle UI, conditionality fixes, Eye Tracking fullscreen (2026-04-12)
 
 ### research-frontend
 - **Screening question toggle:** `ScreenerQuestionDrawer` now uses a green/orange toggle (Qualify/Disqualify) instead of a dropdown selector, matching the demographic drawer pattern.
 - **Conditionality: renamed demographics:** The conditionality modal now reads `questionLabel` from the demographic config, so renamed questions (e.g. "Annual Income" → custom label) display correctly.
 - **Conditionality: custom screening questions:** Custom screening questions (`customQuestion_*`) now show their `questionLabel` instead of the raw key ID in the conditionality dropdown.
+- **Conditionality: study question detection fix:** Choice modules from DB templates were not detected because they lacked `isChoice` setting. Now also matches by component type (`radio`, `checkbox-list`, `option-list`), so "Study question" appears in the condition source dropdown.
+
+### participant-frontend
+- **Eye Tracking fullscreen:** Calibration, validation, and viewing phases now render fullscreen with black background (`fixed inset-0 bg-black`), matching NavigationFlow pattern. Image fills screen (`95vw × 95vh`), text adapted for dark context.
 
 ---
 

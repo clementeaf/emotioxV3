@@ -215,22 +215,42 @@ export const ResearchBuilderPage = () => {
                 if (seen.has(mod.id)) continue;
                 const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
                 const components = structure?.components || [];
+                const CHOICE_COMPONENT_TYPES = ['radio', 'checkbox-list', 'option-list'];
                 const choices = components.filter(
-                    (c) => c.settings?.isChoice || c.id.includes('choice-')
+                    (c) => c.settings?.isChoice
+                        || c.id.includes('choice-')
+                        || CHOICE_COMPONENT_TYPES.includes(c.type)
                 );
                 if (choices.length === 0) continue;
-                const options = choices
-                    .map((c) => {
-                        const defaultVal =
-                            typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
-                        const label =
-                            (c.value && typeof c.value === 'string' && c.value.trim()) ||
-                            defaultVal ||
-                            c.label ||
-                            c.id;
-                        return { id: c.id, label };
-                    })
-                    .filter((o) => o.label.trim().length > 0);
+
+                // Extract options: value may be a plain string label or a JSON array of choice objects
+                const options: Array<{ id: string; label: string }> = [];
+                for (const c of choices) {
+                    const raw = typeof c.value === 'string' ? c.value.trim() : '';
+                    // Try parsing as JSON array of choices (e.g. [{id, label, value, eligibility}])
+                    if (raw.startsWith('[')) {
+                        try {
+                            const parsed = JSON.parse(raw) as Array<{ id?: string; label?: string; value?: string }>;
+                            if (Array.isArray(parsed)) {
+                                for (const item of parsed) {
+                                    const itemLabel = item.label || item.value || '';
+                                    if (itemLabel.trim()) {
+                                        options.push({ id: item.id || c.id, label: itemLabel });
+                                    }
+                                }
+                                continue;
+                            }
+                        } catch { /* not JSON, fall through */ }
+                    }
+                    // Plain string value or fallback
+                    const defaultVal =
+                        typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
+                    const label = raw || defaultVal || c.label || c.id;
+                    if (label.trim()) {
+                        options.push({ id: c.id, label });
+                    }
+                }
+
                 if (options.length === 0) continue;
                 seen.add(mod.id);
                 result.push({

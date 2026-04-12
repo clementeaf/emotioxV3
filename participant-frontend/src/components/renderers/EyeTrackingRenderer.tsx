@@ -701,19 +701,19 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     } else if (phase === 'calibration') {
         phaseContent = (
-            <div className="relative w-full min-h-[400px]" style={{ minHeight: '80vh' }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
                 <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                     <StepProgressPill step={1} total={TOTAL_STEPS} percent={calibrationPercent} />
                 </div>
 
                 <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-white/80">
                         {t(
                             'eyeTracking.calibrationHint4Point',
                             'Look at the green dot on the image, then click anywhere.',
                         )}
                     </p>
-                    <p className="mt-1 text-xs text-gray-400">
+                    <p className="mt-1 text-xs text-white/50">
                         {t('eyeTracking.pointOf', 'Point {{current}} of {{total}}', {
                             current: calibrationIndex + 1,
                             total: HYBRID_CALIB_POINT_COUNT,
@@ -722,32 +722,30 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 </div>
 
                 {!resolvedUrl ? (
-                    <div className="flex min-h-[50vh] items-center justify-center px-4">
-                        <p className="text-sm text-gray-500">{t('eyeTracking.loading', 'Loading image...')}</p>
+                    <div className="flex items-center justify-center">
+                        <p className="text-sm text-white/50">{t('eyeTracking.loading', 'Loading image...')}</p>
                     </div>
                 ) : (
                     <>
-                        <div className="relative mx-auto flex max-w-full justify-center pt-28 pb-8">
-                            <div className="relative inline-block">
-                                <img
-                                    ref={imgRef}
-                                    src={resolvedUrl}
-                                    alt="Calibration"
-                                    className="max-h-[70vh] max-w-full object-contain rounded-lg"
-                                    draggable={false}
-                                    onLoad={handleImageLoad}
+                        <div className="relative">
+                            <img
+                                ref={imgRef}
+                                src={resolvedUrl}
+                                alt="Calibration"
+                                className="max-w-[95vw] max-h-[95vh] object-contain"
+                                draggable={false}
+                                onLoad={handleImageLoad}
+                            />
+                            {calDotImagePct && (
+                                <div
+                                    className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"
+                                    style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
                                 />
-                                {calDotImagePct && (
-                                    <div
-                                        className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-md shadow-green-500/40"
-                                        style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
-                                    />
-                                )}
-                            </div>
+                            )}
                         </div>
                         <button
                             type="button"
-                            className="fixed inset-0 z-[50] cursor-crosshair bg-transparent"
+                            className="fixed inset-0 z-[60] cursor-crosshair bg-transparent"
                             aria-label={t('eyeTracking.calibrationHint4Point', 'Calibrate gaze')}
                             onClick={handleCalibrationClick}
                         />
@@ -758,21 +756,19 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     } else if (phase === 'validating') {
         const showRecalibrateOption = validationRmse !== null && validationRmse > HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX;
         phaseContent = (
-            <div className="relative w-full min-h-[400px]" style={{ minHeight: '80vh' }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
                 <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                     <StepProgressPill step={1} total={TOTAL_STEPS} percent={68} />
                 </div>
 
                 <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
                     {!showRecalibrateOption ? (
-                        <>
-                            <p className="text-sm text-gray-600">
-                                {t('eyeTracking.validationHint', 'Look at the yellow dot and click anywhere to verify accuracy.')}
-                            </p>
-                        </>
+                        <p className="text-sm text-white/80">
+                            {t('eyeTracking.validationHint', 'Look at the yellow dot and click anywhere to verify accuracy.')}
+                        </p>
                     ) : (
                         <div className="space-y-3">
-                            <p className="text-sm text-amber-600 font-medium">
+                            <p className="text-sm text-amber-400 font-medium">
                                 {t('eyeTracking.validationFailed', 'Calibration accuracy is low. Would you like to re-calibrate?')}
                             </p>
                             <div className="pointer-events-auto flex gap-3 justify-center">
@@ -784,7 +780,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                                 </button>
                                 <button
                                     onClick={handleSkipValidation}
-                                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
+                                    className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
                                 >
                                     {t('eyeTracking.continueAnyway', 'Continue anyway')}
                                 </button>
@@ -795,28 +791,26 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
 
                 {resolvedUrl && (
                     <>
-                        <div className="relative mx-auto flex max-w-full justify-center pt-28 pb-8">
-                            <div className="relative inline-block">
-                                <img
-                                    ref={imgRef}
-                                    src={resolvedUrl}
-                                    alt="Validation"
-                                    className="max-h-[70vh] max-w-full object-contain rounded-lg"
-                                    draggable={false}
-                                    onLoad={handleImageLoad}
+                        <div className="relative">
+                            <img
+                                ref={imgRef}
+                                src={resolvedUrl}
+                                alt="Validation"
+                                className="max-w-[95vw] max-h-[95vh] object-contain"
+                                draggable={false}
+                                onLoad={handleImageLoad}
+                            />
+                            {!showRecalibrateOption && (
+                                <div
+                                    className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50 animate-pulse"
+                                    style={{ left: `${HYBRID_VALIDATION_POINT[0]}%`, top: `${HYBRID_VALIDATION_POINT[1]}%` }}
                                 />
-                                {!showRecalibrateOption && (
-                                    <div
-                                        className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400 shadow-md shadow-yellow-400/40 animate-pulse"
-                                        style={{ left: `${HYBRID_VALIDATION_POINT[0]}%`, top: `${HYBRID_VALIDATION_POINT[1]}%` }}
-                                    />
-                                )}
-                            </div>
+                            )}
                         </div>
                         {!showRecalibrateOption && (
                             <button
                                 type="button"
-                                className="fixed inset-0 z-[50] cursor-crosshair bg-transparent"
+                                className="fixed inset-0 z-[60] cursor-crosshair bg-transparent"
                                 aria-label={t('eyeTracking.validationHint', 'Validate gaze')}
                                 onClick={handleValidationClick}
                             />
@@ -827,13 +821,15 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     } else if (phase === 'viewing') {
         phaseContent = (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-2 py-4 select-none">
-                <StepProgressPill step={2} total={TOTAL_STEPS} percent={viewingPercent} />
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black select-none">
+                <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
+                    <StepProgressPill step={2} total={TOTAL_STEPS} percent={viewingPercent} />
+                </div>
 
                 {/* Timer */}
-                <div className="mt-4 mb-3 text-center">
+                <div className="pointer-events-none absolute top-16 left-1/2 z-[70] -translate-x-1/2">
                     <span className={`text-lg font-mono font-bold ${
-                        timeLeft <= 3 ? 'text-red-500' : 'text-gray-500'
+                        timeLeft <= 3 ? 'text-red-400' : 'text-white/60'
                     }`}>
                         {timeLeft}s
                     </span>
@@ -842,7 +838,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 {/* Stimulus image container */}
                 <div
                     ref={containerRef}
-                    className={`relative max-w-full ${isDesktop ? '' : 'cursor-crosshair'}`}
+                    className={`relative ${isDesktop ? '' : 'cursor-crosshair'}`}
                     onClick={handleImageInteraction}
                     onTouchStart={handleImageInteraction}
                     onContextMenu={(e) => e.preventDefault()}
@@ -852,7 +848,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         ref={imgRef}
                         src={resolvedUrl}
                         alt="Stimulus"
-                        className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                        className="max-w-[95vw] max-h-[95vh] object-contain"
                         draggable={false}
                         onLoad={handleImageLoad}
                     />
@@ -877,7 +873,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 </div>
 
                 {!isDesktop && (
-                    <p className="mt-3 text-xs text-gray-400">
+                    <p className="pointer-events-none absolute bottom-6 left-1/2 z-[70] -translate-x-1/2 text-xs text-white/50">
                         {t('eyeTracking.clicks', '{{count}} points recorded', {
                             count: fixations.length,
                         })}
