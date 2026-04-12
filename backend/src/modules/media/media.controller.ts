@@ -58,6 +58,9 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
         if (isAuthError(err)) {
             return error(errorMessage, err.statusCode, undefined, origin);
         }
+        if (errorMessage.includes('not found') || errorMessage.includes('Not found')) {
+            return error(errorMessage, 404, undefined, origin);
+        }
         return error(errorMessage, 500, undefined, origin);
     }
 };
