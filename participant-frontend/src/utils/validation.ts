@@ -53,6 +53,16 @@ export const validateModule = (
 ): ValidationResult => {
     const errors: ValidationError[] = [];
 
+    // Screener: valid if 'choice' response exists
+    if (module.name === 'Screener') {
+        const choiceValue = responses.get('choice');
+        if (choiceValue !== undefined && choiceValue !== null && choiceValue !== '') {
+            return { isValid: true, errors: [] };
+        }
+        errors.push({ componentId: 'choice', message: 'Debes seleccionar una opción' });
+        return { isValid: false, errors };
+    }
+
     // Special handling for Navigation Flow and Preference Test
     const isNavigationFlow = module.name === 'Navigation Flow';
     const isPreferenceTest = module.name === 'Preference Test';

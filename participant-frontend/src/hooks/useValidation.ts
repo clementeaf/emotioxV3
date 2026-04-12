@@ -17,10 +17,21 @@ export const useValidation = () => {
         const isNavigationFlow = module.name === 'Navigation Flow';
         const isPreferenceTest = module.name === 'Preference Test';
 
+        // Screener saves response with componentId='choice'
+        const isScreener = module.name === 'Screener';
+        if (isScreener) {
+            const responseId = createResponseId(module.id, 'choice');
+            const response = responses.get(responseId);
+            if (response) {
+                stepResponses.set('choice', response.value);
+            }
+            return validateModule(module, stepResponses);
+        }
+
         if (isNavigationFlow || isPreferenceTest) {
             // For these modules, check for the main response component
             // NavigationFlow uses 'navigation-flow-component' or 'navigation-flow' depending on how it's called
-            const possibleComponentIds = isNavigationFlow 
+            const possibleComponentIds = isNavigationFlow
                 ? ['navigation-flow-component', 'navigation-flow']
                 : ['preference-test-component', 'preference-test'];
             
