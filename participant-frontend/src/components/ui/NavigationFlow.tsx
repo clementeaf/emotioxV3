@@ -487,13 +487,9 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Save when completed
-    useEffect(() => {
-        if (isComplete) {
-            saveNavigationResponse(true);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isComplete]);
+    // NOTE: save on complete is handled inline at each completion path
+    // (success → saveNavigationResponse(true), failure → saveNavigationResponse(false)).
+    // A useEffect here would overwrite completed=false with true on failed flows.
 
     return (
         <div
