@@ -106,7 +106,7 @@ export function AgeOptionsTab({
   return (
     <>
       <p className="text-gray-600 mb-6">
-        Define los rangos de edad y usa el toggle para indicar si clasifican o desclasifican automáticamente.
+        Define age ranges and use the toggle to indicate whether they qualify or disqualify automatically.
       </p>
 
       {/* Lista de opciones */}
@@ -128,7 +128,7 @@ export function AgeOptionsTab({
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
                 option.isEnabled ? 'bg-blue-500' : 'bg-gray-300'
               }`}
-              title={option.isEnabled ? 'Desactivar' : 'Activar'}
+              title={option.isEnabled ? 'Disable' : 'Enable'}
             >
               <span
                 className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
@@ -164,7 +164,7 @@ export function AgeOptionsTab({
               {option.isEnabled && (
                 <>
                   <span className={`text-xs whitespace-nowrap ${option.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
-                    {option.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
+                    {option.isDisqualifying ? 'Disqualify' : 'Qualify'}
                   </span>
                   <button
                     onClick={() => handleToggleDisqualifying(option.id)}
@@ -187,7 +187,7 @@ export function AgeOptionsTab({
                   onClick={() => handleMove(index, 'up')}
                   disabled={index === 0}
                   className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Subir"
+                  title="Move up"
                 >
                   <ChevronUp size={14} />
                 </button>
@@ -195,7 +195,7 @@ export function AgeOptionsTab({
                   onClick={() => handleMove(index, 'down')}
                   disabled={index === options.length - 1}
                   className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Bajar"
+                  title="Move down"
                 >
                   <ChevronDown size={14} />
                 </button>
@@ -204,13 +204,13 @@ export function AgeOptionsTab({
               {/* Acciones */}
               {editingOption === option.id ? (
                 <>
-                  <button onClick={() => handleEditSave(option.id, option.label)} className="p-1 text-green-600 hover:text-green-800" title="Guardar"><Save size={14} /></button>
-                  <button onClick={() => handleEditCancel(option.id)} className="p-1 text-gray-600 hover:text-gray-800" title="Cancelar"><XIcon size={14} /></button>
+                  <button onClick={() => handleEditSave(option.id, option.label)} className="p-1 text-green-600 hover:text-green-800" title="Save"><Save size={14} /></button>
+                  <button onClick={() => handleEditCancel(option.id)} className="p-1 text-gray-600 hover:text-gray-800" title="Cancel"><XIcon size={14} /></button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => handleEditStart(option.id)} className="p-1 text-blue-600 hover:text-blue-800" title="Editar" disabled={!option.isEnabled}><Edit2 size={14} /></button>
-                  <button onClick={() => handleDelete(option.id)} className="p-1 text-red-600 hover:text-red-800" title="Eliminar"><Trash2 size={14} /></button>
+                  <button onClick={() => handleEditStart(option.id)} className="p-1 text-blue-600 hover:text-blue-800" title="Edit" disabled={!option.isEnabled}><Edit2 size={14} /></button>
+                  <button onClick={() => handleDelete(option.id)} className="p-1 text-red-600 hover:text-red-800" title="Delete"><Trash2 size={14} /></button>
                 </>
               )}
             </div>
@@ -224,7 +224,7 @@ export function AgeOptionsTab({
           type="text"
           value={newOption}
           onChange={(e) => setNewOption(e.target.value)}
-          placeholder="Nueva opción de edad (ej: 18-25)"
+          placeholder="New age option (e.g. 18-25)"
           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           onKeyPress={(e) => e.key === 'Enter' && onAddOption()}
         />
@@ -234,17 +234,17 @@ export function AgeOptionsTab({
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
         >
           <Plus size={16} />
-          <span>Agregar</span>
+          <span>Add</span>
         </button>
       </div>
 
       {/* Nota importante */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-blue-800 mb-2">Nota:</h4>
+        <h4 className="font-semibold text-blue-800 mb-2">Note:</h4>
         <p className="text-blue-700 text-sm">
-          Las opciones marcadas como "Clasifica" se mostrarán a los participantes para seleccionar.
-          Las opciones marcadas como "Desclasifica" excluirán automáticamente a los participantes de esas edades.
-          Debes mantener al menos una opción que clasifique.
+          Options marked as &quot;Qualify&quot; will be shown to participants for selection.
+          Options marked as &quot;Disqualify&quot; will automatically exclude participants of those ages.
+          You must keep at least one qualifying option.
         </p>
       </div>
     </>

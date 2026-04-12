@@ -1,7 +1,8 @@
 import { Settings, Boxes, Save } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
-import type { Research, Module } from '../../services/research.service';
+import type { Research, Module, Stage } from '../../services/research.service';
+import { PendingDraftsDropdown } from './PendingDraftsDropdown';
 
 interface ResearchBuilderHeaderProps {
     research: Research;
@@ -19,6 +20,8 @@ interface ResearchBuilderHeaderProps {
     cognitiveTasksStageName?: string;
     modules?: Module[];
     onModuleJump?: (moduleId: string) => void;
+    stages?: Stage[];
+    onDraftSaveComplete?: () => void;
 }
 
 /**
@@ -39,6 +42,8 @@ export const ResearchBuilderHeader = ({
     cognitiveTasksStageName,
     modules = [],
     onModuleJump,
+    stages = [],
+    onDraftSaveComplete,
 }: ResearchBuilderHeaderProps) => {
     // Support both new generic props and legacy Cognitive Tasks props
     const isCollectionStage = isCollectionStageProp ?? isCognitiveTasksStage;
@@ -97,6 +102,13 @@ export const ResearchBuilderHeader = ({
                                 value=""
                             />
                         </div>
+                    )}
+                    {stages.length > 0 && research.id && onDraftSaveComplete && (
+                        <PendingDraftsDropdown
+                            stages={stages}
+                            researchId={research.id}
+                            onSaveComplete={onDraftSaveComplete}
+                        />
                     )}
                     {(activeModule || isMultiModuleStage) && (
                         <Button onClick={onSave} isLoading={isSaving} disabled={isSaving}>

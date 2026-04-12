@@ -1,3 +1,18 @@
+## v0.55.0 — Draft persistence, unsaved changes indicator, i18n cleanup (2026-04-11)
+
+### research-frontend
+- **Draft persistence:** Unsaved module edits are now preserved when switching between stages. Zustand session-scoped store (`useModuleDraftStore`) captures `componentValues` and `components` per moduleId. `useModuleComponents` saves draft on navigate-away and restores on return. Only creates drafts when values actually differ from server data (no false "unsaved" markers from visiting a stage).
+- **Pending drafts dropdown:** New `PendingDraftsDropdown` component in builder header, next to "Save Changes". Shows amber badge with count of modules with unsaved edits. Dropdown lists each module (name, stage, time ago) with individual Save buttons and "Save all". Saves directly to backend without navigating to the module.
+- **Unsaved dot indicator:** Sidebar shows amber dot next to stages with pending drafts.
+- **Draft cleanup:** Drafts are cleared after successful save (all three save paths: SmartVOC, collection, single module). All drafts cleared when switching to a different research.
+- **Dashboard technique cards:** Replaced dynamic ResearchTypeCard with static technique cards (Eye Tracking, Attention Prediction, Implicit Priming Test, Cognitive Analysis) using icons from `src/assets/`. Cards use full table height with `flex-1`.
+- **i18n: all demographic drawers in English.** Translated OptionsTab, QuotasTab, DemographicConfigModalBase, AgeConfigModal, CountryConfigModal, GenderConfigModal, EducationConfigModal, EmploymentStatusConfigModal, HouseholdIncomeConfigModal, DailyHoursOnlineConfigModal, TechnicalProficiencyConfigModal. Clasifica→Qualify, Desclasifica→Disqualify, etc.
+- **Screening question drawer cleanup:** Removed Dynamic Quotas tab (irrelevant for screening questions) via `hideQuotasTab` prop. Validation changed to "at least two qualifying options". Removed all quota-related code from `CustomScreeningQuestionConfigModal`.
+- **NaN fix:** `OptionsTab` percentage shows `0%` instead of `NaN%` when no options exist.
+- **Insights Finding:** Comment column narrowed to `w-2/5`, analysis panel uses `flex-1` for responsive width. Mood column shows literal value (`indeterminate`) instead of `—`.
+
+---
+
 ## v0.54.1 — Screener flow fix, DevSidebar & ResearchPage cleanup (2026-04-11)
 
 ### participant-frontend

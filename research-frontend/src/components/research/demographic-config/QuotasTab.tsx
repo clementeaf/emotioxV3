@@ -42,16 +42,16 @@ export function QuotasTab<
 >({
   options,
   quotaConfig,
-  quotasTitle = 'Sistema de Cuotas',
+  quotasTitle = 'Quota System',
   quotasDescription,
-  quotasInfoTitle = 'Cómo funcionan las cuotas:',
+  quotasInfoTitle = 'How quotas work:',
   quotasInfoItems = [],
-  quotasDisabledMessage = 'Habilita el sistema de cuotas para configurar límites',
+  quotasDisabledMessage = 'Enable the quota system to configure limits',
   quotasDisabledInfoTitle,
   quotasDisabledInfoText = [],
   getAvailableOptions,
   getQuotaFieldValue,
-  fieldSelectLabel = 'Seleccionar opción',
+  fieldSelectLabel = 'Select option',
   Icon = Users
 }: QuotasTabProps<TOption, TQuota>): React.ReactElement {
   const {
@@ -82,7 +82,7 @@ export function QuotasTab<
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">{quotasTitle}</h3>
           <div className="flex items-center space-x-3">
-            <span className="text-sm text-gray-600">Habilitar cuotas</span>
+            <span className="text-sm text-gray-600">Enable quotas</span>
             <button
               onClick={handleToggleQuotasEnabled}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -132,7 +132,7 @@ export function QuotasTab<
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="">Seleccionar</option>
+                          <option value="">Select</option>
                           {available.map((option) => (
                             <option
                               key={option.id}
@@ -147,7 +147,7 @@ export function QuotasTab<
                       {/* Quota Value (always percentage) */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Porcentaje (%)
+                          Percentage (%)
                         </label>
                         <div className="relative">
                           <input
@@ -175,7 +175,7 @@ export function QuotasTab<
                           quota.isActive ? 'text-green-600' : 'text-gray-500'
                         }`}
                       >
-                        {quota.isActive ? 'Activa' : 'Inactiva'}
+                        {quota.isActive ? 'Active' : 'Inactive'}
                       </span>
                       <button
                         onClick={() =>
@@ -197,7 +197,7 @@ export function QuotasTab<
                     <button
                       onClick={() => handleDeleteQuota(quota.id)}
                       className="p-2 text-red-600 hover:text-red-800"
-                      title="Eliminar cuota"
+                      title="Delete quota"
                     >
                       <XIcon size={16} />
                     </button>
@@ -217,18 +217,18 @@ export function QuotasTab<
               title={
                 quotas.length >=
                 availableOptions.filter((o) => o.isQualified).length
-                  ? 'Ya agregaste cuotas para todas las opciones habilitadas'
-                  : 'Agregar nueva cuota'
+                  ? 'Quotas already added for all enabled options'
+                  : 'Add new quota'
               }
             >
               <Icon size={16} />
-              <span>Agregar nueva cuota</span>
+              <span>Add new quota</span>
             </button>
 
             {quotas.length >=
               availableOptions.filter((o) => o.isQualified).length && (
               <p className="text-center text-sm text-gray-500 mt-2">
-                Has configurado cuotas para todas las opciones habilitadas
+                Quotas have been configured for all enabled options
               </p>
             )}
 

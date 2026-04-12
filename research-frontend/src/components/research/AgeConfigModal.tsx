@@ -225,20 +225,20 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
         onClick={onClose}
         className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
       >
-        Cancelar
+        Cancel
       </button>
       <button
         onClick={handleSave}
         disabled={validOptionsCount === 0}
         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
       >
-        Guardar configuración
+        Save configuration
       </button>
     </div>
   );
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title="Configurar opciones de edad" width="lg" footer={footer}>
+    <Drawer isOpen={isOpen} onClose={onClose} title="Configure age options" width="lg" footer={footer}>
       {/* Tabs */}
       <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
         <button
@@ -250,7 +250,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
           }`}
         >
           <Target className="inline w-4 h-4 mr-2" />
-          Opciones de Edad
+          Age Options
         </button>
         <button
           onClick={() => setActiveTab('quotas')}
@@ -261,7 +261,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
           }`}
         >
           <Users className="inline w-4 h-4 mr-2" />
-          Cuotas Dinámicas
+          Dynamic Quotas
         </button>
       </div>
 
@@ -281,7 +281,7 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
           {validOptionsCount === 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
               <p className="text-red-700 text-sm">
-                Debes tener al menos una opción que clasifique para que los participantes puedan participar.
+                You must have at least one qualifying option for participants to be able to participate.
               </p>
             </div>
           )}
@@ -295,27 +295,27 @@ const AgeConfigModal: React.FC<AgeConfigModalProps> = ({
             isCustom: !PREDEFINED_OPTIONS.find(p => p.id === opt.id)
           }))}
           quotaConfig={quotaConfig}
-          quotasTitle="Sistema de Cuotas por Edad"
-          quotasDescription="Configura cuotas específicas por rango de edad. Cuando el cupo de un rango esté lleno, aplica el flujo de sobre cuota (cupo agotado para ese rango), no la descalificación por reglas de perfil de la pestaña Opciones de Edad."
-          quotasInfoTitle="Cómo funcionan las cuotas:"
+          quotasTitle="Age Quota System"
+          quotasDescription="Configure specific quotas per age range. When an age range quota is full, the overquota flow applies (quota exhausted for that range), not the disqualification by profile rules from the Age Options tab."
+          quotasInfoTitle="How quotas work:"
           quotasInfoItems={[
-            'Cada rango de edad puede tener su propia cuota en porcentaje (%) del límite de participantes',
-            'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-            'El sistema incrementa el contador al validar demografía (orden de llegada dentro del rango)',
-            'Cuando el cupo de un rango esté lleno, el participante queda en sobre cuota al enviar demografía (misma lógica que «sin cupo»; enlace de sobre cuota del estudio si lo configuraste)',
-            'Rangos sin cuota asignada: si un rango habilitado no tiene cuota configurada, no se aplica límite por cuota para ese valor y puede recibir participantes sin tope porcentual'
+            'Each age range can have its own quota as a percentage (%) of the participant limit',
+            'The percentage is calculated based on the participant limit configured in the study',
+            'The system increments the counter when validating demographics (first-come within the range)',
+            'When a range quota is full, the participant is placed in overquota upon submitting demographics (same logic as "no quota available"; overquota link of the study if configured)',
+            'Ranges without assigned quota: if an enabled range has no configured quota, no quota limit applies for that value and it can receive participants without a percentage cap'
           ]}
-          quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por rango de edad"
-          quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+          quotasDisabledMessage="Enable the quota system to configure limits per age range"
+          quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
           quotasDisabledInfoText={[
-            'Los filtros previos de edad (rangos válidos y descalificantes) configurados en la pestaña "Opciones de Edad" seguirán activos.',
-            'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los rangos de edad válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por rango de edad.',
-            'Para asegurar una distribución controlada con cuotas específicas por rango de edad, habilita el sistema de cuotas dinámicas.'
+            'The previous age filters (valid and disqualifying ranges) configured in the "Age Options" tab will remain active.',
+            'However, if you do not enable this section, participant distribution within valid age ranges will be by "natural falloff" (first-come), which does not guarantee specific quotas per age range will be met.',
+            'To ensure a controlled distribution with specific quotas per age range, enable the dynamic quota system.'
           ]}
           getAvailableOptions={getAvailableOptions}
           getQuotaFieldValue={getQuotaFieldValue}
           getQuotaFieldLabel={getQuotaFieldLabel}
-          fieldSelectLabel="Rango de Edad"
+          fieldSelectLabel="Age Range"
         />
       )}
     </Drawer>

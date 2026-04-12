@@ -5,6 +5,7 @@ import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
 import { researchService, type Research, type Stage, type Module } from '../../services/research.service';
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
+import { useModuleDraftStore } from '../../stores/useModuleDraftStore';
 import { useScreenerSingleChoiceTrim } from '../../hooks/useScreenerSingleChoiceTrim';
 import { useScreenerMultipleChoiceGroupPad } from '../../hooks/useScreenerMultipleChoiceGroupPad';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
@@ -51,6 +52,12 @@ export const ResearchBuilderPage = () => {
     const queryClient = useQueryClient();
 
     const { data: research, isLoading: loading, error } = useResearch(id || null);
+    const { clearAll: clearAllDrafts, clearDraft, clearDrafts } = useModuleDraftStore();
+
+    // Clear all drafts when switching to a different research
+    useEffect(() => {
+        clearAllDrafts();
+    }, [id, clearAllDrafts]);
 
     // Type assertion para TypeScript
     const typedResearch = research as Research | null;
@@ -449,8 +456,9 @@ export const ResearchBuilderPage = () => {
                     return saveOrCreateModule(module, config, smartVOCStage?.id);
                 });
                 await Promise.all(updatePromises);
+                clearDrafts(smartVOCModules.map(m => m.id));
                 toast.success(`Saved ${smartVOCModules.length} Smart VOC module(s) successfully`);
-                
+
                 // Invalidate and refetch research data to update the UI
                 if (id) {
                     await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
@@ -495,8 +503,9 @@ export const ResearchBuilderPage = () => {
                     return saveOrCreateModule(module, config, collectionStage?.id);
                 });
                 await Promise.all(updatePromises);
+                clearDrafts(collectionModules.map(m => m.id));
                 toast.success(`Saved ${collectionModules.length} ${collectionStage?.name || 'collection'} module(s) successfully`);
-                
+
                 // Invalidate and refetch research data to update the UI
                 if (id) {
                     await queryClient.invalidateQueries({ queryKey: researchKeys.detail(id) });
@@ -517,6 +526,7 @@ export const ResearchBuilderPage = () => {
                         config,
                         order: activeModule.order_index
                     });
+                    clearDraft(activeModule.id);
                     toast.success('Research Configuration saved successfully');
                 } else {
                     // Update components with new values while preserving structure
@@ -555,6 +565,7 @@ export const ResearchBuilderPage = () => {
                         config,
                         order: activeModule.order_index
                     });
+                    clearDraft(activeModule.id);
                     toast.success('Module saved successfully');
                 }
             }
@@ -671,13 +682,15 @@ export const ResearchBuilderPage = () => {
                         isCollectionStage={isCollectionStageActive}
                         collectionStageName={collectionStage?.name}
                         modules={isSmartVOCStage ? smartVOCModules : isCollectionStageActive ? collectionModules : []}
-                        onModuleJump={(moduleId) => {
+                        onModuleJump={(mid) => {
                             if (isSmartVOCStage) {
-                                scrollToModule(moduleId, 'smartvoc');
+                                scrollToModule(mid, 'smartvoc');
                             } else if (isCollectionStageActive) {
-                                scrollToModule(moduleId, 'cognitive');
+                                scrollToModule(mid, 'cognitive');
                             }
                         }}
+                        stages={typedResearch.stages || []}
+                        onDraftSaveComplete={() => queryClient.invalidateQueries({ queryKey: researchKeys.detail(id!) })}
                     />
                 </div>
             )}

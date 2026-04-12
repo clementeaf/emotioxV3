@@ -152,9 +152,9 @@ export const GenderConfigModal: React.FC<GenderConfigModalProps> = ({
     <DemographicConfigModalBase
       isOpen={isOpen}
       onClose={onClose}
-      title="Configurar Géneros"
-      optionsTabLabel="Opciones de Género"
-      quotasTabLabel="Cuotas Dinámicas"
+      title="Configure Genders"
+      optionsTabLabel="Gender Options"
+      quotasTabLabel="Dynamic Quotas"
       onSave={handleSave}
       onQuotasSave={handleQuotasSave}
       onQuotasToggle={onQuotasToggle}
@@ -162,30 +162,30 @@ export const GenderConfigModal: React.FC<GenderConfigModalProps> = ({
       initialDisqualified={currentDisqualified}
       initialQuotas={baseQuotas}
       quotasEnabled={quotasEnabled}
-      addCustomOptionText="Agregar género personalizado"
-      statisticsLabel="Géneros calificados"
-      quotasTitle="Sistema de Cuotas por Género"
-      quotasDescription="Configura cuotas específicas por género. Cuando el cupo de un valor esté lleno, aplica sobre cuota, no descalificación por reglas de perfil."
-      quotasInfoTitle="Cómo funcionan las cuotas:"
+      addCustomOptionText="Add custom gender"
+      statisticsLabel="Qualified genders"
+      quotasTitle="Gender Quota System"
+      quotasDescription="Configure specific quotas per gender. When a value's quota is full, overquota applies, not disqualification by profile rules."
+      quotasInfoTitle="How quotas work:"
       quotasInfoItems={[
-        'Cada género puede tener su propia cuota en porcentaje (%) del límite de participantes',
-        'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-        'El sistema incrementa el contador al validar demografía',
-        'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
-        'Géneros sin cuota asignada: Si un género habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción'
+        'Each gender can have its own quota as a percentage (%) of the participant limit',
+        'The percentage is calculated based on the participant limit configured in the study',
+        'The system increments the counter when validating demographics',
+        'When the quota is full, the participant is placed in overquota upon submitting demographics (overquota link if configured)',
+        'Genders without assigned quota: If an enabled gender has no configured quota, NO limit will be applied and it can receive participants without restriction'
       ]}
-      quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por género"
-      quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+      quotasDisabledMessage="Enable the quota system to configure limits per gender"
+      quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
       quotasDisabledInfoText={[
-        'Los filtros previos de género (opciones válidas y descalificantes) configurados en la pestaña "Opciones de Género" seguirán activos.',
-        'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los géneros válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por género.',
-        'Para asegurar una distribución controlada con cuotas específicas por género, habilita el sistema de cuotas dinámicas.'
+        'The previous gender filters (valid and disqualifying options) configured in the "Gender Options" tab will remain active.',
+        'However, if you do not enable this section, participant distribution within valid genders will be by "natural falloff" (first-come), which does not guarantee specific quotas per gender will be met.',
+        'To ensure a controlled distribution with specific quotas per gender, enable the dynamic quota system.'
       ]}
-      validationMessage="⚠️ Debes tener al menos un género calificado para que los participantes puedan participar."
+      validationMessage="You must have at least one qualified gender for participants to be able to participate."
       getAvailableOptions={getAvailableOptions}
       getQuotaFieldValue={getQuotaFieldValue}
       getQuotaFieldLabel={getQuotaFieldLabel}
-      fieldSelectLabel="Género"
+      fieldSelectLabel="Gender"
       headerContent={headerContent}
     />
   );

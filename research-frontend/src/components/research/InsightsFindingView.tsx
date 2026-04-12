@@ -142,7 +142,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
 
                     <div className="flex divide-x min-h-[400px]">
                         {/* Left: Comments table */}
-                        <div className="flex-1 min-w-0">
+                        <div className="w-2/5 min-w-0 flex-shrink-0">
                             {/* Table header */}
                             <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-50 text-xs text-gray-500">
                                 <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                             'text-xs font-medium px-2 py-0.5 rounded-full capitalize flex-shrink-0 ml-3',
                                             MOOD_COLORS[entry.mood] || MOOD_COLORS.indeterminate
                                         )}>
-                                            {entry.mood === 'indeterminate' ? '—' : entry.mood}
+                                            {entry.mood}
                                         </span>
                                     </div>
                                 ))}
@@ -183,7 +183,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                         </div>
 
                         {/* Right: Analysis panel */}
-                        <div className="w-[380px] flex-shrink-0">
+                        <div className="flex-1 min-w-0">
                             {/* Tabs */}
                             <div className="flex items-center gap-1 px-4 py-2 border-b bg-gray-50">
                                 {(['sentiment', 'themes', 'keywords'] as const).map(tab => (

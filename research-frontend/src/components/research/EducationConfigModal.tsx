@@ -143,9 +143,9 @@ export const EducationConfigModal: React.FC<EducationConfigModalProps> = ({
     <DemographicConfigModalBase
       isOpen={isOpen}
       onClose={onClose}
-      title="Configurar Niveles Educativos"
-      optionsTabLabel="Opciones de Educación"
-      quotasTabLabel="Cuotas Dinámicas"
+      title="Configure Education Levels"
+      optionsTabLabel="Education Options"
+      quotasTabLabel="Dynamic Quotas"
       onSave={handleSave}
       onQuotasSave={handleQuotasSave}
       onQuotasToggle={onQuotasToggle}
@@ -153,30 +153,30 @@ export const EducationConfigModal: React.FC<EducationConfigModalProps> = ({
       initialDisqualified={currentDisqualified}
       initialQuotas={baseQuotas}
       quotasEnabled={quotasEnabled}
-      addCustomOptionText="Agregar nivel educativo personalizado"
-      statisticsLabel="Niveles calificados"
-      quotasTitle="Sistema de Cuotas por Nivel de Educación"
-      quotasDescription="Configura cuotas específicas por nivel de educación. Cuando el cupo de un nivel esté lleno, aplica sobre cuota, no descalificación por reglas de perfil."
-      quotasInfoTitle="Cómo funcionan las cuotas:"
+      addCustomOptionText="Add custom education level"
+      statisticsLabel="Qualified levels"
+      quotasTitle="Education Level Quota System"
+      quotasDescription="Configure specific quotas per education level. When a level's quota is full, overquota applies, not disqualification by profile rules."
+      quotasInfoTitle="How quotas work:"
       quotasInfoItems={[
-        'Cada nivel educativo puede tener su propia cuota en porcentaje (%) del límite de participantes',
-        'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-        'El sistema incrementa el contador al validar demografía',
-        'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
-        'Niveles sin cuota asignada: Si un nivel habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción'
+        'Each education level can have its own quota as a percentage (%) of the participant limit',
+        'The percentage is calculated based on the participant limit configured in the study',
+        'The system increments the counter when validating demographics',
+        'When the quota is full, the participant is placed in overquota upon submitting demographics (overquota link if configured)',
+        'Levels without assigned quota: If an enabled level has no configured quota, NO limit will be applied and it can receive participants without restriction'
       ]}
-      quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por nivel de educación"
-      quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+      quotasDisabledMessage="Enable the quota system to configure limits per education level"
+      quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
       quotasDisabledInfoText={[
-        'Los filtros previos de nivel educativo (opciones válidas y descalificantes) configurados en la pestaña "Opciones de Educación" seguirán activos.',
-        'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los niveles educativos válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por nivel educativo.',
-        'Para asegurar una distribución controlada con cuotas específicas por nivel educativo, habilita el sistema de cuotas dinámicas.'
+        'The previous education level filters (valid and disqualifying options) configured in the "Education Options" tab will remain active.',
+        'However, if you do not enable this section, participant distribution within valid education levels will be by "natural falloff" (first-come), which does not guarantee specific quotas per education level will be met.',
+        'To ensure a controlled distribution with specific quotas per education level, enable the dynamic quota system.'
       ]}
-      validationMessage="⚠️ Debes tener al menos un nivel educativo calificado para que los participantes puedan participar."
+      validationMessage="You must have at least one qualified education level for participants to be able to participate."
       getAvailableOptions={getAvailableOptions}
       getQuotaFieldValue={getQuotaFieldValue}
       getQuotaFieldLabel={getQuotaFieldLabel}
-      fieldSelectLabel="Nivel de Educación"
+      fieldSelectLabel="Education Level"
       QuotasIcon={GraduationCap}
       headerContent={headerContent}
     />

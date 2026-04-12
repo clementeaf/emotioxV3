@@ -35,8 +35,8 @@ export function DemographicConfigModalBase<
   isOpen,
   onClose,
   title,
-  optionsTabLabel = 'Opciones',
-  quotasTabLabel = 'Cuotas Dinámicas',
+  optionsTabLabel = 'Options',
+  quotasTabLabel = 'Dynamic Quotas',
   onSave,
   onQuotasSave,
   onQuotasToggle,
@@ -44,7 +44,7 @@ export function DemographicConfigModalBase<
   initialDisqualified = [],
   initialQuotas = [],
   quotasEnabled = false,
-  addCustomOptionText = 'Agregar opción personalizada',
+  addCustomOptionText = 'Add custom option',
   statisticsLabel,
   quotasTitle,
   quotasDescription,
@@ -54,14 +54,15 @@ export function DemographicConfigModalBase<
   quotasDisabledInfoTitle,
   quotasDisabledInfoText,
   validationMessage,
-  saveButtonText = 'Guardar configuración',
-  cancelButtonText = 'Cancelar',
+  saveButtonText = 'Save configuration',
+  cancelButtonText = 'Cancel',
   getAvailableOptions,
   getQuotaFieldValue,
   getQuotaFieldLabel,
   fieldSelectLabel,
   QuotasIcon,
-  headerContent
+  headerContent,
+  hideQuotasTab
 }: DemographicConfigModalBaseProps<TOption, TQuota> & {
   getAvailableOptions: (options: TOption[]) => TOption[];
   getQuotaFieldValue: (option: TOption) => string;
@@ -70,6 +71,8 @@ export function DemographicConfigModalBase<
   QuotasIcon?: React.ComponentType<{ size?: number; className?: string }>;
   /** Optional content rendered above the tabs (e.g. editable question label) */
   headerContent?: React.ReactNode;
+  /** Hide the quotas tab entirely */
+  hideQuotasTab?: boolean;
 }): React.ReactElement | null {
   const [activeTab, setActiveTab] = useState<'options' | 'quotas'>('options');
 
@@ -104,7 +107,7 @@ export function DemographicConfigModalBase<
   };
 
   const handleAddCustom = () => {
-    optionsConfig.handleAddCustom(addCustomOptionText.replace('+ ', '').replace('Agregar ', ''));
+    optionsConfig.handleAddCustom(addCustomOptionText.replace('+ ', '').replace('Add ', ''));
   };
 
   const validOptionsCount = optionsConfig.qualifiedCount;
@@ -130,38 +133,40 @@ export function DemographicConfigModalBase<
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title={title} width="lg" footer={footer}>
       {headerContent && <div className="mb-4">{headerContent}</div>}
-      {/* Tabs */}
-      <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
-        <button
-          onClick={() => setActiveTab('options')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'options'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Target className="inline w-4 h-4 mr-2" />
-          {optionsTabLabel}
-        </button>
-        <button
-          onClick={() => setActiveTab('quotas')}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'quotas'
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          {QuotasIcon ? (
-            <QuotasIcon className="inline w-4 h-4 mr-2" />
-          ) : (
-            <Users className="inline w-4 h-4 mr-2" />
-          )}
-          {quotasTabLabel}
-        </button>
-      </div>
+      {/* Tabs — hidden when only options tab is needed */}
+      {!hideQuotasTab && (
+        <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('options')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'options'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <Target className="inline w-4 h-4 mr-2" />
+            {optionsTabLabel}
+          </button>
+          <button
+            onClick={() => setActiveTab('quotas')}
+            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'quotas'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {QuotasIcon ? (
+              <QuotasIcon className="inline w-4 h-4 mr-2" />
+            ) : (
+              <Users className="inline w-4 h-4 mr-2" />
+            )}
+            {quotasTabLabel}
+          </button>
+        </div>
+      )}
 
       {/* Tab Content */}
-      {activeTab === 'options' ? (
+      {activeTab === 'options' || hideQuotasTab ? (
         <>
           <OptionsTab
             config={optionsConfig}

@@ -486,33 +486,33 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
         onClick={onClose}
         className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
       >
-        Cancelar
+        Cancel
       </button>
       <button
         onClick={handleSave}
         disabled={validCountriesCount === 0}
         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
       >
-        Guardar configuración
+        Save configuration
       </button>
     </div>
   );
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} title="Configurar países" width="xl" footer={footer}>
+    <Drawer isOpen={isOpen} onClose={onClose} title="Configure countries" width="xl" footer={footer}>
       {/* Granularidad geográfica */}
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <div className="flex items-center gap-2 mb-3">
             <MapPin size={16} className="text-gray-600" />
-            <span className="text-sm font-medium text-gray-900">Nivel de detalle geográfico</span>
+            <span className="text-sm font-medium text-gray-900">Geographic detail level</span>
           </div>
           <p className="text-xs text-gray-500 mb-3">
-            Define qué nivel de información geográfica se le pedirá al participante.
+            Define what level of geographic information the participant will be asked for.
           </p>
           <div className="flex gap-3">
             {([
-              { value: 'countryOnly', label: 'Solo país' },
-              { value: 'countryCity', label: 'País + Ciudad' },
+              { value: 'countryOnly', label: 'Country only' },
+              { value: 'countryCity', label: 'Country + City' },
             ] as const).map(option => (
               <label
                 key={option.value}
@@ -541,10 +541,10 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
           <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center gap-2 mb-3">
               <MapPin size={16} className="text-blue-600" />
-              <span className="text-sm font-medium text-gray-900">Ciudades configuradas</span>
+              <span className="text-sm font-medium text-gray-900">Configured cities</span>
             </div>
             <p className="text-xs text-gray-500 mb-3">
-              Agrega las ciudades que el participante podrá seleccionar. Si no agregas ninguna, se mostrará un campo de texto libre.
+              Add the cities the participant will be able to select. If you don't add any, a free text field will be shown.
             </p>
             <div className="flex gap-2 mb-3">
               <select
@@ -552,7 +552,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                 onChange={(e) => setCityCountry(e.target.value)}
                 className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               >
-                <option value="">País (opcional)</option>
+                <option value="">Country (optional)</option>
                 {qualifyingCountries.map(country => (
                   <option key={country} value={country}>{country}</option>
                 ))}
@@ -562,7 +562,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                 value={cityInput}
                 onChange={(e) => setCityInput(e.target.value)}
                 onKeyDown={handleCityInputKeyDown}
-                placeholder="Nombre de la ciudad..."
+                placeholder="City name..."
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
@@ -571,7 +571,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                 className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
               >
                 <Plus size={14} />
-                Agregar
+                Add
               </button>
             </div>
             {cities.length > 0 ? (
@@ -599,7 +599,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                       {/* Toggle Clasifica/Desclasifica */}
                       <div className="flex items-center gap-2">
                         <span className={`text-xs ${city.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
-                          {city.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
+                          {city.isDisqualifying ? 'Disqualify' : 'Qualify'}
                         </span>
                         <button
                           onClick={() => handleToggleCityDisqualifying(city.name)}
@@ -617,7 +617,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                       <button
                         onClick={() => handleRemoveCity(city.name)}
                         className="p-1 text-red-500 hover:text-red-700 transition-colors"
-                        title="Eliminar"
+                        title="Delete"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -626,7 +626,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 italic">Sin ciudades — el participante verá un campo de texto libre.</p>
+              <p className="text-xs text-gray-400 italic">No cities — the participant will see a free text field.</p>
             )}
           </div>
         )}
@@ -641,7 +641,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
               }`}
           >
             <Target className="inline w-4 h-4 mr-2" />
-            Opciones de País
+            Country Options
           </button>
           <button
             onClick={() => setActiveTab('quotas')}
@@ -651,7 +651,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
               }`}
           >
             <Users className="inline w-4 h-4 mr-2" />
-            {granularity === 'countryCity' && qualifyingCities.length > 0 ? 'Cuotas por Ciudad' : 'Cuotas Dinámicas'}
+            {granularity === 'countryCity' && qualifyingCities.length > 0 ? 'City Quotas' : 'Dynamic Quotas'}
           </button>
         </div>
 
@@ -659,7 +659,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
         {activeTab === 'options' ? (
           <>
             <p className="text-gray-600 mb-6">
-              Organiza países por continentes. Excluye continentes completos o exceptúa países específicos.
+              Organize countries by continent. Exclude entire continents or exempt specific countries.
             </p>
 
             {/* Búsqueda */}
@@ -670,7 +670,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar países..."
+                  placeholder="Search countries..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -679,19 +679,19 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
             {/* Estadísticas */}
             <div className="mb-6 grid grid-cols-4 gap-4 text-sm">
               <div className="bg-blue-50 p-3 rounded-lg">
-                <div className="font-medium text-blue-800">Total países</div>
+                <div className="font-medium text-blue-800">Total countries</div>
                 <div className="text-blue-600">{totalCountries}</div>
               </div>
               <div className="bg-green-50 p-3 rounded-lg">
-                <div className="font-medium text-green-800">Países válidos</div>
+                <div className="font-medium text-green-800">Valid countries</div>
                 <div className="text-green-600">{validCountriesCount}</div>
               </div>
               <div className="bg-purple-50 p-3 rounded-lg">
-                <div className="font-medium text-purple-800">Prioritarios</div>
+                <div className="font-medium text-purple-800">Priority</div>
                 <div className="text-purple-600">{priorityCountriesCount}</div>
               </div>
               <div className="bg-orange-50 p-3 rounded-lg">
-                <div className="font-medium text-orange-800">Continentes excluidos</div>
+                <div className="font-medium text-orange-800">Excluded continents</div>
                 <div className="text-orange-600">{excludedContinentsCount}</div>
               </div>
             </div>
@@ -732,16 +732,16 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                         <div>
                           <div className="font-medium">{section.name}</div>
                           <div className="text-sm text-gray-500">
-                            {section.countries.length} países
+                            {section.countries.length} countries
                             {section.isExcluded && (
-                              <span className="text-red-600 ml-2">(Excluido)</span>
+                              <span className="text-red-600 ml-2">(Excluded)</span>
                             )}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className={`text-sm ${section.isExcluded ? 'text-red-600' : 'text-gray-600'}`}>
-                          {section.isExcluded ? 'Excluido' : 'Incluido'}
+                          {section.isExcluded ? 'Excluded' : 'Included'}
                         </span>
                         {section.isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </div>
@@ -795,7 +795,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                               {/* Toggle Clasifica/Desclasifica */}
                               <div className="flex items-center space-x-2">
                                 <span className={`text-sm ${country.isDisqualifying ? 'text-orange-600' : 'text-green-600'}`}>
-                                  {country.isDisqualifying ? 'Desclasifica' : 'Clasifica'}
+                                  {country.isDisqualifying ? 'Disqualify' : 'Qualify'}
                                 </span>
                                 <button
                                   onClick={() => handleToggleCountryDisqualifying(section.name, country.id)}
@@ -818,7 +818,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                                       ? 'text-purple-600 bg-purple-100'
                                       : 'text-gray-400 hover:text-purple-400 hover:bg-purple-50'
                                       }`}
-                                    title={country.isPriority ? 'Quitar prioridad' : 'Marcar como prioritario'}
+                                    title={country.isPriority ? 'Remove priority' : 'Mark as priority'}
                                   >
                                     <Star size={18} fill={country.isPriority ? 'currentColor' : 'none'} />
                                   </button>
@@ -834,14 +834,14 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                                 <button
                                   onClick={() => handleEditSave(section.name, country.id, country.name)}
                                   className="p-1 text-green-600 hover:text-green-800"
-                                  title="Guardar"
+                                  title="Save"
                                 >
                                   <Save size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleEditCancel(section.name, country.id)}
                                   className="p-1 text-gray-600 hover:text-gray-800"
-                                  title="Cancelar"
+                                  title="Cancel"
                                 >
                                   <X size={16} />
                                 </button>
@@ -851,14 +851,14 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                                 <button
                                   onClick={() => handleEditStart(section.name, country.id)}
                                   className="p-1 text-blue-600 hover:text-blue-800"
-                                  title="Editar"
+                                  title="Edit"
                                 >
                                   <Edit2 size={16} />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteCountry(section.name, country.id)}
                                   className="p-1 text-red-600 hover:text-red-800"
-                                  title="Eliminar"
+                                  title="Delete"
                                 >
                                   <Trash2 size={16} />
                                 </button>
@@ -875,13 +875,13 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
 
             {/* Nota importante */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <h4 className="font-semibold text-blue-800 mb-2">Nota:</h4>
+              <h4 className="font-semibold text-blue-800 mb-2">Note:</h4>
               <p className="text-blue-700 text-sm space-y-1">
-                <span className="block">• Los países marcados como "Clasifica" se mostrarán a los participantes para seleccionar.</span>
-                <span className="block">• Los países marcados como "Desclasifica" excluirán automáticamente a los participantes de esos países.</span>
-                <span className="block">• Los países con <Star size={14} className="inline text-purple-600" fill="currentColor" /> <strong>estrella (prioritarios)</strong> tendrán preferencia en el reclutamiento.</span>
-                <span className="block">• Puedes excluir continentes completos y luego exceptuar países específicos dentro de ellos.</span>
-                <span className="block">• Debes mantener al menos un país que clasifique.</span>
+                <span className="block">• Countries marked as &quot;Qualify&quot; will be shown to participants for selection.</span>
+                <span className="block">• Countries marked as &quot;Disqualify&quot; will automatically exclude participants from those countries.</span>
+                <span className="block">• Countries with <Star size={14} className="inline text-purple-600" fill="currentColor" /> <strong>star (priority)</strong> will have preference in recruitment.</span>
+                <span className="block">• You can exclude entire continents and then exempt specific countries within them.</span>
+                <span className="block">• You must keep at least one qualifying country.</span>
               </p>
             </div>
 
@@ -889,7 +889,7 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
             {validCountriesCount === 0 && totalCountries > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                 <p className="text-red-700 text-sm">
-                  ⚠️ Debes tener al menos un país que clasifique para que los participantes puedan participar.
+                  You must have at least one qualifying country for participants to be able to participate.
                 </p>
               </div>
             )}
@@ -906,33 +906,33 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                   isCustom: false
                 }))}
                 quotaConfig={cityQuotaConfig}
-                quotasTitle="Sistema de Cuotas por Ciudad"
-                quotasDescription={`Configura cuotas específicas para las ${qualifyingCities.length} ciudades que clasifican. Cuando el cupo de una ciudad esté lleno, aplica sobre cuota.`}
-                quotasInfoTitle="Cuotas para ciudades:"
+                quotasTitle="City Quota System"
+                quotasDescription={`Configure specific quotas for the ${qualifyingCities.length} qualifying cities. When a city's quota is full, overquota applies.`}
+                quotasInfoTitle="City quotas:"
                 quotasInfoItems={[
-                  'Cada ciudad puede tener su propia cuota en porcentaje (%) del límite de participantes',
-                  'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-                  'El sistema incrementa el contador al validar demografía (por ciudad)',
-                  'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía',
-                  'Ciudades sin cuota asignada: no se le aplicará ningún límite'
+                  'Each city can have its own quota as a percentage (%) of the participant limit',
+                  'The percentage is calculated based on the participant limit configured in the study',
+                  'The system increments the counter when validating demographics (per city)',
+                  'When the quota is full, the participant is placed in overquota upon submitting demographics',
+                  'Cities without assigned quota: no limit will be applied'
                 ]}
-                quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por ciudad"
-                quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+                quotasDisabledMessage="Enable the quota system to configure limits per city"
+                quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
                 quotasDisabledInfoText={[
-                  'Sin cuotas, la distribución de participantes entre ciudades será por "caída natural" (orden de llegada).',
-                  'Para asegurar una distribución controlada, habilita el sistema de cuotas dinámicas.'
+                  'Without quotas, participant distribution among cities will be by "natural falloff" (first-come).',
+                  'To ensure a controlled distribution, enable the dynamic quota system.'
                 ]}
                 getAvailableOptions={(options) => options}
                 getQuotaFieldValue={(option) => option.label}
                 getQuotaFieldLabel={(field) => field}
-                fieldSelectLabel="Ciudad"
+                fieldSelectLabel="City"
                 Icon={MapPin}
               />
             ) : priorityCountries.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Star className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="font-medium mb-2">No hay países prioritarios seleccionados</p>
-                <p className="text-sm">Marca países como prioritarios en la pestaña "Opciones de País" para configurar sus cuotas</p>
+                <p className="font-medium mb-2">No priority countries selected</p>
+                <p className="text-sm">Mark countries as priority in the &quot;Country Options&quot; tab to configure their quotas</p>
               </div>
             ) : (
               <QuotasTab
@@ -943,29 +943,29 @@ const CountryConfigModal: React.FC<CountryConfigModalProps> = ({
                   isCustom: false
                 }))}
                 quotaConfig={quotaConfig}
-                quotasTitle="Sistema de Cuotas por País"
-                quotasDescription={`Configura cuotas específicas para los ${priorityCountries.length} países prioritarios seleccionados. Cuando el cupo de un país esté lleno, aplica sobre cuota, no descalificación por reglas de perfil de país.`}
-                quotasInfoTitle="Cuotas para países prioritarios:"
+                quotasTitle="Country Quota System"
+                quotasDescription={`Configure specific quotas for the ${priorityCountries.length} selected priority countries. When a country's quota is full, overquota applies, not disqualification by country profile rules.`}
+                quotasInfoTitle="Priority country quotas:"
                 quotasInfoItems={[
-                  'Las cuotas solo se aplican a países marcados como prioritarios',
-                  'Cada país puede tener su propia cuota en porcentaje (%) del límite de participantes',
-                  'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-                  'El sistema incrementa el contador al validar demografía (por país)',
-                  'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
-                  'Países sin cuota asignada: Si un país prioritario no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción',
-                  'Si quitas la prioridad de un país, su cuota se mantendrá pero no se aplicará'
+                  'Quotas only apply to countries marked as priority',
+                  'Each country can have its own quota as a percentage (%) of the participant limit',
+                  'The percentage is calculated based on the participant limit configured in the study',
+                  'The system increments the counter when validating demographics (per country)',
+                  'When the quota is full, the participant is placed in overquota upon submitting demographics (overquota link if configured)',
+                  'Countries without assigned quota: If a priority country has no configured quota, NO limit will be applied and it can receive participants without restriction',
+                  'If you remove priority from a country, its quota will be kept but not applied'
                 ]}
-                quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por país prioritario"
-                quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+                quotasDisabledMessage="Enable the quota system to configure limits per priority country"
+                quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
                 quotasDisabledInfoText={[
-                  'Los filtros previos de país (países válidos y descalificantes) configurados en la pestaña "Opciones de País" seguirán activos.',
-                  'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los países válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por país.',
-                  'Para asegurar una distribución controlada con cuotas específicas por país, habilita el sistema de cuotas dinámicas.'
+                  'The previous country filters (valid and disqualifying countries) configured in the "Country Options" tab will remain active.',
+                  'However, if you do not enable this section, participant distribution within valid countries will be by "natural falloff" (first-come), which does not guarantee specific quotas per country will be met.',
+                  'To ensure a controlled distribution with specific quotas per country, enable the dynamic quota system.'
                 ]}
                 getAvailableOptions={(options) => options}
                 getQuotaFieldValue={(option) => option.label}
                 getQuotaFieldLabel={(field) => field}
-                fieldSelectLabel="País prioritario"
+                fieldSelectLabel="Priority country"
                 Icon={Globe}
               />
             )}

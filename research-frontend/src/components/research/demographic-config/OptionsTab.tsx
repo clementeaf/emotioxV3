@@ -25,7 +25,7 @@ interface OptionsTabProps<TOption extends BaseDemographicOption> {
 export function OptionsTab<TOption extends BaseDemographicOption>({
   config,
   statisticsLabel,
-  addCustomOptionText = 'Agregar opción personalizada',
+  addCustomOptionText = 'Add custom option',
   onAddCustom
 }: OptionsTabProps<TOption>): React.ReactElement {
   const {
@@ -52,14 +52,14 @@ export function OptionsTab<TOption extends BaseDemographicOption>({
               {statisticsLabel}: {qualifiedCount}/{totalCount}
             </span>
             <span className="text-xs text-blue-600">
-              {Math.round((qualifiedCount / totalCount) * 100)}% válidos
+              {totalCount > 0 ? Math.round((qualifiedCount / totalCount) * 100) : 0}% valid
             </span>
           </div>
         </div>
       )}
 
       <p className="text-gray-600 mb-6">
-        Usa el toggle para indicar si cada opción clasifica o desclasifica automáticamente al participante.
+        Use the toggle to indicate whether each option qualifies or disqualifies the participant.
       </p>
 
       {/* Options List */}
@@ -95,7 +95,7 @@ export function OptionsTab<TOption extends BaseDemographicOption>({
             <div className="ml-auto flex items-center gap-2 shrink-0">
               {/* Toggle Clasifica/Desclasifica */}
               <span className={`text-xs whitespace-nowrap ${option.isQualified ? 'text-green-600' : 'text-orange-600'}`}>
-                {option.isQualified ? 'Clasifica' : 'Desclasifica'}
+                {option.isQualified ? 'Qualify' : 'Disqualify'}
               </span>
               <button
                 onClick={() => handleToggleQualification(option.id)}
@@ -113,14 +113,14 @@ export function OptionsTab<TOption extends BaseDemographicOption>({
               {/* Acciones */}
               {editingId === option.id ? (
                 <>
-                  <button onClick={handleEditSave} className="p-1 text-green-600 hover:text-green-800" title="Guardar"><Save size={14} /></button>
-                  <button onClick={handleEditCancel} className="p-1 text-gray-600 hover:text-gray-800" title="Cancelar"><XIcon size={14} /></button>
+                  <button onClick={handleEditSave} className="p-1 text-green-600 hover:text-green-800" title="Save"><Save size={14} /></button>
+                  <button onClick={handleEditCancel} className="p-1 text-gray-600 hover:text-gray-800" title="Cancel"><XIcon size={14} /></button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => handleEditStart(option)} className="p-1 text-blue-600 hover:text-blue-800" title="Editar"><Edit2 size={14} /></button>
+                  <button onClick={() => handleEditStart(option)} className="p-1 text-blue-600 hover:text-blue-800" title="Edit"><Edit2 size={14} /></button>
                   {option.isCustom && (
-                    <button onClick={() => handleDelete(option.id)} className="p-1 text-red-600 hover:text-red-800" title="Eliminar"><Trash2 size={14} /></button>
+                    <button onClick={() => handleDelete(option.id)} className="p-1 text-red-600 hover:text-red-800" title="Delete"><Trash2 size={14} /></button>
                   )}
                 </>
               )}

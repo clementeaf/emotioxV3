@@ -143,9 +143,9 @@ export const HouseholdIncomeConfigModal: React.FC<HouseholdIncomeConfigModalProp
     <DemographicConfigModalBase
       isOpen={isOpen}
       onClose={onClose}
-      title="Configurar Ingresos Familiares"
-      optionsTabLabel="Opciones de Ingresos"
-      quotasTabLabel="Cuotas Dinámicas"
+      title="Configure Household Income"
+      optionsTabLabel="Income Options"
+      quotasTabLabel="Dynamic Quotas"
       onSave={handleSave}
       onQuotasSave={handleQuotasSave}
       onQuotasToggle={onQuotasToggle}
@@ -153,30 +153,30 @@ export const HouseholdIncomeConfigModal: React.FC<HouseholdIncomeConfigModalProp
       initialDisqualified={currentDisqualified}
       initialQuotas={baseQuotas}
       quotasEnabled={quotasEnabled}
-      addCustomOptionText="Agregar nivel de ingresos personalizado"
-      statisticsLabel="Niveles calificados"
-      quotasTitle="Sistema de Cuotas por Ingresos Familiares"
-      quotasDescription="Configura cuotas específicas por nivel de ingresos. Cuando el cupo de un nivel esté lleno, aplica sobre cuota, no descalificación por reglas de perfil."
-      quotasInfoTitle="Cómo funcionan las cuotas:"
+      addCustomOptionText="Add custom income level"
+      statisticsLabel="Qualified levels"
+      quotasTitle="Household Income Quota System"
+      quotasDescription="Configure specific quotas per income level. When a level's quota is full, overquota applies, not disqualification by profile rules."
+      quotasInfoTitle="How quotas work:"
       quotasInfoItems={[
-        'Cada nivel de ingresos puede tener su propia cuota en porcentaje (%) del límite de participantes',
-        'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-        'El sistema incrementa el contador al validar demografía',
-        'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
-        'Niveles sin cuota asignada: Si un nivel habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción'
+        'Each income level can have its own quota as a percentage (%) of the participant limit',
+        'The percentage is calculated based on the participant limit configured in the study',
+        'The system increments the counter when validating demographics',
+        'When the quota is full, the participant is placed in overquota upon submitting demographics (overquota link if configured)',
+        'Levels without assigned quota: If an enabled level has no configured quota, NO limit will be applied and it can receive participants without restriction'
       ]}
-      quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por nivel de ingresos"
-      quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+      quotasDisabledMessage="Enable the quota system to configure limits per income level"
+      quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
       quotasDisabledInfoText={[
-        'Los filtros previos de ingresos (opciones válidas y descalificantes) configurados en la pestaña "Opciones de Ingresos" seguirán activos.',
-        'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los niveles válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por nivel de ingresos.',
-        'Para asegurar una distribución controlada con cuotas específicas por nivel de ingresos, habilita el sistema de cuotas dinámicas.'
+        'The previous income filters (valid and disqualifying options) configured in the "Income Options" tab will remain active.',
+        'However, if you do not enable this section, participant distribution within valid levels will be by "natural falloff" (first-come), which does not guarantee specific quotas per income level will be met.',
+        'To ensure a controlled distribution with specific quotas per income level, enable the dynamic quota system.'
       ]}
-      validationMessage="⚠️ Debes tener al menos un nivel de ingresos calificado para que los participantes puedan participar."
+      validationMessage="You must have at least one qualified income level for participants to be able to participate."
       getAvailableOptions={getAvailableOptions}
       getQuotaFieldValue={getQuotaFieldValue}
       getQuotaFieldLabel={getQuotaFieldLabel}
-      fieldSelectLabel="Nivel de Ingresos"
+      fieldSelectLabel="Income Level"
       QuotasIcon={DollarSign}
       headerContent={headerContent}
     />

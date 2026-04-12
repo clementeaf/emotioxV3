@@ -3,6 +3,7 @@ import type { ComponentConfig } from '../types/moduleBuilder.types';
 import type { Module } from '../services/research.service';
 import { useModuleTemplates } from './useModuleTemplatesQuery';
 import type { ModuleTemplate } from '../services/moduleTemplates.service';
+import { useModuleDraftStore } from '../stores/useModuleDraftStore';
 
 interface UseModuleComponentsResult {
     components: ComponentConfig[];
@@ -114,6 +115,35 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
     const [components, setComponents] = useState<ComponentConfig[]>([]);
     const [componentValues, setComponentValues] = useState<Record<string, string>>({});
 
+    const { setDraft, getDraft } = useModuleDraftStore();
+
+    // Refs to access latest values in cleanup (closures would be stale)
+    const componentValuesRef = useRef(componentValues);
+    const componentsRef = useRef(components);
+    useEffect(() => { componentValuesRef.current = componentValues; }, [componentValues]);
+    useEffect(() => { componentsRef.current = components; }, [components]);
+
+    // Track original (server) values to detect real changes
+    const originalValuesRef = useRef<Record<string, string>>({});
+
+    // Save draft when navigating away — only if values actually differ from server
+    const prevModuleIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        const currentId = activeModule?.id ?? null;
+        if (prevModuleIdRef.current && prevModuleIdRef.current !== currentId) {
+            const vals = componentValuesRef.current;
+            const comps = componentsRef.current;
+            const original = originalValuesRef.current;
+            // Compare current values against original — only draft if something changed
+            const hasChanges = Object.keys(vals).some(k => vals[k] !== original[k]) ||
+                Object.keys(original).some(k => vals[k] !== original[k]);
+            if (hasChanges && Object.keys(vals).length > 0) {
+                setDraft(prevModuleIdRef.current, vals, comps);
+            }
+        }
+        prevModuleIdRef.current = currentId;
+    }, [activeModule?.id, setDraft]);
+
     const shouldFetchTemplates = useMemo((): boolean => {
         if (!activeModule) return false;
         if (!activeModule.is_from_template) return false;
@@ -164,10 +194,23 @@ export const useModuleComponents = (activeModule: Module | null): UseModuleCompo
         // or user-added/removed choice components.
         if (prevContentKey.current !== resolvedContentKey) {
             prevContentKey.current = resolvedContentKey;
-            setComponents(resolvedComponents);
-            setComponentValues(buildInitialComponentValues(resolvedComponents));
+
+            // Always track original server values for change detection
+            const serverValues = buildInitialComponentValues(resolvedComponents);
+            originalValuesRef.current = serverValues;
+
+            // Restore draft if one exists for this module
+            const moduleId = activeModule?.id;
+            const draft = moduleId ? getDraft(moduleId) : undefined;
+            if (draft) {
+                setComponents(draft.components);
+                setComponentValues(draft.componentValues);
+            } else {
+                setComponents(resolvedComponents);
+                setComponentValues(serverValues);
+            }
         }
-    }, [resolvedComponents, resolvedContentKey]);
+    }, [resolvedComponents, resolvedContentKey, activeModule?.id, getDraft]);
 
     return {
         components,

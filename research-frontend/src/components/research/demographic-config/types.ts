@@ -72,6 +72,8 @@ export interface DemographicConfigModalBaseProps<
   validationMessage?: string;
   saveButtonText?: string;
   cancelButtonText?: string;
+  /** Hide the quotas tab entirely (e.g. screening questions don't need quotas) */
+  hideQuotasTab?: boolean;
 }
 
 /**

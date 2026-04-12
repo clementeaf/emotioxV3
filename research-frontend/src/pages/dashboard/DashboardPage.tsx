@@ -2,7 +2,6 @@ import { useState, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
 import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
-import { useToast } from '../../hooks/useToast';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Trash2 } from 'lucide-react';
@@ -124,44 +123,17 @@ const TableSkeletonRow = memo(() => {
 
 TableSkeletonRow.displayName = 'TableSkeletonRow';
 
-/**
- * Componente memoizado para tarjeta de tipo de investigación
- */
-const ResearchTypeCard = memo(({
-    type,
-    onView
-}: {
-    type: { id: string; name: string };
-    onView: (name: string) => void;
-}) => {
-    const initials = useMemo(() => type.name.substring(0, 2).toUpperCase(), [type.name]);
+import eyeTrackingIcon from '../../assets/eye-tracking-icon.png';
+import attentionPredictionIcon from '../../assets/attention-prediction-icon.png';
+import implicitPrimingIcon from '../../assets/implicit-priming-test-icon.png';
+import cognitiveAnalysisIcon from '../../assets/cognitive-analysis-icon.png';
 
-    return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-2 sm:p-2.5 lg:p-3 hover:shadow-md transition-shadow h-full flex flex-col justify-between">
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[10px] sm:text-xs font-bold">{initials}</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h4 className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight truncate">{type.name}</h4>
-                        <p className="text-[9px] sm:text-[10px] text-gray-500">By UserEmotion</p>
-                    </div>
-                </div>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-blue-600 hover:text-blue-800 h-7 sm:h-8 px-1.5 sm:px-2 text-[10px] sm:text-xs flex-shrink-0"
-                    onClick={() => onView(type.name)}
-                >
-                    View
-                </Button>
-            </div>
-        </div>
-    );
-});
-
-ResearchTypeCard.displayName = 'ResearchTypeCard';
+const TECHNIQUE_CARDS = [
+    { name: 'Eye Tracking', icon: eyeTrackingIcon },
+    { name: 'Attention Prediction', icon: attentionPredictionIcon },
+    { name: 'Implicit Priming Test', icon: implicitPrimingIcon },
+    { name: 'Cognitive Analysis', icon: cognitiveAnalysisIcon },
+] as const;
 
 /**
  * Main Dashboard page - Optimizado con React Query y memoización
@@ -169,8 +141,6 @@ ResearchTypeCard.displayName = 'ResearchTypeCard';
  */
 export const DashboardPage = () => {
     const navigate = useNavigate();
-    const toast = useToast();
-
     // Usar React Query para datos optimizados con caché
     const { data: researches = [], isLoading } = useResearches();
     const { data: researchTypes = [] } = useResearchTypes();
@@ -217,9 +187,6 @@ export const DashboardPage = () => {
         navigate(`/research/${researchId}/builder`);
     }, [navigate]);
 
-    const handleViewType = useCallback((name: string) => {
-        toast.info(`View details for ${name}`);
-    }, [toast]);
 
     return (
         <div className="h-full w-full flex flex-col p-3 sm:p-4 lg:p-6 overflow-hidden">
@@ -289,14 +256,22 @@ export const DashboardPage = () => {
                     </div>
                 </div>
 
-                {/* Right Sidebar - Research Types Filter */}
-                <div className="w-full xl:w-64 2xl:w-80 flex-shrink-0 flex flex-col gap-2 xl:max-h-full overflow-y-auto">
-                    {typedResearchTypes.slice(0, 4).map((type) => (
-                        <ResearchTypeCard
-                            key={type.id}
-                            type={type}
-                            onView={handleViewType}
-                        />
+                {/* Right Sidebar - Technique Cards */}
+                <div className="w-full xl:w-64 2xl:w-72 flex-shrink-0 flex flex-col gap-2">
+                    {TECHNIQUE_CARDS.map((card) => (
+                        <div
+                            key={card.name}
+                            className="flex-1 bg-white rounded-lg border border-gray-100 px-3 hover:bg-gray-50 transition-colors flex items-center gap-3 cursor-pointer"
+                        >
+                            <img src={card.icon} alt={card.name} className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-gray-900 truncate">{card.name}</p>
+                                <p className="text-[10px] text-gray-400">By UserEmotion</p>
+                            </div>
+                            <button className="text-[10px] font-medium text-blue-600 hover:text-blue-800 flex-shrink-0">
+                                View
+                            </button>
+                        </div>
                     ))}
                 </div>
             </div>

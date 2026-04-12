@@ -25,6 +25,7 @@ import { SidebarSkeleton } from '../ui/Skeleton';
 import { useToast } from '../../hooks/useToast';
 import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
 import { useAuthStore } from '../../stores/auth.store';
+import { useModuleDraftStore } from '../../stores/useModuleDraftStore';
 
 interface ResearchBuilderSidebarProps {
     researchId: string;
@@ -75,6 +76,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const { moduleId } = useParams<{ moduleId?: string }>();
     const queryClient = useQueryClient();
     const toast = useToast();
+    const { hasDraft } = useModuleDraftStore();
     const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
     
@@ -518,7 +520,12 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                                                 : 'text-gray-700 hover:bg-gray-50'
                                                         )}
                                                     >
-                                                        <div className="font-medium">{stage.name}</div>
+                                                        <div className="font-medium flex items-center gap-1.5">
+                                                            {stage.name}
+                                                            {hasDraft(singleModule.id) && (
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" title="Unsaved changes" />
+                                                            )}
+                                                        </div>
                                                     </Link>
                                                 ) : (
                                                     <div

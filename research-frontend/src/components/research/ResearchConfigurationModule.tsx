@@ -1313,12 +1313,8 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                             questionLabel
                         });
                     }}
-                    onQuotasSave={(quotas) => handleQuotasSave(activeConfigModal, quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle(activeConfigModal, enabled)}
                     currentOptions={getModalOptions(activeConfigModal)}
                     currentDisqualified={getModalDisqualified(activeConfigModal)}
-                    initialQuotas={mapBackendQuotasToModal(demographics[activeConfigModal]?.quotas, 'optionValue')}
-                    quotasEnabled={isQuotasEnabled(activeConfigModal)}
                 />
             )}
         </div>

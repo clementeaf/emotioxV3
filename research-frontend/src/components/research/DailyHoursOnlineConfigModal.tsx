@@ -143,9 +143,9 @@ export const DailyHoursOnlineConfigModal: React.FC<DailyHoursOnlineConfigModalPr
     <DemographicConfigModalBase
       isOpen={isOpen}
       onClose={onClose}
-      title="Configurar Horas Diarias en Línea"
-      optionsTabLabel="Opciones de Horas"
-      quotasTabLabel="Cuotas Dinámicas"
+      title="Configure Daily Hours Online"
+      optionsTabLabel="Hours Options"
+      quotasTabLabel="Dynamic Quotas"
       onSave={handleSave}
       onQuotasSave={handleQuotasSave}
       onQuotasToggle={onQuotasToggle}
@@ -153,30 +153,30 @@ export const DailyHoursOnlineConfigModal: React.FC<DailyHoursOnlineConfigModalPr
       initialDisqualified={currentDisqualified}
       initialQuotas={baseQuotas}
       quotasEnabled={quotasEnabled}
-      addCustomOptionText="Agregar rango de horas personalizado"
-      statisticsLabel="Rangos calificados"
-      quotasTitle="Sistema de Cuotas por Horas Diarias en Línea"
-      quotasDescription="Configura cuotas específicas por rango de horas. Cuando el cupo de un rango esté lleno, aplica sobre cuota, no descalificación por reglas de perfil."
-      quotasInfoTitle="Cómo funcionan las cuotas:"
+      addCustomOptionText="Add custom hours range"
+      statisticsLabel="Qualified ranges"
+      quotasTitle="Daily Hours Online Quota System"
+      quotasDescription="Configure specific quotas per hours range. When a range's quota is full, overquota applies, not disqualification by profile rules."
+      quotasInfoTitle="How quotas work:"
       quotasInfoItems={[
-        'Cada rango de horas puede tener su propia cuota en porcentaje (%) del límite de participantes',
-        'El porcentaje se calcula sobre el límite de participantes configurado en el estudio',
-        'El sistema incrementa el contador al validar demografía',
-        'Cuando el cupo esté lleno, el participante queda en sobre cuota al enviar demografía (enlace de sobre cuota si lo configuraste)',
-        'Rangos sin cuota asignada: Si un rango habilitado no tiene cuota configurada, NO se le aplicará ningún límite y podrá recibir participantes sin restricción'
+        'Each hours range can have its own quota as a percentage (%) of the participant limit',
+        'The percentage is calculated based on the participant limit configured in the study',
+        'The system increments the counter when validating demographics',
+        'When the quota is full, the participant is placed in overquota upon submitting demographics (overquota link if configured)',
+        'Ranges without assigned quota: If an enabled range has no configured quota, NO limit will be applied and it can receive participants without restriction'
       ]}
-      quotasDisabledMessage="Habilita el sistema de cuotas para configurar límites por rango de horas"
-      quotasDisabledInfoTitle="Importante: Distribución por 'caída natural'"
+      quotasDisabledMessage="Enable the quota system to configure limits per hours range"
+      quotasDisabledInfoTitle="Important: Distribution by 'natural falloff'"
       quotasDisabledInfoText={[
-        'Los filtros previos de horas (opciones válidas y descalificantes) configurados en la pestaña "Opciones de Horas" seguirán activos.',
-        'Sin embargo, si no habilitas esta sección, la distribución de participantes dentro de los rangos válidos será por "caída natural" (orden de llegada), lo que no garantiza que se completen cuotas específicas por rango de horas.',
-        'Para asegurar una distribución controlada con cuotas específicas por rango de horas, habilita el sistema de cuotas dinámicas.'
+        'The previous hours filters (valid and disqualifying options) configured in the "Hours Options" tab will remain active.',
+        'However, if you do not enable this section, participant distribution within valid ranges will be by "natural falloff" (first-come), which does not guarantee specific quotas per hours range will be met.',
+        'To ensure a controlled distribution with specific quotas per hours range, enable the dynamic quota system.'
       ]}
-      validationMessage="⚠️ Debes tener al menos un rango de horas calificado para que los participantes puedan participar."
+      validationMessage="You must have at least one qualified hours range for participants to be able to participate."
       getAvailableOptions={getAvailableOptions}
       getQuotaFieldValue={getQuotaFieldValue}
       getQuotaFieldLabel={getQuotaFieldLabel}
-      fieldSelectLabel="Rango de Horas"
+      fieldSelectLabel="Hours Range"
       QuotasIcon={Clock}
       headerContent={headerContent}
     />
