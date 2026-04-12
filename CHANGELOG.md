@@ -1,3 +1,16 @@
+## v0.56.4 — Implicit Association Phase 3: flowchart visual, multi-lang instructions (2026-04-12)
+
+### research-frontend
+- **IAT flowchart:** Reactive visual diagram replaces static notes in the builder sidebar. Shows test phases, target/criteria counts, timing, and response branches using live config data. Different layout per paradigm (Attribute Testing, Comparing Attribute, Objects Comparing).
+- **Multi-lang instructions:** `MultiLangInput` component with EN/ES tabs for `exercise-instructions` and `test-instructions` fields. Value stored as JSON `{"en":"...","es":"..."}`. Green dot indicator when both languages have content. Backward compatible with plain strings.
+- **New files:** `IATFlowchart.tsx`, `MultiLangInput.tsx`.
+
+### participant-frontend
+- **Multi-lang resolution:** `resolveMultiLang()` utility picks the correct language string from multi-lang JSON values using `i18n.language`. Falls back to EN → ES → raw string for backward compatibility.
+- **New file:** `utils/multiLang.ts`.
+
+---
+
 ## v0.56.3 — Implicit Association Phase 2: IAT preview modal (2026-04-12)
 
 ### research-frontend

@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import type { ModuleConfig } from '../../types/module';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import type { ModuleComponent } from '../../types/module';
+import { resolveMultiLang } from '../../utils/multiLang';
+import i18n from '../../i18n';
 import { getComponentText, getFileUploadMediaRef } from '../../utils/moduleComponent';
 import { mediaService, resolveMediaUrl } from '../../services/media.service';
 
@@ -234,12 +236,11 @@ const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
         criteria.push(...parseCriteriaRankingList(components));
     }
 
-    // Instruction texts
+    // Instruction texts — resolve multi-lang if available
     const exerciseComp = components.find(c => c.id === 'exercise-instructions');
     const testComp = components.find(c => c.id === 'test-instructions');
-    // Only use researcher-written text, NOT English placeholders — i18n handles fallback
-    const rawExercise = getComponentText(exerciseComp) || '';
-    const rawTest = getComponentText(testComp) || '';
+    const rawExercise = resolveMultiLang(getComponentText(exerciseComp), i18n.language);
+    const rawTest = resolveMultiLang(getComponentText(testComp), i18n.language);
 
     const interpolateTargets = (text: string): string =>
         text.replace(/\[\[(Object|Target)\s*(\d+)\]\]/gi, (_match, _label, num) => {

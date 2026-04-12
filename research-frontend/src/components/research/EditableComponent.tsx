@@ -8,6 +8,7 @@ import { Toggle } from '../ui/Toggle';
 import { Trash2, Plus, Eye, EyeOff } from 'lucide-react';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { LocalHitzoneEditor, type HitzoneArea } from '../ui/LocalHitzoneEditor';
+import { MultiLangInput } from './MultiLangInput';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 
 interface RadioChoicesEditorProps {
@@ -881,7 +882,22 @@ export const EditableComponent = ({
                 </div>
             );
 
-        case 'textarea':
+        case 'textarea': {
+            const isIatInstructions = component.id === 'exercise-instructions' || component.id === 'test-instructions';
+            if (isIatInstructions) {
+                return (
+                    <div className="max-w-2xl">
+                        <MultiLangInput
+                            label={component.label}
+                            value={value}
+                            onChange={onChange}
+                            placeholder={placeholder}
+                            multiline
+                            maxLength={component.settings?.maxLength as number | undefined}
+                        />
+                    </div>
+                );
+            }
             return (
                 <div className="max-w-2xl">
                     <Textarea
@@ -894,6 +910,7 @@ export const EditableComponent = ({
                     />
                 </div>
             );
+        }
 
         case 'checkbox': {
             const isRandomizeField =
