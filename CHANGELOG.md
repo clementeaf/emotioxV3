@@ -1,3 +1,17 @@
+## v0.56.9 — IAT per-participant analytics, XLSX export, preference intensity (2026-04-12)
+
+### backend
+- **IAT participant data:** `getImplicitAssociationResults` now returns per-participant data: mean RT by criterion×target combination, accuracy, quality flag (`good`/`fast_responses`/`low_accuracy`/`insufficient_data`), and respondent segmentation (fastest target per criterion).
+- **Quality heuristics:** RT < 300ms = fast trial. >30% fast trials = `fast_responses`. Accuracy < 60% = `low_accuracy`. < 5 test trials = `insufficient_data`.
+
+### research-frontend
+- **XLSX export enriched:** Export now includes IAT columns per participant: Quality, Accuracy, RT per criterion×target combination (ms), and Segmentation (strongest associated target per criterion).
+
+### participant-frontend
+- **Preference intensity:** After selecting an image in Preference Test, participant chooses intensity: "Slight" or "Strong". Saved as `preferenceIntensity` in response data. Backward compatible (defaults to `strong` if not set).
+
+---
+
 ## v0.56.8 — NavigationFlow crash fix, ErrorBoundary, Screener validation, AOI persistence (2026-04-12)
 
 ### participant-frontend

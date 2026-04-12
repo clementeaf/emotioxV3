@@ -118,13 +118,53 @@ async function fetchExportData(researchId: string): Promise<{
         }
     }
 
-    // Fill IAT scores as columns
+    // Fill IAT per-participant data: RT by combination, quality, segmentation
     for (const mod of iatModules) {
-        for (const score of mod.scores) {
-            for (const [targetId] of Object.entries(score.targetScores)) {
-                const colName = `${mod.moduleName} — ${score.attributeLabel} × ${targetId}`;
-                if (!responseColumns.includes(colName)) responseColumns.push(colName);
-                // IAT scores are aggregated, not per-participant — add to all participants with responses
+        const modName = mod.moduleName;
+
+        // Quality + accuracy columns
+        const qualityCol = `${modName} — Quality`;
+        const accuracyCol = `${modName} — Accuracy`;
+        if (!responseColumns.includes(qualityCol)) responseColumns.push(qualityCol);
+        if (!responseColumns.includes(accuracyCol)) responseColumns.push(accuracyCol);
+
+        // RT columns per combination
+        const rtColNames: string[] = [];
+        for (const attr of (mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []) {
+            for (const target of (mod as { targets?: Array<{ id: string; name: string }> }).targets || []) {
+                const col = `${modName} — RT ${attr.label} × ${target.name}`;
+                rtColNames.push(col);
+                if (!responseColumns.includes(col)) responseColumns.push(col);
+            }
+        }
+
+        // Segmentation columns per attribute
+        for (const attr of (mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []) {
+            const segCol = `${modName} — Seg ${attr.label}`;
+            if (!responseColumns.includes(segCol)) responseColumns.push(segCol);
+        }
+
+        // Fill participant rows
+        const participantData = (mod as { participantData?: Array<{ participantId: string; rtByCombination: Record<string, number>; quality: string; accuracy: number; segmentation: Record<string, string> }> }).participantData || [];
+        for (const pd of participantData) {
+            const ep = getOrCreate(pd.participantId);
+            ep.responses[qualityCol] = pd.quality;
+            ep.responses[accuracyCol] = `${Math.round(pd.accuracy * 100)}%`;
+
+            for (const [key, rt] of Object.entries(pd.rtByCombination)) {
+                const [critId, targetId] = key.split('×');
+                const attr = ((mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []).find(a => a.id === critId);
+                const target = ((mod as { targets?: Array<{ id: string; name: string }> }).targets || []).find(t => t.id === targetId);
+                if (attr && target) {
+                    ep.responses[`${modName} — RT ${attr.label} × ${target.name}`] = `${rt}ms`;
+                }
+            }
+
+            for (const [attrId, targetId] of Object.entries(pd.segmentation)) {
+                const attr = ((mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []).find(a => a.id === attrId);
+                if (attr) {
+                    ep.responses[`${modName} — Seg ${attr.label}`] = targetId;
+                }
             }
         }
     }

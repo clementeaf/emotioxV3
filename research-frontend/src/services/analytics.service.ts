@@ -333,6 +333,16 @@ export interface IATAttribute {
     imageUrl?: string;
 }
 
+export interface IATParticipantData {
+    participantId: string;
+    rtByCombination: Record<string, number>;
+    totalTrials: number;
+    fastTrials: number;
+    accuracy: number;
+    quality: 'good' | 'fast_responses' | 'low_accuracy' | 'insufficient_data';
+    segmentation: Record<string, string>;
+}
+
 export interface IATModuleResult {
     moduleId: string;
     moduleName: string;
@@ -347,6 +357,7 @@ export interface IATModuleResult {
         attributeLabel: string;
         targetScores: Record<string, number>;
     }>;
+    participantData?: IATParticipantData[];
 }
 
 export interface ImplicitAssociationResults {

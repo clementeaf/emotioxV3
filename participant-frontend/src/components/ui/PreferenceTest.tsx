@@ -26,6 +26,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
 }) => {
     const { t } = useTranslation();
     const [selectedImage, setSelectedImage] = useState<number | null>(null);
+    const [preferenceIntensity, setPreferenceIntensity] = useState<'slight' | 'strong' | null>(null);
     const [zoomImage, setZoomImage] = useState<number | null>(null);
     const [zoom, setZoom] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -86,8 +87,14 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
 
     const handleImageSelect = (imageId: number): void => {
         setSelectedImage(imageId);
-        // Save selection immediately
-        savePreferenceResponse(imageId);
+        setPreferenceIntensity(null); // Reset intensity on new selection
+    };
+
+    const handleIntensitySelect = (intensity: 'slight' | 'strong'): void => {
+        setPreferenceIntensity(intensity);
+        if (selectedImage !== null) {
+            savePreferenceResponse(selectedImage, intensity);
+        }
     };
 
     const handleZoomOpen = (imageId: number) => {
@@ -177,10 +184,11 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
     const currentZoomImage = images.find(img => img.id === zoomImage);
 
     // Save preference response
-    const savePreferenceResponse = (imageId: number) => {
+    const savePreferenceResponse = (imageId: number, intensity?: 'slight' | 'strong' | null) => {
         const responseData = {
             selectedImageId: imageId,
             selectedImageLabel: images.find(img => img.id === imageId)?.label || '',
+            preferenceIntensity: intensity || 'strong',
             totalImages: images.length,
             viewHistory,
         };
@@ -198,7 +206,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
     useEffect(() => {
         return () => {
             if (selectedImage !== null) {
-                savePreferenceResponse(selectedImage);
+                savePreferenceResponse(selectedImage, preferenceIntensity);
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -274,6 +282,32 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
             </div>
             )}
 
+            {/* Preference intensity selector — shown after selecting an image */}
+            {selectedImage !== null && !loading && (
+                <div className="flex items-center justify-center gap-3 pt-2">
+                    <span className="text-sm text-gray-500">{t('preferenceTest.howMuch', 'How strong is your preference?')}</span>
+                    <button
+                        onClick={() => handleIntensitySelect('slight')}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                            preferenceIntensity === 'slight'
+                                ? 'bg-blue-100 border-blue-400 text-blue-700'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        {t('preferenceTest.slightPreference', 'Slight')}
+                    </button>
+                    <button
+                        onClick={() => handleIntensitySelect('strong')}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                            preferenceIntensity === 'strong'
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                    >
+                        {t('preferenceTest.strongPreference', 'Strong')}
+                    </button>
+                </div>
+            )}
 
             {/* Zoom Modal */}
             {zoomImage !== null && currentZoomImage && (

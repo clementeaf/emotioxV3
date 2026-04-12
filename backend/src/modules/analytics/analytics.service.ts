@@ -1394,6 +1394,22 @@ interface IATAttribute {
   imageUrl?: string;
 }
 
+interface IATParticipantData {
+  participantId: string;
+  /** Mean RT per (criterionId, targetId) combination */
+  rtByCombination: Record<string, number>;
+  /** Total trials in test phase */
+  totalTrials: number;
+  /** Trials with RT < 300ms (too fast) */
+  fastTrials: number;
+  /** Accuracy (correct / total) */
+  accuracy: number;
+  /** Quality flag: 'good' | 'fast_responses' | 'low_accuracy' | 'insufficient_data' */
+  quality: 'good' | 'fast_responses' | 'low_accuracy' | 'insufficient_data';
+  /** Segmentation: strongest associated target per criterion */
+  segmentation: Record<string, string>;
+}
+
 interface IATModuleResult {
   moduleId: string;
   moduleName: string;
@@ -1406,8 +1422,9 @@ interface IATModuleResult {
   scores: Array<{
     attributeId: string;
     attributeLabel: string;
-    targetScores: Record<string, number>; // targetId → score (-100 to 100)
+    targetScores: Record<string, number>;
   }>;
+  participantData?: IATParticipantData[];
 }
 
 /**
@@ -1580,6 +1597,93 @@ const computeIATScores = (
   });
 };
 
+const FAST_RT_THRESHOLD = 300; // ms — trials below this are suspicious
+const MIN_TRIALS_FOR_QUALITY = 5;
+const MIN_ACCURACY_THRESHOLD = 0.6; // 60%
+const MAX_FAST_RATIO = 0.3; // 30% fast trials = flagged
+
+const computeIATParticipantData = (
+  rows: Array<{ value: string | unknown; participant_id: string }>,
+  targets: IATTarget[],
+  attributes: IATAttribute[],
+): IATParticipantData[] => {
+  type Trial = { targetId: string; criterionId: string; rt: number; correct: boolean; phase: string };
+
+  // Group trials by participant
+  const byParticipant = new Map<string, Trial[]>();
+  for (const row of rows) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+      const pid = row.participant_id;
+      if (!byParticipant.has(pid)) byParticipant.set(pid, []);
+      for (const t of trials) {
+        if (t.phase === 'test') byParticipant.get(pid)!.push(t);
+      }
+    } catch { /* skip */ }
+  }
+
+  const result: IATParticipantData[] = [];
+
+  for (const [participantId, trials] of byParticipant) {
+    const totalTrials = trials.length;
+    const fastTrials = trials.filter(t => t.rt < FAST_RT_THRESHOLD).length;
+    const correctTrials = trials.filter(t => t.correct !== false).length;
+    const accuracy = totalTrials > 0 ? correctTrials / totalTrials : 0;
+
+    // Quality flag
+    let quality: IATParticipantData['quality'] = 'good';
+    if (totalTrials < MIN_TRIALS_FOR_QUALITY) {
+      quality = 'insufficient_data';
+    } else if (fastTrials / totalTrials > MAX_FAST_RATIO) {
+      quality = 'fast_responses';
+    } else if (accuracy < MIN_ACCURACY_THRESHOLD) {
+      quality = 'low_accuracy';
+    }
+
+    // Mean RT per (criterionId, targetId) — only correct test trials
+    const rtByCombination: Record<string, number> = {};
+    const rtAccum: Record<string, number[]> = {};
+    for (const t of trials) {
+      if (t.correct === false) continue;
+      const key = `${t.criterionId}×${t.targetId}`;
+      if (!rtAccum[key]) rtAccum[key] = [];
+      rtAccum[key].push(t.rt);
+    }
+    for (const [key, rts] of Object.entries(rtAccum)) {
+      rtByCombination[key] = Math.round(rts.reduce((a, b) => a + b, 0) / rts.length);
+    }
+
+    // Segmentation: for each criterion, which target has fastest mean RT
+    const segmentation: Record<string, string> = {};
+    for (const attr of attributes) {
+      let bestTarget = '';
+      let bestRT = Infinity;
+      for (const target of targets) {
+        const key = `${attr.id}×${target.id}`;
+        const rt = rtByCombination[key];
+        if (rt !== undefined && rt < bestRT) {
+          bestRT = rt;
+          bestTarget = target.id;
+        }
+      }
+      if (bestTarget) segmentation[attr.id] = bestTarget;
+    }
+
+    result.push({
+      participantId,
+      rtByCombination,
+      totalTrials,
+      fastTrials,
+      accuracy: Math.round(accuracy * 100) / 100,
+      quality,
+      segmentation,
+    });
+  }
+
+  return result;
+};
+
 export const getImplicitAssociationResults = async (researchId: string) => {
   // 1. Find the Implicit Association stage
   const stageQuery = `
@@ -1629,6 +1733,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
     const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
 
     const scores = computeIATScores(responsesResult.rows, targets, attributes, testType);
+    const participantData = computeIATParticipantData(responsesResult.rows as Array<{ value: string | unknown; participant_id: string }>, targets, attributes);
 
     modules.push({
       moduleId: mod.id,
@@ -1640,6 +1745,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
       attributes,
       totalResponses: responsesResult.rows.length,
       scores,
+      participantData,
     });
   }
 
