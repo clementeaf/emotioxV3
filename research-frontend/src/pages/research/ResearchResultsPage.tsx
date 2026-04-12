@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { BarChart3, Brain, Eye, Filter, Zap } from 'lucide-react';
+import { BarChart3, Brain, Eye, Filter, Zap, Download } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
 import { CognitiveTaskResults } from '../../components/results/cognitive-task/CognitiveTaskResults';
 import { ScreenerResults } from '../../components/results/screener/ScreenerResults';
 import { ImplicitAssociationResults } from '../../components/results/implicit-association/ImplicitAssociationResults';
 import { EyeTrackingResults } from '../../components/results/eye-tracking/EyeTrackingResults';
 import { useResearch } from '../../hooks/useResearchQuery';
+import { downloadResearchExport } from '../../services/export.service';
 
 type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking';
 
@@ -65,6 +66,19 @@ export const ResearchResultsPage = () => {
     const { data: research } = useResearch(id || null);
     const [activeTab, setActiveTab] = useState<TabId>('smart-voc');
     const [tabInitialized, setTabInitialized] = useState(false);
+    const [exporting, setExporting] = useState(false);
+
+    const handleExport = useCallback(async () => {
+        if (!id || exporting) return;
+        setExporting(true);
+        try {
+            await downloadResearchExport(id, research?.name || 'research');
+        } catch (error) {
+            console.error('Export failed:', error);
+        } finally {
+            setExporting(false);
+        }
+    }, [id, exporting, research?.name]);
 
     useEffect(() => {
         if (!research || tabInitialized) return;
@@ -100,8 +114,8 @@ export const ResearchResultsPage = () => {
 
     return (
         <div className="p-6 space-y-6">
-            {/* Tabs */}
-            <div className="border-b border-gray-200">
+            {/* Tabs + Export */}
+            <div className="border-b border-gray-200 flex items-center justify-between">
                 <nav className="flex gap-4">
                     {visibleTabs.map(tab => (
                         <button
@@ -121,6 +135,14 @@ export const ResearchResultsPage = () => {
                         </button>
                     ))}
                 </nav>
+                <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors disabled:opacity-50 mb-1"
+                >
+                    <Download className="h-4 w-4" />
+                    {exporting ? 'Exporting...' : 'Export XLSX'}
+                </button>
             </div>
 
             {/* Content */}
