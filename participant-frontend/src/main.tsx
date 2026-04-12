@@ -5,12 +5,15 @@ import './index.css'
 import App from './App.tsx'
 import { configService } from './services/config.service'
 import { BootstrapErrorScreen } from './components/BootstrapErrorScreen'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 // Initialize API configuration before rendering
 configService.init().then(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   )
 }).catch((error) => {

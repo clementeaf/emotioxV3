@@ -198,14 +198,14 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         hitZones: [m.hitzone]
     }));
 
-    const currentImage = images[currentImageIndex];
+    const currentImage = images[currentImageIndex] ?? images[images.length - 1];
     const currentImageUrl = imageUrls[currentImageIndex];
-    const isLastImage = currentImageIndex === images.length - 1;
+    const isLastImage = currentImageIndex >= images.length - 1;
 
     // Whether the current image has hitzone definitions (regardless of imgNatural).
     const rawHitZones = useMemo(
-        () => (currentImage.hitZones || []) as HitzoneRect[],
-        [currentImage.hitZones],
+        () => (currentImage?.hitZones || []) as HitzoneRect[],
+        [currentImage?.hitZones],
     );
     const hasHitzoneDefs = rawHitZones.length > 0;
 
@@ -654,7 +654,12 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                             </div>
                             <p className="text-lg font-semibold text-white">{t('navigationFlow.flowCompleted')}</p>
                             <p className="text-sm text-green-400 mt-2">{t('navigationFlow.flowCompletedDesc')}</p>
-                            <p className="text-xs text-white/40 mt-4">{t('navigationFlow.tapToContinue', 'Tap to continue')}</p>
+                            <button
+                                className="mt-6 px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); onComplete?.(); }}
+                            >
+                                {t('navigationFlow.tapToContinue', 'Tap to continue')}
+                            </button>
                         </div>
                     </div>
                 )}
