@@ -11,6 +11,9 @@ import { ConditionalityModal } from './ConditionalityModal';
 import type { StudyModuleOption } from './ConditionalityModal';
 import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden, getModuleRequired, isDemographicCondition, isModuleCondition } from '../../utils/moduleRequired';
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
+import { isImplicitAssociationModuleName } from '../../utils/implicitAssociationBuilder';
+import { IATPreviewModal } from './IATPreviewModal';
+import { Play } from 'lucide-react';
 
 export interface CognitiveTaskModuleCardRef {
     getComponentValues: () => Record<string, string>;
@@ -57,6 +60,9 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     const [conditionalityConfig, setConditionalityConfig] = useState<ConditionalityConfig | null>(initialConditionalityConfig);
     const [isConditionalityModalOpen, setIsConditionalityModalOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+    const isIatModule = isImplicitAssociationModuleName(module.name);
 
     // Reset state when config changes
     useEffect(() => {
@@ -193,6 +199,16 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                 <div className="flex items-center gap-4">
                     <h3 className="text-base font-semibold text-gray-900">{module.name}</h3>
                     <div className="flex items-center gap-4 ml-auto">
+                        {isIatModule && (
+                            <button
+                                type="button"
+                                onClick={() => setIsPreviewOpen(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                            >
+                                <Play className="h-3.5 w-3.5" />
+                                Preview
+                            </button>
+                        )}
                         <Toggle
                             checked={isRequired}
                             onChange={(e) => handleRequiredChange(Boolean(e.target.checked))}
@@ -300,6 +316,49 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     </div>
                 </div>
             )}
+            {isIatModule && isPreviewOpen && (() => {
+                const moduleName = module.name.trim().toLowerCase();
+                const testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing' =
+                    moduleName.includes('comparing attribute') ? 'comparing_attribute'
+                    : (moduleName.includes('objects comparing') || moduleName.includes('object comparing')) ? 'objects_comparing'
+                    : 'attribute_testing';
+                const prefix = testType === 'comparing_attribute' ? 'object' : 'target';
+                const previewTargets: { id: string; name: string; imageUrl?: string }[] = [];
+                for (let i = 1; i <= 20; i++) {
+                    const name = componentValues[`${prefix}-${i}-name`];
+                    if (!name) continue;
+                    previewTargets.push({ id: `${prefix}-${i}`, name, imageUrl: componentValues[`${prefix}-${i}-image`] || undefined });
+                }
+                let previewCriteria: { id: string; label: string; targetId?: string; hidden?: boolean }[] = [];
+                const criteriaRaw = componentValues['criteria'];
+                if (criteriaRaw) {
+                    try {
+                        const parsed = JSON.parse(criteriaRaw);
+                        previewCriteria = Array.isArray(parsed) ? parsed : [];
+                    } catch { /* ignore */ }
+                }
+                const primingTime = parseInt(componentValues['priming-time'] || '400', 10) || 400;
+                const dims = testType === 'comparing_attribute'
+                    ? { left: componentValues['dimension-1'] || 'Yes', right: componentValues['dimension-2'] || 'No' }
+                    : undefined;
+                const cats = testType === 'objects_comparing'
+                    ? { left: componentValues['criteria-1'] || 'Positive', right: componentValues['criteria-2'] || 'Negative' }
+                    : undefined;
+                return (
+                    <IATPreviewModal
+                        isOpen={true}
+                        onClose={() => setIsPreviewOpen(false)}
+                        testType={testType}
+                        targets={previewTargets}
+                        criteria={previewCriteria}
+                        primingTime={primingTime}
+                        dimensions={dims}
+                        criteriaCategories={cats}
+                        exerciseInstructions={componentValues['exercise-instructions']}
+                        testInstructions={componentValues['test-instructions']}
+                    />
+                );
+            })()}
         </div>
     );
 });

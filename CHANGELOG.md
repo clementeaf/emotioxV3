@@ -1,3 +1,11 @@
+## v0.56.3 — Implicit Association Phase 2: IAT preview modal (2026-04-12)
+
+### research-frontend
+- **IAT preview modal:** New "Preview" button in the IAT module card header. Opens a dark-themed modal simulating the test flow using the researcher's live config (targets, criteria, priming time, dimensions, instructions). Two modes: "Step through" (manual) and "Auto play" (timed). Progress dots in footer. Builds trial sequence per paradigm.
+- **New file:** `IATPreviewModal.tsx` — standalone preview component with trial builder logic for all 3 IAT paradigms.
+
+---
+
 ## v0.56.2 — Implicit Association Phase 2: dynamic targets (2026-04-12)
 
 ### research-frontend
