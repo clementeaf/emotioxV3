@@ -1,3 +1,18 @@
+## v0.56.8 — NavigationFlow crash fix, ErrorBoundary, Screener validation, AOI persistence (2026-04-12)
+
+### participant-frontend
+- **NavigationFlow crash fix:** `currentImage` could be undefined when index exceeded array length, crashing on `.hitZones` access. Now falls back to last image with optional chaining.
+- **Blue continue button:** "Tap to continue" on NavigationFlow completion overlay is now a styled blue button consistent with the design system, instead of faint text.
+- **ErrorBoundary:** Global error boundary wraps `<App />` in `main.tsx`. Catches render crashes and shows a friendly error screen with "Reload page" button instead of a white screen.
+- **Screener validation fix:** Added dedicated Screener handling in `useValidation.ts` and `validation.ts`. Screener saves response as `componentId='choice'` which was not matched by the generic component validation loop.
+- **NavigationFlow completion status fix:** Removed `useEffect` that overwrote `completed: false` with `true` for failed flows (3 misses).
+
+### research-frontend
+- **AOI persistence fix:** Eye Tracking modules created before migration 020 lacked the `aois` component in their config. AOIs are now injected as virtual components during save (same pattern as `test-title`).
+- **Screening binary validation:** `ScreenerQuestionDrawer` now allows 1 qualifying option (was 2), enabling binary Yes/No screening questions.
+
+---
+
 ## v0.56.7 — Research page: table/cards toggle, inline rename, duplicate, explicit Open (2026-04-12)
 
 ### research-frontend
