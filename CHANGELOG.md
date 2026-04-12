@@ -1,3 +1,16 @@
+## v0.56.2 — Implicit Association Phase 2: dynamic targets (2026-04-12)
+
+### research-frontend
+- **Dynamic targets/objects:** Researchers can now add and remove targets (or objects in Comparing Attribute) from the IAT builder. "Add target/object" button below the grid, trash icon per card. Limits per paradigm: Attribute Testing 2-5, Comparing Attribute 1-5, Objects Comparing 2-7. New components are created with sequential IDs (`target-N-name`, `target-N-image`).
+
+### backend
+- **Dynamic target extraction:** `extractIATConfig` loops scan up to index 20 with `continue` instead of hardcoded 5. Supports any number of researcher-added targets.
+
+### participant-frontend
+- **Dynamic target extraction:** All 3 `extractConfig` loops (Attribute Testing, Comparing Attribute, Objects Comparing) scan up to index 20 with `continue`.
+
+---
+
 ## v0.56.1 — Implicit Association Phase 1: hide criteria, test title, fix testType swap (2026-04-12)
 
 ### research-frontend

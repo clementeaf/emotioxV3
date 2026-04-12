@@ -182,9 +182,10 @@ const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
     let dimensions: IATExtractedConfig['dimensions'];
 
     if (testType === 'comparing_attribute') {
-        // Objects: object-N-name/image (up to 3)
-        for (let i = 1; i <= 5; i++) {
+        // Objects: object-N-name/image (dynamic count)
+        for (let i = 1; i <= 20; i++) {
             const nameComp = components.find(c => c.id === `object-${i}-name`);
+            if (!nameComp) continue;
             const nameVal = getComponentText(nameComp);
             if (nameVal) {
                 const imageComp = components.find(c => c.id === `object-${i}-image`);
@@ -200,9 +201,10 @@ const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
         dimensions = { left: d1, right: d2 };
         criteria.push(...parseCriteriaRankingList(components));
     } else if (testType === 'objects_comparing') {
-        // Targets: target-N-name/image (up to 5)
-        for (let i = 1; i <= 5; i++) {
+        // Targets: target-N-name/image (dynamic count)
+        for (let i = 1; i <= 20; i++) {
             const nameComp = components.find(c => c.id === `target-${i}-name`);
+            if (!nameComp) continue;
             const nameVal = getComponentText(nameComp);
             if (nameVal) {
                 const imageComp = components.find(c => c.id === `target-${i}-image`);
@@ -218,9 +220,10 @@ const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
         criteriaCategories = { left: l1, right: l2, leftId: 'criteria-1', rightId: 'criteria-2' };
         criteria.push(...parseCriteriaRankingList(components));
     } else {
-        // Attribute Testing: target-N-name/image (2 targets), criteria ranking-list
-        for (let i = 1; i <= 5; i++) {
+        // Attribute Testing: target-N-name/image (dynamic count), criteria ranking-list
+        for (let i = 1; i <= 20; i++) {
             const nameComp = components.find(c => c.id === `target-${i}-name`);
+            if (!nameComp) continue;
             const nameVal = getComponentText(nameComp);
             if (nameVal) {
                 const imageComp = components.find(c => c.id === `target-${i}-image`);

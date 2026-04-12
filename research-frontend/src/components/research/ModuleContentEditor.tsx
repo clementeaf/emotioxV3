@@ -17,6 +17,8 @@ interface ModuleContentEditorProps {
     onValueChange: (componentId: string, value: string) => void;
     onAddChoiceComponent?: (groupLabel: string, siblingComponent: ComponentConfig) => void;
     onRemoveChoiceComponent?: (componentId: string) => void;
+    onAddIatTarget?: (prefix: string, nextIndex: number) => void;
+    onRemoveIatTarget?: (componentIds: string[]) => void;
     researchId?: string; // For S3 upload in file-upload components
     /** When "Screener", first input + select + checkbox row renders on one line (Question, Choice Type, Enable last). */
     moduleName?: string;
@@ -104,6 +106,8 @@ export const ModuleContentEditor = ({
     onValueChange,
     onAddChoiceComponent,
     onRemoveChoiceComponent,
+    onAddIatTarget,
+    onRemoveIatTarget,
     researchId,
     moduleName,
 }: ModuleContentEditorProps) => {
@@ -167,6 +171,11 @@ export const ModuleContentEditor = ({
     const isObjectsComparing = normalizedModuleName === 'objects comparing' || normalizedModuleName === 'object comparing';
     const hasIatNotes = isAttributeTesting || isComparingAttribute || isObjectsComparing;
 
+    // IAT target limits per paradigm
+    const iatMinTargets = isAttributeTesting ? 2 : isComparingAttribute ? 1 : isObjectsComparing ? 2 : 0;
+    const iatMaxTargets = isAttributeTesting ? 5 : isComparingAttribute ? 5 : isObjectsComparing ? 7 : 0;
+    const iatTargetPrefix = isComparingAttribute ? 'object' : 'target';
+
     // Extract IAT target options for the criteria editor (target selector)
     // Always show "Target 1", "Target 2", etc. — not the object name (which may be empty)
     const iatTargetOptions = isIatModule
@@ -206,34 +215,63 @@ export const ModuleContentEditor = ({
                             : colCount <= 4
                               ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 md:items-start'
                               : 'grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 md:items-start';
+                    const canRemoveTarget = !!onRemoveIatTarget && colCount > iatMinTargets;
+                    const canAddTarget = !!onAddIatTarget && colCount < iatMaxTargets;
+                    const nextIndex = item.columns.length > 0
+                        ? Math.max(...item.columns.map(c => c.index)) + 1
+                        : 1;
                     return (
-                        <div key={`iat-targets-${index}`} className={rowGridClass}>
-                            {item.columns.map((col) => {
-                                const heading =
-                                    col.components[0]?.settings?.groupLabel != null
-                                        ? String(col.components[0].settings.groupLabel)
-                                        : `Target ${col.index}`;
-                                return (
-                                    <div
-                                        key={col.index}
-                                        className="min-w-0 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-                                    >
-                                        <div className="border-b border-gray-100 pb-2 text-sm font-semibold text-gray-800">
-                                            {heading}
-                                        </div>
-                                        {col.components.map((comp) => (
-                                            <div key={comp.id} className="min-w-0 space-y-2">
-                                                <EditableComponent
-                                                    component={comp}
-                                                    value={componentValues[comp.id] || ''}
-                                                    onChange={(value) => onValueChange(comp.id, value)}
-                                                    researchId={researchId}
-                                                />
+                        <div key={`iat-targets-${index}`} className="space-y-4">
+                            <div className={rowGridClass}>
+                                {item.columns.map((col) => {
+                                    const heading =
+                                        col.components[0]?.settings?.groupLabel != null
+                                            ? String(col.components[0].settings.groupLabel)
+                                            : `${isComparingAttribute ? 'Object' : 'Target'} ${col.index}`;
+                                    return (
+                                        <div
+                                            key={col.index}
+                                            className="min-w-0 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                                        >
+                                            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                                <span className="text-sm font-semibold text-gray-800">
+                                                    {heading}
+                                                </span>
+                                                {canRemoveTarget && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onRemoveIatTarget!(col.components.map(c => c.id))}
+                                                        className="text-gray-400 hover:text-red-500 transition-colors"
+                                                        title={`Remove ${heading}`}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                )}
                                             </div>
-                                        ))}
-                                    </div>
-                                );
-                            })}
+                                            {col.components.map((comp) => (
+                                                <div key={comp.id} className="min-w-0 space-y-2">
+                                                    <EditableComponent
+                                                        component={comp}
+                                                        value={componentValues[comp.id] || ''}
+                                                        onChange={(value) => onValueChange(comp.id, value)}
+                                                        researchId={researchId}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {canAddTarget && (
+                                <button
+                                    type="button"
+                                    onClick={() => onAddIatTarget!(iatTargetPrefix, nextIndex)}
+                                    className="w-full py-2 px-4 text-sm font-medium text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
+                                >
+                                    <Plus className="h-4 w-4 inline mr-1.5 -mt-0.5" />
+                                    Add {isComparingAttribute ? 'object' : 'target'}
+                                </button>
+                            )}
                         </div>
                     );
                 }

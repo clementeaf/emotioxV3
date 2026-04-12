@@ -123,6 +123,40 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
         });
     };
 
+    const handleAddIatTarget = (prefix: string, nextIndex: number): void => {
+        const groupLabel = `${prefix === 'object' ? 'Object' : 'Target'} ${nextIndex}`;
+        const nameId = `${prefix}-${nextIndex}-name`;
+        const imageId = `${prefix}-${nextIndex}-image`;
+        const maxOrder = Math.max(0, ...components.map(c => c.order ?? 0));
+        const nameComp: ComponentConfig = {
+            id: nameId,
+            type: 'input',
+            label: 'Name of the object',
+            placeholder: { enabled: true, text: 'Text the name here' },
+            order: maxOrder + 1,
+            settings: { groupLabel, description: 'You can use an image or a name for this.' },
+        };
+        const imageComp: ComponentConfig = {
+            id: imageId,
+            type: 'file-upload',
+            label: `${groupLabel} Image`,
+            order: maxOrder + 2,
+            settings: { groupLabel },
+        };
+        setComponents(prev => [...prev, nameComp, imageComp]);
+        setComponentValues(prev => ({ ...prev, [nameId]: '', [imageId]: '' }));
+    };
+
+    const handleRemoveIatTarget = (componentIds: string[]): void => {
+        const idsToRemove = new Set(componentIds);
+        setComponents(prev => prev.filter(c => !idsToRemove.has(c.id)));
+        setComponentValues(prev => {
+            const next = { ...prev };
+            componentIds.forEach(id => delete next[id]);
+            return next;
+        });
+    };
+
     /**
      * Handles toggling the module required flag.
      * @param next - Next checked value
@@ -214,6 +248,8 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                         onValueChange={handleComponentValueChange}
                         onAddChoiceComponent={handleAddChoiceComponent}
                         onRemoveChoiceComponent={handleRemoveChoiceComponent}
+                        onAddIatTarget={handleAddIatTarget}
+                        onRemoveIatTarget={handleRemoveIatTarget}
                         researchId={researchId}
                         moduleName={module.name}
                     />

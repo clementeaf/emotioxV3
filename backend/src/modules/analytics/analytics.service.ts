@@ -1435,9 +1435,10 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
 
   if (testType === 'comparing_attribute') {
     // Comparing Attribute: object-N-name, object-N-image, dimension-1, dimension-2, criteria list
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 20; i++) {
       const nameComp = components.find((c: any) => c.id === `object-${i}-name`);
-      if (nameComp?.value) {
+      if (!nameComp) continue;
+      if (nameComp.value) {
         const imageComp = components.find((c: any) => c.id === `object-${i}-image`);
         targets.push({
           id: `object-${i}`,
@@ -1457,9 +1458,10 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
     }
   } else {
     // Attribute Testing / Objects Comparing: target-N-name, target-N-image, criteria list
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 20; i++) {
       const nameComp = components.find((c: any) => c.id === `target-${i}-name`);
-      if (nameComp?.value) {
+      if (!nameComp) continue;
+      if (nameComp.value) {
         const imageComp = components.find((c: any) => c.id === `target-${i}-image`);
         targets.push({
           id: `target-${i}`,
