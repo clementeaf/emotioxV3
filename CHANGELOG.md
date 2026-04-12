@@ -1,3 +1,12 @@
+## v0.57.0 — Screening toggle UI, conditionality label fixes (2026-04-12)
+
+### research-frontend
+- **Screening question toggle:** `ScreenerQuestionDrawer` now uses a green/orange toggle (Qualify/Disqualify) instead of a dropdown selector, matching the demographic drawer pattern.
+- **Conditionality: renamed demographics:** The conditionality modal now reads `questionLabel` from the demographic config, so renamed questions (e.g. "Annual Income" → custom label) display correctly.
+- **Conditionality: custom screening questions:** Custom screening questions (`customQuestion_*`) now show their `questionLabel` instead of the raw key ID in the conditionality dropdown.
+
+---
+
 ## v0.56.9 — IAT per-participant analytics, XLSX export, preference intensity (2026-04-12)
 
 ### backend

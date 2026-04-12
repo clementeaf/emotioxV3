@@ -141,7 +141,7 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
   const isValid = qualifyingCount >= 1;
 
   const choiceGridClass =
-    'grid grid-cols-[minmax(0,1fr)_minmax(10rem,11rem)_2.5rem] items-center gap-x-3 gap-y-0';
+    'grid grid-cols-[minmax(0,1fr)_auto_2.5rem] items-center gap-x-3 gap-y-0';
 
   return (
     <div
@@ -206,7 +206,7 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
                   {/* Table header */}
                   <div className={choiceGridClass + ' border-b border-gray-200 bg-gray-50/80 px-3 py-2'}>
                     <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Option</span>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Eligibility</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 text-right">Eligibility</span>
                     <span className="sr-only">Actions</span>
                   </div>
 
@@ -228,17 +228,23 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
                               placeholder="Enter option text..."
                             />
                           </div>
-                          <div className="min-w-0 self-center">
-                            <CustomSelect
-                              id={`choice-${choice.id}-eligibility`}
-                              label=""
-                              value={choice.eligibility}
-                              onChange={(val) => handleChoiceChange(choice.id, 'eligibility', val)}
-                              options={[
-                                { value: 'Qualify', label: 'Qualify' },
-                                { value: 'Disqualify', label: 'Disqualify' },
-                              ]}
-                            />
+                          <div className="flex items-center gap-2 self-center shrink-0">
+                            <span className={`text-xs whitespace-nowrap ${choice.eligibility === 'Qualify' ? 'text-green-600' : 'text-orange-600'}`}>
+                              {choice.eligibility === 'Qualify' ? 'Qualify' : 'Disqualify'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleChoiceChange(choice.id, 'eligibility', choice.eligibility === 'Qualify' ? 'Disqualify' : 'Qualify')}
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                                choice.eligibility === 'Qualify' ? 'bg-green-500' : 'bg-orange-500'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                                  choice.eligibility === 'Qualify' ? 'translate-x-1' : 'translate-x-5'
+                                }`}
+                              />
+                            </button>
                           </div>
                           <div className="flex justify-end self-center">
                             <button

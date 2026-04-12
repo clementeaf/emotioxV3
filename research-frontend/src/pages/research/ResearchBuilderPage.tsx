@@ -177,11 +177,11 @@ export const ResearchBuilderPage = () => {
                     const result: EnabledDemographic[] = [];
                     for (const [key, v] of Object.entries(demographics)) {
                         if (typeof v === 'object' && v !== null && 'enabled' in v) {
-                            const demo = v as { enabled: boolean; validValues?: string[] };
+                            const demo = v as { enabled: boolean; validValues?: string[]; questionLabel?: string };
                             if (demo.enabled) {
                                 result.push({
                                     key,
-                                    label: DEMOGRAPHIC_LABELS[key] || key,
+                                    label: demo.questionLabel?.trim() || DEMOGRAPHIC_LABELS[key] || key,
                                     validValues: demo.validValues || [],
                                 });
                             }

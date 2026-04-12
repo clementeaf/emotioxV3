@@ -38,7 +38,8 @@ Default stages al seleccionar esta técnica: Screener → Welcome Screen → Res
 - **Insights LLM analysis** (v0.52.0): GPT-4o (OpenAI) vía `insights.service.ts`. Fire-and-forget: `POST /insights/research/:id/analyze/:fileMediaId` → 202. Genera sentiment summary + actionables, themes con magnitude/sentimentScore, keywords. Resultado en `config.stimuli[].analysis`. Frontend auto-dispara y pollea cada 3s.
 - **`isFileBasedResearch`** (v0.52.0): unifica Attention Prediction e Insights Finding. `skip_default_modules: true` en backend.
 - **Custom Screening Questions** (v0.53.0, fix v0.55.1): preguntas de selección única con descalificación dentro de Demographics. Se almacenan como `demographics.customQuestion_<id>` con `questionLabel`, `validValues`, `disqualifications`, `options`. Drawer propio (`ScreenerQuestionDrawer`). Backend no requirió cambios — `checkDisqualifications` ya itera todos los keys dinámicamente. `transformResearchConfigComponentValues` y `flattenResearchConfig` manejan keys `customQuestion_*` para el ciclo save/reload. El drawer envía todas las opciones (qualifying + disqualifying) para que `validValues` incluya ambas.
-- **Editable demographic labels** (v0.53.0): todos los modales demográficos permiten renombrar la pregunta vía `questionLabel`. Participant-frontend lo usa como override del label i18n.
+- **Editable demographic labels** (v0.53.0): todos los modales demográficos permiten renombrar la pregunta vía `questionLabel`. Participant-frontend lo usa como override del label i18n. Conditionality modal (v0.57.0) lee `questionLabel` para mostrar el nombre correcto en el dropdown (demographics y custom screening questions).
+- **Screening question toggle** (v0.57.0): `ScreenerQuestionDrawer` usa toggle verde/naranja (Qualify/Disqualify) en lugar de selector dropdown, alineado con el patrón de los drawers demográficos.
 - **Pendiente**: webcam eye tracking (WebGazer.js) como mejora futura del proxy click-based.
 
 ## Tech Stack
