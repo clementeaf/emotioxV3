@@ -166,6 +166,9 @@ export const DashboardPage = () => {
     const [activeFilter, setActiveFilter] = useState<string>('all');
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
+    const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+    const [researchToDuplicate, setResearchToDuplicate] = useState<Research | null>(null);
+    const [duplicateName, setDuplicateName] = useState('');
 
     // Filtrar investigaciones - memoizado para evitar recálculos
     const filteredResearches = useMemo(() => {
@@ -197,8 +200,21 @@ export const DashboardPage = () => {
 
     const handleDuplicateClick = useCallback((research: Research, e: React.MouseEvent) => {
         e.stopPropagation();
-        duplicateResearch.mutate(research.id);
-    }, [duplicateResearch]);
+        setResearchToDuplicate(research);
+        setDuplicateName(`${research.name} - Copy`);
+        setDuplicateModalOpen(true);
+    }, []);
+
+    const handleDuplicateConfirm = useCallback(async () => {
+        if (!researchToDuplicate) return;
+        try {
+            await duplicateResearch.mutateAsync({ id: researchToDuplicate.id, name: duplicateName });
+            setDuplicateModalOpen(false);
+            setResearchToDuplicate(null);
+        } catch (error) {
+            console.error('Failed to duplicate research:', error);
+        }
+    }, [researchToDuplicate, duplicateName, duplicateResearch]);
 
     const handleRowClick = useCallback((researchId: string) => {
         navigate(`/research/${researchId}/builder`);
@@ -368,6 +384,41 @@ export const DashboardPage = () => {
                 variant="danger"
                 isLoading={deleteResearch.isPending}
             />
+
+            {/* Duplicate modal with name input */}
+            {duplicateModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Duplicate Research</h3>
+                        <p className="text-sm text-gray-600 mb-4">Enter a name for the duplicated research:</p>
+                        <input
+                            type="text"
+                            value={duplicateName}
+                            onChange={(e) => setDuplicateName(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === 'Enter' && duplicateName.trim()) handleDuplicateConfirm(); }}
+                        />
+                        <div className="flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => { setDuplicateModalOpen(false); setResearchToDuplicate(null); }}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDuplicateConfirm}
+                                disabled={!duplicateName.trim() || duplicateResearch.isPending}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {duplicateResearch.isPending ? 'Duplicating...' : 'Duplicate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

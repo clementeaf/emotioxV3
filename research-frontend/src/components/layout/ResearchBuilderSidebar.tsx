@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 // Global set to track which researches have been checked for Welcome/Thank You
@@ -92,6 +92,30 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [availableStages, setAvailableStages] = useState<StageTemplateWithModules[]>([]);
     const [loadingStages, setLoadingStages] = useState(false);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editingName, setEditingName] = useState('');
+    const nameInputRef = useRef<HTMLInputElement>(null);
+
+    const handleStartEditName = useCallback(() => {
+        if (!activeResearch) return;
+        setEditingName(activeResearch.name);
+        setIsEditingName(true);
+        setTimeout(() => nameInputRef.current?.select(), 50);
+    }, [activeResearch]);
+
+    const handleSaveName = useCallback(async () => {
+        if (!activeResearch || !editingName.trim() || editingName.trim() === activeResearch.name) {
+            setIsEditingName(false);
+            return;
+        }
+        try {
+            await researchService.update(activeResearch.id, { name: editingName.trim() });
+            queryClient.invalidateQueries({ queryKey: ['research'] });
+        } catch (error) {
+            console.error('Failed to rename research:', error);
+        }
+        setIsEditingName(false);
+    }, [activeResearch, editingName, queryClient]);
 
     const isAttentionPrediction = activeResearch?.research_type_name === 'Attention Prediction' ||
                                 activeResearch?.research_type_name === "Attention's Prediction";
@@ -382,9 +406,29 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back to List
                 </Link>
-                <h2 className="font-bold text-gray-900 truncate text-lg" title={activeResearch.name}>
-                    {activeResearch.name}
-                </h2>
+                {isEditingName ? (
+                    <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onBlur={handleSaveName}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveName();
+                            if (e.key === 'Escape') setIsEditingName(false);
+                        }}
+                        className="font-bold text-gray-900 text-lg w-full px-1 py-0 border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        autoFocus
+                    />
+                ) : (
+                    <h2
+                        className="font-bold text-gray-900 truncate text-lg cursor-pointer hover:text-blue-600 transition-colors"
+                        title="Click to rename"
+                        onClick={handleStartEditName}
+                    >
+                        {activeResearch.name}
+                    </h2>
+                )}
             </div>
 
             {/* Research Details */}

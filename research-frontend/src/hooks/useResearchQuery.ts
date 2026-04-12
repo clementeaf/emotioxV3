@@ -188,7 +188,7 @@ export const useDuplicateResearch = () => {
     const toast = useToast();
 
     return useMutation({
-        mutationFn: (id: string) => researchService.duplicate(id),
+        mutationFn: ({ id, name }: { id: string; name?: string }) => researchService.duplicate(id, name),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: researchKeys.lists() });
             toast.success('Research duplicated successfully');

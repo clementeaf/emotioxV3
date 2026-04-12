@@ -1512,7 +1512,7 @@ export const addWelcomeAndThankYouStages = async (researchId: string, userId: st
  * demographic quotas, and media files. The clone is created as 'draft'.
  * Responses and participants are NOT copied.
  */
-export const duplicate = async (researchId: string, userId: string, role?: string) => {
+export const duplicate = async (researchId: string, userId: string, role?: string, customName?: string) => {
     // 1. Fetch the full source research (validates ownership via getById)
     const source = await getById(researchId, userId, role) as Record<string, unknown>;
 
@@ -1530,7 +1530,7 @@ export const duplicate = async (researchId: string, userId: string, role?: strin
         // 2. Insert new research
         const newResearchId = crypto.randomUUID();
         const sourceName = source.name as string;
-        const newName = `${sourceName} - Copy`;
+        const newName = customName?.trim() || `${sourceName} - Copy`;
 
         await client.query(
             `INSERT INTO researches (id, created_by, name, description, research_type_id, research_technique_id, enterprise_id, config, status, created_at)

@@ -118,8 +118,9 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const duplicateMatch = path.match(/^\/research\/([^\/]+)\/duplicate$/);
         if (duplicateMatch && httpMethod === 'POST') {
             const id = duplicateMatch[1];
+            const body = JSON.parse(event.body || '{}');
             try {
-                const research = await researchService.duplicate(id, user.id, user.role);
+                const research = await researchService.duplicate(id, user.id, user.role, body.name);
                 return success({ research }, 201, undefined, origin);
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';

@@ -1,3 +1,14 @@
+## v0.56.6 — Rename research on duplicate and inline in builder (2026-04-12)
+
+### research-frontend
+- **Duplicate with custom name:** Clicking Duplicate in Dashboard now opens a modal with the name pre-filled as "{original} - Copy". Researcher can edit before confirming. Enter to confirm, Escape to cancel.
+- **Inline rename in builder:** Click the research name in the sidebar to edit inline. Enter or blur saves, Escape cancels. Uses `PUT /research/:id` with `{ name }`.
+
+### backend
+- **Duplicate accepts custom name:** `POST /research/:id/duplicate` now accepts optional `{ name }` in body. Falls back to `"{original} - Copy"` if omitted.
+
+---
+
 ## v0.56.5 — Fix screening binary validation, Navigation Flow stuck overlay (2026-04-12)
 
 ### research-frontend
