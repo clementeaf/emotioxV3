@@ -98,7 +98,8 @@
     "tryAnotherArea": "❌ Intenta en otra área",
     "goodAdvancing": "✓ ¡Bien! Avanzando...",
     "flowCompleted": "¡Flujo completado!",
-    "flowCompletedDesc": "Has navegado exitosamente por todas las pantallas"
+    "flowCompletedDesc": "Has navegado exitosamente por todas las pantallas",
+    "tapToContinue": "Toca para continuar"
   },
   "choice": {
     "optionSelected": "Opción seleccionada",

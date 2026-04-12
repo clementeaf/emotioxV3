@@ -138,7 +138,7 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
   }, [localChoices, label, onSave]);
 
   const qualifyingCount = localChoices.filter((c) => c.eligibility === 'Qualify').length;
-  const isValid = qualifyingCount >= 2;
+  const isValid = qualifyingCount >= 1;
 
   const choiceGridClass =
     'grid grid-cols-[minmax(0,1fr)_minmax(10rem,11rem)_2.5rem] items-center gap-x-3 gap-y-0';
@@ -281,7 +281,7 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
                 </p>
                 {!isValid && (
                   <p className="text-xs text-blue-600 mt-1">
-                    You must have at least two qualifying options.
+                    You must have at least one qualifying option.
                   </p>
                 )}
               </div>

@@ -98,7 +98,8 @@
     "tryAnotherArea": "❌ Try another area",
     "goodAdvancing": "✓ Great! Advancing...",
     "flowCompleted": "Flow completed!",
-    "flowCompletedDesc": "You have successfully navigated through all screens"
+    "flowCompletedDesc": "You have successfully navigated through all screens",
+    "tapToContinue": "Tap to continue"
   },
   "choice": {
     "optionSelected": "Option selected",

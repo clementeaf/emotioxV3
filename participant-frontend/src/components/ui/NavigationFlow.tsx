@@ -644,9 +644,12 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                     );
                 })}
 
-                {/* Completion overlay */}
+                {/* Completion overlay — auto-advances after 2s as safety net */}
                 {isComplete && (
-                    <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+                    <div
+                        className="absolute inset-0 bg-black/80 flex items-center justify-center cursor-pointer"
+                        onClick={() => onComplete?.()}
+                    >
                         <div className="text-center">
                             <div className="w-16 h-16 bg-green-500 rounded-full mx-auto mb-4 flex items-center justify-center">
                                 <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -655,6 +658,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                             </div>
                             <p className="text-lg font-semibold text-white">{t('navigationFlow.flowCompleted')}</p>
                             <p className="text-sm text-green-400 mt-2">{t('navigationFlow.flowCompletedDesc')}</p>
+                            <p className="text-xs text-white/40 mt-4">{t('navigationFlow.tapToContinue', 'Tap to continue')}</p>
                         </div>
                     </div>
                 )}

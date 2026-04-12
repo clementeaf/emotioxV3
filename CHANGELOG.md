@@ -1,3 +1,14 @@
+## v0.56.5 — Fix screening binary validation, Navigation Flow stuck overlay (2026-04-12)
+
+### research-frontend
+- **Screening binary validation fix:** `ScreenerQuestionDrawer` now allows saving with 1 qualifying option (was 2). Enables binary questions like "Yes (Qualify) / No (Disqualify)".
+
+### participant-frontend
+- **Navigation Flow completion overlay fix:** Overlay now clickable as safety net ("Tap to continue" label). Prevents participants from getting stuck if `onComplete` doesn't unmount the component.
+- **i18n:** Added `tapToContinue` key to EN/ES locales.
+
+---
+
 ## v0.56.4 — Implicit Association Phase 3: flowchart visual, multi-lang instructions (2026-04-12)
 
 ### research-frontend
