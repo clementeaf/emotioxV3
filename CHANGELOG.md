@@ -1,3 +1,13 @@
+## v0.56.7 — Research page: table/cards toggle, inline rename, duplicate, explicit Open (2026-04-12)
+
+### research-frontend
+- **View toggle on /research:** Cards (default) and Table views with switcher. Table shows Name, Status, Type, Created, Technique, and Actions columns.
+- **No auto-navigate:** Cards and table rows no longer navigate on click. Explicit "Open" button in actions.
+- **Inline rename:** Double-click research name in cards or table to edit inline. Enter/blur saves, Escape cancels.
+- **Duplicate with name:** Duplicate button opens modal with editable name pre-filled as "{original} - Copy". Available in both views.
+
+---
+
 ## v0.56.6 — Rename research on duplicate and inline in builder (2026-04-12)
 
 ### research-frontend
