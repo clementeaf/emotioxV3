@@ -1397,6 +1397,7 @@ interface IATAttribute {
 interface IATModuleResult {
   moduleId: string;
   moduleName: string;
+  testTitle?: string;
   testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
   primingTime: number;
   targets: IATTarget[];
@@ -1414,10 +1415,8 @@ interface IATModuleResult {
  */
 const detectIATTestType = (moduleName: string): IATModuleResult['testType'] => {
   const lower = moduleName.toLowerCase();
-  // "Comparing Attribute" = objects + dimensions (objects_comparing extractor)
-  // "Objects Comparing" = targets + positive/negative criteria (comparing_attribute extractor)
-  if (lower.includes('comparing attribute') || lower.includes('comparing attr')) return 'objects_comparing';
-  if (lower.includes('objects comparing') || lower.includes('object comparing')) return 'comparing_attribute';
+  if (lower.includes('comparing attribute') || lower.includes('comparing attr')) return 'comparing_attribute';
+  if (lower.includes('objects comparing') || lower.includes('object comparing')) return 'objects_comparing';
   return 'attribute_testing';
 };
 
@@ -1434,8 +1433,8 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
   const targets: IATTarget[] = [];
   const attributes: IATAttribute[] = [];
 
-  if (testType === 'objects_comparing') {
-    // Objects Comparing: object-N-name, object-N-image, dimension-1, dimension-2, criteria list
+  if (testType === 'comparing_attribute') {
+    // Comparing Attribute: object-N-name, object-N-image, dimension-1, dimension-2, criteria list
     for (let i = 1; i <= 5; i++) {
       const nameComp = components.find((c: any) => c.id === `object-${i}-name`);
       if (nameComp?.value) {
@@ -1457,7 +1456,7 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
       attributes.push({ id: 'dimension-2', label: dim2.value || dim2.placeholder.text });
     }
   } else {
-    // Attribute Testing / Comparing Attribute: target-N-name, target-N-image, criteria list
+    // Attribute Testing / Objects Comparing: target-N-name, target-N-image, criteria list
     for (let i = 1; i <= 5; i++) {
       const nameComp = components.find((c: any) => c.id === `target-${i}-name`);
       if (nameComp?.value) {
@@ -1477,6 +1476,7 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
         : criteriaComp.value;
       const list = Array.isArray(items) ? items : items?.items ?? [];
       for (const item of list) {
+        if (item.hidden) continue;
         const label = (item.label || item.text || item.value || item.name || '').toString().trim();
         if (!label) continue;
         attributes.push({
@@ -1487,8 +1487,8 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
       }
     }
 
-    // Comparing Attribute template: Positive/Negative inputs when ranking list produced no items
-    if (testType === 'comparing_attribute' && attributes.length === 0) {
+    // Objects Comparing template: Positive/Negative inputs when ranking list produced no items
+    if (testType === 'objects_comparing' && attributes.length === 0) {
       const c1 = components.find((c: any) => c.id === 'criteria-1');
       const c2 = components.find((c: any) => c.id === 'criteria-2');
       const l1 = (c1?.value ?? c1?.placeholder?.text ?? '').toString().trim();
@@ -1612,6 +1612,11 @@ export const getImplicitAssociationResults = async (researchId: string) => {
 
     const { primingTime, targets, attributes } = extractIATConfig(config, testType);
 
+    // Extract internal test title
+    const structure = config?.structure ?? config;
+    const testTitleComp = (structure?.components ?? []).find((c: any) => c.id === 'test-title');
+    const testTitle = testTitleComp?.value?.toString().trim() || undefined;
+
     // 3. Get responses for this module (component_id = 'iat-trials')
     const responsesQuery = `
       SELECT r.value, r.participant_id, r.created_at
@@ -1626,6 +1631,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
     modules.push({
       moduleId: mod.id,
       moduleName: mod.name,
+      testTitle,
       testType,
       primingTime,
       targets,

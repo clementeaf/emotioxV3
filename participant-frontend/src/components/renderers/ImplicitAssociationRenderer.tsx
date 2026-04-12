@@ -146,6 +146,8 @@ function parseCriteriaRankingList(components: ModuleComponent[]): IATCriteriaIte
 
     const result: IATCriteriaItem[] = [];
     items.forEach((item, idx) => {
+        // Skip criteria hidden by the researcher
+        if ((item as { hidden?: boolean }).hidden) return;
         const label = (item.label || item.value || '').trim();
         if (!label) return;
         const img = item.image as { s3Key?: string; url?: string } | undefined;

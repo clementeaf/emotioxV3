@@ -336,6 +336,9 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+      {mod.testTitle && (
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{mod.testTitle}</p>
+      )}
       <ChartComponent module={mod} />
       {mod.totalResponses === 0 && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">

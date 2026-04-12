@@ -552,12 +552,28 @@ export const ResearchBuilderPage = () => {
                         )
                     }));
 
+                    // Inject virtual componentValues (e.g. test-title) that aren't template components
+                    const virtualComponents: typeof updatedComponents = [];
+                    if (componentValues['test-title'] !== undefined) {
+                        const existing = updatedComponents.find(c => c.id === 'test-title');
+                        if (!existing) {
+                            virtualComponents.push({
+                                id: 'test-title',
+                                type: 'input',
+                                label: 'Test title',
+                                value: componentValues['test-title'],
+                                order: -1,
+                                settings: { hidden: true },
+                            } as typeof updatedComponents[number]);
+                        }
+                    }
+
                     // Preserve the correct backend structure: { structure: { components: [...] } }
                     const config = {
                         ...activeModule.config,
                         structure: {
                             ...(activeModule.config.structure || {}),
-                            components: updatedComponents
+                            components: [...virtualComponents, ...updatedComponents]
                         }
                     };
 

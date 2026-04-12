@@ -1,3 +1,20 @@
+## v0.56.1 — Implicit Association Phase 1: hide criteria, test title, fix testType swap (2026-04-12)
+
+### research-frontend
+- **Hide criteria toggle:** Each criterion in the IAT builder now has an Eye/EyeOff button. Hidden criteria stay in the config but are excluded from the participant test and analytics. Row renders with reduced opacity when hidden.
+- **Internal test title:** New "Test title" input at the top of IAT modules. Internal only (not shown to participants), appears as a label above the chart in results. Saved as a virtual `test-title` component in the module config.
+- **Results testTitle:** `IATModuleCard` renders the test title as a subtle uppercase label above the chart when present.
+
+### backend
+- **Fix `detectIATTestType` swap:** "Comparing Attribute" now correctly returns `comparing_attribute` (was `objects_comparing`) and "Objects Comparing" returns `objects_comparing` (was `comparing_attribute`). `extractIATConfig` branches updated to match. Results charts now map to the correct paradigm.
+- **Hidden criteria filter:** `extractIATConfig` skips criteria with `hidden: true` when building the attributes list.
+- **Test title in analytics:** `getImplicitAssociationResults` extracts the `test-title` component and includes it as `testTitle` in the response.
+
+### participant-frontend
+- **Hidden criteria filter:** `parseCriteriaRankingList` skips criteria items with `hidden: true` so they never appear in the participant test.
+
+---
+
 ## v0.56.0 — Duplicate research from Dashboard (2026-04-12)
 
 ### backend

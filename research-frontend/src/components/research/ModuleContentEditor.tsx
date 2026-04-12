@@ -181,6 +181,22 @@ export const ModuleContentEditor = ({
 
     const builderContent = (
         <div className="space-y-6">
+            {/* IAT internal title — hidden from participants, used in reports */}
+            {isIatModule && (
+                <div className="space-y-1">
+                    <label htmlFor="iat-test-title" className="block text-sm font-medium text-gray-700">
+                        Test title <span className="font-normal text-gray-400">(internal, visible in reports only)</span>
+                    </label>
+                    <input
+                        id="iat-test-title"
+                        type="text"
+                        value={componentValues['test-title'] || ''}
+                        onChange={(e) => onValueChange('test-title', e.target.value)}
+                        placeholder="e.g. Brand Perception Q2 2026"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+            )}
             {displayItems.map((item, index) => {
                 if (item.type === 'iat-targets-row' && item.columns.length > 0) {
                     const colCount = item.columns.length;

@@ -336,6 +336,7 @@ export interface IATAttribute {
 export interface IATModuleResult {
     moduleId: string;
     moduleName: string;
+    testTitle?: string;
     testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';
     primingTime: number;
     targets: IATTarget[];
