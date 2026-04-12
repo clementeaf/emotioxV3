@@ -16,7 +16,7 @@ Default stages al seleccionar esta técnica: Screener → Welcome Screen → Res
   - **Comparing Attribute** (Reaction Time Test, 1 paso): hasta 3 objects + 2 dimensions + hasta 15 criteria. Muestra Object + Criteria juntos, botones = dimension labels. Sin correcto/incorrecto, solo RT.
   - **Objects Comparing** (IAT clásico, 3 pasos): hasta 5 targets + criteria-1/criteria-2 (categorías) + hasta 15 criteria items. Step 1 = clasificar criteria. Step 2 = clasificar targets. Step 3 = combinado.
   - **Hide criteria** (v0.56.1): toggle Eye/EyeOff por criterion. `hidden: true` se persiste en el JSON, participant-frontend y analytics lo filtran.
-  - **Test title** (v0.56.1): campo interno `test-title` (no visible al participante). Se muestra en results como label sobre el chart. Se guarda como componente virtual en `structure.components`.
+  - **Test title** (v0.56.1): campo interno `test-title` (no visible al participante). Se muestra en results como label sobre el chart. Se guarda como componente virtual con `hidden: true` en root — excluido de `visibleComponents` pero cargado en `componentValues` por `buildInitialComponentValues`.
   - **testType alineado** (v0.56.1): `detectIATTestType` ya no tiene swap — `comparing_attribute` = Comparing Attribute, `objects_comparing` = Objects Comparing.
 - **Eye Tracking** (`single_module`): stimuli (imágenes/video), 2 modalidades: Stand Alone (imagen única) y Shelf (vitrina). Incluye Emotion Recognition y predicción de atención automáticos.
 - **`research_techniques.default_stages`** (JSON): cada técnica puede definir sus stages default. Al crear un research, se priorizan sobre `default_modules` del research type. El frontend los muestra en el form de creación.

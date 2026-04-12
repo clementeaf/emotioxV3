@@ -2,7 +2,7 @@
 
 ### research-frontend
 - **Hide criteria toggle:** Each criterion in the IAT builder now has an Eye/EyeOff button. Hidden criteria stay in the config but are excluded from the participant test and analytics. Row renders with reduced opacity when hidden.
-- **Internal test title:** New "Test title" input at the top of IAT modules. Internal only (not shown to participants), appears as a label above the chart in results. Saved as a virtual `test-title` component in the module config.
+- **Internal test title:** New "Test title" input at the top of IAT modules. Internal only (not shown to participants), appears as a label above the chart in results. Saved as a virtual `test-title` component with `hidden: true` in root (excluded from `visibleComponents`, read from `componentValues` directly).
 - **Results testTitle:** `IATModuleCard` renders the test title as a subtle uppercase label above the chart when present.
 
 ### backend

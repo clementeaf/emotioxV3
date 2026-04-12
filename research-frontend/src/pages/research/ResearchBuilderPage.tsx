@@ -563,7 +563,7 @@ export const ResearchBuilderPage = () => {
                                 label: 'Test title',
                                 value: componentValues['test-title'],
                                 order: -1,
-                                settings: { hidden: true },
+                                hidden: true,
                             } as typeof updatedComponents[number]);
                         }
                     }
