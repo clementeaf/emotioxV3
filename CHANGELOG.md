@@ -1,3 +1,17 @@
+## v0.56.0 — Duplicate research from Dashboard (2026-04-12)
+
+### backend
+- **Duplicate endpoint:** `POST /research/:id/duplicate` clones a research with all its stages, modules, questions, demographic quotas, and media files. The clone is created as `draft` with name `"{original} - Copy"`. Responses and participants are NOT copied. Quota counters reset to 0.
+- **Media filesystem copy:** Cloned media files are copied on disk (`fs.copyFileSync`) with new paths under the new research ID. Non-fatal on failure (record still created).
+- **Conditionality remap:** `sourceModuleId` references in `conditionalityConfig` are remapped from old to new module IDs.
+- **Stimuli mediaId remap:** For Attention Prediction / Insights Finding, `mediaId` references in `config.stimuli` are updated to point to the cloned media records.
+
+### research-frontend
+- **Duplicate button:** Copy icon (lucide `Copy`) in Dashboard table Actions column, next to Delete. Blue hover state. Calls `POST /research/:id/duplicate`, invalidates list cache, shows success/error toast.
+- **New files:** None. Changes in `research.service.ts` (method), `useResearchQuery.ts` (hook), `DashboardPage.tsx` (button + handler).
+
+---
+
 ## v0.55.1 — Fix custom screening questions persistence (2026-04-12)
 
 ### research-frontend

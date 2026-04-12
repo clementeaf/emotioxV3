@@ -300,6 +300,14 @@ class ResearchService {
         }
     }
 
+    async duplicate(id: string): Promise<ResearchResponse> {
+        try {
+            return await apiClient.post<ResearchResponse>(`/research/${id}/duplicate`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to duplicate research');
+        }
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;

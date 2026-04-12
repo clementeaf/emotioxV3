@@ -183,3 +183,20 @@ export const useDeleteResearch = () => {
     });
 };
 
+export const useDuplicateResearch = () => {
+    const queryClient = useQueryClient();
+    const toast = useToast();
+
+    return useMutation({
+        mutationFn: (id: string) => researchService.duplicate(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: researchKeys.lists() });
+            toast.success('Research duplicated successfully');
+        },
+        onError: (error: Error) => {
+            console.error('Failed to duplicate research:', error);
+            toast.error('Failed to duplicate research');
+        },
+    });
+};
+

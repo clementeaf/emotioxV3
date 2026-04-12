@@ -114,6 +114,22 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             }
         }
 
+        // POST /research/:id/duplicate
+        const duplicateMatch = path.match(/^\/research\/([^\/]+)\/duplicate$/);
+        if (duplicateMatch && httpMethod === 'POST') {
+            const id = duplicateMatch[1];
+            try {
+                const research = await researchService.duplicate(id, user.id, user.role);
+                return success({ research }, 201, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                if (errorMessage.includes('Research not found')) {
+                    return error('Research not found', 404, undefined, origin);
+                }
+                throw err;
+            }
+        }
+
         // PATCH /research/:id/status
         const statusMatch = path.match(/^\/research\/([^\/]+)\/status$/);
         if (statusMatch && httpMethod === 'PATCH') {

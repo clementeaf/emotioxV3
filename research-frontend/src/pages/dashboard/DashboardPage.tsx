@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useResearches, useDeleteResearch } from '../../hooks/useResearchQuery';
+import { useResearches, useDeleteResearch, useDuplicateResearch } from '../../hooks/useResearchQuery';
 import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy } from 'lucide-react';
 import type { Research } from '../../services/research.service';
 
 /**
@@ -14,11 +14,13 @@ import type { Research } from '../../services/research.service';
 const ResearchTableRow = memo(({
     research,
     onRowClick,
-    onDelete
+    onDelete,
+    onDuplicate
 }: {
     research: Research;
     onRowClick: (id: string) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
+    onDuplicate: (research: Research, e: React.MouseEvent) => void;
 }) => {
     const statusVariant = useMemo(() => {
         switch (research.status.toLowerCase()) {
@@ -79,13 +81,22 @@ const ResearchTableRow = memo(({
                 </span>
             </td>
             <td className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 lg:py-4 whitespace-nowrap text-sm font-medium">
-                <button
-                    onClick={(e) => onDelete(research, e)}
-                    className="p-1 sm:p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
-                    title="Delete"
-                >
-                    <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={(e) => onDuplicate(research, e)}
+                        className="p-1 sm:p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
+                        title="Duplicate"
+                    >
+                        <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </button>
+                    <button
+                        onClick={(e) => onDelete(research, e)}
+                        className="p-1 sm:p-1.5 text-gray-400 hover:text-red-600 transition-colors rounded hover:bg-red-50"
+                        title="Delete"
+                    >
+                        <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    </button>
+                </div>
             </td>
         </tr>
     );
@@ -145,6 +156,7 @@ export const DashboardPage = () => {
     const { data: researches = [], isLoading } = useResearches();
     const { data: researchTypes = [] } = useResearchTypes();
     const deleteResearch = useDeleteResearch();
+    const duplicateResearch = useDuplicateResearch();
 
     // Type assertions para TypeScript
     const typedResearches = researches as Research[];
@@ -182,6 +194,11 @@ export const DashboardPage = () => {
             console.error('Failed to delete research:', error);
         }
     }, [researchToDelete, deleteResearch]);
+
+    const handleDuplicateClick = useCallback((research: Research, e: React.MouseEvent) => {
+        e.stopPropagation();
+        duplicateResearch.mutate(research.id);
+    }, [duplicateResearch]);
 
     const handleRowClick = useCallback((researchId: string) => {
         navigate(`/research/${researchId}/builder`);
@@ -248,6 +265,7 @@ export const DashboardPage = () => {
                                             research={research}
                                             onRowClick={handleRowClick}
                                             onDelete={handleDeleteClick}
+                                            onDuplicate={handleDuplicateClick}
                                         />
                                     ))
                                 )}
