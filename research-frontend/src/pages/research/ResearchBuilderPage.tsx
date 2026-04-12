@@ -981,8 +981,8 @@ const transformResearchConfigComponentValues = (values: Record<string, string>):
 
     // Process each component value
     Object.entries(values).forEach(([key, value]) => {
-        // Handle demographics
-        if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key)) {
+        // Handle demographics (predefined + customQuestion_*)
+        if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key) || key.startsWith('customQuestion_')) {
             (config.demographics as Record<string, unknown>)[key] = tryParse(value);
         }
         // Handle link configuration

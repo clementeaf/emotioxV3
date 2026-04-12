@@ -1,3 +1,11 @@
+## v0.55.1 — Fix custom screening questions persistence (2026-04-12)
+
+### research-frontend
+- **Custom screening questions round-trip fix:** `transformResearchConfigComponentValues` had a hardcoded list of demographic keys and silently dropped `customQuestion_*` entries. Added `key.startsWith('customQuestion_')` check so custom screening questions survive the flatten→reconstruct cycle used during save and reload.
+- **Screener drawer: include all options on save:** `ScreenerQuestionDrawer.handleSave` was only passing qualifying options to the parent. Disqualifying options were lost from `validValues`, breaking the backend disqualification check. Now passes all options (qualifying + disqualifying) with correct `isQualified` flag.
+
+---
+
 ## v0.55.0 — Draft persistence, unsaved changes indicator, i18n cleanup (2026-04-11)
 
 ### research-frontend

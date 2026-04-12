@@ -15,7 +15,7 @@ import EmploymentStatusConfigModal from './EmploymentStatusConfigModal';
 import HouseholdIncomeConfigModal from './HouseholdIncomeConfigModal';
 import DailyHoursOnlineConfigModal from './DailyHoursOnlineConfigModal';
 import TechnicalProficiencyConfigModal from './TechnicalProficiencyConfigModal';
-import CustomScreeningQuestionConfigModal from './CustomScreeningQuestionConfigModal';
+import { ScreenerQuestionDrawer } from './ScreenerQuestionDrawer';
 import { useToast } from '../../hooks/useToast';
 import { mediaService } from '../../services/media.service';
 
@@ -1300,18 +1300,19 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                 />
             )}
 
-            {/* Custom Screening Question Modals */}
+            {/* Custom Screening Question Drawers */}
             {activeConfigModal?.startsWith('customQuestion_') && (
-                <CustomScreeningQuestionConfigModal
+                <ScreenerQuestionDrawer
                     isOpen={true}
                     onClose={() => setActiveConfigModal(null)}
                     questionLabel={demographics[activeConfigModal]?.questionLabel || ''}
                     onSave={(questionLabel, options, disqualified) => {
                         handleSaveDemographicConfig({
+                            questionLabel,
                             options,
                             disqualified,
-                            questionLabel
                         });
+                        setActiveConfigModal(null);
                     }}
                     currentOptions={getModalOptions(activeConfigModal)}
                     currentDisqualified={getModalDisqualified(activeConfigModal)}
