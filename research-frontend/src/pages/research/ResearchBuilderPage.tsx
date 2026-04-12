@@ -552,21 +552,22 @@ export const ResearchBuilderPage = () => {
                         )
                     }));
 
-                    // Inject virtual componentValues (e.g. test-title) that aren't template components
+                    // Inject virtual componentValues that aren't in the original template components
                     const virtualComponents: typeof updatedComponents = [];
-                    if (componentValues['test-title'] !== undefined) {
-                        const existing = updatedComponents.find(c => c.id === 'test-title');
-                        if (!existing) {
+                    const injectVirtual = (id: string, type: string, label: string) => {
+                        if (componentValues[id] !== undefined && !updatedComponents.find(c => c.id === id)) {
                             virtualComponents.push({
-                                id: 'test-title',
-                                type: 'input',
-                                label: 'Test title',
-                                value: componentValues['test-title'],
+                                id,
+                                type: type as typeof updatedComponents[number]['type'],
+                                label,
+                                value: componentValues[id],
                                 order: -1,
                                 hidden: true,
                             } as typeof updatedComponents[number]);
                         }
-                    }
+                    };
+                    injectVirtual('test-title', 'input', 'Test title');
+                    injectVirtual('aois', 'hidden', 'Areas of Interest');
 
                     // Preserve the correct backend structure: { structure: { components: [...] } }
                     const config = {
