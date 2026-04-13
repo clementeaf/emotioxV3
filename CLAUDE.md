@@ -48,6 +48,8 @@ Default stages al seleccionar esta técnica: Screener → Welcome Screen → Res
 - **Navigation Flow stacking fix** (v0.57.0): `key={module.id}` en todos los renderers de `DynamicStep` y `NavigationFlow` en `CognitiveTaskRenderer`. Fuerza re-mount al cambiar de módulo — resuelve overlay de completitud tapando módulos consecutivos.
 - **Reorder guard** (v0.57.0): `handleMoveModule` bloquea reorden cuando hay módulos no guardados (prefijo `local-`).
 - **Eye Tracking fullscreen** (v0.57.0): `EyeTrackingRenderer` fases calibración, validación y viewing renderizan fullscreen con fondo negro (`fixed inset-0 bg-black`), imagen `95vw × 95vh`. Mismo patrón que NavigationFlow.
+- **Configurable language switcher** (v0.57.1): `linkConfig.allowLanguageSwitch` (default `false`). El selector de idioma ES/EN en participant-frontend solo aparece si el investigador lo habilita desde Link Configuration. Resuelve superposición del botón con texto de instrucciones en mobile.
+- **NavigationFlow preview hint** (v0.57.1): "Press Esc or click dark area to skip" oculto en mobile (`hidden md:inline`). Solo relevante en desktop con teclado.
 - **Pendiente**: webcam eye tracking (WebGazer.js) como mejora futura del proxy click-based.
 
 ## Tech Stack

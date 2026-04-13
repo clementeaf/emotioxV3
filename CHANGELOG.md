@@ -1,3 +1,14 @@
+## v0.57.1 — Configurable language switcher (2026-04-13)
+
+### research-frontend
+- **Language switch toggle:** New checkbox in Link Configuration — "Allow respondents to switch survey language." Disabled by default.
+
+### participant-frontend
+- **Conditional language selector:** The ES/EN language button is now hidden unless the researcher enables it. Fixes mobile overlap where the button covered instruction text.
+- **NavigationFlow preview hint hidden on mobile:** "Press Esc or click dark area to skip" only shows on desktop — irrelevant on touch devices.
+
+---
+
 ## v0.57.0 — Conditionality overhaul, Navigation Flow fix, question numbering (2026-04-13)
 
 ### research-frontend

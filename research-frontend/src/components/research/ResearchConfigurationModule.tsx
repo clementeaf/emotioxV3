@@ -950,6 +950,17 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                             />
                             <span>It can be taken multiple times within a single session</span>
                         </label>
+                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={linkConfig.allowLanguageSwitch || false}
+                                onChange={(e) => handleLinkConfigChange('allowLanguageSwitch', e.target.checked)}
+                                disabled={!linkConfigEnabled}
+                                className="rounded border-gray-300"
+                                aria-label="Allow respondents to switch language"
+                            />
+                            <span>Allow respondents to switch survey language</span>
+                        </label>
                     </div>
                 </div>
 

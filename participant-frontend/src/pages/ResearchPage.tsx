@@ -41,6 +41,7 @@ export const ResearchPage = () => {
   const { researchId } = useParams<{ researchId: string }>();
   const { isPreviewMode, isReviewMode, reviewParticipantId, participantId } = usePreviewMode();
   const { setConfig } = useSessionStore();
+  const allowLanguageSwitch = useSessionStore((s) => s.config?.linkConfig?.allowLanguageSwitch);
   const { getResponsesByModule, startNewSession, clearAllResponses } = useParticipantStore();
   const [modules, setModules] = useState<Record<string, Module>>({});
 
@@ -934,7 +935,7 @@ export const ResearchPage = () => {
         <PreviewModeBanner />
       ) : null}
 
-      <LanguageSelector />
+      {allowLanguageSwitch && <LanguageSelector />}
 
       {/* Study logo — top-left corner */}
       {studyLogoEnabled && (

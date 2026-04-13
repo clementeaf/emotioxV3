@@ -508,7 +508,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             {!isComplete && (
                 <div className="flex-shrink-0 bg-black px-4 pt-4 pb-3">
                     {isPreviewMode && (
-                        <span className="absolute top-4 right-4 z-50 text-white/50 text-xs">
+                        <span className="absolute top-4 right-4 z-50 text-white/50 text-xs hidden md:inline">
                             Press Esc or click dark area to skip
                         </span>
                     )}

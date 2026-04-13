@@ -11,6 +11,7 @@ export interface ResearchConfig {
         allowMobile?: boolean;
         trackLocation?: boolean;
         allowMultiple?: boolean;
+        allowLanguageSwitch?: boolean;
     };
     // Participant limit configuration
     participantLimit?: {
