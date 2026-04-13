@@ -29,6 +29,8 @@ interface SmartVOCModuleCardProps {
     enabledDemographics?: EnabledDemographic[];
     studyModules?: StudyModuleOption[];
     linkableModules?: LinkableModule[];
+    globalOrderIndex?: number;
+    questionNumber?: number;
 }
 
 /**
@@ -36,7 +38,7 @@ interface SmartVOCModuleCardProps {
  * Muestra el módulo con su editor de contenido
  */
 export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModuleCardProps>(
-    ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [], linkableModules = [] }, ref) => {
+    ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [], linkableModules = [], globalOrderIndex, questionNumber }, ref) => {
     const conditionalityDisabled = !enabledDemographics.length && !studyModules.length && !linkableModules.length;
     const { components, componentValues, setComponentValues } = useModuleComponents(module);
     const cardRef = useRef<HTMLDivElement>(null);
@@ -142,7 +144,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
         >
             <div className="px-6 py-4 border-b border-gray-200">
                 <div className="flex items-center gap-4">
-                    <h3 className="text-base font-semibold text-gray-900">{module.name}</h3>
+                    <h3 className="text-base font-semibold text-gray-900">{questionNumber ? `${questionNumber}. ` : ''}{module.name}</h3>
                     <div className="flex items-center gap-4 ml-auto">
                         <Toggle
                             checked={isRequired}
@@ -227,7 +229,7 @@ export const SmartVOCModuleCard = forwardRef<SmartVOCModuleCardRef, SmartVOCModu
                 demographics={enabledDemographics}
                 studyModules={studyModules}
                 linkableModules={linkableModules}
-                currentModuleOrderIndex={module.order_index}
+                currentModuleOrderIndex={globalOrderIndex ?? module.order_index}
             />
             {/* Delete confirmation modal */}
             {isDeleteConfirmOpen && (

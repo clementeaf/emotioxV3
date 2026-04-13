@@ -356,6 +356,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
 
             return (
                 <NavigationFlow
+                    key={`${module.id}-navflow`}
                     moduleId={module.id}
                     componentId="navigation-flow"
                     title={titleText}

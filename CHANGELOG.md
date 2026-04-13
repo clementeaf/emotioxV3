@@ -1,13 +1,20 @@
-## v0.57.0 — Screening toggle UI, conditionality fixes, Eye Tracking fullscreen (2026-04-12)
+## v0.57.0 — Conditionality overhaul, Navigation Flow fix, question numbering (2026-04-13)
 
 ### research-frontend
-- **Screening question toggle:** `ScreenerQuestionDrawer` now uses a green/orange toggle (Qualify/Disqualify) instead of a dropdown selector, matching the demographic drawer pattern.
-- **Conditionality: renamed demographics:** The conditionality modal now reads `questionLabel` from the demographic config, so renamed questions (e.g. "Annual Income" → custom label) display correctly.
-- **Conditionality: custom screening questions:** Custom screening questions (`customQuestion_*`) now show their `questionLabel` instead of the raw key ID in the conditionality dropdown.
-- **Conditionality: study question detection fix:** Choice modules from DB templates were not detected because they lacked `isChoice` setting. Now also matches by component type (`radio`, `checkbox-list`, `option-list`), so "Study question" appears in the condition source dropdown.
+- **Screening question toggle:** `ScreenerQuestionDrawer` uses green/orange toggle (Qualify/Disqualify) instead of dropdown, matching demographic drawer pattern.
+- **Screening option padding fix:** Editing existing questions no longer pads to 3 options — shows exactly the saved options.
+- **Conditionality: renamed demographics:** Modal reads `questionLabel` from config, so renamed questions display correctly.
+- **Conditionality: custom screening questions:** `customQuestion_*` entries show their `questionLabel` instead of raw key ID.
+- **Conditionality: study question detection:** Also matches by component type (`radio`, `checkbox-list`, `option-list`). Parses JSON choice values to show readable labels.
+- **Conditionality: "Link with module":** New third condition source. Links visibility between modules — "show this question only if the linked module is also shown." Dropdown lists all study modules (excluding Welcome/ThankYou/ResearchConfig) with global numbering.
+- **Global order index:** `studyModulesWithOptions` and `linkableModules` use global ordering (`stage.order_index × 10000 + mod.order_index`) for correct cross-stage filtering.
+- **Question numbering in builder:** Module cards display ordinal number matching the conditionality dropdown and results page.
+- **Reorder guard:** `handleMoveModule` blocks reordering when unsaved modules (local- prefix) exist, showing "Save all modules before reordering."
 
 ### participant-frontend
-- **Eye Tracking fullscreen:** Calibration, validation, and viewing phases now render fullscreen with black background (`fixed inset-0 bg-black`), matching NavigationFlow pattern. Image fills screen (`95vw × 95vh`), text adapted for dark context.
+- **Navigation Flow stacking fix:** Consecutive Navigation Flows no longer overlap. All renderers in `DynamicStep` receive `key={module.id}`, forcing full re-mount and state reset when switching modules.
+- **Eye Tracking fullscreen:** Calibration, validation, and viewing phases render fullscreen with black background (`fixed inset-0 bg-black`), matching NavigationFlow pattern.
+- **Linked module evaluation:** `useNavigation` evaluates linked module conditions recursively with cycle protection.
 
 ---
 

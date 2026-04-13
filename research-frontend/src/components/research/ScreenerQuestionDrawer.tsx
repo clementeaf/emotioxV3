@@ -67,18 +67,7 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
   const [label, setLabel] = useState(initialLabel);
   const [choiceType, setChoiceType] = useState('single');
   const [localChoices, setLocalChoices] = useState<ChoiceItem[]>(
-    () => {
-      const initial = buildInitialChoices(currentOptions, currentDisqualified);
-      // Pad to 3 if fewer (default 3 options)
-      while (initial.length < 3) {
-        initial.push({
-          id: `opt-${Date.now()}-${initial.length}`,
-          label: `Option ${initial.length + 1}`,
-          eligibility: 'Qualify',
-        });
-      }
-      return initial;
-    }
+    () => buildInitialChoices(currentOptions, currentDisqualified)
   );
 
   // Reset state when modal opens
@@ -86,16 +75,7 @@ export const ScreenerQuestionDrawer: React.FC<ScreenerQuestionDrawerProps> = ({
     if (isOpen) {
       setLabel(initialLabel);
       setChoiceType('single');
-      const initial = buildInitialChoices(currentOptions, currentDisqualified);
-      // Pad to 3 if fewer (default 3 options)
-      while (initial.length < 3) {
-        initial.push({
-          id: `opt-${Date.now()}-${initial.length}`,
-          label: `Option ${initial.length + 1}`,
-          eligibility: 'Qualify',
-        });
-      }
-      setLocalChoices(initial);
+      setLocalChoices(buildInitialChoices(currentOptions, currentDisqualified));
     }
   }, [isOpen, initialLabel, currentOptions, currentDisqualified]);
 

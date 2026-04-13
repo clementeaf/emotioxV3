@@ -208,6 +208,7 @@ export const ResearchBuilderPage = () => {
         );
 
         for (const stage of sortedStages) {
+            const stageBase = (stage.order_index ?? 0) * 10000;
             const modules = [...(stage.modules || [])].sort(
                 (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
             );
@@ -256,7 +257,7 @@ export const ResearchBuilderPage = () => {
                 result.push({
                     id: mod.id,
                     name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
-                    orderIndex: mod.order_index,
+                    orderIndex: stageBase + (mod.order_index ?? 0),
                     componentId: 'choice',
                     options,
                 });
@@ -266,25 +267,47 @@ export const ResearchBuilderPage = () => {
     }, [typedResearch]);
 
     /**
-     * Modules that have a condition configured — available as "Link with module" targets.
-     * Any prior module with conditionality enabled can be linked.
+     * All modules in the study — available as "Link with module" targets.
+     * Excludes special modules (Welcome, Thank You, Research Configuration).
+     * orderIndex is global (stage order × 10000 + module order) for cross-stage comparison.
      */
     const linkableModules = useMemo(() => {
         if (!typedResearch?.stages) return [];
+        const excluded = ['Welcome Screen', 'Thank You Screen', 'Research Configuration'];
         const result: Array<{ id: string; name: string; orderIndex: number }> = [];
-        for (const stage of typedResearch.stages) {
-            for (const mod of stage.modules || []) {
-                if (mod.config?.conditionality && mod.config?.conditionalityConfig) {
-                    result.push({
-                        id: mod.id,
-                        name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
-                        orderIndex: mod.order_index,
-                    });
-                }
+        const sortedStages = [...typedResearch.stages].sort(
+            (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+        );
+        let questionNumber = 0;
+        for (const stage of sortedStages) {
+            const stageBase = (stage.order_index ?? 0) * 10000;
+            const modules = [...(stage.modules || [])].sort(
+                (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
+            );
+            for (const mod of modules) {
+                if (excluded.includes(mod.name)) continue;
+                questionNumber++;
+                const desc = mod.description ? ` - ${mod.description}` : '';
+                result.push({
+                    id: mod.id,
+                    name: `${questionNumber}. ${mod.name}${desc}`,
+                    orderIndex: stageBase + (mod.order_index ?? 0),
+                });
             }
         }
         return result;
     }, [typedResearch]);
+
+    /** Global question number per module ID — same numbering as linkableModules. */
+    const moduleQuestionNumbers = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const m of linkableModules) {
+            // Extract number from name prefix "N. ..."
+            const match = m.name.match(/^(\d+)\./);
+            if (match) map.set(m.id, parseInt(match[1], 10));
+        }
+        return map;
+    }, [linkableModules]);
 
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
@@ -333,6 +356,12 @@ export const ResearchBuilderPage = () => {
     ) => {
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (targetIndex < 0 || targetIndex >= modules.length) return;
+
+        // Block reorder if any module hasn't been saved yet (local- prefix)
+        if (modules.some(m => m.id.startsWith('local-'))) {
+            toast.error('Save all modules before reordering');
+            return;
+        }
 
         // Build new order
         const reordered = [...modules];
@@ -835,6 +864,8 @@ export const ResearchBuilderPage = () => {
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
                                 linkableModules={linkableModules}
+                                globalOrderIndex={(smartVOCStage!.order_index ?? 0) * 10000 + (module.order_index ?? 0)}
+                                questionNumber={moduleQuestionNumbers.get(module.id)}
                             />
                             </div>
                         </div>
@@ -920,6 +951,8 @@ export const ResearchBuilderPage = () => {
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
                                 linkableModules={linkableModules}
+                                globalOrderIndex={(collectionStage!.order_index ?? 0) * 10000 + (module.order_index ?? 0)}
+                                questionNumber={moduleQuestionNumbers.get(module.id)}
                             />
                             </div>
                         </div>

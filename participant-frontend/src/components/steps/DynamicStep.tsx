@@ -159,27 +159,27 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
 
     // If SmartVOC, use specialized renderer
     if (isSmartVOC) {
-        return <SmartVOCRenderer module={module} onComplete={onComplete} />;
+        return <SmartVOCRenderer key={module.id} module={module} onComplete={onComplete} />;
     }
 
     // If Cognitive Task, use specialized renderer
     if (isCognitiveTask) {
-        return <CognitiveTaskRenderer module={module} onComplete={onComplete} />;
+        return <CognitiveTaskRenderer key={module.id} module={module} onComplete={onComplete} />;
     }
 
     // If Screener, use screener renderer
     if (isScreener) {
-        return <ScreenerRenderer module={module} onComplete={onComplete} />;
+        return <ScreenerRenderer key={module.id} module={module} onComplete={onComplete} />;
     }
 
     // If Implicit Association, use IAT renderer
     if (isImplicitAssociation) {
-        return <ImplicitAssociationRenderer module={module} onComplete={onComplete} />;
+        return <ImplicitAssociationRenderer key={module.id} module={module} onComplete={onComplete} />;
     }
 
     // If Eye Tracking, use eye tracking renderer
     if (isEyeTracking) {
-        return <EyeTrackingRenderer module={module} onComplete={onComplete} />;
+        return <EyeTrackingRenderer key={module.id} module={module} onComplete={onComplete} />;
     }
 
     // Otherwise, use generic dynamic rendering (for Welcome, Thank You, etc.)

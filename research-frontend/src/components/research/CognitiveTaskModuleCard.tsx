@@ -33,6 +33,8 @@ interface CognitiveTaskModuleCardProps {
     enabledDemographics?: EnabledDemographic[];
     studyModules?: StudyModuleOption[];
     linkableModules?: LinkableModule[];
+    globalOrderIndex?: number;
+    questionNumber?: number;
 }
 
 /**
@@ -40,7 +42,7 @@ interface CognitiveTaskModuleCardProps {
  * Estructura idéntica a SmartVOCModuleCard para consistencia
  */
 export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
-    ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [], linkableModules = [] }, ref) => {
+    ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [], linkableModules = [], globalOrderIndex, questionNumber }, ref) => {
     const conditionalityDisabled = !enabledDemographics.length && !studyModules.length && !linkableModules.length;
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
 
@@ -198,7 +200,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
         >
             <div className="px-6 py-4 border-b border-gray-200">
                 <div className="flex items-center gap-4">
-                    <h3 className="text-base font-semibold text-gray-900">{module.name}</h3>
+                    <h3 className="text-base font-semibold text-gray-900">{questionNumber ? `${questionNumber}. ` : ''}{module.name}</h3>
                     <div className="flex items-center gap-4 ml-auto">
                         {isIatModule && (
                             <button
@@ -289,7 +291,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                 demographics={enabledDemographics}
                 studyModules={studyModules}
                 linkableModules={linkableModules}
-                currentModuleOrderIndex={module.order_index}
+                currentModuleOrderIndex={globalOrderIndex ?? module.order_index}
             />
             {isDeleteConfirmOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
