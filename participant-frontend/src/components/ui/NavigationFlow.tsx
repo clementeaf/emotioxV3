@@ -444,6 +444,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
 
     const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>): void => {
         e.preventDefault();
+        e.stopPropagation(); // Prevent outer handler from completing flow in preview mode
         if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
         lastHandledAtRef.current = Date.now();
         processInteraction(e.clientX, e.clientY);
@@ -451,6 +452,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
 
     const handleImageClick = (e: React.MouseEvent<HTMLDivElement>): void => {
         e.preventDefault();
+        e.stopPropagation(); // Prevent outer handler from completing flow in preview mode
         if (Date.now() - lastHandledAtRef.current < DEDUPE_MS) return;
         lastHandledAtRef.current = Date.now();
         processInteraction(e.clientX, e.clientY);
