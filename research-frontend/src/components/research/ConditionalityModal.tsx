@@ -3,7 +3,7 @@ import { Modal } from '../ui/Modal';
 import { CustomSelect } from '../ui/CustomSelect';
 import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
-import { isDemographicCondition, isModuleCondition } from '../../utils/moduleRequired';
+import { isDemographicCondition, isModuleCondition, isLinkedModuleCondition } from '../../utils/moduleRequired';
 
 export interface StudyModuleOption {
     id: string;
@@ -11,6 +11,12 @@ export interface StudyModuleOption {
     orderIndex: number;
     componentId: string;
     options: Array<{ id: string; label: string }>;
+}
+
+export interface LinkableModule {
+    id: string;
+    name: string;
+    orderIndex: number;
 }
 
 interface ConditionalityModalProps {
@@ -21,10 +27,11 @@ interface ConditionalityModalProps {
     demographics: EnabledDemographic[];
     initialConfig?: ConditionalityConfig | null;
     studyModules?: StudyModuleOption[];
+    linkableModules?: LinkableModule[];
     currentModuleOrderIndex?: number;
 }
 
-type ConditionSource = 'demographic' | 'study-question';
+type ConditionSource = 'demographic' | 'study-question' | 'linked-module';
 
 /**
  * Modal for configuring conditionality rules on a question/section.
@@ -38,6 +45,7 @@ export const ConditionalityModal = ({
     demographics,
     initialConfig,
     studyModules = [],
+    linkableModules = [],
     currentModuleOrderIndex = Infinity,
 }: ConditionalityModalProps) => {
     const [conditionSource, setConditionSource] = useState<ConditionSource>('demographic');
@@ -47,6 +55,8 @@ export const ConditionalityModal = ({
     // Study question state
     const [selectedModuleId, setSelectedModuleId] = useState('');
     const [selectedValues, setSelectedValues] = useState<string[]>([]);
+    // Linked module state
+    const [linkedModuleId, setLinkedModuleId] = useState('');
 
     // Only show modules that come before the current module
     const availableStudyModules = useMemo(
@@ -54,24 +64,39 @@ export const ConditionalityModal = ({
         [studyModules, currentModuleOrderIndex]
     );
 
+    const availableLinkableModules = useMemo(
+        () => linkableModules.filter(m => m.orderIndex < currentModuleOrderIndex),
+        [linkableModules, currentModuleOrderIndex]
+    );
+
     const hasStudyModules = availableStudyModules.length > 0;
+    const hasLinkableModules = availableLinkableModules.length > 0;
 
     // Reset state when modal opens, seeding from initialConfig if present
     useEffect(() => {
         if (isOpen) {
             if (initialConfig) {
-                if (isModuleCondition(initialConfig)) {
+                if (isLinkedModuleCondition(initialConfig)) {
+                    setConditionSource('linked-module');
+                    setLinkedModuleId(initialConfig.linkedModuleId);
+                    setSelectedQuestion('');
+                    setSelectedOption('');
+                    setSelectedModuleId('');
+                    setSelectedValues([]);
+                } else if (isModuleCondition(initialConfig)) {
                     setConditionSource('study-question');
                     setSelectedModuleId(initialConfig.sourceModuleId);
                     setSelectedValues([...initialConfig.selectedValues]);
                     setSelectedQuestion('');
                     setSelectedOption('');
+                    setLinkedModuleId('');
                 } else if (isDemographicCondition(initialConfig)) {
                     setConditionSource('demographic');
                     setSelectedQuestion(initialConfig.demographicKey);
                     setSelectedOption(initialConfig.demographicValue);
                     setSelectedModuleId('');
                     setSelectedValues([]);
+                    setLinkedModuleId('');
                 }
             } else {
                 setConditionSource('demographic');
@@ -79,6 +104,7 @@ export const ConditionalityModal = ({
                 setSelectedOption('');
                 setSelectedModuleId('');
                 setSelectedValues([]);
+                setLinkedModuleId('');
             }
         }
     }, [isOpen, demographics, initialConfig]);
@@ -120,6 +146,7 @@ export const ConditionalityModal = ({
         setSelectedOption('');
         setSelectedModuleId('');
         setSelectedValues([]);
+        setLinkedModuleId('');
     };
 
     const handleModuleChange = (moduleId: string) => {
@@ -137,13 +164,15 @@ export const ConditionalityModal = ({
 
     const canSave = conditionSource === 'demographic'
         ? Boolean(selectedQuestion && selectedOption)
-        : Boolean(selectedModuleId && selectedValues.length > 0);
+        : conditionSource === 'study-question'
+            ? Boolean(selectedModuleId && selectedValues.length > 0)
+            : Boolean(linkedModuleId);
 
     const handleSave = () => {
         if (!canSave) return;
         if (conditionSource === 'demographic') {
             onSave({ action: 'show', demographicKey: selectedQuestion, demographicValue: selectedOption });
-        } else {
+        } else if (conditionSource === 'study-question') {
             const mod = selectedStudyModule;
             if (!mod) return;
             onSave({
@@ -153,12 +182,20 @@ export const ConditionalityModal = ({
                 selectedValues,
                 matchMode: 'any',
             });
+        } else {
+            onSave({ action: 'show', linkedModuleId });
         }
     };
+
+    const linkableModuleOptions = useMemo(
+        () => availableLinkableModules.map(m => ({ value: m.id, label: m.name })),
+        [availableLinkableModules]
+    );
 
     const sourceOptions = [
         { value: 'demographic', label: 'Demographic' },
         ...(hasStudyModules ? [{ value: 'study-question', label: 'Study question' }] : []),
+        ...(hasLinkableModules ? [{ value: 'linked-module', label: 'Link with module' }] : []),
     ];
 
     return (
@@ -253,6 +290,21 @@ export const ConditionalityModal = ({
                                 </div>
                             </div>
                         )}
+                    </>
+                )}
+
+                {/* Linked module condition */}
+                {conditionSource === 'linked-module' && (
+                    <>
+                        <p className="text-sm text-gray-600">
+                            Show this section only if the selected module is also shown to the participant.
+                        </p>
+                        <CustomSelect
+                            options={linkableModuleOptions}
+                            value={linkedModuleId}
+                            onChange={setLinkedModuleId}
+                            placeholder="Select a module to link with"
+                        />
                     </>
                 )}
 

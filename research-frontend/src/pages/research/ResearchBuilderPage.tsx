@@ -265,6 +265,27 @@ export const ResearchBuilderPage = () => {
         return result;
     }, [typedResearch]);
 
+    /**
+     * Modules that have a condition configured — available as "Link with module" targets.
+     * Any prior module with conditionality enabled can be linked.
+     */
+    const linkableModules = useMemo(() => {
+        if (!typedResearch?.stages) return [];
+        const result: Array<{ id: string; name: string; orderIndex: number }> = [];
+        for (const stage of typedResearch.stages) {
+            for (const mod of stage.modules || []) {
+                if (mod.config?.conditionality && mod.config?.conditionalityConfig) {
+                    result.push({
+                        id: mod.id,
+                        name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
+                        orderIndex: mod.order_index,
+                    });
+                }
+            }
+        }
+        return result;
+    }, [typedResearch]);
+
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
 
@@ -813,6 +834,7 @@ export const ResearchBuilderPage = () => {
                                 isActive={activeModuleId === module.id}
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
+                                linkableModules={linkableModules}
                             />
                             </div>
                         </div>
@@ -897,6 +919,7 @@ export const ResearchBuilderPage = () => {
                                 isActive={activeModuleId === module.id}
                                 enabledDemographics={enabledDemographics}
                                 studyModules={studyModulesWithOptions}
+                                linkableModules={linkableModules}
                             />
                             </div>
                         </div>

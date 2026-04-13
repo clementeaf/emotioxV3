@@ -96,7 +96,12 @@ export interface ModuleConditionality {
     matchMode: 'any';
 }
 
-export type ConditionalityConfig = DemographicConditionality | ModuleConditionality;
+export interface LinkedModuleConditionality {
+    action: 'show';
+    linkedModuleId: string;
+}
+
+export type ConditionalityConfig = DemographicConditionality | ModuleConditionality | LinkedModuleConditionality;
 
 export const isDemographicCondition = (cc: ConditionalityConfig): cc is DemographicConditionality =>
     'demographicKey' in cc;
@@ -104,12 +109,21 @@ export const isDemographicCondition = (cc: ConditionalityConfig): cc is Demograp
 export const isModuleCondition = (cc: ConditionalityConfig): cc is ModuleConditionality =>
     'sourceModuleId' in cc;
 
+export const isLinkedModuleCondition = (cc: ConditionalityConfig): cc is LinkedModuleConditionality =>
+    'linkedModuleId' in cc;
+
 export const getModuleConditionalityConfig = (
     config: Record<string, unknown> | undefined
 ): ConditionalityConfig | null => {
     if (!config) return null;
     const cc = config.conditionalityConfig;
     if (typeof cc !== 'object' || cc === null || !('action' in cc)) return null;
+
+    // Linked module condition
+    if ('linkedModuleId' in cc) {
+        const typed = cc as LinkedModuleConditionality;
+        if (typed.linkedModuleId) return typed;
+    }
 
     // Module condition
     if ('sourceModuleId' in cc) {

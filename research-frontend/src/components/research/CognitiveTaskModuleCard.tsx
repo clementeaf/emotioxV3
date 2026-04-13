@@ -8,8 +8,8 @@ import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
 import { Toggle } from '../ui/Toggle';
 import { ConditionalityModal } from './ConditionalityModal';
-import type { StudyModuleOption } from './ConditionalityModal';
-import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden, getModuleRequired, isDemographicCondition, isModuleCondition } from '../../utils/moduleRequired';
+import type { StudyModuleOption, LinkableModule } from './ConditionalityModal';
+import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden, getModuleRequired, isDemographicCondition, isModuleCondition, isLinkedModuleCondition } from '../../utils/moduleRequired';
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
 import { isImplicitAssociationModuleName } from '../../utils/implicitAssociationBuilder';
 import { IATPreviewModal } from './IATPreviewModal';
@@ -32,6 +32,7 @@ interface CognitiveTaskModuleCardProps {
     isActive?: boolean;
     enabledDemographics?: EnabledDemographic[];
     studyModules?: StudyModuleOption[];
+    linkableModules?: LinkableModule[];
 }
 
 /**
@@ -39,8 +40,8 @@ interface CognitiveTaskModuleCardProps {
  * Estructura idéntica a SmartVOCModuleCard para consistencia
  */
 export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, CognitiveTaskModuleCardProps>(
-    ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [] }, ref) => {
-    const conditionalityDisabled = !enabledDemographics.length && !studyModules.length;
+    ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [], linkableModules = [] }, ref) => {
+    const conditionalityDisabled = !enabledDemographics.length && !studyModules.length && !linkableModules.length;
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
 
     useScreenerSingleChoiceTrim(module.name, components, componentValues, setComponents, setComponentValues);
@@ -252,7 +253,9 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                             ? `Condition: Show if ${conditionalityConfig.demographicKey} = ${conditionalityConfig.demographicValue}`
                             : isModuleCondition(conditionalityConfig)
                                 ? `Condition: Show if ${studyModules.find(m => m.id === conditionalityConfig.sourceModuleId)?.name || 'Unknown'} = ${conditionalityConfig.selectedValues.map(v => studyModules.find(m => m.id === conditionalityConfig.sourceModuleId)?.options.find(o => o.id === v)?.label || v).join(', ')}`
-                                : 'Condition configured'}
+                                : isLinkedModuleCondition(conditionalityConfig)
+                                    ? `Condition: Linked with ${linkableModules.find(m => m.id === conditionalityConfig.linkedModuleId)?.name || 'Unknown'}`
+                                    : 'Condition configured'}
                     </button>
                 )}
             </div>
@@ -285,6 +288,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                 moduleName={module.name}
                 demographics={enabledDemographics}
                 studyModules={studyModules}
+                linkableModules={linkableModules}
                 currentModuleOrderIndex={module.order_index}
             />
             {isDeleteConfirmOpen && (

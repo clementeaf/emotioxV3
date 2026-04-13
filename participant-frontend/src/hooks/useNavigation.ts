@@ -33,7 +33,9 @@ const DEFAULT_STEPS_ORDER = [
 const isModuleConditionMet = (
     module: Module,
     demographicResponses: Record<string, string>,
-    moduleResponses: Map<string, { value: string | number | boolean | string[] | number[] | null }>
+    moduleResponses: Map<string, { value: string | number | boolean | string[] | number[] | null }>,
+    allModules?: Record<string, Module>,
+    _visited?: Set<string>,
 ): boolean => {
     const cfg = module.config;
     if (!cfg || typeof cfg !== 'object') return true;
@@ -42,6 +44,20 @@ const isModuleConditionMet = (
 
     const cc = rec.conditionalityConfig as Record<string, unknown>;
     if (!cc) return true;
+
+    // Linked module condition: show if the linked module is also shown
+    if ('linkedModuleId' in cc) {
+        const linkedModuleId = cc.linkedModuleId as string;
+        if (!linkedModuleId || !allModules) return true;
+        // Prevent infinite recursion
+        const visited = _visited || new Set<string>();
+        if (visited.has(module.id)) return true;
+        visited.add(module.id);
+        // Find linked module and evaluate its condition
+        const linkedModule = Object.values(allModules).find(m => m.id === linkedModuleId);
+        if (!linkedModule) return true;
+        return isModuleConditionMet(linkedModule, demographicResponses, moduleResponses, allModules, visited);
+    }
 
     // Module condition
     if ('sourceModuleId' in cc) {
@@ -105,7 +121,7 @@ export const useNavigation = (
     const enabledSteps = stepsOrder.filter((stepId) => {
         const mod = modulesByStep[stepId];
         if (!mod) return false;
-        return isModuleConditionMet(mod, demographicResponses, moduleResponses);
+        return isModuleConditionMet(mod, demographicResponses, moduleResponses, modulesByStep);
     });
     const steps = enabledSteps.length > 0 ? enabledSteps : stepsOrder;
 
