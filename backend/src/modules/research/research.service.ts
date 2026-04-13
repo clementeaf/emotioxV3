@@ -1674,8 +1674,18 @@ export const duplicate = async (researchId: string, userId: string, role?: strin
         const mediaIdMap = new Map<string, string>(); // oldMediaId → newMediaId
         for (const media of mediaResult.rows as Array<Record<string, unknown>>) {
             const oldKey = media.s3_key as string;
-            // Replace old research ID with new in the path
-            const newKey = oldKey.replace(`research/${researchId}`, `research/${newResearchId}`);
+            
+            // Validate and properly construct the new key
+            // Ensure the old key actually belongs to the source research
+            const expectedPrefix = `research/${researchId}/`;
+            if (!oldKey.startsWith(expectedPrefix)) {
+                console.error(`[Research Service] Media key ${oldKey} does not belong to research ${researchId}, skipping`);
+                continue;
+            }
+            
+            // Properly replace only the research ID prefix
+            const relativePath = oldKey.substring(expectedPrefix.length);
+            const newKey = `research/${newResearchId}/${relativePath}`;
             const newMediaId = crypto.randomUUID();
             mediaIdMap.set(media.id as string, newMediaId);
 
@@ -1685,9 +1695,10 @@ export const duplicate = async (researchId: string, userId: string, role?: strin
                 const destPath = getMediaPath(newKey);
                 ensureDirectoryExists(destPath);
                 fs.copyFileSync(srcPath, destPath);
+                console.log(`[Research Service] Successfully copied media: ${oldKey} -> ${newKey}`);
             } catch (fsErr) {
-                console.warn(`[Research Service] Could not copy media file ${oldKey}:`, fsErr);
-                // Non-fatal: media record still created, file may be missing
+                console.error(`[Research Service] Failed to copy media file ${oldKey}:`, fsErr);
+                // Continue with media record creation even if file copy fails
             }
 
             await client.query(
