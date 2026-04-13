@@ -121,6 +121,9 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
     /** Dedupe pointerup + click so we only advance once per interaction (Opera and others fire both). */
     const lastHandledAtRef = useRef<number>(0);
 
+    // Mobile scroll mode: image fills width with vertical scroll for portrait images
+    const [isMobileScroll, setIsMobileScroll] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
     // Preview mode: Esc key to skip
     useEffect(() => {
         if (!isPreviewMode || isComplete) return;
@@ -133,6 +136,14 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isPreviewMode, isComplete, onComplete]);
+
+    // Track viewport width for mobile scroll mode
+    useEffect(() => {
+        const handleResize = () => setIsMobileScroll(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     /** Count failed clicks on current image — after 3 misses the flow auto-completes. */
     const MAX_ATTEMPTS_PER_IMAGE = 3;
     const [failedClicks, setFailedClicks] = useState(0);
@@ -266,8 +277,10 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         return () => window.removeEventListener('resize', updateRenderedRect);
     }, [updateRenderedRect, currentImageIndex]);
 
-    // Non-passive touch listeners so preventDefault works: avoids Safari/Chrome consuming the tap for scroll or delaying the click
+    // Non-passive touch listeners so preventDefault works: avoids Safari/Chrome consuming the tap for scroll or delaying the click.
+    // In mobile scroll mode we WANT default touch behavior (scrolling), so skip prevention.
     useEffect(() => {
+        if (isMobileScroll) return;
         const el = imageRef.current;
         if (!el) return;
         const prevent = (e: TouchEvent): void => {
@@ -279,7 +292,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             el.removeEventListener('touchstart', prevent);
             el.removeEventListener('touchend', prevent);
         };
-    }, []);
+    }, [isMobileScroll]);
 
     /** Process one pointer/click at (clientX, clientY). Used by both pointer and click so touch/pen work in Opera and others. */
     const processInteraction = (clientX: number, clientY: number): void => {
@@ -292,7 +305,15 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         let rendered: { left: number; top: number; width: number; height: number } | null = null;
 
         if (img) {
-            rendered = getRenderedImageRect(img);
+            if (isMobileScroll) {
+                // In scroll mode, image fills width — no letterboxing, use rect directly
+                const r = img.getBoundingClientRect();
+                if (r.width > 0 && r.height > 0) {
+                    rendered = { left: r.left, top: r.top, width: r.width, height: r.height };
+                }
+            } else {
+                rendered = getRenderedImageRect(img);
+            }
         }
 
         // If we couldn't get the rendered image rect but there are hitzones,
@@ -535,11 +556,11 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 ref={imageRef}
                 data-testid="navigation-flow-click-area"
                 onClick={handleImageClick}
-                onPointerUp={handlePointerUp}
-                onTouchEnd={handleTouchEnd}
-                className={`relative flex-1 min-h-0 flex items-center justify-center select-none ${!isComplete ? 'cursor-pointer' : ''}`}
+                onPointerUp={isMobileScroll ? undefined : handlePointerUp}
+                onTouchEnd={isMobileScroll ? undefined : handleTouchEnd}
+                className={`relative flex-1 min-h-0 select-none ${isMobileScroll ? 'overflow-y-auto overflow-x-hidden' : 'flex items-center justify-center'} ${!isComplete ? 'cursor-pointer' : ''}`}
                 onContextMenu={(e) => e.preventDefault()}
-                style={{ touchAction: 'none', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+                style={{ touchAction: isMobileScroll ? 'pan-y' : 'none', WebkitTapHighlightColor: 'transparent', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
             >
                 {/* Render real image or mock */}
                 {loading ? (
@@ -547,44 +568,118 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
                     </div>
                 ) : currentImageUrl ? (
-                    <>
-                        <img
-                            ref={imgElRef}
-                            src={currentImageUrl}
-                            alt={currentImage.name || `Image ${currentImageIndex + 1}`}
-                            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                            draggable={false}
-                            onLoad={(e) => {
-                                const el = e.currentTarget;
-                                if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
-                                setImageError(false);
-                                const applyDimensions = (): void => {
-                                    setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
-                                    setRenderedRect(getRenderedImageRect(el));
-                                    const container = imageRef.current;
-                                    if (container) setContainerRect(container.getBoundingClientRect());
-                                };
-                                if (typeof el.decode === 'function') {
-                                    // Race decode() against a timeout — Opera/Linux can hang on decode() indefinitely
-                                    const timeout = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('decode timeout')), 1000));
-                                    Promise.race([el.decode(), timeout]).then(applyDimensions).catch(() => applyDimensions());
-                                } else {
-                                    applyDimensions();
-                                }
-                            }}
-                            onError={() => {
-                                setImgNatural(null);
-                                setRenderedRect(null);
-                                setContainerRect(null);
-                                setImageError(true);
-                            }}
-                        />
-                        {imageError && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
-                                <p className="text-white text-center px-4">{t('navigationFlow.imageLoadError', 'The image could not be loaded. Please try again or continue.')}</p>
-                            </div>
-                        )}
-                    </>
+                    isMobileScroll ? (
+                        /* ─── Mobile scroll layout: image fills width, vertical scroll ─── */
+                        <div className="relative w-full">
+                            <img
+                                ref={imgElRef}
+                                src={currentImageUrl}
+                                alt={currentImage.name || `Image ${currentImageIndex + 1}`}
+                                className="w-full h-auto block pointer-events-none"
+                                draggable={false}
+                                onLoad={(e) => {
+                                    const el = e.currentTarget;
+                                    if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
+                                    setImageError(false);
+                                    const applyDimensions = (): void => {
+                                        setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
+                                        setRenderedRect(getRenderedImageRect(el));
+                                        const container = imageRef.current;
+                                        if (container) setContainerRect(container.getBoundingClientRect());
+                                    };
+                                    if (typeof el.decode === 'function') {
+                                        const timeout = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('decode timeout')), 1000));
+                                        Promise.race([el.decode(), timeout]).then(applyDimensions).catch(() => applyDimensions());
+                                    } else {
+                                        applyDimensions();
+                                    }
+                                }}
+                                onError={() => {
+                                    setImgNatural(null);
+                                    setRenderedRect(null);
+                                    setContainerRect(null);
+                                    setImageError(true);
+                                }}
+                            />
+                            {imageError && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+                                    <p className="text-white text-center px-4">{t('navigationFlow.imageLoadError', 'The image could not be loaded. Please try again or continue.')}</p>
+                                </div>
+                            )}
+                            {/* Mobile hitzones — % positioned within image wrapper */}
+                            {!isComplete && normalizedHitZones.map((hz, i) => (
+                                <div
+                                    key={i}
+                                    className="absolute bg-blue-500 bg-opacity-0 border-2 border-dashed border-transparent"
+                                    style={{
+                                        left: `${hz.x}%`,
+                                        top: `${hz.y}%`,
+                                        width: `${hz.width}%`,
+                                        height: `${hz.height}%`,
+                                        pointerEvents: 'none'
+                                    }}
+                                />
+                            ))}
+                            {/* Mobile click points — % positioned within image wrapper */}
+                            {clickPoints.map((point, index) => (
+                                <React.Fragment key={index}>
+                                    <div
+                                        className={`absolute w-6 h-6 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
+                                        style={{ left: `${point.x}%`, top: `${point.y}%`, animationDuration: '1s' }}
+                                    />
+                                    <div
+                                        className={`absolute w-4 h-4 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 ${point.isCorrect ? 'bg-green-500' : 'bg-red-500'}`}
+                                        style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                                    >
+                                        {point.isCorrect && (
+                                            <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    ) : (
+                        /* ─── Desktop object-contain layout ─── */
+                        <>
+                            <img
+                                ref={imgElRef}
+                                src={currentImageUrl}
+                                alt={currentImage.name || `Image ${currentImageIndex + 1}`}
+                                className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                                draggable={false}
+                                onLoad={(e) => {
+                                    const el = e.currentTarget;
+                                    if (el.naturalWidth <= 1 || el.naturalHeight <= 1) return;
+                                    setImageError(false);
+                                    const applyDimensions = (): void => {
+                                        setImgNatural({ width: el.naturalWidth, height: el.naturalHeight });
+                                        setRenderedRect(getRenderedImageRect(el));
+                                        const container = imageRef.current;
+                                        if (container) setContainerRect(container.getBoundingClientRect());
+                                    };
+                                    if (typeof el.decode === 'function') {
+                                        const timeout = new Promise<void>((_, reject) => setTimeout(() => reject(new Error('decode timeout')), 1000));
+                                        Promise.race([el.decode(), timeout]).then(applyDimensions).catch(() => applyDimensions());
+                                    } else {
+                                        applyDimensions();
+                                    }
+                                }}
+                                onError={() => {
+                                    setImgNatural(null);
+                                    setRenderedRect(null);
+                                    setContainerRect(null);
+                                    setImageError(true);
+                                }}
+                            />
+                            {imageError && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+                                    <p className="text-white text-center px-4">{t('navigationFlow.imageLoadError', 'The image could not be loaded. Please try again or continue.')}</p>
+                                </div>
+                            )}
+                        </>
+                    )
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center p-8">
                         <div className="text-center">
@@ -597,8 +692,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                     </div>
                 )}
 
-                {/* Hitzone overlays — positioned within the rendered image area (object-contain safe) */}
-                {!isComplete && renderedRect && containerRect && normalizedHitZones.map((hz, i) => {
+                {/* Desktop hitzone overlays — px positioned from renderedRect (object-contain safe) */}
+                {!isMobileScroll && !isComplete && renderedRect && containerRect && normalizedHitZones.map((hz, i) => {
                     const offsetLeft = renderedRect.left - containerRect.left;
                     const offsetTop = renderedRect.top - containerRect.top;
                     return (
@@ -616,8 +711,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                     );
                 })}
 
-                {/* Visual click points — positioned within the rendered image area */}
-                {renderedRect && containerRect && clickPoints.map((point, index) => {
+                {/* Desktop click points — px positioned from renderedRect */}
+                {!isMobileScroll && renderedRect && containerRect && clickPoints.map((point, index) => {
                     const pxLeft = (renderedRect.left - containerRect.left) + (point.x / 100) * renderedRect.width;
                     const pxTop = (renderedRect.top - containerRect.top) + (point.y / 100) * renderedRect.height;
                     return (
@@ -643,7 +738,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 {/* Completion overlay — auto-advances after 2s as safety net */}
                 {isComplete && (
                     <div
-                        className="absolute inset-0 bg-black/80 flex items-center justify-center cursor-pointer"
+                        className={`${isMobileScroll ? 'fixed inset-0 z-50' : 'absolute inset-0'} bg-black/80 flex items-center justify-center cursor-pointer`}
                         onClick={() => onComplete?.()}
                     >
                         <div className="text-center">
