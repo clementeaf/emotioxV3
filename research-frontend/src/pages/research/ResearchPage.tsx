@@ -8,7 +8,7 @@ import { useResearches, useDeleteResearch, useDuplicateResearch } from '../../ho
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
-import { ArrowRight, Calendar, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink, User } from 'lucide-react';
 import { researchService } from '../../services/research.service';
 import type { Research } from '../../services/research.service';
 
@@ -36,6 +36,12 @@ const ResearchCard = memo(({
         day: 'numeric',
         year: 'numeric'
     });
+
+    const formattedUpdatedAt = research.updated_at
+        ? new Date(research.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : null;
+
+    const creatorName = [research.creator_first_name, research.creator_last_name].filter(Boolean).join(' ') || null;
 
     return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
@@ -77,10 +83,22 @@ const ResearchCard = memo(({
                     )}
 
                     <div className="flex items-center gap-6 text-sm text-gray-500 flex-wrap">
+                        {creatorName && (
+                            <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                <span>{creatorName}</span>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
                             <span>Created {formattedDate}</span>
                         </div>
+                        {formattedUpdatedAt && formattedUpdatedAt !== formattedDate && (
+                            <div className="flex items-center gap-2">
+                                <Clock className="h-4 w-4" />
+                                <span>Updated {formattedUpdatedAt}</span>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2">
                             <Folder className="h-4 w-4" />
                             <span className="font-medium">
@@ -165,6 +183,12 @@ const ResearchTableRow = memo(({
         month: '2-digit', day: '2-digit', year: 'numeric',
     });
 
+    const formattedUpdatedAt = research.updated_at
+        ? new Date(research.updated_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
+        : '—';
+
+    const creatorName = [research.creator_first_name, research.creator_last_name].filter(Boolean).join(' ') || '—';
+
     return (
         <tr className="hover:bg-gray-50 transition-colors">
             <td className="px-4 py-3 whitespace-nowrap">
@@ -202,8 +226,14 @@ const ResearchTableRow = memo(({
             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                 {research.research_type_name || '—'}
             </td>
+            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
+                {creatorName}
+            </td>
             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
                 {formattedDate}
+            </td>
+            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
+                {formattedUpdatedAt}
             </td>
             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
                 {research.research_technique_name || '—'}
@@ -428,16 +458,18 @@ export const ResearchPage = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-                        <table className="w-full table-fixed">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-x-auto">
+                        <table className="w-full min-w-[600px]">
                             <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Name</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Status</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%] hidden md:table-cell">Type</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%] hidden md:table-cell">Created</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%] hidden lg:table-cell">Technique</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[18%]">Actions</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Type</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Researcher</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">Created</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden lg:table-cell">Updated</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Technique</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">

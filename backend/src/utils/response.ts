@@ -52,7 +52,7 @@ export const getCorsHeaders = (origin?: string | null): Record<string, string> =
     return {
         'Access-Control-Allow-Origin': allowedOrigin,
         'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization,Cookie,Set-Cookie,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,Cookie,Set-Cookie,Cache-Control,X-Amz-Date,X-Api-Key,X-Amz-Security-Token',
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
         'Access-Control-Expose-Headers': 'Set-Cookie',
     };

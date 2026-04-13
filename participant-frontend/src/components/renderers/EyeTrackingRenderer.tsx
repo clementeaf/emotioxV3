@@ -5,6 +5,7 @@ import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText } from '../../utils/moduleComponent';
 import { mediaService } from '../../services/media.service';
 import { useBlazeGaze } from '../../hooks/useBlazeGaze';
+import { usePreviewMode } from '../../hooks/usePreviewMode';
 import {
     BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS,
     HYBRID_CALIBRATION_FIELD_STRENGTH,
@@ -13,7 +14,6 @@ import {
     HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX,
     hybridApplyCalibrationField,
     hybridCalibrationRmsePx,
-    hybridImagePercentToBlazeNorm,
     detectFixationsIDT,
     mapFixationsToImageCoords,
 } from '../../lib/eyeTracking';
@@ -158,6 +158,7 @@ const StepProgressPill: React.FC<{ step: number; total: number; percent: number 
 export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module, onComplete }) => {
     const { t } = useTranslation();
     const { saveResponse } = useParticipantStore();
+    const { isPreviewMode } = usePreviewMode();
 
     const deviceType = useMemo(() => getDeviceType(), []);
     const isDesktop = deviceType === 'desktop';
@@ -441,44 +442,47 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         });
     }, [phase, isDesktop]);
 
+    /** Minimum distance (px) from green dot center to count as a valid click. */
+    const CALIB_HIT_RADIUS_PX = 40;
+
     /**
-     * One click per dot: image-relative targets (same as hybrid lab); IDW residuals on desktop.
+     * One click per dot: only advances if click is near the green dot.
+     * Points are positioned as viewport percentages on a black screen (no image).
+     * IDW residuals are collected on desktop for gaze correction.
      */
-    const handleCalibrationClick = useCallback(() => {
+    const handleCalibrationClick = useCallback((e: React.MouseEvent) => {
         if (phase !== 'calibration') return;
-        const img = imgRef.current;
-        if (!img) return;
         const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
         const idx = calibrationIndex;
         if (idx >= pts.length) return;
 
-        const rect = img.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
-
-        const [ipx, ipy] = pts[idx];
+        const [pctX, pctY] = pts[idx];
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        const targetX = rect.left + (ipx / 100) * rect.width;
-        const targetY = rect.top + (ipy / 100) * rect.height;
+        const targetX = (pctX / 100) * vw;
+        const targetY = (pctY / 100) * vh;
+
+        // Only accept clicks near the green dot
+        const dx = e.clientX - targetX;
+        const dy = e.clientY - targetY;
+        if (Math.sqrt(dx * dx + dy * dy) > CALIB_HIT_RADIUS_PX) return;
 
         if (isDesktop) {
             const [gx, gy] = gazePosRef.current;
             calibrationResidualsRef.current.push({
-                u: ipx / 100,
-                v: ipy / 100,
+                u: pctX / 100,
+                v: pctY / 100,
                 dx: targetX - gx,
                 dy: targetY - gy,
             });
-            const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
-            blaze.calibrate(normX, normY);
+            blaze.calibrate(pctX / 100, pctY / 100);
         }
 
         if (idx + 1 >= pts.length) {
             calibrationRmsePxRef.current = isDesktop
                 ? hybridCalibrationRmsePx(calibrationResidualsRef.current)
                 : null;
-            if (isDesktop) {
-                // Go to validation phase on desktop; mobile skips straight to viewing
+            if (isDesktop && !isPreviewMode) {
                 setTimeout(() => setPhase('validating'), 400);
             } else {
                 gazePointsRef.current = [];
@@ -505,14 +509,12 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
      */
     const handleValidationClick = useCallback(() => {
         if (phase !== 'validating') return;
-        const img = imgRef.current;
-        if (!img) return;
-        const rect = img.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
 
         const [vpx, vpy] = HYBRID_VALIDATION_POINT;
-        const targetX = rect.left + (vpx / 100) * rect.width;
-        const targetY = rect.top + (vpy / 100) * rect.height;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const targetX = (vpx / 100) * vw;
+        const targetY = (vpy / 100) * vh;
         const [gx, gy] = gazePosRef.current;
 
         const errorPx = Math.sqrt((targetX - gx) ** 2 + (targetY - gy) ** 2);
@@ -555,16 +557,16 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // -----------------------------------------------------------------------
 
     const checkLabelsDesktop = [
-        t('eyeTracking.check1', 'I am sitting comfortably in front of my camera and will not lie down, stand, nor move out of position.'),
-        t('eyeTracking.check2', 'My device is stable and on the same level as my face.'),
-        t('eyeTracking.check3', 'My face is well lit with no bright light behind me or from my side.'),
-        t('eyeTracking.check4', 'I will not wear glasses, unless they are required for vision. If they are required, they are not reflecting light and my eyes are clearly visible.'),
+        t('eyeTracking.check1', 'I am seated and will not move.'),
+        t('eyeTracking.check2', 'My device is stable and at face level.'),
+        t('eyeTracking.check3', 'My face is well lit, no backlight.'),
+        t('eyeTracking.check4', 'No light-reflecting glasses on.'),
     ];
     const checkLabelsMobile = [
         t('eyeTracking.checkMobile1', 'I am holding my device comfortably and it is stable.'),
-        t('eyeTracking.checkMobile2', 'I will focus on the image and tap where my attention goes.'),
+        t('eyeTracking.checkMobile2', 'I will tap where my attention goes on the image.'),
         t('eyeTracking.checkMobile3', 'I am in a quiet environment without distractions.'),
-        t('eyeTracking.checkMobile4', 'I understand my taps will be recorded as attention points.'),
+        t('eyeTracking.checkMobile4', 'I understand my taps will be recorded.'),
     ];
     const checkLabels = isDesktop ? checkLabelsDesktop : checkLabelsMobile;
 
@@ -662,12 +664,12 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     {/* Checkboxes */}
                     <div className="space-y-4">
                         {checkLabels.map((label, idx) => (
-                            <label key={idx} className="flex items-start gap-3 cursor-pointer">
+                            <label key={idx} className="flex items-center gap-3 cursor-pointer">
                                 <input
                                     type="checkbox"
                                     checked={checks[idx]}
                                     onChange={() => toggleCheck(idx)}
-                                    className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
                                 />
                                 <span className="text-sm text-gray-700">{label}</span>
                             </label>
@@ -701,7 +703,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     } else if (phase === 'calibration') {
         phaseContent = (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+            <div
+                className="fixed inset-0 z-50 cursor-crosshair bg-black"
+                onClick={handleCalibrationClick}
+            >
                 <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                     <StepProgressPill step={1} total={TOTAL_STEPS} percent={calibrationPercent} />
                 </div>
@@ -709,8 +714,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
                     <p className="text-sm text-white/80">
                         {t(
-                            'eyeTracking.calibrationHint4Point',
-                            'Look at the green dot on the image, then click anywhere.',
+                            'eyeTracking.calibrationHintClick',
+                            'Click on the green dot to calibrate.',
                         )}
                     </p>
                     <p className="mt-1 text-xs text-white/50">
@@ -721,42 +726,22 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     </p>
                 </div>
 
-                {!resolvedUrl ? (
-                    <div className="flex items-center justify-center">
-                        <p className="text-sm text-white/50">{t('eyeTracking.loading', 'Loading image...')}</p>
-                    </div>
-                ) : (
-                    <>
-                        <div className="relative">
-                            <img
-                                ref={imgRef}
-                                src={resolvedUrl}
-                                alt="Calibration"
-                                className="max-w-[95vw] max-h-[95vh] object-contain"
-                                draggable={false}
-                                onLoad={handleImageLoad}
-                            />
-                            {calDotImagePct && (
-                                <div
-                                    className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"
-                                    style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
-                                />
-                            )}
-                        </div>
-                        <button
-                            type="button"
-                            className="fixed inset-0 z-[60] cursor-crosshair bg-transparent"
-                            aria-label={t('eyeTracking.calibrationHint4Point', 'Calibrate gaze')}
-                            onClick={handleCalibrationClick}
-                        />
-                    </>
+                {calDotImagePct && (
+                    <div
+                        className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"
+                        style={{ left: `${calDotImagePct[0]}vw`, top: `${calDotImagePct[1]}vh` }}
+                    />
                 )}
             </div>
         );
     } else if (phase === 'validating') {
         const showRecalibrateOption = validationRmse !== null && validationRmse > HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX;
         phaseContent = (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+            <div
+                className="fixed inset-0 z-50 bg-black"
+                onClick={!showRecalibrateOption ? handleValidationClick : undefined}
+                style={{ cursor: !showRecalibrateOption ? 'crosshair' : 'default' }}
+            >
                 <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                     <StepProgressPill step={1} total={TOTAL_STEPS} percent={68} />
                 </div>
@@ -789,33 +774,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     )}
                 </div>
 
-                {resolvedUrl && (
-                    <>
-                        <div className="relative">
-                            <img
-                                ref={imgRef}
-                                src={resolvedUrl}
-                                alt="Validation"
-                                className="max-w-[95vw] max-h-[95vh] object-contain"
-                                draggable={false}
-                                onLoad={handleImageLoad}
-                            />
-                            {!showRecalibrateOption && (
-                                <div
-                                    className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50 animate-pulse"
-                                    style={{ left: `${HYBRID_VALIDATION_POINT[0]}%`, top: `${HYBRID_VALIDATION_POINT[1]}%` }}
-                                />
-                            )}
-                        </div>
-                        {!showRecalibrateOption && (
-                            <button
-                                type="button"
-                                className="fixed inset-0 z-[60] cursor-crosshair bg-transparent"
-                                aria-label={t('eyeTracking.validationHint', 'Validate gaze')}
-                                onClick={handleValidationClick}
-                            />
-                        )}
-                    </>
+                {!showRecalibrateOption && (
+                    <div
+                        className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50 animate-pulse"
+                        style={{ left: `${HYBRID_VALIDATION_POINT[0]}vw`, top: `${HYBRID_VALIDATION_POINT[1]}vh` }}
+                    />
                 )}
             </div>
         );
