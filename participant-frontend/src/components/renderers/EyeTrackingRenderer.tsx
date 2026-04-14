@@ -860,7 +860,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     } else if (phase === 'viewing') {
         phaseContent = (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black select-none">
+            <div
+                className="fixed inset-0 z-50 flex items-center justify-center select-none"
+                style={{ backgroundImage: 'linear-gradient(rgb(235, 239, 251) 0%, rgb(245, 247, 253) 50%, rgb(255, 255, 255) 100%)' }}
+            >
                 <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                     <StepProgressPill step={2} total={TOTAL_STEPS} percent={viewingPercent} />
                 </div>
@@ -868,7 +871,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 {/* Timer */}
                 <div className="pointer-events-none absolute top-16 left-1/2 z-[70] -translate-x-1/2">
                     <span className={`text-lg font-mono font-bold ${
-                        timeLeft <= 3 ? 'text-red-400' : 'text-white/60'
+                        timeLeft <= 3 ? 'text-red-500' : 'text-gray-400'
                     }`}>
                         {timeLeft}s
                     </span>
@@ -912,7 +915,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 </div>
 
                 {!isDesktop && (
-                    <p className="pointer-events-none absolute bottom-6 left-1/2 z-[70] -translate-x-1/2 text-xs text-white/50">
+                    <p className="pointer-events-none absolute bottom-6 left-1/2 z-[70] -translate-x-1/2 text-xs text-gray-400">
                         {t('eyeTracking.clicks', '{{count}} points recorded', {
                             count: fixations.length,
                         })}

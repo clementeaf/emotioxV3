@@ -11,6 +11,7 @@
 - **Eye Tracking calibration:** Blurred stimulus image (blur 12px, opacity 0.6) during calibration/validation. Click anywhere to advance (user looks at dot, not cursor). Uses `hybridImagePercentToBlazeNorm` for correct BlazeGaze coordinates.
 - **Eye Tracking onComplete fix:** Timer uses ref to survive re-renders. Viewing rect snapshotted before complete phase for accurate coordinate mapping.
 - **Eye Tracking preview:** Skips validation phase (no webcam data).
+- **Eye Tracking viewing background:** Light gradient instead of black, so the image blends naturally without visual cut.
 - **Welcome Screen:** `whitespace-pre-line` for line breaks in message text.
 - **Checkbox labels:** Shortened for uniform visual alignment.
 
