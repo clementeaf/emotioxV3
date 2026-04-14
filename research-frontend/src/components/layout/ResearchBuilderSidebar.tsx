@@ -77,7 +77,6 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const queryClient = useQueryClient();
     const toast = useToast();
     const { hasDraft } = useModuleDraftStore();
-    const user = useAuthStore((state) => state.user);
     const logout = useAuthStore((state) => state.logout);
     
     const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
@@ -438,7 +437,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         User
                     </h3>
                     <p className="text-sm font-medium text-gray-900">
-                        {user ? `${user.first_name} ${user.last_name}` : '—'}
+                        {[activeResearch.creator_first_name, activeResearch.creator_last_name].filter(Boolean).join(' ') || '—'}
                     </p>
                 </div>
 

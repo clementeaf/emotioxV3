@@ -790,31 +790,17 @@ const PredictionPanel = ({
   onPredictionComplete: () => void;
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
-  const pollRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, []);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleRunPrediction = useCallback(async () => {
     setIsProcessing(true);
+    setErrorMsg(null);
     try {
       await mediaService.predictModuleAttention(researchId, stimulus.moduleId);
-      // Poll every 3s
-      pollRef.current = window.setInterval(async () => {
-        try {
-          const status = await mediaService.getModulePredictionStatus(researchId, stimulus.moduleId);
-          if (status.status === 'complete') {
-            if (pollRef.current) clearInterval(pollRef.current);
-            setIsProcessing(false);
-            onPredictionComplete();
-          }
-        } catch {
-          if (pollRef.current) clearInterval(pollRef.current);
-          setIsProcessing(false);
-        }
-      }, 3000);
-    } catch {
+      onPredictionComplete();
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Prediction failed');
+    } finally {
       setIsProcessing(false);
     }
   }, [researchId, stimulus.moduleId, onPredictionComplete]);
@@ -867,6 +853,9 @@ const PredictionPanel = ({
           </>
         )}
       </button>
+      {errorMsg && (
+        <p className="text-xs text-red-500 mt-3">{errorMsg}</p>
+      )}
     </div>
   );
 };

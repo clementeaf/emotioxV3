@@ -109,6 +109,22 @@ const runModulePredictionAsync = async (
         console.log(`[AttentionPrediction] Done: ${heatmapData.length} points saved for module ${moduleId}${imageKey ? ` image ${imageKey}` : ''}`);
     } catch (err) {
         console.error(`[AttentionPrediction] Prediction failed for module ${moduleId}:`, err);
+        // Save error state so status endpoint can report failure instead of hanging
+        try {
+            const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
+            if (moduleResult.rows.length > 0) {
+                let config: Record<string, unknown> = {};
+                try {
+                    const raw = moduleResult.rows[0].config;
+                    config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+                } catch { config = {}; }
+                config.predictionError = err instanceof Error ? err.message : 'Unknown prediction error';
+                config.predictionErrorAt = new Date().toISOString();
+                await pool.query('UPDATE modules SET config = ? WHERE id = ?', [JSON.stringify(config), moduleId]);
+            }
+        } catch (saveErr) {
+            console.error(`[AttentionPrediction] Failed to save error state:`, saveErr);
+        }
     }
 };
 
@@ -262,80 +278,33 @@ export const handleAttentionPredictionRoutes = async (
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
             const imageIndex = typeof body.imageIndex === 'number' ? body.imageIndex : undefined;
 
-            if (imageIndex !== undefined) {
-                // Multi-image: predict specific image (Navigation Flow)
-                if (imageIndex < 0 || imageIndex >= files.length) {
-                    return error(`imageIndex ${imageIndex} out of range (0-${files.length - 1})`, 400, undefined, origin);
-                }
-                const file = files[imageIndex];
-                const s3Key = file.s3Key || file.url || '';
-                if (!s3Key) return error('Image has no s3Key', 400, undefined, origin);
-                const imageKey = file.id || file.mediaId || String(imageIndex);
-                void runModulePredictionAsync(moduleId, getMediaPath(s3Key), threshold, imageKey);
-            } else {
-                // Single image (Eye Tracking) — use first file
-                const s3Key = files[0].s3Key || files[0].url || '';
-                if (!s3Key) return error('No stimulus image found', 400, undefined, origin);
-                void runModulePredictionAsync(moduleId, getMediaPath(s3Key), threshold);
-            }
-
-            return success(
-                { status: 'processing', moduleId, message: 'Prediction started.' },
-                202,
-                undefined,
-                origin
-            );
-        }
-
-        // GET /attention-prediction/research/:researchId/module/:moduleId/status
-        // Check if prediction is complete for an Eye Tracking module
-        const moduleStatusMatch = path.match(
-            /^\/attention-prediction\/research\/([^/]+)\/module\/([^/]+)\/status$/
-        );
-        if (moduleStatusMatch && httpMethod === 'GET') {
-            const researchId = moduleStatusMatch[1];
-            const moduleId = moduleStatusMatch[2];
-
-            const moduleResult = await pool.query(
-                'SELECT config FROM modules WHERE id = ? AND research_id = ?',
-                [moduleId, researchId]
-            );
-            if (moduleResult.rows.length === 0) {
-                return error('Module not found', 404, undefined, origin);
-            }
-
-            let moduleConfig: Record<string, unknown> = {};
+            // Synchronous prediction — await result and return directly
             try {
-                const raw = moduleResult.rows[0].config;
-                moduleConfig = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
-            } catch { moduleConfig = {}; }
+                if (imageIndex !== undefined) {
+                    if (imageIndex < 0 || imageIndex >= files.length) {
+                        return error(`imageIndex ${imageIndex} out of range (0-${files.length - 1})`, 400, undefined, origin);
+                    }
+                    const file = files[imageIndex];
+                    const s3Key = file.s3Key || file.url || '';
+                    if (!s3Key) return error('Image has no s3Key', 400, undefined, origin);
+                    const imageKey = file.id || file.mediaId || String(imageIndex);
+                    await runModulePredictionAsync(moduleId, getMediaPath(s3Key), threshold, imageKey);
+                } else {
+                    const s3Key = files[0].s3Key || files[0].url || '';
+                    if (!s3Key) return error('No stimulus image found', 400, undefined, origin);
+                    await runModulePredictionAsync(moduleId, getMediaPath(s3Key), threshold);
+                }
 
-            // Single-image prediction (Eye Tracking)
-            const heatmapData = moduleConfig.predictionHeatmap as Array<unknown> | undefined;
-            const singleReady = heatmapData && heatmapData.length > 0;
-
-            // Multi-image predictions (Navigation Flow)
-            const predictionHeatmaps = moduleConfig.predictionHeatmaps as Record<string, { heatmapData: unknown[]; processedAt: string }> | undefined;
-            const multiImages = predictionHeatmaps ? Object.entries(predictionHeatmaps).map(([imageKey, data]) => ({
-                imageKey,
-                pointCount: Array.isArray(data.heatmapData) ? data.heatmapData.length : 0,
-                processedAt: data.processedAt || null,
-            })) : [];
-
-            const anyReady = singleReady || multiImages.some(i => i.pointCount > 0);
-
-            return success(
-                {
-                    moduleId,
-                    status: anyReady ? 'complete' : 'processing',
-                    pointCount: singleReady ? heatmapData.length : 0,
-                    processedAt: (moduleConfig.predictionProcessedAt as string) || null,
-                    images: multiImages.length > 0 ? multiImages : undefined,
-                },
-                200,
-                undefined,
-                origin
-            );
+                return success(
+                    { status: 'complete', moduleId },
+                    200,
+                    undefined,
+                    origin
+                );
+            } catch (predErr) {
+                const msg = predErr instanceof Error ? predErr.message : 'Prediction failed';
+                return error(msg, 500, undefined, origin);
+            }
         }
 
         return error('Route not found', 404, undefined, origin);

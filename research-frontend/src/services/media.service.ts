@@ -189,19 +189,6 @@ class MediaService {
         }
     }
 
-    /**
-     * Checks prediction status for an Eye Tracking module.
-     */
-    async getModulePredictionStatus(researchId: string, moduleId: string): Promise<{ status: string; pointCount: number; processedAt: string | null }> {
-        try {
-            return await apiClient.get<{ status: string; pointCount: number; processedAt: string | null }>(
-                `/attention-prediction/research/${researchId}/module/${moduleId}/status`
-            );
-        } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to check module prediction status');
-        }
-    }
-
     /** Triggers LLM analysis for an Insights Finding file (fire-and-forget, returns 202) */
     async analyzeInsights(researchId: string, fileMediaId: string): Promise<{ status: string }> {
         try {
