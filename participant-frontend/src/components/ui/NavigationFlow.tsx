@@ -516,8 +516,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
 
     return (
         <div
-            className="fixed inset-0 z-40 bg-black flex flex-col"
-            style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+            className="fixed inset-0 z-40 flex flex-col"
+            style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', backgroundImage: 'linear-gradient(rgb(235, 239, 251) 0%, rgb(245, 247, 253) 50%, rgb(255, 255, 255) 100%)' }}
             onClick={(e) => {
                 if (!isPreviewMode || isComplete) return;
                 // Skip if click is on the image itself (let handleImageClick handle it)
@@ -529,24 +529,24 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         >
             {/* Title and instructions above the image so hitzones at the top remain clickable */}
             {!isComplete && (
-                <div className="flex-shrink-0 bg-black px-4 pt-4 pb-3">
+                <div className="flex-shrink-0 px-4 pt-4 pb-3">
                     {isPreviewMode && (
-                        <span className="absolute top-4 right-4 z-50 text-white/50 text-xs hidden md:inline">
+                        <span className="absolute top-4 right-4 z-50 text-gray-400 text-xs hidden md:inline">
                             Press Esc or click dark area to skip
                         </span>
                     )}
                     {title && (
-                        <h2 className="text-lg md:text-xl font-semibold text-white text-center">{title}</h2>
+                        <h2 className="text-lg md:text-xl font-semibold text-gray-900 text-center">{title}</h2>
                     )}
                     {description && (
-                        <p className="text-sm text-white/80 text-center mt-1">{description}</p>
+                        <p className="text-sm text-gray-500 text-center mt-1">{description}</p>
                     )}
-                    <div className="flex items-center justify-center text-xs text-white/70 mt-3 max-w-md mx-auto">
+                    <div className="flex items-center justify-center text-xs text-gray-400 mt-3 max-w-md mx-auto">
                         <span>{t('navigationFlow.imageOf', { current: currentImageIndex + 1, total: images.length })}</span>
                     </div>
-                    <div className="w-full max-w-md mx-auto bg-white/20 rounded-full h-1 mt-1.5">
+                    <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-1 mt-1.5">
                         <div
-                            className="bg-white h-1 rounded-full transition-all duration-300"
+                            className="bg-blue-500 h-1 rounded-full transition-all duration-300"
                             style={{ width: `${((currentImageIndex + 1) / images.length) * 100}%` }}
                         />
                     </div>
