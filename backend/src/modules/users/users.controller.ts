@@ -143,8 +143,10 @@ export const handleUsersRoutes = async (event: APIGatewayProxyEvent): Promise<AP
         }
 
         return error('Route not found', 404, undefined, origin);
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('Users controller error:', err);
-        return error('Internal server error', 500, undefined, origin);
+        const msg = err instanceof Error ? err.message : 'Internal server error';
+        const status = msg.includes('token') || msg.includes('auth') || msg.includes('Authentication') ? 401 : 500;
+        return error(msg, status, undefined, origin);
     }
 };
