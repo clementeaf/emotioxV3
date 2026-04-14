@@ -1,9 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import { ParticipantsTable } from '../participants/ParticipantsTable';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useMonitoringReceiver } from '../../../hooks/useMonitoringReceiver';
 import { researchInProgressService, type ResearchStatus, type Participant, type ResearchConfiguration } from '../../../services/researchInProgress.service';
+import { triggerCsvDownload } from '../../../utils/csvDownload';
 import { useToast } from '../../../hooks/useToast';
 
 interface ResearchInProgressContentProps {
@@ -93,6 +95,22 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [researchId]);
 
+    const handleDownloadParticipants = useCallback(() => {
+        if (participants.length === 0) return;
+        const header = ['id', 'name', 'email', 'status', 'progress', 'duration', 'last_activity'];
+        const rows = participants.map(p => [
+            p.id,
+            `"${(p.name || '').replace(/"/g, '""')}"`,
+            p.email || '',
+            p.status,
+            String(p.progress),
+            p.duration || '',
+            p.lastActivity || '',
+        ].join(','));
+        const csv = [header.join(','), ...rows].join('\n');
+        triggerCsvDownload(csv, `participants-${researchId}.csv`);
+    }, [participants, researchId]);
+
     const handleParticipantDeleted = (participantId: string): void => {
         setParticipants(prev => prev.filter(p => p.id !== participantId));
 
@@ -146,6 +164,18 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                     <p className="text-[11px] text-gray-400">{status.averageTime?.description || 'Cargando...'}</p>
                 </div>
             </div>
+
+            {participants.length > 0 && (
+                <div className="flex justify-end mb-3">
+                    <button
+                        onClick={handleDownloadParticipants}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        <Download className="h-4 w-4" />
+                        Download CSV
+                    </button>
+                </div>
+            )}
 
             <ParticipantsTable
                 participants={participants}
