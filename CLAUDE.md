@@ -103,7 +103,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/modules/research-techniques/research-techniques.service.ts` — CRUD técnicas con `default_stages`
 - `backend/src/modules/quotas/quota.service.ts` — cuotas demográficas atómicas (`tryIncrementQuota`)
 - `backend/src/modules/public/public.service.ts` — endpoints públicos, validación, save responses
-- `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC, NEV canónico
+- `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC, NEV, Eye Tracking (FACS, AOI, sequence), IAT (D-score, errors)
+- `backend/src/modules/attention-prediction/attention-prediction.controller.ts` — TranSalNet prediction (research stimuli + module stimuli)
 - `backend/src/modules/research/research-in-progress.service.ts` — progreso participantes
 
 ### Research Frontend
@@ -130,7 +131,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/components/ui/NavigationFlow.tsx` — flujo fullscreen hitzones
 - `participant-frontend/src/components/ui/CustomSelect.tsx` — selector custom, position:fixed, auto-flip
 - `participant-frontend/src/components/renderers/ImplicitAssociationRenderer.tsx` — IAT 3 paradigmas
-- `participant-frontend/src/components/renderers/EyeTrackingRenderer.tsx` — BlazeGaze desktop, click proxy mobile
+- `participant-frontend/src/components/renderers/EyeTrackingRenderer.tsx` — BlazeGaze desktop, click proxy mobile, FACS emotion collection, video stimulus
+- `participant-frontend/src/lib/eyeTracking/facsClassifier.ts` — AU extraction + Ekman emotion classification
+- `participant-frontend/src/hooks/useFaceLandmarks.ts` — parallel MediaPipe FaceLandmarker for FACS
 - `participant-frontend/src/components/ErrorBoundary.tsx` — error boundary para producción
 
 ## Deploy
@@ -166,14 +169,27 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
 
-## Eye Tracking (v0.40.0)
+## Eye Tracking (v0.58.0)
 - **Motor:** BlazeGaze CNN (670KB, `webeyetrack`) — imagen de ojos + head pose
 - **Pipeline:** WebEyeTrack con MediaPipe interno, sin duplicación
-- **Calibración:** 17 puntos guiados → `adapt()` few-shot
-- **Smoothing:** Adaptativo (alpha 0.12–0.4), deadzone 4px, blink filtering
-- **Limitación:** Iris ratios MediaPipe insuficientes solo — BlazeGaze usa imagen completa del ojo
+- **Calibración:** 9 puntos sobre stimulus + validación RMSE + IDW correction field
+- **Smoothing:** One-Euro filter (cutoff 0.8, beta 0.005), blink filtering
+- **Video stimulus:** `EyeTrackingRenderer` detecta mp4/webm, renderiza `<video>` con gaze tracking sincronizado a `videoTime`
+- **FACS Emotion Recognition:** `useFaceLandmarks` (paralelo a BlazeGaze) + `facsClassifier.ts`. 9 AUs → 7 emociones Ekman. Client-side, GDPR compliant.
+- **Builder toggles:** `attention-measurement` y `emotion-recognition` controlan qué datos se recolectan
+- **Results tabs:** Heat map, Scan Path, First Look, Transparency, Emotions, Prediction (TranSalNet), Video Gaze, Sequence
+- **AOI metrics:** dwell %, fixation count, avg duration, TTFF, notice rate, dominant emotion
+- **Attention Prediction:** `POST /attention-prediction/research/:id/module/:moduleId/predict` — TranSalNet sobre stimulus, soporta `imageIndex` para multi-imagen (Nav Flow)
 - **Assessment:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
 - **Lab:** `/labs/eye-tracking` en research-frontend
+
+## Implicit Association Analytics (v0.58.0)
+- **Greenwald D-score:** `computeGreenwaldDScore()` — filter >10s, pooled SD, D = (mean_incompat - mean_compat) / pooled_SD
+- **Per-participant D-scores:** Individual D + effect classification (none/slight/moderate/strong)
+- **Aggregate D-score:** Mean + 95% CI (t-distribution)
+- **Error analysis:** Per-phase (practice/test) y per-combination (target×attribute) error rates
+- **Effect size visualization:** D-score distribution histogram (7 buckets)
+- **Advanced filters:** Demographic sidebar en todos los result tabs (Screener, SmartVOC, Cognitive, IAT, Eye Tracking)
 
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)

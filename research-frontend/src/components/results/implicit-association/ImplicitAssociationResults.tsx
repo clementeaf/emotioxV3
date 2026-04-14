@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
+import { Filters } from '../smart-voc/components/Filters';
+import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import * as analyticsService from '../../../services/analytics.service';
 import type { IATModuleResult } from '../../../services/analytics.service';
 
@@ -324,6 +326,250 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
 };
 
 // ==========================================
+// D-SCORE CARD
+// ==========================================
+
+const EFFECT_COLORS: Record<string, { bg: string; text: string }> = {
+  none: { bg: 'bg-gray-100', text: 'text-gray-600' },
+  slight: { bg: 'bg-blue-50', text: 'text-blue-700' },
+  moderate: { bg: 'bg-amber-50', text: 'text-amber-700' },
+  strong: { bg: 'bg-red-50', text: 'text-red-700' },
+};
+
+const EFFECT_LABELS: Record<string, string> = {
+  none: 'No effect',
+  slight: 'Slight',
+  moderate: 'Moderate',
+  strong: 'Strong',
+};
+
+const DScoreCard = ({ module: mod }: { module: IATModuleResult }) => {
+  const ds = mod.dScore;
+  if (!ds) return null;
+
+  const colors = EFFECT_COLORS[ds.effect] || EFFECT_COLORS.none;
+  // Position on a -1.5 to 1.5 scale
+  const barPosition = Math.max(0, Math.min(100, ((ds.value + 1.5) / 3) * 100));
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 mt-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-semibold text-gray-700">Greenwald D-score</h4>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${colors.bg} ${colors.text}`}>
+            {EFFECT_LABELS[ds.effect]}
+          </span>
+          <span className="text-lg font-bold text-gray-900">{ds.value}</span>
+        </div>
+      </div>
+
+      {/* D-score bar visualization */}
+      <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden mb-2">
+        {/* Reference zones */}
+        <div className="absolute inset-y-0 left-[40%] right-[40%] bg-gray-200/50" title="No effect zone" />
+        <div className="absolute inset-y-0 left-[28.3%] w-[11.7%] bg-blue-100/50" title="Slight" />
+        <div className="absolute inset-y-0 right-[28.3%] w-[11.7%] bg-blue-100/50" title="Slight" />
+        <div className="absolute inset-y-0 left-[16.7%] w-[11.6%] bg-amber-100/50" title="Moderate" />
+        <div className="absolute inset-y-0 right-[16.7%] w-[11.6%] bg-amber-100/50" title="Moderate" />
+        {/* Center line */}
+        <div className="absolute inset-y-0 left-1/2 w-px bg-gray-400" />
+        {/* Marker */}
+        <div
+          className="absolute top-0.5 bottom-0.5 w-3 rounded-full bg-blue-600 shadow-sm"
+          style={{ left: `calc(${barPosition}% - 6px)` }}
+          title={`D = ${ds.value}`}
+        />
+      </div>
+
+      <div className="flex justify-between text-[10px] text-gray-400">
+        <span>-1.5</span>
+        <span>0</span>
+        <span>+1.5</span>
+      </div>
+
+      {/* CI + participant count */}
+      <p className="text-xs text-gray-500 mt-2">
+        95% CI: [{ds.ciLower}, {ds.ciUpper}] &middot; {ds.validParticipants} valid participant{ds.validParticipants !== 1 ? 's' : ''}
+      </p>
+
+      {/* Per-participant D-scores table */}
+      {mod.participantData && mod.participantData.some(p => p.dScore != null) && (
+        <details className="mt-3">
+          <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-700">
+            Individual D-scores ({mod.participantData.filter(p => p.dScore != null).length} participants)
+          </summary>
+          <div className="mt-2 border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                <tr>
+                  <th className="text-left px-3 py-1.5 font-medium">Participant</th>
+                  <th className="text-right px-3 py-1.5 font-medium">D-score</th>
+                  <th className="text-left px-3 py-1.5 font-medium">Effect</th>
+                  <th className="text-left px-3 py-1.5 font-medium">Quality</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {mod.participantData
+                  .filter(p => p.dScore != null)
+                  .sort((a, b) => Math.abs(b.dScore!) - Math.abs(a.dScore!))
+                  .map(p => {
+                    const ec = EFFECT_COLORS[p.dScoreEffect || 'none'];
+                    return (
+                      <tr key={p.participantId}>
+                        <td className="px-3 py-1.5 text-gray-700 font-mono">{p.participantId}</td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-gray-900">{p.dScore}</td>
+                        <td className="px-3 py-1.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ec.bg} ${ec.text}`}>
+                            {EFFECT_LABELS[p.dScoreEffect || 'none']}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-gray-500">{p.quality}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
+// ERROR ANALYSIS CARD
+// ==========================================
+
+const ErrorAnalysisCard = ({ module: mod }: { module: IATModuleResult }) => {
+  const ea = mod.errorAnalysis;
+  if (!ea) return null;
+
+  return (
+    <details className="border border-gray-200 rounded-lg p-4 mt-4">
+      <summary className="text-sm font-semibold text-gray-700 cursor-pointer hover:text-gray-900">
+        Error Analysis
+        <span className="ml-2 text-xs font-normal text-gray-400">
+          {ea.overallErrorRate}% errors &middot; {ea.overallFastRate}% fast responses
+        </span>
+      </summary>
+
+      <div className="mt-3 space-y-4">
+        {/* By phase */}
+        <div>
+          <h5 className="text-xs font-medium text-gray-500 mb-2">By Phase</h5>
+          <div className="flex gap-3">
+            {ea.byPhase.map(p => (
+              <div key={p.phase} className="flex-1 border rounded-lg p-3 text-center">
+                <p className="text-xs text-gray-400 capitalize mb-1">{p.phase}</p>
+                <p className={`text-lg font-bold ${p.errorRate > 20 ? 'text-red-600' : p.errorRate > 10 ? 'text-amber-600' : 'text-green-600'}`}>
+                  {p.errorRate}%
+                </p>
+                <p className="text-[10px] text-gray-400">{p.errors}/{p.total} trials</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* By combination — top 5 highest error rates */}
+        {ea.byCombination.length > 0 && (
+          <div>
+            <h5 className="text-xs font-medium text-gray-500 mb-2">Highest Error Combinations</h5>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-medium">Target</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Attribute</th>
+                    <th className="text-right px-3 py-1.5 font-medium">Error Rate</th>
+                    <th className="text-right px-3 py-1.5 font-medium">Trials</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {ea.byCombination.slice(0, 5).map((c, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-1.5 text-gray-700">{c.targetName}</td>
+                      <td className="px-3 py-1.5 text-gray-700">{c.attributeLabel}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        <span className={`font-semibold ${c.errorRate > 20 ? 'text-red-600' : c.errorRate > 10 ? 'text-amber-600' : 'text-gray-600'}`}>
+                          {c.errorRate}%
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-gray-400">{c.errors}/{c.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+};
+
+// ==========================================
+// EFFECT SIZE VISUALIZATION
+// ==========================================
+
+const EffectSizeBar = ({ module: mod }: { module: IATModuleResult }) => {
+  const ds = mod.dScore;
+  if (!ds || !mod.participantData) return null;
+
+  const validParticipants = mod.participantData.filter(p => p.dScore != null && p.quality === 'good');
+  if (validParticipants.length === 0) return null;
+
+  // Histogram buckets
+  const buckets = [
+    { label: 'Strong -', min: -Infinity, max: -0.65, color: 'bg-red-400' },
+    { label: 'Moderate -', min: -0.65, max: -0.35, color: 'bg-amber-400' },
+    { label: 'Slight -', min: -0.35, max: -0.15, color: 'bg-blue-300' },
+    { label: 'None', min: -0.15, max: 0.15, color: 'bg-gray-300' },
+    { label: 'Slight +', min: 0.15, max: 0.35, color: 'bg-blue-400' },
+    { label: 'Moderate +', min: 0.35, max: 0.65, color: 'bg-amber-500' },
+    { label: 'Strong +', min: 0.65, max: Infinity, color: 'bg-red-500' },
+  ];
+
+  const bucketCounts = buckets.map(b => ({
+    ...b,
+    count: validParticipants.filter(p => p.dScore! >= b.min && p.dScore! < b.max).length,
+  }));
+  const maxCount = Math.max(...bucketCounts.map(b => b.count), 1);
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 mt-4">
+      <h4 className="text-sm font-semibold text-gray-700 mb-3">D-score Distribution</h4>
+      <div className="flex items-end gap-1 h-24">
+        {bucketCounts.map((b, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            {b.count > 0 && (
+              <span className="text-[10px] font-medium text-gray-600">{b.count}</span>
+            )}
+            <div
+              className={`w-full rounded-t ${b.color}`}
+              style={{ height: `${(b.count / maxCount) * 100}%`, minHeight: b.count > 0 ? 4 : 0 }}
+              title={`${b.label}: ${b.count} participants`}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-1 mt-1">
+        {bucketCounts.map((b, i) => (
+          <div key={i} className="flex-1 text-center">
+            <span className="text-[9px] text-gray-400 leading-tight block">{b.label}</span>
+          </div>
+        ))}
+      </div>
+      {/* Reference lines */}
+      <div className="flex justify-between mt-2 text-[10px] text-gray-400">
+        <span>Strong negative bias</span>
+        <span>No bias</span>
+        <span>Strong positive bias</span>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
 // MODULE CARD WRAPPER
 // ==========================================
 
@@ -340,6 +586,9 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{mod.testTitle}</p>
       )}
       <ChartComponent module={mod} />
+      <DScoreCard module={mod} />
+      <EffectSizeBar module={mod} />
+      <ErrorAnalysisCard module={mod} />
       {mod.totalResponses === 0 && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
           <p className="text-sm text-gray-500">
@@ -364,6 +613,28 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
   const [data, setData] = useState<analyticsService.ImplicitAssociationResults | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const {
+    demographicData,
+    demographicFilters,
+    setDemographicFilters,
+    userIdFilter,
+    setUserIdFilter,
+    filteredParticipantIds,
+  } = useResultsFilter(researchId);
+
+  // Filter modules by participant when filters active
+  const filteredModules = useMemo(() => {
+    if (!data?.modules || !filteredParticipantIds) return data?.modules ?? [];
+    return data.modules.map(mod => {
+      const filteredPD = (mod.participantData ?? []).filter(p => filteredParticipantIds.has(p.participantId));
+      return {
+        ...mod,
+        participantData: filteredPD,
+        totalResponses: filteredPD.length,
+      };
+    });
+  }, [data?.modules, filteredParticipantIds]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -396,28 +667,40 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
       loadingSkeleton={loadingSkeleton}
     >
       {data && (
-        <div className={className}>
-          {/* Header */}
-          <div className="mb-6">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
-              <span className="text-sm font-semibold text-gray-700">3.0.- Implicit Association</span>
+        <div className={`flex gap-6 ${className ?? ''}`}>
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div className="mb-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
+                <span className="text-sm font-semibold text-gray-700">3.0.- Implicit Association</span>
+              </div>
             </div>
-          </div>
 
-          {data.modules.length === 0 ? (
-            <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-              <p className="text-lg font-medium text-gray-900 mb-2">No IAT modules found</p>
-              <p className="text-sm text-gray-500">
-                This research does not have Implicit Association test modules configured.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {data.modules.map(mod => (
-                <IATModuleCard key={mod.moduleId} module={mod} />
-              ))}
-            </div>
-          )}
+            {filteredModules.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+                <p className="text-lg font-medium text-gray-900 mb-2">No IAT modules found</p>
+                <p className="text-sm text-gray-500">
+                  This research does not have Implicit Association test modules configured.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {filteredModules.map(mod => (
+                  <IATModuleCard key={mod.moduleId} module={mod} />
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+            <Filters
+              researchId={researchId}
+              demographicData={demographicData}
+              selectedFilters={demographicFilters}
+              onFilterChange={setDemographicFilters}
+              userIdFilter={userIdFilter}
+              onUserIdFilterChange={setUserIdFilter}
+            />
+          </div>
         </div>
       )}
     </ResultsStateHandler>

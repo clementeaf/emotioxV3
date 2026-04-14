@@ -1394,6 +1394,22 @@ interface IATAttribute {
   imageUrl?: string;
 }
 
+/** Greenwald D-score effect size interpretation */
+type DScoreEffect = 'none' | 'slight' | 'moderate' | 'strong';
+
+interface DScoreResult {
+  /** Greenwald D-score value */
+  value: number;
+  /** Effect interpretation */
+  effect: DScoreEffect;
+  /** Number of valid participants used */
+  validParticipants: number;
+  /** 95% CI lower bound */
+  ciLower: number;
+  /** 95% CI upper bound */
+  ciUpper: number;
+}
+
 interface IATParticipantData {
   participantId: string;
   /** Mean RT per (criterionId, targetId) combination */
@@ -1408,6 +1424,9 @@ interface IATParticipantData {
   quality: 'good' | 'fast_responses' | 'low_accuracy' | 'insufficient_data';
   /** Segmentation: strongest associated target per criterion */
   segmentation: Record<string, string>;
+  /** Individual Greenwald D-score (per target pair for Objects Comparing) */
+  dScore?: number;
+  dScoreEffect?: DScoreEffect;
 }
 
 interface IATModuleResult {
@@ -1425,6 +1444,19 @@ interface IATModuleResult {
     targetScores: Record<string, number>;
   }>;
   participantData?: IATParticipantData[];
+  /** Greenwald D-score aggregate (Objects Comparing / Attribute Testing) */
+  dScore?: DScoreResult;
+  /** Error analysis per block and per combination */
+  errorAnalysis?: {
+    /** Error rate per phase (practice vs test) */
+    byPhase: Array<{ phase: string; total: number; errors: number; errorRate: number }>;
+    /** Error rate per target-attribute combination */
+    byCombination: Array<{ targetId: string; targetName: string; attributeId: string; attributeLabel: string; total: number; errors: number; errorRate: number }>;
+    /** Overall error rate */
+    overallErrorRate: number;
+    /** Overall fast response rate */
+    overallFastRate: number;
+  };
 }
 
 /**
@@ -1597,6 +1629,164 @@ const computeIATScores = (
   });
 };
 
+// ---------------------------------------------------------------------------
+// Greenwald D-score algorithm (Greenwald, Nosek & Banaji, 2003)
+// ---------------------------------------------------------------------------
+
+function classifyDScoreEffect(d: number): DScoreEffect {
+  const abs = Math.abs(d);
+  if (abs < 0.15) return 'none';
+  if (abs < 0.35) return 'slight';
+  if (abs < 0.65) return 'moderate';
+  return 'strong';
+}
+
+/**
+ * Compute Greenwald improved D-score for one participant.
+ * Compatible blocks = target1+positive / target2+negative (or equivalent).
+ * Incompatible blocks = swapped.
+ *
+ * For Attribute Testing: compatible = target matched with assigned criterion,
+ *   incompatible = target matched with non-assigned criterion.
+ * For Objects Comparing: classic IAT 7-block design.
+ *
+ * @param compatibleRTs - reaction times from compatible block
+ * @param incompatibleRTs - reaction times from incompatible block
+ * @returns D-score or null if insufficient data
+ */
+function computeGreenwaldDScore(compatibleRTs: number[], incompatibleRTs: number[]): number | null {
+  // Step 1: Remove trials > 10,000ms
+  const filteredCompat = compatibleRTs.filter(rt => rt <= 10000);
+  const filteredIncompat = incompatibleRTs.filter(rt => rt <= 10000);
+
+  if (filteredCompat.length < 2 || filteredIncompat.length < 2) return null;
+
+  // Step 2: Compute means
+  const meanCompat = filteredCompat.reduce((a, b) => a + b, 0) / filteredCompat.length;
+  const meanIncompat = filteredIncompat.reduce((a, b) => a + b, 0) / filteredIncompat.length;
+
+  // Step 3: Pooled SD across both blocks
+  const allRTs = [...filteredCompat, ...filteredIncompat];
+  const allMean = allRTs.reduce((a, b) => a + b, 0) / allRTs.length;
+  const pooledSD = Math.sqrt(
+    allRTs.reduce((sum, rt) => sum + (rt - allMean) ** 2, 0) / (allRTs.length - 1)
+  );
+
+  if (pooledSD === 0) return null;
+
+  // Step 4: D = (mean_incompatible - mean_compatible) / pooled_SD
+  return (meanIncompat - meanCompat) / pooledSD;
+}
+
+/**
+ * Compute aggregate D-score with 95% CI from individual participant D-scores.
+ */
+function computeAggregateDScore(individualDScores: number[]): DScoreResult | undefined {
+  const valid = individualDScores.filter(d => Number.isFinite(d));
+  if (valid.length < 2) {
+    if (valid.length === 1) {
+      return {
+        value: Math.round(valid[0] * 1000) / 1000,
+        effect: classifyDScoreEffect(valid[0]),
+        validParticipants: 1,
+        ciLower: valid[0],
+        ciUpper: valid[0],
+      };
+    }
+    return undefined;
+  }
+
+  const mean = valid.reduce((a, b) => a + b, 0) / valid.length;
+  const sd = Math.sqrt(valid.reduce((sum, d) => sum + (d - mean) ** 2, 0) / (valid.length - 1));
+  const se = sd / Math.sqrt(valid.length);
+  // t-distribution approximation for 95% CI (use 1.96 for large N, good enough)
+  const tCrit = valid.length >= 30 ? 1.96 : 2.0;
+
+  return {
+    value: Math.round(mean * 1000) / 1000,
+    effect: classifyDScoreEffect(mean),
+    validParticipants: valid.length,
+    ciLower: Math.round((mean - tCrit * se) * 1000) / 1000,
+    ciUpper: Math.round((mean + tCrit * se) * 1000) / 1000,
+  };
+}
+
+/**
+ * Compute error analysis from all IAT trial data.
+ */
+const computeIATErrorAnalysis = (
+  responses: any[],
+  targets: IATTarget[],
+  attributes: IATAttribute[],
+) => {
+  type Trial = { targetId: string; criterionId: string; rt: number; correct: boolean; phase: string };
+  const allTrials: Trial[] = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+      allTrials.push(...trials);
+    } catch { /* skip */ }
+  }
+
+  if (allTrials.length === 0) return undefined;
+
+  // By phase
+  const phaseMap = new Map<string, { total: number; errors: number }>();
+  for (const t of allTrials) {
+    const p = t.phase || 'unknown';
+    if (!phaseMap.has(p)) phaseMap.set(p, { total: 0, errors: 0 });
+    const entry = phaseMap.get(p)!;
+    entry.total++;
+    if (t.correct === false) entry.errors++;
+  }
+  const byPhase = Array.from(phaseMap.entries()).map(([phase, data]) => ({
+    phase,
+    total: data.total,
+    errors: data.errors,
+    errorRate: Math.round((data.errors / data.total) * 10000) / 100,
+  }));
+
+  // By combination
+  const comboMap = new Map<string, { total: number; errors: number }>();
+  for (const t of allTrials) {
+    const key = `${t.targetId}×${t.criterionId}`;
+    if (!comboMap.has(key)) comboMap.set(key, { total: 0, errors: 0 });
+    const entry = comboMap.get(key)!;
+    entry.total++;
+    if (t.correct === false) entry.errors++;
+  }
+
+  const targetMap = new Map(targets.map(t => [t.id, t.name]));
+  const attrMap = new Map(attributes.map(a => [a.id, a.label]));
+
+  const byCombination = Array.from(comboMap.entries())
+    .map(([key, data]) => {
+      const [targetId, attributeId] = key.split('×');
+      return {
+        targetId,
+        targetName: targetMap.get(targetId) || targetId,
+        attributeId,
+        attributeLabel: attrMap.get(attributeId) || attributeId,
+        total: data.total,
+        errors: data.errors,
+        errorRate: Math.round((data.errors / data.total) * 10000) / 100,
+      };
+    })
+    .sort((a, b) => b.errorRate - a.errorRate);
+
+  const totalErrors = allTrials.filter(t => t.correct === false).length;
+  const totalFast = allTrials.filter(t => t.rt < 300).length;
+
+  return {
+    byPhase,
+    byCombination,
+    overallErrorRate: Math.round((totalErrors / allTrials.length) * 10000) / 100,
+    overallFastRate: Math.round((totalFast / allTrials.length) * 10000) / 100,
+  };
+};
+
 const FAST_RT_THRESHOLD = 300; // ms — trials below this are suspicious
 const MIN_TRIALS_FOR_QUALITY = 5;
 const MIN_ACCURACY_THRESHOLD = 0.6; // 60%
@@ -1670,6 +1860,35 @@ const computeIATParticipantData = (
       if (bestTarget) segmentation[attr.id] = bestTarget;
     }
 
+    // Greenwald D-score per participant
+    // Compatible = criterion paired with its assigned target (correct pairing)
+    // Incompatible = criterion paired with non-assigned target
+    const compatibleRTs: number[] = [];
+    const incompatibleRTs: number[] = [];
+    for (const t of trials) {
+      if (t.correct === false || t.rt > 10000) continue;
+      // Find which target this criterion is assigned to
+      const attr = attributes.find(a => a.id === t.criterionId);
+      if (!attr) continue;
+      const assignedTargetId = (attr as any).targetId; // Attribute Testing assigns targetId
+      if (assignedTargetId) {
+        if (t.targetId === assignedTargetId) {
+          compatibleRTs.push(t.rt);
+        } else {
+          incompatibleRTs.push(t.rt);
+        }
+      } else if (targets.length === 2) {
+        // Objects Comparing: first target = compatible, second = incompatible (convention)
+        if (t.targetId === targets[0].id) {
+          compatibleRTs.push(t.rt);
+        } else {
+          incompatibleRTs.push(t.rt);
+        }
+      }
+    }
+
+    const dScore = computeGreenwaldDScore(compatibleRTs, incompatibleRTs);
+
     result.push({
       participantId,
       rtByCombination,
@@ -1678,6 +1897,8 @@ const computeIATParticipantData = (
       accuracy: Math.round(accuracy * 100) / 100,
       quality,
       segmentation,
+      dScore: dScore != null ? Math.round(dScore * 1000) / 1000 : undefined,
+      dScoreEffect: dScore != null ? classifyDScoreEffect(dScore) : undefined,
     });
   }
 
@@ -1735,6 +1956,15 @@ export const getImplicitAssociationResults = async (researchId: string) => {
     const scores = computeIATScores(responsesResult.rows, targets, attributes, testType);
     const participantData = computeIATParticipantData(responsesResult.rows as Array<{ value: string | unknown; participant_id: string }>, targets, attributes);
 
+    // Aggregate Greenwald D-score from individual participants
+    const individualDScores = participantData
+      .filter(p => p.quality === 'good' && p.dScore != null)
+      .map(p => p.dScore!);
+    const dScore = computeAggregateDScore(individualDScores);
+
+    // Error analysis
+    const errorAnalysis = computeIATErrorAnalysis(responsesResult.rows, targets, attributes);
+
     modules.push({
       moduleId: mod.id,
       moduleName: mod.name,
@@ -1746,6 +1976,8 @@ export const getImplicitAssociationResults = async (researchId: string) => {
       totalResponses: responsesResult.rows.length,
       scores,
       participantData,
+      dScore,
+      errorAnalysis,
     });
   }
 
@@ -1755,6 +1987,37 @@ export const getImplicitAssociationResults = async (researchId: string) => {
 // ==========================================
 // EYE TRACKING RESULTS
 // ==========================================
+
+type EkmanEmotion = 'joy' | 'sadness' | 'surprise' | 'anger' | 'disgust' | 'fear' | 'neutral';
+
+interface EmotionSample {
+  timestamp: number;
+  emotion: EkmanEmotion;
+  confidence: number;
+  actionUnits: Record<string, number>;
+}
+
+interface EmotionAggregation {
+  /** Whether emotion recognition was enabled for this stimulus */
+  enabled: boolean;
+  /** Total emotion samples across all participants */
+  totalSamples: number;
+  /** Percentage distribution per emotion (0–100) */
+  distribution: Record<EkmanEmotion, number>;
+  /** Most frequent emotion across all participants */
+  dominantEmotion: EkmanEmotion;
+  /** Average confidence across all samples */
+  avgConfidence: number;
+  /** Per-participant dominant emotion + sample count */
+  perParticipant: Array<{
+    participantId: string;
+    dominantEmotion: EkmanEmotion;
+    sampleCount: number;
+    distribution: Record<EkmanEmotion, number>;
+  }>;
+  /** Downsampled timeline (1s buckets) aggregated across all participants */
+  timeline: EmotionSample[];
+}
 
 interface EyeTrackingStimulus {
   moduleId: string;
@@ -1787,6 +2050,17 @@ interface EyeTrackingStimulus {
     totalFixations: number;
     totalDwellTime: number;
   }>;
+  emotions: EmotionAggregation;
+  /** TranSalNet saliency prediction data (if run). Points with x%, y%, value 0–1. */
+  predictionHeatmap?: Array<{ x: number; y: number; value: number }>;
+  predictionProcessedAt?: string;
+  stimulusType?: 'image' | 'video';
+  gazeTimeline?: Array<{ x: number; y: number; t: number; videoTime?: number; participantId: string }>;
+  sequenceAnalysis?: {
+    participantSequences: Array<{ participantId: string; sequence: string[] }>;
+    transitionMatrix: Record<string, Record<string, number>>;
+    aoiLabels: string[];
+  };
 }
 
 /**
@@ -1854,21 +2128,147 @@ const extractEyeTrackingConfig = (config: any) => {
     } catch { /* ignore */ }
   }
 
-  return { stimulusUrl, modality, taskDescription, configAois };
+  // Feature toggles
+  const emotionComp = components.find((c: any) => c.id === 'emotion-recognition');
+  const hasEmotionRecognition = emotionComp ? String(emotionComp.value) === 'true' : true;
+
+  return { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition };
+};
+
+/**
+ * Aggregate FACS emotion data from eye tracking responses.
+ * Each response may contain `emotions: EmotionSample[]` alongside fixation data.
+ */
+const computeEmotionMetrics = (
+  responses: any[],
+  hasEmotionRecognition: boolean,
+): EmotionAggregation => {
+  const emptyDistribution = (): Record<EkmanEmotion, number> => ({
+    joy: 0, sadness: 0, surprise: 0, anger: 0, disgust: 0, fear: 0, neutral: 0,
+  });
+
+  if (!hasEmotionRecognition) {
+    return {
+      enabled: false,
+      totalSamples: 0,
+      distribution: emptyDistribution(),
+      dominantEmotion: 'neutral',
+      avgConfidence: 0,
+      perParticipant: [],
+      timeline: [],
+    };
+  }
+
+  const allSamples: EmotionSample[] = [];
+  const perParticipantSamples = new Map<string, EmotionSample[]>();
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const emotions: EmotionSample[] = parsed?.emotions ?? [];
+      if (emotions.length === 0) continue;
+
+      const pid = row.participant_id;
+      allSamples.push(...emotions);
+      perParticipantSamples.set(pid, emotions);
+    } catch { /* skip malformed */ }
+  }
+
+  if (allSamples.length === 0) {
+    return {
+      enabled: true,
+      totalSamples: 0,
+      distribution: emptyDistribution(),
+      dominantEmotion: 'neutral',
+      avgConfidence: 0,
+      perParticipant: [],
+      timeline: [],
+    };
+  }
+
+  // Global distribution
+  const counts = emptyDistribution();
+  let totalConfidence = 0;
+  for (const s of allSamples) {
+    counts[s.emotion]++;
+    totalConfidence += s.confidence;
+  }
+  const total = allSamples.length;
+  const distribution = emptyDistribution();
+  for (const [emotion, count] of Object.entries(counts)) {
+    distribution[emotion as EkmanEmotion] = Math.round((count / total) * 10000) / 100;
+  }
+
+  const dominantEmotion = (Object.entries(counts) as [EkmanEmotion, number][])
+    .reduce((best, [e, c]) => c > best[1] ? [e, c] : best, ['neutral' as EkmanEmotion, 0])[0];
+
+  // Per-participant
+  const perParticipant = Array.from(perParticipantSamples.entries()).map(([pid, samples]) => {
+    const pCounts = emptyDistribution();
+    for (const s of samples) pCounts[s.emotion]++;
+    const pTotal = samples.length;
+    const pDist = emptyDistribution();
+    for (const [e, c] of Object.entries(pCounts)) {
+      pDist[e as EkmanEmotion] = Math.round((c / pTotal) * 10000) / 100;
+    }
+    const pDominant = (Object.entries(pCounts) as [EkmanEmotion, number][])
+      .reduce((best, [e, c]) => c > best[1] ? [e, c] : best, ['neutral' as EkmanEmotion, 0])[0];
+
+    return { participantId: pid, dominantEmotion: pDominant, sampleCount: pTotal, distribution: pDist };
+  });
+
+  // Downsampled timeline (1s buckets across all participants)
+  const bucketMs = 1000;
+  const buckets = new Map<number, EmotionSample[]>();
+  for (const s of allSamples) {
+    const key = Math.floor(s.timestamp / bucketMs) * bucketMs;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(s);
+  }
+
+  const timeline: EmotionSample[] = [];
+  for (const [ts, bucket] of Array.from(buckets.entries()).sort((a, b) => a[0] - b[0])) {
+    const bCounts: Record<string, number> = {};
+    for (const s of bucket) bCounts[s.emotion] = (bCounts[s.emotion] || 0) + 1;
+    const bDominant = Object.entries(bCounts).sort((a, b) => b[1] - a[1])[0][0] as EkmanEmotion;
+    const bConf = bucket.reduce((sum, s) => sum + s.confidence, 0) / bucket.length;
+    const avgAUs: Record<string, number> = {};
+    for (const s of bucket) {
+      for (const [k, v] of Object.entries(s.actionUnits)) {
+        avgAUs[k] = (avgAUs[k] || 0) + v;
+      }
+    }
+    for (const k of Object.keys(avgAUs)) avgAUs[k] /= bucket.length;
+
+    timeline.push({ timestamp: ts, emotion: bDominant, confidence: bConf, actionUnits: avgAUs });
+  }
+
+  return {
+    enabled: true,
+    totalSamples: total,
+    distribution,
+    dominantEmotion,
+    avgConfidence: totalConfidence / total,
+    perParticipant,
+    timeline,
+  };
 };
 
 /**
  * Compute Eye Tracking analytics from gaze response data.
  * Expected response format: component_id = 'eye-tracking-data'
- * value = { fixations: [{ x, y, duration, timestamp }], calibrationQuality, integrityScore }
+ * value = { fixations: [{ x, y, duration, timestamp }], calibrationQuality, integrityScore, emotions?: EmotionSample[] }
  */
 const computeEyeTrackingMetrics = (
   responses: any[],
   configAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }>,
+  hasEmotionRecognition: boolean,
 ) => {
   type Fixation = { x: number; y: number; duration: number; participantId: string; timestamp: number };
   const allFixations: Fixation[] = [];
   const participantMap = new Map<string, { calibrationQuality: string; integrityScore: string; totalFixations: number; totalDwellTime: number }>();
+  // Emotion samples per participant (for Emotion × AOI correlation)
+  const emotionsByParticipant = new Map<string, EmotionSample[]>();
 
   for (const row of responses) {
     try {
@@ -1880,6 +2280,12 @@ const computeEyeTrackingMetrics = (
       for (const f of fixations) {
         allFixations.push({ x: f.x, y: f.y, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
         totalDwell += f.duration;
+      }
+
+      // Collect emotion samples for AOI correlation
+      const emotions: EmotionSample[] = parsed?.emotions ?? [];
+      if (emotions.length > 0) {
+        emotionsByParticipant.set(pid, emotions);
       }
 
       participantMap.set(pid, {
@@ -1910,7 +2316,8 @@ const computeEyeTrackingMetrics = (
   // Total dwell time across all fixations
   const totalDwellTime = allFixations.reduce((sum, f) => sum + f.duration, 0);
 
-  // Compute AOI metrics
+  // Compute AOI metrics (including TTFF and notice rate)
+  const totalParticipants = new Set(allFixations.map(f => f.participantId)).size;
   const aois = configAois.map(aoi => {
     const insideFixations = allFixations.filter(f =>
       f.x >= aoi.x && f.x <= aoi.x + aoi.width &&
@@ -1920,6 +2327,62 @@ const computeEyeTrackingMetrics = (
     const aoiDwellTime = insideFixations.reduce((sum, f) => sum + f.duration, 0);
     const uniqueParticipants = new Set(insideFixations.map(f => f.participantId));
 
+    // TTFF: Time To First Fixation — min timestamp per participant, then average
+    const firstFixationByParticipant = new Map<string, number>();
+    for (const f of insideFixations) {
+      const existing = firstFixationByParticipant.get(f.participantId);
+      if (existing === undefined || f.timestamp < existing) {
+        firstFixationByParticipant.set(f.participantId, f.timestamp);
+      }
+    }
+    const ttffValues = Array.from(firstFixationByParticipant.values());
+    const avgTTFF = ttffValues.length > 0
+      ? Math.round(ttffValues.reduce((a, b) => a + b, 0) / ttffValues.length)
+      : 0;
+
+    // Notice rate: % of total participants who had at least 1 fixation in this AOI
+    const noticeRate = totalParticipants > 0
+      ? Math.round((uniqueParticipants.size / totalParticipants) * 100)
+      : 0;
+
+    // Emotion × AOI: find dominant emotion while looking at this AOI
+    // Match emotion samples temporally with fixations inside AOI (±100ms window)
+    const aoiEmotionCounts: Record<EkmanEmotion, number> = {
+      joy: 0, sadness: 0, surprise: 0, anger: 0, disgust: 0, fear: 0, neutral: 0,
+    };
+    let aoiEmotionTotal = 0;
+    for (const pid of uniqueParticipants) {
+      const pEmotions = emotionsByParticipant.get(pid);
+      if (!pEmotions || pEmotions.length === 0) continue;
+      const pFixationsInAOI = insideFixations.filter(f => f.participantId === pid);
+      for (const fix of pFixationsInAOI) {
+        // Find emotion samples within fixation time window (timestamp ± duration/2)
+        const fixStart = fix.timestamp;
+        const fixEnd = fix.timestamp + fix.duration;
+        for (const em of pEmotions) {
+          if (em.timestamp >= fixStart - 100 && em.timestamp <= fixEnd + 100) {
+            aoiEmotionCounts[em.emotion]++;
+            aoiEmotionTotal++;
+          }
+        }
+      }
+    }
+
+    let aoiDominantEmotion: EkmanEmotion | undefined;
+    const aoiEmotionDistribution: Record<EkmanEmotion, number> | undefined = aoiEmotionTotal > 0
+      ? (() => {
+          const dist = {} as Record<EkmanEmotion, number>;
+          let bestEmotion: EkmanEmotion = 'neutral';
+          let bestCount = 0;
+          for (const [emotion, count] of Object.entries(aoiEmotionCounts) as [EkmanEmotion, number][]) {
+            dist[emotion] = Math.round((count / aoiEmotionTotal) * 10000) / 100;
+            if (count > bestCount) { bestCount = count; bestEmotion = emotion; }
+          }
+          aoiDominantEmotion = bestEmotion;
+          return dist;
+        })()
+      : undefined;
+
     return {
       ...aoi,
       dwellTimePercent: totalDwellTime > 0 ? Math.round((aoiDwellTime / totalDwellTime) * 100) : 0,
@@ -1928,6 +2391,12 @@ const computeEyeTrackingMetrics = (
         ? Math.round(insideFixations.reduce((sum, f) => sum + f.duration, 0) / insideFixations.length)
         : 0,
       participantCount: uniqueParticipants.size,
+      avgTTFF,
+      noticeRate,
+      /** Dominant emotion while looking at this AOI */
+      dominantEmotion: aoiDominantEmotion,
+      /** Emotion distribution while looking at this AOI */
+      emotionDistribution: aoiEmotionDistribution,
     };
   });
 
@@ -1944,6 +2413,80 @@ const computeEyeTrackingMetrics = (
     ...data,
   }));
 
+  const emotions = computeEmotionMetrics(responses, hasEmotionRecognition);
+
+  // Sequence analysis: AOI visit order per participant + transition matrix
+  let sequenceAnalysis: {
+    participantSequences: Array<{ participantId: string; sequence: string[] }>;
+    transitionMatrix: Record<string, Record<string, number>>;
+    aoiLabels: string[];
+  } | undefined;
+
+  if (configAois.length >= 2 && allFixations.length > 0) {
+    const aoiLabels = configAois.map(a => a.label || a.id);
+    const aoiLookup = configAois.map(a => ({
+      id: a.id, label: a.label || a.id,
+      x: a.x, y: a.y, w: a.width, h: a.height,
+    }));
+
+    const findAOI = (fx: number, fy: number): string | null => {
+      for (const a of aoiLookup) {
+        if (fx >= a.x && fx <= a.x + a.w && fy >= a.y && fy <= a.y + a.h) return a.label;
+      }
+      return null;
+    };
+
+    // Build per-participant AOI visit sequences (deduplicate consecutive same-AOI)
+    const byParticipant = new Map<string, Array<{ aoi: string; timestamp: number }>>();
+    for (const f of allFixations) {
+      const aoiLabel = findAOI(f.x, f.y);
+      if (!aoiLabel) continue;
+      if (!byParticipant.has(f.participantId)) byParticipant.set(f.participantId, []);
+      byParticipant.get(f.participantId)!.push({ aoi: aoiLabel, timestamp: f.timestamp });
+    }
+
+    const participantSequences: Array<{ participantId: string; sequence: string[] }> = [];
+    const transitionCounts: Record<string, Record<string, number>> = {};
+    // Initialize matrix
+    for (const label of aoiLabels) {
+      transitionCounts[label] = {};
+      for (const label2 of aoiLabels) transitionCounts[label][label2] = 0;
+    }
+
+    for (const [pid, visits] of byParticipant) {
+      // Sort by timestamp, deduplicate consecutive
+      visits.sort((a, b) => a.timestamp - b.timestamp);
+      const seq: string[] = [];
+      for (const v of visits) {
+        if (seq.length === 0 || seq[seq.length - 1] !== v.aoi) seq.push(v.aoi);
+      }
+      participantSequences.push({ participantId: pid, sequence: seq });
+
+      // Count transitions
+      for (let i = 0; i < seq.length - 1; i++) {
+        const from = seq[i];
+        const to = seq[i + 1];
+        if (transitionCounts[from] && transitionCounts[from][to] !== undefined) {
+          transitionCounts[from][to]++;
+        }
+      }
+    }
+
+    // Normalize transitions to probabilities (row-sum = 100%)
+    const transitionMatrix: Record<string, Record<string, number>> = {};
+    for (const from of aoiLabels) {
+      const rowSum = Object.values(transitionCounts[from]).reduce((a, b) => a + b, 0);
+      transitionMatrix[from] = {};
+      for (const to of aoiLabels) {
+        transitionMatrix[from][to] = rowSum > 0
+          ? Math.round((transitionCounts[from][to] / rowSum) * 100)
+          : 0;
+      }
+    }
+
+    sequenceAnalysis = { participantSequences, transitionMatrix, aoiLabels };
+  }
+
   return {
     uniqueParticipants: uniqueParticipants.size,
     avgDwellTime,
@@ -1953,6 +2496,8 @@ const computeEyeTrackingMetrics = (
     fixations: allFixations,
     aois,
     participants,
+    emotions,
+    sequenceAnalysis,
   };
 };
 
@@ -1987,7 +2532,7 @@ export const getEyeTrackingResults = async (researchId: string) => {
       config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
     } catch { /* ignore */ }
 
-    const { stimulusUrl, modality, taskDescription, configAois } = extractEyeTrackingConfig(config);
+    const { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition } = extractEyeTrackingConfig(config);
 
     // 3. Get responses for this module (component_id = 'eye-tracking-data')
     const responsesQuery = `
@@ -1998,7 +2543,26 @@ export const getEyeTrackingResults = async (researchId: string) => {
     `;
     const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
 
-    const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois);
+    const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois, hasEmotionRecognition);
+
+    // TranSalNet prediction data (stored in module config by attention-prediction controller)
+    const predictionHeatmap = config.predictionHeatmap as Array<{ x: number; y: number; value: number }> | undefined;
+    const predictionProcessedAt = config.predictionProcessedAt as string | undefined;
+
+    // Extract stimulus type and gaze timeline from responses (for video stimuli)
+    let stimulusType: 'image' | 'video' = 'image';
+    const gazeTimeline: Array<{ x: number; y: number; t: number; videoTime?: number; participantId: string }> = [];
+    for (const row of responsesResult.rows) {
+      try {
+        const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+        if (parsed?.stimulusType === 'video') stimulusType = 'video';
+        if (parsed?.gazeTimeline && Array.isArray(parsed.gazeTimeline)) {
+          for (const pt of parsed.gazeTimeline) {
+            gazeTimeline.push({ ...pt, participantId: row.participant_id });
+          }
+        }
+      } catch { /* skip */ }
+    }
 
     stimuli.push({
       moduleId: mod.id,
@@ -2008,6 +2572,10 @@ export const getEyeTrackingResults = async (researchId: string) => {
       taskDescription,
       totalResponses: responsesResult.rows.length,
       ...metrics,
+      predictionHeatmap: predictionHeatmap?.length ? predictionHeatmap : undefined,
+      predictionProcessedAt,
+      stimulusType,
+      gazeTimeline: gazeTimeline.length > 0 ? gazeTimeline : undefined,
     });
   }
 
@@ -2116,7 +2684,7 @@ export const getBenchmarkResults = async (researchId: string) => {
       `;
       const responsesResult = await pool.query(responsesQuery, [targetResearchId, mod.id]);
 
-      const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois);
+      const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois, false);
 
       modules.push({
         moduleId: mod.id,

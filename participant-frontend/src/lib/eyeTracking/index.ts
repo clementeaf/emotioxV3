@@ -105,3 +105,17 @@ export {
 } from './fixationDetector';
 
 export type { GazeSample, DetectedFixation } from './fixationDetector';
+
+export {
+  extractActionUnits,
+  classifyEmotion,
+  extractEmotionFromFrame,
+  aggregateEmotionTimeline,
+  downsampleEmotionTimeline,
+} from './facsClassifier';
+
+export type {
+  ActionUnits,
+  EmotionSample,
+  EkmanEmotion,
+} from './facsClassifier';

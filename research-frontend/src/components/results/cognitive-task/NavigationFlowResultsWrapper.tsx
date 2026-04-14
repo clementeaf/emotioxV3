@@ -18,6 +18,8 @@ interface ModuleConfigStructure {
     };
     image_url?: string;
     imageUrl?: string;
+    /** Per-image TranSalNet predictions keyed by image ID */
+    predictionHeatmaps?: Record<string, { heatmapData: Array<{ x: number; y: number; value: number }>; processedAt: string }>;
 }
 
 interface HitzoneRegion {
@@ -222,6 +224,10 @@ export const NavigationFlowResultsWrapper = ({
         }
     }
 
+    // Extract per-image prediction data from module config
+    const moduleConfig = module?.config as ModuleConfigStructure | undefined;
+    const predictionHeatmaps = moduleConfig?.predictionHeatmaps;
+
     // Build one step per image; filter heatmapData by imageId so each step shows only its clicks
     const steps = parsedFiles.map((file, index) => {
         const fileId = String(file.id);
@@ -231,6 +237,10 @@ export const NavigationFlowResultsWrapper = ({
             if (!cId) return index === 0;
             return cId === fileId;
         });
+
+        // Look up prediction for this image
+        const prediction = predictionHeatmaps?.[fileId];
+
         return {
             stepNumber: index + 1,
             title: file.name ? `${index + 1}. ${file.name}` : `${moduleName} — Step ${index + 1}`,
@@ -253,6 +263,7 @@ export const NavigationFlowResultsWrapper = ({
             }),
             responses: data.responses,
             aois: [],
+            predictionHeatmap: prediction?.heatmapData,
         };
     });
 
@@ -269,6 +280,7 @@ export const NavigationFlowResultsWrapper = ({
             hitZones: [],
             responses: data.responses,
             aois: [],
+            predictionHeatmap: undefined,
         });
     }
 

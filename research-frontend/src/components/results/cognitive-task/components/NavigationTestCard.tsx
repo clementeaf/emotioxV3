@@ -48,6 +48,8 @@ interface NavigationStep {
   imageUrl?: string;
   hitZones?: Array<{ x: number; y: number; width: number; height: number }>;
   responses?: NavigationResponse[];
+  /** TranSalNet saliency prediction data (per-image) */
+  predictionHeatmap?: Array<{ x: number; y: number; value: number }>;
 }
 
 interface NavigationTestCardProps {
@@ -623,7 +625,7 @@ export const NavigationTestCard = ({
                   <div className="border-b bg-white">
                     <div className="flex items-center gap-1 px-4">
                       <div className="flex gap-1 flex-1">
-                        {['Heat click map', 'Click map', 'Quantity mapper', 'Scan Path', 'Image', 'Navigation'].map((tab) => (
+                        {['Heat click map', 'Click map', 'Quantity mapper', 'Scan Path', 'Image', 'Prediction', 'Navigation'].map((tab) => (
                           <button
                             key={tab}
                             onClick={() => setActiveTab(tab.toLowerCase().replace(/\s+/g, '-'))}
@@ -842,6 +844,32 @@ export const NavigationTestCard = ({
                     {/* Scan Path Tab - Sequential click paths */}
                     {activeTab === 'scan-path' && (
                       <ScanPathTab step={step} />
+                    )}
+
+                    {/* Prediction Tab - TranSalNet saliency overlay */}
+                    {activeTab === 'prediction' && (
+                      <>
+                        {step.predictionHeatmap && step.predictionHeatmap.length > 0 && step.imageUrl ? (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-2">
+                              {step.predictionHeatmap.length.toLocaleString()} saliency points — predicted attention
+                            </p>
+                            <HeatmapRenderer
+                              imageUrl={step.imageUrl}
+                              data={step.predictionHeatmap.map(p => ({ x: p.x, y: p.y, value: p.value }))}
+                              className="w-full"
+                            />
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                            <p className="text-sm text-gray-500">
+                              {step.imageUrl
+                                ? 'No prediction data yet. Run attention prediction from the research builder.'
+                                : 'No image available for prediction.'}
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Navigation Tab - Statistics and per-participant table */}

@@ -333,6 +333,16 @@ export interface IATAttribute {
     imageUrl?: string;
 }
 
+export type DScoreEffect = 'none' | 'slight' | 'moderate' | 'strong';
+
+export interface DScoreResult {
+    value: number;
+    effect: DScoreEffect;
+    validParticipants: number;
+    ciLower: number;
+    ciUpper: number;
+}
+
 export interface IATParticipantData {
     participantId: string;
     rtByCombination: Record<string, number>;
@@ -341,6 +351,8 @@ export interface IATParticipantData {
     accuracy: number;
     quality: 'good' | 'fast_responses' | 'low_accuracy' | 'insufficient_data';
     segmentation: Record<string, string>;
+    dScore?: number;
+    dScoreEffect?: DScoreEffect;
 }
 
 export interface IATModuleResult {
@@ -358,6 +370,13 @@ export interface IATModuleResult {
         targetScores: Record<string, number>;
     }>;
     participantData?: IATParticipantData[];
+    dScore?: DScoreResult;
+    errorAnalysis?: {
+        byPhase: Array<{ phase: string; total: number; errors: number; errorRate: number }>;
+        byCombination: Array<{ targetId: string; targetName: string; attributeId: string; attributeLabel: string; total: number; errors: number; errorRate: number }>;
+        overallErrorRate: number;
+        overallFastRate: number;
+    };
 }
 
 export interface ImplicitAssociationResults {
@@ -386,6 +405,14 @@ export interface EyeTrackingAOI {
     fixationCount: number;
     avgDuration: number;
     participantCount: number;
+    /** Average Time To First Fixation in ms */
+    avgTTFF?: number;
+    /** % of participants who noticed this AOI */
+    noticeRate?: number;
+    /** Dominant emotion while looking at this AOI */
+    dominantEmotion?: EkmanEmotion;
+    /** Emotion distribution while looking at this AOI */
+    emotionDistribution?: Record<EkmanEmotion, number>;
 }
 
 export interface EyeTrackingParticipant {
@@ -394,6 +421,30 @@ export interface EyeTrackingParticipant {
     integrityScore: string;
     totalFixations: number;
     totalDwellTime: number;
+}
+
+export type EkmanEmotion = 'joy' | 'sadness' | 'surprise' | 'anger' | 'disgust' | 'fear' | 'neutral';
+
+export interface EmotionSample {
+    timestamp: number;
+    emotion: EkmanEmotion;
+    confidence: number;
+    actionUnits: Record<string, number>;
+}
+
+export interface EmotionAggregation {
+    enabled: boolean;
+    totalSamples: number;
+    distribution: Record<EkmanEmotion, number>;
+    dominantEmotion: EkmanEmotion;
+    avgConfidence: number;
+    perParticipant: Array<{
+        participantId: string;
+        dominantEmotion: EkmanEmotion;
+        sampleCount: number;
+        distribution: Record<EkmanEmotion, number>;
+    }>;
+    timeline: EmotionSample[];
 }
 
 export interface EyeTrackingStimulus {
@@ -411,6 +462,18 @@ export interface EyeTrackingStimulus {
     fixations: Array<{ x: number; y: number; duration: number; participantId: string; timestamp: number }>;
     aois: EyeTrackingAOI[];
     participants: EyeTrackingParticipant[];
+    emotions: EmotionAggregation;
+    predictionHeatmap?: Array<{ x: number; y: number; value: number }>;
+    predictionProcessedAt?: string;
+    /** Gaze points with video timestamps (only for video stimuli) */
+    gazeTimeline?: Array<{ x: number; y: number; t: number; videoTime?: number; participantId: string }>;
+    stimulusType?: 'image' | 'video';
+    /** AOI sequence analysis: visit order per participant + transition probabilities */
+    sequenceAnalysis?: {
+        participantSequences: Array<{ participantId: string; sequence: string[] }>;
+        transitionMatrix: Record<string, Record<string, number>>;
+        aoiLabels: string[];
+    };
 }
 
 export interface EyeTrackingResults {

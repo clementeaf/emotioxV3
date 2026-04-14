@@ -1,3 +1,35 @@
+## v0.58.0 — Phase 3: FACS Emotion Recognition, Attention Prediction, Advanced Analytics (2026-04-14)
+
+### participant-frontend
+- **FACS Emotion Recognition:** Parallel MediaPipe FaceLandmarker (`useFaceLandmarks`) runs alongside BlazeGaze during viewing phase. Extracts 9 Action Units from 468 landmarks, classifies Ekman emotions (joy, sadness, surprise, anger, disgust, fear, neutral). Emotion samples stored in response alongside gaze data. Client-side only — zero images transmitted.
+- **Video stimulus support:** `EyeTrackingRenderer` detects video files, renders `<video>` with muted autoplay, tracks gaze with `videoTime` sync. Natural dimensions from `videoWidth/Height`.
+- **New files:** `facsClassifier.ts` (AU extraction + emotion mapping + aggregation), `useFaceLandmarks.ts` (parallel FaceLandmarker hook).
+
+### backend
+- **FACS emotion aggregation:** `computeEmotionMetrics()` — distribution, dominant emotion, per-participant breakdown, 1s-bucket timeline. Returned in Eye Tracking results when emotion recognition enabled.
+- **Greenwald D-score (IAT):** `computeGreenwaldDScore()` — proper algorithm (filter >10s, pooled SD). Per-participant D-scores + aggregate with 95% CI. Effect classification: none/slight/moderate/strong.
+- **IAT error analysis:** `computeIATErrorAnalysis()` — error rates by phase (practice/test) and by target×attribute combination.
+- **Attention prediction for modules:** New endpoints `POST/GET /attention-prediction/research/:id/module/:moduleId/predict|status`. Supports single image (Eye Tracking) and multi-image with `imageIndex` (Navigation Flow). Stores `predictionHeatmap` or `predictionHeatmaps` in module config.
+- **Eye Tracking AOI enhancements:** TTFF (Time To First Fixation), notice rate (% who looked), dominant emotion per AOI (temporal join with emotion samples ±100ms).
+- **Sequence analysis:** Per-participant AOI visit order, transition probability matrix, included when ≥2 AOIs exist.
+- **Video gaze timeline:** Aggregates `gazeTimeline` with `videoTime` from video stimulus responses.
+
+### research-frontend
+- **Eye Tracking results tabs:** Heat map, Scan Path (numbered fixations with cool→warm gradient, per-participant selector), First Look (first N fixations heatmap, configurable), Transparency (blur/reveal canvas mask), Emotions (distribution bars, timeline strip, per-participant table), Prediction (TranSalNet saliency, run/re-run button with polling), Video Gaze (synced gaze overlay on video playback), Sequence (transition matrix heatmap, per-participant sequences, most common patterns).
+- **AOI row metrics:** TTFF (purple), notice rate (green), dominant emotion badge (color-coded).
+- **IAT D-score card:** Aggregate D-score with effect badge, scale bar (-1.5 to +1.5), CI, expandable per-participant table sorted by |D|.
+- **IAT effect size histogram:** D-score distribution across 7 buckets (Strong- to Strong+).
+- **IAT error analysis card:** Expandable — phase error rates (color-coded), top 5 highest error combinations table.
+- **Navigation Flow prediction tab:** "Prediction" tab per step with `HeatmapRenderer` saliency overlay. Per-image predictions from `predictionHeatmaps` in module config.
+- **Advanced filters on all results:** `useResultsFilter` shared hook extracts duplicated demographic filtering. Filters sidebar added to Eye Tracking, Implicit Association, and Screener results (SmartVOC and Cognitive Tasks already had them).
+- **New files:** `useResultsFilter.ts` (shared demographic filter hook).
+
+### docs
+- `PHASE_3_PLAN.md` — 5-feature plan (FACS, Attention Prediction ET/Nav Flow, Video, Filters).
+- `COOLTOOL_GAPS.md` — 10 CoolTool parity gaps documented and implemented.
+
+---
+
 ## v0.57.2 — Eye Tracking zone heatmap, research table improvements (2026-04-14)
 
 ### research-frontend

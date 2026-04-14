@@ -5,6 +5,7 @@ import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText } from '../../utils/moduleComponent';
 import { mediaService } from '../../services/media.service';
 import { useBlazeGaze } from '../../hooks/useBlazeGaze';
+import { useFaceLandmarks } from '../../hooks/useFaceLandmarks';
 import { usePreviewMode } from '../../hooks/usePreviewMode';
 import {
     BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS,
@@ -22,8 +23,9 @@ import {
     HYBRID_GAP_FILL_SYNTHETIC_WEIGHT,
     detectFixationsIDT,
     mapFixationsToImageCoords,
+    extractEmotionFromFrame,
 } from '../../lib/eyeTracking';
-import type { HybridCalibrationResidual } from '../../lib/eyeTracking';
+import type { HybridCalibrationResidual, EmotionSample } from '../../lib/eyeTracking';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -137,7 +139,10 @@ const extractConfig = (module: ModuleConfig) => {
     const attentionMeasurement = components.find(c => c.id === 'attention-measurement');
     const hasAttentionMeasurement = attentionMeasurement ? getComponentText(attentionMeasurement) === 'true' : true;
 
-    return { stimulusUrl, taskDescription, viewingDuration, displayMode, hasEmotionRecognition, hasAttentionMeasurement };
+    // Detect video stimulus
+    const isVideo = /\.(mp4|webm|ogg)$/i.test(stimulusUrl) || stimulusUrl.includes('video/');
+
+    return { stimulusUrl, taskDescription, viewingDuration, displayMode, hasEmotionRecognition, hasAttentionMeasurement, isVideo };
 };
 
 // ---------------------------------------------------------------------------
@@ -169,13 +174,14 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const deviceType = useMemo(() => getDeviceType(), []);
     const isDesktop = deviceType === 'desktop';
 
-    const { stimulusUrl, taskDescription, viewingDuration } = useMemo(() => extractConfig(module), [module]);
+    const { stimulusUrl, taskDescription, viewingDuration, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
 
     const [phase, setPhase] = useState<ETPhase>('intro');
     const [resolvedUrl, setResolvedUrl] = useState<string>('');
     const [fixations, setFixations] = useState<Fixation[]>([]);
     const [timeLeft, setTimeLeft] = useState(Math.ceil(viewingDuration / 1000));
     const imgRef = useRef<HTMLImageElement>(null);
+    const stimulusVideoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const lastClickRef = useRef<{ time: number } | null>(null);
     const savedRef = useRef(false);
@@ -184,6 +190,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const completeTimerRef = useRef<number | null>(null);
     /** Snapshot of image bounding rect captured during viewing phase (before complete hides the image). */
     const viewingRectRef = useRef<DOMRect | null>(null);
+    /** Timestamp when viewing phase started (for emotion sample elapsed time). */
+    const viewingStartTimeRef = useRef<number>(0);
     const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
     const [finalPointCount, setFinalPointCount] = useState(0);
 
@@ -207,7 +215,16 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         oneEuroMinCutoff: EYE_TRACKING_ONE_EURO_MIN_CUTOFF,
         oneEuroBeta: EYE_TRACKING_ONE_EURO_BETA,
     });
-    const gazePointsRef = useRef<{ x: number; y: number; t: number }[]>([]);
+    const gazePointsRef = useRef<{ x: number; y: number; t: number; videoTime?: number }[]>([]);
+
+    // --- Face landmarks for FACS emotion recognition (desktop, parallel to BlazeGaze) ---
+    const faceLandmarks = useFaceLandmarks({
+        videoRef,
+        enabled: isDesktop && hasEmotionRecognition,
+        sampleIntervalMs: GAZE_POLL_MS,
+    });
+    /** Collected emotion samples during viewing phase. */
+    const emotionSamplesRef = useRef<EmotionSample[]>([]);
 
     // Camera management
     const startCamera = useCallback(async () => {
@@ -259,31 +276,63 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     }, [blaze.gazePos]);
 
     // Gaze collection during viewing phase (desktop): RAF loop with 50ms throttle, IDW-corrected.
+    // Also samples facial landmarks for FACS emotion recognition when enabled.
     // Matches hybrid page pattern: reads from gazePosRef (cached), uses Date.now() timestamps.
     useEffect(() => {
         if (phase !== 'viewing' || !isDesktop) return;
+
+        // Start face landmark sampling alongside gaze
+        if (hasEmotionRecognition) {
+            emotionSamplesRef.current = [];
+            viewingStartTimeRef.current = performance.now();
+            faceLandmarks.start();
+        }
+
+        // Start video playback if video stimulus
+        if (isVideo && stimulusVideoRef.current) {
+            stimulusVideoRef.current.currentTime = 0;
+            void stimulusVideoRef.current.play();
+        }
+
         let raf = 0;
         let lastCollect = 0;
         const loop = () => {
             const [gx, gy] = gazePosRef.current;
             const now = Date.now();
-            const img = imgRef.current;
-            const rect = img?.getBoundingClientRect();
+            // Use stimulus element (video or image) for bounding rect
+            const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+            const rect = stimEl?.getBoundingClientRect();
             if (rect && rect.width > 0 && rect.height > 0 && blaze.gazeState === 'open' && now - lastCollect >= GAZE_POLL_MS) {
                 const corrected = hybridApplyCalibrationField(
                     gx, gy, rect,
                     calibrationResidualsRef.current,
                     HYBRID_CALIBRATION_FIELD_STRENGTH,
                 );
-                gazePointsRef.current.push({ x: corrected.x, y: corrected.y, t: now });
+                const videoTime = isVideo && stimulusVideoRef.current ? stimulusVideoRef.current.currentTime : undefined;
+                gazePointsRef.current.push({ x: corrected.x, y: corrected.y, t: now, videoTime });
                 lastCollect = now;
+
+                // Sample emotion from latest face landmarks (same frame cadence as gaze)
+                if (hasEmotionRecognition) {
+                    const frames = faceLandmarks.getFrames();
+                    const latest = frames[frames.length - 1];
+                    if (latest?.landmarks) {
+                        const elapsed = performance.now() - viewingStartTimeRef.current;
+                        const sample = extractEmotionFromFrame(latest.landmarks, Math.round(elapsed));
+                        if (sample) emotionSamplesRef.current.push(sample);
+                    }
+                }
             }
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(raf);
+        return () => {
+            cancelAnimationFrame(raf);
+            if (hasEmotionRecognition) faceLandmarks.stop();
+            if (isVideo && stimulusVideoRef.current) stimulusVideoRef.current.pause();
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live blaze.* reads via ref
-    }, [phase, isDesktop]);
+    }, [phase, isDesktop, hasEmotionRecognition, isVideo]);
 
     // Countdown timer during viewing phase
     useEffect(() => {
@@ -300,9 +349,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }, 1000);
 
         const timeout = setTimeout(() => {
-            // Snapshot image rect before transitioning to complete (which hides the image)
-            if (imgRef.current) {
-                viewingRectRef.current = imgRef.current.getBoundingClientRect();
+            // Snapshot stimulus rect before transitioning to complete (which hides the stimulus)
+            const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+            if (stimEl) {
+                viewingRectRef.current = stimEl.getBoundingClientRect();
             }
             setFinalPointCount(isDesktop ? gazePointsRef.current.length : fixationsRef.current.length);
             setPhase('complete');
@@ -342,9 +392,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
 
-            // Stop gaze tracking and camera on desktop
+            // Stop gaze tracking, face landmarks, and camera on desktop
             if (isDesktop) {
                 blaze.stop();
+                faceLandmarks.stop();
                 stopCamera();
             }
 
@@ -354,11 +405,15 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             const zoneMass: Record<string, number> = {};
             HYBRID_AOI_GRID.forEach(z => { zoneMass[z.id] = 0; });
 
-            const img = imgRef.current;
-            const liveRect = img?.getBoundingClientRect();
+            const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+            const liveRect = stimEl?.getBoundingClientRect();
             const rect = (liveRect && liveRect.width > 0) ? liveRect : viewingRectRef.current;
-            const natW = naturalSizeRef.current?.w || img?.naturalWidth || 1;
-            const natH = naturalSizeRef.current?.h || img?.naturalHeight || 1;
+            const natW = isVideo
+                ? (stimulusVideoRef.current?.videoWidth || 1)
+                : (naturalSizeRef.current?.w || imgRef.current?.naturalWidth || 1);
+            const natH = isVideo
+                ? (stimulusVideoRef.current?.videoHeight || 1)
+                : (naturalSizeRef.current?.h || imgRef.current?.naturalHeight || 1);
 
             // Also compute fixations for backward compatibility
             let finalFixations: Fixation[];
@@ -423,6 +478,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 fixationMethod: isDesktop ? 'idt' : 'click-proxy',
                 gazePipeline: isDesktop ? 'hybrid-zone-idt' : 'click-proxy',
                 calibrationRmsePx: isDesktop ? calibrationRmsePxRef.current : undefined,
+                emotions: hasEmotionRecognition ? emotionSamplesRef.current : undefined,
+                stimulusType: isVideo ? 'video' : 'image',
+                gazeTimeline: isVideo && isDesktop ? gazePointsRef.current.map(p => ({
+                    x: p.x, y: p.y, t: p.t, videoTime: p.videoTime,
+                })) : undefined,
             });
             saveResponse(module.id, 'eye-tracking-data', responseValue);
 
@@ -877,7 +937,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     </span>
                 </div>
 
-                {/* Stimulus image container */}
+                {/* Stimulus container (image or video) */}
                 <div
                     ref={containerRef}
                     className={`relative ${isDesktop ? '' : 'cursor-crosshair'}`}
@@ -886,14 +946,32 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     onContextMenu={(e) => e.preventDefault()}
                     style={{ touchAction: 'none' }}
                 >
-                    <img
-                        ref={imgRef}
-                        src={resolvedUrl}
-                        alt="Stimulus"
-                        className="max-w-[95vw] max-h-[95vh] object-contain"
-                        draggable={false}
-                        onLoad={handleImageLoad}
-                    />
+                    {isVideo ? (
+                        <video
+                            ref={stimulusVideoRef}
+                            src={resolvedUrl}
+                            className="max-w-[95vw] max-h-[95vh] object-contain"
+                            muted
+                            playsInline
+                            preload="auto"
+                            onLoadedMetadata={() => {
+                                if (stimulusVideoRef.current) {
+                                    const v = stimulusVideoRef.current;
+                                    naturalSizeRef.current = { w: v.videoWidth, h: v.videoHeight };
+                                    setNaturalSize({ w: v.videoWidth, h: v.videoHeight });
+                                }
+                            }}
+                        />
+                    ) : (
+                        <img
+                            ref={imgRef}
+                            src={resolvedUrl}
+                            alt="Stimulus"
+                            className="max-w-[95vw] max-h-[95vh] object-contain"
+                            draggable={false}
+                            onLoad={handleImageLoad}
+                        />
+                    )}
                     {/* Click indicators (mobile/tablet only — desktop is silent) */}
                     {!isDesktop && fixations.map((fix, idx) => {
                         const natW = naturalSize?.w || 1;

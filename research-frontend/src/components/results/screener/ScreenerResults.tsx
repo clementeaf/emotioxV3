@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { Card, CardContent } from '../../ui/Card';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
+import { Filters } from '../smart-voc/components/Filters';
+import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import { TrendingUp, TrendingDown, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import * as analyticsService from '../../../services/analytics.service';
 import type { ScreenerResults as ScreenerResultsType } from '../../../services/analytics.service';
@@ -28,6 +30,14 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
   const [data, setData] = useState<ScreenerResultsType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const {
+    demographicData,
+    demographicFilters,
+    setDemographicFilters,
+    userIdFilter,
+    setUserIdFilter,
+  } = useResultsFilter(researchId);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -66,54 +76,66 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
       loadingSkeleton={loadingSkeleton}
     >
       {data && (
-        <div className={className}>
-          {/* Header */}
-          <div className="mb-6">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
-              <span className="text-sm font-semibold text-gray-700">1.0.- Screener</span>
+        <div className={`flex gap-6 ${className ?? ''}`}>
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div className="mb-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
+                <span className="text-sm font-semibold text-gray-700">1.0.- Screener</span>
+              </div>
+              {data.questionText ? (
+                <h2 className="text-xl font-semibold text-gray-900 mb-1">{data.questionText}</h2>
+              ) : null}
+              <p className="text-sm text-gray-500">
+                Screening questions for participant qualification.
+              </p>
             </div>
-            {data.questionText ? (
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">{data.questionText}</h2>
-            ) : null}
-            <p className="text-sm text-gray-500">
-              Screening questions for participant qualification.
-            </p>
-          </div>
 
-          {/* Main grid: Distribution chart + Status cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-            {/* Left: Distribution chart (3 cols) */}
-            <Card className="lg:col-span-3">
-              <CardContent className="p-6">
-                <DistributionChart data={data} />
-              </CardContent>
-            </Card>
-
-            {/* Right: Status cards + Weekly chart (2 cols) */}
-            <div className="lg:col-span-2 space-y-4">
-              <StatusCard
-                label="Overquota interviews"
-                count={data.overquota}
-                icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
-              />
-              <StatusCard
-                label="Disqualified interviews"
-                count={data.disqualified}
-                icon={<XCircle className="h-5 w-5 text-red-500" />}
-              />
-              <StatusCard
-                label="Complete interviews"
-                count={data.qualified}
-                icon={<CheckCircle className="h-5 w-5 text-green-500" />}
-              />
-
-              {/* Weekly line chart */}
-              <Card>
-                <CardContent className="p-4">
-                  <WeeklyChart timeSeries={data.weeklyTimeSeries} />
+            {/* Main grid: Distribution chart + Status cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
+              {/* Left: Distribution chart (3 cols) */}
+              <Card className="lg:col-span-3">
+                <CardContent className="p-6">
+                  <DistributionChart data={data} />
                 </CardContent>
               </Card>
+
+              {/* Right: Status cards + Weekly chart (2 cols) */}
+              <div className="lg:col-span-2 space-y-4">
+                <StatusCard
+                  label="Overquota interviews"
+                  count={data.overquota}
+                  icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
+                />
+                <StatusCard
+                  label="Disqualified interviews"
+                  count={data.disqualified}
+                  icon={<XCircle className="h-5 w-5 text-red-500" />}
+                />
+                <StatusCard
+                  label="Complete interviews"
+                  count={data.qualified}
+                  icon={<CheckCircle className="h-5 w-5 text-green-500" />}
+                />
+
+                {/* Weekly line chart */}
+                <Card>
+                  <CardContent className="p-4">
+                    <WeeklyChart timeSeries={data.weeklyTimeSeries} />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
+          </div>
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+            <Filters
+              researchId={researchId}
+              demographicData={demographicData}
+              selectedFilters={demographicFilters}
+              onFilterChange={setDemographicFilters}
+              userIdFilter={userIdFilter}
+              onUserIdFilterChange={setUserIdFilter}
+            />
           </div>
         </div>
       )}
