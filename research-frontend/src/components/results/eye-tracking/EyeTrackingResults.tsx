@@ -1204,8 +1204,8 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
     filteredParticipantIds,
   } = useResultsFilter(researchId);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     try {
       const results = await analyticsService.getEyeTrackingResults(researchId);
@@ -1213,9 +1213,11 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to load eye tracking results'));
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [researchId]);
+
+  const refreshData = useCallback(() => fetchData(true), [fetchData]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -1263,7 +1265,7 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
             ) : (
               <div className="space-y-8">
                 {filteredStimuli.map(stimulus => (
-                  <StimulusCard key={stimulus.moduleId} stimulus={stimulus} researchId={researchId} onRefresh={fetchData} />
+                  <StimulusCard key={stimulus.moduleId} stimulus={stimulus} researchId={researchId} onRefresh={refreshData} />
                 ))}
               </div>
             )}
