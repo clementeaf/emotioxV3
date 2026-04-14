@@ -13,11 +13,61 @@ interface EyeTrackingResultsProps {
 
 type ViewMode = 'heatmap' | 'image';
 
+/** Resolve stimulusUrl: may be a clean URL or a JSON array string from the backend. */
+const resolveStimulusUrl = (raw: string): string => {
+  if (!raw || !raw.startsWith('[')) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed[0].url || parsed[0].s3Key || '';
+    }
+  } catch { /* not JSON */ }
+  return raw;
+};
+
 // ==========================================
 // STIMULUS CARD
 // ==========================================
 
-const StimulusCard = ({ stimulus }: { stimulus: EyeTrackingStimulus }) => {
+/** 3×3 zone grid overlay — mirrors HYBRID_AOI_GRID layout (row-major: r0c0..r2c2). */
+const ZONE_GRID = [
+  { id: 'r0c0', col: 0, row: 0 }, { id: 'r0c1', col: 1, row: 0 }, { id: 'r0c2', col: 2, row: 0 },
+  { id: 'r1c0', col: 0, row: 1 }, { id: 'r1c1', col: 1, row: 1 }, { id: 'r1c2', col: 2, row: 1 },
+  { id: 'r2c0', col: 0, row: 2 }, { id: 'r2c1', col: 1, row: 2 }, { id: 'r2c2', col: 2, row: 2 },
+];
+
+const ZoneHeatmapOverlay = ({ imageUrl, zoneMass }: { imageUrl: string; zoneMass: Record<string, number> }) => {
+  const maxMass = Math.max(...Object.values(zoneMass), 1);
+
+  return (
+    <div className="relative rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
+      <img src={imageUrl} alt="Eye tracking stimulus" className="max-h-[700px] w-auto block" draggable={false} />
+      <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+        {ZONE_GRID.map(zone => {
+          const mass = zoneMass[zone.id] || 0;
+          const intensity = mass / maxMass;
+          // Green → yellow → red gradient based on intensity
+          const r = Math.round(intensity > 0.5 ? 255 : intensity * 2 * 255);
+          const g = Math.round(intensity < 0.5 ? 255 : (1 - intensity) * 2 * 255);
+          const alpha = Math.max(0.05, intensity * 0.65);
+          return (
+            <div
+              key={zone.id}
+              className="border border-white/10"
+              style={{ backgroundColor: `rgba(${r}, ${g}, 0, ${alpha})` }}
+              title={`${zone.id}: ${Math.round(intensity * 100)}%`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+const StimulusCard = ({ stimulus: rawStimulus }: { stimulus: EyeTrackingStimulus }) => {
+  const stimulus = { ...rawStimulus, stimulusUrl: resolveStimulusUrl(rawStimulus.stimulusUrl) };
+  const hasZoneMass = stimulus.zoneMass && Object.values(stimulus.zoneMass).some(v => v > 0);
+  const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0;
   const [viewMode, setViewMode] = useState<ViewMode>('heatmap');
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
 
@@ -106,12 +156,16 @@ const StimulusCard = ({ stimulus }: { stimulus: EyeTrackingStimulus }) => {
       <div className="px-5 pb-4">
         {stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto">
-            {viewMode === 'heatmap' && stimulus.heatmapData.length > 0 ? (
-              <HeatmapRenderer
-                imageUrl={stimulus.stimulusUrl}
-                data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
-                className="w-full"
-              />
+            {viewMode === 'heatmap' && hasHeatData ? (
+              hasZoneMass ? (
+                <ZoneHeatmapOverlay imageUrl={stimulus.stimulusUrl} zoneMass={stimulus.zoneMass!} />
+              ) : (
+                <HeatmapRenderer
+                  imageUrl={stimulus.stimulusUrl}
+                  data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
+                  className="w-full"
+                />
+              )
             ) : (
               <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
                 <img

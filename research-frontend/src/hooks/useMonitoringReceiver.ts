@@ -330,9 +330,7 @@ export const useMonitoringReceiver = (researchId: string | null, token: string |
                     console.error('SSE connection error:', error);
                     setIsConnected(false);
                     setError('SSE connection error');
-                    
-                    // EventSource auto-reconnects, but if we want to stop:
-                    // source?.close();
+                    source?.close();
                 };
 
                 setEventSource(source);

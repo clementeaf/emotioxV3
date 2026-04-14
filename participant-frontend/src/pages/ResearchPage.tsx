@@ -773,6 +773,7 @@ export const ResearchPage = () => {
 
       // Only submit if there are responses to send
       if (moduleResponses.length > 0) {
+        console.log('[handleNext] Submitting responses to backend...');
         try {
           setSubmitting(true);
 

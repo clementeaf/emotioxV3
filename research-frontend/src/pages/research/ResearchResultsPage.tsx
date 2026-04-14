@@ -113,7 +113,7 @@ export const ResearchResultsPage = () => {
     }
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 h-full overflow-y-auto">
             {/* Tabs + Export */}
             <div className="border-b border-gray-200 flex items-center justify-between">
                 <nav className="flex gap-4">

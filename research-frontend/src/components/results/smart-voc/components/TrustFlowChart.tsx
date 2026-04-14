@@ -149,7 +149,7 @@ export const TrustFlowChart = ({
       </div>
 
       <div className="h-64 mt-6 relative" style={{ minHeight: '256px' }}>
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+        <ResponsiveContainer width="100%" height={256} minWidth={0}>
           <LineChart data={filteredData}>
             <CartesianGrid
               strokeDasharray="3 3"

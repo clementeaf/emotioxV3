@@ -1,3 +1,32 @@
+## v0.57.2 — Eye Tracking zone heatmap, research table improvements (2026-04-13)
+
+### research-frontend
+- **Research list: Researcher & Updated columns:** Cards show creator name and last update date. Table adds Researcher (xl) and Updated (lg) columns with responsive overflow-x-auto.
+- **Results page scroll:** Added `overflow-y-auto` to prevent content clipping.
+- **Eye Tracking zone heatmap:** Results render a 3x3 zone overlay (green-yellow-red) using aggregated `zoneMass` from participant gaze data, matching the hybrid lab approach.
+- **Eye Tracking stimulusUrl fix:** Frontend resolves JSON-encoded stimulus URLs as fallback for undeployed backend fix.
+- **HeatmapRenderer coordinate handling:** Supports absolute image pixel coordinates alongside percentage and normalized formats.
+- **TrustFlowChart fix:** ResponsiveContainer uses fixed height (256px) to prevent negative-dimension warning.
+- **SSE auto-reconnect disabled:** EventSource closes on error instead of retrying infinitely.
+
+### participant-frontend
+- **Eye Tracking calibration:** Blurred stimulus image (blur 30px, opacity 0.5) during calibration and validation — hides content while preserving spatial reference for BlazeGaze.
+- **Eye Tracking calibration precision:** Uses `hybridImagePercentToBlazeNorm` for correct centered coordinates (-0.5 to +0.5), matching hybrid lab page.
+- **Eye Tracking click-to-calibrate:** Only advances when click hits within 40px of the green dot.
+- **Eye Tracking zone-based response:** Computes `zoneMass` (3x3 grid with soft zone weights and calibration confidence), sent alongside fixations.
+- **Eye Tracking onComplete fix:** Timer uses ref instead of useEffect cleanup to prevent re-render from canceling the timeout.
+- **Eye Tracking preview skip validation:** Skips validation phase in preview mode (no webcam data).
+- **Eye Tracking viewing rect snapshot:** Captures image bounding rect before transitioning to complete phase for accurate coordinate mapping.
+- **Welcome Screen line breaks:** `whitespace-pre-line` on message text so researcher-entered line breaks render correctly.
+- **Eye Tracking checkbox labels:** Shortened to uniform length for consistent visual alignment.
+
+### backend
+- **CORS:** Added `Cache-Control` to allowed headers for SSE monitor endpoint.
+- **Eye Tracking stimulusUrl:** `extractEyeTrackingConfig` parses JSON stimulus array to extract clean URL.
+- **Eye Tracking zoneMass:** Analytics aggregates `zoneMass` from participant responses and includes it in results.
+
+---
+
 ## v0.57.1 — Configurable language switcher (2026-04-13)
 
 ### research-frontend

@@ -117,7 +117,7 @@ export const useSmartVOCAnalytics = (researchId: string | null): UseSmartVOCAnal
 
                 source.onerror = () => {
                     setIsLive(false);
-                    // EventSource auto-reconnects
+                    source?.close();
                 };
 
                 source.onopen = () => {

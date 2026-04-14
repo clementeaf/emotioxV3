@@ -1803,7 +1803,17 @@ const extractEyeTrackingConfig = (config: any) => {
     c.id === 'stimuli' || c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
   );
   if (fileUploadComp?.value) {
-    stimulusUrl = fileUploadComp.value;
+    try {
+      const parsed = typeof fileUploadComp.value === 'string' ? JSON.parse(fileUploadComp.value) : fileUploadComp.value;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        stimulusUrl = parsed[0].url || parsed[0].s3Key || '';
+      } else if (typeof parsed === 'string') {
+        stimulusUrl = parsed;
+      }
+    } catch {
+      // Not JSON — use raw value as URL
+      stimulusUrl = fileUploadComp.value;
+    }
   }
 
   // Modality — canonical ID: 'display-mode', fallback to legacy IDs
@@ -1884,6 +1894,19 @@ const computeEyeTrackingMetrics = (
   // Heatmap data: aggregate fixation positions with duration as weight
   const heatmapData = allFixations.map(f => ({ x: f.x, y: f.y, duration: f.duration }));
 
+  // Zone-based heatmap: aggregate zoneMass from all responses
+  const aggregatedZoneMass: Record<string, number> = {};
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if (parsed?.zoneMass && typeof parsed.zoneMass === 'object') {
+        for (const [zoneId, mass] of Object.entries(parsed.zoneMass)) {
+          aggregatedZoneMass[zoneId] = (aggregatedZoneMass[zoneId] || 0) + (mass as number);
+        }
+      }
+    } catch { /* skip */ }
+  }
+
   // Total dwell time across all fixations
   const totalDwellTime = allFixations.reduce((sum, f) => sum + f.duration, 0);
 
@@ -1926,6 +1949,7 @@ const computeEyeTrackingMetrics = (
     avgDwellTime,
     avgFixationCount,
     heatmapData,
+    zoneMass: aggregatedZoneMass,
     fixations: allFixations,
     aois,
     participants,

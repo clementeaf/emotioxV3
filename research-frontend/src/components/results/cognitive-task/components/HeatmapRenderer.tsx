@@ -233,13 +233,16 @@ export const HeatmapRenderer = ({
                 const points: Array<[number, number, number]> = data.map(point => {
                     let x = point.x;
                     let y = point.y;
-                    if (x > 1 && y > 1) {
-                        x = (x / 100) * w;
-                        y = (y / 100) * h;
-                    } else if (x <= 1 && y <= 1) {
+                    if (x <= 1 && y <= 1) {
+                        // Normalized 0-1
                         x *= w;
                         y *= h;
+                    } else if (x <= 100 && y <= 100) {
+                        // Percentage 0-100
+                        x = (x / 100) * w;
+                        y = (y / 100) * h;
                     }
+                    // else: absolute image pixels — use as-is
                     return [x, y, point.value ?? 1];
                 });
 
