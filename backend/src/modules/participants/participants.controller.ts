@@ -57,7 +57,12 @@ export const handleParticipantsRoutes = async (event: APIGatewayProxyEvent): Pro
       }
       throw authError;
     }
-    await authService.getMe(decoded.sub);
+    const user = await authService.getMe(decoded.sub);
+
+    // Viewer role: read-only
+    if (user.role === 'viewer' && httpMethod !== 'GET') {
+        return error('Viewer role is read-only', 403, undefined, origin);
+    }
 
     // GET /participants/:researchId
     const listMatch = path.match(/^\/participants\/([^/]+)$/);

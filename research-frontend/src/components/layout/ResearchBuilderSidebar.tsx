@@ -78,6 +78,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const toast = useToast();
     const { hasDraft } = useModuleDraftStore();
     const logout = useAuthStore((state) => state.logout);
+    const isViewer = useAuthStore((state) => state.user?.role === 'viewer');
     
     const { data: activeResearch, isLoading: loadingResearch } = useResearch(researchId);
     const [showStageSelector, setShowStageSelector] = useState(false);
@@ -493,7 +494,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
                             {isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
                         </h3>
-                        {!isFileBasedResearch && (
+                        {!isFileBasedResearch && !isViewer && (
                             <button
                                 onClick={() => {
                                     setShowStageSelector(true);
@@ -505,6 +506,9 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             >
                                 + Add Stage
                             </button>
+                        )}
+                        {isViewer && (
+                            <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Read-only</span>
                         )}
                     </div>
                     <div className="space-y-2 mt-2">

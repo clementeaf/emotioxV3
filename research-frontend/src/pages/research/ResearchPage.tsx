@@ -5,6 +5,7 @@ import { CreateResearchForm } from '../../components/research/CreateResearchForm
 import { CreateResearchTechniqueModal } from '../../components/research/CreateResearchTechniqueModal';
 import { CreateEnterpriseModal } from '../../components/research/CreateEnterpriseModal';
 import { useResearches, useDeleteResearch, useDuplicateResearch } from '../../hooks/useResearchQuery';
+import { useIsViewer } from '../../hooks/useIsViewer';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
@@ -264,6 +265,7 @@ ResearchTableRow.displayName = 'ResearchTableRow';
 export const ResearchPage = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const isViewer = useIsViewer();
     const [showTechniqueModal, setShowTechniqueModal] = useState<boolean>(false);
     const [showEnterpriseModal, setShowEnterpriseModal] = useState<boolean>(false);
     const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
@@ -403,10 +405,12 @@ export const ResearchPage = () => {
                         <h1 className="text-3xl font-bold text-gray-900">All Research Projects</h1>
                         <p className="text-gray-600 mt-1">Manage and view all your research projects</p>
                     </div>
-                    <Button onClick={() => setShowCreateForm(true)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create Research
-                    </Button>
+                    {!isViewer && (
+                        <Button onClick={() => setShowCreateForm(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Research
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -437,12 +441,14 @@ export const ResearchPage = () => {
                         <Folder className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No Research Projects Yet</h3>
                         <p className="text-gray-500 mb-6">
-                            Create your first research project to get started
+                            {isViewer ? 'No research projects available to view.' : 'Create your first research project to get started'}
                         </p>
-                        <Button onClick={() => setShowCreateForm(true)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Research
-                        </Button>
+                        {!isViewer && (
+                            <Button onClick={() => setShowCreateForm(true)}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Create Research
+                            </Button>
+                        )}
                     </div>
                 ) : viewMode === 'cards' ? (
                     <div className="space-y-4">

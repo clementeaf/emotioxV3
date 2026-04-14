@@ -8,8 +8,13 @@ export const handleModulesRoutes = async (event: APIGatewayProxyEvent): Promise<
     const { httpMethod, path } = event;
     const origin = getRequestOrigin(event);
     try {
-        await requireAuth(event);
+        const decoded = await requireAuth(event);
         const body = event.body ? JSON.parse(event.body) : {};
+
+        // Viewer role: read-only
+        if (decoded.role === 'viewer' && httpMethod !== 'GET') {
+            return error('Viewer role is read-only', 403, undefined, origin);
+        }
 
         if (path.match(/^\/modules\/([^\/]+)\/reorder$/) && httpMethod === 'POST') {
             const researchId = path.match(/^\/modules\/([^\/]+)\/reorder$/)![1];

@@ -11,7 +11,7 @@ import { getMediaPath, ensureDirectoryExists } from '../../config/local-storage'
  * Usage: `WHERE r.id = ? AND ${clause}` with [...otherParams, ...params]
  */
 export const buildOwnershipClause = (userId: string, role?: string, alias = 'r') => {
-    if (role === 'admin') {
+    if (role === 'admin' || role === 'viewer') {
         return { clause: '1=1', params: [] as string[] };
     }
     const prefix = alias ? `${alias}.` : '';

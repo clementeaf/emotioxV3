@@ -24,6 +24,11 @@ export const handleEnterprisesRoutes = async (event: APIGatewayProxyEvent): Prom
             throw authError;
         }
 
+        // Viewer role: read-only
+        if (user.role === 'viewer' && httpMethod !== 'GET') {
+            return error('Viewer role is read-only', 403, undefined, origin);
+        }
+
         // GET /enterprises
         if (path === '/enterprises' && httpMethod === 'GET') {
             const enterprises = await enterprisesService.list();

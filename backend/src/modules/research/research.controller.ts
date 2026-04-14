@@ -43,6 +43,11 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         }
         const user = await authService.getMe(decoded.sub);
 
+        // Viewer role: read-only — block all mutations
+        if (user.role === 'viewer' && httpMethod !== 'GET') {
+            return error('Viewer role is read-only', 403, undefined, origin);
+        }
+
         // GET /research
         if (path === '/research' && httpMethod === 'GET') {
             const researches = await researchService.list(user.id, user.role);

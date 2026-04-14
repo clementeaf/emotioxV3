@@ -63,8 +63,13 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
     const origin = getRequestOrigin(event);
     
     try {
-        await requireAuth(event);
+        const decoded = await requireAuth(event);
         const body = event.body ? JSON.parse(event.body) : {};
+
+        // Viewer role: read-only (allow GET for media serving)
+        if (decoded.role === 'viewer' && httpMethod !== 'GET') {
+            return error('Viewer role is read-only', 403, undefined, origin);
+        }
 
         // Generar información para upload
         if (routePath === '/media/upload' && httpMethod === 'POST') {
