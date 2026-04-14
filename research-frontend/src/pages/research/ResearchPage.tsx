@@ -23,12 +23,14 @@ const ResearchCard = memo(({
     onDelete,
     onDuplicate,
     onRename,
+    readOnly = false,
 }: {
     research: Research;
     onResearchClick: (id: string) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
     onDuplicate: (research: Research) => void;
     onRename: (research: Research, newName: string) => void;
+    readOnly?: boolean;
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(research.name);
@@ -132,22 +134,26 @@ const ResearchCard = memo(({
                             <ArrowRight className="h-4 w-4" />
                         </span>
                     </Button>
-                    <Button
-                        variant="ghost"
-                        onClick={() => onDuplicate(research)}
-                        className="text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-                        title="Duplicate"
-                    >
-                        <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        onClick={(e) => onDelete(research, e)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        title="Delete"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!readOnly && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                onClick={() => onDuplicate(research)}
+                                className="text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                title="Duplicate"
+                            >
+                                <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                onClick={(e) => onDelete(research, e)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Delete"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
@@ -162,12 +168,14 @@ const ResearchTableRow = memo(({
     onDelete,
     onDuplicate,
     onRename,
+    readOnly = false,
 }: {
     research: Research;
     onOpen: (id: string) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
     onDuplicate: (research: Research) => void;
     onRename: (research: Research, newName: string) => void;
+    readOnly?: boolean;
 }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(research.name);
@@ -245,12 +253,16 @@ const ResearchTableRow = memo(({
                     <button onClick={() => onOpen(research.id)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors" title="Open">
                         <ExternalLink className="h-4 w-4" />
                     </button>
-                    <button onClick={() => onDuplicate(research)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors" title="Duplicate">
-                        <Copy className="h-4 w-4" />
-                    </button>
-                    <button onClick={(e) => onDelete(research, e)} className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors" title="Delete">
-                        <Trash2 className="h-4 w-4" />
-                    </button>
+                    {!readOnly && (
+                        <>
+                            <button onClick={() => onDuplicate(research)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors" title="Duplicate">
+                                <Copy className="h-4 w-4" />
+                            </button>
+                            <button onClick={(e) => onDelete(research, e)} className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors" title="Delete">
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </td>
         </tr>
@@ -498,6 +510,7 @@ export const ResearchPage = () => {
                                 onDelete={handleDeleteClick}
                                 onDuplicate={handleDuplicateClick}
                                 onRename={handleRename}
+                                readOnly={isViewer}
                             />
                         ))}
                     </div>
@@ -525,6 +538,7 @@ export const ResearchPage = () => {
                                         onDelete={handleDeleteClick}
                                         onDuplicate={handleDuplicateClick}
                                         onRename={handleRename}
+                                        readOnly={isViewer}
                                     />
                                 ))}
                             </tbody>
