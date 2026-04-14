@@ -9,8 +9,9 @@ import { useIsViewer } from '../../hooks/useIsViewer';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
-import { ArrowRight, Calendar, Clock, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink, User } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink, User, UserPlus, Loader2 } from 'lucide-react';
 import { researchService } from '../../services/research.service';
+import apiClient from '../../services/api/client';
 import type { Research } from '../../services/research.service';
 
 /**
@@ -275,6 +276,12 @@ export const ResearchPage = () => {
     const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
     const [researchToDuplicate, setResearchToDuplicate] = useState<Research | null>(null);
     const [duplicateName, setDuplicateName] = useState('');
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteFirstName, setInviteFirstName] = useState('');
+    const [inviteLastName, setInviteLastName] = useState('');
+    const [inviteLoading, setInviteLoading] = useState(false);
+    const [inviteResult, setInviteResult] = useState<{ success: boolean; message: string } | null>(null);
 
     // Usar React Query para datos optimizados
     const { data: researches = [], isLoading, error } = useResearches();
@@ -300,6 +307,28 @@ export const ResearchPage = () => {
         setResearchToDelete(research);
         setDeleteModalOpen(true);
     }, []);
+
+    const handleInviteViewer = useCallback(async () => {
+        if (!inviteEmail.trim()) return;
+        setInviteLoading(true);
+        setInviteResult(null);
+        try {
+            await apiClient.post('/users/invite', {
+                email: inviteEmail.trim(),
+                first_name: inviteFirstName.trim() || undefined,
+                last_name: inviteLastName.trim() || undefined,
+            });
+            setInviteResult({ success: true, message: `Invitation sent to ${inviteEmail.trim()}` });
+            setInviteEmail('');
+            setInviteFirstName('');
+            setInviteLastName('');
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to send invitation';
+            setInviteResult({ success: false, message: msg });
+        } finally {
+            setInviteLoading(false);
+        }
+    }, [inviteEmail, inviteFirstName, inviteLastName]);
 
     const handleConfirmDelete = useCallback(async () => {
         if (!researchToDelete) return;
@@ -406,10 +435,19 @@ export const ResearchPage = () => {
                         <p className="text-gray-600 mt-1">Manage and view all your research projects</p>
                     </div>
                     {!isViewer && (
-                        <Button onClick={() => setShowCreateForm(true)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Research
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => { setShowInviteModal(true); setInviteResult(null); }}
+                                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                                <UserPlus className="h-4 w-4" />
+                                Invite Viewer
+                            </button>
+                            <Button onClick={() => setShowCreateForm(true)}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Create Research
+                            </Button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -549,6 +587,71 @@ export const ResearchPage = () => {
                                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
                             >
                                 {duplicateResearch.isPending ? 'Duplicating...' : 'Duplicate'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Invite Viewer Modal */}
+            {showInviteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-1">Invite Viewer</h3>
+                        <p className="text-sm text-gray-500 mb-4">They will receive an email with a link to sign in with Google.</p>
+
+                        <div className="space-y-3">
+                            <input
+                                type="email"
+                                placeholder="Email address"
+                                value={inviteEmail}
+                                onChange={(e) => setInviteEmail(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                autoFocus
+                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="First name (optional)"
+                                    value={inviteFirstName}
+                                    onChange={(e) => setInviteFirstName(e.target.value)}
+                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Last name (optional)"
+                                    value={inviteLastName}
+                                    onChange={(e) => setInviteLastName(e.target.value)}
+                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        {inviteResult && (
+                            <p className={`text-sm mt-3 ${inviteResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                                {inviteResult.message}
+                            </p>
+                        )}
+
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowInviteModal(false)}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                            >
+                                Close
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleInviteViewer}
+                                disabled={!inviteEmail.trim() || inviteLoading}
+                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {inviteLoading ? (
+                                    <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+                                ) : (
+                                    <><UserPlus className="h-4 w-4" /> Send Invitation</>
+                                )}
                             </button>
                         </div>
                     </div>

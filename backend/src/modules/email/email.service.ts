@@ -77,6 +77,65 @@ const buildInvitationHtml = (params: {
 </html>`;
 };
 
+// --- Viewer Invitation ---
+
+const buildViewerInvitationHtml = (params: {
+  inviterName: string;
+  appUrl: string;
+}): string => {
+  return `
+    <div style="font-family: 'Inter', Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <div style="text-align: center; margin-bottom: 32px;">
+        <h1 style="font-size: 24px; font-weight: 700; color: #0f172a; margin: 0;">EmotioX</h1>
+      </div>
+      <p style="font-size: 15px; color: #334155; line-height: 1.6;">
+        ${params.inviterName} has invited you to view research projects on EmotioX.
+      </p>
+      <p style="font-size: 15px; color: #334155; line-height: 1.6;">
+        You have been granted <strong>viewer</strong> access — you can browse all research projects and results, but cannot make changes.
+      </p>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${params.appUrl}"
+           style="display: inline-block; background-color: #006AFF; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-size: 15px; font-weight: 600;">
+          Sign in with Google
+        </a>
+      </div>
+      <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
+        Use the Google account associated with this email to sign in. Your access is already configured.
+      </p>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+      <p style="font-size: 12px; color: #cbd5e1; text-align: center;">
+        EmotioX — UX Research Platform
+      </p>
+    </div>
+  `;
+};
+
+/**
+ * Sends a viewer invitation email.
+ */
+export const sendViewerInvitation = async (params: {
+  to: string;
+  inviterName: string;
+  appUrl: string;
+}): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await transporter.sendMail({
+      from: FROM,
+      to: params.to,
+      subject: 'You have been invited to EmotioX',
+      html: buildViewerInvitationHtml({
+        inviterName: params.inviterName,
+        appUrl: params.appUrl,
+      }),
+    });
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown email error';
+    console.error(`Viewer invitation email failed for ${params.to}:`, message);
+    return { success: false, error: message };
+  }
+};
 // --- Public API ---
 
 export interface SendResult {

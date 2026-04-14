@@ -1,12 +1,76 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
+import { requireAuth } from '../../utils/auth';
+import * as authService from '../auth/auth.service';
 import * as usersService from './users.service';
+import { sendViewerInvitation } from '../email/email.service';
+import { getRequestOrigin } from '../../utils/request';
+import pool from '../../config/database';
 
 export const handleUsersRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
-    const origin = event.headers.Origin || event.headers.origin || null;
+    const origin = getRequestOrigin(event);
 
     try {
+        // POST /users/invite — invite a viewer (admin/researcher only)
+        if (path === '/users/invite' && httpMethod === 'POST') {
+            const decoded = await requireAuth(event);
+            const inviter = await authService.getMe(decoded.sub);
+
+            if (inviter.role === 'viewer') {
+                return error('Viewers cannot invite users', 403, undefined, origin);
+            }
+
+            const body = JSON.parse(event.body || '{}');
+            const { email } = body;
+            if (!email || typeof email !== 'string') {
+                return error('Email is required', 400, undefined, origin);
+            }
+
+            // Check if user already exists
+            const existing = await pool.query(
+                'SELECT id, email, role FROM users WHERE email = ? AND deleted_at IS NULL',
+                [email.trim().toLowerCase()]
+            );
+
+            if (existing.rows.length > 0) {
+                return error(`User ${email} already exists with role: ${existing.rows[0].role}`, 409, undefined, origin);
+            }
+
+            // Create user with viewer role (placeholder cognito_sub, no password)
+            const userId = crypto.randomUUID();
+            const placeholderSub = `pending-google-${userId}`;
+            await pool.query(
+                'INSERT INTO users (id, email, cognito_sub, role, first_name, last_name, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [
+                    userId,
+                    email.trim().toLowerCase(),
+                    placeholderSub,
+                    'viewer',
+                    body.first_name || null,
+                    body.last_name || null,
+                    JSON.stringify({ auth_provider: 'google', invited_by: inviter.id }),
+                ]
+            );
+
+            // Send invitation email
+            const appUrl = process.env.RESEARCH_FRONTEND_URL || 'https://emotio.cx/research';
+            const inviterName = [inviter.first_name, inviter.last_name].filter(Boolean).join(' ') || inviter.email;
+            const emailResult = await sendViewerInvitation({
+                to: email.trim().toLowerCase(),
+                inviterName,
+                appUrl,
+            });
+
+            return success({
+                userId,
+                email: email.trim().toLowerCase(),
+                role: 'viewer',
+                emailSent: emailResult.success,
+                emailError: emailResult.error,
+            }, 201, undefined, origin);
+        }
+
         // GET /users
         if (path === '/users' && httpMethod === 'GET') {
             const users = await usersService.getAllUsers();
