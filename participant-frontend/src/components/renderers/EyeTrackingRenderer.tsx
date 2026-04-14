@@ -18,6 +18,8 @@ import {
     hybridImagePercentToBlazeNorm,
     hybridPointToSoftZoneWeights,
     hybridCalibrationConfidenceWeightUv,
+    expandGazeWithMinimumJerkGapFill,
+    HYBRID_GAP_FILL_SYNTHETIC_WEIGHT,
     detectFixationsIDT,
     mapFixationsToImageCoords,
 } from '../../lib/eyeTracking';
@@ -256,30 +258,31 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         gazePosRef.current = [blaze.gazePos.x, blaze.gazePos.y];
     }, [blaze.gazePos]);
 
-    // Gaze collection during viewing phase (desktop): IDW-corrected screen coords, then mapped to image pixels on save
+    // Gaze collection during viewing phase (desktop): RAF loop with 50ms throttle, IDW-corrected.
+    // Matches hybrid page pattern: reads from gazePosRef (cached), uses Date.now() timestamps.
     useEffect(() => {
         if (phase !== 'viewing' || !isDesktop) return;
-        const interval = setInterval(() => {
-            if (!blaze.gazePos || blaze.gazeState !== 'open') return;
+        let raf = 0;
+        let lastCollect = 0;
+        const loop = () => {
+            const [gx, gy] = gazePosRef.current;
+            const now = Date.now();
             const img = imgRef.current;
             const rect = img?.getBoundingClientRect();
-            if (!rect || rect.width <= 0 || rect.height <= 0) return;
-            const corrected = hybridApplyCalibrationField(
-                blaze.gazePos.x,
-                blaze.gazePos.y,
-                rect,
-                calibrationResidualsRef.current,
-                HYBRID_CALIBRATION_FIELD_STRENGTH,
-            );
-            gazePointsRef.current.push({
-                x: corrected.x,
-                y: corrected.y,
-                t: performance.now(),
-            });
-        }, GAZE_POLL_MS);
-        return () => clearInterval(interval);
-    // BlazeGaze read fresh each tick; omitting deps avoids resetting the interval every frame.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable interval; live blaze.* reads
+            if (rect && rect.width > 0 && rect.height > 0 && blaze.gazeState === 'open' && now - lastCollect >= GAZE_POLL_MS) {
+                const corrected = hybridApplyCalibrationField(
+                    gx, gy, rect,
+                    calibrationResidualsRef.current,
+                    HYBRID_CALIBRATION_FIELD_STRENGTH,
+                );
+                gazePointsRef.current.push({ x: corrected.x, y: corrected.y, t: now });
+                lastCollect = now;
+            }
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live blaze.* reads via ref
     }, [phase, isDesktop]);
 
     // Countdown timer during viewing phase
@@ -364,11 +367,15 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 const residuals = calibrationResidualsRef.current;
                 const effectiveRect = rect ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
 
-                // Zone mass from gaze points with calibration confidence
-                for (const pt of gazePointsRef.current) {
+                // Gap fill: interpolate missing gaze during blinks/drops (same as hybrid page)
+                const expanded = expandGazeWithMinimumJerkGapFill(gazePointsRef.current);
+
+                // Zone mass from expanded gaze points with calibration confidence
+                for (const pt of expanded) {
                     const u = effectiveRect.width > 0 ? (pt.x - effectiveRect.left) / effectiveRect.width : 0;
                     const v = effectiveRect.height > 0 ? (pt.y - effectiveRect.top) / effectiveRect.height : 0;
-                    const conf = hybridCalibrationConfidenceWeightUv(u, v, residuals);
+                    const baseConf = hybridCalibrationConfidenceWeightUv(u, v, residuals);
+                    const conf = pt.interpolated ? baseConf * HYBRID_GAP_FILL_SYNTHETIC_WEIGHT : baseConf;
                     const soft = hybridPointToSoftZoneWeights(pt.x, pt.y, effectiveRect);
                     for (const z of HYBRID_AOI_GRID) {
                         zoneMass[z.id] += soft[z.id] * conf;
@@ -485,15 +492,12 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         });
     }, [phase, isDesktop]);
 
-    /** Minimum distance (px) from green dot center to count as a valid click. */
-    const CALIB_HIT_RADIUS_PX = 40;
-
     /**
-     * One click per dot: only advances if click is near the green dot.
-     * Points are positioned on a blurred stimulus image for spatial reference.
-     * IDW residuals are collected on desktop for gaze correction.
+     * One click per dot: user LOOKS at the green dot and clicks anywhere.
+     * BlazeGaze captures where the eyes are looking, not where the click lands.
+     * Same approach as /eye-tracking-hybrid.
      */
-    const handleCalibrationClick = useCallback((e: React.MouseEvent) => {
+    const handleCalibrationClick = useCallback(() => {
         if (phase !== 'calibration') return;
         const img = imgRef.current;
         if (!img) return;
@@ -509,11 +513,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         const vh = window.innerHeight;
         const targetX = rect.left + (ipx / 100) * rect.width;
         const targetY = rect.top + (ipy / 100) * rect.height;
-
-        // Only accept clicks near the green dot
-        const dx = e.clientX - targetX;
-        const dy = e.clientY - targetY;
-        if (Math.sqrt(dx * dx + dy * dy) > CALIB_HIT_RADIUS_PX) return;
 
         if (isDesktop) {
             const [gx, gy] = gazePosRef.current;
@@ -765,8 +764,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
                     <p className="text-sm text-white/80">
                         {t(
-                            'eyeTracking.calibrationHintClick',
-                            'Click on the green dot to calibrate.',
+                            'eyeTracking.calibrationHint4Point',
+                            'Look at the green dot, then click anywhere.',
                         )}
                     </p>
                     <p className="mt-1 text-xs text-white/50">
@@ -784,7 +783,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                             src={resolvedUrl}
                             alt="Calibration"
                             className="max-w-[95vw] max-h-[95vh] object-contain"
-                            style={{ filter: 'blur(30px)', opacity: 0.5 }}
+                            style={{ filter: 'blur(12px)', opacity: 0.6 }}
                             draggable={false}
                             onLoad={handleImageLoad}
                         />
@@ -845,7 +844,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                             src={resolvedUrl}
                             alt="Validation"
                             className="max-w-[95vw] max-h-[95vh] object-contain"
-                            style={{ filter: 'blur(30px)', opacity: 0.5 }}
+                            style={{ filter: 'blur(12px)', opacity: 0.6 }}
                             draggable={false}
                             onLoad={handleImageLoad}
                         />

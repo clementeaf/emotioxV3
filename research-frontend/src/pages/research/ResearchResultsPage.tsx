@@ -51,7 +51,7 @@ const TAB_DEFS: TabDef[] = [
     },
     {
         id: 'eye-tracking',
-        label: 'Eye Tracking',
+        label: 'Eye Tracking Results',
         icon: <Eye className="h-5 w-5" />,
         stageDetector: (name) => name.toLowerCase() === 'eye tracking',
     },

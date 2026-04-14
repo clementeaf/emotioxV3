@@ -41,7 +41,7 @@ const ZoneHeatmapOverlay = ({ imageUrl, zoneMass }: { imageUrl: string; zoneMass
 
   return (
     <div className="relative rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
-      <img src={imageUrl} alt="Eye tracking stimulus" className="max-h-[700px] w-auto block" draggable={false} />
+      <img src={imageUrl} alt="Eye tracking stimulus" className="max-h-[60vh] w-auto block" draggable={false} />
       <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
         {ZONE_GRID.map(zone => {
           const mass = zoneMass[zone.id] || 0;
@@ -86,20 +86,7 @@ const StimulusCard = ({ stimulus: rawStimulus }: { stimulus: EyeTrackingStimulus
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="p-5 border-b border-gray-100">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {stimulus.moduleName}
-          </h3>
-          <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            {stimulus.modality === 'shelf' ? 'Shelf' : 'Stand Alone'}
-          </span>
-        </div>
-        {stimulus.taskDescription && (
-          <p className="text-sm text-gray-600">{stimulus.taskDescription}</p>
-        )}
-      </div>
+      {/* Toolbar */}
 
       {/* Metrics bar */}
       <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 border-b border-gray-100">
@@ -171,7 +158,7 @@ const StimulusCard = ({ stimulus: rawStimulus }: { stimulus: EyeTrackingStimulus
                 <img
                   src={stimulus.stimulusUrl}
                   alt={stimulus.moduleName}
-                  className="max-h-[700px] w-auto block"
+                  className="max-h-[60vh] w-auto block"
                 />
               </div>
             )}
@@ -357,13 +344,6 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
     >
       {data && (
         <div className={className}>
-          {/* Header */}
-          <div className="mb-6">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
-              <span className="text-sm font-semibold text-gray-700">5.0.- Eye Tracking</span>
-            </div>
-          </div>
-
           {data.stimuli.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
               <Eye className="h-12 w-12 text-gray-300 mx-auto mb-3" />

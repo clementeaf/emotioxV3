@@ -1,29 +1,22 @@
-## v0.57.2 — Eye Tracking zone heatmap, research table improvements (2026-04-13)
+## v0.57.2 — Eye Tracking zone heatmap, research table improvements (2026-04-14)
 
 ### research-frontend
-- **Research list: Researcher & Updated columns:** Cards show creator name and last update date. Table adds Researcher (xl) and Updated (lg) columns with responsive overflow-x-auto.
-- **Results page scroll:** Added `overflow-y-auto` to prevent content clipping.
-- **Eye Tracking zone heatmap:** Results render a 3x3 zone overlay (green-yellow-red) using aggregated `zoneMass` from participant gaze data, matching the hybrid lab approach.
-- **Eye Tracking stimulusUrl fix:** Frontend resolves JSON-encoded stimulus URLs as fallback for undeployed backend fix.
-- **HeatmapRenderer coordinate handling:** Supports absolute image pixel coordinates alongside percentage and normalized formats.
-- **TrustFlowChart fix:** ResponsiveContainer uses fixed height (256px) to prevent negative-dimension warning.
-- **SSE auto-reconnect disabled:** EventSource closes on error instead of retrying infinitely.
+- **Research list:** Cards show creator name and last update. Table adds Researcher and Updated columns, responsive with `overflow-x-auto`.
+- **Eye Tracking Results:** 3x3 zone heatmap overlay (green→yellow→red), responsive image (`max-h-[60vh]`), removed hardcoded header. Supports `zoneMass` from backend and falls back to point-based heatmap.
+- **HeatmapRenderer:** Supports absolute image pixel coordinates alongside percentage and normalized formats.
+- **Results page scroll fix.** TrustFlowChart height fix. SSE closes on error instead of retrying.
 
 ### participant-frontend
-- **Eye Tracking calibration:** Blurred stimulus image (blur 30px, opacity 0.5) during calibration and validation — hides content while preserving spatial reference for BlazeGaze.
-- **Eye Tracking calibration precision:** Uses `hybridImagePercentToBlazeNorm` for correct centered coordinates (-0.5 to +0.5), matching hybrid lab page.
-- **Eye Tracking click-to-calibrate:** Only advances when click hits within 40px of the green dot.
-- **Eye Tracking zone-based response:** Computes `zoneMass` (3x3 grid with soft zone weights and calibration confidence), sent alongside fixations.
-- **Eye Tracking onComplete fix:** Timer uses ref instead of useEffect cleanup to prevent re-render from canceling the timeout.
-- **Eye Tracking preview skip validation:** Skips validation phase in preview mode (no webcam data).
-- **Eye Tracking viewing rect snapshot:** Captures image bounding rect before transitioning to complete phase for accurate coordinate mapping.
-- **Welcome Screen line breaks:** `whitespace-pre-line` on message text so researcher-entered line breaks render correctly.
-- **Eye Tracking checkbox labels:** Shortened to uniform length for consistent visual alignment.
+- **Eye Tracking gaze pipeline:** Aligned with `/eye-tracking-hybrid` — RAF loop (not setInterval), `gazePosRef` cache, `Date.now()` timestamps, `expandGazeWithMinimumJerkGapFill` with synthetic point penalty. Produces accurate zone-based results.
+- **Eye Tracking calibration:** Blurred stimulus image (blur 12px, opacity 0.6) during calibration/validation. Click anywhere to advance (user looks at dot, not cursor). Uses `hybridImagePercentToBlazeNorm` for correct BlazeGaze coordinates.
+- **Eye Tracking onComplete fix:** Timer uses ref to survive re-renders. Viewing rect snapshotted before complete phase for accurate coordinate mapping.
+- **Eye Tracking preview:** Skips validation phase (no webcam data).
+- **Welcome Screen:** `whitespace-pre-line` for line breaks in message text.
+- **Checkbox labels:** Shortened for uniform visual alignment.
 
 ### backend
-- **CORS:** Added `Cache-Control` to allowed headers for SSE monitor endpoint.
-- **Eye Tracking stimulusUrl:** `extractEyeTrackingConfig` parses JSON stimulus array to extract clean URL.
-- **Eye Tracking zoneMass:** Analytics aggregates `zoneMass` from participant responses and includes it in results.
+- **CORS:** `Cache-Control` added to allowed headers.
+- **Eye Tracking analytics:** `stimulusUrl` parsed from JSON array. `zoneMass` aggregated from responses.
 
 ---
 
