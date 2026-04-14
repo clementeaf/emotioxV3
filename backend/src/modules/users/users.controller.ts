@@ -71,6 +71,15 @@ export const handleUsersRoutes = async (event: APIGatewayProxyEvent): Promise<AP
             }, 201, undefined, origin);
         }
 
+        // All remaining routes require auth
+        const userDecoded = await requireAuth(event);
+        const currentUser = await authService.getMe(userDecoded.sub);
+
+        // Viewer: read-only
+        if (currentUser.role === 'viewer' && httpMethod !== 'GET') {
+            return error('Viewer role is read-only', 403, undefined, origin);
+        }
+
         // GET /users
         if (path === '/users' && httpMethod === 'GET') {
             const users = await usersService.getAllUsers();
