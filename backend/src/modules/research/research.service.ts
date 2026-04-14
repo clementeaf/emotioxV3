@@ -762,11 +762,13 @@ export const getById = async (researchId: string, userId: string, role?: string)
            rt.name as research_type_name,
            rtech.name as research_technique_name,
            rtech.default_stages as technique_default_stages,
-           e.name as enterprise_name
+           e.name as enterprise_name,
+           u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
     FROM researches r
     LEFT JOIN research_types rt ON r.research_type_id = rt.id
     LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
     LEFT JOIN enterprises e ON r.enterprise_id = e.id
+    LEFT JOIN users u ON r.created_by = u.id
     WHERE r.id = ? AND ${ownership.clause} AND r.deleted_at IS NULL
   `;
     const result = await pool.query(query, [researchId, ...ownership.params]);
