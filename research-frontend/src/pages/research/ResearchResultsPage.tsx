@@ -64,7 +64,7 @@ const TAB_DEFS: TabDef[] = [
 export const ResearchResultsPage = () => {
     const { id } = useParams<{ id: string }>();
     const { data: research } = useResearch(id || null);
-    const [activeTab, setActiveTab] = useState<TabId>('smart-voc');
+    const [activeTab, setActiveTab] = useState<TabId | null>(null);
     const [tabInitialized, setTabInitialized] = useState(false);
     const [exporting, setExporting] = useState(false);
 
@@ -147,11 +147,21 @@ export const ResearchResultsPage = () => {
 
             {/* Content */}
             <div className="min-h-0 flex-1">
-                {activeTab === 'screener' && <ScreenerResults researchId={id} />}
-                {activeTab === 'smart-voc' && <SmartVOCResults researchId={id} />}
-                {activeTab === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
-                {activeTab === 'implicit-association' && <ImplicitAssociationResults researchId={id} />}
-                {activeTab === 'eye-tracking' && <EyeTrackingResults researchId={id} />}
+                {!activeTab ? (
+                    <div className="space-y-6 animate-pulse">
+                        <div className="h-8 bg-gray-200 rounded w-48" />
+                        <div className="h-64 bg-gray-200 rounded-xl" />
+                        <div className="h-48 bg-gray-200 rounded-xl" />
+                    </div>
+                ) : (
+                    <>
+                        {activeTab === 'screener' && <ScreenerResults researchId={id} />}
+                        {activeTab === 'smart-voc' && <SmartVOCResults researchId={id} />}
+                        {activeTab === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
+                        {activeTab === 'implicit-association' && <ImplicitAssociationResults researchId={id} />}
+                        {activeTab === 'eye-tracking' && <EyeTrackingResults researchId={id} />}
+                    </>
+                )}
             </div>
         </div>
     );
