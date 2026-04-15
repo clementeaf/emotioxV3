@@ -13,7 +13,7 @@
 
 - **Fix JOIN:** `r.user_id` → `r.created_by` en queries de activity (columna correcta en `researches`).
 - **Detail endpoint:** `GET /research/:id/detail` con 4 queries paralelas: research+user, stages, modules, response stats. Timeline ensamblada server-side.
-- **Drawer de detalle:** Click en fila de Research Tracking abre panel lateral con overview, estadísticas, listado de stages/modules y timeline cronológica.
+- **Drawer con tabs:** Overview (info + stats), Stages (accordion con módulos anidados), Timeline (eventos cronológicos con iconos). Filas clickeables en Research Tracking.
 
 ## Sesión 43: 15 de abril de 2026 — Fix ruta global de tracking
 

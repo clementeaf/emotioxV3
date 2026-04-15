@@ -1,10 +1,11 @@
-## v0.59.7 — Research detail drawer (2026-04-15)
+## v0.59.8 — Research detail drawer with tabs (2026-04-15)
 
 ### backend
-- **Detail endpoint:** `GET /research/:id/detail` returns research info, stages, modules, response stats, and a chronological timeline. Uses 4 parallel queries.
+- **Detail endpoint:** `GET /research/:id/detail` returns research info, stages, modules, response stats, and chronological timeline via 4 parallel queries.
 
 ### research-frontend
-- **Research Detail Drawer:** Click any row in Research Tracking to open a side panel with overview, statistics (stages/modules/participants/responses), stage and module lists with dates, and a full timeline of events.
+- **Detail Drawer tabs:** Overview (info + stats), Stages (accordion with nested modules), Timeline (chronological events with icons).
+- Rows in Research Tracking are clickable to open the detail drawer.
 
 ---
 
