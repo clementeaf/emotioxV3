@@ -5,9 +5,13 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 40)
+## Última actualización: 2026-04-15 (sesión 41)
 
 ---
+
+## Sesión 41: 15 de abril de 2026 — Tracking con estados locales de carga/error
+
+- **Carga/error acotados:** `/research-tracking` mantiene header y filtros visibles, y ahora muestra skeleton o error solo en el panel que carga la actividad.
 
 ## Sesión 40: 15 de abril de 2026 — Tracking global e invitaciones de viewers
 

@@ -64,21 +64,6 @@ export const ResearchTrackingPage = () => {
         });
     }, [activities, search, researchFilter, techniqueFilter, actorFilter, actionFilter]);
 
-    if (isLoading) {
-        return <div className="p-6"><div className="bg-white rounded-lg border border-gray-100 p-6 text-sm text-gray-500">Loading tracking...</div></div>;
-    }
-
-    if (error) {
-        return (
-            <div className="p-6">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-red-800 mb-2">Error loading tracking</h2>
-                    <p className="text-red-600">{error}</p>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="p-6 space-y-4">
             <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
@@ -118,7 +103,28 @@ export const ResearchTrackingPage = () => {
                     </select>
                 </div>
 
-                {filteredActivities.length === 0 ? (
+                {isLoading ? (
+                    <div className="px-6 py-4 space-y-4">
+                        {Array.from({ length: 6 }).map((_, index) => (
+                            <div key={index} className="animate-pulse py-2">
+                                <div className="h-4 w-3/5 bg-gray-200 rounded mb-3" />
+                                <div className="flex gap-2 flex-wrap">
+                                    <div className="h-3 w-28 bg-gray-100 rounded" />
+                                    <div className="h-3 w-24 bg-gray-100 rounded" />
+                                    <div className="h-3 w-32 bg-gray-100 rounded" />
+                                    <div className="h-3 w-20 bg-gray-100 rounded" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : error ? (
+                    <div className="px-6 py-6">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <h2 className="text-sm font-semibold text-red-800 mb-1">Error loading tracking</h2>
+                            <p className="text-sm text-red-600">{error}</p>
+                        </div>
+                    </div>
+                ) : filteredActivities.length === 0 ? (
                     <div className="px-6 py-10 text-center text-sm text-gray-500">No activity matches the current filters.</div>
                 ) : (
                     <div className="divide-y divide-gray-100">
