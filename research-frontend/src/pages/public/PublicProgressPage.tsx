@@ -50,7 +50,7 @@ export const PublicProgressPage = () => {
             <div className="container mx-auto px-4 py-8 max-w-6xl">
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-8">
-                    <img src="/EmotioCX-logo.svg" alt="EmotioCX" className="h-8 w-auto" />
+                    <img src={`${import.meta.env.BASE_URL}EmotioCX-logo.svg`} alt="EmotioCX" className="h-8 w-auto" />
                     <h1 className="text-2xl font-bold text-gray-900">Research Progress</h1>
                 </div>
 
