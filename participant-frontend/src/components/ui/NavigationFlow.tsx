@@ -410,14 +410,16 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             isCorrect: isInHitzone
         };
 
-        setAllClicks(prev => [...prev, { ...clickPoint, imageId: currentImage.id }]);
+        const clickWithImage = { ...clickPoint, imageId: currentImage.id };
+        setAllClicks(prev => [...prev, clickWithImage]);
         // Always show visual feedback (green dot for correct, red for incorrect)
         setClickPoints(prev => [...prev, clickPoint]);
 
         if (isInHitzone) {
             if (isLastImage) {
                 setIsComplete(true);
-                saveNavigationResponse(true);
+                // Pass pendingClick — setAllClicks hasn't committed yet (React batching)
+                saveNavigationResponse(true, clickWithImage);
                 if (onComplete) setTimeout(() => onComplete(), 800);
             } else {
                 setTimeout(() => {
@@ -433,7 +435,8 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
                 // 3 misses on this image — end the flow, move to next question
                 setTimeout(() => {
                     setIsComplete(true);
-                    saveNavigationResponse(false);
+                    // Pass pendingClick — setAllClicks hasn't committed yet (React batching)
+                    saveNavigationResponse(false, clickWithImage);
                     if (onComplete) setTimeout(() => onComplete(), 800);
                 }, 400);
             }
@@ -467,21 +470,25 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
         }
     };
 
-    // Save navigation response to store
-    const saveNavigationResponse = (completed: boolean) => {
+    // Save navigation response to store.
+    // `pendingClick` is an optional click that was just added via setAllClicks but
+    // hasn't been applied to state yet (React batching). This avoids the race where
+    // single-image modules save before the state update commits.
+    const saveNavigationResponse = (completed: boolean, pendingClick?: ClickPoint & { imageId?: string }) => {
+        const clicks = pendingClick ? [...allClicks, pendingClick] : allClicks;
         const totalDuration = Date.now() - startTime;
-        const correctClicks = allClicks.filter(c => c.isCorrect).length;
-        const incorrectClicks = allClicks.filter(c => !c.isCorrect).length;
+        const correctClicks = clicks.filter(c => c.isCorrect).length;
+        const incorrectClicks = clicks.filter(c => !c.isCorrect).length;
 
         const responseData = {
             completed,
-            totalClicks: allClicks.length,
+            totalClicks: clicks.length,
             correctClicks,
             incorrectClicks,
             totalDuration,
             imagesNavigated: currentImageIndex + 1,
             totalImages: images.length,
-            clickSequence: allClicks.map(c => ({
+            clickSequence: clicks.map(c => ({
                 x: c.x,
                 y: c.y,
                 timestamp: c.timestamp,
@@ -494,7 +501,7 @@ export const NavigationFlow: React.FC<NavigationFlowProps> = ({
             JSON.stringify(responseData),
             {
                 duration: totalDuration,
-                interactions: allClicks.length,
+                interactions: clicks.length,
                 completionRate: ((currentImageIndex + 1) / images.length) * 100,
             }
         );

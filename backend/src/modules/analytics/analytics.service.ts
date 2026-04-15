@@ -9,6 +9,13 @@ import pool from '../../config/database';
 // COGNITIVE TASK RESULTS
 // ==========================================
 
+// Module types that have their own dedicated analytics endpoint — the frontend
+// fetches detailed responses from there, so /cognitive-tasks only needs the count.
+const MODULES_WITH_OWN_ENDPOINT = new Set([
+  'navigation flow', 'preference test', 'single choice', 'multiple choice',
+  'linear scale', 'ranking',
+]);
+
 export const getCognitiveTaskResults = async (researchId: string) => {
   // Get all modules for this research (include config to extract question text)
   const modulesQuery = `
@@ -19,9 +26,52 @@ export const getCognitiveTaskResults = async (researchId: string) => {
     ORDER BY order_index
   `;
   const modulesResult = await pool.query(modulesQuery, [researchId]);
+  const allModules = modulesResult.rows;
 
-  const modules = await Promise.all(modulesResult.rows.map(async (module) => {
-    const responses = await getModuleResponses(researchId, module.id);
+  // Split modules: those with dedicated endpoints only need counts,
+  // text modules need full responses for inline rendering.
+  const countOnlyIds: string[] = [];
+  const fullFetchIds: string[] = [];
+  for (const m of allModules) {
+    if (MODULES_WITH_OWN_ENDPOINT.has((m.name as string).toLowerCase())) {
+      countOnlyIds.push(m.id as string);
+    } else {
+      fullFetchIds.push(m.id as string);
+    }
+  }
+
+  // Batch: 1 grouped COUNT for modules with own endpoints (replaces N individual queries)
+  const countsMap = new Map<string, number>();
+  if (countOnlyIds.length > 0) {
+    const countQuery = `
+      SELECT module_id, COUNT(*) as cnt
+      FROM responses
+      WHERE research_id = ? AND module_id IN (${countOnlyIds.map(() => '?').join(',')})
+      GROUP BY module_id
+    `;
+    const countResult = await pool.query(countQuery, [researchId, ...countOnlyIds]);
+    for (const row of countResult.rows) {
+      countsMap.set(row.module_id as string, (row.cnt as number));
+    }
+  }
+
+  // Fetch full responses only for text modules (parallel)
+  const fullResponsesMap = new Map<string, Awaited<ReturnType<typeof getModuleResponses>>>();
+  if (fullFetchIds.length > 0) {
+    const results = await Promise.all(
+      fullFetchIds.map(async (id) => ({ id, responses: await getModuleResponses(researchId, id) }))
+    );
+    for (const { id, responses } of results) {
+      fullResponsesMap.set(id, responses);
+    }
+  }
+
+  // Assemble response
+  const modules = allModules.map((module) => {
+    const moduleId = module.id as string;
+    const hasOwnEndpoint = MODULES_WITH_OWN_ENDPOINT.has((module.name as string).toLowerCase());
+    const responses = hasOwnEndpoint ? [] : (fullResponsesMap.get(moduleId) ?? []);
+    const totalResponses = hasOwnEndpoint ? (countsMap.get(moduleId) ?? 0) : responses.length;
 
     // Extract question text from module config
     let questionText = '';
@@ -33,14 +83,14 @@ export const getCognitiveTaskResults = async (researchId: string) => {
     } catch { /* ignore */ }
 
     return {
-      moduleId: module.id,
+      moduleId,
       moduleName: module.name,
       description: module.description,
       questionText,
-      totalResponses: responses.length,
+      totalResponses,
       responses,
     };
-  }));
+  });
 
   return { modules };
 };
@@ -89,8 +139,24 @@ export const getNavigationFlowResults = async (researchId: string, moduleId: str
     ? responses.reduce((sum: number, r: any) => sum + (r.totalDuration || 0), 0) / totalResponses
     : 0;
 
-  // Heatmap data (aggregate all click coordinates)
-  const allClicks = responses.flatMap((r: any) => r.clickSequence || []);
+  // Heatmap data: aggregate all click coordinates with participantId (for AOI per-participant stats)
+  const allClicks = responses.flatMap((r: any) =>
+    (r.clickSequence || []).map((c: any) => ({ ...c, participantId: r.participantId }))
+  );
+
+  // Strip clickSequence from per-participant responses — frontend only needs summary stats
+  // for the Navigation tab table. Click data lives in heatmapData (with participantId).
+  const lightResponses = responses.map((r: any) => ({
+    participantId: r.participantId,
+    completed: r.completed,
+    totalClicks: r.totalClicks || 0,
+    correctClicks: r.correctClicks || 0,
+    incorrectClicks: r.incorrectClicks || 0,
+    totalDuration: r.totalDuration || 0,
+    imagesNavigated: r.imagesNavigated,
+    totalImages: r.totalImages,
+    createdAt: r.createdAt,
+  }));
 
   return {
     totalResponses,
@@ -101,7 +167,7 @@ export const getNavigationFlowResults = async (researchId: string, moduleId: str
     accuracy: totalClicks > 0 ? (correctClicks / totalClicks) * 100 : 0,
     averageDuration: Math.round(averageDuration / 1000), // Convert to seconds
     heatmapData: allClicks,
-    responses,
+    responses: lightResponses,
   };
 };
 
@@ -777,6 +843,12 @@ export const getScreenerResults = async (researchId: string) => {
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
+
+const getModuleResponseCount = async (researchId: string, moduleId: string): Promise<number> => {
+  const query = `SELECT COUNT(*) as cnt FROM responses WHERE research_id = ? AND module_id = ?`;
+  const result = await pool.query(query, [researchId, moduleId]);
+  return (result.rows[0] as { cnt: number }).cnt;
+};
 
 const getModuleResponses = async (researchId: string, moduleId: string) => {
   const query = `

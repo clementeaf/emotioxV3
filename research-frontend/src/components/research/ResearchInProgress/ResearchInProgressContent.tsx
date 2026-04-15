@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, Share2, Check, Send, Plus, X } from 'lucide-react';
+import { Drawer } from '../../../components/ui/Drawer';
+import apiClient from '../../../services/api/client';
 import { ParticipantsTable } from '../participants/ParticipantsTable';
 import { useAuthStore } from '../../../stores/auth.store';
 import { useMonitoringReceiver } from '../../../hooks/useMonitoringReceiver';
@@ -39,6 +41,48 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     const [researchConfig, setResearchConfig] = useState<ResearchConfiguration | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+    const [shareDrawerOpen, setShareDrawerOpen] = useState(false);
+    const [emailList, setEmailList] = useState<string[]>([]);
+    const [newEmail, setNewEmail] = useState('');
+    const [sending, setSending] = useState(false);
+
+    const progressUrl = `${window.location.origin}/progress/${researchId}`;
+
+    const handleShare = () => {
+        navigator.clipboard.writeText(progressUrl).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+
+    const handleAddEmail = () => {
+        const email = newEmail.trim();
+        if (!email.includes('@')) return;
+        if (emailList.includes(email)) return;
+        setEmailList(prev => [...prev, email]);
+        setNewEmail('');
+    };
+
+    const handleRemoveEmail = (email: string) => {
+        setEmailList(prev => prev.filter(e => e !== email));
+    };
+
+    const handleSendEmails = async () => {
+        if (emailList.length === 0) return;
+        setSending(true);
+        try {
+            const result = await apiClient.post<{ sent: number; failed: number }>(`/research/${researchId}/share-progress`, { emails: emailList, progressUrl });
+            toastRef.current.success(`Sent to ${result.sent} recipient(s)`);
+            if (result.failed > 0) toastRef.current.error(`${result.failed} failed`);
+            setEmailList([]);
+            setShareDrawerOpen(false);
+        } catch {
+            toastRef.current.error('Failed to send emails');
+        } finally {
+            setSending(false);
+        }
+    };
 
     const loadData = async (): Promise<void> => {
         if (!researchId) return;
@@ -166,7 +210,21 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
             </div>
 
             {participants.length > 0 && (
-                <div className="flex justify-end mb-3">
+                <div className="flex justify-end gap-2 mb-3">
+                    <button
+                        onClick={() => setShareDrawerOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <Send className="h-4 w-4" />
+                        Send Link
+                    </button>
+                    <button
+                        onClick={handleShare}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        {copied ? <Check className="h-4 w-4 text-green-600" /> : <Share2 className="h-4 w-4" />}
+                        {copied ? 'Copied!' : 'Copy link'}
+                    </button>
                     <button
                         onClick={handleDownloadParticipants}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -176,6 +234,80 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                     </button>
                 </div>
             )}
+
+            {/* Share Drawer */}
+            <Drawer
+                isOpen={shareDrawerOpen}
+                onClose={() => setShareDrawerOpen(false)}
+                title="Share Progress Report"
+                width="md"
+            >
+                <div className="space-y-6">
+                    {/* Public link */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-700 mb-1.5 block">Public link</label>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={progressUrl}
+                                readOnly
+                                className="flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg text-gray-600"
+                            />
+                            <button
+                                onClick={handleShare}
+                                className="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                            >
+                                {copied ? 'Copied!' : 'Copy'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Email recipients */}
+                    <div>
+                        <label className="text-sm font-medium text-gray-700 mb-1.5 block">Send by email</label>
+                        <div className="flex items-center gap-2 mb-3">
+                            <input
+                                type="email"
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEmail(); } }}
+                                placeholder="email@example.com"
+                                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <button
+                                onClick={handleAddEmail}
+                                disabled={!newEmail.includes('@')}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-30"
+                            >
+                                <Plus className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Email list */}
+                        {emailList.length > 0 && (
+                            <div className="space-y-2 mb-4">
+                                {emailList.map(email => (
+                                    <div key={email} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                                        <span className="text-sm text-gray-700">{email}</span>
+                                        <button onClick={() => handleRemoveEmail(email)} className="text-gray-400 hover:text-red-500">
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleSendEmails}
+                            disabled={emailList.length === 0 || sending}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                        >
+                            <Send className="h-4 w-4" />
+                            {sending ? 'Sending...' : `Send to ${emailList.length} recipient${emailList.length !== 1 ? 's' : ''}`}
+                        </button>
+                    </div>
+                </div>
+            </Drawer>
 
             <ParticipantsTable
                 participants={participants}

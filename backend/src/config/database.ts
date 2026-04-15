@@ -50,7 +50,7 @@ const getPoolForRequest = async (): Promise<Pool> => {
             database: secrets.dbName, // Always use same database
             ssl: secrets.dbSsl === 'true' ? ({ rejectUnauthorized: false } as SslOptions) : undefined,
             waitForConnections: true,
-            connectionLimit: 10,
+            connectionLimit: 20,
             queueLimit: 0,
         };
         console.log('[DB Router] Creating pool for database:', dbConfig.database);
@@ -207,7 +207,7 @@ const ensurePool = async (): Promise<Pool> => {
             database: process.env.DB_NAME,
             user: process.env.DB_USER,
             password: process.env.DB_PASSWORD,
-            connectionLimit: 10,
+            connectionLimit: 20,
             idleTimeout: 30000,
             connectTimeout: 20000,
             ssl: shouldUseSSL(),

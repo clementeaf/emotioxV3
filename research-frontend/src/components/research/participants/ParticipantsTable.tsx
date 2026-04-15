@@ -22,6 +22,7 @@ interface ParticipantsTableProps {
     onParticipantDeleted?: (participantId: string) => void;
     isLoading?: boolean;
     researchConfig?: ResearchConfiguration | null;
+    readOnly?: boolean;
 }
 
 const statusConfig = {
@@ -67,6 +68,7 @@ export function ParticipantsTable({
     onParticipantDeleted,
     isLoading = false,
     // researchConfig - unused but kept for interface compatibility
+    readOnly = false,
 }: ParticipantsTableProps) {
     const toast = useToast();
     // Removed unused state variables
@@ -81,6 +83,7 @@ export function ParticipantsTable({
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerDetails, setDrawerDetails] = useState<ParticipantDetails | null>(null);
     const [drawerLoading, setDrawerLoading] = useState(false);
+    const [progressMin, setProgressMin] = useState(0);
 
     const handleViewDetails = async (participantId: string): Promise<void> => {
         setDrawerOpen(true);
@@ -99,7 +102,10 @@ export function ParticipantsTable({
     };
     const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
 
-    const filteredParticipants = participants;
+    const filteredParticipants = useMemo(() =>
+        participants.filter(p => p.progress >= progressMin),
+        [participants, progressMin]
+    );
 
     const allFilteredSelected = useMemo(() => {
         return filteredParticipants.length > 0 &&
@@ -301,6 +307,31 @@ export function ParticipantsTable({
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
+                    {/* Progress minimum filter */}
+                    <div className="flex items-center gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm font-medium text-gray-600 whitespace-nowrap">Min. progress</span>
+                        <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={progressMin}
+                            onChange={(e) => setProgressMin(Number(e.target.value))}
+                            className="flex-1 max-w-xs h-1.5 accent-blue-600"
+                        />
+                        <span className="text-sm text-gray-700 font-medium w-10 text-right">{progressMin}%</span>
+                        <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {filteredParticipants.length}/{participants.length}
+                        </span>
+                        {progressMin > 0 && (
+                            <button
+                                onClick={() => setProgressMin(0)}
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                                Reset
+                            </button>
+                        )}
+                    </div>
+
                     {selectedParticipantIds.size > 0 && (
                         <div className="flex items-center mb-4">
                             <Button
@@ -319,21 +350,23 @@ export function ParticipantsTable({
                         <table className="w-full">
                             <thead className="sticky top-0 bg-white z-10">
                                 <tr className="border-b">
-                                    <th className="text-left py-3 px-4 font-medium w-12">
-                                        <input
-                                            type="checkbox"
-                                            ref={selectAllCheckboxRef}
-                                            checked={allFilteredSelected}
-                                            onChange={(e) => handleSelectAll(e.target.checked)}
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                        />
-                                    </th>
+                                    {!readOnly && (
+                                        <th className="text-left py-3 px-4 font-medium w-12">
+                                            <input
+                                                type="checkbox"
+                                                ref={selectAllCheckboxRef}
+                                                checked={allFilteredSelected}
+                                                onChange={(e) => handleSelectAll(e.target.checked)}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                        </th>
+                                    )}
                                     <th className="text-left py-3 px-4 font-medium">Participante</th>
                                     <th className="text-left py-3 px-4 font-medium">Estado</th>
                                     <th className="text-left py-3 px-4 font-medium">Progreso</th>
                                     <th className="text-left py-3 px-4 font-medium">Duración</th>
                                     <th className="text-left py-3 px-4 font-medium">Última actividad</th>
-                                    <th className="text-left py-3 px-4 font-medium">Acciones</th>
+                                    {!readOnly && <th className="text-left py-3 px-4 font-medium">Acciones</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -348,14 +381,16 @@ export function ParticipantsTable({
 
                                         return (
                                             <tr key={participant.id} className="border-b hover:bg-gray-50">
-                                                <td className="py-3 px-4">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedParticipantIds.has(participant.id)}
-                                                        onChange={(e) => handleSelectParticipant(participant.id, e.target.checked)}
-                                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                                    />
-                                                </td>
+                                                {!readOnly && (
+                                                    <td className="py-3 px-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedParticipantIds.has(participant.id)}
+                                                            onChange={(e) => handleSelectParticipant(participant.id, e.target.checked)}
+                                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td className="py-3 px-4">
                                                     <div>
                                                         <div className="font-medium">{participant.name}</div>
@@ -381,27 +416,29 @@ export function ParticipantsTable({
                                                 </td>
                                                 <td className="py-3 px-4 text-gray-600">{participant.duration}</td>
                                                 <td className="py-3 px-4 text-gray-600">{participant.lastActivity}</td>
-                                                <td className="py-3 px-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleViewDetails(participant.id)}
-                                                            title="Ver detalles"
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteClick(participant)}
-                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                            title="Eliminar participante"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                </td>
+                                                {!readOnly && (
+                                                    <td className="py-3 px-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleViewDetails(participant.id)}
+                                                                title="Ver detalles"
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleDeleteClick(participant)}
+                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                                title="Eliminar participante"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                )}
                                             </tr>
                                         );
                                     })

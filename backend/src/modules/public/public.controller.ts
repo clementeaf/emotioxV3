@@ -99,6 +99,24 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             }
         }
 
+        // GET /public/research/:id/progress — public read-only progress (no auth)
+        const progressMatch = path.match(/^\/public\/research\/([^\/]+)\/progress$/);
+        if (progressMatch && httpMethod === 'GET') {
+            const researchId = progressMatch[1];
+            try {
+                const { getOverviewMetricsInternal, getParticipantsWithStatusInternal } = await import('../research/research-in-progress.service');
+                const [metrics, participants] = await Promise.all([
+                    getOverviewMetricsInternal(researchId),
+                    getParticipantsWithStatusInternal(researchId),
+                ]);
+                return success({ metrics, participants }, 200, undefined, origin);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Failed to load progress';
+                if (msg.includes('not found')) return error(msg, 404, undefined, origin);
+                throw err;
+            }
+        }
+
         // GET /public/research/:id/quota-availability
         const quotaAvailMatch = path.match(/^\/public\/research\/([^\/]+)\/quota-availability$/);
         if (quotaAvailMatch && httpMethod === 'GET') {

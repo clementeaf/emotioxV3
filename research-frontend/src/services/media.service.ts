@@ -66,6 +66,10 @@ export interface DeleteResponse {
     message: string;
 }
 
+// In-memory cache for media URL lookups (avoids duplicate /media/by-key requests)
+const s3KeyUrlCache = new Map<string, { url: string; expiresAt: number }>();
+const S3_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Servicio de medios
  * Maneja todas las operaciones relacionadas con archivos multimedia
@@ -124,9 +128,15 @@ class MediaService {
      * @throws ApiErrorResponse si falla la petición
      */
     async getMediaUrlByS3Key(s3Key: string): Promise<MediaUrlResponse> {
+        // Return cached URL if still valid
+        const cached = s3KeyUrlCache.get(s3Key);
+        if (cached && cached.expiresAt > Date.now()) {
+            return { url: cached.url, expires_in: Math.round((cached.expiresAt - Date.now()) / 1000) };
+        }
         try {
             const result = await apiClient.get<MediaUrlResponse>(`/media/by-key?s3_key=${encodeURIComponent(s3Key)}`);
             result.url = resolveMediaUrl(result.url);
+            s3KeyUrlCache.set(s3Key, { url: result.url, expiresAt: Date.now() + S3_CACHE_TTL });
             return result;
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to get media URL by s3Key');

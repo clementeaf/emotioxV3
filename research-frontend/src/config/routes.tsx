@@ -20,6 +20,7 @@ import { ModuleTemplateAssignationPage } from '../pages/research-types/ModuleTem
 import { ResearchTechniquesPage } from '../pages/research-techniques/ResearchTechniquesPage';
 import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/ResearchTechniqueBuilderPage';
 import { UserManagementPage } from '../pages/admin/UserManagementPage';
+import { PublicProgressPage } from '../pages/public/PublicProgressPage';
 
 const EyeTrackingLabPage = lazy(() =>
     import('../pages/labs/EyeTrackingLabPage').then(m => ({ default: m.EyeTrackingLabPage })),
@@ -239,6 +240,14 @@ export const routesConfig: RouteConfig[] = [
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Edit Research Technique' },
+    },
+
+    // Public progress page (no auth)
+    {
+        path: '/progress/:id',
+        element: <PublicProgressPage />,
+        layout: 'none',
+        errorBoundary: { context: 'general', pageName: 'Public Progress' },
     },
 
     // Default redirect (must be before catch-all)

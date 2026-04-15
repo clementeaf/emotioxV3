@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { usePreferenceTestResults } from '../../../hooks/usePreferenceTestResults';
 import { PreferenceTestCard } from './components/PreferenceTestCard';
-import { researchService, type Module } from '../../../services/research.service';
+import { useResearch } from '../../../hooks/useResearchQuery';
+import type { Module } from '../../../services/research.service';
 import { mediaService } from '../../../services/media.service';
 
 interface PreferenceTestResultsWrapperProps {
@@ -66,80 +67,68 @@ export const PreferenceTestResultsWrapper = ({
             };
         })()
         : rawData;
+
+    // Use React Query cached research (shared across all result wrappers — single request)
+    const { data: research, isLoading: isResearchLoading } = useResearch(researchId);
+
+    // Find module within the cached research
+    const foundModule: Module | null = useMemo(() => {
+        if (!research?.stages) return null;
+        for (const stage of research.stages) {
+            const found = stage.modules.find((m: Module) => m.id === moduleId);
+            if (found) return found;
+        }
+        return null;
+    }, [research, moduleId]);
+
     const [images, setImages] = useState<ImageData[]>([]);
-    const [isModuleLoading, setIsModuleLoading] = useState(true);
+    const [urlsResolved, setUrlsResolved] = useState(false);
 
     useEffect(() => {
-        const fetchModuleAndImages = async () => {
+        if (!foundModule) { setUrlsResolved(false); return; }
+
+        let cancelled = false;
+        const resolveUrls = async () => {
+            const config = foundModule.config as ModuleConfigStructure | undefined;
+            const components = config?.structure?.components || [];
+            const fu = components.find((c: ModuleComponent) => c.type === 'file-upload');
+            if (!fu?.value) { if (!cancelled) setUrlsResolved(true); return; }
+
             try {
-                // Fetch full research to get module config
-                const response = await researchService.getById(researchId);
-                const research = response.research;
-
-                // Find the module within stages
-                let foundModule: Module | undefined;
-                if (research.stages) {
-                    for (const stage of research.stages) {
-                        foundModule = stage.modules.find(m => m.id === moduleId);
-                        if (foundModule) break;
-                    }
-                }
-
-                if (foundModule) {
-                    // Extract images from file-upload component
-                    if (foundModule.config && typeof foundModule.config === 'object') {
-                        const config = foundModule.config as ModuleConfigStructure;
-                        const components = config.structure?.components || [];
-                        const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
-
-                        if (fileUploadComponent?.value) {
-                            try {
-                                const files = JSON.parse(fileUploadComponent.value);
-                                if (Array.isArray(files) && files.length > 0) {
-                                    // Resolve URLs for all images
-                                    const resolvedImages = await Promise.all(
-                                        files.map(async (file: UploadedFileData, index: number) => {
-                                            let url = file.url;
-                                            
-                                            // Refresh URL if s3Key exists
-                                            if (file.s3Key) {
-                                                try {
-                                                    const mediaResponse = await mediaService.getMediaUrlByS3Key(file.s3Key);
-                                                    url = mediaResponse.url;
-                                                } catch (err) {
-                                                    console.warn('Failed to resolve media URL for image', file.s3Key, err);
-                                                }
-                                            }
-
-                                            return {
-                                                id: file.id || String(index + 1),
-                                                url: url || '',
-                                                s3Key: file.s3Key,
-                                                name: file.name || `Image ${index + 1}`
-                                            };
-                                        })
-                                    );
-                                    setImages(resolvedImages.filter(img => img.url));
+                const files = JSON.parse(fu.value);
+                if (Array.isArray(files) && files.length > 0) {
+                    const resolvedImages = await Promise.all(
+                        files.map(async (file: UploadedFileData, index: number) => {
+                            let url = file.url;
+                            if (file.s3Key) {
+                                try {
+                                    const mediaResponse = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                                    url = mediaResponse.url;
+                                } catch (err) {
+                                    console.warn('Failed to resolve media URL for image', file.s3Key, err);
                                 }
-                            } catch (e) {
-                                console.error('Failed to parse preference test images:', e);
                             }
-                        }
-                    }
+                            return {
+                                id: file.id || String(index + 1),
+                                url: url || '',
+                                s3Key: file.s3Key,
+                                name: file.name || `Image ${index + 1}`
+                            };
+                        })
+                    );
+                    if (!cancelled) setImages(resolvedImages.filter(img => img.url));
                 }
-            } catch (error) {
-                console.error('Failed to fetch research/module details:', error);
-            } finally {
-                setIsModuleLoading(false);
+            } catch (e) {
+                console.error('Failed to parse preference test images:', e);
             }
+            if (!cancelled) setUrlsResolved(true);
         };
 
-        if (researchId && moduleId) {
-            fetchModuleAndImages();
-        }
-    }, [researchId, moduleId]);
+        resolveUrls();
+        return () => { cancelled = true; };
+    }, [foundModule]);
 
-    const isLoading = isResultsLoading || isModuleLoading;
+    const isLoading = isResultsLoading || isResearchLoading || (!urlsResolved && !!foundModule);
 
     if (isLoading || !data) {
         return (
@@ -153,7 +142,7 @@ export const PreferenceTestResultsWrapper = ({
     // Map selections to steps with images
     const steps = data.selections.map((selection) => {
         const imageData = images.find(img => img.id === String(selection.imageId)) || images[selection.imageId - 1];
-        
+
         return {
             stepNumber: selection.imageId,
             title: imageData?.name || `Image ${selection.imageId}`,

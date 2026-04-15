@@ -44,7 +44,7 @@ interface NavigationStep {
   participantCount: number;
   aois?: AOI[];
   hasHeatmap?: boolean;
-  heatmapData?: Array<{ x: number; y: number; value?: number; isCorrect?: boolean; timestamp?: number }>;
+  heatmapData?: Array<{ x: number; y: number; value?: number; isCorrect?: boolean; timestamp?: number; participantId?: string }>;
   imageUrl?: string;
   hitZones?: Array<{ x: number; y: number; width: number; height: number }>;
   responses?: NavigationResponse[];
@@ -458,22 +458,24 @@ export const NavigationTestCard = ({
     for (const [stepNumStr, aois] of Object.entries(aoiMap)) {
       const stepNum = Number(stepNumStr);
       const stepData = steps.find(s => s.stepNumber === stepNum);
-      const responses = stepData?.responses || [];
-      const totalParticipants = responses.length;
+      const clicks = stepData?.heatmapData || [];
+      // Count unique participants from heatmapData (each click carries participantId)
+      const uniqueParticipants = new Set(clicks.map(c => c.participantId).filter(Boolean));
+      const totalParticipants = uniqueParticipants.size || (stepData?.responses?.length ?? 0);
       result[stepNum] = aois.map(aoi => {
-        const participantsInside = responses.filter(r => {
-          const clicks = r.heatmapData
-            || (r as unknown as { clickSequence?: Array<{ x: number; y: number }> }).clickSequence
-            || [];
-          return clicks.some((c: { x: number; y: number }) =>
-            c.x >= aoi.x && c.x <= aoi.x + aoi.width &&
-            c.y >= aoi.y && c.y <= aoi.y + aoi.height
-          );
-        }).length;
+        // Collect unique participantIds that have at least one click inside the AOI
+        const pidsInside = new Set<string>();
+        for (const c of clicks) {
+          if (c.x >= aoi.x && c.x <= aoi.x + aoi.width &&
+              c.y >= aoi.y && c.y <= aoi.y + aoi.height &&
+              c.participantId) {
+            pidsInside.add(c.participantId);
+          }
+        }
         return {
           ...aoi,
-          percentage: totalParticipants > 0 ? Math.round((participantsInside / totalParticipants) * 100) : 0,
-          participantCount: participantsInside,
+          percentage: totalParticipants > 0 ? Math.round((pidsInside.size / totalParticipants) * 100) : 0,
+          participantCount: pidsInside.size,
         };
       });
     }

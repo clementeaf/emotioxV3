@@ -265,7 +265,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               <h2 className="text-xl font-semibold text-gray-900">Cognitive Tasks Results</h2>
               {data && (
                 <p className="text-sm text-gray-600 mt-1">
-                  {modulesToRender.length} modules • {modulesToRender.reduce((sum, m) => sum + m.totalResponses, 0)} total responses
+                  {modulesToRender.length} modules • {demographicData?.participants.length ?? '–'} participants
                 </p>
               )}
             </Card>

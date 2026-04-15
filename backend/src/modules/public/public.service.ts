@@ -194,41 +194,46 @@ const extractStructure = (config: Record<string, unknown>): PublicModuleStructur
 
 // Function to get the participant count for a research
 // Only counts participants who submitted actual module responses (excludes demographics-only)
+// Cached for 10 seconds — prevents N concurrent COUNT(DISTINCT) scans during submission bursts.
 export const getParticipantCount = async (researchId: string): Promise<number> => {
-  const query = `
-    SELECT COUNT(DISTINCT participant_id) as participant_count
-    FROM responses
-    WHERE research_id = ? AND module_id != 'demographics'
-  `;
-  const result = await pool.query(query, [researchId]);
-  return parseInt(result.rows[0].participant_count) || 0;
+  const cacheKey = `participant_count:${researchId}`;
+  return cache.getOrSet(cacheKey, async () => {
+    const query = `
+      SELECT COUNT(DISTINCT participant_id) as participant_count
+      FROM responses
+      WHERE research_id = ? AND module_id != 'demographics'
+    `;
+    const result = await pool.query(query, [researchId]);
+    return parseInt(result.rows[0].participant_count) || 0;
+  }, 10); // 10 seconds — short enough to stay accurate for quota limits
 };
 
 /**
  * Gets the research-level configuration from the "Research Configuration" module (if present).
+ * Cached for 60 seconds — config doesn't change while participants are responding.
  * @param researchId - Research ID
  * @returns Parsed config record
  */
 export const getResearchConfiguration = async (researchId: string): Promise<Record<string, unknown>> => {
-  // Get research modules with their configurations
-  const modulesQuery = `
-    SELECT m.id, m.name, m.config
-    FROM modules m
-    WHERE m.research_id = ?
-    ORDER BY m.order_index
-  `;
-  const modulesResult = await pool.query(modulesQuery, [researchId]);
+  const cacheKey = `research_config:${researchId}`;
+  return cache.getOrSet(cacheKey, async () => {
+    const modulesQuery = `
+      SELECT m.id, m.name, m.config
+      FROM modules m
+      WHERE m.research_id = ?
+      ORDER BY m.order_index
+    `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
 
-  // Look for Research Configuration module
-  const researchConfigModule: DbResearchConfigModuleRow | undefined = (modulesResult.rows as DbResearchConfigModuleRow[])
-    .find((moduleRow: DbResearchConfigModuleRow) => moduleRow.name === 'Research Configuration');
+    const researchConfigModule: DbResearchConfigModuleRow | undefined = (modulesResult.rows as DbResearchConfigModuleRow[])
+      .find((moduleRow: DbResearchConfigModuleRow) => moduleRow.name === 'Research Configuration');
 
-  if (researchConfigModule && researchConfigModule.config) {
-    const configRecord: Record<string, unknown> = parseJsonRecord(researchConfigModule.config);
-    return configRecord;
-  }
+    if (researchConfigModule && researchConfigModule.config) {
+      return parseJsonRecord(researchConfigModule.config);
+    }
 
-  return {};
+    return {};
+  }, CacheTTL.SHORT); // 60 seconds
 };
 
 /**
@@ -977,86 +982,73 @@ export const saveParticipantResponses = async (
     });
   }
 
-  // Begin transaction
+  // Pre-process all responses before opening the transaction to minimize connection hold time.
+  // Sentiment analysis (CPU-bound, no DB) runs here so the transaction only does I/O.
+  const { analyzeSentiment } = await import('../sentiment/sentiment.service');
+
+  const prepared: Array<{
+    id: string;
+    moduleId: string;
+    componentId: string;
+    valueJson: string;
+    metadataJson: string;
+  }> = [];
+
+  for (const response of responses) {
+    if (!response.componentId || typeof response.componentId !== 'string' || response.componentId.trim().length === 0) {
+      throw new Error('componentId is required for each response');
+    }
+
+    const moduleName = moduleNameById.get(response.moduleId);
+    const normalizedComponentId = normalizeComponentId(response.componentId, moduleName);
+    const originalComponentId = response.componentId.trim();
+
+    const responseMetadata: Record<string, unknown> = {
+      ...(response.metadata ?? {}),
+      ...(normalizedComponentId !== originalComponentId ? { originalComponentId } : {}),
+      moduleMetadata: metadata,
+    };
+
+    // Auto-detect sentiment for text responses (answer = Short/Long Text, text = VOC)
+    if ((normalizedComponentId === 'answer' || normalizedComponentId === 'text') && typeof response.value === 'string' && response.value.trim().length > 0) {
+      const { sentiment } = analyzeSentiment(response.value);
+      responseMetadata.sentiment = sentiment;
+    }
+
+    prepared.push({
+      id: crypto.randomUUID(),
+      moduleId: response.moduleId,
+      componentId: normalizedComponentId,
+      valueJson: toJsonText(response.value),
+      metadataJson: JSON.stringify(responseMetadata),
+    });
+  }
+
+  // Begin transaction — hold the connection as briefly as possible
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const savedResponses = [];
+    // Batch INSERT: single query for all responses (was N individual INSERTs + N SELECTs)
+    if (prepared.length > 0) {
+      const placeholders = prepared.map(() => '(?, ?, ?, ?, ?, ?, ?, NOW())').join(', ');
+      const values = prepared.flatMap(p => [
+        p.id, researchId, participantId, p.moduleId, p.componentId, p.valueJson, p.metadataJson,
+      ]);
 
-    // Insert each response
-    for (const response of responses) {
-      if (!response.componentId || typeof response.componentId !== 'string' || response.componentId.trim().length === 0) {
-        throw new Error('componentId is required for each response');
-      }
-
-      const moduleName = moduleNameById.get(response.moduleId);
-      const normalizedComponentId = normalizeComponentId(response.componentId, moduleName);
-      const originalComponentId = response.componentId.trim();
-
-      const responseMetadata: Record<string, unknown> = {
-        ...(response.metadata ?? {}),
-        ...(normalizedComponentId !== originalComponentId ? { originalComponentId } : {}),
-        moduleMetadata: metadata,
-      };
-
-      // Auto-detect sentiment for text responses (answer = Short/Long Text, text = VOC)
-      if ((normalizedComponentId === 'answer' || normalizedComponentId === 'text') && typeof response.value === 'string' && response.value.trim().length > 0) {
-        const { analyzeSentiment } = await import('../sentiment/sentiment.service');
-        const { sentiment } = analyzeSentiment(response.value);
-        responseMetadata.sentiment = sentiment;
-      }
-
-      const valueJson = toJsonText(response.value);
-      const metadataJson = JSON.stringify(responseMetadata);
-
-      // MySQL compatible: use INSERT ... ON DUPLICATE KEY UPDATE instead of ON CONFLICT
-      // Also generate a UUID for new records
-      const responseId = crypto.randomUUID();
-      const query = `
-        INSERT INTO responses (
-          id,
-          research_id,
-          participant_id,
-          module_id,
-          component_id,
-          value,
-          metadata,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+      await client.query(`
+        INSERT INTO responses (id, research_id, participant_id, module_id, component_id, value, metadata, created_at)
+        VALUES ${placeholders}
         ON DUPLICATE KEY UPDATE
           value = VALUES(value),
           metadata = VALUES(metadata),
           updated_at = NOW()
-      `;
-
-      await client.query(query, [
-        responseId,
-        researchId,
-        participantId,
-        response.moduleId,
-        normalizedComponentId,
-        valueJson,
-        metadataJson,
-      ]);
-
-      // Fetch the inserted/updated record (MySQL doesn't support RETURNING)
-      const selectResult = await client.query(
-        `SELECT id, created_at, updated_at FROM responses
-         WHERE research_id = ? AND participant_id = ? AND module_id = ? AND component_id = ?`,
-        [researchId, participantId, response.moduleId, normalizedComponentId]
-      );
-
-      savedResponses.push(selectResult.rows[0]);
+      `, values);
     }
-
-    // Quotas are incremented atomically in validateDemographics (tryIncrementQuota)
-    // before this function is called, so no separate increment is needed here.
 
     await client.query('COMMIT');
 
-    console.log(`✓ Saved ${savedResponses.length} responses for participant ${participantId}`);
+    console.log(`✓ Saved ${prepared.length} responses for participant ${participantId}`);
 
     // Update participant status in participants table (panel mode tracking)
     try {
@@ -1082,9 +1074,8 @@ export const saveParticipantResponses = async (
 
     return {
       success: true,
-      message: `Saved ${savedResponses.length} responses`,
-      count: savedResponses.length,
-      responseIds: savedResponses.map(r => r.id),
+      message: `Saved ${prepared.length} responses`,
+      count: prepared.length,
     };
   } catch (error) {
     await client.query('ROLLBACK');

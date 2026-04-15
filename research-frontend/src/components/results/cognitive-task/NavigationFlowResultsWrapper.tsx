@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigationFlowResults } from '../../../hooks/useNavigationFlowResults';
 import { NavigationTestCard } from './components/NavigationTestCard';
-import { researchService, type Module } from '../../../services/research.service';
+import { useResearch } from '../../../hooks/useResearchQuery';
+import type { Module } from '../../../services/research.service';
 import { mediaService } from '../../../services/media.service';
 import { triggerCsvDownload } from '../../../utils/csvDownload';
 
@@ -72,8 +73,21 @@ export const NavigationFlowResultsWrapper = ({
             };
         })()
         : rawResultsData;
-    const [module, setModule] = useState<Module | null>(null);
-    const [isModuleLoading, setIsModuleLoading] = useState(true);
+    // Use React Query cached research (shared across all result wrappers — single request)
+    const { data: research, isLoading: isResearchLoading } = useResearch(researchId);
+
+    // Find module within the cached research
+    const module: Module | null = useMemo(() => {
+        if (!research?.stages) return null;
+        for (const stage of research.stages) {
+            const found = stage.modules.find((m: Module) => m.id === moduleId);
+            if (found) return found;
+        }
+        return null;
+    }, [research, moduleId]);
+
+    // Resolve media URLs for file-upload images (cached by mediaService)
+    const [resolvedModule, setResolvedModule] = useState<Module | null>(null);
     // Natural dimensions per image (keyed by file id) for hitzone px→% conversion
     const [naturalDims, setNaturalDims] = useState<Record<string, { width: number; height: number }>>({});
 
@@ -86,81 +100,48 @@ export const NavigationFlowResultsWrapper = ({
     }, []);
 
     useEffect(() => {
-        const fetchModuleFromResearch = async () => {
+        if (!module) { setResolvedModule(null); return; }
+
+        let cancelled = false;
+        const resolveUrls = async () => {
+            const config = module.config as ModuleConfigStructure | undefined;
+            const components = config?.structure?.components || [];
+            const fu = components.find((c: ModuleComponent) => c.type === 'file-upload');
+            if (!fu?.value) { if (!cancelled) setResolvedModule(module); return; }
+
             try {
-                // Since standalone module endpoint fails (404), fetch the full research
-                const response = await researchService.getById(researchId);
-                const research = response.research;
-
-                // Find the module within stages
-                let foundModule: Module | undefined;
-                if (research.stages) {
-                    for (const stage of research.stages) {
-                        foundModule = stage.modules.find(m => m.id === moduleId);
-                        if (foundModule) break;
-                    }
-                }
-
-                if (foundModule) {
-                    console.log('ResultsWrapper: Found module:', foundModule.id);
-                    // Check for file-upload component and resolve URL if needed (URL is stripped on save)
-                    if (foundModule.config && typeof foundModule.config === 'object') {
-                        const config = foundModule.config as ModuleConfigStructure;
-                        const components = config.structure?.components || [];
-                        console.log('ResultsWrapper: Config components:', components);
-                        const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
-
-                        if (fileUploadComponent) {
-                            console.log('ResultsWrapper: Found file upload component:', fileUploadComponent);
-                        if (fileUploadComponent.value) {
+                const files = JSON.parse(fu.value) as Array<{ id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<HitzoneRegion> }>;
+                if (Array.isArray(files) && files.length > 0) {
+                    await Promise.all(files.map(async (file, i) => {
+                        if (file?.s3Key) {
                             try {
-                                const files = JSON.parse(fileUploadComponent.value) as Array<{ id?: string; mediaId?: string; name?: string; s3Key?: string; url?: string; hitZones?: Array<HitzoneRegion> }>;
-                                console.log('ResultsWrapper: Parsed files:', files);
-                                if (Array.isArray(files) && files.length > 0) {
-                                    for (let i = 0; i < files.length; i++) {
-                                        const file = files[i];
-                                        if (file?.s3Key) {
-                                            try {
-                                                const mediaResponse = await mediaService.getMediaUrlByS3Key(file.s3Key);
-                                                file.url = mediaResponse.url;
-                                                files[i] = file;
-                                            } catch (err) {
-                                                console.warn('Failed to resolve media URL for file', file.s3Key, err);
-                                            }
-                                        }
-                                    }
-                                    fileUploadComponent.value = JSON.stringify(files);
-                                }
-                            } catch (e) {
-                                console.error('ResultsWrapper: JSON parse error', e);
+                                const mediaResponse = await mediaService.getMediaUrlByS3Key(file.s3Key);
+                                files[i] = { ...file, url: mediaResponse.url };
+                            } catch (err) {
+                                console.warn('Failed to resolve media URL for file', file.s3Key, err);
                             }
-                        } else {
-                                console.log('ResultsWrapper: File component has no value');
-                            }
-                        } else {
-                            console.log('ResultsWrapper: No file-upload component found');
                         }
-                    }
-                    setModule(foundModule);
-                } else {
-                    console.warn(`Module ${moduleId} not found in research ${researchId}`);
+                    }));
+                    // Build a shallow copy so we don't mutate React Query cache
+                    const resolved = {
+                        ...module,
+                        config: { ...config, structure: { ...config?.structure, components: components.map(c => c === fu ? { ...fu, value: JSON.stringify(files) } : c) } },
+                    } as Module;
+                    if (!cancelled) setResolvedModule(resolved);
+                    return;
                 }
-            } catch (error) {
-                console.error('Failed to fetch research/module details:', error);
-            } finally {
-                setIsModuleLoading(false);
-            }
+            } catch { /* ignore */ }
+            if (!cancelled) setResolvedModule(module);
         };
 
-        if (researchId && moduleId) {
-            fetchModuleFromResearch();
-        }
-    }, [researchId, moduleId]);
+        resolveUrls();
+        return () => { cancelled = true; };
+    }, [module]);
 
     // Load natural image dimensions for hitzone px→% conversion
     useEffect(() => {
-        if (!module?.config || typeof module.config !== 'object') return;
-        const config = module.config as ModuleConfigStructure;
+        if (!resolvedModule?.config || typeof resolvedModule.config !== 'object') return;
+        const config = resolvedModule.config as ModuleConfigStructure;
         const components = config.structure?.components || [];
         const fu = components.find((c: ModuleComponent) => c.type === 'file-upload');
         if (!fu?.value) return;
@@ -171,9 +152,9 @@ export const NavigationFlowResultsWrapper = ({
                 if (f.url && fid && !naturalDims[fid]) loadImageDims(fid, f.url);
             });
         } catch { /* ignore */ }
-    }, [module, loadImageDims, naturalDims]);
+    }, [resolvedModule, loadImageDims, naturalDims]);
 
-    const isLoading = isResultsLoading || isModuleLoading;
+    const isLoading = isResultsLoading || isResearchLoading || (!resolvedModule && !!module);
 
     if (isLoading || !data) {
         return (
@@ -187,8 +168,8 @@ export const NavigationFlowResultsWrapper = ({
     // Extract all images and hitZones from file-upload component (one step per image)
     const parsedFiles: ParsedFile[] = [];
 
-    if (module?.config && typeof module.config === 'object') {
-        const config = module.config as ModuleConfigStructure;
+    if (resolvedModule?.config && typeof resolvedModule.config === 'object') {
+        const config = resolvedModule.config as ModuleConfigStructure;
         const components = config.structure?.components || [];
         const fileUploadComponent = components.find((c: ModuleComponent) => c.type === 'file-upload');
 
@@ -225,7 +206,7 @@ export const NavigationFlowResultsWrapper = ({
     }
 
     // Extract per-image prediction data from module config
-    const moduleConfig = module?.config as ModuleConfigStructure | undefined;
+    const moduleConfig = resolvedModule?.config as ModuleConfigStructure | undefined;
     const predictionHeatmaps = moduleConfig?.predictionHeatmaps;
 
     // Build one step per image; filter heatmapData by imageId so each step shows only its clicks

@@ -81,7 +81,11 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **CES scale**: participant lee `comp.value` primero, fallback `selectRange.predefined`. Sentiment zones: rojo/ámbar/verde según escala (1-5/1-7/1-10). Solo CES, no CV ni Linear Scale.
 - **NEV emociones**: 20 canónicas. "Descontento" = negativa. Fila 1 = positivas (7), Fila 2 = atención (5), Fila 3 = negativas (8).
 - **CES analytics dinámico**: backend envía `scaleConfigs`, frontend usa `getCESZones(scaleMax)`.
-- **View Progress**: `getVisibleModuleIdsForProgress` con INNER JOIN stages. `panelStatus = 'responded'` → 100%. Sin completar → cap 99%.
+- **View Progress**: `getVisibleModuleIdsForProgress` con INNER JOIN stages. `panelStatus = 'responded'` → 100%. Sin completar → cap 99%. Filtro de progreso mínimo (slider 0-100%). Share: botón "Send Link" → Drawer con emails + "Copy link" → `/progress/:id` público read-only.
+- **Response saving**: `saveParticipantResponses` usa batch INSERT (1 query para N responses). Sin SELECTs post-INSERT. Sentiment se computa antes de abrir transacción.
+- **Analytics caching**: `getResearchConfiguration` (60s), `getParticipantCount` (10s), `getMediaUrlByS3Key` (5min client-side). Results wrappers usan `useResearch()` (React Query dedup).
+- **DB pool**: `connectionLimit: 20`. MySQL `max_user_connections = 50` (límite de hosting). Índice compuesto `idx_responses_research_module_component`.
+- **`/cognitive-tasks` payload**: módulos con endpoint propio (Nav Flow, Preference, Choice, Scale, Ranking) retornan solo COUNT — no responses completas. Short/Long Text sí traen `value` + sentiment.
 - **Study Logo**: `config.studyLogo: { enabled, s3Key? }`. Client logo o EmotioCX default.
 - **Loading states**: skeleton (`animate-pulse`), nunca spinners.
 - **Design system**: spec en `docs/design-system/emotiox-palette.md`. Light-only: surface-app `#F1F5F9`, accent `#006AFF`, heading slate-900, body slate-500. Font: Plus Jakarta Sans (research), Inter (participant).

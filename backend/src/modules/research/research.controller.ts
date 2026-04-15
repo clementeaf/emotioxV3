@@ -232,6 +232,31 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             }
         }
 
+        // POST /research/:id/share-progress — send progress link by email
+        const shareProgressMatch = path.match(/^\/research\/([^\/]+)\/share-progress$/);
+        if (shareProgressMatch && httpMethod === 'POST') {
+            const researchId = shareProgressMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const emails: string[] = body.emails;
+            if (!Array.isArray(emails) || emails.length === 0) {
+                return error('emails array is required', 400, undefined, origin);
+            }
+            try {
+                const research = await researchService.getById(researchId, user.id, user.role);
+                const researchName = (research as { name?: string }).name || 'Research';
+                const senderName = user.email || 'A researcher';
+                const progressUrl = body.progressUrl || `https://emotio.cx/research/progress/${researchId}`;
+
+                const { sendShareProgress } = await import('../email/email.service');
+                const result = await sendShareProgress({ to: emails, senderName, researchName, progressUrl });
+                return success(result, 200, undefined, origin);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Failed to send emails';
+                if (msg.includes('not found')) return error(msg, 404, undefined, origin);
+                return error(msg, 500, undefined, origin);
+            }
+        }
+
         // GET /research/:id/metrics
         const metricsMatch = path.match(/^\/research\/([^\/]+)\/metrics$/);
         if (metricsMatch && httpMethod === 'GET') {

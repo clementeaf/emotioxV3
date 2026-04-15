@@ -136,6 +136,89 @@ export const sendViewerInvitation = async (params: {
     return { success: false, error: message };
   }
 };
+// --- Share Progress ---
+
+const buildShareProgressHtml = (params: {
+  senderName: string;
+  researchName: string;
+  progressUrl: string;
+}): string => {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:100%;">
+        <tr><td style="background:#006AFF;padding:24px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:600;">EmotioX</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 16px;color:#374151;font-size:16px;line-height:1.5;">
+            ${params.senderName} has shared a research progress report with you.
+          </p>
+          <p style="margin:0 0 24px;color:#374151;font-size:16px;line-height:1.5;">
+            Research: <strong>${params.researchName}</strong>
+          </p>
+          <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+            <tr><td align="center" style="background:#006AFF;border-radius:6px;">
+              <a href="${params.progressUrl}"
+                 style="display:inline-block;padding:14px 32px;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;">
+                View Progress Report
+              </a>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;line-height:1.5;">
+            If the button doesn't work, copy and paste this link:
+          </p>
+          <p style="margin:0;color:#006AFF;font-size:13px;word-break:break-all;">
+            ${params.progressUrl}
+          </p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+          <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
+            EmotioX — UX Research Platform
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+};
+
+/**
+ * Sends progress report share email to one or more recipients.
+ */
+export const sendShareProgress = async (params: {
+  to: string[];
+  senderName: string;
+  researchName: string;
+  progressUrl: string;
+}): Promise<{ sent: number; failed: number; errors: string[] }> => {
+  const errors: string[] = [];
+  let sent = 0;
+  for (const email of params.to) {
+    try {
+      await transporter.sendMail({
+        from: FROM,
+        to: email,
+        subject: `${params.senderName} shared a research progress report — ${params.researchName}`,
+        html: buildShareProgressHtml({
+          senderName: params.senderName,
+          researchName: params.researchName,
+          progressUrl: params.progressUrl,
+        }),
+      });
+      sent++;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      errors.push(`${email}: ${msg}`);
+    }
+  }
+  return { sent, failed: errors.length, errors };
+};
+
 // --- Public API ---
 
 export interface SendResult {

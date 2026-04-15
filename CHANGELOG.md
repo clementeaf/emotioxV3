@@ -1,3 +1,36 @@
+## v0.59.0 — Scalability, Nav Flow fix, Share Progress, Results optimization (2026-04-15)
+
+### backend
+- **Batch INSERT responses:** `saveParticipantResponses` now uses a single batch INSERT instead of N individual INSERTs + N SELECTs. Reduces queries per submission from ~47 to ~5.
+- **Composite DB index:** `idx_responses_research_module_component` on `(research_id, module_id, component_id)` for all analytics queries.
+- **Cache hot paths:** `getResearchConfiguration` (60s TTL) and `getParticipantCount` (10s TTL) cached to avoid repeated queries during submission bursts.
+- **Connection pool:** Raised from 10 to 20 connections per pool.
+- **Cognitive tasks payload optimization:** Modules with dedicated endpoints (Nav Flow, Preference Test, Choice, Scale, Ranking) return COUNT only — no full response data. Reduces payload ~70%.
+- **Nav Flow analytics:** Strip `clickSequence` from per-participant responses (data lives in `heatmapData` with `participantId`). Reduces Nav Flow payload ~70%.
+- **Batch COUNT:** `/cognitive-tasks` uses single grouped COUNT query instead of N individual queries.
+- **Share progress endpoint:** `POST /research/:id/share-progress` sends branded email with progress link to multiple recipients.
+- **Public progress endpoint:** `GET /public/research/:id/progress` returns metrics + participants without auth.
+
+### participant-frontend
+- **Nav Flow save fix:** Single-image modules now correctly include the triggering click in saved response. Previously, React state batching caused `clickSequence: []` because `setAllClicks` hadn't committed when `saveNavigationResponse` ran.
+
+### research-frontend
+- **Results request dedup:** `NavigationFlowResultsWrapper` and `PreferenceTestResultsWrapper` use `useResearch()` (React Query) instead of individual `getById` calls. 10 calls → 1.
+- **Media URL cache:** `getMediaUrlByS3Key` caches results in-memory for 5 minutes.
+- **Nav Flow AOI computation:** Uses `heatmapData` (with `participantId`) instead of per-response `clickSequence`.
+- **Participant count fix:** Cognitive Tasks header shows unique participant count instead of total response rows (was showing ~864 instead of ~52).
+- **Progress filter:** ParticipantsTable has minimum progress slider (0-100%) to filter by completion level.
+- **Share Progress:** "Send Link" button opens Drawer to add email recipients. "Copy link" copies public URL. Public page at `/progress/:id` shows read-only progress.
+
+### docs
+- `scalability-audit-results-page.md` — Results page scalability analysis and fixes.
+- `scalability-audit-participant.md` — Participant submission capacity analysis.
+
+### database
+- Migration 022: composite index on responses table.
+
+---
+
 ## v0.58.0 — Phase 3: FACS Emotion Recognition, Attention Prediction, Advanced Analytics (2026-04-14)
 
 ### participant-frontend
