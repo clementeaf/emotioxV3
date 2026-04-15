@@ -1270,9 +1270,15 @@ export const deleteStage = async (researchId: string, userId: string, stageId: s
             [stageId]
         );
         const moduleCount = parseInt(modulesCheck.rows[0].count || '0', 10);
-        console.log('[ResearchService] Modules to be deleted (CASCADE):', { stageId, moduleCount });
+        console.log('[ResearchService] Modules to detach from stage:', { stageId, moduleCount });
 
-        // Eliminar el stage (CASCADE eliminará automáticamente los módulos asociados)
+        // Detach modules from stage (set stage_id = NULL) to prevent orphans
+        if (moduleCount > 0) {
+            await client.query('UPDATE modules SET stage_id = NULL WHERE stage_id = ?', [stageId]);
+            console.log('[ResearchService] Detached', moduleCount, 'modules from stage', stageId);
+        }
+
+        // Delete the stage
         const deleteResult = await client.query('DELETE FROM stages WHERE id = ?', [stageId]);
         
         if (deleteResult.rowCount === 0) {
