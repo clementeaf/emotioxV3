@@ -328,8 +328,12 @@ class ResearchService {
         try {
             const endpoint = configService.getEndpoint('research', 'activity', { id });
             return await apiClient.get<{ activities: ResearchActivity[] }>(endpoint);
-        } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to fetch research activity');
+        } catch (err: unknown) {
+            if (err instanceof Error && err.message.startsWith('Endpoint not found')) {
+                // Fallback for cached configs without this endpoint
+                return await apiClient.get<{ activities: ResearchActivity[] }>(`/research/${id}/activity`);
+            }
+            throw this.handleError(err, 'Failed to fetch research activity');
         }
     }
 
@@ -337,8 +341,12 @@ class ResearchService {
         try {
             const endpoint = configService.getEndpoint('research', 'getAllActivity');
             return await apiClient.get<{ activities: ResearchActivity[] }>(endpoint);
-        } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to fetch research activity');
+        } catch (err: unknown) {
+            if (err instanceof Error && err.message.startsWith('Endpoint not found')) {
+                // Fallback for cached configs without this endpoint
+                return await apiClient.get<{ activities: ResearchActivity[] }>('/research/activity');
+            }
+            throw this.handleError(err, 'Failed to fetch research activity');
         }
     }
 
