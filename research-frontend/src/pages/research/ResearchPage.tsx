@@ -295,6 +295,8 @@ export const ResearchPage = () => {
     const [inviteEmails, setInviteEmails] = useState<string[]>([]);
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteResult, setInviteResult] = useState<{ sent: string[]; failed: Array<{ email: string; message: string }> } | null>(null);
+    const [viewers, setViewers] = useState<Array<{ id: string; email: string; firstName: string | null; lastName: string | null; createdAt: string }>>([]);
+    const [viewersLoading, setViewersLoading] = useState(false);
 
     useEffect(() => {
         if (searchParams.get('inviteViewer') !== '1') return;
@@ -306,6 +308,22 @@ export const ResearchPage = () => {
         nextParams.delete('inviteViewer');
         setSearchParams(nextParams, { replace: true });
     }, [searchParams, setSearchParams]);
+
+    const loadViewers = useCallback(async () => {
+        setViewersLoading(true);
+        try {
+            const res = await apiClient.get<{ viewers: typeof viewers }>('/users/viewers');
+            setViewers(res.viewers || []);
+        } catch {
+            setViewers([]);
+        } finally {
+            setViewersLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (showInviteDrawer) void loadViewers();
+    }, [showInviteDrawer, loadViewers]);
 
     // Usar React Query para datos optimizados
     const { data: researches = [], isLoading, error } = useResearches();
@@ -369,11 +387,12 @@ export const ResearchPage = () => {
             setInviteResult({ sent, failed });
             if (sent.length > 0) {
                 setInviteEmails(failed.map((item) => item.email));
+                void loadViewers();
             }
         } finally {
             setInviteLoading(false);
         }
-    }, [inviteEmails]);
+    }, [inviteEmails, loadViewers]);
 
     const handleConfirmDelete = useCallback(async () => {
         if (!researchToDelete) return;
@@ -729,6 +748,44 @@ export const ResearchPage = () => {
                             )}
                         </div>
                     )}
+
+                    {/* Invited viewers list */}
+                    <div className="border-t border-gray-200 pt-4">
+                        <h3 className="text-sm font-medium text-gray-900 mb-3">
+                            Invited viewers
+                            {viewers.length > 0 && <span className="ml-1.5 text-xs text-gray-400">({viewers.length})</span>}
+                        </h3>
+                        {viewersLoading ? (
+                            <div className="space-y-2">
+                                {Array.from({ length: 3 }).map((_, i) => (
+                                    <div key={i} className="animate-pulse h-10 bg-gray-100 rounded-lg" />
+                                ))}
+                            </div>
+                        ) : viewers.length === 0 ? (
+                            <p className="text-sm text-gray-400">No viewers invited yet.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {viewers.map((viewer) => (
+                                    <div key={viewer.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                            <div className="min-w-0">
+                                                <p className="text-sm text-gray-700 truncate">{viewer.email}</p>
+                                                {(viewer.firstName || viewer.lastName) && (
+                                                    <p className="text-xs text-gray-400 truncate">
+                                                        {[viewer.firstName, viewer.lastName].filter(Boolean).join(' ')}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className="text-xs text-gray-400 whitespace-nowrap ml-3">
+                                            {new Date(viewer.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </Drawer>
         </div>

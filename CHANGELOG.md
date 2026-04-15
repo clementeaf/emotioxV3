@@ -1,3 +1,13 @@
+## v0.59.9 — Invited viewers list in Invite Viewer drawer (2026-04-15)
+
+### backend
+- **Viewers endpoint:** `GET /users/viewers` lists users with role `viewer`, including email, name, and invitation date.
+
+### research-frontend
+- **Invited viewers section:** The Invite Viewer drawer now shows a list of previously invited viewers with email and date. Refreshes automatically after sending new invitations.
+
+---
+
 ## v0.59.8 — Research detail drawer with tabs (2026-04-15)
 
 ### backend

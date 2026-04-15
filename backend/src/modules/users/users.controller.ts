@@ -80,6 +80,30 @@ export const handleUsersRoutes = async (event: APIGatewayProxyEvent): Promise<AP
             return error('Viewer role is read-only', 403, undefined, origin);
         }
 
+        // GET /users/viewers — list invited viewers
+        if (path === '/users/viewers' && httpMethod === 'GET') {
+            const result = await pool.query(
+                `SELECT id, email, first_name, last_name, metadata, created_at
+                 FROM users
+                 WHERE role = 'viewer' AND deleted_at IS NULL
+                 ORDER BY created_at DESC`
+            );
+            const viewers = result.rows.map((row) => ({
+                id: row.id,
+                email: row.email,
+                firstName: row.first_name || null,
+                lastName: row.last_name || null,
+                invitedBy: (() => {
+                    try {
+                        const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+                        return meta?.invited_by || null;
+                    } catch { return null; }
+                })(),
+                createdAt: row.created_at,
+            }));
+            return success({ viewers }, 200, undefined, origin);
+        }
+
         // GET /users
         if (path === '/users' && httpMethod === 'GET') {
             const users = await usersService.getAllUsers();
