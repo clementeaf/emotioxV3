@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Share2, Check, Send, Plus, X } from 'lucide-react';
+import { Download, Share2, Check, Send, Plus, X, ExternalLink } from 'lucide-react';
 import { Drawer } from '../../../components/ui/Drawer';
 import apiClient from '../../../services/api/client';
 import { ParticipantsTable } from '../participants/ParticipantsTable';
@@ -55,6 +55,10 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
             setTimeout(() => setCopied(false), 2000);
         });
     };
+
+    const handleOpenProgressLink = useCallback(() => {
+        window.open(progressUrl, '_blank', 'noopener,noreferrer');
+    }, [progressUrl]);
 
     const handleAddEmail = () => {
         const email = newEmail.trim();
@@ -217,6 +221,13 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                     >
                         <Send className="h-4 w-4" />
                         Send Link
+                    </button>
+                    <button
+                        onClick={handleOpenProgressLink}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        <ExternalLink className="h-4 w-4" />
+                        Open link
                     </button>
                     <button
                         onClick={handleShare}

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ParticipantsTable } from '../../components/research/participants/ParticipantsTable';
 import type { Participant, ResearchStatus } from '../../services/researchInProgress.service';
 import { configService } from '../../services/api/config.service';
@@ -58,10 +58,13 @@ const normalizeProgressResponse = (
  */
 export const PublicProgressPage = () => {
     const { id } = useParams<{ id: string }>();
+    const [searchParams] = useSearchParams();
     const [status, setStatus] = useState<ResearchStatus | null>(null);
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const shouldPrint = searchParams.get('print') === '1';
+    const hasTriggeredPrintRef = useRef(false);
 
     useEffect(() => {
         if (!id) return;
@@ -82,6 +85,36 @@ export const PublicProgressPage = () => {
         };
         load();
     }, [id]);
+
+    useEffect(() => {
+        if (!shouldPrint || isLoading || error || !status || hasTriggeredPrintRef.current) return;
+
+        hasTriggeredPrintRef.current = true;
+        let cancelled = false;
+
+        const runPrint = async () => {
+            if ('fonts' in document) {
+                try {
+                    await (document as Document & { fonts: FontFaceSet }).fonts.ready;
+                } catch {
+                    // Ignore font readiness failures and continue to print.
+                }
+            }
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (cancelled) return;
+                    window.print();
+                });
+            });
+        };
+
+        void runPrint();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [shouldPrint, isLoading, error, status]);
 
     if (error) {
         return (

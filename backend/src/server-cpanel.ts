@@ -68,6 +68,22 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],
 }));
 
+app.options('/api/monitor/events/:researchId', (req: Request, res: Response) => {
+    const origin = req.headers.origin;
+
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type,Authorization,Cache-Control,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'
+    );
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    res.status(204).end();
+});
+
 app.use(express.json({ limit: '10mb' }));
 
 // Configure multer for file uploads (memory storage for direct processing)

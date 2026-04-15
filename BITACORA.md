@@ -5,9 +5,16 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 37)
+## Última actualización: 2026-04-15 (sesión 38)
 
 ---
+
+## Sesión 38: 15 de abril de 2026 — Progreso público robusto + CORS SSE
+
+- **Progreso público más tolerante:** `PublicProgressPage` ahora normaliza respuestas envueltas o serializadas antes de leer `metrics` y `participants`.
+- **Nueva acción en View Progress:** Se agregó `Open link` para abrir directamente la URL pública del progreso.
+- **Impresión pública preparada:** La vista pública soporta `?print=1` y espera a que carguen datos y fonts antes de llamar `window.print()`.
+- **SSE CORS corregido en cPanel:** `server-cpanel` permite `Cache-Control` en preflight y responde `OPTIONS /api/monitor/events/:researchId`, evitando bloqueos desde `localhost:12800`.
 
 ## Sesión 37: 15 de abril de 2026 — Nombre del estudio en progreso público
 

@@ -1,3 +1,16 @@
+## v0.59.1 — Public progress resilience, Open link action, SSE CORS fix (2026-04-15)
+
+### backend
+- **SSE CORS fix:** `server-cpanel` now allows `Cache-Control` in CORS preflight and responds explicitly to `OPTIONS /api/monitor/events/:researchId`. Fixes blocked monitoring connections from `http://localhost:12800`.
+- **cPanel runtime aligned:** The compiled `server-cpanel.js` was updated alongside the TypeScript source so the deployed cPanel server uses the same CORS headers.
+
+### research-frontend
+- **Public progress response normalization:** `PublicProgressPage` now accepts wrapped or serialized payload shapes before reading `metrics` and `participants`.
+- **Open link action:** View Progress now includes an `Open link` button to open the public progress page directly in a new tab.
+- **Print-ready public progress:** The public progress page supports `?print=1` and waits for data/fonts before calling `window.print()`.
+
+---
+
 ## v0.59.0 — Scalability, Nav Flow fix, Share Progress, Results optimization (2026-04-15)
 
 ### backend
