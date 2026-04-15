@@ -4,6 +4,54 @@ import { ParticipantsTable } from '../../components/research/participants/Partic
 import type { Participant, ResearchStatus } from '../../services/researchInProgress.service';
 import { configService } from '../../services/api/config.service';
 
+const normalizeProgressResponse = (
+    payload: unknown
+): { metrics: ResearchStatus | null; participants: Participant[] } => {
+    let parsedPayload = payload;
+
+    if (
+        parsedPayload &&
+        typeof parsedPayload === 'object' &&
+        'body' in parsedPayload &&
+        typeof (parsedPayload as { body?: unknown }).body === 'string'
+    ) {
+        try {
+            parsedPayload = JSON.parse((parsedPayload as { body: string }).body);
+        } catch {
+            parsedPayload = null;
+        }
+    }
+
+    const root =
+        parsedPayload &&
+        typeof parsedPayload === 'object' &&
+        'data' in parsedPayload &&
+        (parsedPayload as { data?: unknown }).data &&
+        typeof (parsedPayload as { data?: unknown }).data === 'object'
+            ? (parsedPayload as { data: unknown }).data
+            : parsedPayload;
+
+    if (!root || typeof root !== 'object') {
+        return { metrics: null, participants: [] };
+    }
+
+    const response = root as {
+        metrics?: ResearchStatus;
+        participants?: Participant[] | { data?: Participant[] };
+    };
+
+    const participants = Array.isArray(response.participants)
+        ? response.participants
+        : Array.isArray(response.participants?.data)
+            ? response.participants.data
+            : [];
+
+    return {
+        metrics: response.metrics ?? null,
+        participants,
+    };
+};
+
 /**
  * Public read-only progress page. No auth required.
  * URL: /progress/:id
@@ -23,8 +71,9 @@ export const PublicProgressPage = () => {
                 const res = await fetch(`${baseUrl}/public/research/${id}/progress`);
                 if (!res.ok) throw new Error(res.status === 404 ? 'Research not found' : 'Failed to load progress');
                 const data = await res.json();
-                setStatus(data.metrics);
-                setParticipants(Array.isArray(data.participants) ? data.participants : data.participants?.data ?? []);
+                const normalized = normalizeProgressResponse(data);
+                setStatus(normalized.metrics);
+                setParticipants(normalized.participants);
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Error loading progress');
             } finally {
