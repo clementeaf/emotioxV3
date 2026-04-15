@@ -100,6 +100,31 @@ export interface ResearchActivity {
     createdAt: string;
 }
 
+export interface TimelineEvent {
+    type: string;
+    date: string;
+    label: string;
+}
+
+export interface ResearchDetail {
+    research: {
+        id: string;
+        name: string;
+        status: string;
+        technique: string | null;
+        creator: string | null;
+        creatorEmail: string | null;
+        createdAt: string;
+        updatedAt: string;
+        startedAt: string | null;
+        completedAt: string | null;
+    };
+    stages: Array<{ id: string; name: string; createdAt: string; updatedAt: string; moduleCount: number }>;
+    modules: Array<{ id: string; name: string; stageName: string | null; createdAt: string; updatedAt: string }>;
+    responseStats: { total: number; uniqueParticipants: number; firstResponse: string | null; lastResponse: string | null };
+    timeline: TimelineEvent[];
+}
+
 /**
  * Servicio de investigaciones
  * Maneja todas las operaciones relacionadas con investigaciones
@@ -334,6 +359,14 @@ class ResearchService {
                 return await apiClient.get<{ activities: ResearchActivity[] }>(`/research/${id}/activity`);
             }
             throw this.handleError(err, 'Failed to fetch research activity');
+        }
+    }
+
+    async getDetail(id: string): Promise<ResearchDetail> {
+        try {
+            return await apiClient.get<ResearchDetail>(`/research/${id}/detail`);
+        } catch (err: unknown) {
+            throw this.handleError(err, 'Failed to fetch research detail');
         }
     }
 

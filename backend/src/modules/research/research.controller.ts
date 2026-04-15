@@ -273,6 +273,15 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ activities }, 200, undefined, origin);
         }
 
+        // GET /research/:id/detail
+        const detailMatch = path.match(/^\/research\/([^\/]+)\/detail$/);
+        if (detailMatch && httpMethod === 'GET') {
+            const researchId = detailMatch[1];
+            await researchService.getById(researchId, user.id, user.role);
+            const detail = await researchActivityService.getResearchDetail(researchId);
+            return success(detail, 200, undefined, origin);
+        }
+
         // GET /research/:id/metrics
         const metricsMatch = path.match(/^\/research\/([^\/]+)\/metrics$/);
         if (metricsMatch && httpMethod === 'GET') {

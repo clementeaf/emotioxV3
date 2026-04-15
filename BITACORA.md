@@ -9,9 +9,11 @@
 
 ---
 
-## Sesión 44: 15 de abril de 2026 — Fix JOIN en activity queries
+## Sesión 44: 15 de abril de 2026 — Research detail drawer + fix JOIN
 
-- **Columna corregida:** Los queries de `research-activity.service.ts` usaban `r.user_id` (inexistente) en el JOIN con `users`. La columna correcta en `researches` es `created_by`. Corregido en ambas funciones.
+- **Fix JOIN:** `r.user_id` → `r.created_by` en queries de activity (columna correcta en `researches`).
+- **Detail endpoint:** `GET /research/:id/detail` con 4 queries paralelas: research+user, stages, modules, response stats. Timeline ensamblada server-side.
+- **Drawer de detalle:** Click en fila de Research Tracking abre panel lateral con overview, estadísticas, listado de stages/modules y timeline cronológica.
 
 ## Sesión 43: 15 de abril de 2026 — Fix ruta global de tracking
 

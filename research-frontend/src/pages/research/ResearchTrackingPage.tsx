@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Clock3, History, User } from 'lucide-react';
 import { researchService, type ResearchActivity } from '../../services/research.service';
+import { ResearchDetailDrawer } from '../../components/tracking/ResearchDetailDrawer';
 
 export const ResearchTrackingPage = () => {
     const [activities, setActivities] = useState<ResearchActivity[]>([]);
@@ -11,6 +12,7 @@ export const ResearchTrackingPage = () => {
     const [techniqueFilter, setTechniqueFilter] = useState('');
     const [actorFilter, setActorFilter] = useState('');
     const [actionFilter, setActionFilter] = useState('');
+    const [selectedResearchId, setSelectedResearchId] = useState<string | null>(null);
 
     useEffect((): void => {
         const load = async () => {
@@ -56,7 +58,7 @@ export const ResearchTrackingPage = () => {
                         <History className="h-5 w-5 text-gray-500" />
                         <h1 className="text-lg font-semibold text-gray-900">Research Tracking</h1>
                     </div>
-                    <p className="text-sm text-gray-500 mt-1">Global activity log across all researches.</p>
+                    <p className="text-sm text-gray-500 mt-1">Global activity log across all researches. Click a row for details.</p>
                 </div>
 
                 {isLoading ? (
@@ -146,7 +148,11 @@ export const ResearchTrackingPage = () => {
                                 {filteredActivities.map((activity) => {
                                     const actorLabel = activity.actorName || activity.actorEmail || 'System';
                                     return (
-                                        <tr key={activity.id} className="hover:bg-gray-50">
+                                        <tr
+                                            key={activity.id}
+                                            className="hover:bg-gray-50 cursor-pointer"
+                                            onClick={() => setSelectedResearchId(activity.researchId)}
+                                        >
                                             <td className="px-4 py-3 text-gray-900 font-medium">{activity.summary}</td>
                                             <td className="px-4 py-3 text-gray-600">{activity.researchName || 'Unknown research'}</td>
                                             <td className="px-4 py-3 text-gray-600">{activity.researchTechniqueName || '—'}</td>
@@ -181,6 +187,11 @@ export const ResearchTrackingPage = () => {
                     </div>
                 )}
             </div>
+
+            <ResearchDetailDrawer
+                researchId={selectedResearchId}
+                onClose={() => setSelectedResearchId(null)}
+            />
         </div>
     );
 };
