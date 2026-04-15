@@ -226,7 +226,7 @@ export const getOverviewMetrics = async (researchId: string, userId: string, rol
 export const getOverviewMetricsInternal = async (researchId: string) => {
     // Verifying research existence
     const researchCheck = await pool.query(
-        'SELECT id, status FROM researches WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, name, status FROM researches WHERE id = ? AND deleted_at IS NULL',
         [researchId]
     );
 
@@ -234,7 +234,7 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
         throw new Error('Research not found');
     }
 
-    const research = researchCheck.rows[0];
+    const research = researchCheck.rows[0] as { status: string; name?: string };
     const researchStatus = research.status;
 
     // Obtener estadísticas de participantes
@@ -335,7 +335,8 @@ export const getOverviewMetricsInternal = async (researchId: string) => {
             description: `Última actividad: ${await getLastActivityText(researchId)}`,
             icon: 'clock'
         },
-        totalModules: totalComponents
+        totalModules: totalComponents,
+        researchName: research.name || 'Research'
     };
 };
 

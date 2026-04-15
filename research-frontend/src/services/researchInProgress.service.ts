@@ -2,6 +2,7 @@ import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
 
 export interface ResearchStatus {
+    researchName?: string;
     status: {
         value: string;
         description: string;
@@ -208,4 +209,3 @@ class ResearchInProgressService {
 }
 
 export const researchInProgressService = new ResearchInProgressService();
-

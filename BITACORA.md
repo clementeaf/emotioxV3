@@ -5,7 +5,14 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 36)
+## Última actualización: 2026-04-15 (sesión 37)
+
+---
+
+## Sesión 37: 15 de abril de 2026 — Nombre del estudio en progreso público
+
+- **Header con nombre del research:** La página pública de progreso ahora muestra `Research Progress - {researchName}`.
+- **Payload extendido:** El endpoint interno de métricas agrega `researchName` para evitar una segunda carga desde frontend.
 
 ---
 
