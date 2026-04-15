@@ -1,3 +1,10 @@
+## v0.59.2 — Backend deploy workflow hardening (2026-04-15)
+
+### docs
+- **Backend deploy workflow:** `deploy-backend-cpanel.yml` now validates `CPANEL_SSH_HOST`, retries `ssh-keyscan` up to 3 times, and prints a clearer failure message when the cPanel host key cannot be fetched.
+
+---
+
 ## v0.59.1 — Public progress resilience, Open link action, SSE CORS fix (2026-04-15)
 
 ### backend

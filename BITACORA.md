@@ -5,9 +5,13 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 38)
+## Última actualización: 2026-04-15 (sesión 39)
 
 ---
+
+## Sesión 39: 15 de abril de 2026 — Workflow backend más claro en SSH
+
+- **Deploy backend endurecido:** El workflow `deploy-backend-cpanel.yml` ahora valida `CPANEL_SSH_HOST`, reintenta `ssh-keyscan` hasta 3 veces y deja un error más claro si no puede obtener la host key del servidor cPanel.
 
 ## Sesión 38: 15 de abril de 2026 — Progreso público robusto + CORS SSE
 
