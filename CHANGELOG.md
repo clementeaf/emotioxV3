@@ -10,6 +10,7 @@
 - **Batch COUNT:** `/cognitive-tasks` uses single grouped COUNT query instead of N individual queries.
 - **Share progress endpoint:** `POST /research/:id/share-progress` sends branded email with progress link to multiple recipients.
 - **Public progress endpoint:** `GET /public/research/:id/progress` returns metrics + participants without auth.
+- **Share progress URL fix:** Fallback share links now point to `https://emotio.cx/research/progress/:id`, matching the production `research-frontend` base path.
 
 ### participant-frontend
 - **Nav Flow save fix:** Single-image modules now correctly include the triggering click in saved response. Previously, React state batching caused `clickSequence: []` because `setAllClicks` hadn't committed when `saveNavigationResponse` ran.
@@ -21,6 +22,7 @@
 - **Participant count fix:** Cognitive Tasks header shows unique participant count instead of total response rows (was showing ~864 instead of ~52).
 - **Progress filter:** ParticipantsTable has minimum progress slider (0-100%) to filter by completion level.
 - **Share Progress:** "Send Link" button opens Drawer to add email recipients. "Copy link" copies public URL. Public page at `/progress/:id` shows read-only progress.
+- **Progress share link fix:** The copied public link now includes the `/research` prefix in production, avoiding invalid root-level URLs.
 
 ### docs
 - `scalability-audit-results-page.md` — Results page scalability analysis and fixes.

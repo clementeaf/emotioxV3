@@ -5,7 +5,14 @@
 
 ---
 
-## Última actualización: 2026-04-10 (sesión 35)
+## Última actualización: 2026-04-15 (sesión 36)
+
+---
+
+## Sesión 36: 15 de abril de 2026 — Fix link público de progreso
+
+- **URL de progreso corregida:** El link compartido se estaba generando como `/progress/:id`, pero en producción el research frontend corre bajo `/research`. Actualizado frontend y fallback backend a `/research/progress/:id`.
+- **Causa del código inesperado:** El endpoint público de progreso responde `200`; el problema era la URL raíz incorrecta, no la API.
 
 ---
 

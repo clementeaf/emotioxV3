@@ -47,7 +47,7 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     const [newEmail, setNewEmail] = useState('');
     const [sending, setSending] = useState(false);
 
-    const progressUrl = `${window.location.origin}/progress/${researchId}`;
+    const progressUrl = `${window.location.origin}/research/progress/${researchId}`;
 
     const handleShare = () => {
         navigator.clipboard.writeText(progressUrl).then(() => {
@@ -320,4 +320,3 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
         </div>
     );
 }
-
