@@ -40,7 +40,7 @@ export const listAllResearchActivity = async (): Promise<ResearchActivityLog[]> 
             (SELECT MAX(resp3.created_at) FROM responses resp3 WHERE resp3.research_id = r.id) AS last_response_at
          FROM researches r
          LEFT JOIN research_techniques rt ON rt.id = r.research_technique_id
-         LEFT JOIN users u ON u.id = r.user_id
+         LEFT JOIN users u ON u.id = r.created_by
          WHERE r.deleted_at IS NULL
          ORDER BY r.updated_at DESC`
     );
@@ -113,7 +113,7 @@ export const listResearchActivity = async (researchId: string): Promise<Research
             (SELECT MAX(resp3.created_at) FROM responses resp3 WHERE resp3.research_id = r.id) AS last_response_at
          FROM researches r
          LEFT JOIN research_techniques rt ON rt.id = r.research_technique_id
-         LEFT JOIN users u ON u.id = r.user_id
+         LEFT JOIN users u ON u.id = r.created_by
          WHERE r.id = ? AND r.deleted_at IS NULL`,
         [researchId]
     );

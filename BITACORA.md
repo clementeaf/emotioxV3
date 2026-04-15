@@ -5,9 +5,13 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 43)
+## Última actualización: 2026-04-15 (sesión 44)
 
 ---
+
+## Sesión 44: 15 de abril de 2026 — Fix JOIN en activity queries
+
+- **Columna corregida:** Los queries de `research-activity.service.ts` usaban `r.user_id` (inexistente) en el JOIN con `users`. La columna correcta en `researches` es `created_by`. Corregido en ambas funciones.
 
 ## Sesión 43: 15 de abril de 2026 — Fix ruta global de tracking
 

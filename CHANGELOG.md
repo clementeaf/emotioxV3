@@ -1,3 +1,10 @@
+## v0.59.6 — Fix research activity JOIN column (2026-04-15)
+
+### backend
+- **Activity query fix:** Changed `r.user_id` → `r.created_by` in both `listAllResearchActivity` and `listResearchActivity` queries. The `researches` table uses `created_by`, not `user_id`.
+
+---
+
 ## v0.59.5 — Research activity derived from existing tables (2026-04-15)
 
 ### backend
