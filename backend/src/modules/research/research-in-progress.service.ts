@@ -109,6 +109,61 @@ const isModuleConfiguredForProgress = (name: string, components: ProgressCompone
  * Thank You Screen, hidden modules, and unconfigured modules (mirrors
  * participant-frontend's isModuleConfigured check).
  */
+interface VisibleModule {
+    id: string;
+    conditionality?: boolean;
+    conditionalityConfig?: {
+        action: string;
+        demographicKey: string;
+        demographicValue: string;
+    };
+}
+
+/**
+ * Returns visible modules with conditionality info.
+ * Used to compute per-participant progress (excluding conditional modules that don't apply).
+ */
+const getVisibleModulesForProgress = async (researchId: string): Promise<VisibleModule[]> => {
+    const EXCLUDED_NAMES = ['research configuration', 'welcome screen', 'thank you screen'];
+    const modulesQuery = `
+        SELECT m.id, m.name, m.config
+        FROM modules m
+        INNER JOIN stages s ON m.stage_id = s.id
+        WHERE m.research_id = ? AND m.stage_id IS NOT NULL
+        ORDER BY m.order_index
+    `;
+    const modulesResult = await pool.query(modulesQuery, [researchId]);
+    const result: VisibleModule[] = [];
+
+    for (const mod of modulesResult.rows as ProgressModuleRow[]) {
+        if (EXCLUDED_NAMES.includes(mod.name.toLowerCase())) continue;
+
+        let parsedConfig: ProgressModuleConfig | null = null;
+        try {
+            if (typeof mod.config === 'string') {
+                parsedConfig = JSON.parse(mod.config) as ProgressModuleConfig;
+            } else if (mod.config && typeof mod.config === 'object') {
+                parsedConfig = mod.config as ProgressModuleConfig;
+            }
+        } catch {
+            parsedConfig = null;
+        }
+
+        if (parsedConfig?.hidden === true) continue;
+
+        const components = parsedConfig?.structure?.components || parsedConfig?.components || [];
+        if (!isModuleConfiguredForProgress(mod.name, components)) continue;
+
+        result.push({
+            id: mod.id,
+            conditionality: (parsedConfig as Record<string, unknown>)?.conditionality === true,
+            conditionalityConfig: (parsedConfig as Record<string, unknown>)?.conditionalityConfig as VisibleModule['conditionalityConfig'],
+        });
+    }
+
+    return result;
+};
+
 const getVisibleModuleIdsForProgress = async (researchId: string): Promise<Set<string>> => {
     const EXCLUDED_NAMES = ['research configuration', 'welcome screen', 'thank you screen'];
     const modulesQuery = `
@@ -298,9 +353,15 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         throw new Error('Research not found');
     }
 
-    // 1. Obtener IDs de módulos visibles (excluye huérfanos, hidden, welcome/thankyou/config)
-    const visibleModuleIds = await getVisibleModuleIdsForProgress(researchId);
+    // 1. Obtener módulos visibles con info de condicionalidad
+    const visibleModules = await getVisibleModulesForProgress(researchId);
+    const visibleModuleIds = new Set(visibleModules.map(m => m.id));
     const totalComponents = visibleModuleIds.size;
+
+    // Conditional modules: keyed by demographicKey+demographicValue for fast lookup
+    const conditionalModuleIds = new Set(
+        visibleModules.filter(m => m.conditionality && m.conditionalityConfig?.demographicKey).map(m => m.id)
+    );
 
     // 2. Obtener módulos respondidos por participante (solo módulos visibles válidos)
     let participantsQuery: string;
@@ -344,13 +405,41 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
     }
     const result = await pool.query(participantsQuery, queryParams);
 
+    // 3. Load demographics per participant to evaluate conditionality
+    let demographicsMap = new Map<string, Record<string, string>>();
+    if (conditionalModuleIds.size > 0) {
+        const demoResult = await pool.query(
+            'SELECT participant_id, demographic_type, demographic_value FROM participant_demographics WHERE research_id = ?',
+            [researchId]
+        );
+        for (const row of demoResult.rows) {
+            if (!demographicsMap.has(row.participant_id)) demographicsMap.set(row.participant_id, {});
+            demographicsMap.get(row.participant_id)![row.demographic_type] = row.demographic_value;
+        }
+    }
+
     const participants = result.rows.map(row => {
         const answered = parseInt(row.answered_modules || '0', 10);
         const panelStatus = row.panel_status as string | null;
-        // responded = completed the survey flow → always 100%
-        const isCompleted = panelStatus === 'responded' || (totalComponents > 0 && answered >= totalComponents);
+
+        // Per-participant: exclude conditional modules that don't apply
+        let participantTotal = totalComponents;
+        if (conditionalModuleIds.size > 0) {
+            const pDemographics = demographicsMap.get(row.id) || {};
+            for (const mod of visibleModules) {
+                if (!mod.conditionality || !mod.conditionalityConfig) continue;
+                const { action, demographicKey, demographicValue } = mod.conditionalityConfig;
+                const participantValue = pDemographics[demographicKey];
+                const matches = participantValue === demographicValue;
+                // action=show: module visible only if matches. action=hide: visible only if NOT matches.
+                const isVisible = action === 'show' ? matches : !matches;
+                if (!isVisible) participantTotal--;
+            }
+        }
+
+        const isCompleted = panelStatus === 'responded' || (participantTotal > 0 && answered >= participantTotal);
         const progress = isCompleted ? 100
-            : totalComponents > 0 ? Math.min(99, Math.round((answered / totalComponents) * 100))
+            : participantTotal > 0 ? Math.min(99, Math.round((answered / participantTotal) * 100))
             : 0;
         // Panel status (overquota/disqualified) overrides progress-based status
         const status = panelStatus === 'overquota' ? 'Sobre cuota'
