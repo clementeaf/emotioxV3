@@ -8,24 +8,6 @@ import * as authService from '../auth/auth.service';
 import * as publicService from '../public/public.service';
 import { getRequestOrigin } from '../../utils/request';
 
-interface ResearchActivityModule {
-    id: string;
-    name: string;
-}
-
-interface ResearchActivityStage {
-    id: string;
-    name: string;
-    modules?: ResearchActivityModule[];
-}
-
-interface ResearchActivityResearch {
-    id: string;
-    name: string;
-    status?: string;
-    stages?: ResearchActivityStage[];
-}
-
 export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
     const origin = getRequestOrigin(event);
@@ -86,19 +68,6 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             console.log('[Research Controller] research_type_id:', body.research_type_id);
             console.log('[Research Controller] use_default_modules:', body.use_default_modules);
             const research = await researchService.create(user.id, body);
-            await researchActivityService.logResearchActivity({
-                researchId: research.id,
-                actorUserId: user.id,
-                action: 'research.created',
-                entityType: 'research',
-                entityId: research.id,
-                summary: `Research created: ${research.name}`,
-                metadata: {
-                    name: research.name,
-                    researchTypeId: body.research_type_id || null,
-                    researchTechniqueId: body.research_technique_id || null,
-                },
-            });
             return success({ research }, 201, undefined, origin);
         }
 
@@ -123,23 +92,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (putMatch && httpMethod === 'PUT') {
             const id = putMatch[1];
             const body = JSON.parse(event.body || '{}');
-            const previousResearch = await researchService.getById(id, user.id, user.role);
             const research = await researchService.update(id, user.id, body, user.role);
-            await researchActivityService.logResearchActivity({
-                researchId: id,
-                actorUserId: user.id,
-                action: 'research.updated',
-                entityType: 'research',
-                entityId: id,
-                summary: body.name && body.name !== previousResearch.name
-                    ? `Research renamed from "${previousResearch.name}" to "${body.name}"`
-                    : `Research updated: ${research.name}`,
-                metadata: {
-                    previousName: previousResearch.name,
-                    nextName: body.name || research.name,
-                    fields: Object.keys(body || {}),
-                },
-            });
             return success({ research }, 200, undefined, origin);
         }
 
@@ -147,17 +100,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const deleteMatch = path.match(/^\/research\/([^\/]+)$/);
         if (deleteMatch && httpMethod === 'DELETE') {
             const id = deleteMatch[1];
-            const research = await researchService.getById(id, user.id, user.role);
             const result = await researchService.deleteResearch(id, user.id, user.role);
-            await researchActivityService.logResearchActivity({
-                researchId: id,
-                actorUserId: user.id,
-                action: 'research.deleted',
-                entityType: 'research',
-                entityId: id,
-                summary: `Research archived: ${research.name}`,
-                metadata: { name: research.name },
-            });
             return success(result, 200, undefined, origin);
         }
 
@@ -174,17 +117,6 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             console.log('[Research Controller] POST /research/:id/add-welcome-thankyou - Research ID:', id, 'User ID:', user.id);
             try {
                 const result = await researchService.addWelcomeAndThankYouStages(id, user.id, user.role);
-                if (result.added.length > 0) {
-                    await researchActivityService.logResearchActivity({
-                        researchId: id,
-                        actorUserId: user.id,
-                        action: 'research.default-stages-added',
-                        entityType: 'research',
-                        entityId: id,
-                        summary: `Default stages added: ${result.added.join(', ')}`,
-                        metadata: result,
-                    });
-                }
                 console.log('[Research Controller] Successfully added Welcome/Thank You stages:', result);
                 return success({ result }, 200, undefined, origin);
             } catch (error: unknown) {
@@ -200,21 +132,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = duplicateMatch[1];
             const body = JSON.parse(event.body || '{}');
             try {
-                const sourceResearch = await researchService.getById(id, user.id, user.role) as unknown as ResearchActivityResearch;
-                const research = await researchService.duplicate(id, user.id, user.role, body.name) as unknown as ResearchActivityResearch;
-                await researchActivityService.logResearchActivity({
-                    researchId: research.id,
-                    actorUserId: user.id,
-                    action: 'research.duplicated',
-                    entityType: 'research',
-                    entityId: research.id,
-                    summary: `Research duplicated from "${sourceResearch.name}"`,
-                    metadata: {
-                        sourceResearchId: id,
-                        sourceResearchName: sourceResearch.name,
-                        newResearchName: research.name,
-                    },
-                });
+                const research = await researchService.duplicate(id, user.id, user.role, body.name);
                 return success({ research }, 201, undefined, origin);
             } catch (err: unknown) {
                 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -230,17 +148,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (statusMatch && httpMethod === 'PATCH') {
             const id = statusMatch[1];
             const body = JSON.parse(event.body || '{}');
-            const previousResearch = await researchService.getById(id, user.id, user.role) as unknown as ResearchActivityResearch;
             const research = await researchService.updateStatus(id, user.id, body.status, user.role);
-            await researchActivityService.logResearchActivity({
-                researchId: id,
-                actorUserId: user.id,
-                action: 'research.status-updated',
-                entityType: 'research',
-                entityId: id,
-                summary: `Status changed from "${previousResearch.status}" to "${research.status}"`,
-                metadata: { from: previousResearch.status, to: research.status },
-            });
             return success({ research }, 200, undefined, origin);
         }
 
@@ -248,16 +156,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         const activateMatch = path.match(/^\/research\/([^\/]+)\/activate$/);
         if (activateMatch && httpMethod === 'POST') {
             const id = activateMatch[1];
-            const research = await researchService.activate(id, user.id, user.role) as unknown as ResearchActivityResearch;
-            await researchActivityService.logResearchActivity({
-                researchId: id,
-                actorUserId: user.id,
-                action: 'research.activated',
-                entityType: 'research',
-                entityId: id,
-                summary: `Research activated: ${research.name}`,
-                metadata: { status: research.status },
-            });
+            const research = await researchService.activate(id, user.id, user.role);
             return success({ research }, 200, undefined, origin);
         }
 
@@ -270,15 +169,6 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
                 return error('Stage name is required', 400, undefined, origin);
             }
             const stage = await researchService.createStage(id, user.id, body.name, body.description, user.role, body.defaultModuleName);
-            await researchActivityService.logResearchActivity({
-                researchId: id,
-                actorUserId: user.id,
-                action: 'stage.created',
-                entityType: 'stage',
-                entityId: stage.id,
-                summary: `Stage created: ${body.name}`,
-                metadata: { stageName: body.name, defaultModuleName: body.defaultModuleName || null },
-            });
             return success({ stage }, 201, undefined, origin);
         }
 
@@ -288,18 +178,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const researchId = deleteStageMatch[1];
             const stageId = deleteStageMatch[2];
             try {
-                const research = await researchService.getById(researchId, user.id, user.role) as unknown as ResearchActivityResearch;
-                const stage = (research.stages || []).find((item) => item.id === stageId);
                 const result = await researchService.deleteStage(researchId, user.id, stageId, user.role);
-                await researchActivityService.logResearchActivity({
-                    researchId,
-                    actorUserId: user.id,
-                    action: 'stage.deleted',
-                    entityType: 'stage',
-                    entityId: stageId,
-                    summary: `Stage deleted: ${stage?.name || stageId}`,
-                    metadata: { stageName: stage?.name || null },
-                });
                 return success(result, 200, undefined, origin);
             } catch (deleteError: unknown) {
                 const errorMessage = deleteError instanceof Error ? deleteError.message : 'Failed to delete stage';
@@ -332,18 +211,7 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         if (deleteModuleMatch && httpMethod === 'DELETE') {
             const researchId = deleteModuleMatch[1];
             const moduleId = deleteModuleMatch[2];
-            const research = await researchService.getById(researchId, user.id, user.role) as unknown as ResearchActivityResearch;
-            const module = (research.stages || []).flatMap((stage) => stage.modules || []).find((item) => item.id === moduleId);
             const result = await researchService.deleteModule(researchId, user.id, moduleId, user.role);
-            await researchActivityService.logResearchActivity({
-                researchId,
-                actorUserId: user.id,
-                action: 'module.deleted',
-                entityType: 'module',
-                entityId: moduleId,
-                summary: `Module deleted: ${module?.name || moduleId}`,
-                metadata: { moduleName: module?.name || null },
-            });
             return success(result, 200, undefined, origin);
         }
 
@@ -388,15 +256,6 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
 
                 const { sendShareProgress } = await import('../email/email.service');
                 const result = await sendShareProgress({ to: emails, senderName, researchName, progressUrl });
-                await researchActivityService.logResearchActivity({
-                    researchId,
-                    actorUserId: user.id,
-                    action: 'research.progress-shared',
-                    entityType: 'research',
-                    entityId: researchId,
-                    summary: `Progress shared with ${emails.length} recipient${emails.length !== 1 ? 's' : ''}`,
-                    metadata: { emails, progressUrl },
-                });
                 return success(result, 200, undefined, origin);
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : 'Failed to send emails';

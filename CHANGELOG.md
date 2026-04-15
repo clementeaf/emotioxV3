@@ -1,28 +1,32 @@
+## v0.59.5 — Research activity derived from existing tables (2026-04-15)
+
+### backend
+- **Activity service rewrite:** Research tracking now derives data from existing tables (`researches`, `stages`, `modules`, `responses`, `users`) instead of requiring a dedicated `research_activity_logs` table.
+- **Controller cleanup:** Removed all `logResearchActivity()` write calls — activity is read-only, computed on demand.
+- **Deploy workflow:** Added Passenger restart step (`touch tmp/restart.txt`) so new code takes effect after deploy.
+
+### database
+- Removed migration 014 (`research_activity_logs`) — no longer needed.
+
+---
+
 ## v0.59.4 — Research activity endpoint registration fix (2026-04-15)
 
 ### backend
 - **Config endpoints:** Added `activity` and `getAllActivity` routes to the dynamic config so the frontend can resolve them through service discovery.
 
 ### research-frontend
-- **Service discovery for activity endpoints:** `getActivity()` and `getAllActivity()` now use `configService.getEndpoint()` instead of hardcoded paths, fixing the 404 on `/api/research/activity`.
+- **Service discovery for activity endpoints:** `getActivity()` and `getAllActivity()` now use `configService.getEndpoint()` instead of hardcoded paths.
 
 ---
 
 ## v0.59.3 — Research tracking and viewer invite workflow (2026-04-15)
 
-### backend
-- **Research activity logs:** Added `research_activity_logs` plus endpoints for per-research and global tracking feeds.
-- **Tracking route fix:** `/research/activity` is now matched before `/research/:id`, preventing false 404s caused by the generic research detail route.
-- **Tracked actions:** Research create/update/status/activate/duplicate/delete, stage create/delete, module delete, default stage insertion, and progress sharing now write activity entries.
-
 ### research-frontend
-- **Global Tracking page:** New `/research-tracking` view in the main sidebar with a table layout and column-level filters for research, technique, researcher, action, and summary.
-- **Scoped loading/error states:** `/research-tracking` now keeps the page shell visible and limits skeleton/error rendering to the data panel only.
-- **Invite Viewer drawer:** Invite Viewer now uses a Drawer, accepts multiple emails, and keeps failed invitations in the list for retry.
-- **Research list actions:** Invite Viewer and Create Research now sit on the same row as the cards/table toggle, and the old page title block was removed.
-
-### database
-- Migration 023: create `research_activity_logs`.
+- **Global Tracking page:** New `/research-tracking` view with column-level filters for research, technique, researcher, action, and summary.
+- **Scoped loading/error states:** Skeleton/error rendering limited to the data panel only.
+- **Invite Viewer drawer:** Accepts multiple emails, keeps failed invitations for retry.
+- **Research list actions:** Invite Viewer and Create Research on the same row as cards/table toggle.
 
 ---
 
