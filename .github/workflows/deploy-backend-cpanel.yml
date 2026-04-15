@@ -133,6 +133,15 @@ jobs:
             timeout 5 npm start 2>&1 || echo "TIMEOUT_OK"
           ' || echo "⚠️  Test de inicio completado (timeout esperado)"
 
+      - name: Restart Passenger
+        run: |
+          ssh -p ${{ secrets.CPANEL_SSH_PORT || '22' }} ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend
+            mkdir -p tmp
+            touch tmp/restart.txt
+            echo "✅ Passenger restart triggered"
+          '
+
       - name: Deployment summary
         run: |
           echo "✅ Backend desplegado exitosamente"
@@ -140,5 +149,4 @@ jobs:
           echo "📋 Información de despliegue:"
           echo "   - Directorio: ~/emotioxv3/backend"
           echo "   - Entry point: server-cpanel.js"
-          echo ""
-          echo "📝 Nota: Si usas Passenger, reinicia la aplicación desde cPanel"
+          echo "   - Passenger: reiniciado"
