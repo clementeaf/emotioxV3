@@ -820,4 +820,3 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         </div>
     );
 };
-

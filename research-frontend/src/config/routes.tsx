@@ -10,6 +10,7 @@ import { ResearchPage } from '../pages/research/ResearchPage';
 import { ResearchBuilderPage } from '../pages/research/ResearchBuilderPage';
 import { ResearchResultsPage } from '../pages/research/ResearchResultsPage';
 import { ResearchHistoryPage } from '../pages/research/ResearchHistoryPage';
+import { ResearchTrackingPage } from '../pages/research/ResearchTrackingPage';
 import { ClientsPage } from '../pages/clients/ClientsPage';
 import { ResearchProgressPage } from '../pages/research/ResearchProgressPage';
 import { ModulesPage } from '../pages/modules/ModulesPage';
@@ -158,6 +159,13 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'dashboard', pageName: 'Research Results' },
     },
     {
+        path: '/research-tracking',
+        element: <ResearchTrackingPage />,
+        layout: 'dashboard',
+        isProtected: true,
+        errorBoundary: { context: 'dashboard', pageName: 'Research Tracking' },
+    },
+    {
         path: '/research-history',
         element: <ResearchHistoryPage />,
         layout: 'dashboard',
@@ -264,5 +272,3 @@ export const routesConfig: RouteConfig[] = [
         layout: 'none',
     },
 ];
-
-

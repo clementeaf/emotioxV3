@@ -6,7 +6,9 @@ import {
     Boxes,
     Wrench,
     History,
+    ScrollText,
     Users,
+    UserPlus,
     LogOut,
     ChevronLeft,
     ChevronRight
@@ -24,6 +26,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/dashboard', label: 'Home', icon: LayoutDashboard },
     { path: '/research', label: 'Research', icon: Boxes },
+    { path: '/research-tracking', label: 'Tracking', icon: ScrollText },
     { path: '/research-history', label: "Research's History", icon: History },
     { path: '/clients', label: 'Clients', icon: Users },
     { path: '/research-types', label: 'Research Type Builder', icon: Wrench },
@@ -110,6 +113,22 @@ export const StandardSidebar = () => {
                         </Link>
                     );
                 })}
+
+                <button
+                    onClick={() => navigate('/research?inviteViewer=1')}
+                    className={cn(
+                        'w-full flex items-center rounded-lg text-sm font-medium transition-colors',
+                        'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                        isCollapsed ? 'px-2 py-2.5 justify-center' : 'px-3 py-2.5'
+                    )}
+                    title={isCollapsed ? 'Invite Viewer' : undefined}
+                >
+                    <UserPlus className={cn(
+                        'h-5 w-5 text-gray-400',
+                        !isCollapsed && 'mr-3'
+                    )} />
+                    {!isCollapsed && 'Invite Viewer'}
+                </button>
             </nav>
 
             {/* Logout */}
@@ -150,4 +169,3 @@ export const StandardSidebar = () => {
         </div>
     );
 };
-

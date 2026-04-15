@@ -5,9 +5,17 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 39)
+## Última actualización: 2026-04-15 (sesión 40)
 
 ---
+
+## Sesión 40: 15 de abril de 2026 — Tracking global e invitaciones de viewers
+
+- **Tracking global:** Se creó una bitácora de actividad para researches con feed global en `/research-tracking`, accesible desde el sidebar principal.
+- **Filtros de tracking:** La vista global permite filtrar por investigación, técnica, investigador, acción y búsqueda libre.
+- **Eventos registrados:** Creación, edición, cambio de estado, activación, duplicado, archivado, creación/eliminación de stages, eliminación de módulos, stages por defecto y share progress.
+- **Invite Viewer mejorado:** La invitación de viewers pasó a Drawer, sin nombre/apellido, y ahora permite agregar varios emails y reintentar solo los fallidos.
+- **Toolbar de Research:** `Invite Viewer` y `Create Research` quedaron alineados con el toggle de Cards/Table, y se eliminó el encabezado de texto superior.
 
 ## Sesión 39: 15 de abril de 2026 — Workflow backend más claro en SSH
 

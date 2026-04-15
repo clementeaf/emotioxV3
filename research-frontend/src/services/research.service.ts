@@ -84,6 +84,22 @@ export interface DeleteResponse {
     message: string;
 }
 
+export interface ResearchActivity {
+    id: string;
+    researchId: string;
+    researchName: string | null;
+    researchTechniqueName: string | null;
+    actorUserId: string | null;
+    actorName: string | null;
+    actorEmail: string | null;
+    action: string;
+    entityType: string;
+    entityId: string | null;
+    summary: string;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+}
+
 /**
  * Servicio de investigaciones
  * Maneja todas las operaciones relacionadas con investigaciones
@@ -308,6 +324,22 @@ class ResearchService {
         }
     }
 
+    async getActivity(id: string): Promise<{ activities: ResearchActivity[] }> {
+        try {
+            return await apiClient.get<{ activities: ResearchActivity[] }>(`/research/${id}/activity`);
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to fetch research activity');
+        }
+    }
+
+    async getAllActivity(): Promise<{ activities: ResearchActivity[] }> {
+        try {
+            return await apiClient.get<{ activities: ResearchActivity[] }>('/research/activity');
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to fetch research activity');
+        }
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;
@@ -324,4 +356,3 @@ class ResearchService {
 }
 
 export const researchService = new ResearchService();
-
