@@ -326,7 +326,8 @@ class ResearchService {
 
     async getActivity(id: string): Promise<{ activities: ResearchActivity[] }> {
         try {
-            return await apiClient.get<{ activities: ResearchActivity[] }>(`/research/${id}/activity`);
+            const endpoint = configService.getEndpoint('research', 'activity', { id });
+            return await apiClient.get<{ activities: ResearchActivity[] }>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch research activity');
         }
@@ -334,7 +335,8 @@ class ResearchService {
 
     async getAllActivity(): Promise<{ activities: ResearchActivity[] }> {
         try {
-            return await apiClient.get<{ activities: ResearchActivity[] }>('/research/activity');
+            const endpoint = configService.getEndpoint('research', 'getAllActivity');
+            return await apiClient.get<{ activities: ResearchActivity[] }>(endpoint);
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to fetch research activity');
         }

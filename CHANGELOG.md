@@ -1,3 +1,13 @@
+## v0.59.4 — Research activity endpoint registration fix (2026-04-15)
+
+### backend
+- **Config endpoints:** Added `activity` and `getAllActivity` routes to the dynamic config so the frontend can resolve them through service discovery.
+
+### research-frontend
+- **Service discovery for activity endpoints:** `getActivity()` and `getAllActivity()` now use `configService.getEndpoint()` instead of hardcoded paths, fixing the 404 on `/api/research/activity`.
+
+---
+
 ## v0.59.3 — Research tracking and viewer invite workflow (2026-04-15)
 
 ### backend
