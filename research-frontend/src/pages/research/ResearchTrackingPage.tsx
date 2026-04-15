@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Clock3, History, Search, User } from 'lucide-react';
+import { Clock3, History, User } from 'lucide-react';
 import { researchService, type ResearchActivity } from '../../services/research.service';
 
 export const ResearchTrackingPage = () => {
     const [activities, setActivities] = useState<ResearchActivity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
+    const [summaryFilter, setSummaryFilter] = useState('');
     const [researchFilter, setResearchFilter] = useState('all');
-    const [techniqueFilter, setTechniqueFilter] = useState('all');
-    const [actorFilter, setActorFilter] = useState('all');
-    const [actionFilter, setActionFilter] = useState('all');
+    const [techniqueFilter, setTechniqueFilter] = useState('');
+    const [actorFilter, setActorFilter] = useState('');
+    const [actionFilter, setActionFilter] = useState('');
 
-    useEffect(() => {
+    useEffect((): void => {
         const load = async () => {
             try {
                 const response = await researchService.getAllActivity();
@@ -27,42 +27,26 @@ export const ResearchTrackingPage = () => {
         void load();
     }, []);
 
-    const researchOptions = useMemo(
-        () => Array.from(new Set(activities.map((item) => item.researchName).filter(Boolean))).sort(),
-        [activities]
-    );
-    const techniqueOptions = useMemo(
-        () => Array.from(new Set(activities.map((item) => item.researchTechniqueName).filter(Boolean))).sort(),
-        [activities]
-    );
-    const actorOptions = useMemo(
-        () => Array.from(new Set(activities.map((item) => item.actorName || item.actorEmail).filter(Boolean))).sort(),
-        [activities]
-    );
-    const actionOptions = useMemo(
-        () => Array.from(new Set(activities.map((item) => item.action))).sort(),
-        [activities]
-    );
-
     const filteredActivities = useMemo(() => {
-        const term = search.trim().toLowerCase();
+        const summaryTerm = summaryFilter.trim().toLowerCase();
+        const techniqueTerm = techniqueFilter.trim().toLowerCase();
+        const actorTerm = actorFilter.trim().toLowerCase();
+        const actionTerm = actionFilter.trim().toLowerCase();
+
         return activities.filter((activity) => {
             const actorLabel = activity.actorName || activity.actorEmail || 'System';
-            const matchesSearch = !term || [
-                activity.summary,
-                activity.researchName || '',
-                activity.researchTechniqueName || '',
-                actorLabel,
-                activity.action,
-            ].some((value) => value.toLowerCase().includes(term));
+            const matchesSummary = !summaryTerm || activity.summary.toLowerCase().includes(summaryTerm);
+            const matchesTechnique = !techniqueTerm || (activity.researchTechniqueName || '').toLowerCase().includes(techniqueTerm);
+            const matchesActor = !actorTerm || actorLabel.toLowerCase().includes(actorTerm);
+            const matchesAction = !actionTerm || activity.action.toLowerCase().includes(actionTerm);
 
-            return matchesSearch
+            return matchesSummary
                 && (researchFilter === 'all' || activity.researchName === researchFilter)
-                && (techniqueFilter === 'all' || activity.researchTechniqueName === techniqueFilter)
-                && (actorFilter === 'all' || actorLabel === actorFilter)
-                && (actionFilter === 'all' || activity.action === actionFilter);
+                && matchesTechnique
+                && matchesActor
+                && matchesAction;
         });
-    }, [activities, search, researchFilter, techniqueFilter, actorFilter, actionFilter]);
+    }, [activities, summaryFilter, researchFilter, techniqueFilter, actorFilter, actionFilter]);
 
     return (
         <div className="p-6 space-y-4">
@@ -73,34 +57,6 @@ export const ResearchTrackingPage = () => {
                         <h1 className="text-lg font-semibold text-gray-900">Research Tracking</h1>
                     </div>
                     <p className="text-sm text-gray-500 mt-1">Global activity log across all researches.</p>
-                </div>
-
-                <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-                    <label className="relative xl:col-span-1">
-                        <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search"
-                            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                    </label>
-                    <select value={researchFilter} onChange={(e) => setResearchFilter(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                        <option value="all">All researches</option>
-                        {researchOptions.map((value) => <option key={value} value={value || ''}>{value}</option>)}
-                    </select>
-                    <select value={techniqueFilter} onChange={(e) => setTechniqueFilter(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                        <option value="all">All techniques</option>
-                        {techniqueOptions.map((value) => <option key={value} value={value || ''}>{value}</option>)}
-                    </select>
-                    <select value={actorFilter} onChange={(e) => setActorFilter(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                        <option value="all">All researchers</option>
-                        {actorOptions.map((value) => <option key={value} value={value || ''}>{value}</option>)}
-                    </select>
-                    <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} className="px-3 py-2 text-sm border border-gray-200 rounded-lg">
-                        <option value="all">All actions</option>
-                        {actionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
                 </div>
 
                 {isLoading ? (
@@ -127,21 +83,85 @@ export const ResearchTrackingPage = () => {
                 ) : filteredActivities.length === 0 ? (
                     <div className="px-6 py-10 text-center text-sm text-gray-500">No activity matches the current filters.</div>
                 ) : (
-                    <div className="divide-y divide-gray-100">
-                        {filteredActivities.map((activity) => {
-                            const actorLabel = activity.actorName || activity.actorEmail || 'System';
-                            return (
-                                <div key={activity.id} className="px-6 py-4">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-gray-900">{activity.summary}</p>
-                                            <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                                                <span>{activity.researchName || 'Unknown research'}</span>
-                                                {activity.researchTechniqueName && <span>{activity.researchTechniqueName}</span>}
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[980px] text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Summary</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Research</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Technique</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Researcher</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                </tr>
+                                <tr className="bg-white border-t border-gray-100">
+                                    <th className="px-4 py-2">
+                                        <input
+                                            value={summaryFilter}
+                                            onChange={(e) => setSummaryFilter(e.target.value)}
+                                            placeholder="Filter summary"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </th>
+                                    <th className="px-4 py-2">
+                                        <select
+                                            value={researchFilter}
+                                            onChange={(e) => setResearchFilter(e.target.value)}
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
+                                        >
+                                            <option value="all">All researches</option>
+                                            {Array.from(new Set(activities.map((item) => item.researchName).filter(Boolean))).sort().map((value) => (
+                                                <option key={value} value={value || ''}>{value}</option>
+                                            ))}
+                                        </select>
+                                    </th>
+                                    <th className="px-4 py-2">
+                                        <input
+                                            value={techniqueFilter}
+                                            onChange={(e) => setTechniqueFilter(e.target.value)}
+                                            placeholder="Filter technique"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </th>
+                                    <th className="px-4 py-2">
+                                        <input
+                                            value={actorFilter}
+                                            onChange={(e) => setActorFilter(e.target.value)}
+                                            placeholder="Filter researcher"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </th>
+                                    <th className="px-4 py-2">
+                                        <input
+                                            value={actionFilter}
+                                            onChange={(e) => setActionFilter(e.target.value)}
+                                            placeholder="Filter action"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </th>
+                                    <th className="px-4 py-2" />
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 bg-white">
+                                {filteredActivities.map((activity) => {
+                                    const actorLabel = activity.actorName || activity.actorEmail || 'System';
+                                    return (
+                                        <tr key={activity.id} className="hover:bg-gray-50">
+                                            <td className="px-4 py-3 text-gray-900 font-medium">{activity.summary}</td>
+                                            <td className="px-4 py-3 text-gray-600">{activity.researchName || 'Unknown research'}</td>
+                                            <td className="px-4 py-3 text-gray-600">{activity.researchTechniqueName || '—'}</td>
+                                            <td className="px-4 py-3 text-gray-600">
                                                 <span className="inline-flex items-center gap-1">
                                                     <User className="h-3.5 w-3.5" />
                                                     {actorLabel}
                                                 </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-600">
+                                                    {activity.action}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                                                 <span className="inline-flex items-center gap-1">
                                                     <Clock3 className="h-3.5 w-3.5" />
                                                     {new Date(activity.createdAt).toLocaleString('en-US', {
@@ -152,15 +172,12 @@ export const ResearchTrackingPage = () => {
                                                         minute: '2-digit',
                                                     })}
                                                 </span>
-                                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-600">
-                                                    {activity.action}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

@@ -5,7 +5,7 @@
 - **Tracked actions:** Research create/update/status/activate/duplicate/delete, stage create/delete, module delete, default stage insertion, and progress sharing now write activity entries.
 
 ### research-frontend
-- **Global Tracking page:** New `/research-tracking` view in the main sidebar with filters for research, technique, researcher, action, and free-text search.
+- **Global Tracking page:** New `/research-tracking` view in the main sidebar with a table layout and column-level filters for research, technique, researcher, action, and summary.
 - **Scoped loading/error states:** `/research-tracking` now keeps the page shell visible and limits skeleton/error rendering to the data panel only.
 - **Invite Viewer drawer:** Invite Viewer now uses a Drawer, accepts multiple emails, and keeps failed invitations in the list for retry.
 - **Research list actions:** Invite Viewer and Create Research now sit on the same row as the cards/table toggle, and the old page title block was removed.

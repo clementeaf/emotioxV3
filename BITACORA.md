@@ -5,9 +5,13 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 41)
+## Última actualización: 2026-04-15 (sesión 42)
 
 ---
+
+## Sesión 42: 15 de abril de 2026 — Tracking con filtros por columna
+
+- **Tabla con filtros por columna:** `/research-tracking` dejó los selectors superiores y ahora usa una tabla con filtros por columna para summary, research, technique, researcher y action.
 
 ## Sesión 41: 15 de abril de 2026 — Tracking con estados locales de carga/error
 
