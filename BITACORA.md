@@ -5,9 +5,13 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 42)
+## Última actualización: 2026-04-15 (sesión 43)
 
 ---
+
+## Sesión 43: 15 de abril de 2026 — Fix ruta global de tracking
+
+- **Orden de rutas corregido:** `GET /research/activity` quedó antes de `GET /research/:id`, evitando que `activity` se interpretara como ID de research y devolviera 404.
 
 ## Sesión 42: 15 de abril de 2026 — Tracking con filtros por columna
 

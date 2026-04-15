@@ -2,6 +2,7 @@
 
 ### backend
 - **Research activity logs:** Added `research_activity_logs` plus endpoints for per-research and global tracking feeds.
+- **Tracking route fix:** `/research/activity` is now matched before `/research/:id`, preventing false 404s caused by the generic research detail route.
 - **Tracked actions:** Research create/update/status/activate/duplicate/delete, stage create/delete, module delete, default stage insertion, and progress sharing now write activity entries.
 
 ### research-frontend
