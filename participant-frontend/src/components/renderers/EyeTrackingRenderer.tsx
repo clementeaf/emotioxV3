@@ -735,9 +735,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         setTimeout(() => setPhase('viewing'), 400);
     }, [phase, blaze, viewingDuration]);
 
-    /** Re-calibrate: reset residuals and go back to calibration phase. */
+    /** Re-calibrate: reset residuals and go back to calibration phase.
+     *  Does NOT increment recalibrationCount — manual recalib is unlimited. */
     const handleRecalibrate = useCallback(() => {
-        recalibrationCountRef.current += 1;
         calibrationResidualsRef.current = [];
         calibrationRmsePxRef.current = null;
         setCalibrationIndex(0);
@@ -980,7 +980,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                                 >
                                     {t('eyeTracking.recalibrate', 'Re-calibrate')}
                                 </button>
-                                {(calibrationRmsePxRef.current ?? 0) <= HYBRID_CALIBRATION_RMSE_BLOCK_SKIP_PX && (
+                                {((calibrationRmsePxRef.current ?? 0) <= HYBRID_CALIBRATION_RMSE_BLOCK_SKIP_PX || recalibrationCountRef.current >= 2) && (
                                     <button
                                         onClick={handleSkipValidation}
                                         className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
