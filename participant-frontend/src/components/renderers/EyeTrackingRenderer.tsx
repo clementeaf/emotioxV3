@@ -13,6 +13,8 @@ import {
     HYBRID_IMAGE_CALIBRATION_POINTS,
     HYBRID_VALIDATION_POINT,
     HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX,
+    HYBRID_CALIBRATION_RMSE_AUTO_RECALIB_PX,
+    HYBRID_CALIBRATION_RMSE_BLOCK_SKIP_PX,
     HYBRID_AOI_GRID,
     hybridApplyCalibrationField,
     hybridCalibrationRmsePx,
@@ -671,6 +673,15 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             calibrationRmsePxRef.current = isDesktop
                 ? hybridCalibrationRmsePx(calibrationResidualsRef.current)
                 : null;
+            // Auto-recalibrate if 9-point RMSE is too high (skip validation entirely)
+            const calRmse = calibrationRmsePxRef.current;
+            if (isDesktop && calRmse !== null && calRmse > HYBRID_CALIBRATION_RMSE_AUTO_RECALIB_PX && recalibrationCountRef.current < 2) {
+                recalibrationCountRef.current += 1;
+                calibrationResidualsRef.current = [];
+                calibrationRmsePxRef.current = null;
+                setCalibrationIndex(0);
+                return;
+            }
             if (isDesktop && !isPreviewMode) {
                 setTimeout(() => setPhase('validating'), 400);
             } else {
@@ -958,7 +969,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     ) : (
                         <div className="space-y-3">
                             <p className="text-sm text-amber-400 font-medium">
-                                {t('eyeTracking.validationFailed', 'Calibration accuracy is low. Would you like to re-calibrate?')}
+                                {(calibrationRmsePxRef.current ?? 0) > HYBRID_CALIBRATION_RMSE_BLOCK_SKIP_PX
+                                    ? t('eyeTracking.validationFailedCritical', 'Calibration accuracy is too low. Please re-calibrate for usable results.')
+                                    : t('eyeTracking.validationFailed', 'Calibration accuracy is low. Would you like to re-calibrate?')}
                             </p>
                             <div className="pointer-events-auto flex gap-3 justify-center">
                                 <button
@@ -967,12 +980,14 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                                 >
                                     {t('eyeTracking.recalibrate', 'Re-calibrate')}
                                 </button>
-                                <button
-                                    onClick={handleSkipValidation}
-                                    className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
-                                >
-                                    {t('eyeTracking.continueAnyway', 'Continue anyway')}
-                                </button>
+                                {(calibrationRmsePxRef.current ?? 0) <= HYBRID_CALIBRATION_RMSE_BLOCK_SKIP_PX && (
+                                    <button
+                                        onClick={handleSkipValidation}
+                                        className="px-4 py-2 bg-white/20 text-white rounded-lg text-sm font-medium hover:bg-white/30 transition-colors"
+                                    >
+                                        {t('eyeTracking.continueAnyway', 'Continue anyway')}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
