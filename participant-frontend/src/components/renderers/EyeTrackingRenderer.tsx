@@ -279,11 +279,19 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         return () => { cancelled = true; };
     }, [stimulusUrl]);
 
-    /** Keep latest smoothed gaze for hybrid calibration samples (desktop). */
+    /** Keep latest smoothed gaze for hybrid calibration samples (desktop).
+     *  Reads from blaze.gazePosRef (updated every frame, no re-render). */
     useEffect(() => {
-        if (!blaze.gazePos) return;
-        gazePosRef.current = [blaze.gazePos.x, blaze.gazePos.y];
-    }, [blaze.gazePos]);
+        if (!isDesktop) return;
+        let raf = 0;
+        const sync = () => {
+            const pos = blaze.gazePosRef.current;
+            if (pos) gazePosRef.current = [pos.x, pos.y];
+            raf = requestAnimationFrame(sync);
+        };
+        raf = requestAnimationFrame(sync);
+        return () => cancelAnimationFrame(raf);
+    }, [isDesktop, blaze.gazePosRef]);
 
     // Gaze collection during viewing phase (desktop): RAF loop with 50ms throttle, IDW-corrected.
     // Also samples facial landmarks for FACS emotion recognition when enabled.

@@ -73,10 +73,15 @@ export function useBlazeGaze(
     const [isLoaded, setIsLoaded] = useState(false);
     /** Smoothed screen position (saved samples / stable analytics). */
     const [gazePos, setGazePos] = useState<{ x: number; y: number } | null>(null);
+    /** Ref mirror of gazePos — updated every frame without triggering re-render. */
+    const gazePosRef = useRef<{ x: number; y: number } | null>(null);
     /** Same frame mapping as gazePos but without EMA — use for live AOI highlight. */
     const [rawGazePos, setRawGazePos] = useState<{ x: number; y: number } | null>(null);
     const [gazeState, setGazeState] = useState<'open' | 'closed'>('closed');
     const [calibrationCount, setCalibrationCount] = useState(0);
+    /** Throttle setState calls to max ~4fps to avoid re-render storm during calibration. */
+    const lastStateUpdateRef = useRef(0);
+    const GAZE_STATE_THROTTLE_MS = 250;
 
     const trackerRef = useRef<WebEyeTrack | null>(null);
     const rafRef = useRef(0);
@@ -203,20 +208,23 @@ export function useBlazeGaze(
                 const sx = Math.max(0, Math.min(vw, screenX));
                 const sy = Math.max(0, Math.min(vh, screenY));
 
-                setRawGazePos({ x: sx, y: sy });
-
                 // One-Euro adaptive filter: smooth during fixation, responsive during saccade
                 const tSec = performance.now() / 1000;
                 const fx = filterXRef.current;
                 const fy = filterYRef.current;
-                if (fx && fy) {
-                    const smoothed = {
-                        x: Math.max(0, Math.min(vw, fx.filter(sx, tSec))),
-                        y: Math.max(0, Math.min(vh, fy.filter(sy, tSec))),
-                    };
+                const smoothed = (fx && fy)
+                    ? { x: Math.max(0, Math.min(vw, fx.filter(sx, tSec))), y: Math.max(0, Math.min(vh, fy.filter(sy, tSec))) }
+                    : { x: sx, y: sy };
+
+                // Always update ref (no re-render, used by calibration & gaze collection)
+                gazePosRef.current = smoothed;
+
+                // Throttle setState to avoid re-render storm (~4fps instead of ~30fps)
+                const now = performance.now();
+                if (now - lastStateUpdateRef.current >= GAZE_STATE_THROTTLE_MS) {
+                    lastStateUpdateRef.current = now;
+                    setRawGazePos({ x: sx, y: sy });
                     setGazePos(smoothed);
-                } else {
-                    setGazePos({ x: sx, y: sy });
                 }
                 if (lastEmittedGazeStateRef.current !== 'open') {
                     lastEmittedGazeStateRef.current = 'open';
@@ -245,6 +253,8 @@ export function useBlazeGaze(
     return {
         isLoaded,
         gazePos,
+        /** Ref updated every frame without re-render. Use for real-time gaze reads. */
+        gazePosRef,
         rawGazePos,
         gazeState,
         calibrationCount,
