@@ -418,9 +418,11 @@ export interface EyeTrackingAOI {
 export interface EyeTrackingParticipant {
     participantId: string;
     calibrationQuality: string;
-    integrityScore: string;
+    calibrationRmsePx: number | null;
+    integrityScore: number;
     totalFixations: number;
     totalDwellTime: number;
+    qualityGrade: 'good' | 'fair' | 'low';
 }
 
 export type EkmanEmotion = 'joy' | 'sadness' | 'surprise' | 'anger' | 'disgust' | 'fear' | 'neutral';
@@ -462,6 +464,7 @@ export interface EyeTrackingStimulus {
     fixations: Array<{ x: number; y: number; duration: number; participantId: string; timestamp: number }>;
     aois: EyeTrackingAOI[];
     participants: EyeTrackingParticipant[];
+    qualitySummary?: { total: number; good: number; fair: number; low: number };
     emotions: EmotionAggregation;
     predictionHeatmap?: Array<{ x: number; y: number; value: number }>;
     predictionProcessedAt?: string;

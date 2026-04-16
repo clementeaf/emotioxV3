@@ -82,6 +82,63 @@ export function hybridCalibrationRmsePx(samples: readonly HybridCalibrationResid
     return Math.sqrt(sumSq / samples.length);
 }
 
+// ── Micro-recalibration (drift correction during viewing) ───────────────
+
+/** Interval between micro-recalibration probes (ms). */
+export const MICRO_RECALIB_INTERVAL_MS = 45_000;
+
+/** Duration to display the micro-dot and sample gaze (ms). */
+export const MICRO_RECALIB_SAMPLE_DURATION_MS = 600;
+
+/** Number of gaze samples to average during a micro-recalibration probe. */
+export const MICRO_RECALIB_SAMPLE_COUNT = 8;
+
+/** Max drift (px) to apply. Corrections larger than this are noise, not drift. */
+export const MICRO_RECALIB_MAX_DRIFT_PX = 150;
+
+/** Weight of micro-recalibration residuals relative to initial calibration (0..1). */
+export const MICRO_RECALIB_WEIGHT = 0.55;
+
+/**
+ * Candidate positions for micro-recalibration dots (% of stimulus).
+ * Placed near edges/corners where drift is most visible but content is sparse.
+ */
+export const MICRO_RECALIB_POSITIONS: readonly [number, number][] = [
+    [5, 5],    [50, 5],   [95, 5],
+    [5, 50],              [95, 50],
+    [5, 95],   [50, 95],  [95, 95],
+];
+
+/**
+ * Compute a drift-correction residual from a micro-recalibration probe.
+ * @param targetU - Known target position in stimulus coords (0..1)
+ * @param targetV - Known target position in stimulus coords (0..1)
+ * @param avgGazeX - Average gaze X (viewport px) during probe
+ * @param avgGazeY - Average gaze Y (viewport px) during probe
+ * @param rect - Stimulus bounding rect
+ * @returns Residual to append to calibration samples, or null if drift too large (noise)
+ */
+export function computeMicroRecalibResidual(
+    targetU: number,
+    targetV: number,
+    avgGazeX: number,
+    avgGazeY: number,
+    rect: DOMRect,
+): HybridCalibrationResidual | null {
+    const targetX = rect.left + targetU * rect.width;
+    const targetY = rect.top + targetV * rect.height;
+    const dx = targetX - avgGazeX;
+    const dy = targetY - avgGazeY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > MICRO_RECALIB_MAX_DRIFT_PX) return null; // noise, not drift
+    return {
+        u: targetU,
+        v: targetV,
+        dx: dx * MICRO_RECALIB_WEIGHT,
+        dy: dy * MICRO_RECALIB_WEIGHT,
+    };
+}
+
 /** Higher = confidence falls off faster with distance from nearest calibration anchor in UV space. */
 export const HYBRID_CALIB_CONFIDENCE_K = 14;
 

@@ -75,6 +75,7 @@ const getConfig = async (origin: string | null): Promise<APIGatewayProxyResult> 
                 deleteParticipant: '/research/:id/participants/:participantId',
                 activity: '/research/:id/activity',
                 getAllActivity: '/research/activity',
+                collaborators: '/research/:id/collaborators',
             },
 
             // Research Progress

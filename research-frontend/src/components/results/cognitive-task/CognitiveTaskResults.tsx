@@ -11,6 +11,7 @@ import { ChoiceResultsWrapper } from './ChoiceResultsWrapper';
 import { ScaleResultsWrapper } from './ScaleResultsWrapper';
 import { RankingResultsWrapper } from './RankingResultsWrapper';
 import * as analyticsService from '../../../services/analytics.service';
+import apiClient from '../../../services/api/client';
 
 interface CognitiveTaskResultsProps {
   researchId: string;
@@ -43,6 +44,8 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
   const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
   const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
   const [userIdFilter, setUserIdFilter] = useState('');
+  const [completionMin, setCompletionMin] = useState(0);
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!researchId) {
@@ -56,10 +59,35 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
     return () => { cancelled = true; };
   }, [researchId]);
 
+  useEffect(() => {
+    if (!researchId) return;
+    let cancelled = false;
+    apiClient.get<Array<{ id: string; progress: number }>>(`/research/${researchId}/participants/status`)
+      .then((res) => {
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res as unknown as { data: Array<{ id: string; progress: number }> }).data ?? [];
+        const map = new Map<string, number>();
+        for (const p of arr) map.set(p.id, p.progress);
+        setProgressMap(map);
+      })
+      .catch(() => { if (!cancelled) setProgressMap(new Map()); });
+    return () => { cancelled = true; };
+  }, [researchId]);
+
   const filteredParticipantIds = useMemo(() => {
-    if (!demographicData?.participants.length) return null;
+    if (!demographicData?.participants.length) {
+      // Even without demographics, apply completion filter if active
+      if (completionMin > 0 && progressMap.size > 0) {
+        return new Set(
+          Array.from(progressMap.entries())
+            .filter(([, prog]) => prog >= completionMin)
+            .map(([id]) => id)
+        );
+      }
+      return null;
+    }
     const participants = demographicData.participants;
-    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '';
+    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '' || completionMin > 0;
     if (!hasAnyFilter) return null;
 
     const idSet = new Set(
@@ -74,12 +102,16 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           if (userIdFilter.trim()) {
             if (!p.participantId.toLowerCase().includes(userIdFilter.trim().toLowerCase())) return false;
           }
+          if (completionMin > 0) {
+            const prog = progressMap.get(p.participantId) ?? 0;
+            if (prog < completionMin) return false;
+          }
           return true;
         })
         .map((p) => p.participantId)
     );
     return idSet;
-  }, [demographicData?.participants, demographicFilters, userIdFilter]);
+  }, [demographicData?.participants, demographicFilters, userIdFilter, completionMin, progressMap]);
 
   const modulesToRender = useMemo(() => {
     const list = data?.modules?.filter((m) => {
@@ -255,21 +287,11 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
         </div>
       }
     >
-      <div className={cn('max-h-[calc(100vh-9rem)] overflow-y-auto', className)}>
+      <div className={cn(className)}>
         {/* Main Content + Sidebar */}
         <div className="flex gap-6">
           {/* Left: Main Content */}
           <div className="flex-1 space-y-6">
-            {/* Cognitive Task Header */}
-            <Card className="p-4 bg-gray-50">
-              <h2 className="text-xl font-semibold text-gray-900">Cognitive Tasks Results</h2>
-              {data && (
-                <p className="text-sm text-gray-600 mt-1">
-                  {modulesToRender.length} modules • {demographicData?.participants.length ?? '–'} participants
-                </p>
-              )}
-            </Card>
-
             {/* Dynamic Module Rendering */}
             {modulesToRender.length > 0 ? (
               modulesToRender.map((module, index) => renderModuleResults(module, index))
@@ -291,7 +313,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
           </div>
 
           {/* Right: Filters Sidebar */}
-          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
             <Filters
               researchId={researchId}
               demographicData={demographicData}
@@ -299,6 +321,8 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               onFilterChange={setDemographicFilters}
               userIdFilter={userIdFilter}
               onUserIdFilterChange={setUserIdFilter}
+              completionMin={completionMin}
+              onCompletionMinChange={setCompletionMin}
             />
           </div>
         </div>

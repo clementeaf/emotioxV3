@@ -24,6 +24,11 @@ import {
     detectFixationsIDT,
     mapFixationsToImageCoords,
     extractEmotionFromFrame,
+    MICRO_RECALIB_INTERVAL_MS,
+    MICRO_RECALIB_SAMPLE_DURATION_MS,
+    MICRO_RECALIB_SAMPLE_COUNT,
+    MICRO_RECALIB_POSITIONS,
+    computeMicroRecalibResidual,
 } from '../../lib/eyeTracking';
 import type { HybridCalibrationResidual, EmotionSample } from '../../lib/eyeTracking';
 
@@ -226,6 +231,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     /** Collected emotion samples during viewing phase. */
     const emotionSamplesRef = useRef<EmotionSample[]>([]);
 
+    // --- Micro-recalibration (drift correction during viewing) ---
+    const [microDot, setMicroDot] = useState<{ u: number; v: number } | null>(null);
+    const microProbeIndexRef = useRef(0);
+    const microGazeSamplesRef = useRef<{ x: number; y: number }[]>([]);
+
     // Camera management
     const startCamera = useCallback(async () => {
         try {
@@ -333,6 +343,69 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live blaze.* reads via ref
     }, [phase, isDesktop, hasEmotionRecognition, isVideo]);
+
+    // Micro-recalibration: periodic drift correction during viewing (desktop only)
+    useEffect(() => {
+        if (phase !== 'viewing' || !isDesktop) return;
+
+        const probeTimer = setInterval(() => {
+            // Pick next position from the pool (round-robin)
+            const idx = microProbeIndexRef.current % MICRO_RECALIB_POSITIONS.length;
+            microProbeIndexRef.current += 1;
+            const [pctX, pctY] = MICRO_RECALIB_POSITIONS[idx];
+            const u = pctX / 100;
+            const v = pctY / 100;
+
+            // Show micro-dot and start collecting gaze samples
+            microGazeSamplesRef.current = [];
+            setMicroDot({ u, v });
+
+            // Collect gaze samples during the probe window
+            let sampleRaf = 0;
+            let samplesCollected = 0;
+            const collectLoop = () => {
+                if (samplesCollected >= MICRO_RECALIB_SAMPLE_COUNT) return;
+                const [gx, gy] = gazePosRef.current;
+                if (blaze.gazeState === 'open') {
+                    microGazeSamplesRef.current.push({ x: gx, y: gy });
+                    samplesCollected++;
+                }
+                sampleRaf = requestAnimationFrame(collectLoop);
+            };
+            sampleRaf = requestAnimationFrame(collectLoop);
+
+            // After sample duration, compute drift and update correction field
+            setTimeout(() => {
+                cancelAnimationFrame(sampleRaf);
+                setMicroDot(null);
+
+                const samples = microGazeSamplesRef.current;
+                if (samples.length < 3) return; // not enough data
+
+                // Average gaze position during probe
+                let sumX = 0, sumY = 0;
+                for (const s of samples) { sumX += s.x; sumY += s.y; }
+                const avgX = sumX / samples.length;
+                const avgY = sumY / samples.length;
+
+                // Get stimulus rect
+                const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+                const rect = stimEl?.getBoundingClientRect();
+                if (!rect || rect.width <= 0) return;
+
+                const residual = computeMicroRecalibResidual(u, v, avgX, avgY, rect);
+                if (residual) {
+                    calibrationResidualsRef.current = [
+                        ...calibrationResidualsRef.current,
+                        residual,
+                    ];
+                }
+            }, MICRO_RECALIB_SAMPLE_DURATION_MS);
+        }, MICRO_RECALIB_INTERVAL_MS);
+
+        return () => clearInterval(probeTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable timer; reads refs
+    }, [phase, isDesktop, isVideo]);
 
     // Countdown timer during viewing phase
     useEffect(() => {
@@ -970,6 +1043,20 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                             className="max-w-[95vw] max-h-[95vh] object-contain"
                             draggable={false}
                             onLoad={handleImageLoad}
+                        />
+                    )}
+                    {/* Micro-recalibration dot (nearly invisible, drift correction) */}
+                    {microDot && isDesktop && (
+                        <div
+                            className="absolute pointer-events-none rounded-full"
+                            style={{
+                                left: `${microDot.u * 100}%`,
+                                top: `${microDot.v * 100}%`,
+                                width: 4,
+                                height: 4,
+                                transform: 'translate(-50%, -50%)',
+                                backgroundColor: 'rgba(120, 120, 120, 0.12)',
+                            }}
                         />
                     )}
                     {/* Click indicators (mobile/tablet only — desktop is silent) */}

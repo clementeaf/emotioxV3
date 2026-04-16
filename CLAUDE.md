@@ -96,6 +96,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Ciudades en Country & City**: `demographics.country.cities` + `demographics.city`. Cuotas por ciudad (countryCity) o por país (countryOnly), nunca ambos.
 - **NavigationFlow**: `<img>` directo (no LazyImage). Hitzones px → %. Triple handler con dedupe 150ms. Completion overlay con "Tap to continue". `key={module.id}` fuerza re-mount.
 - **Configurable language switcher**: `linkConfig.allowLanguageSwitch` (default false).
+- **Research collaborators**: `research_collaborators` table. `buildOwnershipClause` includes collaborator access. Endpoints: `GET/POST/DELETE /research/:id/collaborators`. `ShareResearchDrawer` in builder sidebar.
+- **Completion filter**: "Min. completion %" slider in all results Filters sidebars. `useResultsFilter` hook fetches participant progress and combines with demographic filters. Applied across SmartVOC, Cognitive Tasks, Screener, IAT, Eye Tracking.
 
 ## Key Files
 ### Backend
@@ -182,7 +184,9 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **FACS Emotion Recognition:** `useFaceLandmarks` (paralelo a BlazeGaze) + `facsClassifier.ts`. 9 AUs → 7 emociones Ekman. Client-side, GDPR compliant.
 - **Builder toggles:** `attention-measurement` y `emotion-recognition` controlan qué datos se recolectan
 - **Results tabs:** Heat map, Scan Path, First Look, Transparency, Emotions, Prediction (TranSalNet), Video Gaze, Sequence
-- **AOI metrics:** dwell %, fixation count, avg duration, TTFF, notice rate, dominant emotion
+- **AOI metrics:** dwell %, fixation count, avg duration, TTFF, notice rate, dominant emotion. Soft Gaussian intersection (not binary point-in-rect).
+- **Micro-recalibration:** Every 45s during viewing, invisible dot probes gaze drift and updates IDW correction field. Constants in `hybridCalibrationField.ts` (`MICRO_RECALIB_*`).
+- **Quality gate:** Participants classified `good`/`fair`/`low` by calibration RMSE, integrity score, fixation count. Low excluded from aggregates. `qualitySummary` in ET response.
 - **Attention Prediction:** `POST /attention-prediction/research/:id/module/:moduleId/predict` — TranSalNet sobre stimulus, soporta `imageIndex` para multi-imagen (Nav Flow)
 - **Assessment:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
 - **Lab:** `/labs/eye-tracking` en research-frontend

@@ -2118,10 +2118,18 @@ interface EyeTrackingStimulus {
   participants: Array<{
     participantId: string;
     calibrationQuality: string;
-    integrityScore: string;
+    calibrationRmsePx: number | null;
+    integrityScore: number;
     totalFixations: number;
     totalDwellTime: number;
+    qualityGrade: 'good' | 'fair' | 'low';
   }>;
+  qualitySummary: {
+    total: number;
+    good: number;
+    fair: number;
+    low: number;
+  };
   emotions: EmotionAggregation;
   /** TranSalNet saliency prediction data (if run). Points with x%, y%, value 0–1. */
   predictionHeatmap?: Array<{ x: number; y: number; value: number }>;
@@ -2331,14 +2339,52 @@ const computeEmotionMetrics = (
  * Expected response format: component_id = 'eye-tracking-data'
  * value = { fixations: [{ x, y, duration, timestamp }], calibrationQuality, integrityScore, emotions?: EmotionSample[] }
  */
+/**
+ * Quality gate thresholds for eye tracking data.
+ * Participants below these thresholds are flagged as low quality
+ * and excluded from aggregate metrics (heatmap, AOI, zones).
+ */
+const ET_QUALITY_THRESHOLDS = {
+  /** Max acceptable calibration RMSE (px). Above = low quality. */
+  maxCalibrationRmsePx: 200,
+  /** Min integrity score (0-1). Below = low quality. */
+  minIntegrityScore: 0.4,
+  /** Min fixation count. Below = insufficient data. */
+  minFixationCount: 3,
+};
+
+type QualityGrade = 'good' | 'fair' | 'low';
+
+/** Classify participant tracking quality from calibration + data metrics. */
+function classifyQuality(
+  calibrationRmsePx: number | null,
+  integrityScore: number,
+  fixationCount: number,
+): QualityGrade {
+  if (fixationCount < ET_QUALITY_THRESHOLDS.minFixationCount) return 'low';
+  if (integrityScore < ET_QUALITY_THRESHOLDS.minIntegrityScore) return 'low';
+  if (calibrationRmsePx !== null && calibrationRmsePx > ET_QUALITY_THRESHOLDS.maxCalibrationRmsePx) return 'low';
+  // Fair: borderline values
+  if (calibrationRmsePx !== null && calibrationRmsePx > ET_QUALITY_THRESHOLDS.maxCalibrationRmsePx * 0.7) return 'fair';
+  if (integrityScore < ET_QUALITY_THRESHOLDS.minIntegrityScore * 1.5) return 'fair';
+  return 'good';
+}
+
 const computeEyeTrackingMetrics = (
   responses: any[],
   configAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }>,
   hasEmotionRecognition: boolean,
 ) => {
   type Fixation = { x: number; y: number; duration: number; participantId: string; timestamp: number };
-  const allFixations: Fixation[] = [];
-  const participantMap = new Map<string, { calibrationQuality: string; integrityScore: string; totalFixations: number; totalDwellTime: number }>();
+  const allFixationsRaw: Fixation[] = [];
+  const participantMap = new Map<string, {
+    calibrationQuality: string;
+    calibrationRmsePx: number | null;
+    integrityScore: number;
+    totalFixations: number;
+    totalDwellTime: number;
+    qualityGrade: QualityGrade;
+  }>();
   // Emotion samples per participant (for Emotion × AOI correlation)
   const emotionsByParticipant = new Map<string, EmotionSample[]>();
 
@@ -2350,7 +2396,7 @@ const computeEyeTrackingMetrics = (
 
       let totalDwell = 0;
       for (const f of fixations) {
-        allFixations.push({ x: f.x, y: f.y, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
+        allFixationsRaw.push({ x: f.x, y: f.y, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
         totalDwell += f.duration;
       }
 
@@ -2360,22 +2406,39 @@ const computeEyeTrackingMetrics = (
         emotionsByParticipant.set(pid, emotions);
       }
 
+      const rmsePx = typeof parsed?.calibrationRmsePx === 'number' ? parsed.calibrationRmsePx : null;
+      const integrity = typeof parsed?.integrityScore === 'number' ? parsed.integrityScore
+        : typeof parsed?.integrityScore === 'string' ? parseFloat(parsed.integrityScore) || 0
+        : 0;
+      const grade = classifyQuality(rmsePx, integrity, fixations.length);
+
       participantMap.set(pid, {
         calibrationQuality: parsed?.calibrationQuality ?? 'unknown',
-        integrityScore: parsed?.integrityScore ?? 'unknown',
+        calibrationRmsePx: rmsePx,
+        integrityScore: integrity,
         totalFixations: fixations.length,
         totalDwellTime: totalDwell,
+        qualityGrade: grade,
       });
     } catch { /* skip malformed */ }
   }
 
+  // Quality gate: exclude low-quality participants from aggregate metrics
+  const lowQualityPids = new Set(
+    Array.from(participantMap.entries())
+      .filter(([, data]) => data.qualityGrade === 'low')
+      .map(([pid]) => pid)
+  );
+  const allFixations = allFixationsRaw.filter(f => !lowQualityPids.has(f.participantId));
+
   // Heatmap data: aggregate fixation positions with duration as weight
   const heatmapData = allFixations.map(f => ({ x: f.x, y: f.y, duration: f.duration }));
 
-  // Zone-based heatmap: aggregate zoneMass from all responses
+  // Zone-based heatmap: aggregate zoneMass from quality-passing responses only
   const aggregatedZoneMass: Record<string, number> = {};
   for (const row of responses) {
     try {
+      if (lowQualityPids.has(row.participant_id)) continue;
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if (parsed?.zoneMass && typeof parsed.zoneMass === 'object') {
         for (const [zoneId, mass] of Object.entries(parsed.zoneMass)) {
@@ -2388,20 +2451,56 @@ const computeEyeTrackingMetrics = (
   // Total dwell time across all fixations
   const totalDwellTime = allFixations.reduce((sum, f) => sum + f.duration, 0);
 
-  // Compute AOI metrics (including TTFF and notice rate)
+  // Compute AOI metrics with soft Gaussian contribution (robust to webcam jitter).
+  // Fixations near AOI borders contribute proportionally instead of binary in/out.
   const totalParticipants = new Set(allFixations.map(f => f.participantId)).size;
+
+  /**
+   * Soft AOI weight: Gaussian contribution based on distance to AOI center.
+   * Inside AOI → ~1.0. Near border outside → 0.3-0.8. Far away → ~0.
+   * σ = half of AOI's larger dimension (captures ~95% of nearby fixations).
+   */
+  const softAoiWeight = (fx: number, fy: number, aoi: { x: number; y: number; width: number; height: number }): number => {
+    const cx = aoi.x + aoi.width / 2;
+    const cy = aoi.y + aoi.height / 2;
+    const dx = fx - cx;
+    const dy = fy - cy;
+
+    // Check if fully inside — weight 1.0
+    if (fx >= aoi.x && fx <= aoi.x + aoi.width && fy >= aoi.y && fy <= aoi.y + aoi.height) {
+      return 1.0;
+    }
+
+    // Distance to nearest edge (0 = on edge, positive = outside)
+    const distX = Math.max(0, Math.abs(dx) - aoi.width / 2);
+    const distY = Math.max(0, Math.abs(dy) - aoi.height / 2);
+    const edgeDist = Math.sqrt(distX * distX + distY * distY);
+
+    // σ = half of larger dimension — soft falloff outside the box
+    const sigma = Math.max(aoi.width, aoi.height) * 0.35;
+    if (sigma <= 0) return 0;
+    return Math.exp(-(edgeDist * edgeDist) / (2 * sigma * sigma));
+  };
+
+  /** Min weight to consider a fixation as contributing to an AOI. */
+  const SOFT_AOI_MIN_WEIGHT = 0.15;
+
   const aois = configAois.map(aoi => {
-    const insideFixations = allFixations.filter(f =>
-      f.x >= aoi.x && f.x <= aoi.x + aoi.width &&
-      f.y >= aoi.y && f.y <= aoi.y + aoi.height
+    // Compute soft weights for all fixations relative to this AOI
+    const weightedFixations = allFixations
+      .map(f => ({ ...f, aoiWeight: softAoiWeight(f.x, f.y, aoi) }))
+      .filter(f => f.aoiWeight >= SOFT_AOI_MIN_WEIGHT);
+
+    const aoiDwellTime = weightedFixations.reduce((sum, f) => sum + f.duration * f.aoiWeight, 0);
+    // Participants who "noticed" the AOI: at least one fixation with weight >= 0.5
+    const noticedParticipants = new Set(
+      weightedFixations.filter(f => f.aoiWeight >= 0.5).map(f => f.participantId)
     );
 
-    const aoiDwellTime = insideFixations.reduce((sum, f) => sum + f.duration, 0);
-    const uniqueParticipants = new Set(insideFixations.map(f => f.participantId));
-
-    // TTFF: Time To First Fixation — min timestamp per participant, then average
+    // TTFF: Time To First Fixation — use significant fixations (weight >= 0.5)
     const firstFixationByParticipant = new Map<string, number>();
-    for (const f of insideFixations) {
+    for (const f of weightedFixations) {
+      if (f.aoiWeight < 0.5) continue;
       const existing = firstFixationByParticipant.get(f.participantId);
       if (existing === undefined || f.timestamp < existing) {
         firstFixationByParticipant.set(f.participantId, f.timestamp);
@@ -2412,23 +2511,27 @@ const computeEyeTrackingMetrics = (
       ? Math.round(ttffValues.reduce((a, b) => a + b, 0) / ttffValues.length)
       : 0;
 
-    // Notice rate: % of total participants who had at least 1 fixation in this AOI
+    // Notice rate: % of total participants with significant fixation in AOI
     const noticeRate = totalParticipants > 0
-      ? Math.round((uniqueParticipants.size / totalParticipants) * 100)
+      ? Math.round((noticedParticipants.size / totalParticipants) * 100)
       : 0;
 
+    // Effective fixation count: sum of weights (fractional fixations)
+    const effectiveFixationCount = Math.round(
+      weightedFixations.reduce((sum, f) => sum + f.aoiWeight, 0)
+    );
+
     // Emotion × AOI: find dominant emotion while looking at this AOI
-    // Match emotion samples temporally with fixations inside AOI (±100ms window)
+    // Use weighted fixations (weight >= 0.5) for emotion matching
     const aoiEmotionCounts: Record<EkmanEmotion, number> = {
       joy: 0, sadness: 0, surprise: 0, anger: 0, disgust: 0, fear: 0, neutral: 0,
     };
     let aoiEmotionTotal = 0;
-    for (const pid of uniqueParticipants) {
+    for (const pid of noticedParticipants) {
       const pEmotions = emotionsByParticipant.get(pid);
       if (!pEmotions || pEmotions.length === 0) continue;
-      const pFixationsInAOI = insideFixations.filter(f => f.participantId === pid);
+      const pFixationsInAOI = weightedFixations.filter(f => f.participantId === pid && f.aoiWeight >= 0.5);
       for (const fix of pFixationsInAOI) {
-        // Find emotion samples within fixation time window (timestamp ± duration/2)
         const fixStart = fix.timestamp;
         const fixEnd = fix.timestamp + fix.duration;
         for (const em of pEmotions) {
@@ -2458,11 +2561,11 @@ const computeEyeTrackingMetrics = (
     return {
       ...aoi,
       dwellTimePercent: totalDwellTime > 0 ? Math.round((aoiDwellTime / totalDwellTime) * 100) : 0,
-      fixationCount: insideFixations.length,
-      avgDuration: insideFixations.length > 0
-        ? Math.round(insideFixations.reduce((sum, f) => sum + f.duration, 0) / insideFixations.length)
+      fixationCount: effectiveFixationCount,
+      avgDuration: effectiveFixationCount > 0
+        ? Math.round(aoiDwellTime / effectiveFixationCount)
         : 0,
-      participantCount: uniqueParticipants.size,
+      participantCount: noticedParticipants.size,
       avgTTFF,
       noticeRate,
       /** Dominant emotion while looking at this AOI */
@@ -2484,6 +2587,13 @@ const computeEyeTrackingMetrics = (
     participantId: pid,
     ...data,
   }));
+
+  const qualitySummary = {
+    total: participantMap.size,
+    good: Array.from(participantMap.values()).filter(p => p.qualityGrade === 'good').length,
+    fair: Array.from(participantMap.values()).filter(p => p.qualityGrade === 'fair').length,
+    low: lowQualityPids.size,
+  };
 
   const emotions = computeEmotionMetrics(responses, hasEmotionRecognition);
 
@@ -2568,6 +2678,7 @@ const computeEyeTrackingMetrics = (
     fixations: allFixations,
     aois,
     participants,
+    qualitySummary,
     emotions,
     sequenceAnalysis,
   };

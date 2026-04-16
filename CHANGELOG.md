@@ -1,3 +1,26 @@
+## v0.60.0 — Research collaborators, completion filter, eye tracking improvements (2026-04-16)
+
+### backend
+- **Research collaborators:** `POST/GET/DELETE /research/:id/collaborators` — share a specific research with another user by email. `buildOwnershipClause` now includes collaborator access (`OR id IN (SELECT research_id FROM research_collaborators WHERE user_id = ?)`).
+- **Completion filter support:** Existing `GET /research/:id/participants/status` endpoint already returns per-participant `progress` (0-100%). Results pages now consume this data for filtering.
+- **Soft AOI intersection:** AOI metrics use Gaussian contribution instead of binary point-in-rect. Fixations near AOI borders contribute proportionally (σ = 35% of AOI's larger dimension). Inside = 1.0, near edge outside = 0.3-0.8, far = excluded.
+- **Eye tracking quality gate:** Participants classified as `good`, `fair`, or `low` based on `calibrationRmsePx` (>200px = low), `integrityScore` (<0.4 = low), and `fixationCount` (<3 = low). Low-quality participants excluded from aggregate heatmap, zone mass, and AOI calculations. `qualitySummary` added to ET response.
+
+### research-frontend
+- **Share Research drawer:** `ShareResearchDrawer` component — add collaborators by email, list existing collaborators with remove button. "Share Research" button in builder sidebar.
+- **Completion % filter:** Slider "Min. completion" (0-100%, step 5%) added to Filters sidebar across all 5 result tabs (SmartVOC, Cognitive Tasks, Screener, IAT, Eye Tracking). Combines with demographic and user ID filters.
+- **Redundant header removed:** Removed duplicate "Cognitive Tasks Results" gray card in Cognitive Task results (tab already provides context).
+- **Triple scroll fix:** Removed nested `max-h overflow-y-auto` from CognitiveTaskResults and SmartVOCResults. Single page-level scroll only. Filter sidebar uses `max-h-[calc(100vh-8rem)]` instead of fixed `700px`.
+- **ET quality indicator:** Amber banner shows quality gate summary when low-quality participants are excluded from results.
+
+### participant-frontend
+- **Micro-recalibration:** During eye tracking viewing phase, a nearly invisible dot (4px, 12% opacity) appears every 45s at edge/corner positions. System captures ~8 gaze samples over 600ms, computes drift vs known position, and updates IDW correction field with weighted residual. Corrects calibration drift without participant awareness.
+
+### database
+- Migration 024: `research_collaborators` table with `research_id`, `user_id`, `permission` (viewer/editor), `invited_by`, unique constraint, cascade deletes.
+
+---
+
 ## v0.59.9 — Invited viewers list in Invite Viewer drawer (2026-04-15)
 
 ### backend

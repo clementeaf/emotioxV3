@@ -342,6 +342,51 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ linkConfig: config.linkConfig || {}, ...config }, 200, undefined, origin);
         }
 
+        // GET /research/:id/collaborators
+        const collabGetMatch = path.match(/^\/research\/([^\/]+)\/collaborators$/);
+        if (collabGetMatch && httpMethod === 'GET') {
+            const researchId = collabGetMatch[1];
+            await researchService.getById(researchId, user.id, user.role);
+            const collaborators = await researchService.listCollaborators(researchId);
+            return success({ collaborators }, 200, undefined, origin);
+        }
+
+        // POST /research/:id/collaborators
+        if (collabGetMatch && httpMethod === 'POST') {
+            const researchId = collabGetMatch[1];
+            // Only owner or admin can add collaborators
+            const research = await researchService.getById(researchId, user.id, user.role) as { created_by?: string };
+            if (user.role !== 'admin' && research.created_by !== user.id) {
+                return error('Only the research owner can add collaborators', 403, undefined, origin);
+            }
+            const body = JSON.parse(event.body || '{}');
+            const { email, permission } = body;
+            if (!email || typeof email !== 'string') {
+                return error('Email is required', 400, undefined, origin);
+            }
+            try {
+                const collaborator = await researchService.addCollaborator(researchId, email.trim().toLowerCase(), user.id, permission);
+                return success({ collaborator }, 201, undefined, origin);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Failed to add collaborator';
+                const status = msg.includes('not found') ? 404 : msg.includes('already') ? 409 : msg.includes('owner') ? 400 : 500;
+                return error(msg, status, undefined, origin);
+            }
+        }
+
+        // DELETE /research/:id/collaborators/:collaboratorId
+        const collabDeleteMatch = path.match(/^\/research\/([^\/]+)\/collaborators\/([^\/]+)$/);
+        if (collabDeleteMatch && httpMethod === 'DELETE') {
+            const researchId = collabDeleteMatch[1];
+            const collaboratorId = collabDeleteMatch[2];
+            const research = await researchService.getById(researchId, user.id, user.role) as { created_by?: string };
+            if (user.role !== 'admin' && research.created_by !== user.id) {
+                return error('Only the research owner can remove collaborators', 403, undefined, origin);
+            }
+            await researchService.removeCollaborator(collaboratorId, researchId);
+            return success({ message: 'Collaborator removed' }, 200, undefined, origin);
+        }
+
         return error('Route not found', 404, undefined, origin);
     } catch (err: any) {
         console.error('Research controller error:', err);

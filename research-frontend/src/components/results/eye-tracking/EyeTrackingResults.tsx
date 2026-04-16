@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, Loader2 } from 'lucide-react';
+import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, Loader2, ShieldCheck } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
@@ -908,6 +908,19 @@ const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: { stimul
         />
       </div>
 
+      {/* Quality summary */}
+      {stimulus.qualitySummary && stimulus.qualitySummary.low > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 text-xs">
+          <ShieldCheck className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+          <span className="text-amber-700">
+            Quality gate: <span className="font-medium">{stimulus.qualitySummary.good} good</span>
+            {stimulus.qualitySummary.fair > 0 && <>, <span className="font-medium">{stimulus.qualitySummary.fair} fair</span></>}
+            , <span className="font-medium text-amber-800">{stimulus.qualitySummary.low} excluded</span>
+            <span className="text-amber-500 ml-1">(low calibration quality)</span>
+          </span>
+        </div>
+      )}
+
       {/* View mode tabs + Download */}
       <div className="flex items-center justify-between px-5 pt-4 pb-2">
         <div className="flex gap-2">
@@ -1201,6 +1214,8 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
     setDemographicFilters,
     userIdFilter,
     setUserIdFilter,
+    completionMin,
+    setCompletionMin,
     filteredParticipantIds,
   } = useResultsFilter(researchId);
 
@@ -1270,7 +1285,7 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
               </div>
             )}
           </div>
-          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
             <Filters
               researchId={researchId}
               demographicData={demographicData}
@@ -1278,6 +1293,8 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
               onFilterChange={setDemographicFilters}
               userIdFilter={userIdFilter}
               onUserIdFilterChange={setUserIdFilter}
+              completionMin={completionMin}
+              onCompletionMinChange={setCompletionMin}
             />
           </div>
         </div>

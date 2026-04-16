@@ -37,6 +37,8 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
     setDemographicFilters,
     userIdFilter,
     setUserIdFilter,
+    completionMin,
+    setCompletionMin,
   } = useResultsFilter(researchId);
 
   const fetchData = useCallback(async () => {
@@ -127,7 +129,7 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
               </div>
             </div>
           </div>
-          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
             <Filters
               researchId={researchId}
               demographicData={demographicData}
@@ -135,6 +137,8 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
               onFilterChange={setDemographicFilters}
               userIdFilter={userIdFilter}
               onUserIdFilterChange={setUserIdFilter}
+              completionMin={completionMin}
+              onCompletionMinChange={setCompletionMin}
             />
           </div>
         </div>

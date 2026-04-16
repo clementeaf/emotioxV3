@@ -12,7 +12,8 @@ import {
     BarChart3,
     TrendingUp,
     LogOut,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Users
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { researchService } from '../../services/research.service';
@@ -26,6 +27,7 @@ import { useToast } from '../../hooks/useToast';
 import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
 import { useAuthStore } from '../../stores/auth.store';
 import { useModuleDraftStore } from '../../stores/useModuleDraftStore';
+import { ShareResearchDrawer } from '../research/ShareResearchDrawer';
 
 interface ResearchBuilderSidebarProps {
     researchId: string;
@@ -95,6 +97,9 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [isEditingName, setIsEditingName] = useState(false);
     const [editingName, setEditingName] = useState('');
     const nameInputRef = useRef<HTMLInputElement>(null);
+    const [showShareDrawer, setShowShareDrawer] = useState(false);
+    const currentUserId = useAuthStore((state) => state.user?.id);
+    const isOwner = activeResearch?.created_by === currentUserId || useAuthStore.getState().user?.role === 'admin';
 
     const handleStartEditName = useCallback(() => {
         if (!activeResearch) return;
@@ -665,6 +670,19 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                         </div>
                     </div>
                 )}
+
+                {/* Share */}
+                {!isFileBasedResearch && (
+                    <div className="mt-6">
+                        <button
+                            onClick={() => setShowShareDrawer(true)}
+                            className="flex items-center w-full px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors"
+                        >
+                            <Users className="h-4 w-4 mr-2" />
+                            Share Research
+                        </button>
+                    </div>
+                )}
                 </div>
 
                 {/* Logout */}            <div className="p-4 border-t border-gray-100 space-y-2">
@@ -817,6 +835,15 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     )}
                 </div>
             </Modal>
+
+            {activeResearch && (
+                <ShareResearchDrawer
+                    isOpen={showShareDrawer}
+                    onClose={() => setShowShareDrawer(false)}
+                    researchId={activeResearch.id}
+                    isOwner={isOwner}
+                />
+            )}
         </div>
     );
 };

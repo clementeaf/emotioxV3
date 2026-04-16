@@ -620,6 +620,8 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
     setDemographicFilters,
     userIdFilter,
     setUserIdFilter,
+    completionMin,
+    setCompletionMin,
     filteredParticipantIds,
   } = useResultsFilter(researchId);
 
@@ -691,7 +693,7 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
               </div>
             )}
           </div>
-          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[700px] overflow-y-auto">
+          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
             <Filters
               researchId={researchId}
               demographicData={demographicData}
@@ -699,6 +701,8 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
               onFilterChange={setDemographicFilters}
               userIdFilter={userIdFilter}
               onUserIdFilterChange={setUserIdFilter}
+              completionMin={completionMin}
+              onCompletionMinChange={setCompletionMin}
             />
           </div>
         </div>

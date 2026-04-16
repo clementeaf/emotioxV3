@@ -43,6 +43,11 @@ export {
     hybridApplyCalibrationField,
     hybridCalibrationRmsePx,
     hybridCalibrationConfidenceWeightUv,
+    MICRO_RECALIB_INTERVAL_MS,
+    MICRO_RECALIB_SAMPLE_DURATION_MS,
+    MICRO_RECALIB_SAMPLE_COUNT,
+    MICRO_RECALIB_POSITIONS,
+    computeMicroRecalibResidual,
 } from './hybridCalibrationField';
 
 export type { HybridCalibrationResidual } from './hybridCalibrationField';

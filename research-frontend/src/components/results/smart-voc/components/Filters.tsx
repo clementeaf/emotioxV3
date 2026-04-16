@@ -33,6 +33,9 @@ interface FiltersProps {
     /** Filter by participant ID (substring match) */
     userIdFilter?: string;
     onUserIdFilterChange?: (value: string) => void;
+    /** Min completion % (0-100) */
+    completionMin?: number;
+    onCompletionMinChange?: (value: number) => void;
 }
 
 export const Filters = ({
@@ -42,6 +45,8 @@ export const Filters = ({
     onFilterChange,
     userIdFilter = '',
     onUserIdFilterChange,
+    completionMin = 0,
+    onCompletionMinChange,
 }: FiltersProps) => {
     const [internalData, setInternalData] = useState<analyticsService.DemographicResponsesResult | null>(null);
     const [isLoading, setIsLoading] = useState(!demographicDataProp && !!researchId);
@@ -184,6 +189,37 @@ export const Filters = ({
                         );
                     })}
                 </>
+            )}
+
+            {onCompletionMinChange && (
+                <div className="space-y-1.5 pt-2 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium text-gray-700">Min. completion</div>
+                        <span className="text-xs font-medium text-gray-500">{completionMin}%</span>
+                    </div>
+                    <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={completionMin}
+                        onChange={(e) => onCompletionMinChange(Number(e.target.value))}
+                        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-gray-400">
+                        <span>0%</span>
+                        <span>100%</span>
+                    </div>
+                    {completionMin > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => onCompletionMinChange(0)}
+                            className="text-xs text-blue-600 hover:underline"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
             )}
 
             {onUserIdFilterChange && (

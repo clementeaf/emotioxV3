@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import * as analyticsService from '../services/analytics.service';
+import apiClient from '../services/api/client';
 
 export type DemographicFiltersState = Record<string, string[]>;
 
@@ -13,6 +14,8 @@ export function useResultsFilter(researchId: string) {
   const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
   const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
   const [userIdFilter, setUserIdFilter] = useState('');
+  const [completionMin, setCompletionMin] = useState(0);
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!researchId) return;
@@ -23,9 +26,34 @@ export function useResultsFilter(researchId: string) {
     return () => { cancelled = true; };
   }, [researchId]);
 
+  useEffect(() => {
+    if (!researchId) return;
+    let cancelled = false;
+    apiClient.get<Array<{ id: string; progress: number }>>(`/research/${researchId}/participants/status`)
+      .then((res) => {
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res as unknown as { data: Array<{ id: string; progress: number }> }).data ?? [];
+        const map = new Map<string, number>();
+        for (const p of arr) map.set(p.id, p.progress);
+        setProgressMap(map);
+      })
+      .catch(() => { if (!cancelled) setProgressMap(new Map()); });
+    return () => { cancelled = true; };
+  }, [researchId]);
+
   const filteredParticipantIds = useMemo(() => {
-    if (!demographicData?.participants.length) return null;
-    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '';
+    if (!demographicData?.participants.length) {
+      // Even without demographics, apply completion filter if active
+      if (completionMin > 0 && progressMap.size > 0) {
+        return new Set(
+          Array.from(progressMap.entries())
+            .filter(([, prog]) => prog >= completionMin)
+            .map(([id]) => id)
+        );
+      }
+      return null;
+    }
+    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '' || completionMin > 0;
     if (!hasAnyFilter) return null;
 
     const idSet = new Set(
@@ -40,12 +68,16 @@ export function useResultsFilter(researchId: string) {
           if (userIdFilter.trim()) {
             if (!p.participantId.toLowerCase().includes(userIdFilter.trim().toLowerCase())) return false;
           }
+          if (completionMin > 0) {
+            const prog = progressMap.get(p.participantId) ?? 0;
+            if (prog < completionMin) return false;
+          }
           return true;
         })
         .map((p) => p.participantId)
     );
     return idSet;
-  }, [demographicData?.participants, demographicFilters, userIdFilter]);
+  }, [demographicData?.participants, demographicFilters, userIdFilter, completionMin, progressMap]);
 
   const filterByParticipant = <T extends { participantId?: string }>(items: T[]): T[] => {
     if (!filteredParticipantIds) return items;
@@ -58,6 +90,8 @@ export function useResultsFilter(researchId: string) {
     setDemographicFilters,
     userIdFilter,
     setUserIdFilter,
+    completionMin,
+    setCompletionMin,
     filteredParticipantIds,
     filterByParticipant,
   };
