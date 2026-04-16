@@ -57,9 +57,9 @@ type ETPhase = 'intro' | 'setup' | 'preparing' | 'calibration' | 'validating' | 
 
 const TOTAL_STEPS = 3;
 
-/** One-Euro params aligned with `/eye-tracking-hybrid` lab (calmer than BlazeGaze defaults). */
-const EYE_TRACKING_ONE_EURO_MIN_CUTOFF = 0.8;
-const EYE_TRACKING_ONE_EURO_BETA = 0.005;
+/** One-Euro params — responsive enough to avoid lag during calibration clicks. */
+const EYE_TRACKING_ONE_EURO_MIN_CUTOFF = 2.0;
+const EYE_TRACKING_ONE_EURO_BETA = 0.05;
 
 const HYBRID_CALIB_POINT_COUNT = HYBRID_IMAGE_CALIBRATION_POINTS.length;
 

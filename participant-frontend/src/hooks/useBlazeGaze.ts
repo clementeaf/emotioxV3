@@ -20,14 +20,11 @@ import { OneEuroFilter1D } from '../lib/eyeTracking';
 const MAX_POINTS = 100;
 const CLICK_TTL = 86400;
 
-/** Mild horizontal bias correction in normalized space (positive = shift right on screen). */
-const X_OFFSET = 0.03;
+/** Horizontal bias removed — IDW calibration field handles per-user correction. */
+const X_OFFSET = 0;
 
-/**
- * Vertical normalized coord scale — webcam gaze often undershoots top/bottom; slight stretch helps
- * corner rows without changing horizontal mapping.
- */
-const Y_NORM_SCALE = 1.1;
+/** Vertical scale removed — IDW calibration field handles per-user correction. */
+const Y_NORM_SCALE = 1.0;
 
 // --- One-Euro Filter defaults (Casiez et al. 2012) tuned for webcam gaze ---
 /** Low minCutoff = very smooth during fixation (Hz). */

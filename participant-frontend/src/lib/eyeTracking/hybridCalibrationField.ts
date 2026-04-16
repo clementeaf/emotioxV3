@@ -12,8 +12,8 @@ export interface HybridCalibrationResidual {
     readonly dy: number;
 }
 
-/** Mezcla 0..1 del campo sobre la mirada corregida (sube un poco al reducir boosts geométricos en rejilla). */
-export const HYBRID_CALIBRATION_FIELD_STRENGTH = 0.62;
+/** Mezcla 0..1 del campo sobre la mirada corregida. Higher = trust calibration more over raw model output. */
+export const HYBRID_CALIBRATION_FIELD_STRENGTH = 0.85;
 
 /**
  * Aplica corrección interpolada por distancia inversa a la mirada en coords de viewport.
@@ -85,7 +85,7 @@ export function hybridCalibrationRmsePx(samples: readonly HybridCalibrationResid
 // ── Micro-recalibration (drift correction during viewing) ───────────────
 
 /** Interval between micro-recalibration probes (ms). */
-export const MICRO_RECALIB_INTERVAL_MS = 45_000;
+export const MICRO_RECALIB_INTERVAL_MS = 20_000;
 
 /** Duration to display the micro-dot and sample gaze (ms). */
 export const MICRO_RECALIB_SAMPLE_DURATION_MS = 600;
@@ -94,10 +94,10 @@ export const MICRO_RECALIB_SAMPLE_DURATION_MS = 600;
 export const MICRO_RECALIB_SAMPLE_COUNT = 8;
 
 /** Max drift (px) to apply. Corrections larger than this are noise, not drift. */
-export const MICRO_RECALIB_MAX_DRIFT_PX = 150;
+export const MICRO_RECALIB_MAX_DRIFT_PX = 250;
 
 /** Weight of micro-recalibration residuals relative to initial calibration (0..1). */
-export const MICRO_RECALIB_WEIGHT = 0.55;
+export const MICRO_RECALIB_WEIGHT = 0.75;
 
 /**
  * Candidate positions for micro-recalibration dots (% of stimulus).

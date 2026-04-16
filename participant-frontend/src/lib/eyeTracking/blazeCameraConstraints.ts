@@ -1,12 +1,13 @@
 /**
  * Constraints for webcam streams feeding BlazeGaze (WebEyeTrack).
- * Uses `ideal` so the browser can fall back on weak cameras; avoids hard `min` that would fail permission on low-end devices.
+ * Uses `min` to ensure adequate eye-region pixel density for the CNN model.
+ * Falls back gracefully — if camera can't meet min, browser negotiates best available.
  */
 export const BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS: MediaStreamConstraints = {
     video: {
         facingMode: 'user',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { min: 1024, ideal: 1280 },
+        height: { min: 576, ideal: 720 },
     },
 };
 
