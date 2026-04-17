@@ -83,8 +83,14 @@ export const CustomSelect = ({
                 });
             }
 
-            // Close dropdown on scroll so it doesn't float detached
-            const handleScroll = () => setIsOpen(false);
+            // Close dropdown when the page or an ancestor scrolls,
+            // but NOT when scrolling inside the dropdown list itself.
+            const handleScroll = (e: Event) => {
+                const target = e.target;
+                // The dropdown list has data-custom-select-dropdown — ignore its scroll
+                if (target instanceof Element && target.hasAttribute('data-custom-select-dropdown')) return;
+                setIsOpen(false);
+            };
             window.addEventListener('scroll', handleScroll, true);
 
             return () => {
@@ -159,12 +165,14 @@ export const CustomSelect = ({
                 {isOpen && dropdownPosition && createPortal(
                     <div
                         ref={dropdownRef}
+                        data-custom-select-dropdown
                         className="fixed z-[9999] rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
                         style={{
                             top: `${dropdownPosition.top}px`,
                             left: `${dropdownPosition.left}px`,
                             width: `${dropdownPosition.width}px`
                         }}
+                        onWheel={e => e.stopPropagation()}
                     >
                         {options.length === 0 ? (
                             <div className="px-3 py-2 text-sm text-gray-500">No options available</div>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
 
 /** Color gradient from cool (first) to warm (last) fixation */
@@ -22,6 +22,14 @@ export const ScanpathOverlay = ({
   fixations: EyeTrackingStimulus['fixations'];
 }) => {
   const [selectedParticipant, setSelectedParticipant] = useState<string>('all');
+  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
+
+  // Load image natural dimensions for correct viewBox
+  useEffect(() => {
+    const img = new Image();
+    img.src = imageUrl;
+    img.onload = () => setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+  }, [imageUrl]);
 
   const participantIds = useMemo(() => {
     const ids = new Set(fixations.map(f => f.participantId));
@@ -32,14 +40,18 @@ export const ScanpathOverlay = ({
     const filtered = selectedParticipant === 'all'
       ? fixations
       : fixations.filter(f => f.participantId === selectedParticipant);
-    // Sort by timestamp for path ordering
     return [...filtered].sort((a, b) => a.timestamp - b.timestamp);
   }, [fixations, selectedParticipant]);
 
-  // Normalize fixation positions — fixations are in image pixel coords
-  // Need to find max x/y to compute relative positions
-  const maxX = useMemo(() => Math.max(...fixations.map(f => f.x), 1), [fixations]);
-  const maxY = useMemo(() => Math.max(...fixations.map(f => f.y), 1), [fixations]);
+  // Use image natural dimensions for viewBox (fixations are in image pixel coords)
+  // Don't render overlay until natural size is known
+  const vw = naturalSize?.w ?? 0;
+  const vh = naturalSize?.h ?? 0;
+
+  const maxDur = useMemo(
+    () => Math.max(...visibleFixations.map(f => f.duration), 1),
+    [visibleFixations]
+  );
 
   return (
     <div>
@@ -60,14 +72,18 @@ export const ScanpathOverlay = ({
       </div>
 
       {/* Image with scanpath overlay */}
-      <div className="relative rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
-        <img src={imageUrl} alt="Stimulus" className="max-h-[60vh] w-auto block" draggable={false} />
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${maxX} ${maxY}`} preserveAspectRatio="none">
+      <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
+        <div className="relative">
+          <img src={imageUrl} alt="Stimulus" className="max-h-[60vh] w-auto block" draggable={false} />
+          {vw > 0 && vh > 0 && <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox={`0 0 ${vw} ${vh}`}
+            preserveAspectRatio="none"
+          >
           {/* Connection lines */}
           {visibleFixations.map((fix, i) => {
             if (i === 0) return null;
             const prev = visibleFixations[i - 1];
-            // Skip line if different participant in "all" mode
             if (selectedParticipant === 'all' && fix.participantId !== prev.participantId) return null;
             return (
               <line
@@ -77,7 +93,7 @@ export const ScanpathOverlay = ({
                 x2={fix.x}
                 y2={fix.y}
                 stroke={getScanpathColor(i, visibleFixations.length)}
-                strokeWidth={Math.max(maxX * 0.002, 1)}
+                strokeWidth={Math.max(vw * 0.002, 1)}
                 strokeOpacity={0.6}
               />
             );
@@ -85,24 +101,22 @@ export const ScanpathOverlay = ({
           {/* Fixation circles */}
           {visibleFixations.map((fix, i) => {
             const color = getScanpathColor(i, visibleFixations.length);
-            // Radius proportional to duration (min 0.5%, max 2.5% of image)
-            const minR = maxX * 0.005;
-            const maxR = maxX * 0.025;
-            const maxDur = Math.max(...visibleFixations.map(f => f.duration), 1);
+            const minR = vw * 0.005;
+            const maxR = vw * 0.025;
             const r = minR + (fix.duration / maxDur) * (maxR - minR);
             return (
               <g key={`fix-${i}`}>
-                <circle cx={fix.x} cy={fix.y} r={r} fill={color} fillOpacity={0.35} stroke={color} strokeWidth={Math.max(maxX * 0.001, 0.5)} />
+                <circle cx={fix.x} cy={fix.y} r={r} fill={color} fillOpacity={0.35} stroke={color} strokeWidth={Math.max(vw * 0.001, 0.5)} />
                 <text
                   x={fix.x}
                   y={fix.y}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fontSize={Math.max(maxX * 0.012, 8)}
+                  fontSize={Math.max(vw * 0.012, 8)}
                   fontWeight={600}
                   fill="white"
                   stroke={color}
-                  strokeWidth={Math.max(maxX * 0.002, 0.5)}
+                  strokeWidth={Math.max(vw * 0.002, 0.5)}
                   paintOrder="stroke"
                 >
                   {i + 1}
@@ -110,7 +124,8 @@ export const ScanpathOverlay = ({
               </g>
             );
           })}
-        </svg>
+        </svg>}
+        </div>
       </div>
 
       {/* Legend */}

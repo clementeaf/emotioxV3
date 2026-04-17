@@ -56,6 +56,7 @@ export const FirstLookOverlay = ({
       <HeatmapRenderer
         imageUrl={imageUrl}
         data={heatmapData}
+        coordSystem="pixel"
         className="w-full"
       />
     </div>

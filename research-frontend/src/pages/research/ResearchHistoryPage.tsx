@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, Trash2 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { enterprisesService, type Enterprise, type EnterpriseResearch } from '../../services/enterprises.service';
 import { researchService } from '../../services/research.service';
 import { Button } from '../../components/ui/Button';
@@ -48,15 +48,45 @@ export const ResearchHistoryPage = () => {
             .catch(() => setResearches([]));
     }, [selectedEnterpriseId, enterprises]);
 
-    // Chart data: one point per research, ordered by date
+    // Chart data: researches grouped by month with status counts
     const chartData = useMemo(() => {
-        return [...researches]
-            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-            .map(r => ({
-                name: r.name.length > 20 ? r.name.slice(0, 20) + '...' : r.name,
-                fullName: r.name,
-                date: new Date(r.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' }),
-            }));
+        if (researches.length === 0) return [];
+
+        const byMonth = new Map<string, { draft: number; active: number; completed: number }>();
+        const sorted = [...researches].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        for (const r of sorted) {
+            const d = new Date(r.created_at);
+            const key = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            const bucket = byMonth.get(key) || { draft: 0, active: 0, completed: 0 };
+            const status = r.status as keyof typeof bucket;
+            if (status in bucket) {
+                bucket[status]++;
+            } else {
+                bucket.draft++;
+            }
+            byMonth.set(key, bucket);
+        }
+
+        return Array.from(byMonth.entries()).map(([month, counts]) => ({
+            month,
+            ...counts,
+            total: counts.draft + counts.active + counts.completed,
+        }));
+    }, [researches]);
+
+    // Stats for the info card
+    const stats = useMemo(() => {
+        const byStatus = { draft: 0, active: 0, completed: 0 };
+        const types = new Set<string>();
+        for (const r of researches) {
+            const s = r.status as keyof typeof byStatus;
+            if (s in byStatus) byStatus[s]++;
+            if (r.research_type_name) types.add(r.research_type_name);
+        }
+        return { ...byStatus, total: researches.length, types: Array.from(types) };
     }, [researches]);
 
     const handleDelete = async (research: EnterpriseResearch) => {
@@ -94,9 +124,9 @@ export const ResearchHistoryPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Research&apos;s History</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Research History</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        The performance of recent customer&apos; studies based on the Perceived Value Map (cost-benefit) benchmark
+                        Overview of research activity per client
                     </p>
                 </div>
                 {/* Client selector */}
@@ -112,11 +142,11 @@ export const ResearchHistoryPage = () => {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {/* Top row: Chart + Who Is */}
+                {/* Top row: Chart + Client Info */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Chart */}
                     <div className="lg:col-span-2 bg-white border border-gray-100 rounded-lg p-4">
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex items-center gap-3 mb-3">
                             <h2 className="text-base font-semibold text-gray-900">
                                 {selectedEnterprise?.name || 'Client'}
                             </h2>
@@ -124,30 +154,18 @@ export const ResearchHistoryPage = () => {
                                 {researches.length} research project{researches.length !== 1 ? 's' : ''}
                             </span>
                         </div>
-                        <div className="flex gap-4 mb-3 text-xs">
-                            <span className="flex items-center gap-1">
-                                <span className="w-3 h-0.5 bg-red-500 inline-block" /> Visual Attractiveness
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="w-3 h-0.5 bg-blue-500 inline-block" /> Benefit Association
-                            </span>
-                        </div>
                         {chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height={250}>
-                                <LineChart data={chartData}>
+                                <BarChart data={chartData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                                    <YAxis tick={{ fontSize: 11 }} />
-                                    <Tooltip
-                                        labelFormatter={(_label, payload) => {
-                                            const item = payload?.[0]?.payload;
-                                            return item?.fullName || _label;
-                                        }}
-                                    />
+                                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                                    <Tooltip />
                                     <Legend />
-                                    <Line type="monotone" dataKey="attractiveness" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} name="Visual Attractiveness" />
-                                    <Line type="monotone" dataKey="benefit" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Benefit Association" />
-                                </LineChart>
+                                    <Bar dataKey="completed" stackId="a" fill="#3b82f6" name="Completed" radius={[0, 0, 0, 0]} />
+                                    <Bar dataKey="active" stackId="a" fill="#22c55e" name="Active" radius={[0, 0, 0, 0]} />
+                                    <Bar dataKey="draft" stackId="a" fill="#eab308" name="Draft" radius={[4, 4, 0, 0]} />
+                                </BarChart>
                             </ResponsiveContainer>
                         ) : (
                             <div className="h-[250px] flex items-center justify-center text-gray-400 text-sm">
@@ -156,29 +174,69 @@ export const ResearchHistoryPage = () => {
                         )}
                     </div>
 
-                    {/* Who Is */}
+                    {/* Client Info */}
                     <div className="bg-white border border-gray-100 rounded-lg p-4">
-                        <h2 className="text-sm font-semibold text-gray-900 mb-1">Who is</h2>
-                        <h3 className="text-base font-bold text-gray-900 mb-3">
+                        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Client</h2>
+                        <h3 className="text-lg font-bold text-gray-900 mb-3">
                             {selectedEnterprise?.name || '—'}
                         </h3>
-                        <p className="text-sm text-gray-600 leading-relaxed">
-                            {selectedEnterprise?.description || 'No description available for this client.'}
-                        </p>
+
+                        {selectedEnterprise?.description ? (
+                            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                                {selectedEnterprise.description}
+                            </p>
+                        ) : null}
+
+                        {/* Stats */}
+                        {stats.total > 0 && (
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="text-center p-2 bg-yellow-50 rounded">
+                                        <p className="text-lg font-bold text-yellow-700">{stats.draft}</p>
+                                        <p className="text-[10px] text-yellow-600 uppercase font-medium">Draft</p>
+                                    </div>
+                                    <div className="text-center p-2 bg-green-50 rounded">
+                                        <p className="text-lg font-bold text-green-700">{stats.active}</p>
+                                        <p className="text-[10px] text-green-600 uppercase font-medium">Active</p>
+                                    </div>
+                                    <div className="text-center p-2 bg-blue-50 rounded">
+                                        <p className="text-lg font-bold text-blue-700">{stats.completed}</p>
+                                        <p className="text-[10px] text-blue-600 uppercase font-medium">Completed</p>
+                                    </div>
+                                </div>
+
+                                {stats.types.length > 0 && (
+                                    <div>
+                                        <p className="text-xs text-gray-400 uppercase font-medium mb-1">Research types</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {stats.types.map(t => (
+                                                <span key={t} className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                                                    {t}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {stats.total === 0 && !selectedEnterprise?.description && (
+                            <p className="text-sm text-gray-400">No research history for this client yet.</p>
+                        )}
                     </div>
                 </div>
 
                 {/* List of research */}
                 <div className="bg-white border border-gray-100 rounded-lg">
                     <div className="px-4 py-3 border-b border-gray-100">
-                        <h2 className="text-base font-semibold text-gray-900">List of research</h2>
+                        <h2 className="text-base font-semibold text-gray-900">Research list</h2>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase">
-                                    <th className="px-4 py-3 font-medium">Research&apos;s name</th>
                                     <th className="px-4 py-3 font-medium">Name</th>
+                                    <th className="px-4 py-3 font-medium">Type</th>
                                     <th className="px-4 py-3 font-medium">Status</th>
                                     <th className="px-4 py-3 font-medium">Date</th>
                                     <th className="px-4 py-3 font-medium">Researcher</th>
@@ -198,7 +256,7 @@ export const ResearchHistoryPage = () => {
                                             {r.name}
                                         </td>
                                         <td className="px-4 py-3 text-gray-600 max-w-[160px] truncate">
-                                            {r.enterprise_name}
+                                            {r.research_type_name || '—'}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[r.status] || STATUS_STYLES.draft}`}>

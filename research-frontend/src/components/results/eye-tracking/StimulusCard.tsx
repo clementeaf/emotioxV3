@@ -178,6 +178,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                 <HeatmapRenderer
                   imageUrl={stimulus.stimulusUrl}
                   data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
+                  coordSystem="pixel"
                   className="w-full"
                 />
               )

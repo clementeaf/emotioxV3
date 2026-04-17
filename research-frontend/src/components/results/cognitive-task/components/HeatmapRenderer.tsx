@@ -17,6 +17,12 @@ interface HeatmapRendererProps {
     blur?: number;
     opacity?: number;
     threshold?: number;
+    /** Coordinate system of data points. When set, skips auto-detection.
+     *  - 'pixel': absolute image pixel coords (e.g. 0-1920)
+     *  - 'percent': percentage coords (0-100)
+     *  - 'normalized': normalized coords (0-1)
+     */
+    coordSystem?: 'pixel' | 'percent' | 'normalized';
 }
 
 /**
@@ -74,6 +80,7 @@ const renderSaliencyMap = (
     threshold: number,
     blurRadius?: number,
     opacityPercent?: number,
+    coordSystem?: 'pixel' | 'percent' | 'normalized',
 ): void => {
     // Create an offscreen canvas for the colormap
     const offscreen = document.createElement('canvas');
@@ -94,9 +101,18 @@ const renderSaliencyMap = (
         const val = point.value ?? 0;
         if (val < threshold) continue;
 
-        // Convert percentage coords to pixels
+        // Convert coords to canvas pixels
         let px: number, py: number;
-        if (point.x > 1 && point.y > 1) {
+        if (coordSystem === 'pixel') {
+            px = (point.x / w) * w; // already pixels — scale if canvas differs from natural
+            py = (point.y / h) * h;
+        } else if (coordSystem === 'percent') {
+            px = (point.x / 100) * w;
+            py = (point.y / 100) * h;
+        } else if (coordSystem === 'normalized') {
+            px = point.x * w;
+            py = point.y * h;
+        } else if (point.x > 1 && point.y > 1) {
             px = (point.x / 100) * w;
             py = (point.y / 100) * h;
         } else if (point.x <= 1 && point.y <= 1) {
@@ -164,6 +180,7 @@ export const HeatmapRenderer = ({
     blur: blurProp,
     opacity: opacityProp,
     threshold: thresholdProp,
+    coordSystem,
 }: HeatmapRendererProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
@@ -208,7 +225,7 @@ export const HeatmapRenderer = ({
             if (isSaliency) {
                 // Direct pixel-level colormap — OGAMA/OpenCV approach
                 const saliencyThreshold = thresholdProp != null ? thresholdProp / 100 : 0.4;
-                renderSaliencyMap(ctx, w, h, data, saliencyThreshold, blurProp, opacityProp);
+                renderSaliencyMap(ctx, w, h, data, saliencyThreshold, blurProp, opacityProp, coordSystem);
             } else {
                 // simpleheat for sparse click/fixation data
                 const heatCanvas = document.createElement('canvas');
@@ -233,12 +250,18 @@ export const HeatmapRenderer = ({
                 const points: Array<[number, number, number]> = data.map(point => {
                     let x = point.x;
                     let y = point.y;
-                    if (x <= 1 && y <= 1) {
-                        // Normalized 0-1
+                    if (coordSystem === 'pixel') {
+                        // Already image pixels — use as-is (canvas matches natural size)
+                    } else if (coordSystem === 'percent') {
+                        x = (x / 100) * w;
+                        y = (y / 100) * h;
+                    } else if (coordSystem === 'normalized') {
+                        x *= w;
+                        y *= h;
+                    } else if (x <= 1 && y <= 1) {
                         x *= w;
                         y *= h;
                     } else if (x <= 100 && y <= 100) {
-                        // Percentage 0-100
                         x = (x / 100) * w;
                         y = (y / 100) * h;
                     }
