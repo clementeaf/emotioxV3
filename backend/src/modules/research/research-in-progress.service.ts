@@ -1,5 +1,5 @@
 import pool from '../../config/database';
-import { buildOwnershipClause } from './research.service';
+import { buildOwnershipClause } from './research.helpers';
 
 interface ProgressComponent {
     id?: string;

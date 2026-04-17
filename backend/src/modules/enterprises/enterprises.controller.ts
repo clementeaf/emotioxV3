@@ -3,7 +3,7 @@ import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth';
 import * as enterprisesService from './enterprises.service';
 import * as authService from '../auth/auth.service';
-import * as researchService from '../research/research.service';
+import * as researchService from '../research';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleEnterprisesRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {

@@ -1,11 +1,11 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth';
-import * as researchService from './research.service';
+import * as researchService from '.';
 import * as researchInProgressService from './research-in-progress.service';
 import * as researchActivityService from './research-activity.service';
 import * as authService from '../auth/auth.service';
-import * as publicService from '../public/public.service';
+import * as publicService from '../public/index';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {

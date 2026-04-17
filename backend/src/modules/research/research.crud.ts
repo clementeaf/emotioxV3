@@ -1,0 +1,416 @@
+import pool from '../../config/database';
+import cache, { CacheKeys } from '../../config/cache';
+import { buildOwnershipClause, ResearchData } from './research.helpers';
+
+export const list = async (userId: string, role?: string) => {
+    try {
+        console.log('[Research Service] list() called for userId:', userId, 'role:', role);
+        const ownership = buildOwnershipClause(userId, role);
+        // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
+        const query = `
+        SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.created_by, r.config, r.created_at, r.updated_at,
+               rt.name as research_type_name,
+               rtech.name as research_technique_name,
+               e.name as enterprise_name,
+               u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
+        FROM researches r
+        LEFT JOIN research_types rt ON r.research_type_id = rt.id
+        LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
+        LEFT JOIN enterprises e ON r.enterprise_id = e.id
+        LEFT JOIN users u ON r.created_by = u.id
+        WHERE ${ownership.clause} AND r.deleted_at IS NULL
+        ORDER BY r.created_at DESC
+      `;
+        console.log('[Research Service] Executing query with userId:', userId);
+        const result = await pool.query(query, [...ownership.params]);
+        console.log('[Research Service] Query result:', {
+            rowCount: result.rowCount,
+            rowsLength: result.rows.length,
+            firstRow: result.rows[0] || null
+        });
+
+        // Ensure each research has an empty stages array if not present
+        // Map 'config' to 'settings' for frontend compatibility (MySQL uses 'config', frontend expects 'settings')
+        // Also parse config/settings if it's a string (MySQL JSON fields can come as strings)
+        const researches = result.rows.map((research: Record<string, unknown>) => {
+            let settings = research.config || research.settings;
+            if (typeof settings === 'string') {
+                try {
+                    settings = JSON.parse(settings);
+                } catch (parseError) {
+                    console.warn('[Research Service] Failed to parse config/settings JSON:', parseError);
+                    settings = {};
+                }
+            }
+
+            // Remove 'config' from response and use 'settings' instead for frontend compatibility
+            const { config, ...researchWithoutConfig } = research;
+
+            return {
+                ...researchWithoutConfig,
+                settings: settings || {},
+                stages: research.stages || []
+            };
+        });
+
+        return researches;
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('[Research Service] Error in list():', {
+            userId,
+            error: errorMessage,
+            stack: errorStack
+        });
+        throw error;
+    }
+};
+
+export const listByEnterprise = async (enterpriseId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
+    const query = `
+        SELECT r.id, r.name, r.description, r.status, r.config, r.created_at, r.updated_at,
+               r.enterprise_id,
+               e.name as enterprise_name,
+               rt.name as research_type_name,
+               u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
+        FROM researches r
+        LEFT JOIN enterprises e ON e.id = r.enterprise_id
+        LEFT JOIN research_types rt ON r.research_type_id = rt.id
+        LEFT JOIN users u ON r.created_by = u.id
+        WHERE ${ownership.clause} AND r.enterprise_id = ? AND r.deleted_at IS NULL
+        ORDER BY r.created_at DESC
+    `;
+    const result = await pool.query(query, [...ownership.params, enterpriseId]);
+    return result.rows.map((row: Record<string, unknown>) => {
+        let settings = row.config;
+        if (typeof settings === 'string') {
+            try { settings = JSON.parse(settings as string); } catch { settings = {}; }
+        }
+        const { config, ...rest } = row;
+        return { ...rest, settings: settings || {} };
+    });
+};
+
+export const getById = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role);
+    // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
+    const query = `
+    SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.research_technique_id, r.created_by, r.config, r.created_at, r.updated_at,
+           rt.name as research_type_name,
+           rtech.name as research_technique_name,
+           rtech.default_stages as technique_default_stages,
+           e.name as enterprise_name,
+           u.first_name as creator_first_name, u.last_name as creator_last_name, u.email as creator_email
+    FROM researches r
+    LEFT JOIN research_types rt ON r.research_type_id = rt.id
+    LEFT JOIN research_techniques rtech ON r.research_technique_id = rtech.id
+    LEFT JOIN enterprises e ON r.enterprise_id = e.id
+    LEFT JOIN users u ON r.created_by = u.id
+    WHERE r.id = ? AND ${ownership.clause} AND r.deleted_at IS NULL
+  `;
+    const result = await pool.query(query, [researchId, ...ownership.params]);
+
+    if (result.rows.length === 0) {
+        throw new Error('Research not found');
+    }
+
+    const rawResearch = result.rows[0] as Record<string, unknown>;
+    // Map config to settings for frontend compatibility
+    let settings = rawResearch.config;
+    if (typeof settings === 'string') {
+        try {
+            settings = JSON.parse(settings);
+        } catch (parseError) {
+            console.warn('[Research Service] Failed to parse config JSON in getById:', parseError);
+            settings = {};
+        }
+    }
+    // Parse technique_default_stages from MySQL JSON string
+    let techniqueDefaultStages = rawResearch.technique_default_stages;
+    if (typeof techniqueDefaultStages === 'string') {
+        try {
+            techniqueDefaultStages = JSON.parse(techniqueDefaultStages);
+        } catch {
+            techniqueDefaultStages = null;
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { config: _cfg, technique_default_stages: _tds, ...researchWithoutConfig } = rawResearch;
+    const research = {
+        ...researchWithoutConfig,
+        settings: settings || {},
+        technique_default_stages: techniqueDefaultStages || null,
+    } as Record<string, unknown>;
+
+    // Get stages with modules and questions (MySQL-compatible - split into multiple queries)
+    // Step 1: Check if stage_type column exists
+    const columnCheckQuery = `
+      SELECT COUNT(*) as count
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'stages'
+      AND COLUMN_NAME = 'stage_type'
+    `;
+    const columnCheckResult = await pool.query(columnCheckQuery);
+    const hasStageTypeColumn = (columnCheckResult.rows[0] as { count: number }).count > 0;
+
+    // Step 2: Get all stages (with or without stage_type depending on column existence)
+    const stagesQuery = hasStageTypeColumn
+        ? `SELECT id, name, description, display_order as order_index, stage_type
+           FROM stages
+           WHERE research_id = ?
+           ORDER BY display_order`
+        : `SELECT id, name, description, display_order as order_index, 'module_collection' as stage_type
+           FROM stages
+           WHERE research_id = ?
+           ORDER BY display_order`;
+    const stagesResult = await pool.query(stagesQuery, [researchId]);
+
+    if (stagesResult.rows.length === 0) {
+        research.stages = [];
+    } else {
+        // Step 2: Get all modules for these stages
+        const stageIds = stagesResult.rows.map((s: Record<string, unknown>) => s.id);
+        const modulesQuery = `
+          SELECT id, stage_id, name, description, order_index, is_from_template, config
+          FROM modules
+          WHERE stage_id IN (${stageIds.map(() => '?').join(',')})
+          ORDER BY order_index
+        `;
+        const modulesResult = await pool.query(modulesQuery, stageIds);
+
+        // Step 3: Get all questions for these modules
+        const moduleIds = modulesResult.rows.map((m: Record<string, unknown>) => m.id);
+        let questionsResult: { rows: Array<Record<string, unknown>> } = { rows: [] };
+        if (moduleIds.length > 0) {
+            const questionsQuery = `
+              SELECT id, module_id, question_type, question_text, order_index, config, validation, required
+              FROM questions
+              WHERE module_id IN (${moduleIds.map(() => '?').join(',')})
+              ORDER BY order_index
+            `;
+            questionsResult = await pool.query(questionsQuery, moduleIds);
+        }
+
+        // Group questions by module_id
+        const questionsByModule = new Map<string, Array<Record<string, unknown>>>();
+        for (const q of questionsResult.rows) {
+            const moduleId = q.module_id as string;
+            if (!questionsByModule.has(moduleId)) {
+                questionsByModule.set(moduleId, []);
+            }
+            questionsByModule.get(moduleId)!.push(q);
+        }
+
+        // Group modules by stage_id
+        const modulesByStage = new Map<string, Array<Record<string, unknown>>>();
+        for (const m of modulesResult.rows) {
+            const stageId = m.stage_id as string;
+            if (!modulesByStage.has(stageId)) {
+                modulesByStage.set(stageId, []);
+            }
+            modulesByStage.get(stageId)!.push(m);
+        }
+
+        // Assemble the structure
+        research.stages = stagesResult.rows.map((stage: Record<string, unknown>) => {
+            const stageId = stage.id as string;
+            const stageModules = modulesByStage.get(stageId) || [];
+
+            return {
+                id: stageId,
+                name: stage.name,
+                description: stage.description,
+                order_index: stage.order_index,
+                stage_type: stage.stage_type,
+                modules: stageModules.map((mod: Record<string, unknown>) => {
+                    const modId = mod.id as string;
+                    const modQuestions = questionsByModule.get(modId) || [];
+
+                    // Parse config safely - MySQL may return JSON as string
+                    let config = mod.config;
+                    if (typeof config === 'string') {
+                        try {
+                            config = JSON.parse(config);
+                        } catch (e) {
+                            console.error('Error parsing module config:', e);
+                            config = {};
+                        }
+                    }
+
+                    return {
+                        id: modId,
+                        name: mod.name,
+                        description: mod.description,
+                        order_index: mod.order_index,
+                        is_from_template: mod.is_from_template,
+                        config: config || {},
+                        questions: modQuestions.map((q: Record<string, unknown>) => {
+                            let qConfig = q.config;
+                            let qValidation = q.validation;
+                            if (typeof qConfig === 'string') {
+                                try { qConfig = JSON.parse(qConfig); } catch (_e) { qConfig = {}; }
+                            }
+                            if (typeof qValidation === 'string') {
+                                try { qValidation = JSON.parse(qValidation); } catch (_e) { qValidation = {}; }
+                            }
+                            return {
+                                id: q.id,
+                                type: q.question_type,
+                                text: q.question_text,
+                                order: q.order_index,
+                                config: qConfig,
+                                validation: qValidation,
+                                required: q.required
+                            };
+                        })
+                    };
+                })
+            };
+        });
+    }
+
+    return research;
+};
+
+export const update = async (researchId: string, userId: string, data: Partial<ResearchData>, role?: string) => {
+    const { name, description, settings } = data;
+
+    // MySQL compatible: use ? placeholders directly
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (name !== undefined) {
+        updates.push('name = ?');
+        values.push(name);
+    }
+    if (description !== undefined) {
+        updates.push('description = ?');
+        values.push(description);
+    }
+    if (settings !== undefined) {
+        // MySQL uses 'config' instead of 'settings'
+        updates.push('config = ?');
+        values.push(JSON.stringify(settings));
+    }
+
+    if (updates.length === 0) {
+        throw new Error('No fields to update');
+    }
+
+    const ownership = buildOwnershipClause(userId, role, '');
+    values.push(researchId, ...ownership.params);
+
+    const query = `
+    UPDATE researches
+    SET ${updates.join(', ')}
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
+  `;
+
+    const result = await pool.query(query, values);
+
+    if (result.rowCount === 0) {
+        throw new Error('Research not found');
+    }
+
+    // Fetch updated record (MySQL doesn't support RETURNING)
+    // Map 'config' to 'settings' for frontend compatibility
+    const selectResult = await pool.query(
+        'SELECT id, name, description, status, config, updated_at FROM researches WHERE id = ?',
+        [researchId]
+    );
+    const rawResearch = selectResult.rows[0] as Record<string, unknown>;
+    // Map config to settings for frontend compatibility
+    let parsedSettings = rawResearch.config;
+    if (typeof parsedSettings === 'string') {
+        try {
+            parsedSettings = JSON.parse(parsedSettings);
+        } catch (parseError) {
+            console.warn('[Research Service] Failed to parse config JSON in update:', parseError);
+            parsedSettings = {};
+        }
+    }
+    const { config, ...researchWithoutConfig } = rawResearch;
+    return {
+        ...researchWithoutConfig,
+        settings: parsedSettings || {}
+    } as typeof rawResearch & { settings: Record<string, unknown> };
+};
+
+export const updateStatus = async (researchId: string, userId: string, status: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role, '');
+    // MySQL compatible: no RETURNING clause
+    const query = `
+    UPDATE researches
+    SET status = ?
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
+  `;
+    const result = await pool.query(query, [status, researchId, ...ownership.params]);
+
+    if (result.rowCount === 0) {
+        throw new Error('Research not found');
+    }
+
+    // Fetch updated record
+    const selectResult = await pool.query(
+        'SELECT id, name, status, updated_at FROM researches WHERE id = ?',
+        [researchId]
+    );
+    return selectResult.rows[0];
+};
+
+/**
+ * Activa una investigación cambiando su estado a 'active'
+ * @param researchId - ID de la investigación
+ * @param userId - ID del usuario propietario
+ * @returns Investigación actualizada
+ */
+export const activate = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role, '');
+    // MySQL compatible: no RETURNING clause
+    const query = `
+    UPDATE researches
+    SET status = 'active', updated_at = NOW()
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
+  `;
+    const result = await pool.query(query, [researchId, ...ownership.params]);
+
+    if (result.rowCount === 0) {
+        throw new Error('Research not found');
+    }
+
+    // Invalidate public cache for this research
+    cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
+
+    // Fetch updated record
+    const selectResult = await pool.query(
+        'SELECT id, name, status, updated_at FROM researches WHERE id = ?',
+        [researchId]
+    );
+    return selectResult.rows[0];
+};
+
+export const deleteResearch = async (researchId: string, userId: string, role?: string) => {
+    const ownership = buildOwnershipClause(userId, role, '');
+    // MySQL compatible: no RETURNING clause
+    // Note: MySQL CHECK constraint only allows: 'draft','active','paused','completed','archived'
+    // We use 'archived' instead of 'deleted' to comply with the constraint
+    // The deleted_at timestamp is the actual indicator of deletion
+    const query = `
+    UPDATE researches
+    SET deleted_at = NOW(), status = 'archived'
+    WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL
+  `;
+    const result = await pool.query(query, [researchId, ...ownership.params]);
+
+    if (result.rowCount === 0) {
+        throw new Error('Research not found');
+    }
+
+    // Invalidate public cache for this research
+    cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
+
+    return { message: 'Research deleted successfully' };
+};

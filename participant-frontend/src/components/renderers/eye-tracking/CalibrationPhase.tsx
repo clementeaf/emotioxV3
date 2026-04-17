@@ -1,0 +1,72 @@
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { StepProgressPill } from './StepProgressPill';
+import { TOTAL_STEPS, HYBRID_CALIB_POINT_COUNT } from './types';
+import { HYBRID_IMAGE_CALIBRATION_POINTS } from '../../../lib/eyeTracking';
+
+interface CalibrationPhaseProps {
+    calibrationIndex: number;
+    resolvedUrl: string;
+    imgRef: React.RefObject<HTMLImageElement | null>;
+    onCalibrationClick: () => void;
+    onImageLoad: () => void;
+}
+
+export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
+    calibrationIndex,
+    resolvedUrl,
+    imgRef,
+    onCalibrationClick,
+    onImageLoad,
+}) => {
+    const { t } = useTranslation();
+
+    const calibrationPercent = Math.round(30 + (calibrationIndex / HYBRID_CALIB_POINT_COUNT) * 35);
+    const calDotImagePct = HYBRID_IMAGE_CALIBRATION_POINTS[calibrationIndex];
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center cursor-crosshair bg-black"
+            onClick={onCalibrationClick}
+        >
+            <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
+                <StepProgressPill step={1} total={TOTAL_STEPS} percent={calibrationPercent} />
+            </div>
+
+            <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
+                <p className="text-sm text-white/80">
+                    {t(
+                        'eyeTracking.calibrationHint4Point',
+                        'Look at the green dot, then click anywhere.',
+                    )}
+                </p>
+                <p className="mt-1 text-xs text-white/50">
+                    {t('eyeTracking.pointOf', 'Point {{current}} of {{total}}', {
+                        current: calibrationIndex + 1,
+                        total: HYBRID_CALIB_POINT_COUNT,
+                    })}
+                </p>
+            </div>
+
+            {resolvedUrl && (
+                <div className="relative">
+                    <img
+                        ref={imgRef}
+                        src={resolvedUrl}
+                        alt="Calibration"
+                        className="max-w-[95vw] max-h-[95vh] object-contain"
+                        style={{ filter: 'blur(12px)', opacity: 0.6 }}
+                        draggable={false}
+                        onLoad={onImageLoad}
+                    />
+                    {calDotImagePct && (
+                        <div
+                            className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"
+                            style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
+                        />
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};

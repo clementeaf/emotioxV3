@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResearch, researchKeys } from '../../hooks/useResearchQuery';
@@ -11,38 +11,30 @@ import { useScreenerMultipleChoiceGroupPad } from '../../hooks/useScreenerMultip
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
-import { SmartVOCModuleCard, type SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
-import { CognitiveTaskModuleCard, type CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
+import type { SmartVOCModuleCardRef } from '../../components/research/SmartVOCModuleCard';
+import type { CognitiveTaskModuleCardRef } from '../../components/research/CognitiveTaskModuleCard';
 import { ResearchConfigurationModule } from '../../components/research/ResearchConfigurationModule';
 import { AttentionPredictionView } from '../../components/research/AttentionPredictionView';
 import { InsightsFindingView } from '../../components/research/InsightsFindingView';
 import { ClientsBenchmarkView } from '../../components/research/ClientsBenchmarkView';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
-import { StageEmptyState } from '../../components/research/StageEmptyState';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
 import { withModuleConditionality, withModuleConditionalityConfig, withModuleHidden, withModuleRequired } from '../../utils/moduleRequired';
-import type { StudyModuleOption } from '../../components/research/ConditionalityModal';
-import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import {
+    SmartVOCStageView,
+    CollectionStageView,
+    useResearchBuilderData,
+    toOptionalString,
+    sanitizeFileUploadSerializedValue,
+    syncRankingConfig,
+    transformResearchConfigComponentValues,
+    flattenResearchConfig,
+} from './research-builder';
 
-export interface EnabledDemographic {
-    key: string;
-    label: string;
-    validValues: string[];
-}
-
-const DEMOGRAPHIC_LABELS: Record<string, string> = {
-    age: 'Age',
-    country: 'Country',
-    gender: 'Gender',
-    educationLevel: 'Education Level',
-    annualIncome: 'Annual Income',
-    employmentStatus: 'Employment Status',
-    dailyHoursOnline: 'Daily Hours Online',
-    technicalProficiency: 'Technical Proficiency',
-};
+export type { EnabledDemographic } from './research-builder';
 
 export const ResearchBuilderPage = () => {
     const { id, moduleId, stageId, stimulusId } = useParams<{ id: string; moduleId?: string; stageId?: string; stimulusId?: string }>();
@@ -91,223 +83,24 @@ export const ResearchBuilderPage = () => {
         ? typedResearch.stages.flatMap((s: Stage) => s.modules || []).find((m: Module) => m.id === activeModuleId) || null
         : null;
 
-    const smartVOCStage = useMemo((): Stage | null => {
-        if (!typedResearch?.stages) return null;
-
-        // Check if activeStageFromUrl is Smart VOC
-        if (activeStageFromUrl && (
-            activeStageFromUrl.name.toLowerCase().includes('smart voc') ||
-            activeStageFromUrl.name.toLowerCase() === 'smart voc'
-        )) {
-            return activeStageFromUrl;
-        }
-
-        let stage = typedResearch.stages.find((s: Stage) =>
-            s.name.toLowerCase().includes('smart voc') ||
-            s.name.toLowerCase() === 'smart voc'
-        );
-
-        if (!stage && activeModule && typedResearch.stages) {
-            stage = typedResearch.stages.find((s: Stage) =>
-                s.modules?.some((m: Module) => m.id === activeModule.id) &&
-                (s.name.toLowerCase().includes('smart voc') || s.name.toLowerCase() === 'smart voc')
-            );
-        }
-
-        return stage || null;
-    }, [typedResearch, activeModule, activeStageFromUrl]);
-
-    const smartVOCModules = useMemo((): Module[] => {
-        if (!smartVOCStage || !smartVOCStage.modules) return [];
-        // Mantener el mismo orden que viene del backend (igual que en el sidebar)
-        // El sidebar muestra los módulos en el orden que vienen de stage.modules
-        return [...smartVOCStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-    }, [smartVOCStage]);
-
-    const isSmartVOCStage = smartVOCStage !== null && (
-        (stageId && smartVOCStage.id === stageId) ||
-        (!stageId && !activeModuleId) ||
-        smartVOCModules.some(m => m.id === activeModuleId)
-    );
-
-    // Generic collection stage logic: any module_collection stage that is NOT Smart VOC
-    // Covers Cognitive Tasks, Implicit Association, and any future collection stages
-    const collectionStage = useMemo((): Stage | null => {
-        if (!typedResearch?.stages) return null;
-
-        const isSmartVOCName = (name: string) =>
-            name.toLowerCase().includes('smart voc') || name.toLowerCase() === 'smart voc';
-
-        const isCollectionStage = (s: Stage) =>
-            s.stage_type === 'module_collection' && !isSmartVOCName(s.name);
-
-        // Check if activeStageFromUrl is a collection stage (not Smart VOC)
-        if (activeStageFromUrl && isCollectionStage(activeStageFromUrl)) {
-            return activeStageFromUrl;
-        }
-
-        // If active module belongs to a collection stage, use that
-        if (activeModule && typedResearch.stages) {
-            const stage = typedResearch.stages.find((s: Stage) =>
-                isCollectionStage(s) && s.modules?.some((m: Module) => m.id === activeModule.id)
-            );
-            if (stage) return stage;
-        }
-
-        return null;
-    }, [typedResearch, activeModule, activeStageFromUrl]);
-
-    const collectionModules = useMemo((): Module[] => {
-        if (!collectionStage || !collectionStage.modules) return [];
-        return [...collectionStage.modules].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-    }, [collectionStage]);
-
-    const isCollectionStageActive = collectionStage !== null && (
-        (stageId && collectionStage.id === stageId) ||
-        collectionModules.some(m => m.id === activeModuleId)
-    );
-
-    // Extract enabled demographics from Research Configuration
-    const enabledDemographics = useMemo((): EnabledDemographic[] => {
-        if (!typedResearch?.stages) return [];
-        for (const stage of typedResearch.stages) {
-            for (const mod of stage.modules || []) {
-                if (mod.name === 'Research Configuration' && mod.config?.demographics) {
-                    const demographics = mod.config.demographics as Record<string, unknown>;
-                    const result: EnabledDemographic[] = [];
-                    for (const [key, v] of Object.entries(demographics)) {
-                        if (typeof v === 'object' && v !== null && 'enabled' in v) {
-                            const demo = v as { enabled: boolean; validValues?: string[]; questionLabel?: string };
-                            if (demo.enabled) {
-                                result.push({
-                                    key,
-                                    label: demo.questionLabel?.trim() || DEMOGRAPHIC_LABELS[key] || key,
-                                    validValues: demo.validValues || [],
-                                });
-                            }
-                        }
-                    }
-                    return result;
-                }
-            }
-        }
-        return [];
-    }, [typedResearch]);
-
-    /**
-     * Modules whose answers can drive module conditionality (any stage with choice components).
-     * Includes Screener (single_module stage), Single/Multiple Choice in collections, etc.
-     */
-    const studyModulesWithOptions = useMemo((): StudyModuleOption[] => {
-        if (!typedResearch?.stages) return [];
-        const result: StudyModuleOption[] = [];
-        const seen = new Set<string>();
-
-        const sortedStages = [...typedResearch.stages].sort(
-            (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
-        );
-
-        for (const stage of sortedStages) {
-            const stageBase = (stage.order_index ?? 0) * 10000;
-            const modules = [...(stage.modules || [])].sort(
-                (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
-            );
-            for (const mod of modules) {
-                if (seen.has(mod.id)) continue;
-                const structure = (mod.config?.structure as { components?: ComponentConfig[] } | undefined);
-                const components = structure?.components || [];
-                const CHOICE_COMPONENT_TYPES = ['radio', 'checkbox-list', 'option-list'];
-                const choices = components.filter(
-                    (c) => c.settings?.isChoice
-                        || c.id.includes('choice-')
-                        || CHOICE_COMPONENT_TYPES.includes(c.type)
-                );
-                if (choices.length === 0) continue;
-
-                // Extract options: value may be a plain string label or a JSON array of choice objects
-                const options: Array<{ id: string; label: string }> = [];
-                for (const c of choices) {
-                    const raw = typeof c.value === 'string' ? c.value.trim() : '';
-                    // Try parsing as JSON array of choices (e.g. [{id, label, value, eligibility}])
-                    if (raw.startsWith('[')) {
-                        try {
-                            const parsed = JSON.parse(raw) as Array<{ id?: string; label?: string; value?: string }>;
-                            if (Array.isArray(parsed)) {
-                                for (const item of parsed) {
-                                    const itemLabel = item.label || item.value || '';
-                                    if (itemLabel.trim()) {
-                                        options.push({ id: item.id || c.id, label: itemLabel });
-                                    }
-                                }
-                                continue;
-                            }
-                        } catch { /* not JSON, fall through */ }
-                    }
-                    // Plain string value or fallback
-                    const defaultVal =
-                        typeof c.settings?.defaultValue === 'string' ? c.settings.defaultValue : '';
-                    const label = raw || defaultVal || c.label || c.id;
-                    if (label.trim()) {
-                        options.push({ id: c.id, label });
-                    }
-                }
-
-                if (options.length === 0) continue;
-                seen.add(mod.id);
-                result.push({
-                    id: mod.id,
-                    name: mod.name + (mod.description ? ` - ${mod.description}` : ''),
-                    orderIndex: stageBase + (mod.order_index ?? 0),
-                    componentId: 'choice',
-                    options,
-                });
-            }
-        }
-        return result;
-    }, [typedResearch]);
-
-    /**
-     * All modules in the study — available as "Link with module" targets.
-     * Excludes special modules (Welcome, Thank You, Research Configuration).
-     * orderIndex is global (stage order × 10000 + module order) for cross-stage comparison.
-     */
-    const linkableModules = useMemo(() => {
-        if (!typedResearch?.stages) return [];
-        const excluded = ['Welcome Screen', 'Thank You Screen', 'Research Configuration'];
-        const result: Array<{ id: string; name: string; orderIndex: number }> = [];
-        const sortedStages = [...typedResearch.stages].sort(
-            (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
-        );
-        let questionNumber = 0;
-        for (const stage of sortedStages) {
-            const stageBase = (stage.order_index ?? 0) * 10000;
-            const modules = [...(stage.modules || [])].sort(
-                (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
-            );
-            for (const mod of modules) {
-                if (excluded.includes(mod.name)) continue;
-                questionNumber++;
-                const desc = mod.description ? ` - ${mod.description}` : '';
-                result.push({
-                    id: mod.id,
-                    name: `${questionNumber}. ${mod.name}${desc}`,
-                    orderIndex: stageBase + (mod.order_index ?? 0),
-                });
-            }
-        }
-        return result;
-    }, [typedResearch]);
-
-    /** Global question number per module ID — same numbering as linkableModules. */
-    const moduleQuestionNumbers = useMemo(() => {
-        const map = new Map<string, number>();
-        for (const m of linkableModules) {
-            // Extract number from name prefix "N. ..."
-            const match = m.name.match(/^(\d+)\./);
-            if (match) map.set(m.id, parseInt(match[1], 10));
-        }
-        return map;
-    }, [linkableModules]);
+    const {
+        smartVOCStage,
+        smartVOCModules,
+        isSmartVOCStage,
+        collectionStage,
+        collectionModules,
+        isCollectionStageActive,
+        enabledDemographics,
+        studyModulesWithOptions,
+        linkableModules,
+        moduleQuestionNumbers,
+    } = useResearchBuilderData({
+        typedResearch,
+        activeModule,
+        activeStageFromUrl,
+        stageId,
+        activeModuleId,
+    });
 
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
@@ -385,64 +178,6 @@ export const ResearchBuilderPage = () => {
     // State for module template selection modal
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-
-    /**
-     * Safely extracts a string from an unknown value.
-     * @param value - Unknown value
-     * @returns String if value is a string, otherwise undefined
-     */
-    const toOptionalString = (value: unknown): string | undefined => {
-        return typeof value === 'string' ? value : undefined;
-    };
-
-    /**
-     * Sanitizes the serialized value of a file-upload component by removing ephemeral presigned URL fields.
-     * This prevents persisting time-limited S3 URLs into module configuration.
-     * @param serialized - Serialized component value (usually JSON)
-     * @returns Sanitized serialized value
-     */
-    const sanitizeFileUploadSerializedValue = (serialized: string | undefined): string | undefined => {
-        if (!serialized) {
-            return serialized;
-        }
-
-        const isRecord = (value: unknown): value is Record<string, unknown> =>
-            typeof value === 'object' && value !== null;
-
-        const stripUrlFields = (value: unknown): unknown => {
-            if (Array.isArray(value)) {
-                return value.map(stripUrlFields);
-            }
-            if (!isRecord(value)) {
-                return value;
-            }
-
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { url: _url, urlExpiresAt: _urlExpiresAt, ...rest } = value;
-            return rest;
-        };
-
-        try {
-            const parsed = JSON.parse(serialized) as unknown;
-            const sanitized = stripUrlFields(parsed);
-            return JSON.stringify(sanitized);
-        } catch {
-            return serialized;
-        }
-    };
-
-    /** Sync rankingConfig.items from comp.value for ranking/ranking-list components */
-    const syncRankingConfig = <T extends { type: string; value?: string; rankingConfig?: { items?: unknown[] } }>(comp: T): T => {
-        if ((comp.type === 'ranking' || comp.type === 'ranking-list') && comp.value) {
-            try {
-                const parsed = JSON.parse(comp.value);
-                if (Array.isArray(parsed)) {
-                    return { ...comp, rankingConfig: { ...comp.rankingConfig, items: parsed } };
-                }
-            } catch { /* keep original */ }
-        }
-        return comp;
-    };
 
     const handleDeleteModule = async (moduleId: string): Promise<void> => {
         if (!id) return;
@@ -808,176 +543,42 @@ export const ResearchBuilderPage = () => {
                 {isSettings && <ResearchSettingsView research={typedResearch} />}
 
                 {/* Smart VOC Stage: Show all modules in the same view */}
-                {!isFileBasedResearch && isSmartVOCStage && smartVOCModules.length > 0 && (
-                    <div className="space-y-6">
-                    {smartVOCModules.map((module, idx) => (
-                        <div
-                            key={module.id}
-                            ref={(el) => {
-                                if (el) {
-                                    smartVOCModuleElementRefs.current.set(module.id, el);
-                                } else {
-                                    smartVOCModuleElementRefs.current.delete(module.id);
-                                }
-                            }}
-                            className="flex gap-2 items-start"
-                        >
-                            {/* Reorder arrows */}
-                            {smartVOCModules.length > 1 && (
-                                <div className="flex flex-col gap-1 pt-4 flex-shrink-0">
-                                    <button
-                                        onClick={() => handleMoveModule(smartVOCModules, smartVOCStage!, idx, 'up')}
-                                        disabled={idx === 0}
-                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title="Move up"
-                                    >
-                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        onClick={() => handleMoveModule(smartVOCModules, smartVOCStage!, idx, 'down')}
-                                        disabled={idx === smartVOCModules.length - 1}
-                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title="Move down"
-                                    >
-                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                            <SmartVOCModuleCard
-                                ref={(ref) => {
-                                    if (ref) {
-                                        smartVOCModuleRefs.current.set(module.id, ref);
-                                    } else {
-                                        smartVOCModuleRefs.current.delete(module.id);
-                                    }
-                                }}
-                                module={module}
-                                researchId={id!}
-                                onSave={handleSaveModule}
-                                onDelete={handleDeleteModule}
-                                isActive={activeModuleId === module.id}
-                                enabledDemographics={enabledDemographics}
-                                studyModules={studyModulesWithOptions}
-                                linkableModules={linkableModules}
-                                globalOrderIndex={(smartVOCStage!.order_index ?? 0) * 10000 + (module.order_index ?? 0)}
-                                questionNumber={moduleQuestionNumbers.get(module.id)}
-                            />
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Add another metric button */}
-                    {smartVOCStage && (
-                        <div className="flex justify-end">
-                            <button
-                                onClick={() => handleOpenTemplateModal(smartVOCStage)}
-                                className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                                Add another metric
-                            </button>
-                        </div>
-                    )}
-                    </div>
-                )}
-
-                {/* Smart VOC Stage Empty State */}
-                {!isFileBasedResearch && isSmartVOCStage && smartVOCModules.length === 0 && smartVOCStage && (
-                    <StageEmptyState
-                        stageName={smartVOCStage.name}
-                        stageType="smart-voc"
-                        onAddModule={() => handleOpenTemplateModal(smartVOCStage)}
+                {!isFileBasedResearch && isSmartVOCStage && smartVOCStage && (
+                    <SmartVOCStageView
+                        smartVOCStage={smartVOCStage}
+                        smartVOCModules={smartVOCModules}
+                        activeModuleId={activeModuleId}
+                        researchId={id!}
+                        enabledDemographics={enabledDemographics}
+                        studyModulesWithOptions={studyModulesWithOptions}
+                        linkableModules={linkableModules}
+                        moduleQuestionNumbers={moduleQuestionNumbers}
+                        smartVOCModuleRefs={smartVOCModuleRefs}
+                        smartVOCModuleElementRefs={smartVOCModuleElementRefs}
+                        onSave={handleSaveModule}
+                        onDelete={handleDeleteModule}
+                        onMoveModule={handleMoveModule}
+                        onOpenTemplateModal={handleOpenTemplateModal}
                     />
                 )}
 
                 {/* Cognitive Tasks Stage: Show all modules in the same view (same structure as Smart VOC) */}
-                {!isFileBasedResearch && isCollectionStageActive && collectionModules.length > 0 && (
-                    <div className="space-y-6">
-                    {collectionModules.map((module, idx) => (
-                        <div
-                            key={module.id}
-                            ref={(el) => {
-                                if (el) {
-                                    collectionModuleElementRefs.current.set(module.id, el);
-                                } else {
-                                    collectionModuleElementRefs.current.delete(module.id);
-                                }
-                            }}
-                            className="flex gap-2 items-start"
-                        >
-                            {/* Reorder arrows */}
-                            {collectionModules.length > 1 && (
-                                <div className="flex flex-col gap-1 pt-4 flex-shrink-0">
-                                    <button
-                                        onClick={() => handleMoveModule(collectionModules, collectionStage!, idx, 'up')}
-                                        disabled={idx === 0}
-                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title="Move up"
-                                    >
-                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        onClick={() => handleMoveModule(collectionModules, collectionStage!, idx, 'down')}
-                                        disabled={idx === collectionModules.length - 1}
-                                        className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                                        title="Move down"
-                                    >
-                                        <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                            <CognitiveTaskModuleCard
-                                ref={(ref) => {
-                                    if (ref) {
-                                        collectionModuleRefs.current.set(module.id, ref);
-                                    } else {
-                                        collectionModuleRefs.current.delete(module.id);
-                                    }
-                                }}
-                                module={module}
-                                researchId={id!}
-                                onSave={handleSaveModule}
-                                onDelete={handleDeleteModule}
-                                isActive={activeModuleId === module.id}
-                                enabledDemographics={enabledDemographics}
-                                studyModules={studyModulesWithOptions}
-                                linkableModules={linkableModules}
-                                globalOrderIndex={(collectionStage!.order_index ?? 0) * 10000 + (module.order_index ?? 0)}
-                                questionNumber={moduleQuestionNumbers.get(module.id)}
-                            />
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* Add another module button */}
-                    {collectionStage && (
-                        <div className="flex justify-end">
-                            <button
-                                onClick={() => handleOpenTemplateModal(collectionStage)}
-                                className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                                Add another module
-                            </button>
-                        </div>
-                    )}
-                    </div>
-                )}
-
-                {/* Collection Stage Empty State */}
-                {!isFileBasedResearch && isCollectionStageActive && collectionModules.length === 0 && collectionStage && (
-                    <StageEmptyState
-                        stageName={collectionStage.name}
-                        stageType="collection"
-                        onAddModule={() => handleOpenTemplateModal(collectionStage)}
+                {!isFileBasedResearch && isCollectionStageActive && collectionStage && (
+                    <CollectionStageView
+                        collectionStage={collectionStage}
+                        collectionModules={collectionModules}
+                        activeModuleId={activeModuleId}
+                        researchId={id!}
+                        enabledDemographics={enabledDemographics}
+                        studyModulesWithOptions={studyModulesWithOptions}
+                        linkableModules={linkableModules}
+                        moduleQuestionNumbers={moduleQuestionNumbers}
+                        collectionModuleRefs={collectionModuleRefs}
+                        collectionModuleElementRefs={collectionModuleElementRefs}
+                        onSave={handleSaveModule}
+                        onDelete={handleDeleteModule}
+                        onMoveModule={handleMoveModule}
+                        onOpenTemplateModal={handleOpenTemplateModal}
                     />
                 )}
 
@@ -1045,104 +646,4 @@ export const ResearchBuilderPage = () => {
             />
         </div>
     );
-};
-
-// Helper function to transform componentValues into structured config for Research Configuration
-const transformResearchConfigComponentValues = (values: Record<string, string>): Record<string, unknown> => {
-    // Initialize structured config
-    const config: Record<string, unknown> = {
-        demographics: {},
-        linkConfig: {},
-        backlinks: {},
-        participantLimit: 50,
-        researchUrl: '',
-        participationMode: 'panel'
-    };
-
-    // Helper to try parsing JSON or return original
-    const tryParse = (val: string) => {
-        if (val === 'true') return true;
-        if (val === 'false') return false;
-        try {
-            const parsed = JSON.parse(val);
-            if (typeof parsed === 'object' && parsed !== null) return parsed;
-        } catch {
-            // ignore
-        }
-        return val;
-    };
-
-    // Process each component value
-    Object.entries(values).forEach(([key, value]) => {
-        // Handle demographics (predefined + customQuestion_*)
-        if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key) || key.startsWith('customQuestion_')) {
-            (config.demographics as Record<string, unknown>)[key] = tryParse(value);
-        }
-        // Handle link configuration
-        else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
-            (config.linkConfig as Record<string, boolean>)[key] = value === 'true';
-        }
-        // Handle backlinks
-        else if (['complete', 'disqualified', 'overquota'].includes(key)) {
-            (config.backlinks as Record<string, string>)[key] = value;
-        }
-        // Handle research URL
-        else if (key === 'researchUrl') {
-            config.researchUrl = value;
-        }
-        // Handle participant limit
-        else if (key === 'participantLimit') {
-            const parsed = tryParse(value);
-            if (typeof parsed === 'object' && parsed !== null && 'enabled' in parsed) {
-                config.participantLimit = parsed;
-            } else {
-                config.participantLimit = parseInt(value) || 50;
-            }
-        }
-        // Handle participation mode
-        else if (key === 'participationMode') {
-            config.participationMode = value || 'panel';
-        }
-    });
-
-    return config;
-};
-
-// Helper function to flatten nested config into componentValues
-const flattenResearchConfig = (config: Record<string, unknown>): Record<string, string> => {
-    const values: Record<string, string> = {};
-
-    if (config.demographics) {
-        Object.entries(config.demographics as Record<string, unknown>).forEach(([key, value]) => {
-            if (typeof value === 'object' && value !== null) {
-                values[key] = JSON.stringify(value);
-            } else {
-                values[key] = String(value);
-            }
-        });
-    }
-
-    if (config.linkConfig) {
-        Object.entries(config.linkConfig as Record<string, boolean>).forEach(([key, value]) => {
-            values[key] = String(value);
-        });
-    }
-
-    if (config.backlinks) {
-        Object.entries(config.backlinks as Record<string, string>).forEach(([key, value]) => {
-            values[key] = value;
-        });
-    }
-
-    if (config.researchUrl) {
-        values.researchUrl = String(config.researchUrl);
-    }
-
-    if (config.participantLimit !== undefined) {
-        values.participantLimit = typeof config.participantLimit === 'object'
-            ? JSON.stringify(config.participantLimit)
-            : String(config.participantLimit);
-    }
-
-    return values;
 };

@@ -4,7 +4,7 @@ import { ModuleContentEditor } from './ModuleContentEditor';
 import { SmartVOCPreview } from './SmartVOCPreview';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
-import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
+import type { EnabledDemographic } from '../../pages/research/research-builder';
 import { Toggle } from '../ui/Toggle';
 import { ConditionalityModal } from './ConditionalityModal';
 import type { StudyModuleOption, LinkableModule } from './ConditionalityModal';

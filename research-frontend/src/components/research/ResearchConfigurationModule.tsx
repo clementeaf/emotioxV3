@@ -3,133 +3,25 @@ import { useParams } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { QRCodeModal } from '../ui/QRCodeModal';
-import { ExternalLink, QrCode, Copy, Settings, Upload, X, Plus, Trash2 } from 'lucide-react';
+import { ExternalLink, QrCode, Copy } from 'lucide-react';
 import { PanelParticipantsSection } from './PanelParticipantsSection';
 import { useUrlValidation } from '../../hooks/useUrlValidation';
 import { mapModalConfigToBackend } from '../../utils/demographicsMapper';
-import AgeConfigModal from './AgeConfigModal';
-import CountryConfigModal from './CountryConfigModal';
-import GenderConfigModal from './GenderConfigModal';
-import EducationConfigModal from './EducationConfigModal';
-import EmploymentStatusConfigModal from './EmploymentStatusConfigModal';
-import HouseholdIncomeConfigModal from './HouseholdIncomeConfigModal';
-import DailyHoursOnlineConfigModal from './DailyHoursOnlineConfigModal';
-import TechnicalProficiencyConfigModal from './TechnicalProficiencyConfigModal';
-import { ScreenerQuestionDrawer } from './ScreenerQuestionDrawer';
 import { useToast } from '../../hooks/useToast';
-import { mediaService } from '../../services/media.service';
-
-interface BackendQuota {
-    id: string;
-    value: string;
-    limit: number;
-    enabled: boolean;
-    enforcementMode?: string;
-    quotaType?: string;
-}
-
-/** Modal-format quota entry — dynamic field key set by DEMOGRAPHIC_QUOTA_FIELD mapping */
-interface ModalQuota {
-    id: string;
-    quota: number;
-    quotaType: 'percentage';
-    isActive: boolean;
-    enforcementMode: 'immediate';
-    [fieldName: string]: string | number | boolean;
-}
-
-/** Modal-format option entry used by demographic config drawers */
-interface ModalOption {
-    id: string;
-    name: string;
-    [extra: string]: unknown;
-}
-
-/** Full demographic config object (when not just a boolean toggle) */
-interface DemographicConfigObject {
-    enabled: boolean;
-    validValues?: string[];
-    validAges?: string[];
-    options?: ModalOption[];
-    disqualified?: string[];
-    disqualifications?: BackendQuota[];
-    quotas?: BackendQuota[];
-    questionLabel?: string;
-    cities?: Array<{ name: string; isDisqualifying?: boolean; country?: string }>;
-    disqualifyingAges?: string[];
-    [extra: string]: unknown;
-}
-
-/** Demographic config value — can be a simple boolean or a full config object */
-type DemographicConfigValue = boolean | DemographicConfigObject;
-
-/** Full demographics config map */
-type DemographicsConfig = Record<string, DemographicConfigValue>;
-
-/** Narrow a demographic config value to its object form (returns {} for booleans) */
-const asDemoConfig = (val: DemographicConfigValue | undefined): DemographicConfigObject =>
-    (typeof val === 'object' && val !== null) ? val : { enabled: !!val };
-
-/** Maps demographic key → quota field name used in modal-format quotas */
-const DEMOGRAPHIC_QUOTA_FIELD: Record<string, string> = {
-    age: 'ageRange',
-    country: 'country',
-    city: 'city',
-    gender: 'gender',
-    educationLevel: 'educationLevel',
-    employmentStatus: 'employmentStatus',
-    annualIncome: 'incomeLevel',
-    dailyHoursOnline: 'hoursRange',
-    technicalProficiency: 'proficiencyLevel',
-};
-
-/**
- * Default validValues for option-based demographics when first enabled.
- * Ensures participants always see a selector instead of a free-text input.
- */
-const DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC: Record<string, string[]> = {
-    gender: ['Masculino', 'Femenino', 'Prefiero no especificar'],
-    educationLevel: ['Básica', 'Media', 'Universitaria', 'Maestría', 'Doctorado'],
-    employmentStatus: ['Dependiente', 'Independiente', 'Cesante', 'Jubilado'],
-    annualIncome: ['Menos de 20.000€', '20.000€ - 40.000€', '40.000€ - 60.000€', '60.000€ - 80.000€', 'Más de 80.000€'],
-    dailyHoursOnline: ['0-2 horas', '2-4 horas', '4-6 horas', '6-8 horas', 'Más de 8 horas'],
-    technicalProficiency: ['Básico', 'Intermedio', 'Profesional', 'Experto'],
-};
-
-
-interface BacklinkInputProps {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    error?: string;
-}
-
-const BacklinkInput = ({ label, value, onChange, error }: BacklinkInputProps) => (
-    <div>
-        <label className="block text-sm text-gray-700 mb-2">{label}</label>
-        <div className="flex gap-1">
-            <span className="inline-flex items-center px-3 py-2 border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm rounded-l-md">
-                https://
-            </span>
-            <Input
-                value={(value || '').replace(/^https?:\/\//, '')}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder="www.useremotion.com/"
-                className="rounded-l-none"
-                error={error}
-            />
-        </div>
-    </div>
-);
-
-type ParticipationMode = 'kiosk' | 'panel';
-
-interface ResearchConfigurationProps {
-    config: Record<string, unknown>;
-    researchStatus?: string;
-    researchName?: string;
-    onChange: (config: Record<string, unknown>) => void;
-}
+import { BacklinkInput } from './BacklinkInput';
+import { DemographicsSection } from './DemographicsSection';
+import { ScreeningQuestionsSection } from './ScreeningQuestionsSection';
+import { StudyLogoSection } from './StudyLogoSection';
+import { LinkConfigurationSection } from './LinkConfigurationSection';
+import { DemographicModals } from './DemographicModals';
+import {
+    asDemoConfig,
+    DEMOGRAPHIC_QUOTA_FIELD,
+    type DemographicsConfig,
+    type DemographicConfigValue,
+    type ParticipationMode,
+    type ResearchConfigurationProps,
+} from './researchConfigurationHelpers';
 
 /**
  * Research Configuration Module Component
@@ -157,11 +49,6 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     const { validateUrl } = useUrlValidation();
     const toast = useToast();
     const backlinkValidationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-    const logoInputRef = useRef<HTMLInputElement>(null);
-    const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
-    const [logoUploading, setLogoUploading] = useState(false);
-    const studyLogo = config.studyLogo as { enabled: boolean; s3Key?: string } | undefined;
-    const studyLogoEnabled = studyLogo?.enabled ?? true; // default: show EmotioCX logo
 
     const demographics = useMemo(() => (config.demographics || {}) as DemographicsConfig, [config.demographics]);
     const linkConfig = (config.linkConfig || {}) as Record<string, boolean>;
@@ -282,7 +169,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             console.error('[ResearchConfigurationModule] Cannot open preview: URL is empty or invalid');
             return;
         }
-        
+
         try {
             // Validate URL before opening
             new URL(url);
@@ -476,83 +363,6 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
         setQuotasEnabledState(prev => ({ ...prev, [demographicKey]: enabled }));
     };
 
-    const mapBackendQuotasToModal = (quotas: BackendQuota[] | undefined, fieldName: string): ModalQuota[] => {
-        if (!quotas || !Array.isArray(quotas)) return [];
-        return quotas.map((q: BackendQuota) => ({
-            id: q.id,
-            [fieldName]: q.value,
-            quota: q.limit,
-            quotaType: 'percentage' as const,
-            isActive: q.enabled,
-            enforcementMode: 'immediate' as const
-        }));
-    };
-
-    const isQuotasEnabled = (key: string): boolean => {
-        return quotasEnabledState[key] ?? ((asDemoConfig(demographics[key]).quotas?.length ?? 0) > 0);
-    };
-
-    /** Reconstruct modal options from backend format when modal-format fields are missing */
-    const getModalOptions = (key: string): ModalOption[] => {
-        const cfg = demographics[key];
-        if (!cfg || typeof cfg !== 'object') return [];
-        if (cfg.options && Array.isArray(cfg.options) && cfg.options.length > 0) return cfg.options;
-        // Reconstruct from validValues
-        if (cfg.validValues && Array.isArray(cfg.validValues)) {
-            return cfg.validValues.map((v: string, i: number) => ({ id: `opt-${i}`, name: v }));
-        }
-        return [];
-    };
-
-    /** Reconstruct disqualified IDs from backend format when modal-format field is missing */
-    const getModalDisqualified = (key: string): string[] => {
-        const cfg = demographics[key];
-        if (!cfg || typeof cfg !== 'object') return [];
-        if (cfg.disqualified && Array.isArray(cfg.disqualified)) return cfg.disqualified;
-        // Reconstruct from disqualifications array
-        if (cfg.disqualifications && Array.isArray(cfg.disqualifications)) {
-            const opts = getModalOptions(key);
-            return cfg.disqualifications.map((d: BackendQuota) => {
-                const match = opts.find((o: { name: string; id: string }) => o.name === d.value);
-                return match?.id || d.value;
-            });
-        }
-        return [];
-    };
-
-    const DEMOGRAPHIC_KEYS = ['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'];
-
-    /** Keys of custom screening questions stored in demographics config */
-    const customQuestionKeys = useMemo(() => {
-        return Object.keys(demographics).filter(k => k.startsWith('customQuestion_'));
-    }, [demographics]);
-
-    const handleAddCustomQuestion = () => {
-        const id = `customQuestion_${Date.now()}`;
-        handleDemographicChange(id, {
-            enabled: true,
-            questionLabel: '',
-            validValues: [],
-            disqualifications: [],
-            options: [],
-            disqualified: []
-        });
-        setActiveConfigModal(id);
-    };
-
-    const handleDeleteCustomQuestion = (key: string) => {
-        const newDemographics = { ...demographics };
-        delete newDemographics[key];
-        onChange({ ...config, demographics: newDemographics });
-    };
-
-    const handleLinkConfigChange = (key: string, value: boolean) => {
-        onChange({
-            ...config,
-            linkConfig: { ...linkConfig, [key]: value }
-        });
-    };
-
     const handleBacklinkChange = useCallback((key: string, value: string) => {
         let normalizedValue = value.trim();
         if (normalizedValue && !normalizedValue.startsWith('http://') && !normalizedValue.startsWith('https://')) {
@@ -581,62 +391,6 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             backlinks: { ...backlinks, [key]: normalizedValue }
         });
     }, [config, backlinks, validateUrl, onChange]);
-
-    // Resolve logo preview URL from s3Key
-    useEffect(() => {
-        if (!studyLogo?.s3Key) { setLogoPreviewUrl(null); return; }
-        let cancelled = false;
-        mediaService.getMediaUrlByS3Key(studyLogo.s3Key).then(res => {
-            if (!cancelled) setLogoPreviewUrl(res.url);
-        }).catch(() => { if (!cancelled) setLogoPreviewUrl(null); });
-        return () => { cancelled = true; };
-    }, [studyLogo?.s3Key]);
-
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file || !researchId) return;
-        if (!file.type.startsWith('image/')) { toast.error('Only image files are allowed'); return; }
-        if (file.size > 2 * 1024 * 1024) { toast.error('Max file size is 2 MB'); return; }
-        setLogoUploading(true);
-        try {
-            const { upload_url, s3_key } = await mediaService.generateUploadUrl({
-                research_id: researchId, file_name: file.name, content_type: file.type,
-            });
-            await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-            await mediaService.saveMetadata({ research_id: researchId, s3_key, metadata: { purpose: 'study-logo' } });
-            onChange({ ...config, studyLogo: { enabled: true, s3Key: s3_key } });
-            toast.success('Logo uploaded');
-        } catch { toast.error('Failed to upload logo'); }
-        finally { setLogoUploading(false); if (logoInputRef.current) logoInputRef.current.value = ''; }
-    };
-
-    const handleLogoRemove = () => {
-        onChange({ ...config, studyLogo: { enabled: studyLogoEnabled, s3Key: undefined } });
-        setLogoPreviewUrl(null);
-    };
-
-    const handleLogoToggle = (enabled: boolean) => {
-        onChange({ ...config, studyLogo: { ...studyLogo, enabled } });
-    };
-
-    const handleParticipantLimitEnabledChange = (enabled: boolean) => {
-        onChange({
-            ...config,
-            participantLimit: { enabled, value: participantLimit }
-        });
-    };
-
-    const handleParticipantLimitChange = (rawValue: string) => {
-        const parsed = Number.parseInt(rawValue);
-        if (Number.isNaN(parsed) || parsed < 1) {
-            toast.warning('El límite debe ser un número mayor a 0');
-            return;
-        }
-        onChange({
-            ...config,
-            participantLimit: { enabled: participantLimitEnabled, value: parsed }
-        });
-    };
 
     const handleParticipationModeChange = (mode: ParticipationMode) => {
         if (isResearchActive) return;
@@ -695,340 +449,44 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
 
                 {/* Demographic Questions — hidden in kiosk mode */}
                 {!isKiosk && (
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-900">Demographic questions</h3>
-                        <input
-                            type="checkbox"
-                            checked={demographicEnabled}
-                            onChange={(e) => setDemographicEnabled(e.target.checked)}
-                            className="rounded border-gray-300"
-                            aria-label="Enable demographic questions"
-                        />
-                    </div>
-
-                    <div className="space-y-4 px-4">
-                        <div className="space-y-3">
-                            {DEMOGRAPHIC_KEYS.map((key) => {
-                                const isEnabled = isDemographicEnabled(key);
-                                const DEMOGRAPHIC_LABELS: Record<string, string> = {
-                                    country: 'Country & Geography',
-                                    age: 'Age Range',
-                                };
-                                const demographicLabel = DEMOGRAPHIC_LABELS[key] ?? key.replaceAll(/([A-Z])/g, ' $1').trim();
-                                const customLabel = asDemoConfig(demographics[key]).questionLabel;
-
-                                const defaultValidValues = DEFAULT_VALID_VALUES_BY_DEMOGRAPHIC[key] ?? [];
-
-                                const handleRowClick = (): void => {
-                                    if (!demographicEnabled) {
-                                        return;
-                                    }
-                                    if (!isEnabled) {
-                                        const existing = demographics[key];
-                                        if (typeof existing === 'object' && existing !== null && existing.validValues) {
-                                            handleDemographicChange(key, { ...existing, enabled: true });
-                                        } else {
-                                            handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
-                                        }
-                                    }
-                                    setActiveConfigModal(key);
-                                };
-
-                                const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-                                    e.stopPropagation();
-                                    if (e.target.checked) {
-                                        // Restore existing config if available, otherwise use defaults
-                                        const existing = demographics[key];
-                                        if (typeof existing === 'object' && existing !== null && existing.validValues) {
-                                            handleDemographicChange(key, { ...existing, enabled: true });
-                                        } else {
-                                            handleDemographicChange(key, { enabled: true, validValues: defaultValidValues, disqualifications: [] });
-                                        }
-                                    } else {
-                                        // Preserve config but mark as disabled so re-enabling restores it
-                    const currentConfig = demographics[key];
-                    if (typeof currentConfig === 'object' && currentConfig !== null) {
-                        handleDemographicChange(key, { ...currentConfig, enabled: false });
-                    } else {
-                        handleDemographicChange(key, { enabled: false });
-                    }
-                    // When disabling country, also disable the associated city demographic
-                    if (key === 'country') {
-                        const cityConfig = demographics.city;
-                        if (typeof cityConfig === 'object' && cityConfig !== null) {
-                            handleDemographicChange('city', { ...cityConfig, enabled: false });
-                        } else if (cityConfig) {
-                            handleDemographicChange('city', { enabled: false });
-                        }
-                    }
-                                    }
-                                };
-
-                                return (
-                                    <div
-                                        key={key}
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={handleRowClick}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleRowClick(); }}
-                                        className={`flex w-full items-center justify-between p-3 border rounded-md transition-colors text-left ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
-                                    >
-                                        <label className={`flex items-center gap-2 text-sm ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                                            <input
-                                                type="checkbox"
-                                                checked={isEnabled}
-                                                onChange={handleCheckboxChange}
-                                                disabled={!demographicEnabled}
-                                                className="rounded border-gray-300"
-                                                onClick={(e) => e.stopPropagation()}
-                                                aria-label={`Enable ${demographicLabel}`}
-                                            />
-                                            <span className={`${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
-                                                <span className="capitalize">{demographicLabel}</span>
-                                                {customLabel && (
-                                                    <span className="text-xs text-gray-500 ml-1.5">({customLabel})</span>
-                                                )}
-                                            </span>
-                                        </label>
-
-                                        {isEnabled && demographicEnabled && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveConfigModal(key);
-                                                }}
-                                                className="h-8 w-8 p-0"
-                                                title="Configure"
-                                            >
-                                                <Settings className="h-4 w-4 text-gray-500" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
+                    <DemographicsSection
+                        demographics={demographics}
+                        demographicEnabled={demographicEnabled}
+                        setDemographicEnabled={setDemographicEnabled}
+                        handleDemographicChange={handleDemographicChange}
+                        isDemographicEnabled={isDemographicEnabled}
+                        setActiveConfigModal={setActiveConfigModal}
+                    />
                 )}
 
                 {/* Custom Screening Questions — hidden in kiosk mode */}
                 {!isKiosk && demographicEnabled && (
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <h3 className="text-sm font-medium text-gray-900">Screening questions</h3>
-                            <p className="text-xs text-gray-500 mt-0.5">Custom single-choice questions that can disqualify participants</p>
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleAddCustomQuestion}
-                            className="flex items-center gap-1"
-                        >
-                            <Plus className="h-3.5 w-3.5" />
-                            Add question
-                        </Button>
-                    </div>
-
-                    {customQuestionKeys.length > 0 && (
-                        <div className="space-y-2 px-4">
-                            {customQuestionKeys.map((key) => {
-                                const qCfg = asDemoConfig(demographics[key]);
-                                const qLabel = qCfg.questionLabel || 'Untitled question';
-                                const optCount = (qCfg.validValues || []).length;
-
-                                return (
-                                    <div
-                                        key={key}
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => setActiveConfigModal(key)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveConfigModal(key); }}
-                                        className="flex w-full items-center justify-between p-3 border rounded-md transition-colors cursor-pointer hover:bg-gray-50"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm font-medium text-gray-900 truncate block">{qLabel}</span>
-                                            <span className="text-xs text-gray-500">{optCount} option{optCount !== 1 ? 's' : ''}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setActiveConfigModal(key);
-                                                }}
-                                                className="h-8 w-8 p-0"
-                                                title="Configure"
-                                            >
-                                                <Settings className="h-4 w-4 text-gray-500" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteCustomQuestion(key);
-                                                }}
-                                                className="h-8 w-8 p-0"
-                                                title="Delete question"
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-400 hover:text-red-600" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
+                    <ScreeningQuestionsSection
+                        demographics={demographics}
+                        config={config}
+                        onChange={onChange}
+                        handleDemographicChange={handleDemographicChange}
+                        setActiveConfigModal={setActiveConfigModal}
+                    />
                 )}
 
                 {/* Study Logo */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-900">Study logo</h3>
-                        <input
-                            type="checkbox"
-                            checked={studyLogoEnabled}
-                            onChange={(e) => handleLogoToggle(e.target.checked)}
-                            className="rounded border-gray-300"
-                            aria-label="Show logo in survey"
-                        />
-                    </div>
-                    {studyLogoEnabled && (
-                        <div className="px-4 space-y-3">
-                            <p className="text-xs text-gray-500">
-                                Upload your client&apos;s logo to display in the survey. If no logo is uploaded, the EmotioCX logo will be shown.
-                            </p>
-                            {logoPreviewUrl || studyLogo?.s3Key ? (
-                                <div className="flex items-center gap-3">
-                                    <div className="w-32 h-12 border rounded-md flex items-center justify-center bg-white overflow-hidden">
-                                        <img
-                                            src={logoPreviewUrl || ''}
-                                            alt="Study logo"
-                                            className="max-w-full max-h-full object-contain"
-                                        />
-                                    </div>
-                                    <Button variant="ghost" size="sm" onClick={handleLogoRemove} title="Remove logo">
-                                        <X className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div>
-                                    <input
-                                        ref={logoInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleLogoUpload}
-                                    />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => logoInputRef.current?.click()}
-                                        disabled={logoUploading}
-                                    >
-                                        <Upload className="h-4 w-4 mr-2" />
-                                        {logoUploading ? 'Uploading...' : 'Upload logo'}
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+                <StudyLogoSection
+                    config={config}
+                    researchId={researchId}
+                    onChange={onChange}
+                />
 
-                {/* Link Configuration */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-900">Link configuration</h3>
-                        <input
-                            type="checkbox"
-                            checked={linkConfigEnabled}
-                            onChange={(e) => setLinkConfigEnabled(e.target.checked)}
-                            className="rounded border-gray-300"
-                            aria-label="Enable link configuration"
-                        />
-                    </div>
-
-                    <div className="space-y-3 px-4">
-                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
-                            <input
-                                type="checkbox"
-                                checked={linkConfig.allowMobile || false}
-                                onChange={(e) => handleLinkConfigChange('allowMobile', e.target.checked)}
-                                disabled={!linkConfigEnabled}
-                                className="rounded border-gray-300"
-                                aria-label="Allow mobile devices"
-                            />
-                            <span>Allow respondents to take survey via mobile devices</span>
-                        </label>
-                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
-                            <input
-                                type="checkbox"
-                                checked={linkConfig.trackLocation || false}
-                                onChange={(e) => handleLinkConfigChange('trackLocation', e.target.checked)}
-                                disabled={!linkConfigEnabled}
-                                className="rounded border-gray-300"
-                                aria-label="Track respondent location"
-                            />
-                            <span>Track respondents location</span>
-                        </label>
-                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
-                            <input
-                                type="checkbox"
-                                checked={linkConfig.allowMultiple || false}
-                                onChange={(e) => handleLinkConfigChange('allowMultiple', e.target.checked)}
-                                disabled={!linkConfigEnabled}
-                                className="rounded border-gray-300"
-                                aria-label="Allow multiple responses per session"
-                            />
-                            <span>It can be taken multiple times within a single session</span>
-                        </label>
-                        <label className={`flex items-center gap-2 text-sm ${!linkConfigEnabled ? 'opacity-50' : ''}`}>
-                            <input
-                                type="checkbox"
-                                checked={linkConfig.allowLanguageSwitch || false}
-                                onChange={(e) => handleLinkConfigChange('allowLanguageSwitch', e.target.checked)}
-                                disabled={!linkConfigEnabled}
-                                className="rounded border-gray-300"
-                                aria-label="Allow respondents to switch language"
-                            />
-                            <span>Allow respondents to switch survey language</span>
-                        </label>
-                    </div>
-                </div>
-
-                {/* Participant Limit */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <h3 className="text-sm font-medium text-gray-900">Limit number of participants</h3>
-                        <input
-                            type="checkbox"
-                            checked={participantLimitEnabled}
-                            onChange={(e) => handleParticipantLimitEnabledChange(e.target.checked)}
-                            className="rounded border-gray-300"
-                            aria-label="Enable participant limit"
-                        />
-                    </div>
-
-                    <div className={`px-4 ${!participantLimitEnabled ? 'opacity-50' : ''}`}>
-                        <p className="text-sm text-gray-600 mb-2">
-                            Stop accepting responses after this number of participants.
-                        </p>
-                        <Input
-                            type="number"
-                            value={participantLimit}
-                            onChange={(e) => handleParticipantLimitChange(e.target.value)}
-                            className="w-24"
-                            min={1}
-                            disabled={!participantLimitEnabled}
-                        />
-                    </div>
-                </div>
+                {/* Link Configuration + Participant Limit */}
+                <LinkConfigurationSection
+                    config={config}
+                    linkConfig={linkConfig}
+                    linkConfigEnabled={linkConfigEnabled}
+                    setLinkConfigEnabled={setLinkConfigEnabled}
+                    participantLimitEnabled={participantLimitEnabled}
+                    participantLimit={participantLimit}
+                    onChange={onChange}
+                />
             </div>
 
             {/* Right Panel - Research Configuration */}
@@ -1158,215 +616,16 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             />
 
             {/* Specific Config Modals */}
-            {activeConfigModal === 'age' && (
-                <AgeConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(validAges, disqualifyingAges, orderedAll, quotasPayload) => {
-                        handleSaveDemographicConfig({
-                            validAges,
-                            disqualifyingAges,
-                            orderedAll,
-                            quotas: quotasPayload
-                        });
-                    }}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('age', enabled)}
-                    initialValidAges={asDemoConfig(demographics.age).validAges ?? (() => {
-                        // Reconstruct from backend format: validValues minus disqualification values
-                        const disqValues = new Set((asDemoConfig(demographics.age).disqualifications || []).map((d: BackendQuota) => d.value));
-                        return (asDemoConfig(demographics.age).validValues || []).filter((v: string) => !disqValues.has(v));
-                    })()}
-                    initialDisqualifyingAges={asDemoConfig(demographics.age).disqualifyingAges ?? (asDemoConfig(demographics.age).disqualifications || []).map((d: BackendQuota) => d.value)}
-                    initialOrder={asDemoConfig(demographics.age).validValues}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.age).quotas, 'ageRange') as never}
-                    quotasEnabled={isQuotasEnabled('age')}
-                />
-            )}
-
-            {activeConfigModal === 'country' && (
-                <CountryConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(validCountries, disqualifyingCountries, priorityCountries, granularity, cities) => {
-                        handleSaveDemographicConfig({
-                            validCountries,
-                            disqualifyingCountries,
-                            priorityCountries,
-                            granularity,
-                            cities
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('country', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('country', enabled)}
-                    onCityQuotasSave={(quotas) => handleQuotasSave('city', quotas)}
-                    onCityQuotasToggle={(enabled) => handleQuotasToggle('city', enabled)}
-                    initialValidCountries={asDemoConfig(demographics.country).validCountries as string[] ?? (() => {
-                        const disqValues = new Set((asDemoConfig(demographics.country).disqualifications || []).map((d: BackendQuota) => d.value));
-                        return (asDemoConfig(demographics.country).validValues || []).filter((v: string) => !disqValues.has(v));
-                    })()}
-                    initialDisqualifyingCountries={asDemoConfig(demographics.country).disqualifyingCountries as string[] ?? (asDemoConfig(demographics.country).disqualifications || []).map((d: BackendQuota) => d.value)}
-                    initialPriorityCountries={asDemoConfig(demographics.country).priorityCountries as string[] || asDemoConfig(demographics.country).priorityValues as string[] || []}
-                    initialGranularity={(asDemoConfig(demographics.country).granularity as string || 'countryOnly') as import('../../utils/demographicsMapper').LocationGranularity}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.country).quotas, 'country') as never}
-                    quotasEnabled={isQuotasEnabled('country')}
-                    initialCities={(() => {
-                        const rawCities: Array<string | { name: string; country?: string }> = asDemoConfig(demographics.country).cities as Array<string | { name: string; country?: string }> || [];
-                        const cityDisqValues = new Set(
-                            (asDemoConfig(demographics.city).disqualifications || []).map((d: BackendQuota) => d.value)
-                        );
-                        return rawCities.map((c) => {
-                            const name = typeof c === 'string' ? c : c.name;
-                            const country = typeof c === 'string' ? undefined : c.country;
-                            return {
-                                name,
-                                isDisqualifying: cityDisqValues.has(name),
-                                ...(country ? { country } : {})
-                            };
-                        });
-                    })()}
-                    initialCityQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.city).quotas, 'city') as never}
-                    cityQuotasEnabled={isQuotasEnabled('city')}
-                />
-            )}
-
-            {activeConfigModal === 'gender' && (
-                <GenderConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            options,
-                            disqualified
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('gender', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('gender', enabled)}
-                    currentOptions={getModalOptions('gender') as never}
-                    currentDisqualified={getModalDisqualified('gender')}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.gender).quotas, 'gender') as never}
-                    quotasEnabled={isQuotasEnabled('gender')}
-                    headerContent={renderLabelEditor('gender', 'Gender')}
-                />
-            )}
-
-            {activeConfigModal === 'educationLevel' && (
-                <EducationConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            options,
-                            disqualified
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('educationLevel', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('educationLevel', enabled)}
-                    currentOptions={getModalOptions('educationLevel') as never}
-                    currentDisqualified={getModalDisqualified('educationLevel')}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.educationLevel).quotas, 'educationLevel') as never}
-                    quotasEnabled={isQuotasEnabled('educationLevel')}
-                    headerContent={renderLabelEditor('educationLevel', 'Education Level')}
-                />
-            )}
-
-            {activeConfigModal === 'employmentStatus' && (
-                <EmploymentStatusConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            options,
-                            disqualified
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('employmentStatus', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('employmentStatus', enabled)}
-                    currentOptions={getModalOptions('employmentStatus') as never}
-                    currentDisqualified={getModalDisqualified('employmentStatus')}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.employmentStatus).quotas, 'employmentStatus') as never}
-                    quotasEnabled={isQuotasEnabled('employmentStatus')}
-                    headerContent={renderLabelEditor('employmentStatus', 'Employment Status')}
-                />
-            )}
-
-            {activeConfigModal === 'annualIncome' && (
-                <HouseholdIncomeConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            options,
-                            disqualified
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('annualIncome', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('annualIncome', enabled)}
-                    currentOptions={getModalOptions('annualIncome') as never}
-                    currentDisqualified={getModalDisqualified('annualIncome')}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.annualIncome).quotas, 'incomeLevel') as never}
-                    quotasEnabled={isQuotasEnabled('annualIncome')}
-                    headerContent={renderLabelEditor('annualIncome', 'Household Income')}
-                />
-            )}
-
-            {activeConfigModal === 'dailyHoursOnline' && (
-                <DailyHoursOnlineConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            options,
-                            disqualified
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('dailyHoursOnline', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('dailyHoursOnline', enabled)}
-                    currentOptions={getModalOptions('dailyHoursOnline') as never}
-                    currentDisqualified={getModalDisqualified('dailyHoursOnline')}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.dailyHoursOnline).quotas, 'hoursRange') as never}
-                    quotasEnabled={isQuotasEnabled('dailyHoursOnline')}
-                    headerContent={renderLabelEditor('dailyHoursOnline', 'Daily Hours Online')}
-                />
-            )}
-
-            {activeConfigModal === 'technicalProficiency' && (
-                <TechnicalProficiencyConfigModal
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    onSave={(options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            options,
-                            disqualified
-                        });
-                    }}
-                    onQuotasSave={(quotas) => handleQuotasSave('technicalProficiency', quotas)}
-                    onQuotasToggle={(enabled) => handleQuotasToggle('technicalProficiency', enabled)}
-                    currentOptions={getModalOptions('technicalProficiency') as never}
-                    currentDisqualified={getModalDisqualified('technicalProficiency')}
-                    initialQuotas={mapBackendQuotasToModal(asDemoConfig(demographics.technicalProficiency).quotas, 'proficiencyLevel') as never}
-                    quotasEnabled={isQuotasEnabled('technicalProficiency')}
-                    headerContent={renderLabelEditor('technicalProficiency', 'Technical Proficiency')}
-                />
-            )}
-
-            {/* Custom Screening Question Drawers */}
-            {activeConfigModal?.startsWith('customQuestion_') && (
-                <ScreenerQuestionDrawer
-                    isOpen={true}
-                    onClose={() => setActiveConfigModal(null)}
-                    questionLabel={asDemoConfig(demographics[activeConfigModal]).questionLabel || ''}
-                    onSave={(questionLabel, options, disqualified) => {
-                        handleSaveDemographicConfig({
-                            questionLabel,
-                            options,
-                            disqualified,
-                        });
-                        setActiveConfigModal(null);
-                    }}
-                    currentOptions={getModalOptions(activeConfigModal) as never}
-                    currentDisqualified={getModalDisqualified(activeConfigModal)}
-                />
-            )}
+            <DemographicModals
+                activeConfigModal={activeConfigModal}
+                setActiveConfigModal={setActiveConfigModal}
+                demographics={demographics}
+                quotasEnabledState={quotasEnabledState}
+                handleSaveDemographicConfig={handleSaveDemographicConfig}
+                handleQuotasSave={handleQuotasSave}
+                handleQuotasToggle={handleQuotasToggle}
+                renderLabelEditor={renderLabelEditor}
+            />
         </div>
     );
 };

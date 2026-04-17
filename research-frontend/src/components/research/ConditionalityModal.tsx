@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui/Modal';
 import { CustomSelect } from '../ui/CustomSelect';
-import type { EnabledDemographic } from '../../pages/research/ResearchBuilderPage';
+import type { EnabledDemographic } from '../../pages/research/research-builder';
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
 import { isDemographicCondition, isModuleCondition, isLinkedModuleCondition } from '../../utils/moduleRequired';
 

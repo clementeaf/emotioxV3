@@ -128,7 +128,7 @@ export const handleParticipantsRoutes = async (event: APIGatewayProxyEvent): Pro
       }
 
       // Validate panel mode
-      const { getParticipationMode } = await import('../public/public.service');
+      const { getParticipationMode } = await import('../public/index');
       const mode = await getParticipationMode(researchId);
       if (mode !== 'panel') {
         return error('Email sending is only available for panel-mode researches', 400, undefined, origin);
@@ -153,7 +153,7 @@ export const handleParticipantsRoutes = async (event: APIGatewayProxyEvent): Pro
         return error('baseUrl and researchName are required', 400, undefined, origin);
       }
 
-      const { getParticipationMode } = await import('../public/public.service');
+      const { getParticipationMode } = await import('../public/index');
       const mode = await getParticipationMode(researchId);
       if (mode !== 'panel') {
         return error('Email sending is only available for panel-mode researches', 400, undefined, origin);
