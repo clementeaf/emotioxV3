@@ -5,7 +5,7 @@ import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText } from '../../utils/moduleComponent';
 import { mediaService } from '../../services/media.service';
 import { useBlazeGaze } from '../../hooks/useBlazeGaze';
-import { useFaceLandmarks } from '../../hooks/useFaceLandmarks';
+import { useFaceApiEmotions } from '../../hooks/useFaceApiEmotions';
 import { usePreviewMode } from '../../hooks/usePreviewMode';
 import {
     BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS,
@@ -23,14 +23,13 @@ import {
     HYBRID_GAP_FILL_SYNTHETIC_WEIGHT,
     detectFixationsIDT,
     mapFixationsToImageCoords,
-    extractEmotionFromFrame,
     MICRO_RECALIB_INTERVAL_MS,
     MICRO_RECALIB_SAMPLE_DURATION_MS,
     MICRO_RECALIB_SAMPLE_COUNT,
     MICRO_RECALIB_POSITIONS,
     computeMicroRecalibResidual,
 } from '../../lib/eyeTracking';
-import type { HybridCalibrationResidual, EmotionSample } from '../../lib/eyeTracking';
+import type { HybridCalibrationResidual } from '../../lib/eyeTracking';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -195,8 +194,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const completeTimerRef = useRef<number | null>(null);
     /** Snapshot of image bounding rect captured during viewing phase (before complete hides the image). */
     const viewingRectRef = useRef<DOMRect | null>(null);
-    /** Timestamp when viewing phase started (for emotion sample elapsed time). */
-    const viewingStartTimeRef = useRef<number>(0);
     const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
     const [finalPointCount, setFinalPointCount] = useState(0);
 
@@ -222,14 +219,12 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     });
     const gazePointsRef = useRef<{ x: number; y: number; t: number; videoTime?: number }[]>([]);
 
-    // --- Face landmarks for FACS emotion recognition (desktop, parallel to BlazeGaze) ---
-    const faceLandmarks = useFaceLandmarks({
+    // --- face-api.js emotion recognition (desktop, parallel to BlazeGaze) ---
+    const faceEmotions = useFaceApiEmotions({
         videoRef,
         enabled: isDesktop && hasEmotionRecognition,
         sampleIntervalMs: GAZE_POLL_MS,
     });
-    /** Collected emotion samples during viewing phase. */
-    const emotionSamplesRef = useRef<EmotionSample[]>([]);
 
     // --- Micro-recalibration (drift correction during viewing) ---
     const [microDot, setMicroDot] = useState<{ u: number; v: number } | null>(null);
@@ -294,16 +289,14 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     }, [isDesktop, blaze.gazePosRef]);
 
     // Gaze collection during viewing phase (desktop): RAF loop with 50ms throttle, IDW-corrected.
-    // Also samples facial landmarks for FACS emotion recognition when enabled.
+    // Gaze collection + face-api.js emotion recognition during viewing (desktop).
     // Matches hybrid page pattern: reads from gazePosRef (cached), uses Date.now() timestamps.
     useEffect(() => {
         if (phase !== 'viewing' || !isDesktop) return;
 
-        // Start face landmark sampling alongside gaze
+        // Start face-api.js emotion sampling alongside gaze
         if (hasEmotionRecognition) {
-            emotionSamplesRef.current = [];
-            viewingStartTimeRef.current = performance.now();
-            faceLandmarks.start();
+            faceEmotions.start();
         }
 
         // Start video playback if video stimulus
@@ -329,24 +322,13 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 const videoTime = isVideo && stimulusVideoRef.current ? stimulusVideoRef.current.currentTime : undefined;
                 gazePointsRef.current.push({ x: corrected.x, y: corrected.y, t: now, videoTime });
                 lastCollect = now;
-
-                // Sample emotion from latest face landmarks (same frame cadence as gaze)
-                if (hasEmotionRecognition) {
-                    const frames = faceLandmarks.getFrames();
-                    const latest = frames[frames.length - 1];
-                    if (latest?.landmarks) {
-                        const elapsed = performance.now() - viewingStartTimeRef.current;
-                        const sample = extractEmotionFromFrame(latest.landmarks, Math.round(elapsed));
-                        if (sample) emotionSamplesRef.current.push(sample);
-                    }
-                }
             }
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
         return () => {
             cancelAnimationFrame(raf);
-            if (hasEmotionRecognition) faceLandmarks.stop();
+            if (hasEmotionRecognition) faceEmotions.stop();
             if (isVideo && stimulusVideoRef.current) stimulusVideoRef.current.pause();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live blaze.* reads via ref
@@ -473,10 +455,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
 
-            // Stop gaze tracking, face landmarks, and camera on desktop
+            // Stop gaze tracking, face-api emotions, and camera on desktop
             if (isDesktop) {
                 blaze.stop();
-                faceLandmarks.stop();
+                faceEmotions.stop();
                 stopCamera();
             }
 
@@ -559,7 +541,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 fixationMethod: isDesktop ? 'idt' : 'click-proxy',
                 gazePipeline: isDesktop ? 'hybrid-zone-idt' : 'click-proxy',
                 calibrationRmsePx: isDesktop ? calibrationRmsePxRef.current : undefined,
-                emotions: hasEmotionRecognition ? emotionSamplesRef.current : undefined,
+                emotions: hasEmotionRecognition ? faceEmotions.getSamples() : undefined,
                 stimulusType: isVideo ? 'video' : 'image',
                 gazeTimeline: isVideo && isDesktop ? gazePointsRef.current.map(p => ({
                     x: p.x, y: p.y, t: p.t, videoTime: p.videoTime,

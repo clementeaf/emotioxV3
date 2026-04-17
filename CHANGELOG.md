@@ -1,3 +1,12 @@
+## v0.60.3 — face-api.js emotion recognition for Eye Tracking (2026-04-17)
+
+### participant-frontend
+- **face-api.js integration.** Replaced manual FACS heuristics (AU extraction → threshold-based classification) with face-api.js neural model (TinyFaceDetector + FaceExpressionNet). Detects 7 Ekman emotions (joy, sadness, surprise, anger, disgust, fear, neutral) with trained model confidence scores.
+- **New hook `useFaceApiEmotions`.** Loads models from `/models/` (~511KB), samples expressions via RAF at 20fps during viewing phase. Produces `EmotionSample[]` identical to previous format — backend and research-frontend unchanged.
+- **Models served statically.** `tiny_face_detector` + `face_expression_model` in `public/models/`.
+
+---
+
 ## v0.60.2 — IAT analytics fixes and builder improvements (2026-04-17)
 
 ### backend

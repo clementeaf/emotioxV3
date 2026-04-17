@@ -137,9 +137,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `participant-frontend/src/components/ui/NavigationFlow.tsx` — flujo fullscreen hitzones
 - `participant-frontend/src/components/ui/CustomSelect.tsx` — selector custom, position:fixed, auto-flip
 - `participant-frontend/src/components/renderers/ImplicitAssociationRenderer.tsx` — IAT 3 paradigmas
-- `participant-frontend/src/components/renderers/EyeTrackingRenderer.tsx` — BlazeGaze desktop, click proxy mobile, FACS emotion collection, video stimulus
-- `participant-frontend/src/lib/eyeTracking/facsClassifier.ts` — AU extraction + Ekman emotion classification
-- `participant-frontend/src/hooks/useFaceLandmarks.ts` — parallel MediaPipe FaceLandmarker for FACS
+- `participant-frontend/src/components/renderers/EyeTrackingRenderer.tsx` — BlazeGaze desktop, click proxy mobile, face-api.js emotion recognition, video stimulus
+- `participant-frontend/src/hooks/useFaceApiEmotions.ts` — face-api.js TinyFaceDetector + FaceExpressionNet for 7 Ekman emotions
+- `participant-frontend/src/lib/eyeTracking/facsClassifier.ts` — EmotionSample types + aggregation utilities
 - `participant-frontend/src/components/ErrorBoundary.tsx` — error boundary para producción
 
 ## Deploy
@@ -181,7 +181,7 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **Calibración:** 9 puntos sobre stimulus + validación RMSE + IDW correction field
 - **Smoothing:** One-Euro filter (cutoff 0.8, beta 0.005), blink filtering
 - **Video stimulus:** `EyeTrackingRenderer` detecta mp4/webm, renderiza `<video>` con gaze tracking sincronizado a `videoTime`
-- **FACS Emotion Recognition:** `useFaceLandmarks` (paralelo a BlazeGaze) + `facsClassifier.ts`. 9 AUs → 7 emociones Ekman. Client-side, GDPR compliant.
+- **Emotion Recognition:** face-api.js (vladmandic fork) — TinyFaceDetector + FaceExpressionNet. 7 Ekman emotions via trained neural model. `useFaceApiEmotions` hook, parallel to BlazeGaze. Models in `public/models/` (~511KB). Client-side, GDPR compliant.
 - **Builder toggles:** `attention-measurement` y `emotion-recognition` controlan qué datos se recolectan
 - **Results tabs:** Heat map, Scan Path, First Look, Transparency, Emotions, Prediction (TranSalNet), Video Gaze, Sequence
 - **AOI metrics:** dwell %, fixation count, avg duration, TTFF, notice rate, dominant emotion. Soft Gaussian intersection (not binary point-in-rect).
