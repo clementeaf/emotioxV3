@@ -474,7 +474,7 @@ const ErrorAnalysisCard = ({ module: mod }: { module: IATModuleResult }) => {
         {ea.byCombination.length > 0 && (
           <div>
             <h5 className="text-xs font-medium text-gray-500 mb-2">Highest Error Combinations</h5>
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
               <table className="w-full text-xs">
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
@@ -485,7 +485,7 @@ const ErrorAnalysisCard = ({ module: mod }: { module: IATModuleResult }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {ea.byCombination.slice(0, 5).map((c, i) => (
+                  {ea.byCombination.map((c, i) => (
                     <tr key={i}>
                       <td className="px-3 py-1.5 text-gray-700">{c.targetName}</td>
                       <td className="px-3 py-1.5 text-gray-700">{c.attributeLabel}</td>
@@ -586,9 +586,13 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{mod.testTitle}</p>
       )}
       <ChartComponent module={mod} />
-      <DScoreCard module={mod} />
-      <EffectSizeBar module={mod} />
-      <ErrorAnalysisCard module={mod} />
+      {mod.testType !== 'comparing_attribute' && (
+        <>
+          <DScoreCard module={mod} />
+          <EffectSizeBar module={mod} />
+          <ErrorAnalysisCard module={mod} />
+        </>
+      )}
       {mod.totalResponses === 0 && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
           <p className="text-sm text-gray-500">

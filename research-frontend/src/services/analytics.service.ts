@@ -330,7 +330,8 @@ export interface IATTarget {
 export interface IATAttribute {
     id: string;
     label: string;
-    imageUrl?: string;
+    /** Target assigned to this criterion (Attribute Testing only) */
+    targetId?: string;
 }
 
 export type DScoreEffect = 'none' | 'slight' | 'moderate' | 'strong';

@@ -641,6 +641,12 @@ const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCriteriaE
                     Add attribute
                 </Button>
             )}
+
+            {targets.length >= 2 && items.some(item => item.label.trim() && !item.targetId && !item.hidden) && (
+                <p className="text-xs text-amber-600 mt-2">
+                    Some criteria have no target assigned. Assign targets for accurate scoring.
+                </p>
+            )}
         </div>
     );
 };

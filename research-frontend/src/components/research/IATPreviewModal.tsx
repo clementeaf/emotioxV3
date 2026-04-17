@@ -143,28 +143,28 @@ export const IATPreviewModal = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden border border-gray-200">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-3 bg-gray-800">
+                <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-b border-gray-200">
                     <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                             Preview
                         </span>
-                        <span className="text-sm font-medium text-white">
+                        <span className="text-sm font-medium text-gray-900">
                             {TEST_TYPE_LABELS[testType]}
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={resetPreview}
-                            className="p-1.5 text-gray-400 hover:text-white rounded transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-gray-700 rounded transition-colors"
                             title="Reset"
                         >
                             <RotateCcw className="h-4 w-4" />
                         </button>
                         <button
                             onClick={onClose}
-                            className="p-1.5 text-gray-400 hover:text-white rounded transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-gray-700 rounded transition-colors"
                         >
                             <X className="h-5 w-5" />
                         </button>
@@ -172,14 +172,14 @@ export const IATPreviewModal = ({
                 </div>
 
                 {/* Preview area */}
-                <div className="relative h-[400px] flex items-center justify-center bg-gray-900">
+                <div className="relative h-[400px] flex items-center justify-center bg-slate-50">
                     {/* Response labels — always visible during trials */}
                     {(phase === 'priming' || phase === 'trial') && (
                         <>
-                            <div className="absolute top-4 left-6 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-blue-400 text-xs font-mono">
+                            <div className="absolute top-4 left-6 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded text-blue-600 text-xs font-mono">
                                 A — {leftLabel}
                             </div>
-                            <div className="absolute top-4 right-6 px-3 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-blue-400 text-xs font-mono">
+                            <div className="absolute top-4 right-6 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded text-blue-600 text-xs font-mono">
                                 L — {rightLabel}
                             </div>
                         </>
@@ -187,7 +187,7 @@ export const IATPreviewModal = ({
 
                     {phase === 'instructions' && (
                         <div className="text-center px-8 space-y-6">
-                            <p className="text-gray-300 text-sm leading-relaxed max-w-md mx-auto">
+                            <p className="text-gray-600 text-sm leading-relaxed max-w-md mx-auto">
                                 {exerciseInstructions || testInstructions || 'Classify items as quickly as you can using the keyboard or on-screen buttons.'}
                             </p>
                             <div className="flex items-center gap-3 justify-center">
@@ -221,7 +221,7 @@ export const IATPreviewModal = ({
                                     className="max-h-48 max-w-xs mx-auto rounded"
                                 />
                             ) : (
-                                <span className="text-3xl font-bold text-white">
+                                <span className="text-3xl font-bold text-gray-900">
                                     {currentTrial.primingLabel}
                                 </span>
                             )}
@@ -232,22 +232,22 @@ export const IATPreviewModal = ({
                     {phase === 'trial' && currentTrial && (
                         <div className="text-center space-y-8">
                             <div>
-                                <span className="text-2xl font-semibold text-white">
+                                <span className="text-2xl font-semibold text-gray-900">
                                     {currentTrial.stimulusLabel}
                                 </span>
                             </div>
                             <div className="flex items-center justify-center gap-6">
-                                <button className="px-6 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm font-medium hover:bg-gray-700 transition-colors min-w-[120px]">
+                                <button className="px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 text-sm font-medium hover:bg-gray-50 transition-colors min-w-[120px]">
                                     {leftLabel}
                                 </button>
-                                <button className="px-6 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm font-medium hover:bg-gray-700 transition-colors min-w-[120px]">
+                                <button className="px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 text-sm font-medium hover:bg-gray-50 transition-colors min-w-[120px]">
                                     {rightLabel}
                                 </button>
                             </div>
                             {!autoPlay && (
                                 <button
                                     onClick={nextTrial}
-                                    className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+                                    className="text-gray-400 hover:text-gray-600 text-xs transition-colors"
                                 >
                                     Next trial ({trialIndex + 1}/{trials.length})
                                 </button>
@@ -262,13 +262,13 @@ export const IATPreviewModal = ({
 
                     {phase === 'done' && (
                         <div className="text-center space-y-4">
-                            <p className="text-white text-lg font-medium">Preview complete</p>
-                            <p className="text-gray-400 text-sm">
+                            <p className="text-gray-900 text-lg font-medium">Preview complete</p>
+                            <p className="text-gray-500 text-sm">
                                 {trials.length} trial{trials.length !== 1 ? 's' : ''} shown
                             </p>
                             <button
                                 onClick={resetPreview}
-                                className="px-4 py-2 bg-gray-800 border border-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 mx-auto"
+                                className="px-4 py-2 bg-white border border-gray-300 text-gray-900 text-sm rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 mx-auto"
                             >
                                 <RotateCcw className="h-4 w-4" />
                                 Restart
@@ -278,7 +278,7 @@ export const IATPreviewModal = ({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-3 bg-gray-800 border-t border-gray-700 flex items-center justify-between">
+                <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
                     <p className="text-xs text-gray-500">
                         This is a simplified preview. Actual test includes randomization and timing controls.
                     </p>
@@ -287,7 +287,7 @@ export const IATPreviewModal = ({
                             <div
                                 key={i}
                                 className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                                    i < trialIndex ? 'bg-blue-500' : i === trialIndex && phase !== 'instructions' ? 'bg-white' : 'bg-gray-600'
+                                    i < trialIndex ? 'bg-blue-500' : i === trialIndex && phase !== 'instructions' ? 'bg-gray-900' : 'bg-gray-300'
                                 }`}
                             />
                         ))}

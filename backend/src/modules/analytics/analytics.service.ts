@@ -1463,7 +1463,8 @@ interface IATTarget {
 interface IATAttribute {
   id: string;
   label: string;
-  imageUrl?: string;
+  /** Target assigned to this criterion (Attribute Testing only) */
+  targetId?: string;
 }
 
 /** Greenwald D-score effect size interpretation */
@@ -1605,7 +1606,7 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
         attributes.push({
           id: item.id || item.value || String(list.indexOf(item)),
           label: label || `Attribute ${list.indexOf(item) + 1}`,
-          imageUrl: item.imageUrl || item.image || undefined,
+          targetId: item.targetId || undefined,
         });
       }
     }
@@ -1942,7 +1943,7 @@ const computeIATParticipantData = (
       // Find which target this criterion is assigned to
       const attr = attributes.find(a => a.id === t.criterionId);
       if (!attr) continue;
-      const assignedTargetId = (attr as any).targetId; // Attribute Testing assigns targetId
+      const assignedTargetId = attr.targetId;
       if (assignedTargetId) {
         if (t.targetId === assignedTargetId) {
           compatibleRTs.push(t.rt);
@@ -2026,16 +2027,22 @@ export const getImplicitAssociationResults = async (researchId: string) => {
     const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
 
     const scores = computeIATScores(responsesResult.rows, targets, attributes, testType);
-    const participantData = computeIATParticipantData(responsesResult.rows as Array<{ value: string | unknown; participant_id: string }>, targets, attributes);
 
-    // Aggregate Greenwald D-score from individual participants
-    const individualDScores = participantData
-      .filter(p => p.quality === 'good' && p.dScore != null)
-      .map(p => p.dScore!);
-    const dScore = computeAggregateDScore(individualDScores);
+    // D-score and error analysis only apply to paradigms with correct/incorrect trials
+    const hasDScore = testType !== 'comparing_attribute';
+    const participantData = hasDScore
+      ? computeIATParticipantData(responsesResult.rows as Array<{ value: string | unknown; participant_id: string }>, targets, attributes)
+      : undefined;
 
-    // Error analysis
-    const errorAnalysis = computeIATErrorAnalysis(responsesResult.rows, targets, attributes);
+    const dScore = hasDScore && participantData
+      ? computeAggregateDScore(
+          participantData.filter(p => p.quality === 'good' && p.dScore != null).map(p => p.dScore!)
+        )
+      : undefined;
+
+    const errorAnalysis = hasDScore
+      ? computeIATErrorAnalysis(responsesResult.rows, targets, attributes)
+      : undefined;
 
     modules.push({
       moduleId: mod.id,

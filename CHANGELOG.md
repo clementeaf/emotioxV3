@@ -1,3 +1,18 @@
+## v0.60.2 — IAT analytics fixes and builder improvements (2026-04-17)
+
+### backend
+- **Skip D-score for Comparing Attribute.** `comparing_attribute` is pure RT — no correct/incorrect concept. `participantData`, `dScore`, and `errorAnalysis` now return `undefined` for this paradigm.
+- **Type safety: `IATAttribute.targetId`.** Added `targetId?: string` to `IATAttribute` interface. Removed `(attr as any).targetId` cast and dead `imageUrl` field.
+
+### research-frontend
+- **Conditional analytics cards.** D-score, Effect Size, and Error Analysis cards hidden for `comparing_attribute` results (only RT chart shown).
+- **Error combinations table.** Removed top-5 limit — all combinations shown with scrollable container.
+- **IATPreviewModal light theme.** Converted from dark gray-900 to light theme matching design system (white bg, gray-50 header, slate-50 preview area).
+- **Builder validation.** Amber warning in `IATCriteriaEditor` when Attribute Testing criteria have no target assigned.
+- **Frontend `IATAttribute` aligned.** Replaced dead `imageUrl` with `targetId` in frontend type definition.
+
+---
+
 ## v0.60.1 — Fix Share Research drawer not showing invite input (2026-04-17)
 
 ### backend
