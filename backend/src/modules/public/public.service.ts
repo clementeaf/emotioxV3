@@ -1064,7 +1064,7 @@ export const saveParticipantResponses = async (
     if (isSmartVOC) {
       try {
         const { monitorSSEService } = await import('../monitor/monitor-sse.service');
-        const analyticsService = await import('../analytics/analytics.service');
+        const analyticsService = await import('../analytics');
         const results = await analyticsService.getSmartVOCResults(researchId);
         monitorSSEService.broadcastToResearch(researchId, 'smartvoc-update', results);
       } catch (sseErr) {

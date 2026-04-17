@@ -1,7 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth';
-import * as analyticsService from './analytics.service';
+import * as analyticsService from './index';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
