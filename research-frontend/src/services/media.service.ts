@@ -158,8 +158,8 @@ class MediaService {
     }
 
     /**
-     * Starts attention prediction on a stimulus image (async — returns immediately).
-     * The backend processes in background and saves heatmapData to research config.
+     * Runs attention prediction on a stimulus image (synchronous — awaits result).
+     * Backend runs TranSalNet and saves heatmapData to research config.
      */
     async predictAttention(researchId: string, mediaId: string, threshold?: number): Promise<{ status: string; mediaId: string }> {
         try {
@@ -168,25 +168,12 @@ class MediaService {
                 threshold != null ? { threshold } : {}
             );
         } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to start attention prediction');
+            throw this.handleError(error, 'Failed to run attention prediction');
         }
     }
 
     /**
-     * Checks prediction status for a stimulus.
-     */
-    async getPredictionStatus(researchId: string, mediaId: string): Promise<{ status: string; pointCount: number; processedAt: string | null }> {
-        try {
-            return await apiClient.get<{ status: string; pointCount: number; processedAt: string | null }>(
-                `/attention-prediction/research/${researchId}/status/${mediaId}`
-            );
-        } catch (error: unknown) {
-            throw this.handleError(error, 'Failed to check prediction status');
-        }
-    }
-
-    /**
-     * Starts attention prediction on an Eye Tracking module stimulus (fire-and-forget).
+     * Runs attention prediction on an Eye Tracking module stimulus (synchronous).
      */
     async predictModuleAttention(researchId: string, moduleId: string, threshold?: number): Promise<{ status: string; moduleId: string }> {
         try {

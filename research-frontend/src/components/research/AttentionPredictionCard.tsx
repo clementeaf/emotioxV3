@@ -4,7 +4,7 @@ import { toPng } from 'html-to-image';
 import { cn } from '../../lib/utils';
 import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRenderer';
 import { AttentionVideoPlayer } from '../results/cognitive-task/components/AttentionVideoPlayer';
-import { CustomSelect } from '../ui/CustomSelect';
+import { researchService } from '../../services/research.service';
 
 /** Debounces a value — returns the latest value after `delay` ms of inactivity. */
 const useDebouncedValue = <T,>(value: T, delay: number): T => {
@@ -39,24 +39,14 @@ interface HeatmapSettings {
     blur: number;
     opacity: number;
     threshold: number;
-    model: string;
-    analysisWindow: number;
-    framesMin: number;
-    framesMax: number;
-    dispersion: number;
-    mergeRange: number;
+    preset: string;
 }
 
 const DEFAULT_SETTINGS: HeatmapSettings = {
     blur: 15,
     opacity: 72,
     threshold: 40,
-    model: 'Simple',
-    analysisWindow: 5,
-    framesMin: 3,
-    framesMax: 20,
-    dispersion: 75,
-    mergeRange: 0,
+    preset: 'Balanced',
 };
 
 type TabId = 'prediction' | 'attention-video' | 'image';
@@ -68,6 +58,10 @@ interface AttentionPredictionCardProps {
     onDelete?: () => void;
     isDeleting?: boolean;
     className?: string;
+    /** Research ID — needed for AOI persistence */
+    researchId?: string;
+    /** Stimulus media ID — needed for AOI persistence */
+    stimulusMediaId?: string;
 }
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
@@ -83,13 +77,13 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
     settings: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
 };
 
-const PREDICTION_MODELS = ['Simple', 'Advanced', 'Deep Learning'];
+const DETAIL_PRESETS = ['Smooth', 'Balanced', 'Detailed'];
 
-/** Each model preset overrides blur, threshold, and opacity for a different detail level. */
-const MODEL_PRESETS: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
-    'Simple':        { blur: 20, threshold: 50, opacity: 60 },
-    'Advanced':      { blur: 12, threshold: 35, opacity: 72 },
-    'Deep Learning': { blur: 6,  threshold: 25, opacity: 85 },
+/** Each preset adjusts blur, threshold, and opacity for a different detail level. */
+const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
+    'Smooth':   { blur: 20, threshold: 50, opacity: 60 },
+    'Balanced': { blur: 12, threshold: 35, opacity: 72 },
+    'Detailed': { blur: 6,  threshold: 25, opacity: 85 },
 };
 
 /* ─── Settings Modal ─── */
@@ -108,7 +102,7 @@ const SettingsModal = ({
 }) => {
     const [local, setLocal] = useState<HeatmapSettings>({ ...settings });
     const debouncedLocal = useDebouncedValue(local, 150);
-    const [settingsTab, setSettingsTab] = useState<'heatmap' | 'opacity' | 'composition'>('heatmap');
+    const [settingsTab, setSettingsTab] = useState<'heatmap' | 'original'>('heatmap');
     const previewRef = useRef<HTMLDivElement>(null);
 
     const handleDownload = useCallback(async () => {
@@ -122,8 +116,8 @@ const SettingsModal = ({
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        } catch (err) {
-            console.error('Failed to download:', err);
+        } catch {
+            // Download failed silently
         }
     }, []);
 
@@ -132,7 +126,7 @@ const SettingsModal = ({
             <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b">
-                    <h3 className="text-base font-semibold text-gray-900">Respondents ID&apos; settings</h3>
+                    <h3 className="text-base font-semibold text-gray-900">Heatmap Settings</h3>
                     <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -146,7 +140,7 @@ const SettingsModal = ({
                     <div className="flex-1 p-4 min-w-0">
                         {/* Tabs inside modal */}
                         <div className="flex items-center gap-2 mb-3">
-                            {(['heatmap', 'opacity', 'composition'] as const).map(tab => (
+                            {(['heatmap', 'original'] as const).map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setSettingsTab(tab)}
@@ -158,9 +152,8 @@ const SettingsModal = ({
                                     )}
                                 >
                                     {tab === 'heatmap' && TAB_ICONS.eye}
-                                    {tab === 'opacity' && TAB_ICONS.settings}
-                                    {tab === 'composition' && TAB_ICONS.image}
-                                    {tab === 'heatmap' ? 'Heat map' : tab === 'opacity' ? 'Opacity map' : 'Composición'}
+                                    {tab === 'original' && TAB_ICONS.image}
+                                    {tab === 'heatmap' ? 'Heat map' : 'Original'}
                                 </button>
                             ))}
                             <div className="flex-1" />
@@ -174,7 +167,7 @@ const SettingsModal = ({
                         </div>
 
                         <div ref={previewRef} className="rounded-lg overflow-hidden border bg-gray-100">
-                            {settingsTab === 'composition' ? (
+                            {settingsTab === 'original' ? (
                                 <img src={imageUrl} alt="Original" className="w-full block" />
                             ) : (
                                 <HeatmapRenderer
@@ -191,176 +184,105 @@ const SettingsModal = ({
 
                     {/* Right: controls */}
                     <div className="w-72 flex-shrink-0 p-5 border-l space-y-5 overflow-y-auto max-h-[75vh]">
-                        {/* Composition-only controls */}
-                        {settingsTab === 'composition' && (
-                            <>
-                                {/* Analysis window */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Analysis window</label>
-                                        <input
-                                            type="number"
-                                            value={local.analysisWindow}
-                                            onChange={e => setLocal(prev => ({ ...prev, analysisWindow: Number(e.target.value) }))}
-                                            className="w-14 px-2 py-1 text-sm border rounded text-right"
-                                            min={1}
-                                            max={60}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-400">Set time frame in seconds</p>
-                                </div>
+                        {/* Detail preset */}
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Detail preset</label>
+                            <div className="flex gap-1">
+                                {DETAIL_PRESETS.map(p => (
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => {
+                                            const vals = PRESET_VALUES[p];
+                                            setLocal(prev => ({ ...prev, preset: p, ...vals }));
+                                        }}
+                                        className={cn(
+                                            'flex-1 px-2 py-1.5 text-xs font-medium rounded transition-colors',
+                                            local.preset === p
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        )}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">Adjusts blur, threshold, and opacity together</p>
+                        </div>
 
-                                {/* Frames in fixation */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Frames in fixation</label>
-                                        <div className="flex items-center gap-1">
-                                            <input
-                                                type="number"
-                                                value={local.framesMin}
-                                                onChange={e => setLocal(prev => ({ ...prev, framesMin: Number(e.target.value) }))}
-                                                className="w-12 px-2 py-1 text-sm border rounded text-right"
-                                                min={1}
-                                                max={99}
-                                            />
-                                            <input
-                                                type="number"
-                                                value={local.framesMax}
-                                                onChange={e => setLocal(prev => ({ ...prev, framesMax: Number(e.target.value) }))}
-                                                className="w-12 px-2 py-1 text-sm border rounded text-right"
-                                                min={1}
-                                                max={99}
-                                            />
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-gray-400">Set the min. and max. frames</p>
-                                </div>
-
-                                {/* Dispersion */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Dispersion</label>
-                                        <input
-                                            type="number"
-                                            value={local.dispersion}
-                                            onChange={e => setLocal(prev => ({ ...prev, dispersion: Number(e.target.value) }))}
-                                            className="w-14 px-2 py-1 text-sm border rounded text-right"
-                                            min={0}
-                                            max={100}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-400">Set maximum dispersion</p>
-                                </div>
-
-                                {/* Merge range */}
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Merge range</label>
-                                        <input
-                                            type="number"
-                                            value={local.mergeRange}
-                                            onChange={e => setLocal(prev => ({ ...prev, mergeRange: Number(e.target.value) }))}
-                                            className="w-14 px-2 py-1 text-sm border rounded text-right"
-                                            min={0}
-                                            max={100}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-400">Set the fixation merge range</p>
-                                </div>
-                            </>
-                        )}
-
-                        {/* Blur — all tabs */}
+                        {/* Blur */}
                         <div>
                             <div className="flex items-center justify-between mb-1">
                                 <label className="text-sm font-medium text-gray-700">Blur</label>
                                 <input
                                     type="number"
                                     value={local.blur}
-                                    onChange={e => setLocal(prev => ({ ...prev, blur: Number(e.target.value) }))}
+                                    onChange={e => setLocal(prev => ({ ...prev, blur: Number(e.target.value), preset: 'Custom' }))}
                                     className="w-14 px-2 py-1 text-sm border rounded text-right"
                                     min={0}
                                     max={50}
                                 />
                             </div>
-                            <p className="text-xs text-gray-400 mb-1.5">Set the range of the blur radius</p>
+                            <p className="text-xs text-gray-400 mb-1.5">Blur radius for the heatmap</p>
                             <input
                                 type="range"
                                 value={local.blur}
-                                onChange={e => setLocal(prev => ({ ...prev, blur: Number(e.target.value) }))}
+                                onChange={e => setLocal(prev => ({ ...prev, blur: Number(e.target.value), preset: 'Custom' }))}
                                 min={0}
                                 max={50}
                                 className="w-full accent-blue-600"
                             />
                         </div>
 
-                        {/* Opacity — all tabs */}
+                        {/* Opacity */}
                         <div>
                             <div className="flex items-center justify-between mb-1">
                                 <label className="text-sm font-medium text-gray-700">Opacity</label>
                                 <input
                                     type="number"
                                     value={local.opacity}
-                                    onChange={e => setLocal(prev => ({ ...prev, opacity: Number(e.target.value) }))}
+                                    onChange={e => setLocal(prev => ({ ...prev, opacity: Number(e.target.value), preset: 'Custom' }))}
                                     className="w-14 px-2 py-1 text-sm border rounded text-right"
                                     min={0}
                                     max={100}
                                 />
                             </div>
-                            <p className="text-xs text-gray-400 mb-1.5">Set the opacity range in %</p>
+                            <p className="text-xs text-gray-400 mb-1.5">Heatmap intensity (%)</p>
                             <input
                                 type="range"
                                 value={local.opacity}
-                                onChange={e => setLocal(prev => ({ ...prev, opacity: Number(e.target.value) }))}
+                                onChange={e => setLocal(prev => ({ ...prev, opacity: Number(e.target.value), preset: 'Custom' }))}
                                 min={0}
                                 max={100}
                                 className="w-full accent-blue-600"
                             />
                         </div>
 
-                        {/* Threshold — heatmap/opacity tabs only */}
-                        {settingsTab !== 'composition' && (
+                        {/* Threshold */}
+                        {settingsTab === 'heatmap' && (
                             <div>
                                 <div className="flex items-center justify-between mb-1">
                                     <label className="text-sm font-medium text-gray-700">Threshold</label>
                                     <input
                                         type="number"
                                         value={local.threshold}
-                                        onChange={e => setLocal(prev => ({ ...prev, threshold: Number(e.target.value) }))}
+                                        onChange={e => setLocal(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
                                         className="w-14 px-2 py-1 text-sm border rounded text-right"
                                         min={0}
                                         max={100}
                                     />
                                 </div>
-                                <p className="text-xs text-gray-400 mb-1.5">The minimum value to consider in the map</p>
+                                <p className="text-xs text-gray-400 mb-1.5">Minimum saliency value to display</p>
                                 <input
                                     type="range"
                                     value={local.threshold}
-                                    onChange={e => setLocal(prev => ({ ...prev, threshold: Number(e.target.value) }))}
+                                    onChange={e => setLocal(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
                                     min={0}
                                     max={100}
                                     className="w-full accent-blue-600"
                                 />
                             </div>
                         )}
-
-                        {/* Prediction model — all tabs */}
-                        <div>
-                            <p className="text-xs text-gray-400 mb-1.5">Set model to be used</p>
-                            <CustomSelect
-                                label="Prediction model"
-                                options={PREDICTION_MODELS.map(m => ({ value: m, label: m }))}
-                                value={local.model}
-                                onChange={value => {
-                                    const preset = MODEL_PRESETS[value];
-                                    setLocal(prev => ({
-                                        ...prev,
-                                        model: value,
-                                        ...(preset ?? {}),
-                                    }));
-                                }}
-                            />
-                        </div>
 
                         {/* Apply button */}
                         <button
@@ -385,6 +307,8 @@ export const AttentionPredictionCard = ({
     onDelete,
     isDeleting = false,
     className,
+    researchId,
+    stimulusMediaId,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('prediction');
     const [showSettings, setShowSettings] = useState(false);
@@ -393,8 +317,45 @@ export const AttentionPredictionCard = ({
     const [drawingAoi, setDrawingAoi] = useState(false);
     const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
     const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const [isSavingAois, setIsSavingAois] = useState(false);
     const aoiContainerRef = useRef<HTMLDivElement>(null);
     const tabContentRef = useRef<HTMLDivElement>(null);
+
+    // Load persisted AOIs from research settings
+    useEffect(() => {
+        if (!researchId || !stimulusMediaId) return;
+        researchService.getById(researchId).then(res => {
+            const s = (res.research.settings as Record<string, unknown>) || {};
+            const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
+            const stimulus = stimuli.find(st => st.mediaId === stimulusMediaId);
+            const savedAois = (stimulus?.aois as AOI[]) || [];
+            if (savedAois.length > 0) setAoiList(savedAois);
+        }).catch(() => { /* ignore load errors */ });
+    }, [researchId, stimulusMediaId]);
+
+    // Persist AOIs to research settings
+    const persistAois = useCallback(async (aois: AOI[]) => {
+        if (!researchId || !stimulusMediaId) return;
+        setIsSavingAois(true);
+        try {
+            const res = await researchService.getById(researchId);
+            const s = (res.research.settings as Record<string, unknown>) || {};
+            const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
+            const updatedStimuli = stimuli.map(st => {
+                if (st.mediaId === stimulusMediaId) {
+                    return { ...st, aois };
+                }
+                return st;
+            });
+            await researchService.update(researchId, {
+                settings: { ...s, stimuli: updatedStimuli },
+            });
+        } catch {
+            // Best-effort persistence
+        } finally {
+            setIsSavingAois(false);
+        }
+    }, [researchId, stimulusMediaId]);
 
     const getMousePercent = (e: React.MouseEvent, el: HTMLElement) => {
         const rect = el.getBoundingClientRect();
@@ -407,17 +368,21 @@ export const AttentionPredictionCard = ({
     const addAoi = (rect: { x: number; y: number; w: number; h: number }) => {
         const aoi: AOI = {
             id: `aoi_${crypto.randomUUID()}`,
-            label: `Area of Interest (AOI) #${aoiList.length + 1}`,
+            label: `AOI #${aoiList.length + 1}`,
             x: rect.x,
             y: rect.y,
             width: rect.w,
             height: rect.h,
         };
-        setAoiList(prev => [...prev, aoi]);
+        const updated = [...aoiList, aoi];
+        setAoiList(updated);
+        void persistAois(updated);
     };
 
     const removeAoi = (aoiId: string) => {
-        setAoiList(prev => prev.filter(a => a.id !== aoiId));
+        const updated = aoiList.filter(a => a.id !== aoiId);
+        setAoiList(updated);
+        void persistAois(updated);
     };
 
     const computedAois: AOIWithStats[] = useMemo(() => {
@@ -447,8 +412,8 @@ export const AttentionPredictionCard = ({
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        } catch (err) {
-            console.error('Failed to download image:', err);
+        } catch {
+            // Download failed silently
         }
     }, [activeTab]);
 
@@ -549,6 +514,7 @@ export const AttentionPredictionCard = ({
                                 {computedAois.length > 0 && (
                                     <span className="text-xs text-gray-500">
                                         {computedAois.length} AOI defined
+                                        {isSavingAois && ' — saving...'}
                                     </span>
                                 )}
                             </div>

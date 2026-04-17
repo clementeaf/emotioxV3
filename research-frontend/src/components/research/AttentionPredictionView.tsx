@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
@@ -12,6 +12,8 @@ interface StimulusItem {
     name: string;
     heatmapData?: Array<{ x: number; y: number; value: number }>;
     processedAt?: string;
+    predictionError?: string;
+    predictionErrorAt?: string;
 }
 
 interface AttentionPredictionViewProps {
@@ -21,12 +23,13 @@ interface AttentionPredictionViewProps {
 
 /**
  * View for Attention Prediction — upload stimuli and view AI-generated analysis.
- * After upload, automatically triggers saliency prediction via backend.
+ * After upload, automatically triggers saliency prediction via backend (synchronous await).
  */
 export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredictionViewProps) => {
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [predictionError, setPredictionError] = useState<string | null>(null);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
     const stimuli = useMemo(() => {
@@ -36,6 +39,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
     const hasHeatmap = activeStimulus?.heatmapData && activeStimulus.heatmapData.length > 0;
+    const storedError = activeStimulus?.predictionError;
 
     const persistStimuli = useCallback(async (updated: StimulusItem[]) => {
         await researchService.update(research.id, {
@@ -49,38 +53,16 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
     }, [research.id, research.settings, queryClient]);
 
-    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // Clean up polling on unmount
-    useEffect(() => {
-        return () => {
-            if (pollingRef.current) clearInterval(pollingRef.current);
-        };
-    }, []);
-
     const runPrediction = useCallback(async (mediaId: string) => {
         setIsProcessing(true);
+        setPredictionError(null);
         try {
-            // Fire request — backend responds immediately with 202
             await mediaService.predictAttention(research.id, mediaId);
-
-            // Poll for completion every 3 seconds
-            if (pollingRef.current) clearInterval(pollingRef.current);
-            pollingRef.current = setInterval(async () => {
-                try {
-                    const status = await mediaService.getPredictionStatus(research.id, mediaId);
-                    if (status.status === 'complete') {
-                        if (pollingRef.current) clearInterval(pollingRef.current);
-                        pollingRef.current = null;
-                        setIsProcessing(false);
-                        queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-                    }
-                } catch {
-                    // Ignore polling errors, keep trying
-                }
-            }, 3000);
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch (err) {
-            console.error('[AttentionPrediction] Prediction failed:', err);
+            const msg = err instanceof Error ? err.message : 'Prediction failed';
+            setPredictionError(msg);
+        } finally {
             setIsProcessing(false);
         }
     }, [research.id, queryClient]);
@@ -120,10 +102,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         }
     }, [stimuli, persistStimuli]);
 
+    const displayError = predictionError || storedError;
+
     return (
         <div className="space-y-6 p-6">
             {/* Analysis — main content when a stimulus is selected */}
-            {activeStimulus ? (
+            {activeStimulus && (
                 <>
                     <AttentionPredictionCard
                         imageUrl={activeStimulus.url}
@@ -131,6 +115,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         heatmapData={activeStimulus.heatmapData}
                         onDelete={() => handleDelete(activeStimulus.mediaId)}
                         isDeleting={isDeletingId === activeStimulus.mediaId}
+                        researchId={research.id}
+                        stimulusMediaId={activeStimulus.mediaId}
                     />
 
                     {/* Processing indicator */}
@@ -147,8 +133,28 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         </div>
                     )}
 
-                    {/* Re-process button if no heatmap */}
-                    {!hasHeatmap && !isProcessing && (
+                    {/* Error indicator */}
+                    {displayError && !isProcessing && (
+                        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <svg className="h-5 w-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-red-800">Prediction failed</p>
+                                <p className="text-xs text-red-600 truncate">{displayError}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setPredictionError(null); runPrediction(activeStimulus.mediaId); }}
+                                className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors flex-shrink-0"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Re-process button if no heatmap and no error */}
+                    {!hasHeatmap && !isProcessing && !displayError && (
                         <button
                             type="button"
                             onClick={() => runPrediction(activeStimulus.mediaId)}
@@ -162,28 +168,32 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         </button>
                     )}
                 </>
-            ) : (
-                /* Empty state — no stimuli yet */
-                <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-1">Stimulus Images</h2>
-                    <p className="text-sm text-gray-500 mb-4">
-                        Upload one or more images to analyze with the Attention Prediction algorithm.
-                    </p>
-                    <FileUploadAdvanced
-                        label="Add Stimulus Images"
-                        acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp']}
-                        maxSizeMB={10}
-                        multiple
-                        files={[]}
-                        onFilesChange={handleFilesChange}
-                        researchId={research.id}
-                        onUploadStart={() => setIsUploading(true)}
-                        onUploadComplete={() => setIsUploading(false)}
-                        onUploadError={() => setIsUploading(false)}
-                        disabled={isUploading}
-                    />
-                </div>
             )}
+
+            {/* Upload — always visible */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+                {!activeStimulus && (
+                    <>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-1">Stimulus Images</h2>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Upload one or more images to analyze with the Attention Prediction algorithm.
+                        </p>
+                    </>
+                )}
+                <FileUploadAdvanced
+                    label={activeStimulus ? 'Add more images' : 'Add Stimulus Images'}
+                    acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp']}
+                    maxSizeMB={10}
+                    multiple
+                    files={[]}
+                    onFilesChange={handleFilesChange}
+                    researchId={research.id}
+                    onUploadStart={() => setIsUploading(true)}
+                    onUploadComplete={() => setIsUploading(false)}
+                    onUploadError={() => setIsUploading(false)}
+                    disabled={isUploading || isProcessing}
+                />
+            </div>
         </div>
     );
 };

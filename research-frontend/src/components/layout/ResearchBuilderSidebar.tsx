@@ -89,16 +89,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const settings = (activeResearch?.settings as Record<string, unknown>) || {};
     const stimuli = (settings.stimuli as Array<{ url: string; mediaId: string; name: string }>) || [];
 
-    useEffect(() => {
-        if (isAttentionPrediction && activeResearch) {
-            console.log('[ResearchBuilderSidebar] Attention Prediction debug:', {
-                settings,
-                stimuliCount: stimuli.length,
-                researchId: activeResearch.id
-            });
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- activeResearch read only for .id (already in deps via ?.id)
-    }, [isAttentionPrediction, settings, stimuli, activeResearch?.id]);
+
 
     // Use ref to track if we're currently adding stages (prevents race conditions)
     const isAddingStagesRef = useRef(false);

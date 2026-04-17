@@ -17,7 +17,7 @@ Default stages: Screener → Welcome Screen → Research Configuration → Impli
   - Features: targets dinámicos, preview modal, flowchart reactivo, multi-lang instrucciones (EN/ES JSON).
 - **Eye Tracking** (`single_module`): stimuli (imágenes/video), modalidades Stand Alone y Shelf. Incluye Emotion Recognition y predicción de atención.
 - **Rendering genérico**: `ResearchBuilderPage` usa `module_collection` generalizada — todo lo que no sea Smart VOC usa `CognitiveTaskModuleCard`.
-- **Attention Prediction**: research type sin stages. TranSalNet ONNX, fire-and-forget predict, `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). Settings modal (Blur/Opacity/Threshold), `AttentionVideoPlayer` scanpath animado.
+- **Attention Prediction**: research type sin stages. TranSalNet ONNX, predict síncrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). Settings modal con detail presets (Smooth/Balanced/Detailed) + sliders manuales. `AttentionVideoPlayer` scanpath animado. AOIs persistidos en `stimulus.aois`. Upload siempre visible. Error state en stimulus config con UI de retry.
 - **Insights Finding**: research type sin stages. Documentos (.csv, .txt, .xlsx, .docx, .pdf) → parseo client-side → GPT-4o analysis (sentiment/themes/keywords). Fire-and-forget + polling.
 - **`isFileBasedResearch`**: unifica Attention Prediction e Insights Finding (`skip_default_modules: true`).
 - **Custom Screening Questions**: preguntas de selección única con descalificación dentro de Demographics. Keys `customQuestion_<id>`, `questionLabel` editable.

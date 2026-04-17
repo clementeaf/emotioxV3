@@ -1,3 +1,20 @@
+## v0.60.4 — Attention Prediction: synchronous predict, AOI persistence, settings cleanup (2026-04-17)
+
+### backend
+- **Synchronous prediction endpoint.** `POST /attention-prediction/research/:id/predict/:mediaId` now awaits TranSalNet inference and returns result directly instead of fire-and-forget + polling. Status endpoint removed.
+- **Error state persistence.** `runPredictionAsync` saves `predictionError`/`predictionErrorAt` to the stimulus config on failure (previously only logged to console). Module prediction already had this — now both paths are consistent.
+- **Threshold default unified.** Service, controller, and postprocess all default to `0.3` (was inconsistent: 0.5/0.3/0.3).
+- **Console.logs removed.** 10 debug/trace logs removed from controller and service.
+
+### research-frontend
+- **Polling removed.** `AttentionPredictionView` uses simple `await` instead of `setInterval` polling. Error state displayed in red banner with Retry button.
+- **Upload always visible.** File upload component shown below the analysis card (was hidden when a stimulus existed). Label changes to "Add more images" when stimuli exist.
+- **AOI persistence.** Areas of Interest now saved to `stimulus.aois` in research settings. Loaded on mount, persisted on add/remove. Survives tab switches and page reloads.
+- **Settings modal cleaned up.** Removed non-functional Composition tab (analysisWindow, framesInFixation, dispersion, mergeRange controls were UI-only). Renamed misleading "Prediction model" selector to "Detail preset" with Smooth/Balanced/Detailed buttons. Individual slider changes mark preset as "Custom".
+- **Debug console.log removed** from `ResearchBuilderSidebar`.
+
+---
+
 ## v0.60.3 — face-api.js emotion recognition for Eye Tracking (2026-04-17)
 
 ### participant-frontend

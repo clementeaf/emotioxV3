@@ -1,7 +1,7 @@
 /**
  * Attention Prediction Controller
  * Handles HTTP routes for visual saliency prediction.
- * Uses fire-and-forget pattern to avoid proxy timeout (LiteSpeed ~10s).
+ * Synchronous — awaits TranSalNet inference and returns result directly.
  */
 
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
@@ -13,8 +13,8 @@ import { getMediaPath } from '../../config/local-storage';
 import pool from '../../config/database';
 
 /**
- * Runs prediction in background and saves result to research config.
- * Does NOT block the HTTP response.
+ * Runs prediction and saves result to research config.
+ * On failure, saves error state to the stimulus entry and re-throws.
  */
 const runPredictionAsync = async (
     researchId: string,
@@ -23,7 +23,6 @@ const runPredictionAsync = async (
     threshold: number
 ): Promise<void> => {
     try {
-        console.log(`[AttentionPrediction] Starting async prediction for media ${mediaId}...`);
         const heatmapData = await predictAttention(imagePath, threshold);
 
         // Read current config
@@ -31,10 +30,7 @@ const runPredictionAsync = async (
             'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
             [researchId]
         );
-        if (researchResult.rows.length === 0) {
-            console.error(`[AttentionPrediction] Research ${researchId} not found after prediction`);
-            return;
-        }
+        if (researchResult.rows.length === 0) return;
 
         let config: Record<string, unknown> = {};
         try {
@@ -48,7 +44,13 @@ const runPredictionAsync = async (
         const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
         const updatedStimuli = stimuli.map((s) => {
             if (s.mediaId === mediaId) {
-                return { ...s, heatmapData, processedAt: new Date().toISOString() };
+                return {
+                    ...s,
+                    heatmapData,
+                    processedAt: new Date().toISOString(),
+                    predictionError: undefined,
+                    predictionErrorAt: undefined,
+                };
             }
             return s;
         });
@@ -59,10 +61,41 @@ const runPredictionAsync = async (
             'UPDATE researches SET config = ? WHERE id = ?',
             [JSON.stringify(config), researchId]
         );
-
-        console.log(`[AttentionPrediction] Done: ${heatmapData.length} points saved for media ${mediaId}`);
     } catch (err) {
-        console.error(`[AttentionPrediction] Async prediction failed for media ${mediaId}:`, err);
+        // Save error state so frontend can display it
+        try {
+            const researchResult = await pool.query(
+                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                [researchId]
+            );
+            if (researchResult.rows.length > 0) {
+                let config: Record<string, unknown> = {};
+                try {
+                    const rawConfig = researchResult.rows[0].config;
+                    config = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : (rawConfig || {});
+                } catch { config = {}; }
+
+                const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+                config.stimuli = stimuli.map((s) => {
+                    if (s.mediaId === mediaId) {
+                        return {
+                            ...s,
+                            predictionError: err instanceof Error ? err.message : 'Unknown prediction error',
+                            predictionErrorAt: new Date().toISOString(),
+                        };
+                    }
+                    return s;
+                });
+
+                await pool.query(
+                    'UPDATE researches SET config = ? WHERE id = ?',
+                    [JSON.stringify(config), researchId]
+                );
+            }
+        } catch {
+            // Best-effort error save
+        }
+        throw err;
     }
 };
 
@@ -78,14 +111,10 @@ const runModulePredictionAsync = async (
     imageKey?: string
 ): Promise<void> => {
     try {
-        console.log(`[AttentionPrediction] Starting prediction for module ${moduleId}${imageKey ? ` image ${imageKey}` : ''}...`);
         const heatmapData = await predictAttention(imagePath, threshold);
 
         const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
-        if (moduleResult.rows.length === 0) {
-            console.error(`[AttentionPrediction] Module ${moduleId} not found after prediction`);
-            return;
-        }
+        if (moduleResult.rows.length === 0) return;
 
         let config: Record<string, unknown> = {};
         try {
@@ -105,11 +134,8 @@ const runModulePredictionAsync = async (
         }
 
         await pool.query('UPDATE modules SET config = ? WHERE id = ?', [JSON.stringify(config), moduleId]);
-
-        console.log(`[AttentionPrediction] Done: ${heatmapData.length} points saved for module ${moduleId}${imageKey ? ` image ${imageKey}` : ''}`);
     } catch (err) {
-        console.error(`[AttentionPrediction] Prediction failed for module ${moduleId}:`, err);
-        // Save error state so status endpoint can report failure instead of hanging
+        // Save error state so caller can report failure
         try {
             const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
             if (moduleResult.rows.length > 0) {
@@ -122,8 +148,8 @@ const runModulePredictionAsync = async (
                 config.predictionErrorAt = new Date().toISOString();
                 await pool.query('UPDATE modules SET config = ? WHERE id = ?', [JSON.stringify(config), moduleId]);
             }
-        } catch (saveErr) {
-            console.error(`[AttentionPrediction] Failed to save error state:`, saveErr);
+        } catch {
+            // Best-effort error save
         }
     }
 };
@@ -138,7 +164,7 @@ export const handleAttentionPredictionRoutes = async (
         await requireAuth(event);
 
         // POST /attention-prediction/research/:researchId/predict/:mediaId
-        // Responds immediately, processes in background
+        // Synchronous — awaits prediction and returns result
         const predictMatch = path.match(
             /^\/attention-prediction\/research\/([^/]+)\/predict\/([^/]+)$/
         );
@@ -161,67 +187,19 @@ export const handleAttentionPredictionRoutes = async (
             const body = event.body ? JSON.parse(event.body) : {};
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
 
-            // Fire and forget — don't await
-            void runPredictionAsync(researchId, mediaId, imagePath, threshold);
-
-            return success(
-                {
-                    status: 'processing',
-                    mediaId,
-                    message: 'Prediction started. Results will be available shortly.',
-                },
-                202,
-                undefined,
-                origin
-            );
-        }
-
-        // GET /attention-prediction/research/:researchId/status/:mediaId
-        // Check if prediction is complete for a stimulus
-        const statusMatch = path.match(
-            /^\/attention-prediction\/research\/([^/]+)\/status\/([^/]+)$/
-        );
-        if (statusMatch && httpMethod === 'GET') {
-            const researchId = statusMatch[1];
-            const mediaId = statusMatch[2];
-
-            const researchResult = await pool.query(
-                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
-                [researchId]
-            );
-            if (researchResult.rows.length === 0) {
-                return error('Research not found', 404, undefined, origin);
-            }
-
-            let config: Record<string, unknown> = {};
+            // Synchronous — await result and return directly
             try {
-                const rawConfig = researchResult.rows[0].config;
-                config = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : (rawConfig || {});
-            } catch {
-                config = {};
+                await runPredictionAsync(researchId, mediaId, imagePath, threshold);
+                return success(
+                    { status: 'complete', mediaId },
+                    200,
+                    undefined,
+                    origin
+                );
+            } catch (predErr) {
+                const msg = predErr instanceof Error ? predErr.message : 'Prediction failed';
+                return error(msg, 500, undefined, origin);
             }
-
-            const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
-            const stimulus = stimuli.find((s) => s.mediaId === mediaId);
-
-            if (!stimulus) {
-                return error('Stimulus not found', 404, undefined, origin);
-            }
-
-            const heatmapData = stimulus.heatmapData as Array<unknown> | undefined;
-            const ready = heatmapData && heatmapData.length > 0;
-
-            return success(
-                {
-                    mediaId,
-                    status: ready ? 'complete' : 'processing',
-                    pointCount: ready ? heatmapData.length : 0,
-                    processedAt: stimulus.processedAt || null,
-                },
-                200,
-                undefined,
-                origin
-            );
         }
 
         // POST /attention-prediction/research/:researchId/module/:moduleId/predict

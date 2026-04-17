@@ -46,16 +46,10 @@ const getSession = async (): Promise<ort.InferenceSession> => {
     if (session) return session;
 
     const modelPath = getModelPath();
-    console.log(`[AttentionPrediction] Loading model from ${modelPath}...`);
-
     session = await ort.InferenceSession.create(modelPath, {
         executionProviders: ['cpu'],
         graphOptimizationLevel: 'all',
     });
-
-    console.log('[AttentionPrediction] Model loaded successfully');
-    console.log('[AttentionPrediction] Input names:', session.inputNames);
-    console.log('[AttentionPrediction] Output names:', session.outputNames);
 
     return session;
 };
@@ -148,35 +142,21 @@ const postprocessSaliencyMap = (
  */
 export const predictAttention = async (
     imagePath: string,
-    threshold: number = 0.5
+    threshold: number = 0.3
 ): Promise<Array<{ x: number; y: number; value: number }>> => {
     if (!fs.existsSync(imagePath)) {
         throw new Error(`Image not found: ${imagePath}`);
     }
 
-    const startTime = Date.now();
-
-    // Load model (cached after first call)
     const sess = await getSession();
-
-    // Preprocess image
     const inputTensor = await preprocessImage(imagePath);
 
-    // Run inference
     const inputName = sess.inputNames[0];
     const results = await sess.run({ [inputName]: inputTensor });
     const outputName = sess.outputNames[0];
     const saliencyMap = results[outputName];
 
-    // Postprocess to heatmap points
-    const heatmapData = postprocessSaliencyMap(saliencyMap, threshold);
-
-    const elapsed = Date.now() - startTime;
-    console.log(
-        `[AttentionPrediction] Processed in ${elapsed}ms — ${heatmapData.length} points above threshold ${threshold}`
-    );
-
-    return heatmapData;
+    return postprocessSaliencyMap(saliencyMap, threshold);
 };
 
 /**
