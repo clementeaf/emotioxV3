@@ -1,3 +1,10 @@
+## v0.60.1 — Fix Share Research drawer not showing invite input (2026-04-17)
+
+### backend
+- **Fix: `created_by` missing from research queries.** `getById` and `list` SELECTs did not include `r.created_by`. The frontend's `isOwner` check always evaluated to `false`, hiding the email input in the Share Research drawer. Added `r.created_by` to both queries.
+
+---
+
 ## v0.60.0 — Research collaborators, completion filter, eye tracking improvements (2026-04-16)
 
 ### backend
