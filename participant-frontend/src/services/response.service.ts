@@ -4,7 +4,6 @@
  */
 
 import { configService } from './config.service';
-import { useSessionStore } from '../stores/useSessionStore';
 
 interface ResponseData {
     moduleId: string;
@@ -61,28 +60,12 @@ class ResponseService {
             const endpoint = `/public/research/${researchId}/responses`;
             const url = `${this.baseUrl}${endpoint}`;
 
-            // Turnstile temporarily disabled
-            // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
-            const TURNSTILE_ENABLED = false;
-            
-            // Get Turnstile token from session store (if available and enabled)
-            let turnstileToken: string | undefined;
-            if (TURNSTILE_ENABLED) {
-                try {
-                    const token = useSessionStore.getState().turnstileToken;
-                    turnstileToken = token || undefined;
-                } catch {
-                    console.warn('[ResponseService] Could not get Turnstile token for submitResponse');
-                }
-            }
-
             const payload = {
                 participantId,
                 moduleId: response.moduleId,
                 responses: [response],
                 metadata: {
                     timestamp: Date.now(),
-                    turnstileToken,
                     isPreviewMode: false,
                 },
             };
@@ -212,29 +195,12 @@ class ResponseService {
             return null;
         }
 
-        // Turnstile temporarily disabled
-        // TODO: Re-enable when TURNSTILE_SECRET_KEY is configured
-        const TURNSTILE_ENABLED = false;
-        
-        // Get Turnstile token from session store (if available and enabled)
-        let turnstileToken: string | undefined;
-        if (TURNSTILE_ENABLED) {
-            try {
-                const token = useSessionStore.getState().turnstileToken;
-                turnstileToken = token || undefined;
-            } catch {
-                // If store is not available, token will be undefined
-                console.warn('[ResponseService] Could not get Turnstile token for flushModule');
-            }
-        }
-
         const payload: ModuleResponsePayload = {
             participantId,
             moduleId,
             responses: queue,
             metadata: {
                 completedAt: Date.now(),
-                turnstileToken,
                 isPreviewMode: false,
             },
         };

@@ -10,13 +10,9 @@ export interface ResearchTypeData {
 }
 
 export const list = async () => {
-    // TEMPORARY: Disable cache to ensure fresh data after cleanup
-    // Always fetch from database to avoid stale cache issues
-    // TODO: Re-enable cache after confirming it works correctly
-    // return cache.getOrSet(
-    //     CacheKeys.RESEARCH_TYPES_LIST,
-    //     async () => {
-            // Return all research types (MySQL compatible: use 1 instead of true for boolean)
+    return cache.getOrSet(
+        CacheKeys.RESEARCH_TYPES_LIST,
+        async () => {
                     const query = `
                     SELECT 
                         rt.id, 
@@ -32,7 +28,6 @@ export const list = async () => {
                     ORDER BY rt.name
                   `;
                     const result = await pool.query(query);
-                    console.log(`[Research Types Service] Fetched ${result.rows.length} active research types from database`);
                     
                     // Parse JSON fields (default_modules and settings) from MySQL JSON/string format
                     const parsedRows = result.rows.map((row: Record<string, unknown>) => {
@@ -69,11 +64,10 @@ export const list = async () => {
                         return parsedRow;
                     });
                     
-                    console.log(`[Research Types Service] Parsed ${parsedRows.length} research types with JSON fields`);
                     return parsedRows;
-        // },
-        // CacheTTL.LONG // Cache for 15 minutes
-    // );
+        },
+        CacheTTL.LONG
+    );
 };
 
 export const create = async (data: ResearchTypeData, createdBy: string | null) => {

@@ -40,60 +40,43 @@ class ApiClient {
      * Configura interceptores para requests y responses
      */
     private setupInterceptors(): void {
-        // Request interceptor: agregar token en Authorization header
-        // TEMPORAL: API Gateway no está pasando cookies, así que usamos header
+        // Request interceptor: attach token as Authorization header
         this.client.interceptors.request.use(
             async (config: InternalAxiosRequestConfig) => {
                 const state = useAuthStore.getState();
-                console.log('[ApiClient] Request to:', config.url);
-                console.log('[ApiClient] Token in store:', state.token ? `${state.token.substring(0, 30)}...` : 'NONE');
                 if (state.token && config.headers) {
                     config.headers.Authorization = `Bearer ${state.token}`;
-                    console.log('[ApiClient] Authorization header set');
-                } else {
-                    console.warn('[ApiClient] No token available for request');
                 }
-                // También intentar enviar cookies (withCredentials: true)
                 return config;
             },
             (error) => Promise.reject(error)
         );
 
-        // Response interceptor: maneja errores 401 (no autorizado)
+        // Response interceptor: handle 401 with automatic token refresh
         this.client.interceptors.response.use(
             (response) => response,
             async (error: ApiErrorResponse) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-                // Evitar loop infinito: no intentar refrescar si la petición fallida ES el refresh
                 const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
-                
-                // Verificar si el 401 es realmente por token expirado
-                // Algunos 401 pueden ser por permisos u otros motivos
-                const isTokenExpired = error.response?.status === 401 && 
-                    !originalRequest._retry && 
+                const isTokenExpired = error.response?.status === 401 &&
+                    !originalRequest._retry &&
                     !isRefreshEndpoint &&
                     originalRequest.url !== configService.getEndpoint('auth', 'me');
 
                 if (isTokenExpired) {
-                    console.log('[ApiClient] 401 detected (likely expired token) for:', originalRequest.url);
                     originalRequest._retry = true;
 
-                    // Check-and-set atómico usando flag síncrono para evitar múltiples refreshes
                     if (!this.isRefreshingFlag) {
-                        this.isRefreshingFlag = true; // Bloquear INMEDIATAMENTE de forma síncrona
-                        console.log('[ApiClient] Starting token refresh...');
-                        
+                        this.isRefreshingFlag = true;
+
                         this.refreshPromise = (async () => {
                             try {
-                                // Hacer el refresh directamente con axios, sin pasar por el interceptor
                                 const refreshEndpoint = configService.getEndpoint('auth', 'refresh');
                                 const baseURL = this.client.defaults.baseURL;
                                 if (typeof baseURL !== 'string' || baseURL.trim().length === 0) {
                                     throw new Error('API base URL not configured');
                                 }
-                                
-                                console.log('[ApiClient] Making refresh request to:', `${baseURL}${refreshEndpoint}`);
 
                                 interface RefreshResponse {
                                     message: string;
@@ -102,11 +85,10 @@ class ApiClient {
                                     expiresIn?: number;
                                 }
 
-                                // El refresh token está en cookies httpOnly, el backend lo leerá automáticamente
-                                // También intentar desde localStorage como fallback
-                                const refreshTokenFromStorage = localStorage.getItem('auth_refresh_token') || 
+                                // Refresh token from httpOnly cookie (primary) or storage (fallback)
+                                const refreshTokenFromStorage = localStorage.getItem('auth_refresh_token') ||
                                                                  sessionStorage.getItem('auth_refresh_token');
-                                
+
                                 const refreshPayload: Record<string, string> = {};
                                 if (refreshTokenFromStorage) {
                                     refreshPayload.refreshToken = refreshTokenFromStorage;
@@ -118,9 +100,7 @@ class ApiClient {
                                     {
                                         withCredentials: true,
                                         timeout: 10000,
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                        },
+                                        headers: { 'Content-Type': 'application/json' },
                                     }
                                 );
 
@@ -129,67 +109,44 @@ class ApiClient {
                                     throw new Error('Token refresh did not return access token');
                                 }
 
-                                // NOTE: Cognito does NOT return a new refreshToken on refresh
-                                // The original refreshToken remains valid until it expires or is revoked
-                                // We keep the existing refreshToken in storage/cookies
-                                
-                                // Actualizar token en store (esto también lo guarda en storage)
-                                // El refreshToken existente se mantiene (no se renueva)
                                 useAuthStore.getState().setToken(newToken);
-                                console.log('[ApiClient] Token refresh successful - new access token obtained');
-                                
                                 return newToken;
                             } catch (refreshError) {
-                                console.error('[ApiClient] Token refresh failed:', refreshError);
-                                
-                                // Solo hacer logout si el refresh token expiró o es inválido (401)
-                                // Otros errores (red, 500, etc.) no deberían cerrar la sesión
+                                // Only logout on auth-related failures (401, expired token)
                                 const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
                                 const errorMessage = refreshError instanceof Error ? refreshError.message : 'Unknown error';
-                                
-                                if (status === 401 || 
-                                    errorMessage.includes('Refresh token expired') || 
+
+                                if (status === 401 ||
+                                    errorMessage.includes('Refresh token expired') ||
                                     errorMessage.includes('Refresh token invalid') ||
                                     errorMessage.includes('expired or invalid')) {
-                                    console.log('[ApiClient] Refresh token expired or invalid (401), logging out');
                                     useAuthStore.getState().logout();
-                                } else {
-                                    console.warn('[ApiClient] Token refresh failed for non-auth reason, NOT logging out:', errorMessage);
                                 }
-                                
+
                                 throw refreshError;
                             } finally {
                                 this.isRefreshingFlag = false;
                                 this.refreshPromise = null;
                             }
                         })();
-                    } else {
-                        console.log('[ApiClient] Waiting for ongoing refresh:', originalRequest.url);
                     }
 
-                    // Todas las peticiones esperan la misma Promise
+                    // All concurrent requests wait on the same refresh promise
                     try {
                         const newToken = await this.refreshPromise;
-                        
-                        // CRÍTICO: Actualizar el header Authorization del request original con el nuevo token
-                        // El token ya está actualizado en el store, pero debemos asegurar que el header esté actualizado
+
                         if (originalRequest.headers && newToken) {
                             originalRequest.headers.Authorization = `Bearer ${newToken}`;
                         }
-                        
-                        // Verificar que el token en el store esté sincronizado
+
+                        // Ensure store is in sync
                         const currentToken = useAuthStore.getState().token;
                         if (currentToken !== newToken) {
-                            console.warn('[ApiClient] Token mismatch detected - store token differs from refreshed token');
-                            // Forzar actualización del store si hay desincronización
                             useAuthStore.getState().setToken(newToken);
                         }
-                        
-                        // Reintentar la petición original con el nuevo token
-                        console.log('[ApiClient] Retrying original request with new token');
+
                         return this.client(originalRequest);
                     } catch (refreshError) {
-                        // Si el refresh falló, rechazar el error original
                         return Promise.reject(refreshError);
                     }
                 }

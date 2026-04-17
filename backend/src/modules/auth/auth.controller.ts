@@ -205,11 +205,10 @@ export const handleAuthRoutes = async (event: APIGatewayProxyEvent): Promise<API
                 }));
             }
 
-            // TEMPORAL: Enviar token en el body también porque API Gateway no está pasando cookies
-            // Esto es menos seguro pero necesario hasta que resolvamos el problema de cookies
+            // Token in body for frontend Authorization header + cookies as httpOnly backup
             return success({
                 message: 'Login successful',
-                token: tokens.accessToken, // TEMPORAL: para que el frontend pueda usarlo
+                token: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
                 expiresIn: tokens.expiresIn,
             }, 200, cookies, origin);
