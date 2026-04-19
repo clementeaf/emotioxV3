@@ -1,3 +1,27 @@
+## v0.60.6 — Eye tracking calibration improvements, results coordinate fix (2026-04-19)
+
+### participant-frontend
+- **16-point calibration grid.** Expanded from 9 (3×3) to 16 (4×4) points for denser IDW correction field.
+- **Stricter validation.** RMSE threshold lowered from 120px to 100px — poor calibrations prompt re-calibration.
+- **Micro-recalibration every 15s** (was 20s), weight increased to 0.85 (was 0.75) — drift corrected faster.
+- **I-DT tighter dispersion.** Fixation detection threshold lowered from 85px to 70px — more precise fixation centroids.
+- **Blink-to-open filter reset.** One-Euro filter resets on closed→open transition so post-blink frames aren't pulled toward drifted position.
+- **Hybrid lab gaze dot.** Live red dot on stimulus via direct DOM manipulation (no React re-render). Reads `gazePosRef` from blaze hook (frame-rate updates).
+
+### research-frontend
+- **ET coordinate coherence.** `HeatmapRenderer` gains `coordSystem` prop (`pixel`/`percent`/`normalized`) — ET fixations now correctly mapped as image pixels instead of auto-detected as percentage. `ScanpathOverlay` uses image `naturalWidth`/`naturalHeight` for viewBox. `FirstLookOverlay` also passes `coordSystem="pixel"`.
+- **CustomSelect scroll fix.** Dropdown no longer closes when scrolling inside its option list (`onWheel` stopPropagation + `data-custom-select-dropdown` scroll exclusion).
+- **ClientsPage.** Replaced empty scatter chart with real stacked bar chart (researches by month/status). Removed emoji icons, placeholder sections, and fake progress bars. Added client stats card.
+- **ResearchHistoryPage.** Replaced empty line chart with stacked bar chart. Added client stats with status counts and research type badges.
+
+---
+
+## v0.60.5 — Attention Prediction: synchronous predict, AOI persistence, settings cleanup (2026-04-19)
+
+Renumbered from v0.60.4.
+
+---
+
 ## v0.60.4 — Attention Prediction: synchronous predict, AOI persistence, settings cleanup (2026-04-17)
 
 ### backend
