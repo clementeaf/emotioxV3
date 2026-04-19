@@ -12,7 +12,7 @@ export interface HybridCalibrationResidual {
     readonly dy: number;
 }
 
-/** Mezcla 0..1 del campo sobre la mirada corregida. Higher = trust calibration more over raw model output. */
+/** Mezcla 0..1 del campo sobre la mirada corregida. BlazeGaze adapt() corrects partially; IDW complements. */
 export const HYBRID_CALIBRATION_FIELD_STRENGTH = 0.85;
 
 /**

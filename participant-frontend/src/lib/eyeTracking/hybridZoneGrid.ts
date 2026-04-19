@@ -79,15 +79,17 @@ export const HYBRID_ZONE_SAMPLE_MS = 36;
 export const HYBRID_FIXATION_DWELL_MS = 520;
 
 /**
- * Sixteen calibration points in a 4×4 grid (% of image).
- * Denser grid gives IDW more anchor points → better correction across the stimulus.
- * Order: row-major, top-left → bottom-right.
+ * 13 calibration points: outer ring (8) + inner ring (4) + center.
+ * Dense enough for good IDW correction, few enough to not fatigue the participant.
+ * Order: outer corners → outer midpoints → inner → center.
  */
 export const HYBRID_IMAGE_CALIBRATION_POINTS: readonly [number, number][] = [
-    [12, 12], [37, 12], [63, 12], [88, 12],
-    [12, 37], [37, 37], [63, 37], [88, 37],
-    [12, 63], [37, 63], [63, 63], [88, 63],
-    [12, 88], [37, 88], [63, 88], [88, 88],
+    [15, 15], [50, 12], [85, 15],
+    [12, 50],           [88, 50],
+    [15, 85], [50, 88], [85, 85],
+    [33, 33], [67, 33],
+    [33, 67], [67, 67],
+    [50, 50],
 ];
 
 /**
