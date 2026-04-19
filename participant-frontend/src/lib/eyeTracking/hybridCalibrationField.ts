@@ -85,7 +85,7 @@ export function hybridCalibrationRmsePx(samples: readonly HybridCalibrationResid
 // ── Micro-recalibration (drift correction during viewing) ───────────────
 
 /** Interval between micro-recalibration probes (ms). */
-export const MICRO_RECALIB_INTERVAL_MS = 20_000;
+export const MICRO_RECALIB_INTERVAL_MS = 15_000;
 
 /** Duration to display the micro-dot and sample gaze (ms). */
 export const MICRO_RECALIB_SAMPLE_DURATION_MS = 600;
@@ -97,7 +97,7 @@ export const MICRO_RECALIB_SAMPLE_COUNT = 8;
 export const MICRO_RECALIB_MAX_DRIFT_PX = 250;
 
 /** Weight of micro-recalibration residuals relative to initial calibration (0..1). */
-export const MICRO_RECALIB_WEIGHT = 0.75;
+export const MICRO_RECALIB_WEIGHT = 0.85;
 
 /**
  * Candidate positions for micro-recalibration dots (% of stimulus).

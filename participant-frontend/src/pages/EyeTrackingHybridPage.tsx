@@ -24,7 +24,7 @@ import {
     type HybridCalibrationResidual,
 } from '../lib/eyeTracking';
 
-/** One-Euro params for calmer gaze on hybrid lab page. */
+/** One-Euro params — adaptive layer on top of Kalman. */
 const HYBRID_ONE_EURO_MIN_CUTOFF = 0.8;
 const HYBRID_ONE_EURO_BETA = 0.005;
 
@@ -66,9 +66,15 @@ export function EyeTrackingHybridPage() {
         oneEuroMinCutoff: HYBRID_ONE_EURO_MIN_CUTOFF,
         oneEuroBeta: HYBRID_ONE_EURO_BETA,
     });
+    // blaze returns both state (isLoaded, gazeState) and refs (gazePosRef).
+    // Lint react-hooks/refs flags the whole object as ref access in render.
+    // isLoaded is useState, safe to read in render.
+    // eslint-disable-next-line react-hooks/refs
+    const blazeIsLoaded = blaze.isLoaded;
 
     useEffect(() => {
         blazeRef.current = blaze;
+    // eslint-disable-next-line react-hooks/refs -- blaze object contains both state and refs; storing in ref is intentional
     }, [blaze]);
 
     // Heatmap state (soft mass per zone, sum ≈ weighted sample count)
@@ -80,6 +86,8 @@ export function EyeTrackingHybridPage() {
     const [activeZone, setActiveZone] = useState<string | null>(null);
     /** Same cell held ~HYBRID_FIXATION_DWELL_MS — gold ring (independent of vote smoothing). */
     const [fixatedZone, setFixatedZone] = useState<string | null>(null);
+    /** Live gaze dot — DOM ref for direct manipulation (no React re-render). */
+    const gazeDotRef = useRef<HTMLDivElement>(null);
     const zoneVoteHistoryRef = useRef<(string | null)[]>([]);
     const lastStableZoneRef = useRef<string | null>(null);
     const dwellInstantRef = useRef<string | null>(null);
@@ -107,13 +115,8 @@ export function EyeTrackingHybridPage() {
         }
     }, []);
 
-    /** BlazeGaze EMA-smoothed coords — heatmap samples and live zone input. */
-    const gazePosRef = useRef<[number, number]>([0, 0]);
-    useEffect(() => {
-        if (blaze.gazePos) {
-            gazePosRef.current = [blaze.gazePos.x, blaze.gazePos.y];
-        }
-    }, [blaze.gazePos]);
+    /** Read gaze directly from blaze ref (updated every frame, no React render delay). */
+    const gazePosRef = blaze.gazePosRef;
 
     // --- Gaze collection during stimulus + real-time zone highlight (majority vote reduces flicker) ---
     useEffect(() => {
@@ -130,7 +133,9 @@ export function EyeTrackingHybridPage() {
         const fieldStrength = HYBRID_CALIBRATION_FIELD_STRENGTH;
         const loop = () => {
             const b = blazeRef.current;
-            const [gx, gy] = gazePosRef.current;
+            const gp = gazePosRef.current ?? { x: 0, y: 0 };
+            const gx = gp.x;
+            const gy = gp.y;
             const now = Date.now();
             const img = stimulusImgRef.current;
             const rect = img?.getBoundingClientRect();
@@ -144,6 +149,12 @@ export function EyeTrackingHybridPage() {
                 lastCollect = now;
             }
             if (img && rect) {
+                // Live gaze dot — direct DOM positioning (calibration-corrected)
+                if (gazeDotRef.current) {
+                    gazeDotRef.current.style.left = `${((cx - rect.left) / rect.width) * 100}%`;
+                    gazeDotRef.current.style.top = `${((cy - rect.top) / rect.height) * 100}%`;
+                    gazeDotRef.current.style.display = 'block';
+                }
                 const instant = hybridPointToZone(cx, cy, rect);
                 const hist = zoneVoteHistoryRef.current;
                 if (now - lastVoteAt >= voteMs) {
@@ -298,12 +309,12 @@ export function EyeTrackingHybridPage() {
         const vh = window.innerHeight;
         const targetX = rect.left + (ipx / 100) * rect.width;
         const targetY = rect.top + (ipy / 100) * rect.height;
-        const [gx, gy] = gazePosRef.current;
+        const gp = gazePosRef.current ?? { x: 0, y: 0 };
         calibrationResidualsRef.current.push({
             u: ipx / 100,
             v: ipy / 100,
-            dx: targetX - gx,
-            dy: targetY - gy,
+            dx: targetX - gp.x,
+            dy: targetY - gp.y,
         });
         const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
         blaze.calibrate(normX, normY);
@@ -351,15 +362,18 @@ export function EyeTrackingHybridPage() {
                                 ? 'Verás una instrucción, luego cuatro puntos de calibración (uno por cuadrante). El resultado es un mapa en 4 zonas con probabilidades aproximadas, no un punto exacto de mirada.'
                                 : 'Verás una instrucción y después una imagen. Toca las zonas que te llamen la atención. Los resultados son aproximados por cuadrante.'}
                         </p>
-                        {isDesktop && !blaze.isLoaded && (
+                        {/* eslint-disable-next-line react-hooks/refs -- blazeIsLoaded is useState, not a ref */}
+                        {isDesktop && !blazeIsLoaded && (
                             <p className="text-amber-600 text-xs mb-4">Cargando modelo de mirada...</p>
                         )}
                         <button
                             onClick={handleStart}
-                            disabled={isDesktop && !blaze.isLoaded}
+                            // eslint-disable-next-line react-hooks/refs -- blazeIsLoaded is useState
+                            disabled={isDesktop && !blazeIsLoaded}
                             className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition"
                         >
-                            {isDesktop && !blaze.isLoaded ? 'Cargando...' : 'Empezar'}
+                            {/* eslint-disable-next-line react-hooks/refs -- blazeIsLoaded is useState */}
+                            {isDesktop && !blazeIsLoaded ? 'Cargando...' : 'Empezar'}
                         </button>
                     </div>
                 </div>
@@ -400,18 +414,13 @@ export function EyeTrackingHybridPage() {
             {(phase === 'calibrating' || phase === 'stimulus') && isDesktop && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950">
                     {phase === 'stimulus' && (
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => finishStimulusRef.current()}
-                                className="absolute top-4 right-4 z-[60] rounded-full bg-white/10 hover:bg-white/20 px-5 py-2 text-sm font-medium text-white transition"
-                            >
-                                Detener
-                            </button>
-                            <p className="pointer-events-none absolute left-1/2 top-16 z-[60] max-w-xl -translate-x-1/2 px-4 text-center text-xs text-white/70">
-                                El cuadrante resaltado indica la zona donde cae tu mirada (estimación aproximada). El anillo dorado marca que el mismo cuadrante se mantiene unos instantes.
-                            </p>
-                        </>
+                        <button
+                            type="button"
+                            onClick={() => finishStimulusRef.current()}
+                            className="absolute top-4 right-4 z-[60] rounded-full bg-white/10 hover:bg-white/20 px-5 py-2 text-sm font-medium text-white transition"
+                        >
+                            Detener
+                        </button>
                     )}
 
                     {phase === 'calibrating' && (
@@ -464,6 +473,13 @@ export function EyeTrackingHybridPage() {
                             <div
                                 className="pointer-events-none absolute z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-400 shadow-lg shadow-green-400/50"
                                 style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
+                            />
+                        )}
+                        {phase === 'stimulus' && (
+                            <div
+                                ref={gazeDotRef}
+                                className="pointer-events-none absolute z-20 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500 shadow-lg shadow-red-500/60"
+                                style={{ display: 'none', opacity: 0.9 }}
                             />
                         )}
                     </div>

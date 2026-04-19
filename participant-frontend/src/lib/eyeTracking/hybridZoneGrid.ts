@@ -79,20 +79,15 @@ export const HYBRID_ZONE_SAMPLE_MS = 36;
 export const HYBRID_FIXATION_DWELL_MS = 520;
 
 /**
- * Nine calibration points in a 3×3 grid (% of image).
- * Covers corners, edge midpoints, and center for denser IDW residual field.
- * Order: top-left → top-center → top-right → mid-left → center → mid-right → bot-left → bot-center → bot-right.
+ * Sixteen calibration points in a 4×4 grid (% of image).
+ * Denser grid gives IDW more anchor points → better correction across the stimulus.
+ * Order: row-major, top-left → bottom-right.
  */
 export const HYBRID_IMAGE_CALIBRATION_POINTS: readonly [number, number][] = [
-    [15, 15],
-    [50, 15],
-    [85, 15],
-    [15, 50],
-    [50, 50],
-    [85, 50],
-    [15, 85],
-    [50, 85],
-    [85, 85],
+    [12, 12], [37, 12], [63, 12], [88, 12],
+    [12, 37], [37, 37], [63, 37], [88, 37],
+    [12, 63], [37, 63], [63, 63], [88, 63],
+    [12, 88], [37, 88], [63, 88], [88, 88],
 ];
 
 /**
@@ -102,7 +97,7 @@ export const HYBRID_IMAGE_CALIBRATION_POINTS: readonly [number, number][] = [
 export const HYBRID_VALIDATION_POINT: readonly [number, number] = [62, 38];
 
 /** RMSE threshold (viewport px) above which re-calibration is offered at validation point. */
-export const HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX = 120;
+export const HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX = 100;
 
 /**
  * Maps a point given as % of image box to BlazeGaze normalized coords (-0.5..0.5, center = screen center).

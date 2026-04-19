@@ -29,9 +29,9 @@ export type ETPhase = 'intro' | 'setup' | 'preparing' | 'calibration' | 'validat
 
 export const TOTAL_STEPS = 3;
 
-/** One-Euro params — responsive enough to avoid lag during calibration clicks. */
-export const EYE_TRACKING_ONE_EURO_MIN_CUTOFF = 2.0;
-export const EYE_TRACKING_ONE_EURO_BETA = 0.05;
+/** One-Euro params — adaptive layer on top of Kalman. Smooth at rest, responsive on saccade. */
+export const EYE_TRACKING_ONE_EURO_MIN_CUTOFF = 0.8;
+export const EYE_TRACKING_ONE_EURO_BETA = 0.005;
 
 export const HYBRID_CALIB_POINT_COUNT = HYBRID_IMAGE_CALIBRATION_POINTS.length;
 

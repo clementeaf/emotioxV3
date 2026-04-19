@@ -37,7 +37,7 @@ export interface DetectedFixation {
  * Webcam gaze has ~2-4° error; on a 1920px screen at 60cm that's ~60-120px.
  * We use a moderate value that tolerates webcam jitter but still separates distinct fixations.
  */
-export const IDT_DEFAULT_DISPERSION_THRESHOLD_PX = 85;
+export const IDT_DEFAULT_DISPERSION_THRESHOLD_PX = 70;
 
 /**
  * Minimum fixation duration (ms). Saccades are typically <80ms; micro-fixations

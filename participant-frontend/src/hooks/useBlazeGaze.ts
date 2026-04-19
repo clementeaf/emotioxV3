@@ -20,17 +20,18 @@ import { OneEuroFilter1D } from '../lib/eyeTracking';
 const MAX_POINTS = 100;
 const CLICK_TTL = 86400;
 
-/** Horizontal bias removed — IDW calibration field handles per-user correction. */
+/** Horizontal bias — IDW calibration field handles per-user correction. */
 const X_OFFSET = 0;
 
-/** Vertical scale removed — IDW calibration field handles per-user correction. */
+/** Vertical scale — IDW calibration field handles per-user correction. */
 const Y_NORM_SCALE = 1.0;
 
 // --- One-Euro Filter defaults (Casiez et al. 2012) tuned for webcam gaze ---
-/** Low minCutoff = very smooth during fixation (Hz). */
-const DEFAULT_ONE_EURO_MIN_CUTOFF = 1.5;
+// Kalman handles primary smoothing; One-Euro adds adaptive layer on top.
+/** Low minCutoff = smooth during fixation (Hz). */
+const DEFAULT_ONE_EURO_MIN_CUTOFF = 0.8;
 /** Beta controls lag reduction during saccades; higher = snappier transitions. */
-const DEFAULT_ONE_EURO_BETA = 0.007;
+const DEFAULT_ONE_EURO_BETA = 0.005;
 /** Derivative cutoff — smooths velocity estimate. */
 const DEFAULT_ONE_EURO_D_CUTOFF = 1.0;
 
@@ -144,10 +145,12 @@ export function useBlazeGaze(
         }
     }, [videoRef]);
 
-    /** Instant calibrate — stores click for lazy adaptation in tracking loop. */
+    /** Calibrate — calls adapt() explicitly with 'calib' ptType for stronger correction. */
     const calibrate = useCallback((normX: number, normY: number): void => {
         const tracker = trackerRef.current;
         if (!tracker) return;
+        // Use handleClick which internally calls adapt() with the latest gaze result.
+        // Clear latestMouseClick to bypass debounce.
         tracker.latestMouseClick = null;
         tracker.handleClick(normX, normY);
         setCalibrationCount(prev => prev + 1);
@@ -204,6 +207,14 @@ export function useBlazeGaze(
 
                 const sx = Math.max(0, Math.min(vw, screenX));
                 const sy = Math.max(0, Math.min(vh, screenY));
+
+                // Reset One-Euro filter on blink-to-open transition
+                // so first post-blink frame isn't pulled toward the drifted pre-blink position
+                const wasBlinking = lastEmittedGazeStateRef.current !== 'open';
+                if (wasBlinking) {
+                    filterXRef.current?.reset();
+                    filterYRef.current?.reset();
+                }
 
                 // One-Euro adaptive filter: smooth during fixation, responsive during saccade
                 const tSec = performance.now() / 1000;
