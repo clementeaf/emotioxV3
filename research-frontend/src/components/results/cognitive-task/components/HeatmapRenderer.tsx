@@ -72,6 +72,9 @@ const COLOR_LUT = buildColorLUT();
  * Each saliency value maps directly to a color via LUT — no Gaussian accumulation,
  * so distinct hotspot zones stay separated instead of merging into a single blob.
  */
+/** Reusable saliency offscreen canvas — module-level singleton to avoid per-render allocation. */
+let saliencyOffscreen: HTMLCanvasElement | null = null;
+
 const renderSaliencyMap = (
     ctx: CanvasRenderingContext2D,
     w: number,
@@ -82,12 +85,15 @@ const renderSaliencyMap = (
     opacityPercent?: number,
     coordSystem?: 'pixel' | 'percent' | 'normalized',
 ): void => {
-    // Create an offscreen canvas for the colormap
-    const offscreen = document.createElement('canvas');
-    offscreen.width = w;
-    offscreen.height = h;
-    const offCtx = offscreen.getContext('2d');
+    // Reuse offscreen canvas across renders
+    if (!saliencyOffscreen || saliencyOffscreen.width !== w || saliencyOffscreen.height !== h) {
+        saliencyOffscreen = document.createElement('canvas');
+        saliencyOffscreen.width = w;
+        saliencyOffscreen.height = h;
+    }
+    const offCtx = saliencyOffscreen.getContext('2d');
     if (!offCtx) return;
+    offCtx.clearRect(0, 0, w, h);
 
     const imageData = offCtx.createImageData(w, h);
     const pixels = imageData.data;
@@ -168,7 +174,7 @@ const renderSaliencyMap = (
     const blur = blurRadius != null ? Math.max(2, blurRadius) : defaultBlur;
     ctx.save();
     ctx.filter = `blur(${blur}px)`;
-    ctx.drawImage(offscreen, 0, 0);
+    ctx.drawImage(saliencyOffscreen!, 0, 0);
     ctx.restore();
 };
 
@@ -183,54 +189,61 @@ export const HeatmapRenderer = ({
     coordSystem,
 }: HeatmapRendererProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const imgRef = useRef<HTMLImageElement | null>(null);
+    const heatCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
 
+    // Single image load — cached in ref, cleaned up on URL change
     useEffect(() => {
         const img = new Image();
+        img.crossOrigin = 'anonymous';
         img.src = imageUrl;
         img.onload = () => {
             setNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
+            imgRef.current = img;
             setImageLoaded(true);
         };
+        return () => { img.onload = null; img.src = ''; imgRef.current = null; setImageLoaded(false); };
     }, [imageUrl]);
 
     useEffect(() => {
-        if (!imageLoaded || !canvasRef.current) return;
+        if (!imageLoaded || !canvasRef.current || !imgRef.current) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = imageUrl;
-        img.onload = () => {
-            const w = naturalSize.width;
-            const h = naturalSize.height;
-            canvas.width = w;
-            canvas.height = h;
+        const img = imgRef.current;
+        const w = naturalSize.width;
+        const h = naturalSize.height;
+        canvas.width = w;
+        canvas.height = h;
 
-            // 1. Draw background image
-            ctx.drawImage(img, 0, 0);
+        // 1. Draw background image
+        ctx.drawImage(img, 0, 0);
 
-            // 2. Dark overlay
-            const overlayOpacity = opacityProp != null ? opacityProp / 100 : 0.45;
-            ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
-            ctx.fillRect(0, 0, w, h);
+        // 2. Dark overlay
+        const overlayOpacity = opacityProp != null ? opacityProp / 100 : 0.45;
+        ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
+        ctx.fillRect(0, 0, w, h);
 
-            // 3. Detect data type
-            const isSaliency = data.length > 100 && data.some(p => p.value != null && p.value < 1);
+        // 3. Detect data type
+        const isSaliency = data.length > 100 && data.some(p => p.value != null && p.value < 1);
 
-            if (isSaliency) {
-                // Direct pixel-level colormap — OGAMA/OpenCV approach
-                const saliencyThreshold = thresholdProp != null ? thresholdProp / 100 : 0.4;
-                renderSaliencyMap(ctx, w, h, data, saliencyThreshold, blurProp, opacityProp, coordSystem);
-            } else {
-                // simpleheat for sparse click/fixation data
-                const heatCanvas = document.createElement('canvas');
-                heatCanvas.width = w;
-                heatCanvas.height = h;
+        if (isSaliency) {
+            const saliencyThreshold = thresholdProp != null ? thresholdProp / 100 : 0.4;
+            renderSaliencyMap(ctx, w, h, data, saliencyThreshold, blurProp, opacityProp, coordSystem);
+        } else {
+            // Reuse simpleheat canvas across renders
+            if (!heatCanvasRef.current || heatCanvasRef.current.width !== w || heatCanvasRef.current.height !== h) {
+                heatCanvasRef.current = document.createElement('canvas');
+                heatCanvasRef.current.width = w;
+                heatCanvasRef.current.height = h;
+            }
+            const heatCanvas = heatCanvasRef.current;
+            const heatCtx = heatCanvas.getContext('2d');
+            if (heatCtx) heatCtx.clearRect(0, 0, w, h);
 
                 const heat = simpleheat(heatCanvas);
 
@@ -276,9 +289,8 @@ export const HeatmapRenderer = ({
 
                 ctx.drawImage(heatCanvas, 0, 0);
             }
-        };
 
-    }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp]);
+    }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp, coordSystem]);
 
     if (!imageUrl) return <div className="bg-gray-200 h-64 flex items-center justify-center">No Image URL</div>;
 

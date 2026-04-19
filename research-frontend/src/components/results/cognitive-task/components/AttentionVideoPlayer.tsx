@@ -70,6 +70,9 @@ export const AttentionVideoPlayer = ({
     const [playing, setPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
     const bgImageRef = useRef<HTMLImageElement | null>(null);
+    // Reusable offscreen canvas + pixel buffer — avoids allocating per frame
+    const offscreenRef = useRef<HTMLCanvasElement | null>(null);
+    const pixelBufRef = useRef<ImageData | null>(null);
 
     // Sort data by value descending (highest saliency = first fixation)
     const sortedData = useRef<HeatmapPoint[]>([]);
@@ -79,7 +82,7 @@ export const AttentionVideoPlayer = ({
             .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
     }, [data]);
 
-    // Load image
+    // Load image (cleanup previous on URL change)
     useEffect(() => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
@@ -89,6 +92,7 @@ export const AttentionVideoPlayer = ({
             bgImageRef.current = img;
             setImageLoaded(true);
         };
+        return () => { img.onload = null; img.src = ''; bgImageRef.current = null; };
     }, [imageUrl]);
 
     // Render a single frame at given progress (0-1)
@@ -117,13 +121,22 @@ export const AttentionVideoPlayer = ({
         const visibleCount = Math.floor(t * points.length);
         if (visibleCount === 0) return;
 
-        const offscreen = document.createElement('canvas');
-        offscreen.width = w;
-        offscreen.height = h;
-        const offCtx = offscreen.getContext('2d');
+        // Reuse offscreen canvas and pixel buffer across frames
+        if (!offscreenRef.current || offscreenRef.current.width !== w || offscreenRef.current.height !== h) {
+            offscreenRef.current = document.createElement('canvas');
+            offscreenRef.current.width = w;
+            offscreenRef.current.height = h;
+            pixelBufRef.current = null;
+        }
+        const offCtx = offscreenRef.current.getContext('2d');
         if (!offCtx) return;
 
-        const imageData = offCtx.createImageData(w, h);
+        if (!pixelBufRef.current || pixelBufRef.current.width !== w || pixelBufRef.current.height !== h) {
+            pixelBufRef.current = offCtx.createImageData(w, h);
+        }
+        const imageData = pixelBufRef.current;
+        // Clear pixel buffer for this frame
+        imageData.data.fill(0);
         const pixels = imageData.data;
 
         const cellW = Math.ceil(w / 128);
@@ -177,7 +190,7 @@ export const AttentionVideoPlayer = ({
         const blur = Math.max(4, Math.round(Math.min(w, h) * 0.008));
         ctx.save();
         ctx.filter = `blur(${blur}px)`;
-        ctx.drawImage(offscreen, 0, 0);
+        ctx.drawImage(offscreenRef.current!, 0, 0);
         ctx.restore();
 
         // 4. Draw scanpath circle on the latest fixation point

@@ -24,11 +24,12 @@ export const ScanpathOverlay = ({
   const [selectedParticipant, setSelectedParticipant] = useState<string>('all');
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
 
-  // Load image natural dimensions for correct viewBox
+  // Load image natural dimensions for correct viewBox (cleanup on URL change)
   useEffect(() => {
     const img = new Image();
     img.src = imageUrl;
     img.onload = () => setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    return () => { img.onload = null; img.src = ''; };
   }, [imageUrl]);
 
   const participantIds = useMemo(() => {

@@ -12,6 +12,9 @@ export const TransparencyMap = ({
   const [blurAmount, setBlurAmount] = useState(20);
   const [revealRadius, setRevealRadius] = useState(40);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  // Reusable offscreen canvases — avoid allocating per render
+  const offscreenRef = useRef<HTMLCanvasElement | null>(null);
+  const maskRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const img = new window.Image();
@@ -21,6 +24,7 @@ export const TransparencyMap = ({
       renderTransparency(img);
     };
     img.src = imageUrl;
+    return () => { img.onload = null; img.src = ''; imgRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl]);
 
@@ -49,27 +53,30 @@ export const TransparencyMap = ({
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, w, h);
 
-    // Create reveal mask: draw sharp image, masked by fixation circles
-    const offscreen = document.createElement('canvas');
-    offscreen.width = w;
-    offscreen.height = h;
-    const offCtx = offscreen.getContext('2d');
+    // Reuse offscreen canvas for sharp image
+    if (!offscreenRef.current || offscreenRef.current.width !== w || offscreenRef.current.height !== h) {
+      offscreenRef.current = document.createElement('canvas');
+      offscreenRef.current.width = w;
+      offscreenRef.current.height = h;
+    }
+    const offCtx = offscreenRef.current.getContext('2d');
     if (!offCtx) return;
-
-    // Draw sharp image
+    offCtx.clearRect(0, 0, w, h);
     offCtx.drawImage(img, 0, 0, w, h);
 
-    // Create circular mask
-    const mask = document.createElement('canvas');
-    mask.width = w;
-    mask.height = h;
-    const maskCtx = mask.getContext('2d');
+    // Reuse mask canvas
+    if (!maskRef.current || maskRef.current.width !== w || maskRef.current.height !== h) {
+      maskRef.current = document.createElement('canvas');
+      maskRef.current.width = w;
+      maskRef.current.height = h;
+    }
+    const maskCtx = maskRef.current.getContext('2d');
     if (!maskCtx) return;
+    maskCtx.clearRect(0, 0, w, h);
 
     const maxDur = Math.max(...fixations.map(f => f.duration), 1);
 
     for (const fix of fixations) {
-      // Radius proportional to duration
       const baseR = (revealRadius / 100) * Math.min(w, h) * 0.1;
       const durScale = 0.5 + (fix.duration / maxDur) * 0.5;
       const r = baseR * durScale;
@@ -84,10 +91,11 @@ export const TransparencyMap = ({
 
     // Apply mask to sharp image
     offCtx.globalCompositeOperation = 'destination-in';
-    offCtx.drawImage(mask, 0, 0);
+    offCtx.drawImage(maskRef.current, 0, 0);
+    offCtx.globalCompositeOperation = 'source-over';
 
     // Composite revealed areas onto blurred base
-    ctx.drawImage(offscreen, 0, 0);
+    ctx.drawImage(offscreenRef.current, 0, 0);
   }, [fixations, blurAmount, revealRadius]);
 
   return (
