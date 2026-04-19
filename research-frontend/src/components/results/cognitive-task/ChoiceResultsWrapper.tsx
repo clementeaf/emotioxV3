@@ -25,7 +25,11 @@ export const ChoiceResultsWrapper = ({
         ? (() => {
             const filtered = rawData.responses.filter(r => filteredParticipantIds.has(r.participantId));
             const counts: Record<string, number> = {};
-            filtered.forEach(r => { counts[r.choice] = (counts[r.choice] || 0) + 1; });
+            // Backend returns `choices` (array), frontend type says `choice` (string) — handle both
+            filtered.forEach(r => {
+                const choices = (r as unknown as { choices?: string[] }).choices ?? [r.choice];
+                choices.forEach(c => { if (c) counts[c] = (counts[c] || 0) + 1; });
+            });
             return {
                 ...rawData,
                 totalResponses: filtered.length,
