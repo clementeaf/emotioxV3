@@ -47,16 +47,19 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
   // Filter stimulus data by participant IDs
   const filteredStimuli = useMemo(() => {
     if (!data?.stimuli || !filteredParticipantIds) return data?.stimuli ?? [];
-    return data.stimuli.map(stimulus => ({
-      ...stimulus,
-      fixations: stimulus.fixations.filter(f => filteredParticipantIds.has(f.participantId)),
-      participants: stimulus.participants.filter(p => filteredParticipantIds.has(p.participantId)),
-      uniqueParticipants: stimulus.participants.filter(p => filteredParticipantIds.has(p.participantId)).length,
-      emotions: {
-        ...stimulus.emotions,
-        perParticipant: stimulus.emotions.perParticipant.filter(p => filteredParticipantIds.has(p.participantId)),
-      },
-    }));
+    return data.stimuli.map(stimulus => {
+      const filteredParticipants = stimulus.participants.filter(p => filteredParticipantIds.has(p.participantId));
+      return {
+        ...stimulus,
+        fixations: stimulus.fixations.filter(f => filteredParticipantIds.has(f.participantId)),
+        participants: filteredParticipants,
+        uniqueParticipants: filteredParticipants.length,
+        emotions: {
+          ...stimulus.emotions,
+          perParticipant: stimulus.emotions.perParticipant.filter(p => filteredParticipantIds.has(p.participantId)),
+        },
+      };
+    });
   }, [data?.stimuli, filteredParticipantIds]);
 
   const loadingSkeleton = (
