@@ -12,9 +12,12 @@ export const TransparencyMap = ({
   const [blurAmount, setBlurAmount] = useState(20);
   const [revealRadius, setRevealRadius] = useState(40);
   const imgRef = useRef<HTMLImageElement | null>(null);
-  // Reusable offscreen canvases — avoid allocating per render
+  // Reusable offscreen canvases
   const offscreenRef = useRef<HTMLCanvasElement | null>(null);
   const maskRef = useRef<HTMLCanvasElement | null>(null);
+  // Cache mask when only blur changes (gradients only depend on fixations + revealRadius)
+  const cachedMaskKey = useRef('');
+  const renderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const img = new window.Image();
@@ -28,8 +31,13 @@ export const TransparencyMap = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl]);
 
+  // Debounce slider changes to avoid re-rendering every pixel drag
   useEffect(() => {
-    if (imgRef.current) renderTransparency(imgRef.current);
+    if (!imgRef.current) return;
+    const img = imgRef.current;
+    if (renderTimerRef.current) clearTimeout(renderTimerRef.current);
+    renderTimerRef.current = setTimeout(() => renderTransparency(img), 80);
+    return () => { if (renderTimerRef.current) clearTimeout(renderTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixations, blurAmount, revealRadius]);
 
@@ -64,29 +72,33 @@ export const TransparencyMap = ({
     offCtx.clearRect(0, 0, w, h);
     offCtx.drawImage(img, 0, 0, w, h);
 
-    // Reuse mask canvas
+    // Only rebuild mask when fixations or revealRadius change (not blur)
+    const maskKey = `${fixations.length}-${revealRadius}`;
     if (!maskRef.current || maskRef.current.width !== w || maskRef.current.height !== h) {
       maskRef.current = document.createElement('canvas');
       maskRef.current.width = w;
       maskRef.current.height = h;
+      cachedMaskKey.current = '';
     }
-    const maskCtx = maskRef.current.getContext('2d');
-    if (!maskCtx) return;
-    maskCtx.clearRect(0, 0, w, h);
+    if (cachedMaskKey.current !== maskKey) {
+      cachedMaskKey.current = maskKey;
+      const maskCtx = maskRef.current.getContext('2d');
+      if (!maskCtx) return;
+      maskCtx.clearRect(0, 0, w, h);
 
-    const maxDur = Math.max(...fixations.map(f => f.duration), 1);
+      const maxDur = Math.max(...fixations.map(f => f.duration), 1);
+      for (const fix of fixations) {
+        const baseR = (revealRadius / 100) * Math.min(w, h) * 0.1;
+        const durScale = 0.5 + (fix.duration / maxDur) * 0.5;
+        const r = baseR * durScale;
 
-    for (const fix of fixations) {
-      const baseR = (revealRadius / 100) * Math.min(w, h) * 0.1;
-      const durScale = 0.5 + (fix.duration / maxDur) * 0.5;
-      const r = baseR * durScale;
-
-      const gradient = maskCtx.createRadialGradient(fix.x, fix.y, 0, fix.x, fix.y, r);
-      gradient.addColorStop(0, 'rgba(255,255,255,1)');
-      gradient.addColorStop(0.7, 'rgba(255,255,255,0.6)');
-      gradient.addColorStop(1, 'rgba(255,255,255,0)');
-      maskCtx.fillStyle = gradient;
-      maskCtx.fillRect(fix.x - r, fix.y - r, r * 2, r * 2);
+        const gradient = maskCtx.createRadialGradient(fix.x, fix.y, 0, fix.x, fix.y, r);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(0.7, 'rgba(255,255,255,0.6)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        maskCtx.fillStyle = gradient;
+        maskCtx.fillRect(fix.x - r, fix.y - r, r * 2, r * 2);
+      }
     }
 
     // Apply mask to sharp image

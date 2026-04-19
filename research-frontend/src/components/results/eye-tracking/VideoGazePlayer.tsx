@@ -11,34 +11,88 @@ export const VideoGazePlayer = ({
   const videoPlayerRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentGazePoints, setCurrentGazePoints] = useState<Array<{ x: number; y: number }>>([]);
+  const rafRef = useRef(0);
+  const lastUpdateRef = useRef(0);
+
+  // Pre-sort timeline by videoTime for faster filtering
+  const sortedTimeline = useRef(gazeTimeline);
+  useEffect(() => {
+    sortedTimeline.current = [...gazeTimeline]
+      .filter(p => p.videoTime != null)
+      .sort((a, b) => (a.videoTime ?? 0) - (b.videoTime ?? 0));
+  }, [gazeTimeline]);
 
   useEffect(() => {
     const video = videoPlayerRef.current;
     if (!video) return;
 
-    const onTimeUpdate = () => {
+    const updateGaze = () => {
+      if (!video || video.paused) { rafRef.current = 0; return; }
+
+      const now = performance.now();
+      // Throttle to ~15fps (67ms) — sufficient for gaze overlay, saves CPU
+      if (now - lastUpdateRef.current < 67) {
+        rafRef.current = requestAnimationFrame(updateGaze);
+        return;
+      }
+      lastUpdateRef.current = now;
+
       const vt = video.currentTime;
-      // Show gaze points within ±0.25s of current video time
       const windowMs = 0.25;
-      const visible = gazeTimeline
-        .filter(p => p.videoTime != null && Math.abs(p.videoTime - vt) < windowMs)
-        .map(p => {
-          // Convert viewport coords to percentage of video
-          const rect = video.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) return null;
-          return {
-            x: ((p.x - rect.left) / rect.width) * 100,
-            y: ((p.y - rect.top) / rect.height) * 100,
-          };
-        })
-        .filter((p): p is { x: number; y: number } => p !== null && p.x >= 0 && p.x <= 100 && p.y >= 0 && p.y <= 100);
+      const rect = video.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        rafRef.current = requestAnimationFrame(updateGaze);
+        return;
+      }
+
+      // Binary search for window start in sorted timeline
+      const timeline = sortedTimeline.current;
+      let lo = 0;
+      let hi = timeline.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if ((timeline[mid].videoTime ?? 0) < vt - windowMs) lo = mid + 1;
+        else hi = mid;
+      }
+
+      const visible: Array<{ x: number; y: number }> = [];
+      for (let i = lo; i < timeline.length; i++) {
+        const pvt = timeline[i].videoTime ?? 0;
+        if (pvt > vt + windowMs) break;
+        const x = ((timeline[i].x - rect.left) / rect.width) * 100;
+        const y = ((timeline[i].y - rect.top) / rect.height) * 100;
+        if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+          visible.push({ x, y });
+        }
+      }
 
       setCurrentGazePoints(visible);
+      rafRef.current = requestAnimationFrame(updateGaze);
     };
 
-    video.addEventListener('timeupdate', onTimeUpdate);
-    return () => video.removeEventListener('timeupdate', onTimeUpdate);
-  }, [gazeTimeline]);
+    const onPlay = () => {
+      if (!rafRef.current) rafRef.current = requestAnimationFrame(updateGaze);
+    };
+    const onPause = () => {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
+    };
+    // Also handle seeking while paused
+    const onSeeked = () => {
+      if (video.paused) updateGaze();
+    };
+
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+    video.addEventListener('seeked', onSeeked);
+
+    return () => {
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+      video.removeEventListener('seeked', onSeeked);
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- updateGaze is stable within this effect
+  }, []);
 
   return (
     <div>
