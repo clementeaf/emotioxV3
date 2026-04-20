@@ -1,3 +1,13 @@
+## v0.60.7 — Fix choice results bars empty when completion filter active (2026-04-20)
+
+### backend
+- **`rawKey` in choice counts.** `getChoiceResponses` now includes `rawKey` (the raw option ID) alongside the display label in each `choiceCounts` entry. Enables frontend to correctly match filtered responses to their choice labels.
+
+### research-frontend
+- **Choice bar fix.** `ChoiceResultsWrapper` filter recalculation now uses `rawKey` to look up counts instead of the display label. Previously, responses stored option IDs (`"choice-1"`) but the lookup used labels (`"Muy satisfecho"`), causing all bars to render at 0% when any filter was active.
+
+---
+
 ## v0.60.6 — Eye tracking calibration improvements, results coordinate fix (2026-04-19)
 
 ### participant-frontend

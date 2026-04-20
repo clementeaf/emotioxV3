@@ -186,6 +186,7 @@ export interface ChoiceResponses {
     questionText?: string;
     choiceCounts: Array<{
         choice: string;
+        rawKey?: string;
         count: number;
         percentage: number;
     }>;

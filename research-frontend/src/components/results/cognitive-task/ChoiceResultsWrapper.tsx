@@ -25,18 +25,19 @@ export const ChoiceResultsWrapper = ({
         ? (() => {
             const filtered = rawData.responses.filter(r => filteredParticipantIds.has(r.participantId));
             const counts: Record<string, number> = {};
-            // Backend returns `choices` (array), frontend type says `choice` (string) — handle both
             filtered.forEach(r => {
                 const choices = (r as unknown as { choices?: string[] }).choices ?? [r.choice];
                 choices.forEach(c => { if (c) counts[c] = (counts[c] || 0) + 1; });
             });
+            const totalFiltered = filtered.length;
             return {
                 ...rawData,
-                totalResponses: filtered.length,
+                totalResponses: totalFiltered,
                 responses: filtered,
                 choiceCounts: rawData.choiceCounts.map(cc => {
-                    const count = counts[cc.choice] || 0;
-                    return { ...cc, count, percentage: filtered.length > 0 ? (count / filtered.length) * 100 : 0 };
+                    const key = cc.rawKey || cc.choice;
+                    const count = counts[key] || 0;
+                    return { ...cc, count, percentage: totalFiltered > 0 ? (count / totalFiltered) * 100 : 0 };
                 }),
             };
         })()

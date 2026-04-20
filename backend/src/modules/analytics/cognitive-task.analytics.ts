@@ -361,6 +361,7 @@ export const getChoiceResponses = async (researchId: string, moduleId: string) =
     questionText,
     choiceCounts: Array.from(allChoiceIds).map(choiceId => ({
       choice: choiceLabels[choiceId] || choiceId,
+      rawKey: choiceId,
       count: choiceCounts[choiceId] || 0,
       percentage: responses.length > 0 ? ((choiceCounts[choiceId] || 0) / responses.length) * 100 : 0,
     })),
