@@ -1,8 +1,10 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Upload } from 'lucide-react';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { mediaService } from '../../services/media.service';
+import { parseDocument } from '../../utils/documentParser';
 import { cn } from '../../lib/utils';
 
 interface InsightsAnalysis {
@@ -99,6 +101,43 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
         }
     }, [files, research.id, research.settings, queryClient]);
 
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileUpload = useCallback(async (selectedFiles: FileList | null) => {
+        if (!selectedFiles || selectedFiles.length === 0) return;
+        const MAX_ENTRIES = 200;
+        const MAX_TEXT_LENGTH = 500;
+        setIsUploading(true);
+        try {
+            const newFiles: FileItem[] = [];
+            for (const file of Array.from(selectedFiles)) {
+                // Upload media
+                const { mediaId } = await mediaService.uploadFile(research.id, file);
+                // Parse client-side
+                const texts = await parseDocument(file);
+                const totalCount = texts.length;
+                const capped = texts.slice(0, MAX_ENTRIES);
+                const entries = capped.map(text => ({
+                    text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text,
+                    mood: 'indeterminate',
+                }));
+                newFiles.push({ mediaId, name: file.name, entries, totalCount, processedAt: new Date().toISOString() });
+            }
+            const existingIds = new Set(files.map(f => f.mediaId));
+            const merged = [...files, ...newFiles.filter(f => !existingIds.has(f.mediaId))];
+            await researchService.update(research.id, {
+                settings: { ...(research.settings as Record<string, unknown> || {}), stimuli: merged },
+            });
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } catch (err) {
+            console.error('[InsightsFinding] File upload failed:', err);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    }, [files, research.id, research.settings, queryClient]);
+
     const handleSelectAll = () => {
         const entries = activeFile?.entries || [];
         setSelectedComments(prev => prev.length === entries.length ? [] : entries.map((_, i) => i));
@@ -107,7 +146,20 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
     if (!activeFile) {
         return (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                <p className="text-sm">No files uploaded. Upload documents when creating the research.</p>
+                <Upload className="w-10 h-10 mb-3 text-gray-300" />
+                <p className="text-sm mb-3">No files uploaded yet.</p>
+                <label className="cursor-pointer px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+                    Upload documents
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept=".csv,.txt,.xlsx,.xls,.docx,.pdf"
+                        className="hidden"
+                        onChange={e => void handleFileUpload(e.target.files)}
+                    />
+                </label>
+                <p className="text-xs text-gray-400 mt-2">CSV, TXT, XLSX, DOCX, PDF</p>
             </div>
         );
     }
@@ -120,17 +172,35 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
             {/* Header */}
             <div className="flex items-start justify-between">
                 <h3 className="text-base font-semibold text-gray-900">Insights finding research</h3>
-                <button
-                    type="button"
-                    onClick={() => void handleDelete(activeFile.mediaId)}
-                    disabled={isDeletingId === activeFile.mediaId}
-                    className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                    title="Remove file"
-                >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                </button>
+                <div className="flex items-center gap-2">
+                    <label className={cn(
+                        'cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                        isUploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                    )}>
+                        <Upload className="w-3.5 h-3.5" />
+                        {isUploading ? 'Uploading...' : 'Add files'}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept=".csv,.txt,.xlsx,.xls,.docx,.pdf"
+                            className="hidden"
+                            disabled={isUploading}
+                            onChange={e => void handleFileUpload(e.target.files)}
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => void handleDelete(activeFile.mediaId)}
+                        disabled={isDeletingId === activeFile.mediaId}
+                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                        title="Remove file"
+                    >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             {hasEntries ? (

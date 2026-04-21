@@ -1,3 +1,15 @@
+## v0.61.1 — Phase 3 polish: Insights upload in view, benchmark editor, CSV export, configurable LLM (2026-04-21)
+
+### backend
+- **Configurable LLM model.** `OPENAI_MODEL` env var controls which model is used for text analysis (default `gpt-4o`).
+
+### research-frontend
+- **Insights Finding upload in view.** File upload button ("Add files") in `InsightsFindingView` header. Empty state shows upload CTA. Uses `documentParser` for client-side CSV/TXT/XLSX/DOCX/PDF parsing + `mediaService.uploadFile()`. Auto-triggers LLM analysis.
+- **Benchmark research selector.** "Edit selection" button in `ClientsBenchmarkView` opens inline editor with checkboxes for all researches with Eye Tracking. Add/remove researches live — comparative table refreshes immediately.
+- **Benchmark CSV export.** "Export CSV" button on comparative table downloads Research/Module/AOI/Attention/Fixations/Participants.
+
+---
+
 ## v0.61.0 — Phase 3 analytics: LLM text analysis, ET heatmap settings, video prediction, sentiment filter (2026-04-21)
 
 ### backend

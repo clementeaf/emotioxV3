@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, Users, Crosshair, Loader2, BarChart3 } from 'lucide-react';
-import { type Research } from '../../services/research.service';
+import { Eye, Users, Crosshair, Loader2, BarChart3, Settings2, X } from 'lucide-react';
+import { type Research, researchService } from '../../services/research.service';
 import * as analyticsService from '../../services/analytics.service';
 import type { BenchmarkResults, BenchmarkResearchResult, BenchmarkAOI } from '../../services/analytics.service';
+import { cn } from '../../lib/utils';
 
 interface ClientsBenchmarkViewProps {
     research: Research;
@@ -38,6 +39,59 @@ export const ClientsBenchmarkView = ({ research, stimulusId }: ClientsBenchmarkV
     }, [research.id]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    // --- Edit selection ---
+    const [showEditor, setShowEditor] = useState(false);
+    const [availableResearches, setAvailableResearches] = useState<Array<{ id: string; name: string }>>([]);
+    const [loadingAvailable, setLoadingAvailable] = useState(false);
+    const [savingSelection, setSavingSelection] = useState(false);
+
+    // Current selected IDs from research config
+    const selectedIds = (() => {
+        const settings = (research.settings as { stimuli?: Array<{ researchId?: string }> }) || {};
+        return new Set((settings.stimuli || []).map(s => s.researchId).filter(Boolean) as string[]);
+    })();
+
+    const openEditor = useCallback(async () => {
+        setShowEditor(true);
+        setLoadingAvailable(true);
+        try {
+            const response = await researchService.list();
+            const researches = response.researches || [];
+            const withET = researches.filter((r: Research) => {
+                if (!r.stages) return false;
+                return r.stages.some(s =>
+                    s.name.toLowerCase() === 'eye tracking' && (s.modules?.length ?? 0) > 0
+                );
+            }).map((r: Research) => ({ id: r.id, name: r.name }));
+            setAvailableResearches(withET);
+        } catch {
+            setAvailableResearches([]);
+        } finally {
+            setLoadingAvailable(false);
+        }
+    }, []);
+
+    const toggleResearch = useCallback(async (researchIdToToggle: string) => {
+        setSavingSelection(true);
+        try {
+            const settings = (research.settings as Record<string, unknown>) || {};
+            const stimuli = ((settings.stimuli || []) as Array<{ researchId: string; name?: string }>);
+            const exists = stimuli.some(s => s.researchId === researchIdToToggle);
+            const updated = exists
+                ? stimuli.filter(s => s.researchId !== researchIdToToggle)
+                : [...stimuli, { researchId: researchIdToToggle, name: availableResearches.find(r => r.id === researchIdToToggle)?.name || '' }];
+            await researchService.update(research.id, {
+                settings: { ...settings, stimuli: updated },
+            });
+            // Refresh
+            await fetchData();
+        } catch {
+            // Best effort
+        } finally {
+            setSavingSelection(false);
+        }
+    }, [research.id, research.settings, availableResearches, fetchData]);
 
     // Find the selected research to highlight
     const selectedResearch = data?.researches.find(r => r.researchId === stimulusId);
@@ -87,12 +141,67 @@ export const ClientsBenchmarkView = ({ research, stimulusId }: ClientsBenchmarkV
     return (
         <div className="space-y-8">
             {/* Header */}
-            <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Client's Benchmark</h2>
-                <p className="text-sm text-gray-500">
-                    Comparing Eye Tracking metrics across {data.researches.length} research{data.researches.length !== 1 ? 'es' : ''}
-                </p>
+            <div className="flex items-start justify-between">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-1">Client's Benchmark</h2>
+                    <p className="text-sm text-gray-500">
+                        Comparing Eye Tracking metrics across {data.researches.length} research{data.researches.length !== 1 ? 'es' : ''}
+                    </p>
+                </div>
+                <button
+                    onClick={openEditor}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                    <Settings2 className="h-4 w-4" />
+                    Edit selection
+                </button>
             </div>
+
+            {/* Research selector editor */}
+            {showEditor && (
+                <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900">Select researches to compare</h3>
+                        <button onClick={() => setShowEditor(false)} className="p-1 text-gray-400 hover:text-gray-600">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    {loadingAvailable ? (
+                        <div className="flex items-center gap-2 py-4 text-gray-400">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-sm">Loading researches with Eye Tracking...</span>
+                        </div>
+                    ) : availableResearches.length === 0 ? (
+                        <p className="text-sm text-gray-400 py-4">No researches with Eye Tracking found.</p>
+                    ) : (
+                        <div className="max-h-60 overflow-y-auto space-y-1">
+                            {availableResearches.map(r => {
+                                const isChecked = selectedIds.has(r.id);
+                                return (
+                                    <label
+                                        key={r.id}
+                                        className={cn(
+                                            'flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors',
+                                            isChecked ? 'bg-blue-50' : 'hover:bg-gray-50',
+                                            savingSelection && 'opacity-50 pointer-events-none'
+                                        )}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => void toggleResearch(r.id)}
+                                            disabled={savingSelection}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700">{r.name}</span>
+                                        {isChecked && <span className="text-xs text-blue-600 ml-auto">included</span>}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Overview cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -146,11 +255,46 @@ export const ClientsBenchmarkView = ({ research, stimulusId }: ClientsBenchmarkV
 
             {/* Comparative table: all researches side by side */}
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <div className="p-5 border-b border-gray-100">
-                    <h3 className="text-lg font-semibold text-gray-900">Comparative View</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                        % Attention (dwell time) and fixation count per AOI across all researches
-                    </p>
+                <div className="p-5 border-b border-gray-100 flex items-start justify-between">
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Comparative View</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                            % Attention (dwell time) and fixation count per AOI across all researches
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => {
+                            const header = ['Research', 'Module', 'AOI', '% Attention', 'Fixations', 'Participants'];
+                            const rows: string[] = [];
+                            for (const r of data.researches) {
+                                for (const mod of r.modules) {
+                                    if (mod.aois.length === 0) {
+                                        rows.push([r.researchName, mod.moduleName, '', '', '', ''].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+                                    } else {
+                                        for (const aoi of mod.aois) {
+                                            rows.push([r.researchName, mod.moduleName, aoi.label || `AOI ${aoi.id}`, aoi.dwellTimePercent, aoi.fixationCount, aoi.participantCount].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+                                        }
+                                    }
+                                }
+                            }
+                            const csv = [header.join(','), ...rows].join('\n');
+                            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `benchmark-${research.id}.csv`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(url), 200);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Export CSV
+                    </button>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">

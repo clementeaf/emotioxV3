@@ -10,6 +10,9 @@ const client = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY || '',
 });
 
+/** Model configurable via env: OPENAI_MODEL (default gpt-4o) */
+const LLM_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+
 export interface InsightsAnalysis {
     sentiment: {
         summary: string;
@@ -78,7 +81,7 @@ Rules:
         console.log(`[Insights] Calling OpenAI for file "${fileName}" with ${entries.length} entries...`);
 
         const response = await client.chat.completions.create({
-            model: 'gpt-4o',
+            model: LLM_MODEL,
             max_tokens: 2000,
             response_format: { type: 'json_object' },
             messages: [

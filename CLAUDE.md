@@ -103,6 +103,10 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Video prediction**: `AttentionPredictionView` accepts video (mp4/webm/mov). Client-side frame extraction (`extractVideoFrames.ts`), sequential upload + TranSalNet per frame. Stored in `stimulus.frames[]`. `VideoFrameScrubber` in AttentionPredictionCard shows side-by-side original/heatmap with frame scrubber.
 - **ET heatmap settings**: `HeatmapSettingsModal` (shared) with presets Smooth/Balanced/Detailed + blur/opacity/threshold sliders. Used in `StimulusCard` (ET results) and `AttentionPredictionCard`.
 - **IAT validation bypass**: IAT modules skip generic required-field validation in participant flow — structure components are researcher config, not participant input. `validation.ts` returns `isValid: true` for IAT modules.
+- **Insights Finding upload in view**: `InsightsFindingView` has "Add files" button + empty-state CTA. Uses `documentParser.ts` (client-side) + `mediaService.uploadFile()`. Auto-triggers LLM on upload.
+- **Benchmark research editor**: `ClientsBenchmarkView` has "Edit selection" panel — checkboxes for all ET researches. Saves to `config.stimuli[].researchId`. Live refresh.
+- **Benchmark CSV export**: "Export CSV" button on comparative table.
+- **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.
 
 ## Key Files
 ### Backend
