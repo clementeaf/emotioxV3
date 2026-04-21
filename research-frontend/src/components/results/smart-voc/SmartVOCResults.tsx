@@ -94,6 +94,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
   const [userIdFilter, setUserIdFilter] = useState('');
   const [completionMin, setCompletionMin] = useState(0);
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
+  const [sentimentFilter, setSentimentFilter] = useState<string[]>([]);
 
   useEffect(() => {
     if (!researchId) return;
@@ -291,11 +292,13 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       csatValues, cesValues, cvValues, npsValues,
       promoters, neutrals, detractors, npsScore, cpvValue,
       emotionalStates,
-      vocComments: vocFiltered.map(v => ({ text: v.text, mood: v.sentiment || 'indeterminate' })),
+      vocComments: vocFiltered
+        .map(v => ({ text: v.text, mood: v.sentiment || 'indeterminate' }))
+        .filter(c => sentimentFilter.length === 0 || sentimentFilter.includes(c.mood)),
       vocExportRows: vocFiltered.map(v => ({ participantId: v.participantId ?? '', text: v.text, mood: v.sentiment })),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- filterByParticipant depends on filteredParticipantIds
-  }, [data, timeRange, filteredParticipantIds]);
+  }, [data, timeRange, filteredParticipantIds, sentimentFilter]);
 
   // CES scale config from backend (supports 1-5, 1-7, 1-10)
   const cesMax = data?.scaleConfigs?.ces?.max ?? 5;
@@ -524,6 +527,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         comments={filtered?.vocComments || []}
         researchId={researchId}
         cognitiveExportRows={filtered?.vocExportRows}
+        moduleId="voc"
       />
     );
   }
@@ -614,6 +618,8 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
             onUserIdFilterChange={setUserIdFilter}
             completionMin={completionMin}
             onCompletionMinChange={setCompletionMin}
+            sentimentFilter={sentimentFilter}
+            onSentimentFilterChange={setSentimentFilter}
           />
         </div>
       </div>

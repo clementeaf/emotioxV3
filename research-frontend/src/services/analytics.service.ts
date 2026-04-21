@@ -610,3 +610,39 @@ export const getSmartVOCResults = async (researchId: string): Promise<SmartVOCRe
     );
     return response.results;
 };
+
+// ==========================================
+// TEXT ANALYSIS (LLM themes/keywords)
+// ==========================================
+
+export interface TextAnalysis {
+    sentiment: {
+        summary: string;
+        description: string;
+        actionables: string[];
+    };
+    themes: Array<{ name: string; count: number; description: string; magnitude: number; sentimentScore: number }>;
+    keywords: Array<{ word: string; count: number; sentiment: string }>;
+}
+
+/** Fetch cached LLM analysis for a module (or "voc" for all VOC responses). */
+export const getTextAnalysis = async (
+    researchId: string,
+    moduleId: string,
+): Promise<TextAnalysis | null> => {
+    const response = await apiClient.get<{ analysis: TextAnalysis | null }>(
+        `/analytics/research/${researchId}/text-analysis/${moduleId}`
+    );
+    return response.analysis;
+};
+
+/** Trigger LLM analysis (fire-and-forget, returns 202). */
+export const triggerTextAnalysis = async (
+    researchId: string,
+    moduleId: string,
+): Promise<void> => {
+    await apiClient.post(
+        `/analytics/research/${researchId}/text-analysis/${moduleId}`,
+        {}
+    );
+};

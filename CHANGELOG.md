@@ -1,3 +1,20 @@
+## v0.61.0 — Phase 3 analytics: LLM text analysis, ET heatmap settings, video prediction, sentiment filter (2026-04-21)
+
+### backend
+- **Text analysis service.** New `POST/GET /analytics/research/:id/text-analysis/:moduleId` endpoints. Reuses GPT-4o pipeline from Insights Finding to generate themes, keywords, and sentiment summaries for any text responses (VOC, Short/Long Text). Results cached in `research.config.textAnalysis.<moduleId>`. Fire-and-forget with polling.
+
+### research-frontend
+- **VOCComments themes & keywords.** Replaced placeholder tabs with real content: theme cards with magnitude bars and sentiment badges, keyword tag cloud with frequency table. "Analyze with AI" button triggers LLM analysis; cached results load on mount. Applied to SmartVOC VOC and Cognitive Short/Long Text.
+- **ET heatmap settings modal.** New `HeatmapSettingsModal` with detail presets (Smooth/Balanced/Detailed), blur/opacity/threshold sliders, and live preview. Gear button in `StimulusCard` when heatmap tab is active.
+- **Video prediction.** `AttentionPredictionView` now accepts video uploads (mp4/webm/mov). Client-side frame extraction via `<video>` + `<canvas>`, sequential upload and TranSalNet prediction per frame. `VideoFrameScrubber` shows side-by-side original/heatmap with frame scrubber synced to video timestamp.
+- **Sentiment filter.** New checkbox group (Positive/Negative/Neutral/Indeterminate) in Filters sidebar. Applied to SmartVOC VOC comments and Cognitive text responses.
+- **`mediaService.uploadFile()`.** Convenience method for programmatic file uploads (presigned URL → PUT → save metadata).
+
+### participant-frontend
+- **Fix: IAT modules stuck after completion.** IAT structure components (`target-*-name`, `criteria`) are researcher config with `required: true`, but participants only save `iat-trials`. Validation now bypasses generic required-field check for IAT modules, allowing auto-advance after completion.
+
+---
+
 ## v0.60.7 — Fix choice results bars empty when completion filter active (2026-04-20)
 
 ### backend

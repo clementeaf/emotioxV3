@@ -51,6 +51,12 @@ const DEFAULT_SETTINGS: HeatmapSettings = {
 
 type TabId = 'prediction' | 'attention-video' | 'image';
 
+interface VideoFrameData {
+    mediaId: string;
+    timestamp: number;
+    heatmapData?: HeatmapPoint[];
+}
+
 interface AttentionPredictionCardProps {
     imageUrl: string;
     title: string;
@@ -62,6 +68,10 @@ interface AttentionPredictionCardProps {
     researchId?: string;
     /** Stimulus media ID — needed for AOI persistence */
     stimulusMediaId?: string;
+    /** True when the stimulus is a video */
+    isVideo?: boolean;
+    /** Per-frame predictions for video stimuli */
+    videoFrames?: VideoFrameData[];
 }
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
@@ -299,6 +309,81 @@ const SettingsModal = ({
     );
 };
 
+/* ─── Video Frame Scrubber ─── */
+const VideoFrameScrubber = ({
+    videoUrl,
+    frames,
+    settings,
+}: {
+    videoUrl: string;
+    frames: VideoFrameData[];
+    settings: HeatmapSettings;
+}) => {
+    const [frameIdx, setFrameIdx] = useState(0);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const activeFrame = frames[frameIdx] || frames[0];
+    const frameData = activeFrame?.heatmapData || [];
+
+    const handleSeek = (idx: number) => {
+        setFrameIdx(idx);
+        if (videoRef.current && frames[idx]) {
+            videoRef.current.currentTime = frames[idx].timestamp;
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            {/* Video + heatmap overlay side by side */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg overflow-hidden border bg-gray-100">
+                    <video
+                        ref={videoRef}
+                        src={videoUrl}
+                        className="w-full block"
+                        muted
+                    />
+                    <p className="text-xs text-gray-400 text-center py-1">Original</p>
+                </div>
+                <div>
+                    {frameData.length > 0 ? (
+                        <HeatmapRenderer
+                            imageUrl={videoUrl}
+                            data={frameData}
+                            blur={settings.blur}
+                            opacity={settings.opacity}
+                            threshold={settings.threshold}
+                            className="w-full"
+                        />
+                    ) : (
+                        <div className="rounded-lg border bg-gray-50 h-full flex items-center justify-center">
+                            <p className="text-sm text-gray-400">No prediction for this frame</p>
+                        </div>
+                    )}
+                    <p className="text-xs text-gray-400 text-center py-1">Prediction</p>
+                </div>
+            </div>
+
+            {/* Frame scrubber */}
+            <div className="flex items-center gap-3 px-2">
+                <span className="text-xs text-gray-500 font-mono w-20">
+                    Frame {frameIdx + 1}/{frames.length}
+                </span>
+                <input
+                    type="range"
+                    min={0}
+                    max={frames.length - 1}
+                    value={frameIdx}
+                    onChange={e => handleSeek(Number(e.target.value))}
+                    className="flex-1 accent-blue-600"
+                />
+                <span className="text-xs text-gray-500 font-mono w-12 text-right">
+                    {activeFrame ? `${activeFrame.timestamp.toFixed(1)}s` : '—'}
+                </span>
+            </div>
+        </div>
+    );
+};
+
 /* ─── Main Card ─── */
 export const AttentionPredictionCard = ({
     imageUrl,
@@ -309,6 +394,8 @@ export const AttentionPredictionCard = ({
     className,
     researchId,
     stimulusMediaId,
+    isVideo = false,
+    videoFrames = [],
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('prediction');
     const [showSettings, setShowSettings] = useState(false);
@@ -593,14 +680,22 @@ export const AttentionPredictionCard = ({
                         </>
                     )}
 
-                    {/* Attention Video Tab — progressive scanpath reveal */}
+                    {/* Attention Video Tab — per-frame heatmap or progressive scanpath */}
                     {activeTab === 'attention-video' && (
                         <div className="w-fit mx-auto">
-                            <AttentionVideoPlayer
-                                imageUrl={imageUrl}
-                                data={heatmapData}
-                                duration={5}
-                            />
+                            {isVideo && videoFrames.length > 0 ? (
+                                <VideoFrameScrubber
+                                    videoUrl={imageUrl}
+                                    frames={videoFrames}
+                                    settings={settings}
+                                />
+                            ) : (
+                                <AttentionVideoPlayer
+                                    imageUrl={imageUrl}
+                                    data={heatmapData}
+                                    duration={5}
+                                />
+                            )}
                         </div>
                     )}
 

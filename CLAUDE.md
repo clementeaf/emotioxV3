@@ -98,6 +98,11 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Configurable language switcher**: `linkConfig.allowLanguageSwitch` (default false).
 - **Research collaborators**: `research_collaborators` table. `buildOwnershipClause` includes collaborator access. Endpoints: `GET/POST/DELETE /research/:id/collaborators`. `ShareResearchDrawer` in builder sidebar.
 - **Completion filter**: "Min. completion %" slider in all results Filters sidebars. `useResultsFilter` hook fetches participant progress and combines with demographic filters. Applied across SmartVOC, Cognitive Tasks, Screener, IAT, Eye Tracking.
+- **Sentiment filter**: Checkboxes (Positive/Negative/Neutral/Indeterminate) in Filters sidebar. Applied to SmartVOC VOC comments and Cognitive Short/Long Text. State in `useResultsFilter` (`sentimentFilter` + `filterBySentiment`).
+- **Text analysis (LLM)**: `POST/GET /analytics/research/:id/text-analysis/:moduleId`. GPT-4o themes/keywords/sentiment for VOC and Cognitive text. Cached in `config.textAnalysis.<moduleId>`. `VOCComments` loads cache on mount, "Analyze with AI" button triggers. `moduleId="voc"` for SmartVOC VOC.
+- **Video prediction**: `AttentionPredictionView` accepts video (mp4/webm/mov). Client-side frame extraction (`extractVideoFrames.ts`), sequential upload + TranSalNet per frame. Stored in `stimulus.frames[]`. `VideoFrameScrubber` in AttentionPredictionCard shows side-by-side original/heatmap with frame scrubber.
+- **ET heatmap settings**: `HeatmapSettingsModal` (shared) with presets Smooth/Balanced/Detailed + blur/opacity/threshold sliders. Used in `StimulusCard` (ET results) and `AttentionPredictionCard`.
+- **IAT validation bypass**: IAT modules skip generic required-field validation in participant flow — structure components are researcher config, not participant input. `validation.ts` returns `isValid: true` for IAT modules.
 
 ## Key Files
 ### Backend

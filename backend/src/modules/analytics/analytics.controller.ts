@@ -114,6 +114,27 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ results }, 200, undefined, origin);
         }
 
+        // GET /analytics/research/:id/text-analysis/:moduleId — read cached LLM analysis
+        const textAnalysisGetMatch = path.match(/^\/analytics\/research\/([^\/]+)\/text-analysis\/([^\/]+)$/);
+        if (textAnalysisGetMatch && httpMethod === 'GET') {
+            const [, researchId, moduleId] = textAnalysisGetMatch;
+            const { getTextAnalysis } = await import('./text-analysis.service');
+            const analysis = await getTextAnalysis(researchId, moduleId);
+            return success({ analysis }, 200, undefined, origin);
+        }
+
+        // POST /analytics/research/:id/text-analysis/:moduleId — trigger LLM analysis (fire-and-forget)
+        const textAnalysisPostMatch = path.match(/^\/analytics\/research\/([^\/]+)\/text-analysis\/([^\/]+)$/);
+        if (textAnalysisPostMatch && httpMethod === 'POST') {
+            const [, researchId, moduleId] = textAnalysisPostMatch;
+            const { triggerTextAnalysis } = await import('./text-analysis.service');
+            // Fire-and-forget: respond immediately, analysis runs in background
+            triggerTextAnalysis(researchId, moduleId).catch(err =>
+                console.error(`[TextAnalysis] Background analysis failed for ${researchId}/${moduleId}:`, err)
+            );
+            return success({ status: 'analyzing' }, 202, undefined, origin);
+        }
+
         return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';

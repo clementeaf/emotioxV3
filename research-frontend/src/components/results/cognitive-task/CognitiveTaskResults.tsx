@@ -46,6 +46,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
   const [userIdFilter, setUserIdFilter] = useState('');
   const [completionMin, setCompletionMin] = useState(0);
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
+  const [sentimentFilter, setSentimentFilter] = useState<string[]>([]);
 
   useEffect(() => {
     if (!researchId) {
@@ -190,7 +191,8 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               return null;
             }
           })
-          .filter((r): r is TextResponseFormatted => r !== null);
+          .filter((r): r is TextResponseFormatted => r !== null)
+          .filter(r => sentimentFilter.length === 0 || sentimentFilter.includes(r.mood || 'indeterminate'));
 
         const cognitiveExportRows = module.responses.map(r => {
           const participantId = (r as { participantId?: string; participant_id?: string }).participantId
@@ -208,6 +210,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             comments={textResponses.length > 0 ? textResponses : [{ text: 'No responses yet', mood: 'gray' }]}
             researchId={researchId}
             cognitiveExportRows={cognitiveExportRows.length > 0 ? cognitiveExportRows : undefined}
+            moduleId={module.moduleId}
           />
         );
       }
@@ -323,6 +326,8 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
               onUserIdFilterChange={setUserIdFilter}
               completionMin={completionMin}
               onCompletionMinChange={setCompletionMin}
+              sentimentFilter={sentimentFilter}
+              onSentimentFilterChange={setSentimentFilter}
             />
           </div>
         </div>

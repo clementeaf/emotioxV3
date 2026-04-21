@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck } from 'lucide-react';
+import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
@@ -13,6 +13,8 @@ import { FirstLookOverlay } from './FirstLookOverlay';
 import { ScanpathOverlay } from './ScanpathOverlay';
 import { VideoGazePlayer } from './VideoGazePlayer';
 import { PredictionPanel } from './PredictionPanel';
+import { HeatmapSettingsModal, DEFAULT_HEATMAP_SETTINGS } from './HeatmapSettingsModal';
+import type { HeatmapSettings } from './HeatmapSettingsModal';
 
 export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: { stimulus: EyeTrackingStimulus; researchId: string; onRefresh: () => void }) => {
   const stimulus = { ...rawStimulus, stimulusUrl: resolveStimulusUrl(rawStimulus.stimulusUrl) };
@@ -20,6 +22,8 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0;
   const [viewMode, setViewMode] = useState<ViewMode>('heatmap');
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
+  const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleDownload = useCallback(async () => {
     if (!imageContainerRef) return;
@@ -139,15 +143,26 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             />
           )}
         </div>
-        {stimulus.stimulusUrl && (
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Download image
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {viewMode === 'heatmap' && hasHeatData && !hasZoneMass && (
+            <button
+              onClick={() => setShowSettings(true)}
+              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
+          )}
+          {stimulus.stimulusUrl && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Download image
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stimulus image / heatmap / emotions / prediction */}
@@ -179,6 +194,9 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                   imageUrl={stimulus.stimulusUrl}
                   data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
                   coordSystem="pixel"
+                  blur={heatmapSettings.blur}
+                  opacity={heatmapSettings.opacity}
+                  threshold={heatmapSettings.threshold}
                   className="w-full"
                 />
               )
@@ -232,6 +250,18 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             {stimulus.totalResponses} response{stimulus.totalResponses !== 1 ? 's' : ''} from {stimulus.uniqueParticipants} participant{stimulus.uniqueParticipants !== 1 ? 's' : ''}
           </p>
         </div>
+      )}
+
+      {/* Heatmap settings modal */}
+      {showSettings && stimulus.stimulusUrl && (
+        <HeatmapSettingsModal
+          imageUrl={stimulus.stimulusUrl}
+          heatmapData={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
+          settings={heatmapSettings}
+          coordSystem="pixel"
+          onApply={setHeatmapSettings}
+          onClose={() => setShowSettings(false)}
+        />
       )}
     </div>
   );

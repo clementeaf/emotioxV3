@@ -134,6 +134,19 @@ export const useValidation = () => {
                 }
             }
             
+            // Special handling for Implicit Association modules (save response as 'iat-trials')
+            const isIAT = module.name.includes('Attribute Testing') ||
+                module.name.includes('Comparing Attribute') ||
+                module.name.includes('Objects Comparing') ||
+                module.name.includes('Object Comparing');
+            if (isIAT) {
+                const iatResponseId = createResponseId(module.id, 'iat-trials');
+                const iatResponse = responses.get(iatResponseId);
+                if (iatResponse) {
+                    stepResponses.set('iat-trials', iatResponse.value);
+                }
+            }
+
             // For all modules, also check structure components
             module.structure.components.forEach(component => {
                 const responseId = createResponseId(module.id, component.id);

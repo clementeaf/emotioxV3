@@ -6,6 +6,12 @@ import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced'
 import { AttentionPredictionCard } from './AttentionPredictionCard';
 import { mediaService } from '../../services/media.service';
 
+interface VideoFrame {
+    mediaId: string;
+    timestamp: number;
+    heatmapData?: Array<{ x: number; y: number; value: number }>;
+}
+
 interface StimulusItem {
     url: string;
     mediaId: string;
@@ -14,6 +20,10 @@ interface StimulusItem {
     processedAt?: string;
     predictionError?: string;
     predictionErrorAt?: string;
+    /** Video stimulus: true when the original file is a video */
+    isVideo?: boolean;
+    /** Per-frame predictions for video stimuli */
+    frames?: VideoFrame[];
 }
 
 interface AttentionPredictionViewProps {
@@ -67,6 +77,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         }
     }, [research.id, queryClient]);
 
+    const [videoProgress, setVideoProgress] = useState<string | null>(null);
+
     const handleFilesChange = useCallback(async (files: UploadedFile[]) => {
         const newStimuli: StimulusItem[] = files
             .filter(f => f.status === 'uploaded' && f.mediaId)
@@ -86,11 +98,76 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
         await persistStimuli(merged);
 
-        // Auto-trigger prediction for each new stimulus
+        // Process each new stimulus — detect video vs image
         for (const stimulus of newStimuli) {
-            await runPrediction(stimulus.mediaId);
+            const isVideo = /\.(mp4|webm|mov|avi)$/i.test(stimulus.name);
+
+            if (isVideo) {
+                // Video: extract frames → upload each → predict each
+                setIsProcessing(true);
+                setPredictionError(null);
+                try {
+                    const { extractVideoFrames } = await import('../../utils/extractVideoFrames');
+                    const mediaUrlResponse = await mediaService.getMediaUrl(stimulus.mediaId);
+                    const resolvedUrl = mediaUrlResponse.url;
+
+                    setVideoProgress('Extracting frames...');
+                    const extractedFrames = await extractVideoFrames(resolvedUrl, 2, 12, (p) => {
+                        setVideoProgress(`Extracting frames... ${Math.round(p * 100)}%`);
+                    });
+
+                    const frameEntries: VideoFrame[] = [];
+
+                    for (let i = 0; i < extractedFrames.length; i++) {
+                        const frame = extractedFrames[i];
+                        setVideoProgress(`Uploading frame ${i + 1}/${extractedFrames.length}...`);
+
+                        // Upload frame as image
+                        const file = new File([frame.blob], `${stimulus.name}-frame-${i}.png`, { type: 'image/png' });
+                        const uploaded = await mediaService.uploadFile(research.id, file);
+
+                        setVideoProgress(`Predicting frame ${i + 1}/${extractedFrames.length}...`);
+
+                        // Run prediction on frame
+                        await mediaService.predictAttention(research.id, uploaded.mediaId);
+
+                        // Read back the prediction result
+                        const refreshed = queryClient.getQueryData<{ research: Research }>(researchKeys.detail(research.id));
+                        const refreshedStimuli = ((refreshed?.research?.settings as Record<string, unknown>)?.stimuli as StimulusItem[]) || [];
+                        const frameStimulus = refreshedStimuli.find(s => s.mediaId === uploaded.mediaId);
+
+                        frameEntries.push({
+                            mediaId: uploaded.mediaId,
+                            timestamp: frame.timestamp,
+                            heatmapData: frameStimulus?.heatmapData,
+                        });
+                    }
+
+                    // Update the video stimulus with frame predictions, remove frame stubs from top-level
+                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                    const latest = queryClient.getQueryData<{ research: Research }>(researchKeys.detail(research.id));
+                    const latestStimuli = ((latest?.research?.settings as Record<string, unknown>)?.stimuli as StimulusItem[]) || [];
+
+                    const frameMediaIds = new Set(frameEntries.map(f => f.mediaId));
+                    const cleaned = latestStimuli
+                        .filter(s => !frameMediaIds.has(s.mediaId)) // Remove frame entries from top-level
+                        .map(s => s.mediaId === stimulus.mediaId ? { ...s, isVideo: true, frames: frameEntries, processedAt: new Date().toISOString() } : s);
+
+                    await persistStimuli(cleaned);
+                    setVideoProgress(null);
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'Video prediction failed';
+                    setPredictionError(msg);
+                    setVideoProgress(null);
+                } finally {
+                    setIsProcessing(false);
+                }
+            } else {
+                // Image: existing flow
+                await runPrediction(stimulus.mediaId);
+            }
         }
-    }, [stimuli, persistStimuli, runPrediction]);
+    }, [stimuli, persistStimuli, runPrediction, research.id, queryClient]);
 
     const handleDelete = useCallback(async (mediaId: string) => {
         setIsDeletingId(mediaId);
@@ -117,6 +194,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         isDeleting={isDeletingId === activeStimulus.mediaId}
                         researchId={research.id}
                         stimulusMediaId={activeStimulus.mediaId}
+                        isVideo={activeStimulus.isVideo}
+                        videoFrames={activeStimulus.frames}
                     />
 
                     {/* Processing indicator */}
@@ -127,8 +206,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>
                             <div>
-                                <p className="text-sm font-medium text-blue-800">Processing attention prediction...</p>
-                                <p className="text-xs text-blue-600">This may take a few seconds.</p>
+                                <p className="text-sm font-medium text-blue-800">
+                                    {videoProgress || 'Processing attention prediction...'}
+                                </p>
+                                <p className="text-xs text-blue-600">
+                                    {videoProgress ? 'Video frame-by-frame analysis in progress.' : 'This may take a few seconds.'}
+                                </p>
                             </div>
                         </div>
                     )}
@@ -181,9 +264,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                     </>
                 )}
                 <FileUploadAdvanced
-                    label={activeStimulus ? 'Add more images' : 'Add Stimulus Images'}
-                    acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp']}
-                    maxSizeMB={10}
+                    label={activeStimulus ? 'Add more images or videos' : 'Add Stimulus Images or Videos'}
+                    acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']}
+                    maxSizeMB={50}
                     multiple
                     files={[]}
                     onFilesChange={handleFilesChange}

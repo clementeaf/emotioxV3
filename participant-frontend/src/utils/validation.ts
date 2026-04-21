@@ -321,6 +321,22 @@ export const validateModule = (
         };
     }
 
+    // Implicit Association modules: valid when 'iat-trials' response exists
+    // IAT structure components (target-*-name, criteria, etc.) are researcher config,
+    // not participant input — skip generic required-field validation for them.
+    const isIAT = module.name.includes('Attribute Testing') ||
+        module.name.includes('Comparing Attribute') ||
+        module.name.includes('Objects Comparing') ||
+        module.name.includes('Object Comparing');
+    if (isIAT) {
+        const iatValue = responses.get('iat-trials');
+        if (iatValue !== undefined && iatValue !== null && iatValue !== '') {
+            return { isValid: true, errors: [] };
+        }
+        // If no iat-trials response yet, allow advancement (the renderer handles its own flow)
+        return { isValid: true, errors: [] };
+    }
+
     // For other modules, validate structure components
     // Skip validation for display-only components (title, description, instructions, message)
     const displayOnlyIds = ['title', 'description', 'instructions', 'message', 'scale-range', 'range'];

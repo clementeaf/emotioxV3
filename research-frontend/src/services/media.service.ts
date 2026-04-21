@@ -208,6 +208,34 @@ class MediaService {
         }
     }
 
+    /**
+     * Convenience: generate upload URL → PUT file → save metadata → return media ID.
+     * Used for programmatic uploads (e.g. video frame extraction).
+     */
+    async uploadFile(researchId: string, file: File): Promise<{ mediaId: string; s3Key: string }> {
+        // 1. Get presigned upload URL
+        const { upload_url, s3_key } = await this.generateUploadUrl({
+            research_id: researchId,
+            file_name: file.name,
+            content_type: file.type,
+        });
+
+        // 2. PUT the file
+        await fetch(upload_url, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': file.type },
+        });
+
+        // 3. Save metadata
+        const { media } = await this.saveMetadata({
+            research_id: researchId,
+            s3_key,
+        });
+
+        return { mediaId: media.id, s3Key: s3_key };
+    }
+
     private handleError(error: unknown, defaultMessage: string): Error {
         if (error instanceof Error) {
             return error;

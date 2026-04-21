@@ -36,6 +36,9 @@ interface FiltersProps {
     /** Min completion % (0-100) */
     completionMin?: number;
     onCompletionMinChange?: (value: number) => void;
+    /** Sentiment filter */
+    sentimentFilter?: string[];
+    onSentimentFilterChange?: (values: string[]) => void;
 }
 
 export const Filters = ({
@@ -47,6 +50,8 @@ export const Filters = ({
     onUserIdFilterChange,
     completionMin = 0,
     onCompletionMinChange,
+    sentimentFilter = [],
+    onSentimentFilterChange,
 }: FiltersProps) => {
     const [internalData, setInternalData] = useState<analyticsService.DemographicResponsesResult | null>(null);
     const [isLoading, setIsLoading] = useState(!demographicDataProp && !!researchId);
@@ -214,6 +219,44 @@ export const Filters = ({
                         <button
                             type="button"
                             onClick={() => onCompletionMinChange(0)}
+                            className="text-xs text-blue-600 hover:underline"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {onSentimentFilterChange && (
+                <div className="space-y-1.5 pt-2 border-t border-gray-200">
+                    <div className="text-sm font-medium text-gray-700">Sentiment</div>
+                    <div className="space-y-1.5">
+                        {[
+                            { value: 'positive', label: 'Positive', color: 'text-green-600' },
+                            { value: 'negative', label: 'Negative', color: 'text-red-600' },
+                            { value: 'neutral', label: 'Neutral', color: 'text-gray-600' },
+                            { value: 'indeterminate', label: 'Indeterminate', color: 'text-yellow-600' },
+                        ].map(({ value, label, color }) => (
+                            <label key={value} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                                <input
+                                    type="checkbox"
+                                    checked={sentimentFilter.includes(value)}
+                                    onChange={() => {
+                                        const next = sentimentFilter.includes(value)
+                                            ? sentimentFilter.filter(v => v !== value)
+                                            : [...sentimentFilter, value];
+                                        onSentimentFilterChange(next);
+                                    }}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className={color}>{label}</span>
+                            </label>
+                        ))}
+                    </div>
+                    {sentimentFilter.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => onSentimentFilterChange([])}
                             className="text-xs text-blue-600 hover:underline"
                         >
                             Reset

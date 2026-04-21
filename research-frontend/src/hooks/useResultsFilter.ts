@@ -10,12 +10,15 @@ export type DemographicFiltersState = Record<string, string[]>;
  *
  * Returns filter state, setters, filtered participant IDs, and a filterByParticipant helper.
  */
+export type SentimentFilter = string[]; // e.g. ['positive', 'negative']
+
 export function useResultsFilter(researchId: string) {
   const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
   const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
   const [userIdFilter, setUserIdFilter] = useState('');
   const [completionMin, setCompletionMin] = useState(0);
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
+  const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>([]);
 
   useEffect(() => {
     if (!researchId) return;
@@ -84,6 +87,15 @@ export function useResultsFilter(researchId: string) {
     return items.filter((item) => item.participantId && filteredParticipantIds.has(item.participantId));
   };
 
+  /** Filter items by sentiment/mood. Only applies when sentimentFilter is non-empty. */
+  const filterBySentiment = <T extends { mood?: string; sentiment?: string }>(items: T[]): T[] => {
+    if (sentimentFilter.length === 0) return items;
+    return items.filter((item) => {
+      const mood = (item.mood || item.sentiment || '').toLowerCase();
+      return sentimentFilter.includes(mood);
+    });
+  };
+
   return {
     demographicData,
     demographicFilters,
@@ -94,5 +106,8 @@ export function useResultsFilter(researchId: string) {
     setCompletionMin,
     filteredParticipantIds,
     filterByParticipant,
+    sentimentFilter,
+    setSentimentFilter,
+    filterBySentiment,
   };
 }
