@@ -69,9 +69,9 @@ Note: `backend/scripts/*.ts` also contain multiple `as any[]` casts but these ar
 
 ### Medium — Maintainability
 
-4. **Split `analytics.service.ts`** (2903 lines) into 4 domain-specific files
-5. **Split `EyeTrackingResults.tsx`** into per-tab components
-6. **Type demographics config** — replace `any` casts in `ResearchConfigurationModule`
+4. ~~**Split `analytics.service.ts`**~~ — **Done** (5 domain files: cognitive-task, screener, smartvoc, iat, eye-tracking)
+5. ~~**Split `EyeTrackingResults.tsx`**~~ — **Done** (11 focused components, main file 112 lines)
+6. ~~**Type demographics config**~~ — **Done** (7 `any` casts → proper interfaces, 0 eslint-disable remaining)
 
 ### Low — Nice to Have
 
