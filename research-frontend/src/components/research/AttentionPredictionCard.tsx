@@ -320,9 +320,25 @@ const VideoFrameScrubber = ({
     settings: HeatmapSettings;
 }) => {
     const [frameIdx, setFrameIdx] = useState(0);
+    const [frameImageUrl, setFrameImageUrl] = useState<string | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const activeFrame = frames[frameIdx] || frames[0];
     const frameData = activeFrame?.heatmapData || [];
+
+    // Capture the current video frame as a data URL for HeatmapRenderer
+    const captureFrame = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || video.readyState < 2) return;
+        if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(video, 0, 0);
+        setFrameImageUrl(canvas.toDataURL('image/png'));
+    }, []);
 
     const handleSeek = (idx: number) => {
         setFrameIdx(idx);
@@ -341,13 +357,15 @@ const VideoFrameScrubber = ({
                         src={videoUrl}
                         className="w-full block"
                         muted
+                        onLoadedData={captureFrame}
+                        onSeeked={captureFrame}
                     />
                     <p className="text-xs text-gray-400 text-center py-1">Original</p>
                 </div>
                 <div>
-                    {frameData.length > 0 ? (
+                    {frameData.length > 0 && frameImageUrl ? (
                         <HeatmapRenderer
-                            imageUrl={videoUrl}
+                            imageUrl={frameImageUrl}
                             data={frameData}
                             blur={settings.blur}
                             opacity={settings.opacity}
@@ -356,7 +374,9 @@ const VideoFrameScrubber = ({
                         />
                     ) : (
                         <div className="rounded-lg border bg-gray-50 h-full flex items-center justify-center">
-                            <p className="text-sm text-gray-400">No prediction for this frame</p>
+                            <p className="text-sm text-gray-400">
+                                {frameData.length === 0 ? 'No prediction for this frame' : 'Loading frame...'}
+                            </p>
                         </div>
                     )}
                     <p className="text-xs text-gray-400 text-center py-1">Prediction</p>

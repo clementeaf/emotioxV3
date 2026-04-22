@@ -128,30 +128,32 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
                         setVideoProgress(`Predicting frame ${i + 1}/${extractedFrames.length}...`);
 
-                        // Run prediction on frame
+                        // Run prediction on frame (synchronous — backend saves heatmapData to config)
                         await mediaService.predictAttention(research.id, uploaded.mediaId);
-
-                        // Read back the prediction result
-                        const refreshed = queryClient.getQueryData<{ research: Research }>(researchKeys.detail(research.id));
-                        const refreshedStimuli = ((refreshed?.research?.settings as Record<string, unknown>)?.stimuli as StimulusItem[]) || [];
-                        const frameStimulus = refreshedStimuli.find(s => s.mediaId === uploaded.mediaId);
 
                         frameEntries.push({
                             mediaId: uploaded.mediaId,
                             timestamp: frame.timestamp,
-                            heatmapData: frameStimulus?.heatmapData,
                         });
                     }
 
-                    // Update the video stimulus with frame predictions, remove frame stubs from top-level
-                    await queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-                    const latest = queryClient.getQueryData<{ research: Research }>(researchKeys.detail(research.id));
-                    const latestStimuli = ((latest?.research?.settings as Record<string, unknown>)?.stimuli as StimulusItem[]) || [];
+                    // Fetch fresh config from server (cache is stale after predictions)
+                    setVideoProgress('Finalizing...');
+                    const freshResearch = await researchService.getById(research.id);
+                    const freshSettings = (freshResearch.research.settings as Record<string, unknown>) || {};
+                    const freshStimuli = (freshSettings.stimuli as StimulusItem[]) || [];
 
-                    const frameMediaIds = new Set(frameEntries.map(f => f.mediaId));
-                    const cleaned = latestStimuli
+                    // Read heatmapData from fresh server data for each frame
+                    const framesWithData = frameEntries.map(fe => {
+                        const frameStimulus = freshStimuli.find(s => s.mediaId === fe.mediaId);
+                        return { ...fe, heatmapData: frameStimulus?.heatmapData };
+                    });
+
+                    const frameMediaIds = new Set(framesWithData.map(f => f.mediaId));
+
+                    const cleaned = freshStimuli
                         .filter(s => !frameMediaIds.has(s.mediaId)) // Remove frame entries from top-level
-                        .map(s => s.mediaId === stimulus.mediaId ? { ...s, isVideo: true, frames: frameEntries, processedAt: new Date().toISOString() } : s);
+                        .map(s => s.mediaId === stimulus.mediaId ? { ...s, isVideo: true, frames: framesWithData, processedAt: new Date().toISOString() } : s);
 
                     await persistStimuli(cleaned);
                     setVideoProgress(null);
