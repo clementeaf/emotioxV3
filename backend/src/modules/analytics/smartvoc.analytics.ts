@@ -214,7 +214,7 @@ export const getSmartVOCResults = async (researchId: string) => {
     ? Math.round((csatValues.filter(s => s >= 4).length / csatValues.length) * 100)
     : 0;
   const cesPercentage = cesValues.length > 0
-    ? Math.round((cesValues.filter(s => s <= 2).length / cesValues.length) * 100)
+    ? Math.round((cesValues.filter(s => s >= 4).length / cesValues.length) * 100)
     : 0;
 
   // CPV calculation
@@ -350,11 +350,12 @@ const calculateCSATPercentage = (scores: number[]): number => {
 };
 
 /**
- * Calculate CES percentage from 1-5 scores: (scores <= 2) / total * 100
+ * Calculate CES percentage from scores: (high scores = easy) / total * 100
+ * CES asks "How easy was it?" — high scores are positive.
  */
 const calculateCESPercentage = (scores: number[]): number => {
   if (scores.length === 0) return 0;
-  return Math.round((scores.filter(s => s <= 2).length / scores.length) * 100);
+  return Math.round((scores.filter(s => s >= 4).length / scores.length) * 100);
 };
 
 // Helper: Generate time series data (last 30 days to support all time range filters)
@@ -540,9 +541,9 @@ const generateMonthlyMetricsData = (responses: any[]) => {
     // CES
     const cesScores = extractScores(monthResponses, 'ces', 1, 10);
     const cesPositive = cesScores.length > 0
-      ? Math.round((cesScores.filter(s => s <= 2).length / cesScores.length) * 100) : 0;
-    const cesNegative = cesScores.length > 0
       ? Math.round((cesScores.filter(s => s >= 4).length / cesScores.length) * 100) : 0;
+    const cesNegative = cesScores.length > 0
+      ? Math.round((cesScores.filter(s => s <= 2).length / cesScores.length) * 100) : 0;
 
     // CV
     const cvScores = extractScores(monthResponses, 'cv', 1, 5);

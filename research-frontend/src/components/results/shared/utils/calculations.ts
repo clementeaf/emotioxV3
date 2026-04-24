@@ -28,16 +28,17 @@ export const calculateCSAT = (scores: number[] | undefined): number => {
 
 /**
  * CES sentiment zones by scale max.
- * Low scores = little effort (positive), high scores = much effort (negative).
+ * CES asks "How easy was it?" — high scores = easy (positive), low scores = hard (negative).
+ * Matches participant-frontend ScaleSelector zones.
  */
 export const getCESZones = (scaleMax: number): { positive: [number, number]; neutral: [number, number]; negative: [number, number] } => {
-  if (scaleMax === 10) return { positive: [1, 3], neutral: [4, 7], negative: [8, 10] };
-  if (scaleMax === 7)  return { positive: [1, 3], neutral: [4, 4], negative: [5, 7] };
-  return { positive: [1, 2], neutral: [3, 3], negative: [4, 5] }; // 1-5 default
+  if (scaleMax === 10) return { negative: [1, 3], neutral: [4, 7], positive: [8, 10] };
+  if (scaleMax === 7)  return { negative: [1, 3], neutral: [4, 4], positive: [5, 7] };
+  return { negative: [1, 2], neutral: [3, 3], positive: [4, 5] }; // 1-5 default
 };
 
 /**
- * Calculate CES score: (% Little effort) - (% Much effort)
+ * Calculate CES score: (% Easy / positive) - (% Hard / negative)
  * Zones adapt to scale (1-5, 1-7, 1-10).
  */
 export const calculateCES = (scores: number[] | undefined, scaleMax = 5): number => {

@@ -78,7 +78,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `Record<string, any>` solo donde genuinamente dinámico, marcado con eslint-disable
 - Commits en inglés, código en inglés, comentarios mixto. Branching: main (producción).
 - **Backlink redirects**: reemplazan `@id` con participant ID, agregan `https://` si falta.
-- **CES scale**: participant lee `comp.value` primero, fallback `selectRange.predefined`. Sentiment zones: rojo/ámbar/verde según escala (1-5/1-7/1-10). Solo CES, no CV ni Linear Scale.
+- **CES scale**: participant lee `comp.value` primero, fallback `selectRange.predefined`. Pregunta "¿Qué tan fácil fue?" — score alto = fácil = positivo (verde), score bajo = difícil = negativo (rojo). Zones: escala 1-5 → positive [4,5], neutral [3,3], negative [1,2]. Solo CES, no CV ni Linear Scale.
 - **NEV emociones**: 20 canónicas. "Descontento" = negativa. Fila 1 = positivas (7), Fila 2 = atención (5), Fila 3 = negativas (8).
 - **CES analytics dinámico**: backend envía `scaleConfigs`, frontend usa `getCESZones(scaleMax)`.
 - **View Progress**: `getVisibleModuleIdsForProgress` con INNER JOIN stages. `panelStatus = 'responded'` → 100%. Sin completar → cap 99%. Filtro de progreso mínimo (slider 0-100%). Share: botón "Send Link" → Drawer con emails + "Copy link" → `/progress/:id` público read-only.

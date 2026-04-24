@@ -1,3 +1,13 @@
+## v0.61.2 — Fix CES sentiment zones inverted in results (2026-04-24)
+
+### backend
+- **CES zones corrected.** `cesPercentage`, `calculateCESPercentage`, and `generateMonthlyMetricsData` now treat high scores as positive (easy) and low scores as negative (hard). Previously inverted — scores 4-5 were counted as negative.
+
+### research-frontend
+- **CES zones aligned with participant-frontend.** `getCESZones()` now returns `positive: [4, 5]`, `negative: [1, 2]` for scale 1-5 (and equivalent for 1-7, 1-10). Fixes results bars showing green for hard experiences and red for easy ones. CPV corrected in cascade.
+
+---
+
 ## v0.61.1 — Phase 3 polish: Insights upload in view, benchmark editor, CSV export, configurable LLM (2026-04-21)
 
 ### backend
