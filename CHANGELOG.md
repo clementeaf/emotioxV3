@@ -1,3 +1,23 @@
+## v0.62.0 — Results UX improvements, IAT configurable keys, IAT completion fix (2026-04-25)
+
+### backend
+- **Text analysis accepts participant filter.** `POST /analytics/research/:id/text-analysis/:moduleId` now accepts optional `participantIds` array in body. Filters SQL queries so the LLM analyzes only the filtered subset.
+
+### research-frontend
+- **Header updated.** Sidebar logo area now shows "EmotioCX - Dashboard" (hidden when collapsed).
+- **Percentages in text analysis.** Themes show `{count} mentions ({pct}%)` and keywords show `({count}, {pct}%)` in both tag cloud and frequency table, relative to total comments.
+- **Persistent completion filter.** "Min. completion %" slider value persists in localStorage per research — survives page reloads.
+- **Refresh analysis button.** "Refresh analysis" button (gray, with refresh icon) appears in Sentiment/Themes/Keywords tabs when analysis already exists. Re-triggers LLM with currently filtered participant IDs.
+- **Filtered participant IDs passed to VOCComments.** Both `SmartVOCResults` and `CognitiveTaskResults` forward `filteredParticipantIds` prop.
+- **IAT response keys selector.** Segmented control "A / L" vs "← / →" in IAT module header. Stored as `response-keys` component (`letters` or `arrows`, default `letters`).
+
+### participant-frontend
+- **IAT configurable response keys.** Reads `response-keys` from module config. Button labels, intro text, and keep-in-mind instructions adapt to show either "A / L" or "← / →". Keyboard handler accepts both modes regardless of visual setting.
+- **IAT spacebar icon.** Take-note screen shows a styled `<kbd>` spacebar indicator instead of plain text.
+- **Fix: IAT stuck on completion screen.** `onComplete` callback had an unstable reference (15+ deps in `useCallback`). When `saveResponse()` triggered a re-render, the effect cleanup cancelled the 800ms advance timer before it fired. Fixed by storing `onComplete` in a ref — the effect no longer depends on callback identity.
+
+---
+
 ## v0.61.2 — Fix CES sentiment zones inverted in results (2026-04-24)
 
 ### backend

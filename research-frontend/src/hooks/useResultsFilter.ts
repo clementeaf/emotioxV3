@@ -16,8 +16,23 @@ export function useResultsFilter(researchId: string) {
   const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
   const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
   const [userIdFilter, setUserIdFilter] = useState('');
-  const [completionMin, setCompletionMin] = useState(0);
+  const [completionMin, setCompletionMin] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`completionMin-${researchId}`);
+      return saved ? Number(saved) : 0;
+    } catch { return 0; }
+  });
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    try {
+      if (completionMin > 0) {
+        localStorage.setItem(`completionMin-${researchId}`, String(completionMin));
+      } else {
+        localStorage.removeItem(`completionMin-${researchId}`);
+      }
+    } catch { /* localStorage unavailable */ }
+  }, [completionMin, researchId]);
+
   const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>([]);
 
   useEffect(() => {

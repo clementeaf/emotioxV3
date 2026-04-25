@@ -16,7 +16,11 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const { saveResponse } = useParticipantStore();
 
     const config = useMemo(() => extractConfig(module), [module]);
-    const { primingTime, exerciseInstructions, testInstructions, showResults } = config;
+    const { primingTime, exerciseInstructions, testInstructions, showResults, responseKeys } = config;
+
+    // Key labels based on researcher config
+    const leftKey = responseKeys === 'arrows' ? '←' : 'A';
+    const rightKey = responseKeys === 'arrows' ? '→' : 'L';
 
     // Is this the Yes/No paradigm (Comparing Attribute)?
     const isYesNo = config.testType === 'comparing_attribute';
@@ -69,23 +73,25 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const savedRef = useRef(false);
     const trialIndexRef = useRef(0);
     const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const onCompleteRef = useRef(onComplete);
 
     const currentBlock = blocks[blockIndex] ?? null;
     const currentTrial = currentBlock?.trials[trialIndex] ?? null;
 
     useEffect(() => { trialIndexRef.current = trialIndex; }, [trialIndex]);
+    useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
     useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
 
-    // Save results when complete
+    // Save results when complete — uses ref for onComplete to avoid
+    // cleanup cancelling the timer when handleNext changes reference
     useEffect(() => {
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
             saveResponse(module.id, 'iat-trials', JSON.stringify(results));
-            const timer = setTimeout(() => onComplete?.(), 800);
+            const timer = setTimeout(() => onCompleteRef.current?.(), 800);
             timersRef.current.push(timer);
-            return () => clearTimeout(timer);
         }
-    }, [phase, results, module.id, saveResponse, onComplete]);
+    }, [phase, results, module.id, saveResponse]);
 
     // Start priming → trial (or direct to trial for Yes/No)
     const startTrial = useCallback(() => {
@@ -235,6 +241,8 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                             <p className="text-gray-600">
                                 {isYesNo
                                     ? t('iat.introDescriptionYesNo', 'You will be presented with objects and characteristics. Respond as quickly as possible using the buttons below.')
+                                    : responseKeys === 'arrows'
+                                    ? t('iat.introDescriptionArrows', 'You will be presented with words or images to classify into categories using the ← or → arrow keys.')
                                     : t('iat.introDescription', 'You will be presented with words or images to classify into categories using either the \'A\' or \'L\' key.')}
                             </p>
                             <p className="text-gray-600">
@@ -268,7 +276,9 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     <ol className="space-y-3 text-gray-600">
                         <li><span className="font-semibold">1)</span> {t('iat.rule1', 'Labels at the top of the screen indicate which category goes with which key.')}</li>
                         <li><span className="font-semibold">2)</span> {t('iat.rule2', 'Each word or image has a correct category classification.')}</li>
-                        <li><span className="font-semibold">3)</span> {t('iat.rule3', 'Keep your index fingers on the A and L keys to enable a rapid response.')}</li>
+                        <li><span className="font-semibold">3)</span> {responseKeys === 'arrows'
+                            ? t('iat.rule3Arrows', 'Keep your fingers on the ← and → arrow keys to enable a rapid response.')
+                            : t('iat.rule3', 'Keep your index fingers on the A and L keys to enable a rapid response.')}</li>
                         <li><span className="font-semibold">4)</span> {t('iat.rule4', 'The test gives no results if you go slow, please try to go as fast as possible.')}</li>
                     </ol>
                     <button
@@ -310,21 +320,24 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                             </p>
                         </>
                     )}
-                    <p className="text-gray-500 text-sm">
-                        {t('iat.takeNoteBegin', 'Press the space bar (or one of the buttons) to begin')}
-                    </p>
+                    <div className="flex items-center gap-3 text-gray-500 text-sm">
+                        <kbd className="inline-flex items-center gap-1 px-4 py-1.5 bg-gray-100 border border-gray-300 rounded-md text-xs font-mono text-gray-600 shadow-[0_1px_0_1px_rgba(0,0,0,0.08)]">
+                            ␣ space
+                        </kbd>
+                        <span>{t('iat.takeNoteBegin', 'or tap one of the buttons to begin')}</span>
+                    </div>
                     <div className="flex gap-4">
                         <button
                             onClick={startTrial}
                             className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                         >
-                            {isYesNo ? currentBlock.leftLabel : `A = ${currentBlock.leftLabel}`}
+                            {isYesNo ? currentBlock.leftLabel : `${leftKey} = ${currentBlock.leftLabel}`}
                         </button>
                         <button
                             onClick={startTrial}
                             className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                         >
-                            {isYesNo ? currentBlock.rightLabel : `L = ${currentBlock.rightLabel}`}
+                            {isYesNo ? currentBlock.rightLabel : `${rightKey} = ${currentBlock.rightLabel}`}
                         </button>
                     </div>
                 </div>
@@ -399,13 +412,13 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         onClick={() => handleSelect('left')}
                         className="flex-1 py-4 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
                     >
-                        {isYesNo ? currentBlock.leftLabel : `A = ${currentBlock.leftLabel}`}
+                        {isYesNo ? currentBlock.leftLabel : `${leftKey} = ${currentBlock.leftLabel}`}
                     </button>
                     <button
                         onClick={() => handleSelect('right')}
                         className="flex-1 py-4 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
                     >
-                        {isYesNo ? currentBlock.rightLabel : `L = ${currentBlock.rightLabel}`}
+                        {isYesNo ? currentBlock.rightLabel : `${rightKey} = ${currentBlock.rightLabel}`}
                     </button>
                 </div>
             </div>

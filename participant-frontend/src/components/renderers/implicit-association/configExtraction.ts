@@ -176,6 +176,10 @@ export const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
     const showResultsComp = components.find(c => c.id === 'show-results');
     const showResults = getComponentText(showResultsComp) === 'true';
 
+    const responseKeysComp = components.find(c => c.id === 'response-keys');
+    const responseKeysRaw = getComponentText(responseKeysComp);
+    const responseKeys: 'letters' | 'arrows' = responseKeysRaw === 'arrows' ? 'arrows' : 'letters';
+
     return {
         testType,
         primingTime,
@@ -186,5 +190,6 @@ export const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
         exerciseInstructions: interpolateTargets(rawExercise),
         testInstructions: interpolateTargets(rawTest),
         showResults,
+        responseKeys,
     };
 };

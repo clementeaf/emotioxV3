@@ -636,13 +636,14 @@ export const getTextAnalysis = async (
     return response.analysis;
 };
 
-/** Trigger LLM analysis (fire-and-forget, returns 202). */
+/** Trigger LLM analysis (fire-and-forget, returns 202). Optionally filter by participant IDs. */
 export const triggerTextAnalysis = async (
     researchId: string,
     moduleId: string,
+    participantIds?: string[],
 ): Promise<void> => {
     await apiClient.post(
         `/analytics/research/${researchId}/text-analysis/${moduleId}`,
-        {}
+        participantIds && participantIds.length > 0 ? { participantIds } : {}
     );
 };

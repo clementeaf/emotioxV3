@@ -72,7 +72,7 @@ export const StandardSidebar = () => {
         )}>
             {/* Logo */}
             <div className="p-4 border-b border-gray-100 flex-shrink-0">
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-center gap-2">
                     <img
                         src={`${import.meta.env.BASE_URL}EmotioCX-logo.svg`}
                         alt="EmotioCX"
@@ -81,6 +81,9 @@ export const StandardSidebar = () => {
                             isCollapsed ? "h-8 w-8" : "h-8"
                         )}
                     />
+                    {!isCollapsed && (
+                        <span className="text-sm font-semibold text-slate-500">- Dashboard</span>
+                    )}
                 </div>
             </div>
 

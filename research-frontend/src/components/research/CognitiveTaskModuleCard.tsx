@@ -67,6 +67,23 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
 
     const isIatModule = isImplicitAssociationModuleName(module.name);
 
+    // Ensure IAT modules have a response-keys component
+    useEffect(() => {
+        if (!isIatModule) return;
+        const hasResponseKeys = components.some(c => c.id === 'response-keys');
+        if (!hasResponseKeys && components.length > 0) {
+            const comp: ComponentConfig = {
+                id: 'response-keys',
+                type: 'input',
+                label: 'Response Keys',
+                settings: { hidden: true },
+                order: 9999,
+            };
+            setComponents(prev => [...prev, comp]);
+            setComponentValues(prev => ({ ...prev, 'response-keys': prev['response-keys'] || 'letters' }));
+        }
+    }, [isIatModule, components, setComponents, setComponentValues]);
+
     // Reset state when config changes
     useEffect(() => {
         setIsRequired(initialRequired);
@@ -203,14 +220,32 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     <h3 className="text-base font-semibold text-gray-900">{questionNumber ? `${questionNumber}. ` : ''}{module.name}</h3>
                     <div className="flex items-center gap-4 ml-auto">
                         {isIatModule && (
-                            <button
-                                type="button"
-                                onClick={() => setIsPreviewOpen(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
-                            >
-                                <Play className="h-3.5 w-3.5" />
-                                Preview
-                            </button>
+                            <>
+                                <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleComponentValueChange('response-keys', 'letters')}
+                                        className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${(componentValues['response-keys'] || 'letters') === 'letters' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        A / L
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleComponentValueChange('response-keys', 'arrows')}
+                                        className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${componentValues['response-keys'] === 'arrows' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        ← / →
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPreviewOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                                >
+                                    <Play className="h-3.5 w-3.5" />
+                                    Preview
+                                </button>
+                            </>
                         )}
                         <Toggle
                             checked={isRequired}

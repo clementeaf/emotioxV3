@@ -528,6 +528,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
         researchId={researchId}
         cognitiveExportRows={filtered?.vocExportRows}
         moduleId="voc"
+        filteredParticipantIds={filteredParticipantIds}
       />
     );
   }

@@ -128,8 +128,10 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         if (textAnalysisPostMatch && httpMethod === 'POST') {
             const [, researchId, moduleId] = textAnalysisPostMatch;
             const { triggerTextAnalysis } = await import('./text-analysis.service');
+            const body = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : (event.body ?? {});
+            const participantIds: string[] | undefined = Array.isArray(body.participantIds) ? body.participantIds : undefined;
             // Fire-and-forget: respond immediately, analysis runs in background
-            triggerTextAnalysis(researchId, moduleId).catch(err =>
+            triggerTextAnalysis(researchId, moduleId, participantIds).catch(err =>
                 console.error(`[TextAnalysis] Background analysis failed for ${researchId}/${moduleId}:`, err)
             );
             return success({ status: 'analyzing' }, 202, undefined, origin);

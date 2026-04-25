@@ -73,16 +73,22 @@ const saveCachedAnalysis = async (
 const fetchTextEntries = async (
     researchId: string,
     moduleId: string,
+    participantIds?: string[],
 ): Promise<Array<{ text: string; mood: string }>> => {
-    const query = `
+    let query = `
         SELECT r.value, r.metadata
         FROM responses r
         WHERE r.research_id = ?
           AND r.module_id = ?
           AND r.component_id IN ('answer', 'text')
-        ORDER BY r.created_at DESC
     `;
-    const result = await pool.query(query, [researchId, moduleId]);
+    const params: unknown[] = [researchId, moduleId];
+    if (participantIds && participantIds.length > 0) {
+        query += ` AND r.participant_id IN (${participantIds.map(() => '?').join(',')})`;
+        params.push(...participantIds);
+    }
+    query += ` ORDER BY r.created_at DESC`;
+    const result = await pool.query(query, params);
 
     const { analyzeSentiment } = await import('../sentiment/sentiment.service');
 
@@ -108,8 +114,9 @@ const fetchTextEntries = async (
  */
 const fetchVOCEntries = async (
     researchId: string,
+    participantIds?: string[],
 ): Promise<Array<{ text: string; mood: string }>> => {
-    const query = `
+    let query = `
         SELECT r.value, r.metadata
         FROM responses r
         JOIN modules m ON m.id = r.module_id
@@ -121,9 +128,14 @@ const fetchVOCEntries = async (
           AND m.name NOT LIKE '%CV%'
           AND m.name NOT LIKE '%NEV%'
           AND r.component_id = 'text'
-        ORDER BY r.created_at DESC
     `;
-    const result = await pool.query(query, [researchId]);
+    const params: unknown[] = [researchId];
+    if (participantIds && participantIds.length > 0) {
+        query += ` AND r.participant_id IN (${participantIds.map(() => '?').join(',')})`;
+        params.push(...participantIds);
+    }
+    query += ` ORDER BY r.created_at DESC`;
+    const result = await pool.query(query, params);
 
     const { analyzeSentiment } = await import('../sentiment/sentiment.service');
 
@@ -166,11 +178,12 @@ export const getTextAnalysis = async (
 export const triggerTextAnalysis = async (
     researchId: string,
     moduleId: string,
+    participantIds?: string[],
 ): Promise<void> => {
-    // Fetch entries
+    // Fetch entries (optionally filtered by participant)
     const entries = moduleId === 'voc'
-        ? await fetchVOCEntries(researchId)
-        : await fetchTextEntries(researchId, moduleId);
+        ? await fetchVOCEntries(researchId, participantIds)
+        : await fetchTextEntries(researchId, moduleId, participantIds);
 
     if (entries.length === 0) {
         const emptyAnalysis: InsightsAnalysis = {

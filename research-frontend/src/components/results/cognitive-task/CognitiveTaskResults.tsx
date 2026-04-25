@@ -211,6 +211,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
             researchId={researchId}
             cognitiveExportRows={cognitiveExportRows.length > 0 ? cognitiveExportRows : undefined}
             moduleId={module.moduleId}
+            filteredParticipantIds={filteredParticipantIds}
           />
         );
       }

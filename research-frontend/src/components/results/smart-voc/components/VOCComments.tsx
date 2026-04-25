@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { User, ClipboardList, Hash, Sparkles, Loader2 } from 'lucide-react';
+import { User, ClipboardList, Hash, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { Card } from '../../../ui/Card';
 import { cn } from '../../../../lib/utils';
 import type { TextAnalysis } from '../../../../services/analytics.service';
@@ -27,6 +27,8 @@ interface VOCCommentsProps {
   cognitiveExportRows?: CognitiveCommentRow[];
   /** Module ID for text analysis — pass "voc" for SmartVOC VOC, or the actual module UUID for Cognitive */
   moduleId?: string;
+  /** When filters are active, pass participant IDs so "Refresh analysis" re-analyzes the filtered subset */
+  filteredParticipantIds?: Set<string> | null;
 }
 
 export const VOCComments = ({
@@ -37,6 +39,7 @@ export const VOCComments = ({
   researchId: researchIdProp,
   cognitiveExportRows,
   moduleId,
+  filteredParticipantIds,
 }: VOCCommentsProps) => {
   const [activeTab, setActiveTab] = useState<'sentiment' | 'themes' | 'keywords'>('sentiment');
   const [selectedComments, setSelectedComments] = useState<number[]>([]);
@@ -73,13 +76,14 @@ export const VOCComments = ({
     return () => { cancelled = true; };
   }, [researchId, moduleId]);
 
-  // Trigger analysis
+  // Trigger analysis (optionally filtered by participant IDs)
   const handleAnalyze = useCallback(async () => {
     if (!researchId || !moduleId || analyzing) return;
     setAnalyzing(true);
     try {
       const { triggerTextAnalysis, getTextAnalysis } = await import('../../../../services/analytics.service');
-      await triggerTextAnalysis(researchId, moduleId);
+      const pids = filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined;
+      await triggerTextAnalysis(researchId, moduleId, pids);
       // Poll for completion (max 30s)
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 3000));
@@ -94,7 +98,7 @@ export const VOCComments = ({
     } finally {
       setAnalyzing(false);
     }
-  }, [researchId, moduleId, analyzing]);
+  }, [researchId, moduleId, analyzing, filteredParticipantIds]);
 
   const handleSelectAll = () => {
     if (selectedComments.length === comments.length) {
@@ -358,21 +362,32 @@ export const VOCComments = ({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-semibold">Sentiment analysis</h4>
-                    {canAnalyze && !analysis && !analyzing && !loadingAnalysis && (
-                      <button
-                        onClick={handleAnalyze}
-                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Analyze with AI
-                      </button>
-                    )}
-                    {analyzing && (
-                      <span className="flex items-center gap-1.5 text-xs text-violet-600">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Analyzing...
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {canAnalyze && !analyzing && !loadingAnalysis && !analysis && (
+                        <button
+                          onClick={handleAnalyze}
+                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Analyze with AI
+                        </button>
+                      )}
+                      {canAnalyze && !analyzing && !loadingAnalysis && analysis && (
+                        <button
+                          onClick={handleAnalyze}
+                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Refresh analysis
+                        </button>
+                      )}
+                      {analyzing && (
+                        <span className="flex items-center gap-1.5 text-xs text-violet-600">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Analyzing...
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* LLM summary (if available) */}
@@ -436,21 +451,32 @@ export const VOCComments = ({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-base font-semibold">Themes</h4>
-                  {canAnalyze && !analysis && !analyzing && !loadingAnalysis && (
-                    <button
-                      onClick={handleAnalyze}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Analyze with AI
-                    </button>
-                  )}
-                  {analyzing && (
-                    <span className="flex items-center gap-1.5 text-xs text-violet-600">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Analyzing...
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {canAnalyze && !analyzing && !loadingAnalysis && !analysis && (
+                      <button
+                        onClick={handleAnalyze}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Analyze with AI
+                      </button>
+                    )}
+                    {canAnalyze && !analyzing && !loadingAnalysis && analysis && (
+                      <button
+                        onClick={handleAnalyze}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Refresh analysis
+                      </button>
+                    )}
+                    {analyzing && (
+                      <span className="flex items-center gap-1.5 text-xs text-violet-600">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Analyzing...
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {analysis && analysis.themes.length > 0 ? (
@@ -460,7 +486,7 @@ export const VOCComments = ({
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-semibold text-gray-900">{theme.name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500">{theme.count} mentions</span>
+                            <span className="text-xs text-gray-500">{theme.count} mentions ({comments.length > 0 ? Math.round((theme.count / comments.length) * 100) : 0}%)</span>
                             <span className={cn(
                               'text-xs font-medium px-2 py-0.5 rounded-full',
                               theme.sentimentScore > 0.2 ? 'bg-green-100 text-green-700' :
@@ -515,21 +541,32 @@ export const VOCComments = ({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-base font-semibold">Keywords</h4>
-                  {canAnalyze && !analysis && !analyzing && !loadingAnalysis && (
-                    <button
-                      onClick={handleAnalyze}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Analyze with AI
-                    </button>
-                  )}
-                  {analyzing && (
-                    <span className="flex items-center gap-1.5 text-xs text-violet-600">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Analyzing...
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {canAnalyze && !analyzing && !loadingAnalysis && !analysis && (
+                      <button
+                        onClick={handleAnalyze}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Analyze with AI
+                      </button>
+                    )}
+                    {canAnalyze && !analyzing && !loadingAnalysis && analysis && (
+                      <button
+                        onClick={handleAnalyze}
+                        className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Refresh analysis
+                      </button>
+                    )}
+                    {analyzing && (
+                      <span className="flex items-center gap-1.5 text-xs text-violet-600">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Analyzing...
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {analysis && analysis.keywords.length > 0 ? (
@@ -547,7 +584,7 @@ export const VOCComments = ({
                           )}
                         >
                           {kw.word}
-                          <span className="text-[10px] opacity-60">({kw.count})</span>
+                          <span className="text-[10px] opacity-60">({kw.count}, {comments.length > 0 ? Math.round((kw.count / comments.length) * 100) : 0}%)</span>
                         </span>
                       ))}
                     </div>
@@ -566,7 +603,7 @@ export const VOCComments = ({
                           {analysis.keywords.map((kw, i) => (
                             <tr key={i} className="border-b last:border-b-0">
                               <td className="p-2.5 text-gray-800">{kw.word}</td>
-                              <td className="p-2.5 text-center text-gray-600">{kw.count}</td>
+                              <td className="p-2.5 text-center text-gray-600">{kw.count} ({comments.length > 0 ? Math.round((kw.count / comments.length) * 100) : 0}%)</td>
                               <td className="p-2.5">
                                 <span className={cn(
                                   'text-xs font-medium px-2 py-0.5 rounded-full',
