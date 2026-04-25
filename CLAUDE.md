@@ -198,6 +198,7 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **AOI metrics:** dwell %, fixation count, avg duration, TTFF, notice rate, dominant emotion. Soft Gaussian intersection (not binary point-in-rect).
 - **Micro-recalibration:** Every 45s during viewing, invisible dot probes gaze drift and updates IDW correction field. Constants in `hybridCalibrationField.ts` (`MICRO_RECALIB_*`).
 - **Quality gate:** Participants classified `good`/`fair`/`low` by calibration RMSE, integrity score, fixation count. Low excluded from aggregates. `qualitySummary` in ET response.
+- **Calibration click isolation:** WebEyeTrack registers a global `click` listener that feeds mouse coords as calibration. `CalibrationPhase` and `ValidationPhase` use `onClickCapture` + `stopImmediatePropagation()` so only our explicit `blaze.calibrate()` feeds the model. Validation RMSE threshold: 150px (`HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX`).
 - **Attention Prediction:** `POST /attention-prediction/research/:id/module/:moduleId/predict` — TranSalNet sobre stimulus, soporta `imageIndex` para multi-imagen (Nav Flow)
 - **Assessment:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
 - **Lab:** `/labs/eye-tracking` en research-frontend

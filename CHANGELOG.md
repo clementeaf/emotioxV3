@@ -1,3 +1,11 @@
+## v0.62.1 — Fix eye tracking calibration: double-click interference and strict threshold (2026-04-25)
+
+### participant-frontend
+- **Fix: calibration clicks processed twice.** WebEyeTrack registers a global `click` listener that feeds mouse coordinates as calibration data. During calibration/validation, this conflicted with our explicit `blaze.calibrate()` call (correct gaze-at-dot coordinates vs random click position). Fixed with `stopImmediatePropagation()` + `onClickCapture` in `CalibrationPhase` and `ValidationPhase`.
+- **Relaxed validation threshold.** `HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX` raised from 100px to 150px. Webcam gaze has ~60-120px natural error — 100px rejected most valid calibrations.
+
+---
+
 ## v0.62.0 — Results UX improvements, IAT configurable keys, IAT completion fix (2026-04-25)
 
 ### backend

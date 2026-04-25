@@ -30,10 +30,18 @@ export const ValidationPhase: React.FC<ValidationPhaseProps> = ({
 
     const showRecalibrateOption = validationRmse !== null && validationRmse > HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX;
 
+    /** Stop propagation so WebEyeTrack's global click listener doesn't
+     *  feed mouse coordinates as a conflicting calibration point. */
+    const handleClick = !showRecalibrateOption ? (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+        onValidationClick();
+    } : undefined;
+
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black"
-            onClick={!showRecalibrateOption ? onValidationClick : undefined}
+            onClickCapture={handleClick}
             style={{ cursor: !showRecalibrateOption ? 'crosshair' : 'default' }}
         >
             <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">

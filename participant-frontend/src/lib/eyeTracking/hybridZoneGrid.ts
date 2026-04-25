@@ -98,8 +98,10 @@ export const HYBRID_IMAGE_CALIBRATION_POINTS: readonly [number, number][] = [
  */
 export const HYBRID_VALIDATION_POINT: readonly [number, number] = [62, 38];
 
-/** RMSE threshold (viewport px) above which re-calibration is offered at validation point. */
-export const HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX = 100;
+/** RMSE threshold (viewport px) above which re-calibration is offered at validation point.
+ *  Webcam gaze has ~60-120px natural error; 150px allows reasonable calibrations through
+ *  while still catching truly broken ones. */
+export const HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX = 150;
 
 /**
  * Maps a point given as % of image box to BlazeGaze normalized coords (-0.5..0.5, center = screen center).

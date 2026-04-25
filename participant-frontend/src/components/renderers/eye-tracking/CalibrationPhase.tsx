@@ -24,10 +24,18 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
     const calibrationPercent = Math.round(30 + (calibrationIndex / HYBRID_CALIB_POINT_COUNT) * 35);
     const calDotImagePct = HYBRID_IMAGE_CALIBRATION_POINTS[calibrationIndex];
 
+    /** Stop propagation so WebEyeTrack's global click listener doesn't
+     *  feed mouse coordinates as a second (conflicting) calibration point. */
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+        onCalibrationClick();
+    };
+
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center cursor-crosshair bg-black"
-            onClick={onCalibrationClick}
+            onClickCapture={handleClick}
         >
             <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                 <StepProgressPill step={1} total={TOTAL_STEPS} percent={calibrationPercent} />
