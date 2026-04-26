@@ -56,8 +56,9 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                 selectedType?.name === "Attention's Prediction";
     const isInsightsFinding = selectedType?.name === 'Insights Finding';
     const isClientsBenchmark = selectedType?.name === "Client's Benchmark";
+    const isWebsiteTracking = selectedType?.name === 'Website Tracking';
     // These types share: no stages, file upload drawer, sidebar shows files
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark || isWebsiteTracking;
 
     // Client's Benchmark: state for research selection
     const [benchmarkResearches, setBenchmarkResearches] = useState<BenchmarkResearchOption[]>([]);

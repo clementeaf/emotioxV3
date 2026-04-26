@@ -1,3 +1,23 @@
+## v0.63.0 — Website Tracking: injectable script for click heatmaps on external sites (2026-04-26)
+
+### database
+- **New tables.** `tracking_sessions`, `tracking_events`, `tracking_pages` for storing visitor interactions from external websites.
+- **New research type.** "Website Tracking" seeded as file-based research (`skip_default_modules: true`).
+
+### backend
+- **Tracking module.** `backend/src/modules/tracking/` — controller, service, and snippet generator.
+- **Public endpoints (no auth, CORS `*`).** `GET /public/tracking/:id/script.js` serves the injectable JS. `POST .../session` creates a session. `POST .../events` batch-inserts click/scroll/mousemove events.
+- **Authenticated endpoints.** `GET /tracking/:id/overview` (metrics), `/heatmap` (aggregated clicks), `/pages` (tracked URLs), `/sessions` (list), `/snippet` (embed code). `PUT /tracking/:id/config` saves capture settings.
+- **Injectable script.** Async, <15KB. Captures clicks (+ optional scroll, mousemove). Consent banner, `localStorage` visitor ID, `sendBeacon` flush every 2s, buffer cap 50 events. Configurable per research.
+
+### research-frontend
+- **Builder: config panel.** `WebsiteTrackingConfig` shows copiable `<script>` snippet, allowed domains whitelist, capture toggles (clicks, scroll, mousemove, consent banner).
+- **Results: click heatmap.** `WebsiteTrackingResults` with overview cards (visitors, sessions, pages, events, avg duration), page selector tabs, click heatmap overlay (reuses `HeatmapRenderer` + simpleheat), and tracked pages table.
+- **Research type detection.** "Website Tracking" added to `isFileBasedResearch` across `ResearchBuilderPage`, `ResearchBuilderSidebar`, `CreateResearchForm`, `ResearchFormStep2`, `useResearchForm`. Sidebar shows "Configuration" label.
+- **Results page routing.** `ResearchResultsPage` detects Website Tracking and renders dedicated view (no stage-based tabs).
+
+---
+
 ## v0.62.1 — Fix eye tracking calibration: double-click interference and strict threshold (2026-04-25)
 
 ### participant-frontend

@@ -6,6 +6,7 @@ import { CognitiveTaskResults } from '../../components/results/cognitive-task/Co
 import { ScreenerResults } from '../../components/results/screener/ScreenerResults';
 import { ImplicitAssociationResults } from '../../components/results/implicit-association/ImplicitAssociationResults';
 import { EyeTrackingResults } from '../../components/results/eye-tracking/EyeTrackingResults';
+import { WebsiteTrackingResults } from '../../components/results/website-tracking/WebsiteTrackingResults';
 import { useResearch } from '../../hooks/useResearchQuery';
 import { downloadResearchExport } from '../../services/export.service';
 
@@ -101,6 +102,8 @@ export const ResearchResultsPage = () => {
         return research.stages.some((s: { name: string }) => tab.stageDetector(s.name));
     });
 
+    const isWebsiteTracking = research?.research_type_name === 'Website Tracking';
+
     if (!id) {
         return (
             <div className="flex items-center justify-center p-12">
@@ -108,6 +111,15 @@ export const ResearchResultsPage = () => {
                     <p className="text-lg font-medium text-gray-900 mb-2">Research ID not found</p>
                     <p className="text-sm text-gray-500">Unable to load results without a research ID.</p>
                 </div>
+            </div>
+        );
+    }
+
+    // Website Tracking has its own results layout (no stage-based tabs)
+    if (isWebsiteTracking) {
+        return (
+            <div className="p-6 space-y-6 h-full overflow-y-auto">
+                <WebsiteTrackingResults researchId={id} />
             </div>
         );
     }

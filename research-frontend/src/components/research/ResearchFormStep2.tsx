@@ -44,7 +44,8 @@ export const ResearchFormStep2 = ({
                                 selectedResearchType?.name === "Attention's Prediction";
     const isInsightsFinding = selectedResearchType?.name === 'Insights Finding';
     const isClientsBenchmark = selectedResearchType?.name === "Client's Benchmark";
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+    const isWebsiteTracking = selectedResearchType?.name === 'Website Tracking';
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark || isWebsiteTracking;
 
     // Technique default_stages take priority over research type default_modules
     const techniqueStages = selectedTechnique?.default_stages;

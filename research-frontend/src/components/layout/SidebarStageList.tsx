@@ -29,6 +29,7 @@ interface SidebarStageListProps {
     isFileBasedResearch: boolean;
     isClientsBenchmark: boolean;
     isInsightsFinding: boolean;
+    isWebsiteTracking?: boolean;
     isViewer: boolean;
     onAddStageClick: () => void;
     onDeleteStageClick: (e: React.MouseEvent, stageId: string, stageName: string) => void;
@@ -41,6 +42,7 @@ export const SidebarStageList = ({
     isFileBasedResearch,
     isClientsBenchmark,
     isInsightsFinding,
+    isWebsiteTracking,
     isViewer,
     onAddStageClick,
     onDeleteStageClick,
@@ -54,7 +56,7 @@ export const SidebarStageList = ({
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                    {isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
+                    {isFileBasedResearch ? (isWebsiteTracking ? 'Configuration' : isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
                 </h3>
                 {!isFileBasedResearch && !isViewer && (
                     <button

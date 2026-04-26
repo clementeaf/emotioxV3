@@ -215,7 +215,8 @@ export const useResearchForm = () => {
         const isFileBasedResearch = selectedType?.name === 'Attention Prediction' ||
                                    selectedType?.name === "Attention's Prediction" ||
                                    selectedType?.name === 'Insights Finding' ||
-                                   selectedType?.name === "Client's Benchmark";
+                                   selectedType?.name === "Client's Benchmark" ||
+                                   selectedType?.name === 'Website Tracking';
 
         if (!isFileBasedResearch && !formData.researchTechniqueId) {
             newErrors.researchTechniqueId = 'Research Technique is required';

@@ -83,7 +83,8 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                 activeResearch?.research_type_name === "Attention's Prediction";
     const isInsightsFinding = activeResearch?.research_type_name === 'Insights Finding';
     const isClientsBenchmark = activeResearch?.research_type_name === "Client's Benchmark";
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+    const isWebsiteTracking = activeResearch?.research_type_name === 'Website Tracking';
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark || isWebsiteTracking;
 
     // Get stimuli from settings if it exists
     const settings = (activeResearch?.settings as Record<string, unknown>) || {};
@@ -438,6 +439,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     isFileBasedResearch={isFileBasedResearch}
                     isClientsBenchmark={isClientsBenchmark}
                     isInsightsFinding={isInsightsFinding}
+                    isWebsiteTracking={isWebsiteTracking}
                     isViewer={isViewer}
                     onAddStageClick={() => {
                         setShowStageSelector(true);

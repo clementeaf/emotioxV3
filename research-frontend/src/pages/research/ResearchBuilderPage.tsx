@@ -17,6 +17,7 @@ import { ResearchConfigurationModule } from '../../components/research/ResearchC
 import { AttentionPredictionView } from '../../components/research/AttentionPredictionView';
 import { InsightsFindingView } from '../../components/research/InsightsFindingView';
 import { ClientsBenchmarkView } from '../../components/research/ClientsBenchmarkView';
+import { WebsiteTrackingConfig } from '../../components/research/WebsiteTrackingConfig';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
 import { useToast } from '../../hooks/useToast';
@@ -58,17 +59,19 @@ export const ResearchBuilderPage = () => {
                                  typedResearch?.research_type_name === "Attention's Prediction";
     const isInsightsFinding = typedResearch?.research_type_name === 'Insights Finding';
     const isClientsBenchmark = typedResearch?.research_type_name === "Client's Benchmark";
-    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark;
+    const isWebsiteTracking = typedResearch?.research_type_name === 'Website Tracking';
+    const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark || isWebsiteTracking;
 
     // Redirect to first file/stimulus for file-based research if none selected
+    // Website Tracking doesn't use stimuli — it has its own config view
     useEffect(() => {
-        if (isFileBasedResearch && !stimulusId && typedResearch?.settings) {
+        if (isFileBasedResearch && !isWebsiteTracking && !stimulusId && typedResearch?.settings) {
             const stimuli = (typedResearch.settings as { stimuli?: Array<{ mediaId: string }> })?.stimuli || [];
             if (stimuli.length > 0) {
                 navigate(`/research/${id}/builder/stimulus/${stimuli[0].mediaId}`, { replace: true });
             }
         }
-    }, [isFileBasedResearch, stimulusId, typedResearch, id, navigate]);
+    }, [isFileBasedResearch, isWebsiteTracking, stimulusId, typedResearch, id, navigate]);
 
     const isSettings = location.pathname.endsWith('/settings');
     // Use useParams for moduleId instead of regex for better reactivity
@@ -538,6 +541,10 @@ export const ResearchBuilderPage = () => {
                         research={typedResearch}
                         stimulusId={stimulusId}
                     />
+                )}
+
+                {isWebsiteTracking && typedResearch && (
+                    <WebsiteTrackingConfig research={typedResearch} />
                 )}
 
                 {isSettings && <ResearchSettingsView research={typedResearch} />}

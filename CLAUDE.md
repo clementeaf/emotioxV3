@@ -122,6 +122,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `backend/src/modules/public/public.service.ts` — endpoints públicos, validación, save responses
 - `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC, NEV, Eye Tracking (FACS, AOI, sequence), IAT (D-score, errors)
 - `backend/src/modules/attention-prediction/attention-prediction.controller.ts` — TranSalNet prediction (research stimuli + module stimuli)
+- `backend/src/modules/tracking/tracking.controller.ts` — Website Tracking public + auth endpoints
+- `backend/src/modules/tracking/tracking.service.ts` — sessions, events batch insert, heatmap aggregation
+- `backend/src/modules/tracking/tracking-snippet.ts` — injectable JS generator
 - `backend/src/modules/research/research-in-progress.service.ts` — progreso participantes
 
 ### Research Frontend
@@ -136,6 +139,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - `research-frontend/src/components/research/AOIDrawer.tsx` — AOI drawing sobre imágenes
 - `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — panel SmartVOC completo
 - `research-frontend/src/components/research/AttentionPredictionCard.tsx` — análisis por stimulus (heatmap, video, AOI)
+- `research-frontend/src/components/research/WebsiteTrackingConfig.tsx` — tracking config panel (snippet, domains, toggles)
+- `research-frontend/src/components/results/website-tracking/WebsiteTrackingResults.tsx` — click heatmap + overview
+- `research-frontend/src/services/tracking.service.ts` — API client for tracking endpoints
 - `research-frontend/src/hooks/useResearchForm.ts` — form creación con prioridad default_stages
 
 ### Participant Frontend
@@ -185,6 +191,16 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Endpoints públicos: `GET /public/research/:id/mode`, `POST /public/research/:id/kiosk/session`
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
+
+## Website Tracking (v0.63.0)
+- **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
+- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS (<15KB). Captures clicks (+ optional scroll, mousemove). Consent banner, `localStorage` visitor ID, `sendBeacon` flush every 2s, buffer cap 50 events.
+- **Public endpoints (CORS `*`):** `POST .../session` (create), `POST .../events` (batch insert). OPTIONS preflight handled in tracking controller, not global router.
+- **Authenticated endpoints:** `/tracking/:id/overview`, `/heatmap?page=URL`, `/pages`, `/sessions`, `/snippet`, `PUT /config`.
+- **Tables:** `tracking_sessions` (visitor, page, viewport, UA), `tracking_events` (click/scroll/mousemove, x/y, selector, timestamp), `tracking_pages` (URL, screenshot s3key).
+- **Builder:** `WebsiteTrackingConfig` — snippet copiable, domain whitelist, capture toggles (clicks/scroll/mousemove/consent).
+- **Results:** `WebsiteTrackingResults` — overview cards + page selector + click heatmap (reuses `HeatmapRenderer`/simpleheat) + tracked pages table.
+- **Detection:** `isWebsiteTracking` added to `isFileBasedResearch` in builder, sidebar, create form, results page.
 
 ## Eye Tracking (v0.58.0)
 - **Motor:** BlazeGaze CNN (670KB, `webeyetrack`) — imagen de ojos + head pose

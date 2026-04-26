@@ -39,6 +39,13 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
     const origin = event.headers.Origin || event.headers.origin || null;
 
     // Handle OPTIONS for CORS preflight
+    // Tracking endpoints use permissive CORS (Access-Control-Allow-Origin: *) — delegate to their controller
+    if (httpMethod === 'OPTIONS' && path.startsWith('/public/tracking')) {
+        const { handlePublicTrackingRoutes } = await import('./modules/tracking/tracking.controller');
+        const normalizedEvent: APIGatewayProxyEvent = { ...event, path };
+        return await handlePublicTrackingRoutes(normalizedEvent);
+    }
+
     // IMPORTANTE: API Gateway puede interceptar OPTIONS, pero debemos responder con headers correctos
     if (httpMethod === 'OPTIONS') {
         const corsHeaders = getCorsHeaders(origin);
@@ -177,6 +184,11 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         }
 
         // Public routes (no auth)
+        if (path.startsWith('/public/tracking')) {
+            const { handlePublicTrackingRoutes } = await import('./modules/tracking/tracking.controller');
+            return await handlePublicTrackingRoutes(normalizedEvent);
+        }
+
         if (path.startsWith('/public')) {
             const { handlePublicRoutes } = await import('./modules/public/public.controller');
             return await handlePublicRoutes(normalizedEvent);
@@ -198,6 +210,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
         if (path.startsWith('/analytics')) {
             const { handleAnalyticsRoutes } = await import('./modules/analytics/analytics.controller');
             return await handleAnalyticsRoutes(normalizedEvent);
+        }
+
+        // Tracking routes (authenticated — research-frontend)
+        if (path.startsWith('/tracking')) {
+            const { handleTrackingRoutes } = await import('./modules/tracking/tracking.controller');
+            return await handleTrackingRoutes(normalizedEvent);
         }
 
         // Attention Prediction routes
