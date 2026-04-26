@@ -47,6 +47,19 @@ import { ViewingPhase } from './eye-tracking/ViewingPhase';
 import { CompletePhase } from './eye-tracking/CompletePhase';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function fisherYatesShuffle<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -58,15 +71,18 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const deviceType = useMemo(() => getDeviceType(), []);
     const isDesktop = deviceType === 'desktop';
 
-    const { stimulusUrl, taskDescription, viewingDuration, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
+    const { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
+    const isShelf = displayMode === 'shelf';
 
     const [phase, setPhase] = useState<ETPhase>('intro');
     const [resolvedUrl, setResolvedUrl] = useState<string>('');
+    const [resolvedShelfUrls, setResolvedShelfUrls] = useState<string[]>([]);
     const [fixations, setFixations] = useState<Fixation[]>([]);
     const [timeLeft, setTimeLeft] = useState(Math.ceil(viewingDuration / 1000));
     const imgRef = useRef<HTMLImageElement>(null);
     const stimulusVideoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const shelfContainerRef = useRef<HTMLDivElement>(null);
     const lastClickRef = useRef<{ time: number } | null>(null);
     const savedRef = useRef(false);
     const fixationsRef = useRef<Fixation[]>([]);
@@ -132,27 +148,38 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }
     }, []);
 
-    // Resolve stimulus URL
+    // Resolve stimulus URL(s)
     useEffect(() => {
-        if (!stimulusUrl) return;
+        const urlsToResolve = isShelf ? stimulusUrls : (stimulusUrl ? [stimulusUrl] : []);
+        if (urlsToResolve.length === 0) return;
         let cancelled = false;
 
-        const resolve = async () => {
+        const resolveOne = async (url: string) => {
             try {
-                if (stimulusUrl.startsWith('/') || (!stimulusUrl.startsWith('http') && !stimulusUrl.startsWith('blob'))) {
-                    const url = await mediaService.getMediaUrl(stimulusUrl);
-                    if (!cancelled) setResolvedUrl(url);
-                } else {
-                    if (!cancelled) setResolvedUrl(stimulusUrl);
+                if (url.startsWith('/') || (!url.startsWith('http') && !url.startsWith('blob'))) {
+                    return await mediaService.getMediaUrl(url);
                 }
+                return url;
             } catch {
-                if (!cancelled) setResolvedUrl(stimulusUrl);
+                return url;
             }
         };
 
-        resolve();
+        const resolveAll = async () => {
+            const resolved = await Promise.all(urlsToResolve.map(resolveOne));
+            if (cancelled) return;
+            if (isShelf) {
+                const final = randomizeStimuli ? fisherYatesShuffle(resolved) : resolved;
+                setResolvedShelfUrls(final);
+                setResolvedUrl(final[0] || '');
+            } else {
+                setResolvedUrl(resolved[0] || '');
+            }
+        };
+
+        resolveAll();
         return () => { cancelled = true; };
-    }, [stimulusUrl]);
+    }, [stimulusUrl, stimulusUrls, isShelf, randomizeStimuli]);
 
     /** Keep latest smoothed gaze for hybrid calibration samples (desktop).
      *  Reads from blaze.gazePosRef (updated every frame, no re-render). */
@@ -190,8 +217,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         const loop = () => {
             const [gx, gy] = gazePosRef.current;
             const now = Date.now();
-            // Use stimulus element (video or image) for bounding rect
-            const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+            const stimEl = getStimulusElement();
             const rect = stimEl?.getBoundingClientRect();
             if (rect && rect.width > 0 && rect.height > 0 && blaze.gazeState === 'open' && now - lastCollect >= GAZE_POLL_MS) {
                 const corrected = hybridApplyCalibrationField(
@@ -259,7 +285,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 const avgY = sumY / samples.length;
 
                 // Get stimulus rect
-                const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+                const stimEl = getStimulusElement();
                 const rect = stimEl?.getBoundingClientRect();
                 if (!rect || rect.width <= 0) return;
 
@@ -293,7 +319,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
 
         const timeout = setTimeout(() => {
             // Snapshot stimulus rect before transitioning to complete (which hides the stimulus)
-            const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+            const stimEl = getStimulusElement();
             if (stimEl) {
                 viewingRectRef.current = stimEl.getBoundingClientRect();
             }
@@ -348,15 +374,19 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             const zoneMass: Record<string, number> = {};
             HYBRID_AOI_GRID.forEach(z => { zoneMass[z.id] = 0; });
 
-            const stimEl = isVideo ? stimulusVideoRef.current : imgRef.current;
+            const stimEl = getStimulusElement();
             const liveRect = stimEl?.getBoundingClientRect();
             const rect = (liveRect && liveRect.width > 0) ? liveRect : viewingRectRef.current;
-            const natW = isVideo
-                ? (stimulusVideoRef.current?.videoWidth || 1)
-                : (naturalSizeRef.current?.w || imgRef.current?.naturalWidth || 1);
-            const natH = isVideo
-                ? (stimulusVideoRef.current?.videoHeight || 1)
-                : (naturalSizeRef.current?.h || imgRef.current?.naturalHeight || 1);
+            const natW = isShelf
+                ? (naturalSizeRef.current?.w || rect?.width || 1)
+                : isVideo
+                    ? (stimulusVideoRef.current?.videoWidth || 1)
+                    : (naturalSizeRef.current?.w || imgRef.current?.naturalWidth || 1);
+            const natH = isShelf
+                ? (naturalSizeRef.current?.h || rect?.height || 1)
+                : isVideo
+                    ? (stimulusVideoRef.current?.videoHeight || 1)
+                    : (naturalSizeRef.current?.h || imgRef.current?.naturalHeight || 1);
 
             // Also compute fixations for backward compatibility
             let finalFixations: Fixation[];
@@ -422,7 +452,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 gazePipeline: isDesktop ? 'hybrid-zone-idt' : 'click-proxy',
                 calibrationRmsePx: isDesktop ? calibrationRmsePxRef.current : undefined,
                 emotions: hasEmotionRecognition ? faceEmotions.getSamples() : undefined,
-                stimulusType: isVideo ? 'video' : 'image',
+                stimulusType: isShelf ? 'shelf' : isVideo ? 'video' : 'image',
+                ...(isShelf && { displayMode, shelfCount, shelfItems, stimulusCount: resolvedShelfUrls.length }),
                 gazeTimeline: isVideo && isDesktop ? gazePointsRef.current.map(p => ({
                     x: p.x, y: p.y, t: p.t, videoTime: p.videoTime,
                 })) : undefined,
@@ -454,16 +485,32 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }
     }, []);
 
+    /** Returns the bounding-rect source element for the current mode. */
+    const getStimulusElement = useCallback((): HTMLElement | null => {
+        if (isShelf) return shelfContainerRef.current;
+        if (isVideo) return stimulusVideoRef.current;
+        return imgRef.current;
+    }, [isShelf, isVideo]);
+
+    const handleShelfAllLoaded = useCallback(() => {
+        if (shelfContainerRef.current) {
+            const rect = shelfContainerRef.current.getBoundingClientRect();
+            const size = { w: Math.round(rect.width), h: Math.round(rect.height) };
+            naturalSizeRef.current = size;
+            setNaturalSize(size);
+        }
+    }, []);
+
     // Click/tap proxy for mobile/tablet during viewing
     const handleImageInteraction = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-        if (phase !== 'viewing' || !imgRef.current) return;
+        const el = isShelf ? shelfContainerRef.current : imgRef.current;
+        if (phase !== 'viewing' || !el) return;
         // Desktop uses BlazeGaze — skip click capture
         if (isDesktop) return;
 
-        const img = imgRef.current;
-        const rect = img.getBoundingClientRect();
-        const naturalW = naturalSizeRef.current?.w || img.naturalWidth || rect.width;
-        const naturalH = naturalSizeRef.current?.h || img.naturalHeight || rect.height;
+        const rect = el.getBoundingClientRect();
+        const naturalW = isShelf ? rect.width : (naturalSizeRef.current?.w || (imgRef.current as HTMLImageElement)?.naturalWidth || rect.width);
+        const naturalH = isShelf ? rect.height : (naturalSizeRef.current?.h || (imgRef.current as HTMLImageElement)?.naturalHeight || rect.height);
 
         let clientX: number;
         let clientY: number;
@@ -501,7 +548,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             fixationsRef.current = next;
             return next;
         });
-    }, [phase, isDesktop]);
+    }, [phase, isDesktop, isShelf]);
 
     /**
      * One click per dot: user LOOKS at the green dot and clicks anywhere.
@@ -510,13 +557,13 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
      */
     const handleCalibrationClick = useCallback(() => {
         if (phase !== 'calibration') return;
-        const img = imgRef.current;
-        if (!img) return;
+        const el = getStimulusElement();
+        if (!el) return;
         const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
         const idx = calibrationIndex;
         if (idx >= pts.length) return;
 
-        const rect = img.getBoundingClientRect();
+        const rect = el.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
 
         const [ipx, ipy] = pts[idx];
@@ -568,9 +615,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
      */
     const handleValidationClick = useCallback(() => {
         if (phase !== 'validating') return;
-        const img = imgRef.current;
-        if (!img) return;
-        const rect = img.getBoundingClientRect();
+        const el = getStimulusElement();
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
 
         const [vpx, vpy] = HYBRID_VALIDATION_POINT;
@@ -617,7 +664,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // Unconfigured
     // -----------------------------------------------------------------------
 
-    if (!stimulusUrl) {
+    if (!stimulusUrl && resolvedShelfUrls.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
                 <p className="text-gray-400 text-center">
@@ -630,6 +677,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // -----------------------------------------------------------------------
     // Main render — persistent <video> + phase content
     // -----------------------------------------------------------------------
+
+    const shelfConfig = isShelf && resolvedShelfUrls.length > 0
+        ? { shelfCount, shelfItems, urls: resolvedShelfUrls, containerRef: shelfContainerRef, onAllLoaded: handleShelfAllLoaded }
+        : null;
 
     let phaseContent: React.ReactNode = null;
 
@@ -664,6 +715,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 imgRef={imgRef}
                 onCalibrationClick={handleCalibrationClick}
                 onImageLoad={handleImageLoad}
+                shelfConfig={shelfConfig}
             />
         );
     } else if (phase === 'validating') {
@@ -676,6 +728,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 onRecalibrate={handleRecalibrate}
                 onSkipValidation={handleSkipValidation}
                 onImageLoad={handleImageLoad}
+                shelfConfig={shelfConfig}
             />
         );
     } else if (phase === 'viewing') {
@@ -695,6 +748,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 onImageInteraction={handleImageInteraction}
                 onImageLoad={handleImageLoad}
                 onVideoLoadedMetadata={handleVideoLoadedMetadata}
+                shelfConfig={shelfConfig}
             />
         );
     } else if (phase === 'complete') {

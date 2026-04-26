@@ -1,3 +1,23 @@
+## v0.63.1 — Eye Tracking Shelf mode: column-based grid with auto-detection and auto-AOIs (2026-04-26)
+
+### research-frontend
+- **Shelf preview in builder.** `ModuleContentEditor` renders a column-based CSS Grid preview when multiple stimuli are uploaded. Each image fills an entire column, repeated across rows.
+- **Auto-detect shelf mode.** When >1 image is uploaded, `display-mode` is automatically set to `shelf`. No manual toggle needed.
+- **Auto-generated AOIs.** In shelf mode, one AOI per column (100% height) is auto-generated and saved to `aois` component. Regenerates when shelf-count, shelf-items, or stimuli change.
+- **Shelf config conditional.** Shelf configuration panel (grid preview, Number of Shelfs, Items per Shelf, Randomize) only visible when shelf mode is active. AOI Drawer hidden in shelf mode.
+
+### participant-frontend
+- **Shelf grid rendering.** New `ShelfGrid` component renders N×M CSS Grid. Column-based mapping: each URL fills a full column. Used in CalibrationPhase (blurred), ValidationPhase (blurred), and ViewingPhase (clear).
+- **`extractConfig` extended.** Returns `stimulusUrls[]`, `shelfCount`, `shelfItems`, `randomizeStimuli`. Auto-detects shelf when >1 image even without explicit `display-mode`.
+- **Shelf-aware gaze tracking.** `EyeTrackingRenderer` uses `shelfContainerRef` as bounding rect source. `getStimulusElement()` helper returns the correct ref for each mode. Calibration, validation, micro-recalibration, and click-proxy all work on the composite grid.
+- **Column randomization.** When `randomize-stimuli=true`, the URLs array is shuffled (Fisher-Yates), which randomizes column order per participant.
+- **Response metadata.** Shelf responses include `displayMode`, `shelfCount`, `shelfItems`, `stimulusCount`.
+
+### backend
+- **Analytics metadata.** `extractEyeTrackingConfig` reads `shelf-count` and `shelf-items`. `getEyeTrackingResults` includes `shelfCount`/`shelfItems` in response when `modality=shelf`.
+
+---
+
 ## v0.63.0 — Website Tracking: injectable script for click heatmaps on external sites (2026-04-26)
 
 ### database

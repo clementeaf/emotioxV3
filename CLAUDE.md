@@ -92,7 +92,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Screener ordering**: special step. Orden fijo: `welcome → screener → demographics → resto → thank-you`.
 - **Draft persistence**: `useModuleDraftStore` (Zustand, session-scoped). `PendingDraftsDropdown` en header.
 - **Eye Tracking híbrido**: BlazeGaze + One-Euro filter + IDW + I-DT fixation detection. 9-point calibración, validación RMSE. Mobile: tap proxy. IDs canónicos: 10 componentes en template (migración 020).
-- **Eye Tracking AOI**: `AOIDrawer` dibuja rectángulos sobre stimulus. Backend lee `aois` para intersecciones.
+- **Eye Tracking AOI**: Stand Alone: `AOIDrawer` dibuja rectángulos sobre stimulus. Shelf: AOIs auto-generadas (1 por columna, 100% altura). Backend lee `aois` para intersecciones.
+- **Eye Tracking Shelf mode**: Auto-detectado cuando >1 imagen subida. Column-based grid: cada imagen = 1 columna repetida en todas las filas. `ShelfGrid` componente reutilizable (participant). `display-mode` se sincroniza automáticamente. `randomize-stimuli` baraja orden de columnas por participante. Shelf config (count/items) visible solo en shelf mode. Coordenadas de fijación relativas al contenedor compuesto.
 - **Ciudades en Country & City**: `demographics.country.cities` + `demographics.city`. Cuotas por ciudad (countryCity) o por país (countryOnly), nunca ambos.
 - **NavigationFlow**: `<img>` directo (no LazyImage). Hitzones px → %. Triple handler con dedupe 150ms. Completion overlay con "Tap to continue". `key={module.id}` fuerza re-mount.
 - **Configurable language switcher**: `linkConfig.allowLanguageSwitch` (default false).

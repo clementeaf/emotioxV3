@@ -1,3 +1,4 @@
+import type React from 'react';
 import type { ModuleConfig } from '../../../types/module';
 import { getComponentText } from '../../../utils/moduleComponent';
 import {
@@ -18,6 +19,14 @@ export interface Fixation {
     y: number;
     duration: number;
     timestamp: number;
+}
+
+export interface ShelfConfig {
+    shelfCount: number;
+    shelfItems: number;
+    urls: string[];
+    containerRef: React.RefObject<HTMLDivElement | null>;
+    onAllLoaded: () => void;
 }
 
 /**
@@ -56,8 +65,9 @@ export function getDeviceType(): 'desktop' | 'tablet' | 'mobile' {
 export const extractConfig = (module: ModuleConfig) => {
     const components = module.structure?.components || [];
 
-    // Stimulus URL — canonical ID: 'stimuli', fallback to any file-upload
+    // Stimulus URLs — canonical ID: 'stimuli', fallback to any file-upload
     let stimulusUrl = '';
+    let stimulusUrls: string[] = [];
     const fileUploadComp = components.find(c =>
         c.id === 'stimuli' || c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
     );
@@ -67,13 +77,17 @@ export const extractConfig = (module: ModuleConfig) => {
             try {
                 const parsed = JSON.parse(raw);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    const first = parsed[0] as { s3Key?: string; url?: string };
-                    stimulusUrl = first.s3Key || first.url || '';
+                    stimulusUrls = parsed
+                        .map((item: { s3Key?: string; url?: string }) => item.s3Key || item.url || '')
+                        .filter(Boolean);
+                    stimulusUrl = stimulusUrls[0] || '';
                 } else if (typeof parsed === 'string') {
                     stimulusUrl = parsed;
+                    stimulusUrls = [parsed];
                 }
             } catch {
                 stimulusUrl = raw;
+                stimulusUrls = [raw];
             }
         }
     }
@@ -101,13 +115,26 @@ export const extractConfig = (module: ModuleConfig) => {
         }
     }
 
-    // Display mode — canonical ID: 'display-mode'
+    // Display mode — canonical ID: 'display-mode', auto-detect fallback: >1 image = shelf
     let displayMode: 'stand_alone' | 'shelf' = 'stand_alone';
     const modeComp = components.find(c => c.id === 'display-mode');
     if (modeComp) {
         const val = getComponentText(modeComp).toLowerCase();
         if (val === 'shelf') displayMode = 'shelf';
     }
+    if (displayMode === 'stand_alone' && stimulusUrls.length > 1) {
+        displayMode = 'shelf';
+    }
+
+    // Shelf config — canonical IDs: 'shelf-count', 'shelf-items', 'randomize-stimuli'
+    const shelfCountComp = components.find(c => c.id === 'shelf-count');
+    const shelfCount = shelfCountComp ? parseInt(getComponentText(shelfCountComp), 10) || 2 : 2;
+
+    const shelfItemsComp = components.find(c => c.id === 'shelf-items');
+    const shelfItems = shelfItemsComp ? parseInt(getComponentText(shelfItemsComp), 10) || 5 : 5;
+
+    const randomizeComp = components.find(c => c.id === 'randomize-stimuli');
+    const randomizeStimuli = randomizeComp ? getComponentText(randomizeComp) === 'true' : false;
 
     // Feature toggles
     const emotionRecognition = components.find(c => c.id === 'emotion-recognition');
@@ -116,8 +143,8 @@ export const extractConfig = (module: ModuleConfig) => {
     const attentionMeasurement = components.find(c => c.id === 'attention-measurement');
     const hasAttentionMeasurement = attentionMeasurement ? getComponentText(attentionMeasurement) === 'true' : true;
 
-    // Detect video stimulus
-    const isVideo = /\.(mp4|webm|ogg)$/i.test(stimulusUrl) || stimulusUrl.includes('video/');
+    // Detect video stimulus (shelf mode is always images)
+    const isVideo = displayMode !== 'shelf' && (/\.(mp4|webm|ogg)$/i.test(stimulusUrl) || stimulusUrl.includes('video/'));
 
-    return { stimulusUrl, taskDescription, viewingDuration, displayMode, hasEmotionRecognition, hasAttentionMeasurement, isVideo };
+    return { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, hasEmotionRecognition, hasAttentionMeasurement, isVideo };
 };

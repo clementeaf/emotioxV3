@@ -2,7 +2,9 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS, HYBRID_CALIB_POINT_COUNT } from './types';
+import type { ShelfConfig } from './types';
 import { HYBRID_IMAGE_CALIBRATION_POINTS } from '../../../lib/eyeTracking';
+import { ShelfGrid } from './ShelfGrid';
 
 interface CalibrationPhaseProps {
     calibrationIndex: number;
@@ -10,6 +12,7 @@ interface CalibrationPhaseProps {
     imgRef: React.RefObject<HTMLImageElement | null>;
     onCalibrationClick: () => void;
     onImageLoad: () => void;
+    shelfConfig: ShelfConfig | null;
 }
 
 export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
@@ -18,6 +21,7 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
     imgRef,
     onCalibrationClick,
     onImageLoad,
+    shelfConfig,
 }) => {
     const { t } = useTranslation();
 
@@ -56,17 +60,29 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
                 </p>
             </div>
 
-            {resolvedUrl && (
+            {(resolvedUrl || shelfConfig) && (
                 <div className="relative">
-                    <img
-                        ref={imgRef}
-                        src={resolvedUrl}
-                        alt="Calibration"
-                        className="max-w-[95vw] max-h-[95vh] object-contain"
-                        style={{ filter: 'blur(12px)', opacity: 0.6 }}
-                        draggable={false}
-                        onLoad={onImageLoad}
-                    />
+                    {shelfConfig ? (
+                        <ShelfGrid
+                            urls={shelfConfig.urls}
+                            shelfCount={shelfConfig.shelfCount}
+                            shelfItems={shelfConfig.shelfItems}
+                            blur
+                            opacity={0.6}
+                            containerRef={shelfConfig.containerRef}
+                            onAllLoaded={shelfConfig.onAllLoaded}
+                        />
+                    ) : (
+                        <img
+                            ref={imgRef}
+                            src={resolvedUrl}
+                            alt="Calibration"
+                            className="max-w-[95vw] max-h-[95vh] object-contain"
+                            style={{ filter: 'blur(12px)', opacity: 0.6 }}
+                            draggable={false}
+                            onLoad={onImageLoad}
+                        />
+                    )}
                     {calDotImagePct && (
                         <div
                             className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"

@@ -45,6 +45,8 @@ interface EyeTrackingStimulus {
   moduleName: string;
   stimulusUrl: string;
   modality: 'stand_alone' | 'shelf';
+  shelfCount?: number;
+  shelfItems?: number;
   taskDescription: string;
   totalResponses: number;
   uniqueParticipants: number;
@@ -157,11 +159,18 @@ const extractEyeTrackingConfig = (config: any) => {
     } catch { /* ignore */ }
   }
 
+  // Shelf config
+  const shelfCountComp = components.find((c: any) => c.id === 'shelf-count');
+  const shelfCount = shelfCountComp?.value ? parseInt(String(shelfCountComp.value), 10) || 2 : 2;
+
+  const shelfItemsComp = components.find((c: any) => c.id === 'shelf-items');
+  const shelfItems = shelfItemsComp?.value ? parseInt(String(shelfItemsComp.value), 10) || 5 : 5;
+
   // Feature toggles
   const emotionComp = components.find((c: any) => c.id === 'emotion-recognition');
   const hasEmotionRecognition = emotionComp ? String(emotionComp.value) === 'true' : true;
 
-  return { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition };
+  return { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition, shelfCount, shelfItems };
 };
 
 /**
@@ -667,7 +676,7 @@ export const getEyeTrackingResults = async (researchId: string) => {
       config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
     } catch { /* ignore */ }
 
-    const { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition } = extractEyeTrackingConfig(config);
+    const { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition, shelfCount, shelfItems } = extractEyeTrackingConfig(config);
 
     // 3. Get responses for this module (component_id = 'eye-tracking-data')
     const responsesQuery = `
@@ -704,6 +713,7 @@ export const getEyeTrackingResults = async (researchId: string) => {
       moduleName: mod.name,
       stimulusUrl,
       modality,
+      ...(modality === 'shelf' && { shelfCount, shelfItems }),
       taskDescription,
       totalResponses: responsesResult.rows.length,
       ...metrics,

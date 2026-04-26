@@ -2,10 +2,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS } from './types';
+import type { ShelfConfig } from './types';
 import {
     HYBRID_VALIDATION_POINT,
     HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX,
 } from '../../../lib/eyeTracking';
+import { ShelfGrid } from './ShelfGrid';
 
 interface ValidationPhaseProps {
     validationRmse: number | null;
@@ -15,6 +17,7 @@ interface ValidationPhaseProps {
     onRecalibrate: () => void;
     onSkipValidation: () => void;
     onImageLoad: () => void;
+    shelfConfig: ShelfConfig | null;
 }
 
 export const ValidationPhase: React.FC<ValidationPhaseProps> = ({
@@ -25,6 +28,7 @@ export const ValidationPhase: React.FC<ValidationPhaseProps> = ({
     onRecalibrate,
     onSkipValidation,
     onImageLoad,
+    shelfConfig,
 }) => {
     const { t } = useTranslation();
 
@@ -76,17 +80,29 @@ export const ValidationPhase: React.FC<ValidationPhaseProps> = ({
                 )}
             </div>
 
-            {resolvedUrl && (
+            {(resolvedUrl || shelfConfig) && (
                 <div className="relative">
-                    <img
-                        ref={imgRef}
-                        src={resolvedUrl}
-                        alt="Validation"
-                        className="max-w-[95vw] max-h-[95vh] object-contain"
-                        style={{ filter: 'blur(12px)', opacity: 0.6 }}
-                        draggable={false}
-                        onLoad={onImageLoad}
-                    />
+                    {shelfConfig ? (
+                        <ShelfGrid
+                            urls={shelfConfig.urls}
+                            shelfCount={shelfConfig.shelfCount}
+                            shelfItems={shelfConfig.shelfItems}
+                            blur
+                            opacity={0.6}
+                            containerRef={shelfConfig.containerRef}
+                            onAllLoaded={shelfConfig.onAllLoaded}
+                        />
+                    ) : (
+                        <img
+                            ref={imgRef}
+                            src={resolvedUrl}
+                            alt="Validation"
+                            className="max-w-[95vw] max-h-[95vh] object-contain"
+                            style={{ filter: 'blur(12px)', opacity: 0.6 }}
+                            draggable={false}
+                            onLoad={onImageLoad}
+                        />
+                    )}
                     {!showRecalibrateOption && (
                         <div
                             className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50 animate-pulse"

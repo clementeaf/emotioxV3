@@ -2,7 +2,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS } from './types';
-import type { Fixation } from './types';
+import type { Fixation, ShelfConfig } from './types';
+import { ShelfGrid } from './ShelfGrid';
 
 interface ViewingPhaseProps {
     isDesktop: boolean;
@@ -19,6 +20,7 @@ interface ViewingPhaseProps {
     onImageInteraction: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
     onImageLoad: () => void;
     onVideoLoadedMetadata: () => void;
+    shelfConfig: ShelfConfig | null;
 }
 
 export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
@@ -36,6 +38,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
     onImageInteraction,
     onImageLoad,
     onVideoLoadedMetadata,
+    shelfConfig,
 }) => {
     const { t } = useTranslation();
 
@@ -68,7 +71,15 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
                 onContextMenu={(e) => e.preventDefault()}
                 style={{ touchAction: 'none' }}
             >
-                {isVideo ? (
+                {shelfConfig ? (
+                    <ShelfGrid
+                        urls={shelfConfig.urls}
+                        shelfCount={shelfConfig.shelfCount}
+                        shelfItems={shelfConfig.shelfItems}
+                        containerRef={shelfConfig.containerRef}
+                        onAllLoaded={shelfConfig.onAllLoaded}
+                    />
+                ) : isVideo ? (
                     <video
                         ref={stimulusVideoRef}
                         src={resolvedUrl}

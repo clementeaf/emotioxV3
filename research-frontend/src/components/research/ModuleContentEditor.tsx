@@ -403,17 +403,54 @@ export const ModuleContentEditor = ({
         let parsedAois: AOI[] = [];
         try { parsedAois = JSON.parse(aoisRaw); } catch { /* keep empty */ }
 
-        // Resolve first stimulus image URL for AOI drawing
+        // Resolve stimulus image URLs for AOI drawing and shelf preview
         const stimuliRaw = stimuliComp ? (componentValues[stimuliComp.id] || '') : '';
         let firstStimulusUrl = '';
+        let allStimulusUrls: string[] = [];
         try {
             const parsed = JSON.parse(stimuliRaw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                const first = parsed[0] as { url?: string; s3Key?: string };
-                const raw = first.url || first.s3Key || '';
-                firstStimulusUrl = raw ? resolveMediaUrl(raw) : '';
+                allStimulusUrls = parsed
+                    .map((item: { url?: string; s3Key?: string }) => {
+                        const raw = item.url || item.s3Key || '';
+                        return raw ? resolveMediaUrl(raw) : '';
+                    })
+                    .filter(Boolean);
+                firstStimulusUrl = allStimulusUrls[0] || '';
             }
         } catch { /* no stimulus yet */ }
+
+        const shelfCount = parseInt(componentValues['shelf-count'] || '2', 10);
+        const itemsPerShelf = parseInt(componentValues['shelf-items'] || '5', 10);
+
+        // Auto-detect shelf mode: >1 image = shelf
+        const isShelfMode = allStimulusUrls.length > 1;
+
+        // Helper: regenerate shelf AOIs — one AOI per column (full height)
+        const regenerateShelfAois = (_sc: number, si: number, stimuliValue?: string) => {
+            const raw = stimuliValue ?? stimuliRaw;
+            try {
+                const items = JSON.parse(raw);
+                if (!Array.isArray(items)) return;
+                const validItems = items.filter((i: { url?: string; s3Key?: string }) => i.url || i.s3Key);
+                if (validItems.length <= 1) return;
+                const colCount = Math.min(validItems.length, si);
+                const cellW = 100 / si;
+                const autoAois = Array.from({ length: colCount }, (_, col) => {
+                    const item = validItems[col];
+                    const fileName = item?.name || item?.s3Key?.split('/').pop() || `Image ${col + 1}`;
+                    return {
+                        id: `shelf-aoi-${col}`,
+                        label: fileName,
+                        x: col * cellW,
+                        y: 0,
+                        width: cellW,
+                        height: 100,
+                    };
+                });
+                onValueChange('aois', JSON.stringify(autoAois));
+            } catch { /* ignore */ }
+        };
 
         return (
             <div className="space-y-6">
@@ -438,13 +475,27 @@ export const ModuleContentEditor = ({
                             <EditableComponent
                                 component={{ ...stimuliComp, settings: { ...stimuliComp.settings, listOnly: true } }}
                                 value={componentValues[stimuliComp.id] || ''}
-                                onChange={(value) => onValueChange(stimuliComp.id, value)}
+                                onChange={(value) => {
+                                    onValueChange(stimuliComp.id, value);
+                                    // Auto-sync display-mode + AOIs based on image count
+                                    try {
+                                        const items = JSON.parse(value);
+                                        const count = Array.isArray(items) ? items.filter((i: { url?: string; s3Key?: string }) => i.url || i.s3Key).length : 0;
+                                        const newMode = count > 1 ? 'shelf' : 'stand_alone';
+                                        if (componentValues['display-mode'] !== newMode) {
+                                            onValueChange('display-mode', newMode);
+                                        }
+                                        if (count > 1) {
+                                            regenerateShelfAois(shelfCount, itemsPerShelf, value);
+                                        }
+                                    } catch { /* not valid JSON yet */ }
+                                }}
                                 researchId={researchId}
                             />
                         )}
                         {/* For Shelf only: Randomize */}
+                        {isShelfMode && (
                         <div className="pt-2 border-t border-gray-100">
-                            <p className="text-xs font-semibold text-gray-900 mb-2">For Shelf only:</p>
                             <label className="flex items-center gap-2 text-sm text-gray-700">
                                 <input
                                     type="checkbox"
@@ -455,6 +506,7 @@ export const ModuleContentEditor = ({
                                 <span className="font-medium">Randomize options (images)</span>
                             </label>
                         </div>
+                        )}
                     </div>
 
                     {/* Center: Task configuration + Priming + Shelf */}
@@ -502,23 +554,65 @@ export const ModuleContentEditor = ({
                                 </div>
                             </div>
                         )}
-                        {/* Shelf configuration — always visible */}
+                        {/* Shelf configuration — visible only in shelf mode (auto-detected: >1 image) */}
+                        {isShelfMode && (
                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4" style={{ width: 390, minHeight: 352 }}>
                             <h4 className="text-sm font-semibold text-gray-900 mb-3">Shelf configuration</h4>
-                            <div className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white flex items-center justify-center" style={{ height: 220 }}>
-                                <div className="text-center text-gray-400">
-                                    <svg className="mx-auto h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                                    </svg>
-                                    <p className="text-sm">Shelf preview</p>
-                                </div>
+                            <div className="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white overflow-hidden" style={{ minHeight: 220 }}>
+                                {allStimulusUrls.length > 0 ? (
+                                    <div
+                                        className="grid gap-1 p-2 h-full"
+                                        style={{
+                                            gridTemplateColumns: `repeat(${itemsPerShelf}, 1fr)`,
+                                            gridTemplateRows: `repeat(${shelfCount}, 1fr)`,
+                                        }}
+                                    >
+                                        {Array.from({ length: shelfCount * itemsPerShelf }, (_, i) => {
+                                            // Column-based: each URL fills an entire column
+                                            const col = i % itemsPerShelf;
+                                            const url = col < allStimulusUrls.length
+                                                ? allStimulusUrls[col]
+                                                : undefined;
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    className="rounded border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center"
+                                                >
+                                                    {url ? (
+                                                        <img
+                                                            src={url}
+                                                            alt={`Shelf item ${col + 1}`}
+                                                            className="w-full h-full object-contain"
+                                                        />
+                                                    ) : (
+                                                        <div className="text-gray-300 text-xs text-center p-1">
+                                                            {col + 1}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full" style={{ minHeight: 220 }}>
+                                        <div className="text-center text-gray-400">
+                                            <svg className="mx-auto h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                                            </svg>
+                                            <p className="text-sm">Shelf preview</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="flex gap-4 mt-4">
                                 <div className="flex-1">
                                     <CustomSelect
                                         label="Number of Shelfs"
                                         value={componentValues['shelf-count'] || '2'}
-                                        onChange={(val) => onValueChange('shelf-count', val)}
+                                        onChange={(val) => {
+                                            onValueChange('shelf-count', val);
+                                            regenerateShelfAois(parseInt(val, 10), itemsPerShelf);
+                                        }}
                                         options={[1, 2, 3, 4, 5].map(n => ({ value: String(n), label: String(n) }))}
                                     />
                                 </div>
@@ -526,12 +620,16 @@ export const ModuleContentEditor = ({
                                     <CustomSelect
                                         label="Items per Shelf"
                                         value={componentValues['shelf-items'] || '5'}
-                                        onChange={(val) => onValueChange('shelf-items', val)}
+                                        onChange={(val) => {
+                                            onValueChange('shelf-items', val);
+                                            regenerateShelfAois(shelfCount, parseInt(val, 10));
+                                        }}
                                         options={[3, 4, 5, 6, 7, 8, 10].map(n => ({ value: String(n), label: String(n) }))}
                                     />
                                 </div>
                             </div>
                         </div>
+                        )}
                     </div>
 
                     {/* Right: Techniques notes panel */}
@@ -559,8 +657,8 @@ export const ModuleContentEditor = ({
                     </aside>
                 </div>
 
-                {/* AOI Drawing — shown when a stimulus image is uploaded */}
-                {firstStimulusUrl && (
+                {/* AOI Drawing — shown when a stimulus image is uploaded (stand_alone only) */}
+                {firstStimulusUrl && !isShelfMode && (
                     <div className="rounded-lg border border-gray-200 bg-white p-4">
                         <h4 className="text-sm font-semibold text-gray-900 mb-3">Areas of Interest (AOI)</h4>
                         <p className="text-xs text-gray-500 mb-3">
