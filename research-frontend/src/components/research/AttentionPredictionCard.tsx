@@ -440,26 +440,37 @@ export const AttentionPredictionCard = ({
         }).catch(() => { /* ignore load errors */ });
     }, [researchId, stimulusMediaId]);
 
-    // Persist AOIs to research settings
+    // Persist AOIs to research settings (debounced to prevent race conditions)
+    const pendingAoisRef = useRef<AOI[] | null>(null);
+    const saveInFlightRef = useRef(false);
+
     const persistAois = useCallback(async (aois: AOI[]) => {
         if (!researchId || !stimulusMediaId) return;
+        pendingAoisRef.current = aois;
+        if (saveInFlightRef.current) return; // will be picked up after current save
+        saveInFlightRef.current = true;
         setIsSavingAois(true);
         try {
-            const res = await researchService.getById(researchId);
-            const s = (res.research.settings as Record<string, unknown>) || {};
-            const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
-            const updatedStimuli = stimuli.map(st => {
-                if (st.mediaId === stimulusMediaId) {
-                    return { ...st, aois };
-                }
-                return st;
-            });
-            await researchService.update(researchId, {
-                settings: { ...s, stimuli: updatedStimuli },
-            });
+            while (pendingAoisRef.current !== null) {
+                const toSave = pendingAoisRef.current;
+                pendingAoisRef.current = null;
+                const res = await researchService.getById(researchId);
+                const s = (res.research.settings as Record<string, unknown>) || {};
+                const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
+                const updatedStimuli = stimuli.map(st => {
+                    if (st.mediaId === stimulusMediaId) {
+                        return { ...st, aois: toSave };
+                    }
+                    return st;
+                });
+                await researchService.update(researchId, {
+                    settings: { ...s, stimuli: updatedStimuli },
+                });
+            }
         } catch {
             // Best-effort persistence
         } finally {
+            saveInFlightRef.current = false;
             setIsSavingAois(false);
         }
     }, [researchId, stimulusMediaId]);

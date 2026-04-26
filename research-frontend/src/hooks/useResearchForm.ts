@@ -285,7 +285,8 @@ export const useResearchForm = () => {
             const isFileBasedType = selectedType?.name === 'Attention Prediction' ||
                                    selectedType?.name === "Attention's Prediction" ||
                                    selectedType?.name === 'Insights Finding' ||
-                                   selectedType?.name === "Client's Benchmark";
+                                   selectedType?.name === "Client's Benchmark" ||
+                                   selectedType?.name === 'Website Tracking';
 
             const createData: CreateResearchData & Record<string, unknown> = {
                 name: formData.name.trim(),

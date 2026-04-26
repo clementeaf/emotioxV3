@@ -221,11 +221,14 @@ class MediaService {
         });
 
         // 2. PUT the file
-        await fetch(upload_url, {
+        const uploadRes = await fetch(upload_url, {
             method: 'PUT',
             body: file,
             headers: { 'Content-Type': file.type },
         });
+        if (!uploadRes.ok) {
+            throw new Error(`File upload failed: ${uploadRes.status} ${uploadRes.statusText}`);
+        }
 
         // 3. Save metadata
         const { media } = await this.saveMetadata({

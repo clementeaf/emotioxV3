@@ -257,6 +257,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                     console.log('[CreateResearchForm] Documents parsed and saved:', parsedFiles.length);
                 } catch (error) {
                     console.error('[CreateResearchForm] Failed to parse text files:', error);
+                    alert('Some files failed to process. You can re-upload them in the builder.');
                 }
             } else if (isAttentionPrediction && filesToUpload.length > 0) {
                 // Attention Prediction: upload images via media service
@@ -284,6 +285,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                     console.log('[CreateResearchForm] Stimulus images uploaded:', uploadedStimuli.length);
                 } catch (error) {
                     console.error('[CreateResearchForm] Failed to upload stimulus files:', error);
+                    alert('Some stimulus images failed to upload. You can re-upload them in the builder.');
                 }
             }
 
