@@ -94,3 +94,14 @@ export const updateConfig = async (
 ): Promise<void> => {
     await apiClient.put(`/tracking/${researchId}/config`, config);
 };
+
+export const savePageScreenshot = async (
+    researchId: string,
+    pageUrl: string,
+    screenshotS3Key: string
+): Promise<void> => {
+    await apiClient.post(`/tracking/${researchId}/pages/screenshot`, {
+        pageUrl,
+        screenshotS3Key,
+    });
+};

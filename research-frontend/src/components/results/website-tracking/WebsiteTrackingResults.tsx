@@ -3,19 +3,38 @@
  * Overview metrics + click heatmap over page screenshot.
  */
 
-import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { MousePointerClick, Users, Globe, Activity, Clock, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MousePointerClick, Users, Globe, Activity, Clock, ExternalLink, Upload } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
-import { resolveMediaUrl } from '../../../services/media.service';
+import { resolveMediaUrl, mediaService } from '../../../services/media.service';
 
 interface WebsiteTrackingResultsProps {
     researchId: string;
 }
 
 export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsProps) => {
+    const queryClient = useQueryClient();
     const [selectedPageUrl, setSelectedPageUrl] = useState<string | undefined>();
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleScreenshotUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedPageUrl) return;
+        setUploading(true);
+        try {
+            const { s3Key } = await mediaService.uploadFile(researchId, file);
+            await trackingService.savePageScreenshot(researchId, selectedPageUrl, s3Key);
+            queryClient.invalidateQueries({ queryKey: ['tracking', researchId, 'pages'] });
+        } catch (err) {
+            console.error('Screenshot upload failed:', err);
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    }, [researchId, selectedPageUrl, queryClient]);
 
     // Fetch overview metrics
     const { data: overview, isLoading: loadingOverview } = useQuery({
@@ -184,10 +203,24 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                             <p className="text-sm font-medium text-gray-700 mb-1">
                                 {heatmapData?.totalClicks} clicks recorded
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-500 mb-4">
                                 Upload a screenshot of this page to visualize the click heatmap overlay.
                             </p>
-                            {/* Click data table fallback */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/webp"
+                                className="hidden"
+                                onChange={handleScreenshotUpload}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploading}
+                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                                <Upload className="h-4 w-4" />
+                                {uploading ? 'Uploading...' : 'Upload Screenshot'}
+                            </button>
                             <ClickDataTable clicks={heatmapData?.clicks || []} />
                         </div>
                     ) : (

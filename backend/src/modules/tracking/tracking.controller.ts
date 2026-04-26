@@ -246,8 +246,8 @@ export const handleTrackingRoutes = async (
             return success({ snippet }, 200, undefined, origin);
         }
 
-        // POST /tracking/:researchId/pages/:pageId/screenshot — save screenshot
-        const screenshotMatch = path.match(/^\/tracking\/([^/]+)\/pages\/([^/]+)\/screenshot$/);
+        // POST /tracking/:researchId/pages/screenshot — save screenshot s3key for a page
+        const screenshotMatch = path.match(/^\/tracking\/([^/]+)\/pages\/screenshot$/);
         if (screenshotMatch && httpMethod === 'POST') {
             const researchId = screenshotMatch[1];
             const body = JSON.parse(event.body || '{}');
