@@ -312,14 +312,9 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 }
             }
 
-            if (onSuccess) {
-                onSuccess(researchId);
-                // If the parent didn't navigate, we navigate to the target path
-                // But usually parent will navigate. Let's make sure the parent knows it might want to go elsewhere
-                navigate(targetPath);
-            } else {
-                navigate(targetPath);
-            }
+            // Navigate first, then notify parent (parent's onSuccess may unmount this component)
+            navigate(targetPath);
+            onSuccess?.(researchId);
         } else {
             console.error('[CreateResearchForm] Failed to create research, check errors above');
         }
