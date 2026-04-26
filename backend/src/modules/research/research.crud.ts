@@ -474,29 +474,49 @@ const isMediaPathReferencedElsewhere = async (mediaPath: string, excludeResearch
 };
 
 /**
- * Safely delete orphaned media files for a research.
- * Only deletes files not referenced by any other active research.
+ * Safely move orphaned media files to _trash/ instead of deleting.
+ * Only moves files that:
+ *   1. Are NOT referenced by any other active research
+ *   2. Belong to this research's own directory (path starts with research/{id}/)
+ * Files in _trash/ can be purged manually after verification.
  */
-const cleanupResearchMedia = async (researchId: string): Promise<{ deleted: number; skipped: number }> => {
-    let deleted = 0;
+const cleanupResearchMedia = async (researchId: string): Promise<{ moved: number; skipped: number }> => {
+    let moved = 0;
     let skipped = 0;
 
     try {
         const mediaPaths = await collectResearchMediaPaths(researchId);
+        const expectedPrefix = `research/${researchId}/`;
 
         for (const mediaPath of mediaPaths) {
             try {
-                const isReferenced = await isMediaPathReferencedElsewhere(mediaPath, researchId);
-                if (isReferenced) {
+                // Safety: only touch files inside this research's own directory
+                if (!mediaPath.startsWith(expectedPrefix)) {
+                    console.warn(`[deleteResearch] Skipping cross-research media path: ${mediaPath}`);
                     skipped++;
                     continue;
                 }
-                const fullPath = getMediaPath(mediaPath);
-                if (fs.existsSync(fullPath)) {
-                    fs.unlinkSync(fullPath);
-                    deleted++;
+
+                const isReferenced = await isMediaPathReferencedElsewhere(mediaPath, researchId);
+                if (isReferenced) {
+                    console.log(`[deleteResearch] Preserving shared file: ${mediaPath}`);
+                    skipped++;
+                    continue;
                 }
-            } catch {
+
+                const fullPath = getMediaPath(mediaPath);
+                if (!fs.existsSync(fullPath)) continue;
+
+                // Move to _trash/ preserving path structure
+                const trashPath = getMediaPath(`_trash/${mediaPath}`);
+                const trashDir = path.dirname(trashPath);
+                if (!fs.existsSync(trashDir)) {
+                    fs.mkdirSync(trashDir, { recursive: true });
+                }
+                fs.renameSync(fullPath, trashPath);
+                moved++;
+            } catch (err) {
+                console.error(`[deleteResearch] Failed to move ${mediaPath}:`, err);
                 skipped++;
             }
         }
@@ -515,7 +535,7 @@ const cleanupResearchMedia = async (researchId: string): Promise<{ deleted: numb
         console.error(`[deleteResearch] Media cleanup failed for ${researchId}:`, err);
     }
 
-    return { deleted, skipped };
+    return { moved, skipped };
 };
 
 export const deleteResearch = async (researchId: string, userId: string, role?: string) => {
@@ -538,9 +558,9 @@ export const deleteResearch = async (researchId: string, userId: string, role?: 
     // Invalidate public cache for this research
     cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
 
-    // Clean up orphaned media files (async, best-effort)
+    // Move orphaned media files to _trash/ (best-effort, recoverable)
     const cleanup = await cleanupResearchMedia(researchId);
-    console.log(`[deleteResearch] Media cleanup for ${researchId}: ${cleanup.deleted} deleted, ${cleanup.skipped} skipped (referenced elsewhere)`);
+    console.log(`[deleteResearch] Media cleanup for ${researchId}: ${cleanup.moved} moved to _trash/, ${cleanup.skipped} preserved (referenced elsewhere)`);
 
     return { message: 'Research deleted successfully' };
 };
