@@ -59,6 +59,34 @@ function fisherYatesShuffle<T>(arr: T[]): T[] {
     return a;
 }
 
+const ET_CALIBRATION_KEY = 'emotiox-et-calibration';
+const ET_CALIBRATION_TTL_MS = 120_000; // 2 minutes
+
+function saveCalibrationToSession(residuals: HybridCalibrationResidual[], rmsePx: number | null) {
+    try {
+        sessionStorage.setItem(ET_CALIBRATION_KEY, JSON.stringify({
+            residuals,
+            rmsePx,
+            timestamp: Date.now(),
+        }));
+    } catch { /* storage full or unavailable */ }
+}
+
+function loadCalibrationFromSession(): { residuals: HybridCalibrationResidual[]; rmsePx: number | null } | null {
+    try {
+        const raw = sessionStorage.getItem(ET_CALIBRATION_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (Date.now() - data.timestamp > ET_CALIBRATION_TTL_MS) {
+            sessionStorage.removeItem(ET_CALIBRATION_KEY);
+            return null;
+        }
+        return { residuals: data.residuals, rmsePx: data.rmsePx };
+    } catch {
+        return null;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -74,7 +102,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
     const isShelf = displayMode === 'shelf';
 
-    const [phase, setPhase] = useState<ETPhase>('intro');
+    // Skip intro/setup/calibration if a recent ET calibration exists (consecutive ET modules)
+    const cachedCalibration = useMemo(() => isDesktop ? loadCalibrationFromSession() : null, [isDesktop]);
+    const [phase, setPhase] = useState<ETPhase>(cachedCalibration ? 'preparing' : 'intro');
     const [resolvedUrl, setResolvedUrl] = useState<string>('');
     const [resolvedShelfUrls, setResolvedShelfUrls] = useState<string[]>([]);
     const [fixations, setFixations] = useState<Fixation[]>([]);
@@ -99,8 +129,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
 
     /** 9-point calibration on stimulus image (3x3 grid) + IDW field. */
     const [calibrationIndex, setCalibrationIndex] = useState(0);
-    const calibrationResidualsRef = useRef<HybridCalibrationResidual[]>([]);
-    const calibrationRmsePxRef = useRef<number | null>(null);
+    const calibrationResidualsRef = useRef<HybridCalibrationResidual[]>(cachedCalibration?.residuals ?? []);
+    const calibrationRmsePxRef = useRef<number | null>(cachedCalibration?.rmsePx ?? null);
     const gazePosRef = useRef<[number, number]>([0, 0]);
     /** Tracks how many times the participant has re-calibrated (validation failed). */
     const recalibrationCountRef = useRef(0);
@@ -333,12 +363,30 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         };
     }, [phase, viewingDuration, isDesktop]);
 
-    // "Preparing" phase: start camera on desktop, reset hybrid calibration, auto-advance
+    // Start camera early in setup phase so participant can verify position
+    useEffect(() => {
+        if (phase !== 'setup' || !isDesktop) return;
+        void startCamera();
+    }, [phase, isDesktop, startCamera]);
+
+    // "Preparing" phase: start camera + auto-advance
+    // If cached calibration exists, skip to viewing; otherwise go to calibration.
     useEffect(() => {
         if (phase !== 'preparing') return;
 
         if (isDesktop) {
             void startCamera();
+        }
+
+        if (cachedCalibration) {
+            // Consecutive ET — reuse calibration, skip to viewing
+            if (isDesktop) blaze.start();
+            const timer = setTimeout(() => {
+                gazePointsRef.current = [];
+                setTimeLeft(Math.ceil(viewingDuration / 1000));
+                setPhase('viewing');
+            }, 1500);
+            return () => clearTimeout(timer);
         }
 
         const timer = setTimeout(() => {
@@ -348,7 +396,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             setPhase('calibration');
         }, 2000);
         return () => clearTimeout(timer);
-    }, [phase, isDesktop, startCamera]);
+    }, [phase, isDesktop, startCamera, cachedCalibration, blaze, viewingDuration]);
 
     // Desktop: run BlazeGaze during calibration (gaze samples for IDW residuals) and through viewing
     useEffect(() => {
@@ -591,6 +639,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             if (isDesktop && !isPreviewMode) {
                 setTimeout(() => setPhase('validating'), 400);
             } else {
+                saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
                 gazePointsRef.current = [];
                 setTimeLeft(Math.ceil(viewingDuration / 1000));
                 setTimeout(() => setPhase('viewing'), 600);
@@ -634,6 +683,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }
 
         // Passed — proceed to viewing
+        saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
         if (blaze) blaze.resetFrameStats();
         gazePointsRef.current = [];
         setTimeLeft(Math.ceil(viewingDuration / 1000));
@@ -653,6 +703,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
 
     /** Skip validation and proceed to viewing (user chose to continue despite poor accuracy). */
     const handleSkipValidation = useCallback(() => {
+        saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
         if (blaze) blaze.resetFrameStats();
         gazePointsRef.current = [];
         setTimeLeft(Math.ceil(viewingDuration / 1000));
@@ -701,6 +752,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 allChecked={allChecked}
                 onToggleCheck={toggleCheck}
                 onReady={() => setPhase('preparing')}
+                cameraRef={videoRef}
             />
         );
     } else if (phase === 'preparing') {

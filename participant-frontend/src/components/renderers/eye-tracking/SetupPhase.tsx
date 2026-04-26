@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS } from './types';
@@ -9,10 +9,29 @@ interface SetupPhaseProps {
     allChecked: boolean;
     onToggleCheck: (index: number) => void;
     onReady: () => void;
+    cameraRef?: React.RefObject<HTMLVideoElement | null>;
 }
 
-export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allChecked, onToggleCheck, onReady }) => {
+export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allChecked, onToggleCheck, onReady, cameraRef }) => {
     const { t } = useTranslation();
+    const [streamReady, setStreamReady] = useState(false);
+    const previewRef = useRef<HTMLVideoElement>(null);
+
+    // Poll for camera stream readiness and attach to preview element
+    useEffect(() => {
+        if (!isDesktop || !cameraRef) return;
+        const check = setInterval(() => {
+            const stream = cameraRef.current?.srcObject as MediaStream | null;
+            if (stream && stream.active) {
+                setStreamReady(true);
+                if (previewRef.current && previewRef.current.srcObject !== stream) {
+                    previewRef.current.srcObject = stream;
+                }
+                clearInterval(check);
+            }
+        }, 200);
+        return () => clearInterval(check);
+    }, [isDesktop, cameraRef]);
 
     const checkLabelsDesktop = [
         t('eyeTracking.check1', 'I am seated and will not move.'),
@@ -33,15 +52,20 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
             <StepProgressPill step={1} total={TOTAL_STEPS} percent={30} />
 
             <div className="w-full max-w-lg space-y-6 mt-8">
-                {/* Camera preview placeholder */}
+                {/* Camera preview — live feed on desktop, icon on mobile */}
                 <div className="w-40 h-32 bg-gray-800 rounded-lg mx-auto flex items-center justify-center overflow-hidden">
-                    {isDesktop ? (
-                        <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
+                    {isDesktop && streamReady ? (
+                        <video
+                            ref={previewRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="w-full h-full object-cover"
+                            style={{ transform: 'scaleX(-1)' }}
+                        />
                     ) : (
                         <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                     )}
                 </div>
