@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, ClipboardList, Hash, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { Card } from '../../../ui/Card';
+import { Badge } from '../../../ui/Badge';
 import { cn } from '../../../../lib/utils';
 import type { TextAnalysis } from '../../../../services/analytics.service';
 
@@ -218,15 +219,15 @@ export const VOCComments = ({
             <h3 className="text-lg font-semibold">{questionNumber}- {questionText}</h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 text-xs font-medium rounded text-green-600 bg-green-50">
+            <Badge variant="green" shape="square" className="px-2 py-1">
               Short Text question
-            </span>
-            <span className="px-2 py-1 text-xs font-medium rounded text-blue-600 bg-blue-50">
+            </Badge>
+            <Badge variant="blue" shape="square" className="px-2 py-1">
               Conditionality disabled
-            </span>
-            <span className="px-2 py-1 text-xs font-medium rounded text-red-600 bg-red-50">
+            </Badge>
+            <Badge variant="red" shape="square" className="px-2 py-1">
               Required
-            </span>
+            </Badge>
           </div>
         </div>
         <button

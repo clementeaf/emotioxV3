@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Card } from '../../../ui/Card';
+import { Badge } from '../../../ui/Badge';
 import { cn } from '../../../../lib/utils';
 
 interface LinearScaleOption {
@@ -54,18 +55,12 @@ export const LinearScaleQuestionCard = ({
             <h3 className="text-lg font-semibold">{questionNumber}- {questionText}</h3>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 text-xs font-medium rounded text-blue-600 bg-blue-50">
-              {questionType}
-            </span>
+            <Badge variant="blue" shape="square" className="px-2 py-1">{questionType}</Badge>
             {conditionalityDisabled && (
-              <span className="px-2 py-1 text-xs font-medium rounded text-blue-600 bg-blue-50">
-                Conditionality disabled
-              </span>
+              <Badge variant="blue" shape="square" className="px-2 py-1">Conditionality disabled</Badge>
             )}
             {required && (
-              <span className="px-2 py-1 text-xs font-medium rounded text-red-600 bg-red-50">
-                Required
-              </span>
+              <Badge variant="red" shape="square" className="px-2 py-1">Required</Badge>
             )}
           </div>
         </div>
