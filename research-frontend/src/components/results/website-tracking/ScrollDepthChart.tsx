@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDownUp } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
+import { EmptyState } from '../../ui/EmptyState';
 
 interface ScrollDepthChartProps {
     researchId: string;
@@ -25,10 +26,10 @@ export const ScrollDepthChart = ({ researchId, pageUrl }: ScrollDepthChartProps)
 
     if (!data || data.totalSessions === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-                <ArrowDownUp className="h-8 w-8 text-gray-300 mb-3" />
-                <p className="text-sm text-gray-500">No scroll data yet. Enable scroll tracking in configuration.</p>
-            </div>
+            <EmptyState
+                icon={<ArrowDownUp className="h-8 w-8" />}
+                description="No scroll data yet. Enable scroll tracking in configuration."
+            />
         );
     }
 

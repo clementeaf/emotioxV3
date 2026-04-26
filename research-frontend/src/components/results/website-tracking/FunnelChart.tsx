@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, TrendingDown } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
+import { EmptyState } from '../../ui/EmptyState';
 
 interface FunnelChartProps {
     researchId: string;
@@ -24,10 +25,10 @@ export const FunnelChart = ({ researchId }: FunnelChartProps) => {
 
     if (!data || data.totalVisitors === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-                <TrendingDown className="h-8 w-8 text-gray-300 mb-3" />
-                <p className="text-sm text-gray-500">No funnel data yet. Need visits across multiple pages.</p>
-            </div>
+            <EmptyState
+                icon={<TrendingDown className="h-8 w-8" />}
+                description="No funnel data yet. Need visits across multiple pages."
+            />
         );
     }
 

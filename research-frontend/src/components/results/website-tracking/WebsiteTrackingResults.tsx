@@ -15,6 +15,7 @@ import type { TrackingSession } from '../../../services/tracking.service';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { StatCard } from '../../ui/StatCard';
+import { EmptyState } from '../../ui/EmptyState';
 import { resolveMediaUrl, mediaService } from '../../../services/media.service';
 import { ScrollDepthChart } from './ScrollDepthChart';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
@@ -143,13 +144,12 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
     if (!overview || overview.totalSessions === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-                <MousePointerClick className="h-12 w-12 text-gray-300 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-700 mb-1">No tracking data yet</h3>
-                <p className="text-sm text-gray-500 max-w-md">
-                    Install the tracking script on your website and wait for visitors to start interacting.
-                </p>
-            </div>
+            <EmptyState
+                icon={<MousePointerClick className="h-12 w-12" />}
+                title="No tracking data yet"
+                description="Install the tracking script on your website and wait for visitors to start interacting."
+                className="py-20"
+            />
         );
     }
 

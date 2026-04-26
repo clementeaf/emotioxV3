@@ -5,11 +5,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Copy, Check, Globe, MousePointerClick, ArrowDownUp, Move, Shield, RefreshCw } from 'lucide-react';
+import { Globe, MousePointerClick, ArrowDownUp, Move, Shield, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import * as trackingService from '../../services/tracking.service';
 import type { TrackingConfig } from '../../services/tracking.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
+import { CopyButton } from '../ui/CopyButton';
 import type { Research } from '../../services/research.service';
 
 interface WebsiteTrackingConfigProps {
@@ -19,7 +20,6 @@ interface WebsiteTrackingConfigProps {
 export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) => {
     const queryClient = useQueryClient();
     const [snippet, setSnippet] = useState<string>('');
-    const [copied, setCopied] = useState(false);
     const [saving, setSaving] = useState(false);
 
     const settings = (research.settings || {}) as Record<string, unknown>;
@@ -41,12 +41,6 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
             .then(setSnippet)
             .catch(() => setSnippet('<!-- Error loading snippet -->'));
     }, [research.id]);
-
-    const handleCopy = useCallback(() => {
-        navigator.clipboard.writeText(snippet);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    }, [snippet]);
 
     const handleToggle = useCallback((key: keyof TrackingConfig) => {
         setConfig((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -120,17 +114,12 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                     <pre className="bg-slate-900 text-green-400 text-xs p-4 rounded-lg overflow-x-auto font-mono leading-relaxed">
                         {snippet || 'Loading snippet...'}
                     </pre>
-                    <button
-                        onClick={handleCopy}
-                        disabled={!snippet}
-                        className="absolute top-3 right-3 p-2 bg-slate-700 hover:bg-slate-600 rounded-md transition-colors"
-                    >
-                        {copied ? (
-                            <Check className="h-4 w-4 text-green-400" />
-                        ) : (
-                            <Copy className="h-4 w-4 text-slate-300" />
-                        )}
-                    </button>
+                    {snippet && (
+                        <CopyButton
+                            text={snippet}
+                            className="absolute top-3 right-3 p-2 bg-slate-700 hover:bg-slate-600 text-slate-300"
+                        />
+                    )}
                 </div>
 
                 {/* Verify installation */}
