@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Eye } from 'lucide-react';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
-import { Filters } from '../smart-voc/components/Filters';
+import { Filters } from '../shared/Filters';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import * as analyticsService from '../../../services/analytics.service';
 import { StimulusCard } from './StimulusCard';

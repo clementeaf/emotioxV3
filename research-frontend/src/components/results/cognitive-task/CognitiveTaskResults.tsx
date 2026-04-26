@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card } from '../../ui/Card';
-import { Filters, type DemographicFiltersState } from '../smart-voc/components/Filters';
+import { Filters, type DemographicFiltersState } from '../shared/Filters';
 import { VOCComments } from '../smart-voc/components/VOCComments';
 import { cn } from '../../../lib/utils';
 import { useCognitiveTaskResults } from '../../../hooks/useCognitiveTaskResults';

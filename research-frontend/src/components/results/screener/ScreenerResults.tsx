@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Card, CardContent } from '../../ui/Card';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
-import { Filters } from '../smart-voc/components/Filters';
+import { Filters } from '../shared/Filters';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import { TrendingUp, TrendingDown, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import * as analyticsService from '../../../services/analytics.service';

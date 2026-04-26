@@ -5,7 +5,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
-import { Filters } from '../smart-voc/components/Filters';
+import { Filters } from '../shared/Filters';
 import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import * as analyticsService from '../../../services/analytics.service';
