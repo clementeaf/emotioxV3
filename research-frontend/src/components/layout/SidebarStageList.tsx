@@ -52,11 +52,14 @@ export const SidebarStageList = ({
     const { hasDraft } = useModuleDraftStore();
     const activeModuleId = moduleId;
 
+    // Website Tracking has no sidebar stages/stimuli — config is in the main panel
+    if (isWebsiteTracking) return null;
+
     return (
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
                 <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                    {isFileBasedResearch ? (isWebsiteTracking ? 'Configuration' : isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
+                    {isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
                 </h3>
                 {!isFileBasedResearch && !isViewer && (
                     <button
