@@ -337,7 +337,206 @@ export const savePageScreenshot = async (
     );
 };
 
-// ─── Save Tracking Config ────────��───────────────────────────────────
+// ─── Analytics: Scroll Depth ─────────────────────────────────────────
+
+export const getScrollDepthData = async (
+    researchId: string,
+    pageUrl?: string
+): Promise<{ depths: Array<{ depthPct: number; sessions: number; percentage: number }>; totalSessions: number }> => {
+    // Get max scroll depth per session, bucketed at 10% intervals
+    let query = `
+        SELECT
+            FLOOR(te.scroll_depth_pct / 10) * 10 as depth_bucket,
+            COUNT(DISTINCT te.session_id) as session_count
+        FROM tracking_events te
+        JOIN tracking_sessions ts ON te.session_id = ts.id
+        WHERE ts.research_id = ?
+          AND te.event_type = 'scroll'
+          AND te.scroll_depth_pct IS NOT NULL
+    `;
+    const params: unknown[] = [researchId];
+    if (pageUrl) {
+        query += ' AND ts.page_url = ?';
+        params.push(pageUrl);
+    }
+    query += ' GROUP BY depth_bucket ORDER BY depth_bucket ASC';
+
+    const result = await pool.query(query, params);
+
+    // Total sessions with scroll events
+    let totalQuery = `
+        SELECT COUNT(DISTINCT te.session_id) as total
+        FROM tracking_events te
+        JOIN tracking_sessions ts ON te.session_id = ts.id
+        WHERE ts.research_id = ? AND te.event_type = 'scroll'
+    `;
+    const totalParams: unknown[] = [researchId];
+    if (pageUrl) {
+        totalQuery += ' AND ts.page_url = ?';
+        totalParams.push(pageUrl);
+    }
+    const totalResult = await pool.query(totalQuery, totalParams);
+    const totalSessions = Number(totalResult.rows[0]?.total || 0);
+
+    // Build cumulative: sessions that reached at least X%
+    const buckets = result.rows.map((row: Record<string, unknown>) => ({
+        depthPct: Number(row.depth_bucket),
+        sessionCount: Number(row.session_count),
+    }));
+
+    // Cumulative from top: everyone who scrolled at all reached 0%, fewer reached 100%
+    const depths: Array<{ depthPct: number; sessions: number; percentage: number }> = [];
+    for (let pct = 0; pct <= 100; pct += 10) {
+        const sessionsAtOrBelow = buckets
+            .filter((b) => b.depthPct >= pct)
+            .reduce((sum, b) => sum + b.sessionCount, 0);
+        depths.push({
+            depthPct: pct,
+            sessions: sessionsAtOrBelow,
+            percentage: totalSessions > 0 ? Math.round((sessionsAtOrBelow / totalSessions) * 100) : 0,
+        });
+    }
+
+    return { depths, totalSessions };
+};
+
+// ─── Analytics: Session Events (for replay) ─────────────────────────
+
+export const getSessionEvents = async (sessionId: string) => {
+    const session = await pool.query(
+        `SELECT ts.*, tp.screenshot_s3_key
+         FROM tracking_sessions ts
+         LEFT JOIN tracking_pages tp ON tp.research_id = ts.research_id AND tp.page_url = ts.page_url
+         WHERE ts.id = ?`,
+        [sessionId]
+    );
+    if (session.rows.length === 0) {
+        throw new Error('Session not found');
+    }
+
+    const events = await pool.query(
+        `SELECT event_type, x, y, scroll_y, scroll_depth_pct, target_selector, target_text, timestamp_ms, metadata
+         FROM tracking_events
+         WHERE session_id = ?
+         ORDER BY timestamp_ms ASC`,
+        [sessionId]
+    );
+
+    const s = session.rows[0] as Record<string, unknown>;
+    return {
+        session: {
+            id: s.id,
+            visitorId: s.visitor_id,
+            pageUrl: s.page_url,
+            pageTitle: s.page_title,
+            viewportWidth: s.viewport_width,
+            viewportHeight: s.viewport_height,
+            screenshotS3Key: s.screenshot_s3_key || null,
+            startedAt: s.started_at,
+            endedAt: s.ended_at,
+        },
+        events: events.rows.map((e: Record<string, unknown>) => ({
+            eventType: e.event_type,
+            x: e.x,
+            y: e.y,
+            scrollY: e.scroll_y,
+            scrollDepthPct: e.scroll_depth_pct,
+            targetSelector: e.target_selector,
+            targetText: e.target_text,
+            timestampMs: Number(e.timestamp_ms),
+            metadata: e.metadata,
+        })),
+    };
+};
+
+// ─── Analytics: Page Funnels ─────────────────────────────────────────
+
+export const getPageFunnels = async (researchId: string) => {
+    // Get page visit sequence per visitor (ordered by first visit timestamp)
+    const result = await pool.query(
+        `SELECT
+            ts.visitor_id,
+            ts.page_url,
+            MIN(ts.started_at) as first_visit
+         FROM tracking_sessions ts
+         WHERE ts.research_id = ?
+         GROUP BY ts.visitor_id, ts.page_url
+         ORDER BY ts.visitor_id, first_visit ASC`,
+        [researchId]
+    );
+
+    // Build per-visitor page sequences
+    const visitorPaths = new Map<string, string[]>();
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+        const vid = row.visitor_id as string;
+        if (!visitorPaths.has(vid)) visitorPaths.set(vid, []);
+        visitorPaths.get(vid)!.push(row.page_url as string);
+    }
+
+    // Count transitions: page A → page B
+    const transitions = new Map<string, number>();
+    const pageCounts = new Map<string, number>();
+
+    for (const pages of visitorPaths.values()) {
+        for (let i = 0; i < pages.length; i++) {
+            pageCounts.set(pages[i], (pageCounts.get(pages[i]) || 0) + 1);
+            if (i < pages.length - 1) {
+                const key = `${pages[i]}|||${pages[i + 1]}`;
+                transitions.set(key, (transitions.get(key) || 0) + 1);
+            }
+        }
+    }
+
+    // Top pages by visit count
+    const topPages = [...pageCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([url, count]) => ({ pageUrl: url, visitors: count }));
+
+    // Top transitions
+    const topTransitions = [...transitions.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([key, count]) => {
+            const [from, to] = key.split('|||');
+            return { from, to, count };
+        });
+
+    return {
+        totalVisitors: visitorPaths.size,
+        topPages,
+        transitions: topTransitions,
+    };
+};
+
+// ─── Export: CSV Data ────────────────────────────────────────────────
+
+export const getExportData = async (researchId: string) => {
+    const sessions = await pool.query(
+        `SELECT id, visitor_id, page_url, page_title, viewport_width, viewport_height,
+                user_agent, referrer, started_at, ended_at
+         FROM tracking_sessions WHERE research_id = ?
+         ORDER BY started_at DESC`,
+        [researchId]
+    );
+
+    const events = await pool.query(
+        `SELECT te.session_id, te.event_type, te.x, te.y, te.scroll_y, te.scroll_depth_pct,
+                te.target_selector, te.target_text, te.timestamp_ms
+         FROM tracking_events te
+         JOIN tracking_sessions ts ON te.session_id = ts.id
+         WHERE ts.research_id = ?
+         ORDER BY te.timestamp_ms ASC`,
+        [researchId]
+    );
+
+    return {
+        sessions: sessions.rows as Array<Record<string, unknown>>,
+        events: events.rows as Array<Record<string, unknown>>,
+    };
+};
+
+// ─── Save Page Screenshot ────────────────────────────────────────────
 
 export const saveTrackingConfig = async (
     researchId: string,

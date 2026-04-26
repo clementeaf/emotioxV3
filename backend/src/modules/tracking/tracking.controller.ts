@@ -12,9 +12,13 @@ import {
     saveEvents,
     getTrackingConfig,
     getClickHeatmapData,
+    getScrollDepthData,
     getOverviewMetrics,
     getTrackedPages,
     getSessions,
+    getSessionEvents,
+    getPageFunnels,
+    getExportData,
     savePageScreenshot,
     saveTrackingConfig,
 } from './tracking.service';
@@ -224,6 +228,41 @@ export const handleTrackingRoutes = async (
             const offset = parseInt(event.queryStringParameters?.offset || '0', 10);
             const sessions = await getSessions(researchId, limit, offset);
             return success({ sessions }, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/scroll?page=URL — scroll depth data
+        const scrollMatch = path.match(/^\/tracking\/([^/]+)\/scroll$/);
+        if (scrollMatch && httpMethod === 'GET') {
+            const researchId = scrollMatch[1];
+            const pageUrl = event.queryStringParameters?.page
+                ? decodeURIComponent(event.queryStringParameters.page)
+                : undefined;
+            const data = await getScrollDepthData(researchId, pageUrl);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/sessions/:sessionId/events — session replay data
+        const sessionEventsMatch = path.match(/^\/tracking\/([^/]+)\/sessions\/([^/]+)\/events$/);
+        if (sessionEventsMatch && httpMethod === 'GET') {
+            const sessionId = sessionEventsMatch[2];
+            const data = await getSessionEvents(sessionId);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/funnels — page transition funnels
+        const funnelsMatch = path.match(/^\/tracking\/([^/]+)\/funnels$/);
+        if (funnelsMatch && httpMethod === 'GET') {
+            const researchId = funnelsMatch[1];
+            const data = await getPageFunnels(researchId);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/export — CSV export data
+        const exportMatch = path.match(/^\/tracking\/([^/]+)\/export$/);
+        if (exportMatch && httpMethod === 'GET') {
+            const researchId = exportMatch[1];
+            const data = await getExportData(researchId);
+            return success(data, 200, undefined, origin);
         }
 
         // PUT /tracking/:researchId/config — update tracking config

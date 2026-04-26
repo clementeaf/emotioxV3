@@ -105,3 +105,71 @@ export const savePageScreenshot = async (
         screenshotS3Key,
     });
 };
+
+// ─── Scroll Depth ────────────────────────────────────────────────────
+
+export interface ScrollDepthData {
+    depths: Array<{ depthPct: number; sessions: number; percentage: number }>;
+    totalSessions: number;
+}
+
+export const getScrollDepth = async (researchId: string, pageUrl?: string): Promise<ScrollDepthData> => {
+    const params = pageUrl ? { page: pageUrl } : {};
+    return apiClient.get<ScrollDepthData>(`/tracking/${researchId}/scroll`, { params });
+};
+
+// ─── Session Replay ──────────────────────────────────────────────────
+
+export interface SessionReplayEvent {
+    eventType: string;
+    x: number | null;
+    y: number | null;
+    scrollY: number | null;
+    scrollDepthPct: number | null;
+    targetSelector: string | null;
+    targetText: string | null;
+    timestampMs: number;
+    metadata: Record<string, unknown> | null;
+}
+
+export interface SessionReplayData {
+    session: {
+        id: string;
+        visitorId: string;
+        pageUrl: string;
+        pageTitle: string | null;
+        viewportWidth: number;
+        viewportHeight: number;
+        screenshotS3Key: string | null;
+        startedAt: string;
+        endedAt: string | null;
+    };
+    events: SessionReplayEvent[];
+}
+
+export const getSessionReplay = async (researchId: string, sessionId: string): Promise<SessionReplayData> => {
+    return apiClient.get<SessionReplayData>(`/tracking/${researchId}/sessions/${sessionId}/events`);
+};
+
+// ─── Funnels ─────────────────────────────────────────────────────────
+
+export interface FunnelData {
+    totalVisitors: number;
+    topPages: Array<{ pageUrl: string; visitors: number }>;
+    transitions: Array<{ from: string; to: string; count: number }>;
+}
+
+export const getFunnels = async (researchId: string): Promise<FunnelData> => {
+    return apiClient.get<FunnelData>(`/tracking/${researchId}/funnels`);
+};
+
+// ─── Export ──────────────────────────────────────────────────────────
+
+export interface ExportData {
+    sessions: Array<Record<string, unknown>>;
+    events: Array<Record<string, unknown>>;
+}
+
+export const getExportData = async (researchId: string): Promise<ExportData> => {
+    return apiClient.get<ExportData>(`/tracking/${researchId}/export`);
+};

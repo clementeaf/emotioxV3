@@ -1,14 +1,23 @@
 /**
  * Website Tracking Results
- * Overview metrics + click heatmap over page screenshot.
+ * Tabbed view: Click Heatmap, Scroll Depth, Session Replay, Funnels.
+ * Overview metrics + export + page selector.
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MousePointerClick, Users, Globe, Activity, Clock, ExternalLink, Upload } from 'lucide-react';
+import {
+    MousePointerClick, Users, Globe, Activity, Clock, ExternalLink,
+    Upload, Download, ArrowDownUp, PlayCircle, TrendingDown,
+} from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import { resolveMediaUrl, mediaService } from '../../../services/media.service';
+import { ScrollDepthChart } from './ScrollDepthChart';
+import { SessionReplayPlayer } from './SessionReplayPlayer';
+import { FunnelChart } from './FunnelChart';
+
+type ResultTab = 'clicks' | 'scroll' | 'sessions' | 'funnels';
 
 interface WebsiteTrackingResultsProps {
     researchId: string;
@@ -16,8 +25,11 @@ interface WebsiteTrackingResultsProps {
 
 export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsProps) => {
     const queryClient = useQueryClient();
+    const [activeTab, setActiveTab] = useState<ResultTab>('clicks');
     const [selectedPageUrl, setSelectedPageUrl] = useState<string | undefined>();
     const [uploading, setUploading] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleScreenshotUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,6 +48,29 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         }
     }, [researchId, selectedPageUrl, queryClient]);
 
+    const handleExport = useCallback(async () => {
+        setExporting(true);
+        try {
+            const data = await trackingService.getExportData(researchId);
+            // Sessions CSV
+            const sessionsCsv = toCsv(data.sessions, [
+                'id', 'visitor_id', 'page_url', 'page_title', 'viewport_width', 'viewport_height',
+                'user_agent', 'referrer', 'started_at', 'ended_at',
+            ]);
+            downloadCsv(sessionsCsv, `tracking-sessions-${researchId}.csv`);
+            // Events CSV
+            const eventsCsv = toCsv(data.events, [
+                'session_id', 'event_type', 'x', 'y', 'scroll_y', 'scroll_depth_pct',
+                'target_selector', 'target_text', 'timestamp_ms',
+            ]);
+            downloadCsv(eventsCsv, `tracking-events-${researchId}.csv`);
+        } catch (err) {
+            console.error('Export failed:', err);
+        } finally {
+            setExporting(false);
+        }
+    }, [researchId]);
+
     // Fetch overview metrics
     const { data: overview, isLoading: loadingOverview } = useQuery({
         queryKey: ['tracking', researchId, 'overview'],
@@ -50,6 +85,14 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         staleTime: 10_000,
     });
 
+    // Fetch sessions (for replay tab)
+    const { data: sessions } = useQuery({
+        queryKey: ['tracking', researchId, 'sessions-list'],
+        queryFn: () => trackingService.getSessions(researchId, 50, 0),
+        staleTime: 10_000,
+        enabled: activeTab === 'sessions',
+    });
+
     // Auto-select first page
     useEffect(() => {
         if (pages && pages.length > 0 && !selectedPageUrl) {
@@ -61,7 +104,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
     const { data: heatmapData, isLoading: loadingHeatmap } = useQuery({
         queryKey: ['tracking', researchId, 'heatmap', selectedPageUrl],
         queryFn: () => trackingService.getClickHeatmap(researchId, selectedPageUrl),
-        enabled: !!selectedPageUrl,
+        enabled: !!selectedPageUrl && activeTab === 'clicks',
         staleTime: 10_000,
     });
 
@@ -75,14 +118,9 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         return resolveMediaUrl(selectedPage.screenshotS3Key);
     }, [selectedPage]);
 
-    // Convert click data to HeatmapRenderer format
     const heatmapPoints = useMemo(() => {
         if (!heatmapData?.clicks) return [];
-        return heatmapData.clicks.map((c) => ({
-            x: c.x,
-            y: c.y,
-            value: c.count,
-        }));
+        return heatmapData.clicks.map((c) => ({ x: c.x, y: c.y, value: c.count }));
     }, [heatmapData]);
 
     const isLoading = loadingOverview || loadingPages;
@@ -107,163 +145,195 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                 <h3 className="text-lg font-semibold text-gray-700 mb-1">No tracking data yet</h3>
                 <p className="text-sm text-gray-500 max-w-md">
                     Install the tracking script on your website and wait for visitors to start interacting.
-                    Data will appear here in real time.
                 </p>
             </div>
         );
     }
 
+    // If replay is open, show it full-width
+    if (replaySessionId) {
+        return (
+            <SessionReplayPlayer
+                researchId={researchId}
+                sessionId={replaySessionId}
+                onClose={() => setReplaySessionId(null)}
+            />
+        );
+    }
+
+    const tabs: Array<{ id: ResultTab; label: string; icon: React.ReactNode }> = [
+        { id: 'clicks', label: 'Click Heatmap', icon: <MousePointerClick className="h-4 w-4" /> },
+        { id: 'scroll', label: 'Scroll Depth', icon: <ArrowDownUp className="h-4 w-4" /> },
+        { id: 'sessions', label: 'Sessions', icon: <PlayCircle className="h-4 w-4" /> },
+        { id: 'funnels', label: 'Funnels', icon: <TrendingDown className="h-4 w-4" /> },
+    ];
+
     return (
         <div className="space-y-6">
             {/* Overview Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                <MetricCard
-                    icon={<Users className="h-5 w-5" />}
-                    label="Unique Visitors"
-                    value={overview.uniqueVisitors}
-                />
-                <MetricCard
-                    icon={<Activity className="h-5 w-5" />}
-                    label="Total Sessions"
-                    value={overview.totalSessions}
-                />
-                <MetricCard
-                    icon={<Globe className="h-5 w-5" />}
-                    label="Pages Tracked"
-                    value={overview.pagesTracked}
-                />
-                <MetricCard
-                    icon={<MousePointerClick className="h-5 w-5" />}
-                    label="Total Events"
-                    value={overview.totalEvents.toLocaleString()}
-                />
-                <MetricCard
-                    icon={<Clock className="h-5 w-5" />}
-                    label="Avg. Duration"
-                    value={formatDuration(overview.avgSessionDuration)}
-                />
+                <MetricCard icon={<Users className="h-5 w-5" />} label="Unique Visitors" value={overview.uniqueVisitors} />
+                <MetricCard icon={<Activity className="h-5 w-5" />} label="Total Sessions" value={overview.totalSessions} />
+                <MetricCard icon={<Globe className="h-5 w-5" />} label="Pages Tracked" value={overview.pagesTracked} />
+                <MetricCard icon={<MousePointerClick className="h-5 w-5" />} label="Total Events" value={overview.totalEvents.toLocaleString()} />
+                <MetricCard icon={<Clock className="h-5 w-5" />} label="Avg. Duration" value={formatDuration(overview.avgSessionDuration)} />
             </div>
 
-            {/* Page Selector + Heatmap */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                {/* Page tabs */}
-                <div className="border-b border-gray-200 px-4 py-3 flex items-center gap-3 overflow-x-auto">
-                    <span className="text-xs font-semibold text-gray-400 uppercase shrink-0">Page:</span>
-                    {pages?.map((page) => (
+            {/* Tabs + Export */}
+            <div className="border-b border-gray-200 flex items-center justify-between">
+                <nav className="flex gap-1">
+                    {tabs.map((tab) => (
                         <button
-                            key={page.id}
-                            onClick={() => setSelectedPageUrl(page.pageUrl)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors ${
-                                selectedPageUrl === page.pageUrl
-                                    ? 'bg-blue-50 text-blue-700 font-medium'
-                                    : 'text-gray-600 hover:bg-gray-50'
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors ${
+                                activeTab === tab.id
+                                    ? 'border-blue-600 text-blue-600 font-medium'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
-                            <Globe className="h-3.5 w-3.5" />
-                            <span className="max-w-[200px] truncate">{page.pageTitle || shortenUrl(page.pageUrl)}</span>
-                            <span className="text-xs text-gray-400">({page.sessionCount})</span>
+                            {tab.icon}
+                            {tab.label}
                         </button>
                     ))}
-                </div>
+                </nav>
+                <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors mb-1"
+                >
+                    <Download className="h-4 w-4" />
+                    {exporting ? 'Exporting...' : 'Export CSV'}
+                </button>
+            </div>
 
-                {/* Heatmap area */}
-                <div className="p-4">
-                    {loadingHeatmap ? (
-                        <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />
-                    ) : screenshotUrl && heatmapPoints.length > 0 ? (
-                        <div>
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-semibold text-slate-800">
-                                    Click Heatmap
-                                    <span className="ml-2 text-xs font-normal text-gray-500">
-                                        {heatmapData?.totalClicks.toLocaleString()} clicks from {heatmapData?.sessions} sessions
-                                    </span>
-                                </h3>
-                                {selectedPage && (
-                                    <a
-                                        href={selectedPage.pageUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-                                    >
-                                        Visit page <ExternalLink className="h-3 w-3" />
-                                    </a>
-                                )}
-                            </div>
-                            <HeatmapRenderer
-                                imageUrl={screenshotUrl}
-                                data={heatmapPoints}
-                                coordSystem="pixel"
-                                className="w-full"
-                            />
-                        </div>
-                    ) : heatmapPoints.length > 0 && !screenshotUrl ? (
-                        <div className="bg-gray-50 rounded-lg p-8 text-center">
-                            <MousePointerClick className="h-8 w-8 text-gray-400 mx-auto mb-3" />
-                            <p className="text-sm font-medium text-gray-700 mb-1">
-                                {heatmapData?.totalClicks} clicks recorded
-                            </p>
-                            <p className="text-xs text-gray-500 mb-4">
-                                Upload a screenshot of this page to visualize the click heatmap overlay.
-                            </p>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/png,image/jpeg,image/webp"
-                                className="hidden"
-                                onChange={handleScreenshotUpload}
-                            />
+            {/* Tab Content */}
+            {activeTab === 'clicks' && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    {/* Page selector */}
+                    <div className="border-b border-gray-200 px-4 py-3 flex items-center gap-3 overflow-x-auto">
+                        <span className="text-xs font-semibold text-gray-400 uppercase shrink-0">Page:</span>
+                        {pages?.map((page) => (
                             <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={uploading}
-                                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                key={page.id}
+                                onClick={() => setSelectedPageUrl(page.pageUrl)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg whitespace-nowrap transition-colors ${
+                                    selectedPageUrl === page.pageUrl
+                                        ? 'bg-blue-50 text-blue-700 font-medium'
+                                        : 'text-gray-600 hover:bg-gray-50'
+                                }`}
                             >
-                                <Upload className="h-4 w-4" />
-                                {uploading ? 'Uploading...' : 'Upload Screenshot'}
+                                <Globe className="h-3.5 w-3.5" />
+                                <span className="max-w-[200px] truncate">{page.pageTitle || shortenUrl(page.pageUrl)}</span>
+                                <span className="text-xs text-gray-400">({page.sessionCount})</span>
                             </button>
-                            <ClickDataTable clicks={heatmapData?.clicks || []} />
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <MousePointerClick className="h-8 w-8 text-gray-300 mb-3" />
-                            <p className="text-sm text-gray-500">No click data for this page yet.</p>
-                        </div>
-                    )}
-                </div>
-            </div>
+                        ))}
+                    </div>
 
-            {/* Tracked Pages Table */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-slate-800 mb-4">Tracked Pages</h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-gray-100">
-                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Page</th>
-                                <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Sessions</th>
-                                <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Events</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pages?.map((page) => (
-                                <tr key={page.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                    <td className="py-2.5 px-3">
-                                        <button
-                                            onClick={() => setSelectedPageUrl(page.pageUrl)}
-                                            className="text-blue-600 hover:text-blue-800 text-left max-w-md truncate block"
-                                        >
-                                            {page.pageTitle || shortenUrl(page.pageUrl)}
-                                        </button>
-                                        <span className="text-xs text-gray-400 block truncate max-w-md">{page.pageUrl}</span>
-                                    </td>
-                                    <td className="py-2.5 px-3 text-right font-medium text-gray-700">{page.sessionCount}</td>
-                                    <td className="py-2.5 px-3 text-right text-gray-600">{page.eventCount.toLocaleString()}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <div className="p-4">
+                        {loadingHeatmap ? (
+                            <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />
+                        ) : screenshotUrl && heatmapPoints.length > 0 ? (
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-sm font-semibold text-slate-800">
+                                        Click Heatmap
+                                        <span className="ml-2 text-xs font-normal text-gray-500">
+                                            {heatmapData?.totalClicks.toLocaleString()} clicks from {heatmapData?.sessions} sessions
+                                        </span>
+                                    </h3>
+                                    {selectedPage && (
+                                        <a href={selectedPage.pageUrl} target="_blank" rel="noopener noreferrer"
+                                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                                            Visit page <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                    )}
+                                </div>
+                                <HeatmapRenderer imageUrl={screenshotUrl} data={heatmapPoints} coordSystem="pixel" className="w-full" />
+                            </div>
+                        ) : heatmapPoints.length > 0 && !screenshotUrl ? (
+                            <div className="bg-gray-50 rounded-lg p-8 text-center">
+                                <MousePointerClick className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                                <p className="text-sm font-medium text-gray-700 mb-1">{heatmapData?.totalClicks} clicks recorded</p>
+                                <p className="text-xs text-gray-500 mb-4">Upload a screenshot to visualize the heatmap overlay.</p>
+                                <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleScreenshotUpload} />
+                                <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                                    <Upload className="h-4 w-4" />
+                                    {uploading ? 'Uploading...' : 'Upload Screenshot'}
+                                </button>
+                                <ClickDataTable clicks={heatmapData?.clicks || []} />
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                                <MousePointerClick className="h-8 w-8 text-gray-300 mb-3" />
+                                <p className="text-sm text-gray-500">No click data for this page yet.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {activeTab === 'scroll' && (
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <ScrollDepthChart researchId={researchId} pageUrl={selectedPageUrl} />
+                </div>
+            )}
+
+            {activeTab === 'sessions' && (
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <h3 className="text-sm font-semibold text-slate-800 mb-4">
+                        Sessions
+                        <span className="ml-2 text-xs font-normal text-gray-500">Click to replay</span>
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-gray-100">
+                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Visitor</th>
+                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Page</th>
+                                    <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Events</th>
+                                    <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Duration</th>
+                                    <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Date</th>
+                                    <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase">Replay</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sessions?.map((s) => (
+                                    <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                                        <td className="py-2.5 px-3 text-xs font-mono text-gray-600">{s.visitorId.slice(0, 12)}</td>
+                                        <td className="py-2.5 px-3 text-xs text-gray-700 max-w-[200px] truncate">{shortenUrl(s.pageUrl)}</td>
+                                        <td className="py-2.5 px-3 text-right text-gray-700">{s.eventCount}</td>
+                                        <td className="py-2.5 px-3 text-right text-gray-500">
+                                            {s.endedAt ? formatDuration(Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)) : '-'}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-right text-xs text-gray-400">
+                                            {new Date(s.startedAt).toLocaleDateString()}
+                                        </td>
+                                        <td className="py-2.5 px-3 text-center">
+                                            <button
+                                                onClick={() => setReplaySessionId(s.id)}
+                                                className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+                                            >
+                                                <PlayCircle className="h-4 w-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {(!sessions || sessions.length === 0) && (
+                                    <tr><td colSpan={6} className="py-8 text-center text-gray-400 text-sm">No sessions recorded yet.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'funnels' && (
+                <div className="bg-white rounded-xl border border-gray-200 p-5">
+                    <FunnelChart researchId={researchId} />
+                </div>
+            )}
         </div>
     );
 };
@@ -320,4 +390,29 @@ const shortenUrl = (url: string): string => {
     } catch {
         return url.length > 50 ? url.slice(0, 50) + '...' : url;
     }
+};
+
+const toCsv = (rows: Array<Record<string, unknown>>, columns: string[]): string => {
+    const header = columns.join(',');
+    const body = rows.map((row) =>
+        columns.map((col) => {
+            const val = row[col];
+            if (val == null) return '';
+            const str = String(val);
+            return str.includes(',') || str.includes('"') || str.includes('\n')
+                ? `"${str.replace(/"/g, '""')}"`
+                : str;
+        }).join(',')
+    ).join('\n');
+    return `${header}\n${body}`;
+};
+
+const downloadCsv = (csv: string, filename: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 };

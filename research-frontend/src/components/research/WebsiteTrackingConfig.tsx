@@ -82,6 +82,22 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
         }
     }, [research.id, config, queryClient]);
 
+    const [verifying, setVerifying] = useState(false);
+    const [verifyResult, setVerifyResult] = useState<'success' | 'none' | null>(null);
+
+    const handleVerify = useCallback(async () => {
+        setVerifying(true);
+        setVerifyResult(null);
+        try {
+            const overview = await trackingService.getOverview(research.id);
+            setVerifyResult(overview.totalSessions > 0 ? 'success' : 'none');
+        } catch {
+            setVerifyResult('none');
+        } finally {
+            setVerifying(false);
+        }
+    }, [research.id]);
+
     const isActive = research.status === 'active';
 
     return (
@@ -116,6 +132,29 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                         )}
                     </button>
                 </div>
+
+                {/* Verify installation */}
+                {isActive && (
+                    <div className="mt-3 flex items-center gap-3">
+                        <button
+                            onClick={handleVerify}
+                            disabled={verifying}
+                            className="text-sm text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                        >
+                            {verifying ? 'Checking...' : 'Verify Installation'}
+                        </button>
+                        {verifyResult === 'success' && (
+                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                                Script is active — sessions detected
+                            </span>
+                        )}
+                        {verifyResult === 'none' && (
+                            <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                                No sessions detected yet — verify the script is installed
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Allowed Domains */}
