@@ -30,6 +30,7 @@ interface CreateResearchFormProps {
 export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) => {
     const navigate = useNavigate();
     const [isStimulusDrawerOpen, setIsStimulusDrawerOpen] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState<string | null>(null);
     const {
         formData,
         currentStep,
@@ -262,23 +263,29 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
             } else if (isAttentionPrediction && filesToUpload.length > 0) {
                 // Attention Prediction: upload images via media service
                 try {
-                    const uploadPromises = filesToUpload.map(async (file) => {
-                        const contentType = file.type || 'application/octet-stream';
-                        const { upload_url, s3_key } = await mediaService.generateUploadUrl({
-                            research_id: researchId, file_name: file.name, content_type: contentType,
-                        });
-                        const uploadResponse = await fetch(upload_url, {
-                            method: 'PUT', body: file, headers: { 'Content-Type': contentType },
-                        });
-                        if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.status}`);
-                        const { media } = await mediaService.saveMetadata({
-                            research_id: researchId, s3_key,
-                            metadata: { fileName: file.name, fileType: file.type, fileSize: file.size },
-                        });
-                        const mediaUrl = await mediaService.getMediaUrl(media.id);
-                        return { url: mediaUrl.url, mediaId: media.id, name: file.name };
-                    });
-                    const uploadedStimuli = await Promise.all(uploadPromises);
+                    let uploaded = 0;
+                    setUploadStatus(`Uploading images… (0/${filesToUpload.length})`);
+                    const uploadedStimuli = await Promise.all(
+                        filesToUpload.map(async (file) => {
+                            const contentType = file.type || 'application/octet-stream';
+                            const { upload_url, s3_key } = await mediaService.generateUploadUrl({
+                                research_id: researchId, file_name: file.name, content_type: contentType,
+                            });
+                            const uploadResponse = await fetch(upload_url, {
+                                method: 'PUT', body: file, headers: { 'Content-Type': contentType },
+                            });
+                            if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.status}`);
+                            const { media } = await mediaService.saveMetadata({
+                                research_id: researchId, s3_key,
+                                metadata: { fileName: file.name, fileType: file.type, fileSize: file.size },
+                            });
+                            const mediaUrl = await mediaService.getMediaUrl(media.id);
+                            uploaded++;
+                            setUploadStatus(`Uploading images… (${uploaded}/${filesToUpload.length})`);
+                            return { url: mediaUrl.url, mediaId: media.id, name: file.name };
+                        })
+                    );
+                    setUploadStatus('Saving configuration…');
                     await researchService.update(researchId, {
                         settings: { stimuli: uploadedStimuli, stimulusUrl: uploadedStimuli[0]?.url, stimulusMediaId: uploadedStimuli[0]?.mediaId },
                     });
@@ -289,8 +296,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 }
             }
 
-            console.log('[CreateResearchForm] Research created successfully, navigating...');
-            // Reset form
+            setUploadStatus('Redirecting to builder…');
             resetForm();
 
             // Handle navigation
@@ -391,9 +397,19 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                     </div>
                                 )}
 
-                                {submitSuccess && (
-                                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                        <p className="text-sm text-green-600">Research created successfully!</p>
+                                {(submitSuccess || uploadStatus) && (
+                                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                                        {uploadStatus ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4 text-green-600" viewBox="0 0 24 24" fill="none">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                <p className="text-sm text-green-600">{uploadStatus}</p>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm text-green-600">Research created successfully!</p>
+                                        )}
                                     </div>
                                 )}
 
