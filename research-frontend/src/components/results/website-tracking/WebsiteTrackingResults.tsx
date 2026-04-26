@@ -14,6 +14,7 @@ import * as trackingService from '../../../services/tracking.service';
 import type { TrackingSession } from '../../../services/tracking.service';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import { DataTable, type DataTableColumn } from '../../ui/DataTable';
+import { StatCard } from '../../ui/StatCard';
 import { resolveMediaUrl, mediaService } from '../../../services/media.service';
 import { ScrollDepthChart } from './ScrollDepthChart';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
@@ -174,11 +175,11 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         <div className="space-y-6">
             {/* Overview Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                <MetricCard icon={<Users className="h-5 w-5" />} label="Unique Visitors" value={overview.uniqueVisitors} />
-                <MetricCard icon={<Activity className="h-5 w-5" />} label="Total Sessions" value={overview.totalSessions} />
-                <MetricCard icon={<Globe className="h-5 w-5" />} label="Pages Tracked" value={overview.pagesTracked} />
-                <MetricCard icon={<MousePointerClick className="h-5 w-5" />} label="Total Events" value={overview.totalEvents.toLocaleString()} />
-                <MetricCard icon={<Clock className="h-5 w-5" />} label="Avg. Duration" value={formatDuration(overview.avgSessionDuration)} />
+                <StatCard icon={<Users className="h-5 w-5" />} label="Unique Visitors" value={overview.uniqueVisitors} />
+                <StatCard icon={<Activity className="h-5 w-5" />} label="Total Sessions" value={overview.totalSessions} />
+                <StatCard icon={<Globe className="h-5 w-5" />} label="Pages Tracked" value={overview.pagesTracked} />
+                <StatCard icon={<MousePointerClick className="h-5 w-5" />} label="Total Events" value={overview.totalEvents.toLocaleString()} />
+                <StatCard icon={<Clock className="h-5 w-5" />} label="Avg. Duration" value={formatDuration(overview.avgSessionDuration)} />
             </div>
 
             {/* Tabs + Export */}
@@ -307,13 +308,6 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 };
 
 // ─── Helper Components ───────────────────────────────────────────────
-
-const MetricCard = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) => (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center gap-2 text-gray-500 mb-2">{icon}<span className="text-xs font-medium">{label}</span></div>
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
-    </div>
-);
 
 type ClickRow = { x: number; y: number; count: number };
 
