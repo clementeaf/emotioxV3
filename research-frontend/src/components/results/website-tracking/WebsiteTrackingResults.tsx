@@ -11,7 +11,9 @@ import {
     Upload, Download, ArrowDownUp, PlayCircle, TrendingDown,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
+import type { TrackingSession } from '../../../services/tracking.service';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
+import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { resolveMediaUrl, mediaService } from '../../../services/media.service';
 import { ScrollDepthChart } from './ScrollDepthChart';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
@@ -286,46 +288,12 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                         Sessions
                         <span className="ml-2 text-xs font-normal text-gray-500">Click to replay</span>
                     </h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-gray-100">
-                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Visitor</th>
-                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Page</th>
-                                    <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Events</th>
-                                    <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Duration</th>
-                                    <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                                    <th className="text-center py-2 px-3 text-xs font-medium text-gray-500 uppercase">Replay</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sessions?.map((s) => (
-                                    <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                        <td className="py-2.5 px-3 text-xs font-mono text-gray-600">{s.visitorId.slice(0, 12)}</td>
-                                        <td className="py-2.5 px-3 text-xs text-gray-700 max-w-[200px] truncate">{shortenUrl(s.pageUrl)}</td>
-                                        <td className="py-2.5 px-3 text-right text-gray-700">{s.eventCount}</td>
-                                        <td className="py-2.5 px-3 text-right text-gray-500">
-                                            {s.endedAt ? formatDuration(Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)) : '-'}
-                                        </td>
-                                        <td className="py-2.5 px-3 text-right text-xs text-gray-400">
-                                            {new Date(s.startedAt).toLocaleDateString()}
-                                        </td>
-                                        <td className="py-2.5 px-3 text-center">
-                                            <button
-                                                onClick={() => setReplaySessionId(s.id)}
-                                                className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                                            >
-                                                <PlayCircle className="h-4 w-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {(!sessions || sessions.length === 0) && (
-                                    <tr><td colSpan={6} className="py-8 text-center text-gray-400 text-sm">No sessions recorded yet.</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DataTable<TrackingSession>
+                        columns={sessionColumns(setReplaySessionId)}
+                        data={sessions || []}
+                        rowKey={(s) => s.id}
+                        emptyMessage="No sessions recorded yet."
+                    />
                 </div>
             )}
 
@@ -347,32 +315,73 @@ const MetricCard = ({ icon, label, value }: { icon: React.ReactNode; label: stri
     </div>
 );
 
-const ClickDataTable = ({ clicks }: { clicks: Array<{ x: number; y: number; count: number }> }) => {
+type ClickRow = { x: number; y: number; count: number };
+
+const clickColumns: DataTableColumn<ClickRow>[] = [
+    { key: 'x', header: 'X', accessor: 'x' },
+    { key: 'y', header: 'Y', accessor: 'y' },
+    { key: 'count', header: 'Clicks', accessor: 'count', cellClassName: 'font-medium' },
+];
+
+const ClickDataTable = ({ clicks }: { clicks: ClickRow[] }) => {
     const top10 = clicks.slice(0, 10);
     if (top10.length === 0) return null;
     return (
         <div className="mt-4 text-left">
-            <table className="w-full text-xs">
-                <thead>
-                    <tr className="border-b">
-                        <th className="py-1 px-2 text-gray-500">X</th>
-                        <th className="py-1 px-2 text-gray-500">Y</th>
-                        <th className="py-1 px-2 text-gray-500">Clicks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {top10.map((c, i) => (
-                        <tr key={i} className="border-b border-gray-50">
-                            <td className="py-1 px-2">{c.x}</td>
-                            <td className="py-1 px-2">{c.y}</td>
-                            <td className="py-1 px-2 font-medium">{c.count}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <DataTable<ClickRow>
+                columns={clickColumns}
+                data={top10}
+                rowKey={(_, i) => String(i)}
+                size="compact"
+            />
         </div>
     );
 };
+
+// ─── Column Definitions ──────────────────────────────────────────────
+
+const sessionColumns = (onReplay: (id: string) => void): DataTableColumn<TrackingSession>[] => [
+    {
+        key: 'visitor',
+        header: 'Visitor',
+        render: (s) => <span className="font-mono text-gray-600">{s.visitorId.slice(0, 12)}</span>,
+    },
+    {
+        key: 'page',
+        header: 'Page',
+        render: (s) => <span className="text-gray-700 max-w-[200px] truncate block">{shortenUrl(s.pageUrl)}</span>,
+    },
+    { key: 'events', header: 'Events', accessor: 'eventCount', align: 'right', sortable: true },
+    {
+        key: 'duration',
+        header: 'Duration',
+        align: 'right',
+        render: (s) => (
+            <span className="text-gray-500">
+                {s.endedAt ? formatDuration(Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)) : '-'}
+            </span>
+        ),
+    },
+    {
+        key: 'date',
+        header: 'Date',
+        align: 'right',
+        render: (s) => <span className="text-gray-400">{new Date(s.startedAt).toLocaleDateString()}</span>,
+    },
+    {
+        key: 'replay',
+        header: 'Replay',
+        align: 'center',
+        render: (s) => (
+            <button
+                onClick={(e) => { e.stopPropagation(); onReplay(s.id); }}
+                className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+            >
+                <PlayCircle className="h-4 w-4" />
+            </button>
+        ),
+    },
+];
 
 // ─── Utilities ───────────────────────────────────────────────────────
 
