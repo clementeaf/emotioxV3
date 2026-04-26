@@ -6,9 +6,10 @@ import {
 } from 'recharts';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { Filters } from '../smart-voc/components/Filters';
+import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import * as analyticsService from '../../../services/analytics.service';
-import type { IATModuleResult } from '../../../services/analytics.service';
+import type { IATModuleResult, IATParticipantData } from '../../../services/analytics.service';
 
 // Recharts Label `content` callback uses internal Props with RenderableText (includes `false`).
 // A custom interface can't satisfy the overload without importing private types — eslint-disable is the pragmatic fix.
@@ -343,6 +344,31 @@ const EFFECT_LABELS: Record<string, string> = {
   strong: 'Strong',
 };
 
+const dScoreColumns: DataTableColumn<IATParticipantData>[] = [
+  { key: 'participant', header: 'Participant', render: (p) => <span className="font-mono text-gray-700">{p.participantId}</span> },
+  { key: 'dScore', header: 'D-score', align: 'right', render: (p) => <span className="font-semibold text-gray-900">{p.dScore}</span> },
+  {
+    key: 'effect', header: 'Effect',
+    render: (p) => {
+      const ec = EFFECT_COLORS[p.dScoreEffect || 'none'];
+      return <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ec.bg} ${ec.text}`}>{EFFECT_LABELS[p.dScoreEffect || 'none']}</span>;
+    },
+  },
+  { key: 'quality', header: 'Quality', accessor: 'quality', cellClassName: 'text-gray-500' },
+];
+
+type ErrorCombination = { targetName: string; attributeLabel: string; errorRate: number; errors: number; total: number };
+
+const errorCombinationColumns: DataTableColumn<ErrorCombination>[] = [
+  { key: 'target', header: 'Target', accessor: 'targetName', cellClassName: 'text-gray-700' },
+  { key: 'attribute', header: 'Attribute', accessor: 'attributeLabel', cellClassName: 'text-gray-700' },
+  {
+    key: 'errorRate', header: 'Error Rate', align: 'right',
+    render: (c) => <span className={`font-semibold ${c.errorRate > 20 ? 'text-red-600' : c.errorRate > 10 ? 'text-amber-600' : 'text-gray-600'}`}>{c.errorRate}%</span>,
+  },
+  { key: 'trials', header: 'Trials', align: 'right', render: (c) => <span className="text-gray-400">{c.errors}/{c.total}</span> },
+];
+
 const DScoreCard = ({ module: mod }: { module: IATModuleResult }) => {
   const ds = mod.dScore;
   if (!ds) return null;
@@ -399,36 +425,15 @@ const DScoreCard = ({ module: mod }: { module: IATModuleResult }) => {
             Individual D-scores ({mod.participantData.filter(p => p.dScore != null).length} participants)
           </summary>
           <div className="mt-2 border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-50 text-gray-500 sticky top-0">
-                <tr>
-                  <th className="text-left px-3 py-1.5 font-medium">Participant</th>
-                  <th className="text-right px-3 py-1.5 font-medium">D-score</th>
-                  <th className="text-left px-3 py-1.5 font-medium">Effect</th>
-                  <th className="text-left px-3 py-1.5 font-medium">Quality</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {mod.participantData
-                  .filter(p => p.dScore != null)
-                  .sort((a, b) => Math.abs(b.dScore!) - Math.abs(a.dScore!))
-                  .map(p => {
-                    const ec = EFFECT_COLORS[p.dScoreEffect || 'none'];
-                    return (
-                      <tr key={p.participantId}>
-                        <td className="px-3 py-1.5 text-gray-700 font-mono">{p.participantId}</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-gray-900">{p.dScore}</td>
-                        <td className="px-3 py-1.5">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${ec.bg} ${ec.text}`}>
-                            {EFFECT_LABELS[p.dScoreEffect || 'none']}
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5 text-gray-500">{p.quality}</td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+            <DataTable<IATParticipantData>
+              columns={dScoreColumns}
+              data={mod.participantData
+                .filter(p => p.dScore != null)
+                .sort((a, b) => Math.abs(b.dScore!) - Math.abs(a.dScore!))}
+              rowKey={(p) => p.participantId}
+              size="compact"
+              stickyHeader
+            />
           </div>
         </details>
       )}
@@ -475,30 +480,12 @@ const ErrorAnalysisCard = ({ module: mod }: { module: IATModuleResult }) => {
           <div>
             <h5 className="text-xs font-medium text-gray-500 mb-2">Highest Error Combinations</h5>
             <div className="border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-gray-50 text-gray-500">
-                  <tr>
-                    <th className="text-left px-3 py-1.5 font-medium">Target</th>
-                    <th className="text-left px-3 py-1.5 font-medium">Attribute</th>
-                    <th className="text-right px-3 py-1.5 font-medium">Error Rate</th>
-                    <th className="text-right px-3 py-1.5 font-medium">Trials</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {ea.byCombination.map((c, i) => (
-                    <tr key={i}>
-                      <td className="px-3 py-1.5 text-gray-700">{c.targetName}</td>
-                      <td className="px-3 py-1.5 text-gray-700">{c.attributeLabel}</td>
-                      <td className="px-3 py-1.5 text-right">
-                        <span className={`font-semibold ${c.errorRate > 20 ? 'text-red-600' : c.errorRate > 10 ? 'text-amber-600' : 'text-gray-600'}`}>
-                          {c.errorRate}%
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5 text-right text-gray-400">{c.errors}/{c.total}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <DataTable
+                columns={errorCombinationColumns}
+                data={ea.byCombination}
+                rowKey={(_, i) => String(i)}
+                size="compact"
+              />
             </div>
           </div>
         )}

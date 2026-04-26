@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { SmilePlus } from 'lucide-react';
 import type { EmotionAggregation, EkmanEmotion } from '../../../services/analytics.service';
 import { EMOTION_COLORS, EMOTION_LABELS } from './shared';
+import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 
 const EmotionDistributionChart = ({ distribution }: { distribution: Record<EkmanEmotion, number> }) => {
   const sorted = useMemo(() =>
@@ -111,34 +112,29 @@ export const EmotionPanel = ({ emotions }: { emotions: EmotionAggregation }) => 
         <div>
           <h4 className="text-sm font-semibold text-gray-700 mb-2">Per Participant</h4>
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">Participant</th>
-                  <th className="text-left px-3 py-2 font-medium">Dominant</th>
-                  <th className="text-right px-3 py-2 font-medium">Samples</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {emotions.perParticipant.map(p => {
-                  const pColors = EMOTION_COLORS[p.dominantEmotion];
-                  return (
-                    <tr key={p.participantId}>
-                      <td className="px-3 py-2 text-gray-700 font-mono text-xs">{p.participantId}</td>
-                      <td className="px-3 py-2">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${pColors.bg} ${pColors.text}`}>
-                          {EMOTION_LABELS[p.dominantEmotion]}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-500">{p.sampleCount}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <DataTable
+              columns={emotionParticipantColumns}
+              data={emotions.perParticipant}
+              rowKey={(p) => p.participantId}
+              size="compact"
+            />
           </div>
         </div>
       )}
     </div>
   );
 };
+
+type EmotionParticipant = { participantId: string; dominantEmotion: EkmanEmotion; sampleCount: number };
+
+const emotionParticipantColumns: DataTableColumn<EmotionParticipant>[] = [
+  { key: 'participant', header: 'Participant', render: (p) => <span className="font-mono text-xs text-gray-700">{p.participantId}</span> },
+  {
+    key: 'dominant', header: 'Dominant',
+    render: (p) => {
+      const c = EMOTION_COLORS[p.dominantEmotion];
+      return <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.bg} ${c.text}`}>{EMOTION_LABELS[p.dominantEmotion]}</span>;
+    },
+  },
+  { key: 'samples', header: 'Samples', align: 'right', accessor: 'sampleCount', cellClassName: 'text-gray-500' },
+];

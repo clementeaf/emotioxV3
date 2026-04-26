@@ -1,4 +1,5 @@
 import { cn } from '../../../../lib/utils';
+import { DataTable, type DataTableColumn } from '../../../ui/DataTable';
 import type { NavigationStep, NavigationResponse } from './navigationTestCard.types';
 
 const getClicks = (r: NavigationResponse) => r.totalClicks ?? r.clicks ?? 0;
@@ -50,63 +51,57 @@ export const NavigationTab = ({ step }: { step: NavigationStep }) => {
       </div>
 
       {/* Per-participant table */}
-      {responses.length > 0 && (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">Participant</th>
-                <th className="text-center px-4 py-2 font-medium text-gray-600">Completed</th>
-                <th className="text-center px-4 py-2 font-medium text-gray-600">Clicks</th>
-                <th className="text-center px-4 py-2 font-medium text-gray-600">Correct</th>
-                <th className="px-4 py-2 font-medium text-gray-600">Accuracy</th>
-                <th className="text-center px-4 py-2 font-medium text-gray-600">Duration</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {responses.map((r, idx) => {
-                const clicks = getClicks(r);
-                const acc = clicks > 0 ? Math.round((r.correctClicks / clicks) * 100) : 0;
-                return (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-900 font-mono text-xs">
-                      {r.participantId.slice(0, 8)}...
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      {getCompleted(r) ? (
-                        <span className="text-green-600 font-semibold">Yes</span>
-                      ) : (
-                        <span className="text-red-500">No</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-center text-gray-700">{clicks}</td>
-                    <td className="px-4 py-2 text-center text-gray-700">{r.correctClicks}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div
-                            className={cn(
-                              'h-2 rounded-full transition-all',
-                              acc >= 70 ? 'bg-green-500' : acc >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                            )}
-                            style={{ width: `${acc}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-gray-600 w-10 text-right">{acc}%</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-center text-gray-700">{(getDuration(r) / 1000).toFixed(1)}s</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {responses.length === 0 && (
-        <div className="text-center py-8 text-gray-500">No participant data available</div>
-      )}
+      <div className="border rounded-lg overflow-hidden">
+        <DataTable<NavigationResponse>
+          columns={navResponseColumns}
+          data={responses}
+          rowKey={(r, i) => r.participantId || String(i)}
+          emptyMessage="No participant data available"
+        />
+      </div>
     </div>
   );
 };
+
+const navResponseColumns: DataTableColumn<NavigationResponse>[] = [
+  {
+    key: 'participant', header: 'Participant',
+    render: (r) => <span className="font-mono text-xs text-gray-900">{r.participantId.slice(0, 8)}...</span>,
+  },
+  {
+    key: 'completed', header: 'Completed', align: 'center',
+    render: (r) => getCompleted(r)
+      ? <span className="text-green-600 font-semibold">Yes</span>
+      : <span className="text-red-500">No</span>,
+  },
+  {
+    key: 'clicks', header: 'Clicks', align: 'center',
+    render: (r) => <span className="text-gray-700">{getClicks(r)}</span>,
+  },
+  {
+    key: 'correct', header: 'Correct', align: 'center',
+    render: (r) => <span className="text-gray-700">{r.correctClicks}</span>,
+  },
+  {
+    key: 'accuracy', header: 'Accuracy',
+    render: (r) => {
+      const clicks = getClicks(r);
+      const acc = clicks > 0 ? Math.round((r.correctClicks / clicks) * 100) : 0;
+      return (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-gray-200 rounded-full h-2">
+            <div
+              className={cn('h-2 rounded-full transition-all', acc >= 70 ? 'bg-green-500' : acc >= 40 ? 'bg-yellow-500' : 'bg-red-500')}
+              style={{ width: `${acc}%` }}
+            />
+          </div>
+          <span className="text-xs font-medium text-gray-600 w-10 text-right">{acc}%</span>
+        </div>
+      );
+    },
+  },
+  {
+    key: 'duration', header: 'Duration', align: 'center',
+    render: (r) => <span className="text-gray-700">{(getDuration(r) / 1000).toFixed(1)}s</span>,
+  },
+];

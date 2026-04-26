@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../ui/Button';
+import { DataTable, type DataTableColumn } from '../ui/DataTable';
 import { Upload, Trash2, Download, Users, Copy, Link, Send, Mail } from 'lucide-react';
 import { participantsService, type Participant } from '../../services/participants.service';
 import { useToast } from '../../hooks/useToast';
@@ -173,6 +174,45 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl, rese
     URL.revokeObjectURL(url);
   };
 
+  const participantColumns = useMemo((): DataTableColumn<Participant>[] => [
+    { key: 'id', header: 'ID', render: (p) => <span className="font-mono text-gray-700">{p.participant_id}</span> },
+    { key: 'email', header: 'Email', render: (p) => <span className="text-gray-600">{p.email || '—'}</span> },
+    { key: 'name', header: 'Name', render: (p) => <span className="text-gray-600">{p.name || '—'}</span> },
+    {
+      key: 'status', header: 'Status',
+      render: (p) => {
+        const s = STATUS_LABELS[p.status] || STATUS_LABELS.pending;
+        return <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${s.color}`}>{s.label}</span>;
+      },
+    },
+    {
+      key: 'invited', header: 'Invited',
+      render: (p) => <span className="text-gray-500">{p.invited_at ? new Date(p.invited_at).toLocaleDateString() : '—'}</span>,
+    },
+    {
+      key: 'actions', header: 'Actions', align: 'right',
+      render: (p) => (
+        <div className="flex justify-end gap-1">
+          {p.email && (
+            <button type="button" onClick={() => handleSendOne(p)} disabled={sendingId === p.id}
+              className="p-1 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+              title={p.invited_at ? 'Resend invitation' : 'Send invitation'}>
+              <Mail className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button type="button" onClick={() => handleCopyLink(p)}
+            className="p-1 text-gray-400 hover:text-blue-600 transition-colors" title="Copy individual link">
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => handleDeleteOne(p)}
+            className="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Delete participant">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ),
+    },
+  ], [sendingId, handleSendOne, handleCopyLink, handleDeleteOne]);
+
   const pendingCount = participants.filter(p => p.status === 'pending').length;
   const respondedCount = participants.filter(p => p.status === 'responded').length;
   const pendingWithEmail = participants.filter(p => p.status === 'pending' && p.email).length;
@@ -260,69 +300,13 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl, rese
           <p className="text-xs text-gray-400">Loading participants...</p>
         ) : participants.length > 0 ? (
           <div className="max-h-64 overflow-y-auto border rounded-md">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-100 sticky top-0">
-                <tr>
-                  <th className="text-left p-2 font-medium text-gray-600">ID</th>
-                  <th className="text-left p-2 font-medium text-gray-600">Email</th>
-                  <th className="text-left p-2 font-medium text-gray-600">Name</th>
-                  <th className="text-left p-2 font-medium text-gray-600">Status</th>
-                  <th className="text-left p-2 font-medium text-gray-600">Invited</th>
-                  <th className="text-right p-2 font-medium text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {participants.map(p => {
-                  const statusInfo = STATUS_LABELS[p.status] || STATUS_LABELS.pending;
-                  const invitedDate = p.invited_at ? new Date(p.invited_at).toLocaleDateString() : '—';
-                  const isSendingThis = sendingId === p.id;
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="p-2 font-mono text-gray-700">{p.participant_id}</td>
-                      <td className="p-2 text-gray-600">{p.email || '—'}</td>
-                      <td className="p-2 text-gray-600">{p.name || '—'}</td>
-                      <td className="p-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusInfo.color}`}>
-                          {statusInfo.label}
-                        </span>
-                      </td>
-                      <td className="p-2 text-gray-500">{invitedDate}</td>
-                      <td className="p-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          {p.email && (
-                            <button
-                              type="button"
-                              onClick={() => handleSendOne(p)}
-                              disabled={isSendingThis}
-                              className="p-1 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
-                              title={p.invited_at ? 'Resend invitation' : 'Send invitation'}
-                            >
-                              <Mail className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleCopyLink(p)}
-                            className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                            title="Copy individual link"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteOne(p)}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            title="Delete participant"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <DataTable<Participant>
+              columns={participantColumns}
+              data={participants}
+              rowKey={(p) => p.id}
+              size="compact"
+              stickyHeader
+            />
           </div>
         ) : null}
 

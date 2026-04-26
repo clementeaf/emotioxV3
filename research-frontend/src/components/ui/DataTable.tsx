@@ -11,6 +11,8 @@ export interface DataTableColumn<T> {
     key: string;
     /** Header label */
     header: string;
+    /** Custom header renderer (overrides header string) */
+    headerRender?: () => ReactNode;
     /** Text alignment (default: 'left') */
     align?: Alignment;
     /** Custom cell renderer. Receives the row and row index. */
@@ -129,14 +131,16 @@ export function DataTable<T>({
                                 )}
                                 onClick={col.sortable ? () => handleSort(col) : undefined}
                             >
-                                <span className="inline-flex items-center gap-1">
-                                    {col.header}
-                                    {col.sortable && sortKey === col.key && (
-                                        sortDir === 'asc'
-                                            ? <ChevronUp className="h-3 w-3" />
-                                            : <ChevronDown className="h-3 w-3" />
-                                    )}
-                                </span>
+                                {col.headerRender ? col.headerRender() : (
+                                    <span className="inline-flex items-center gap-1">
+                                        {col.header}
+                                        {col.sortable && sortKey === col.key && (
+                                            sortDir === 'asc'
+                                                ? <ChevronUp className="h-3 w-3" />
+                                                : <ChevronDown className="h-3 w-3" />
+                                        )}
+                                    </span>
+                                )}
                             </th>
                         ))}
                     </tr>
