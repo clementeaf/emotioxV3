@@ -1,6 +1,9 @@
 import pool from '../../config/database';
 import cache, { CacheKeys } from '../../config/cache';
 import { buildOwnershipClause, ResearchData } from './research.helpers';
+import { getMediaPath } from '../../config/local-storage';
+import fs from 'fs';
+import path from 'path';
 
 export const list = async (userId: string, role?: string) => {
     try {
@@ -392,6 +395,129 @@ export const activate = async (researchId: string, userId: string, role?: string
     return selectResult.rows[0];
 };
 
+/**
+ * Collect all media s3Key paths referenced by a research (modules + settings).
+ */
+const collectResearchMediaPaths = async (researchId: string): Promise<string[]> => {
+    const paths: string[] = [];
+
+    // 1. From module configs (file-upload components with s3Key)
+    const modulesResult = await pool.query(
+        `SELECT m.config FROM modules m
+         JOIN stages s ON m.stage_id = s.id
+         WHERE s.research_id = ?`,
+        [researchId]
+    );
+    for (const row of modulesResult.rows) {
+        const configStr = typeof row.config === 'string' ? row.config : JSON.stringify(row.config);
+        // Extract all s3Key values from JSON
+        const matches = configStr.matchAll(/"s3Key"\s*:\s*"([^"]+)"/g);
+        for (const m of matches) paths.push(m[1]);
+    }
+
+    // 2. From research settings (stimuli array with s3Key/url)
+    const researchResult = await pool.query(
+        'SELECT config FROM researches WHERE id = ?',
+        [researchId]
+    );
+    if (researchResult.rows[0]?.config) {
+        const configStr = typeof researchResult.rows[0].config === 'string'
+            ? researchResult.rows[0].config
+            : JSON.stringify(researchResult.rows[0].config);
+        const matches = configStr.matchAll(/"s3Key"\s*:\s*"([^"]+)"/g);
+        for (const m of matches) paths.push(m[1]);
+    }
+
+    // Deduplicate
+    return [...new Set(paths)];
+};
+
+/**
+ * Check if a media path is referenced by any OTHER active research.
+ */
+const isMediaPathReferencedElsewhere = async (mediaPath: string, excludeResearchId: string): Promise<boolean> => {
+    // Escape for LIKE query
+    const escaped = mediaPath.replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+    // Check module configs of active researches
+    const moduleCheck = await pool.query(
+        `SELECT 1 FROM modules m
+         JOIN stages s ON m.stage_id = s.id
+         JOIN researches r ON s.research_id = r.id
+         WHERE r.deleted_at IS NULL AND r.id != ?
+         AND m.config LIKE ?
+         LIMIT 1`,
+        [excludeResearchId, `%${escaped}%`]
+    );
+    if (moduleCheck.rows.length > 0) return true;
+
+    // Check research settings of active researches
+    const settingsCheck = await pool.query(
+        `SELECT 1 FROM researches
+         WHERE deleted_at IS NULL AND id != ?
+         AND config LIKE ?
+         LIMIT 1`,
+        [excludeResearchId, `%${escaped}%`]
+    );
+    if (settingsCheck.rows.length > 0) return true;
+
+    // Check responses of active researches
+    const responseCheck = await pool.query(
+        `SELECT 1 FROM responses r
+         JOIN researches res ON r.research_id = res.id
+         WHERE res.deleted_at IS NULL AND r.research_id != ?
+         AND r.value LIKE ?
+         LIMIT 1`,
+        [excludeResearchId, `%${escaped}%`]
+    );
+    return responseCheck.rows.length > 0;
+};
+
+/**
+ * Safely delete orphaned media files for a research.
+ * Only deletes files not referenced by any other active research.
+ */
+const cleanupResearchMedia = async (researchId: string): Promise<{ deleted: number; skipped: number }> => {
+    let deleted = 0;
+    let skipped = 0;
+
+    try {
+        const mediaPaths = await collectResearchMediaPaths(researchId);
+
+        for (const mediaPath of mediaPaths) {
+            try {
+                const isReferenced = await isMediaPathReferencedElsewhere(mediaPath, researchId);
+                if (isReferenced) {
+                    skipped++;
+                    continue;
+                }
+                const fullPath = getMediaPath(mediaPath);
+                if (fs.existsSync(fullPath)) {
+                    fs.unlinkSync(fullPath);
+                    deleted++;
+                }
+            } catch {
+                skipped++;
+            }
+        }
+
+        // Remove research directory if empty
+        try {
+            const dirPath = getMediaPath(`research/${researchId}`);
+            if (fs.existsSync(dirPath)) {
+                const remaining = fs.readdirSync(dirPath);
+                if (remaining.length === 0) {
+                    fs.rmdirSync(dirPath);
+                }
+            }
+        } catch { /* directory not empty or doesn't exist */ }
+    } catch (err) {
+        console.error(`[deleteResearch] Media cleanup failed for ${researchId}:`, err);
+    }
+
+    return { deleted, skipped };
+};
+
 export const deleteResearch = async (researchId: string, userId: string, role?: string) => {
     const ownership = buildOwnershipClause(userId, role, '');
     // MySQL compatible: no RETURNING clause
@@ -411,6 +537,10 @@ export const deleteResearch = async (researchId: string, userId: string, role?: 
 
     // Invalidate public cache for this research
     cache.delete(`${CacheKeys.PUBLIC_RESEARCH}:${researchId}`);
+
+    // Clean up orphaned media files (async, best-effort)
+    const cleanup = await cleanupResearchMedia(researchId);
+    console.log(`[deleteResearch] Media cleanup for ${researchId}: ${cleanup.deleted} deleted, ${cleanup.skipped} skipped (referenced elsewhere)`);
 
     return { message: 'Research deleted successfully' };
 };
