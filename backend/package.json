@@ -13,6 +13,8 @@
     "start": "node server-cpanel.js",
     "start:ts": "tsx src/server.ts",
     "start:passenger": "node passenger_startup.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:endpoints:cpanel": "tsx scripts/test-all-endpoints-cpanel.ts"
   },
   "keywords": [],
@@ -30,7 +32,8 @@
     "serverless-dotenv-plugin": "^6.0.0",
     "serverless-offline": "^13.9.0",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
