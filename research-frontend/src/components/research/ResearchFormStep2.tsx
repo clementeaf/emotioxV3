@@ -89,7 +89,7 @@ export const ResearchFormStep2 = ({
                 required
             />
 
-            {isFileBasedResearch && (() => {
+            {isFileBasedResearch && !isWebsiteTracking && (() => {
                 const hasSelection = isClientsBenchmark ? selectedBenchmarkCount > 0 : stimulusFiles.length > 0;
                 const statusText = isClientsBenchmark
                     ? (hasSelection ? `${selectedBenchmarkCount} research${selectedBenchmarkCount !== 1 ? 'es' : ''} selected` : "Client's Benchmark requires at least one research with Eye Tracking.")

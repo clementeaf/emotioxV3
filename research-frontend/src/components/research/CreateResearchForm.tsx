@@ -118,7 +118,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
         if (isClientsBenchmark && selectedBenchmarkIds.size === 0 && !isStimulusDrawerOpen) {
             setIsStimulusDrawerOpen(true);
             void loadBenchmarkResearches();
-        } else if (!isClientsBenchmark && isFileBasedResearch && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
+        } else if (!isClientsBenchmark && !isWebsiteTracking && isFileBasedResearch && (formData.stimulusFiles || []).length === 0 && !isStimulusDrawerOpen) {
             setIsStimulusDrawerOpen(true);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drawer opens on type change; deps intentionally limited to avoid re-open loops
@@ -534,7 +534,7 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
 
             {/* File-based research: File upload drawer (Attention Prediction / Insights Finding) */}
             <Drawer
-                isOpen={isStimulusDrawerOpen && !isClientsBenchmark}
+                isOpen={isStimulusDrawerOpen && !isClientsBenchmark && !isWebsiteTracking}
                 onClose={() => setIsStimulusDrawerOpen(false)}
                 title={isInsightsFinding ? 'Insights Finding — Text Files' : 'Attention Prediction Stimuli'}
                 width="md"
