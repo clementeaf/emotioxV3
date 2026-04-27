@@ -90,9 +90,9 @@ export const HeatmapRenderer = ({
             const isDenseSaliency = data.length > 100 && data.some(p => p.value != null && p.value < 1);
 
             const r = radiusProp ?? (isDenseSaliency
-                ? Math.max(25, Math.round(Math.min(w, h) * 0.07))
+                ? Math.max(40, Math.round(Math.min(w, h) * 0.12))
                 : Math.max(12, Math.round(Math.min(w, h) * 0.035)));
-            const b = blurProp ?? Math.round(r * 0.8);
+            const b = blurProp ?? Math.round(r * (isDenseSaliency ? 1.2 : 0.8));
             heat.radius(r, b);
 
             heat.gradient({
@@ -120,7 +120,7 @@ export const HeatmapRenderer = ({
             if (isDenseSaliency) {
                 // Grid-based downsampling: divide image into cells, compute peak per cell.
                 // This produces ~20-80 focused hotspot centroids instead of thousands of overlapping points.
-                const gridCols = 20;
+                const gridCols = 32;
                 const gridRows = Math.round(gridCols * (h / w));
                 const cellW = w / gridCols;
                 const cellH = h / gridRows;
