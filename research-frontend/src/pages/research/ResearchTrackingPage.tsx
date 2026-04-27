@@ -85,9 +85,9 @@ export const ResearchTrackingPage = () => {
                 ) : filteredActivities.length === 0 ? (
                     <div className="px-6 py-10 text-center text-sm text-gray-500">No activity matches the current filters.</div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-auto max-h-[calc(100vh-12rem)]">
                         <table className="w-full min-w-[980px] text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-200">
+                            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Summary</th>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Research</th>
