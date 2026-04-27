@@ -178,6 +178,21 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         }
     }, []);
 
+    // Cleanup on unmount — release camera, stop BlazeGaze + face-api.
+    // Critical for consecutive ET modules: without this, the 2nd module's
+    // getUserMedia hangs because the previous stream is still active (Safari especially).
+    useEffect(() => {
+        return () => {
+            const video = videoRef.current;
+            if (video?.srcObject) {
+                (video.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+                video.srcObject = null;
+            }
+            blaze.stop();
+            faceEmotions.stop();
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Resolve stimulus URL(s)
     useEffect(() => {
         const urlsToResolve = isShelf ? stimulusUrls : (stimulusUrl ? [stimulusUrl] : []);

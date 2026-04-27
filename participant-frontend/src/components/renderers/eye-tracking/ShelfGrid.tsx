@@ -23,7 +23,9 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     onAllLoaded,
     containerRef,
 }) => {
-    const totalCells = shelfCount * shelfItems;
+    // Ensure all uploaded images are shown: columns = max(shelfItems, urls.length)
+    const effectiveCols = Math.max(shelfItems, urls.length);
+    const totalCells = shelfCount * effectiveCols;
     const loadedRef = useRef(0);
 
     const handleImageLoad = useCallback(() => {
@@ -38,20 +40,19 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     return (
         <div
             ref={containerRef}
-            className={`max-w-[95vw] max-h-[85vh] select-none ${className}`}
+            className={`max-w-[80vw] max-h-[70vh] mx-auto select-none ${className}`}
             style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(${shelfItems}, 1fr)`,
+                gridTemplateColumns: `repeat(${effectiveCols}, 1fr)`,
                 gridTemplateRows: `repeat(${shelfCount}, 1fr)`,
-                gap: 2,
+                gap: 4,
                 ...(blur ? { filter: 'blur(12px)' } : {}),
                 ...(opacity != null ? { opacity } : {}),
                 ...style,
             }}
         >
             {Array.from({ length: totalCells }, (_, i) => {
-                // Column-based mapping: each URL fills an entire column (repeats across rows)
-                const col = i % shelfItems;
+                const col = i % effectiveCols;
                 const url = urls[col % urls.length];
                 return (
                     <img
@@ -59,6 +60,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
                         src={url}
                         alt={`Shelf item ${i + 1}`}
                         className="w-full h-full object-contain"
+                        style={{ maxHeight: '30vh' }}
                         draggable={false}
                         onLoad={handleImageLoad}
                     />
