@@ -213,7 +213,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     return (
         <div className="flex h-full overflow-hidden">
             {/* Left: main content area (scrollable) */}
-            <div className="flex-1 min-w-0 p-6 space-y-6 overflow-hidden">
+            <div className="flex-1 min-w-0 p-6 space-y-4 overflow-y-auto">
                 {/* Analysis — main content when a stimulus is selected */}
                 {activeStimulus && (
                     <>
