@@ -6,7 +6,9 @@ import {
     BarChart3,
     TrendingUp,
     LogOut,
-    Users
+    Users,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { researchService } from '../../services/research.service';
@@ -55,6 +57,10 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     const [editingName, setEditingName] = useState('');
     const nameInputRef = useRef<HTMLInputElement>(null);
     const [showShareDrawer, setShowShareDrawer] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        const saved = localStorage.getItem('sidebar-collapsed');
+        return saved ? JSON.parse(saved) : false;
+    });
     const currentUserId = useAuthStore((state) => state.user?.id);
     const isOwner = activeResearch?.created_by === currentUserId || useAuthStore.getState().user?.role === 'admin';
 
@@ -94,6 +100,14 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
     // Use ref to track if we're currently adding stages (prevents race conditions)
     const isAddingStagesRef = useRef(false);
+
+    useEffect(() => {
+        localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+    }, [isCollapsed]);
+
+    const toggleCollapse = useCallback(() => {
+        setIsCollapsed((prev: boolean) => !prev);
+    }, []);
 
     // Reset available stages when research changes to ensure fresh filtering
     useEffect(() => {
@@ -332,144 +346,171 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
     }
 
     return (
-        <div className="w-64 bg-white border-r border-gray-100 flex flex-col h-full rounded-lg transition-all duration-300">
+        <div className={cn(
+            "bg-white border-r border-gray-100 flex flex-col h-full rounded-lg flex-shrink-0 overflow-hidden transition-all duration-300",
+            isCollapsed ? "w-16" : "w-64"
+        )}>
             {/* Logo */}
             <div className="p-4 border-b border-gray-100 flex-shrink-0">
                 <div className="flex items-center justify-center">
-                    <img src={`${import.meta.env.BASE_URL}EmotioCX-logo.svg`} alt="EmotioCX" className="h-8" />
+                    <img
+                        src={`${import.meta.env.BASE_URL}EmotioCX-logo.svg`}
+                        alt="EmotioCX"
+                        className={cn("transition-all duration-300", isCollapsed ? "h-8 w-8" : "h-8")}
+                    />
                 </div>
             </div>
 
             {/* Header with Back Button */}
-            <div className="p-4 border-b border-gray-100">
+            <div className={cn("border-b border-gray-100", isCollapsed ? "p-2" : "p-4")}>
                 <Link
                     to="/research"
-                    className="flex items-center text-sm text-gray-500 hover:text-gray-900 mb-4 transition-colors"
+                    className={cn(
+                        "flex items-center text-sm text-gray-500 hover:text-gray-900 transition-colors",
+                        isCollapsed ? "justify-center py-1" : "mb-4"
+                    )}
+                    title={isCollapsed ? "Back to List" : undefined}
                 >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to List
+                    <ArrowLeft className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                    {!isCollapsed && "Back to List"}
                 </Link>
-                {isEditingName ? (
-                    <input
-                        ref={nameInputRef}
-                        type="text"
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        onBlur={handleSaveName}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveName();
-                            if (e.key === 'Escape') setIsEditingName(false);
-                        }}
-                        className="font-bold text-gray-900 text-lg w-full px-1 py-0 border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        autoFocus
-                    />
-                ) : (
-                    <h2
-                        className="font-bold text-gray-900 truncate text-lg cursor-pointer hover:text-blue-600 transition-colors"
-                        title="Click to rename"
-                        onClick={handleStartEditName}
-                    >
-                        {activeResearch.name}
-                    </h2>
+                {!isCollapsed && (
+                    isEditingName ? (
+                        <input
+                            ref={nameInputRef}
+                            type="text"
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            onBlur={handleSaveName}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveName();
+                                if (e.key === 'Escape') setIsEditingName(false);
+                            }}
+                            className="font-bold text-gray-900 text-lg w-full px-1 py-0 border border-blue-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            autoFocus
+                        />
+                    ) : (
+                        <h2
+                            className="font-bold text-gray-900 truncate text-lg cursor-pointer hover:text-blue-600 transition-colors"
+                            title="Click to rename"
+                            onClick={handleStartEditName}
+                        >
+                            {activeResearch.name}
+                        </h2>
+                    )
                 )}
             </div>
 
             {/* Research Details */}
-            <div className="flex-1 p-4 space-y-6 overflow-y-auto scrollbar-hide">
-                <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                        User
-                    </h3>
-                    <p className="text-sm font-medium text-gray-900">
-                        {[activeResearch.creator_first_name, activeResearch.creator_last_name].filter(Boolean).join(' ') || '—'}
-                    </p>
-                </div>
+            <div className={cn("flex-1 overflow-y-auto scrollbar-hide", isCollapsed ? "p-2 space-y-3" : "p-4 space-y-6")}>
+                {!isCollapsed && (
+                    <>
+                        <div>
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                                User
+                            </h3>
+                            <p className="text-sm font-medium text-gray-900">
+                                {[activeResearch.creator_first_name, activeResearch.creator_last_name].filter(Boolean).join(' ') || '—'}
+                            </p>
+                        </div>
 
-                <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                        Enterprise
-                    </h3>
-                    <p className="text-sm font-medium text-gray-900">
-                        {activeResearch.enterprise_name || '—'}
-                    </p>
-                </div>
+                        <div>
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                                Enterprise
+                            </h3>
+                            <p className="text-sm font-medium text-gray-900">
+                                {activeResearch.enterprise_name || '—'}
+                            </p>
+                        </div>
 
-                <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                        Research Type
-                    </h3>
-                    <p className="text-sm font-medium text-gray-900">
-                        {activeResearch.research_type_name || 'Unknown Type'}
-                    </p>
-                </div>
+                        <div>
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                                Research Type
+                            </h3>
+                            <p className="text-sm font-medium text-gray-900">
+                                {activeResearch.research_type_name || 'Unknown Type'}
+                            </p>
+                        </div>
 
-                {!isFileBasedResearch && (
-                    <div>
-                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                            Research Technique
-                        </h3>
-                        <p className="text-sm font-medium text-gray-900">
-                            {activeResearch.research_technique_name || 'Unknown Technique'}
-                        </p>
-                    </div>
+                        {!isFileBasedResearch && (
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                                    Research Technique
+                                </h3>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {activeResearch.research_technique_name || 'Unknown Technique'}
+                                </p>
+                            </div>
+                        )}
+                    </>
                 )}
 
-                <div>
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
-                        Status
-                    </h3>
+                <div className={isCollapsed ? "flex justify-center" : ""}>
+                    {!isCollapsed && (
+                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                            Status
+                        </h3>
+                    )}
                     <button
                         type="button"
                         onClick={() => setShowStatusModal(true)}
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize hover:opacity-80 transition-colors cursor-pointer ${
+                        title={isCollapsed ? `Status: ${activeResearch.status}` : undefined}
+                        className={cn(
+                            'inline-flex items-center rounded-full text-xs font-medium capitalize hover:opacity-80 transition-colors cursor-pointer',
+                            isCollapsed ? 'px-1.5 py-1' : 'px-2.5 py-0.5',
                             activeResearch.status === 'active' ? 'bg-blue-100 text-blue-800' :
                             activeResearch.status === 'completed' ? 'bg-green-100 text-green-800' :
                             'bg-gray-100 text-gray-800'
-                        }`}
+                        )}
                     >
-                        {activeResearch.status}
+                        {isCollapsed ? activeResearch.status.charAt(0).toUpperCase() : activeResearch.status}
                     </button>
                 </div>
 
                 {/* Stages Section or Stimuli Section for Attention Prediction */}
-                <SidebarStageList
-                    researchId={activeResearch.id}
-                    stages={activeResearch.stages || []}
-                    stimuli={stimuli}
-                    isFileBasedResearch={isFileBasedResearch}
-                    isClientsBenchmark={isClientsBenchmark}
-                    isInsightsFinding={isInsightsFinding}
-                    isWebsiteTracking={isWebsiteTracking}
-                    isViewer={isViewer}
-                    onAddStageClick={() => {
-                        setShowStageSelector(true);
-                        // Reset available stages to force reload with current research state
-                        setAvailableStages([]);
-                        void loadStageTemplates();
-                    }}
-                    onDeleteStageClick={handleDeleteStageClick}
-                />
+                {!isCollapsed && (
+                    <SidebarStageList
+                        researchId={activeResearch.id}
+                        stages={activeResearch.stages || []}
+                        stimuli={stimuli}
+                        isFileBasedResearch={isFileBasedResearch}
+                        isClientsBenchmark={isClientsBenchmark}
+                        isInsightsFinding={isInsightsFinding}
+                        isWebsiteTracking={isWebsiteTracking}
+                        isViewer={isViewer}
+                        onAddStageClick={() => {
+                            setShowStageSelector(true);
+                            setAvailableStages([]);
+                            void loadStageTemplates();
+                        }}
+                        onDeleteStageClick={handleDeleteStageClick}
+                    />
+                )}
 
                 {/* Progress Section - Hide for file-based research */}
                 {!isFileBasedResearch && (
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                                Progress
-                            </h3>
-                        </div>
-                        <div className="space-y-1 mt-2">
+                    <div className={isCollapsed ? "" : "mb-6"}>
+                        {!isCollapsed && (
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                    Progress
+                                </h3>
+                            </div>
+                        )}
+                        <div className={cn("space-y-1", !isCollapsed && "mt-2")}>
                             <Link
                                 to={`/research/${activeResearch.id}/builder/progress`}
                                 className={cn(
-                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    'flex items-center text-sm rounded transition-colors',
                                     location.pathname.includes('/builder/progress')
                                         ? 'bg-blue-50 text-blue-600 font-medium'
-                                        : 'text-gray-700 hover:bg-gray-50'
+                                        : 'text-gray-700 hover:bg-gray-50',
+                                    isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
                                 )}
+                                title={isCollapsed ? "View Progress" : undefined}
                             >
-                                <TrendingUp className="h-4 w-4 mr-2" />
-                                View Progress
+                                <TrendingUp className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                                {!isCollapsed && "View Progress"}
                             </Link>
                         </div>
                     </div>
@@ -478,23 +519,27 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 {/* Results Section - Hide for file-based research */}
                 {!isFileBasedResearch && (
                     <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                                Results
-                            </h3>
-                        </div>
-                        <div className="space-y-1 mt-2">
+                        {!isCollapsed && (
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                    Results
+                                </h3>
+                            </div>
+                        )}
+                        <div className={cn("space-y-1", !isCollapsed && "mt-2")}>
                             <Link
                                 to={`/research/${activeResearch.id}/builder/results`}
                                 className={cn(
-                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors',
+                                    'flex items-center text-sm rounded transition-colors',
                                     location.pathname.includes('/builder/results')
                                         ? 'bg-blue-50 text-blue-600 font-medium'
-                                        : 'text-gray-700 hover:bg-gray-50'
+                                        : 'text-gray-700 hover:bg-gray-50',
+                                    isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
                                 )}
+                                title={isCollapsed ? "View Results" : undefined}
                             >
-                                <BarChart3 className="h-4 w-4 mr-2" />
-                                View Results
+                                <BarChart3 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                                {!isCollapsed && "View Results"}
                             </Link>
                         </div>
                     </div>
@@ -502,28 +547,46 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
                 {/* Share */}
                 {!isFileBasedResearch && (
-                    <div className="mt-6">
+                    <div className={isCollapsed ? "" : "mt-6"}>
                         <button
                             onClick={() => setShowShareDrawer(true)}
-                            className="flex items-center w-full px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors"
+                            className={cn(
+                                'flex items-center w-full text-sm text-gray-700 hover:bg-gray-50 rounded transition-colors',
+                                isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
+                            )}
+                            title={isCollapsed ? "Share Research" : undefined}
                         >
-                            <Users className="h-4 w-4 mr-2" />
-                            Share Research
+                            <Users className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                            {!isCollapsed && "Share Research"}
                         </button>
                     </div>
                 )}
-                </div>
+            </div>
 
-                {/* Logout */}            <div className="p-4 border-t border-gray-100 space-y-2">
+            {/* Logout + Toggle */}
+            <div className={cn("border-t border-gray-100 space-y-2 flex-shrink-0", isCollapsed ? "p-2" : "p-4")}>
                 <button
                     onClick={handleLogout}
                     className={cn(
-                        'w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                        'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        'w-full flex items-center rounded-lg text-sm font-medium transition-colors',
+                        'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                        isCollapsed ? 'px-2 py-2.5 justify-center' : 'px-3 py-2.5'
                     )}
+                    title={isCollapsed ? "Logout" : undefined}
                 >
-                    <LogOut className="h-5 w-5 mr-3 text-gray-400" />
-                    Logout
+                    <LogOut className={cn("h-5 w-5 text-gray-400", !isCollapsed && "mr-3")} />
+                    {!isCollapsed && "Logout"}
+                </button>
+                <button
+                    onClick={toggleCollapse}
+                    className="w-full flex items-center justify-center rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 px-2 py-2.5 transition-colors"
+                    title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                >
+                    {isCollapsed ? (
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
+                    ) : (
+                        <ChevronLeft className="h-5 w-5 text-gray-400" />
+                    )}
                 </button>
             </div>
 
