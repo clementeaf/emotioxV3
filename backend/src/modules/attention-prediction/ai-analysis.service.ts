@@ -15,7 +15,7 @@ import type { AiAnalysisResult } from './ai-analysis.types';
 
 // ─── Config ─────────────────────────────────────────────────────────
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 const hasGemini = () => Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
