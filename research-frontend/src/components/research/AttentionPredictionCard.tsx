@@ -82,6 +82,10 @@ interface AttentionPredictionCardProps {
     onImportAoisDone?: () => void;
     /** Callback to add more stimuli */
     onAddMore?: () => void;
+    /** Callback to run/re-run AI analysis */
+    onRunAnalysis?: () => void;
+    /** Whether AI analysis is in progress */
+    isAnalyzing?: boolean;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -432,6 +436,8 @@ export const AttentionPredictionCard = ({
     pendingImportAois,
     onImportAoisDone,
     onAddMore,
+    onRunAnalysis,
+    isAnalyzing = false,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('prediction');
 
@@ -698,6 +704,29 @@ export const AttentionPredictionCard = ({
                             </svg>
                         </button>
                     )}
+                        {onRunAnalysis && (
+                            <button
+                                type="button"
+                                onClick={onRunAnalysis}
+                                disabled={isAnalyzing}
+                                className={cn(
+                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                                    aiAnalysis
+                                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                                        : 'text-white bg-blue-600 hover:bg-blue-700',
+                                    isAnalyzing && 'opacity-50 cursor-not-allowed'
+                                )}
+                                title={aiAnalysis ? 'Re-run AI Analysis' : 'Run AI Analysis'}
+                            >
+                                <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    {isAnalyzing
+                                        ? <><circle className="opacity-25" cx="12" cy="12" r="10" /><path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" stroke="none" /></>
+                                        : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                                    }
+                                </svg>
+                                {isAnalyzing ? 'Analyzing...' : aiAnalysis ? 'Re-analyze' : 'Run AI Analysis'}
+                            </button>
+                        )}
                     </div>
                 </div>
 

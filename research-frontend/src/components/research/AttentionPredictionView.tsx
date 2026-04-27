@@ -45,7 +45,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [predictionError, setPredictionError] = useState<string | null>(null);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
@@ -59,7 +58,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
     const aiAnalysis = activeStimulus?.aiAnalysis as AiAnalysisResult | undefined;
     const hasAnalysis = Boolean(aiAnalysis);
-    const storedError = activeStimulus?.predictionError;
 
     const persistStimuli = useCallback(async (updated: StimulusItem[]) => {
         await researchService.update(research.id, {
@@ -75,13 +73,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     const runAnalysis = useCallback(async (mediaId: string) => {
         setIsProcessing(true);
-        setPredictionError(null);
         try {
-            // Single step: AI Analysis generates both heatmap data and qualitative insights
             await mediaService.analyzeAttention(research.id, mediaId);
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch {
-            setPredictionError('Analysis failed. Please retry.');
+            // Silent fail — user can retry via the button in the card header
         } finally {
             setIsProcessing(false);
         }
@@ -124,8 +120,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         }
     }, [stimuli, persistStimuli]);
 
-    const displayError = predictionError || storedError;
-
     const showAiPanel = Boolean(activeStimulus && hasAnalysis);
 
     return (
@@ -149,33 +143,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             pendingImportAois={pendingImportAois}
                             onImportAoisDone={() => setPendingImportAois(undefined)}
                             onAddMore={() => setShowUploadModal(true)}
+                            onRunAnalysis={() => runAnalysis(activeStimulus.mediaId)}
+                            isAnalyzing={isProcessing}
                         />
 
-                        {/* Processing indicator */}
-                        {isProcessing && (
-                            <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                </svg>
-                                <div>
-                                    <p className="text-sm font-medium text-blue-800">Analyzing visual attention...</p>
-                                    <p className="text-xs text-blue-600">AI is analyzing the image. This may take 15-30 seconds.</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Re-analyze button if no analysis and no error */}
-                        {!hasAnalysis && !isProcessing && !displayError && (
-                            <button
-                                type="button"
-                                onClick={() => runAnalysis(activeStimulus.mediaId)}
-                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                <Sparkles className="w-4 h-4" />
-                                Run AI Analysis
-                            </button>
-                        )}
                     </>
                 )}
 
