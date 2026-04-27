@@ -34,7 +34,6 @@ export const RankingResultsWrapper = ({
             });
             return {
                 ...rawData,
-                totalResponses: filtered.length,
                 responses: filtered,
                 rankings: rawData.rankings.map(r => ({
                     ...r,

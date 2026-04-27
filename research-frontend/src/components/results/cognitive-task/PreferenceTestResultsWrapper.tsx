@@ -58,7 +58,6 @@ export const PreferenceTestResultsWrapper = ({
             filtered.forEach((r: any) => { const img = r.selectedImageId || r.selectedImage; if (img) counts[img] = (counts[img] || 0) + 1; });
             return {
                 ...rawData,
-                totalResponses: filtered.length,
                 responses: filtered,
                 selections: rawData.selections.map(s => {
                     const count = counts[String(s.imageId)] || 0;

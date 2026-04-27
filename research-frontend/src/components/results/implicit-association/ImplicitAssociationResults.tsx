@@ -624,7 +624,6 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
       return {
         ...mod,
         participantData: filteredPD,
-        totalResponses: filteredPD.length,
       };
     });
   }, [data?.modules, filteredParticipantIds]);

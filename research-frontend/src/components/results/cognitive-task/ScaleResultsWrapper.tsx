@@ -27,7 +27,6 @@ export const ScaleResultsWrapper = ({
             filtered.forEach(r => { distribution[r.value] = (distribution[r.value] || 0) + 1; });
             return {
                 ...rawData,
-                totalResponses: filtered.length,
                 responses: filtered,
                 distribution: Object.entries(distribution).map(([value, count]) => ({
                     value: parseInt(value),
