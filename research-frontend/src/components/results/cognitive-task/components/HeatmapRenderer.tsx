@@ -75,10 +75,8 @@ export const HeatmapRenderer = ({
         ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
         ctx.fillRect(0, 0, w, h);
 
-        // 3. Always use simpleheat for focused Gaussian blobs (matching industry-standard heatmaps).
-        // The old LUT saliency approach painted every pixel — simpleheat creates focused hotspots.
+        // 3. Render heatmap via simpleheat
         {
-            // Reuse simpleheat canvas across renders
             if (!heatCanvasRef.current || heatCanvasRef.current.width !== w || heatCanvasRef.current.height !== h) {
                 heatCanvasRef.current = document.createElement('canvas');
                 heatCanvasRef.current.width = w;
@@ -88,65 +86,83 @@ export const HeatmapRenderer = ({
             const heatCtx = heatCanvas.getContext('2d');
             if (heatCtx) heatCtx.clearRect(0, 0, w, h);
 
-                const heat = simpleheat(heatCanvas);
+            const heat = simpleheat(heatCanvas);
+            const isDenseSaliency = data.length > 100 && data.some(p => p.value != null && p.value < 1);
 
-                // Detect if this is dense saliency data (TranSalNet) vs sparse click data
-                const isDenseSaliency = data.length > 100 && data.some(p => p.value != null && p.value < 1);
+            const r = radiusProp ?? (isDenseSaliency
+                ? Math.max(25, Math.round(Math.min(w, h) * 0.07))
+                : Math.max(12, Math.round(Math.min(w, h) * 0.035)));
+            const b = blurProp ?? Math.round(r * 0.8);
+            heat.radius(r, b);
 
-                // For dense saliency: larger radius for focused blobs, filter low-intensity
-                const r = radiusProp ?? (isDenseSaliency
-                    ? Math.max(20, Math.round(Math.min(w, h) * 0.06))
-                    : Math.max(12, Math.round(Math.min(w, h) * 0.035)));
-                const b = blurProp ?? Math.round(r * 0.8);
-                heat.radius(r, b);
+            heat.gradient({
+                0.15: '#0f0',
+                0.35: '#8f0',
+                0.5: '#ff0',
+                0.7: '#f80',
+                0.85: '#f00',
+                1.0: '#fff',
+            });
 
-                heat.gradient({
-                    0.15: '#0f0',
-                    0.35: '#8f0',
-                    0.5: '#ff0',
-                    0.7: '#f80',
-                    0.85: '#f00',
-                    1.0: '#fff',
-                });
+            // Convert all points to pixel coords first
+            const toPixel = (point: HeatmapPoint): [number, number, number] => {
+                let x = point.x, y = point.y;
+                if (coordSystem === 'pixel') { /* already pixels */ }
+                else if (coordSystem === 'percent') { x = (x / 100) * w; y = (y / 100) * h; }
+                else if (coordSystem === 'normalized') { x *= w; y *= h; }
+                else if (x <= 1 && y <= 1) { x *= w; y *= h; }
+                else if (x <= 100 && y <= 100) { x = (x / 100) * w; y = (y / 100) * h; }
+                return [x, y, point.value ?? 1];
+            };
 
-                // For dense saliency: only keep the top hotspot points to create focused blobs
-                const minVal = isDenseSaliency ? (thresholdProp != null ? thresholdProp / 100 : 0.55) : 0;
+            let points: Array<[number, number, number]>;
 
-                const points: Array<[number, number, number]> = [];
+            if (isDenseSaliency) {
+                // Grid-based downsampling: divide image into cells, compute peak per cell.
+                // This produces ~20-80 focused hotspot centroids instead of thousands of overlapping points.
+                const gridCols = 20;
+                const gridRows = Math.round(gridCols * (h / w));
+                const cellW = w / gridCols;
+                const cellH = h / gridRows;
+                const grid = new Map<string, { sumX: number; sumY: number; sumVal: number; maxVal: number; count: number }>();
+
                 for (const point of data) {
-                    const val = point.value ?? 1;
-                    if (val < minVal) continue;
-
-                    let x = point.x;
-                    let y = point.y;
-                    if (coordSystem === 'pixel') {
-                        // Already image pixels — use as-is (canvas matches natural size)
-                    } else if (coordSystem === 'percent') {
-                        x = (x / 100) * w;
-                        y = (y / 100) * h;
-                    } else if (coordSystem === 'normalized') {
-                        x *= w;
-                        y *= h;
-                    } else if (x <= 1 && y <= 1) {
-                        x *= w;
-                        y *= h;
-                    } else if (x <= 100 && y <= 100) {
-                        x = (x / 100) * w;
-                        y = (y / 100) * h;
+                    const [px, py, val] = toPixel(point);
+                    const col = Math.min(gridCols - 1, Math.floor(px / cellW));
+                    const row = Math.min(gridRows - 1, Math.floor(py / cellH));
+                    const key = `${col},${row}`;
+                    const cell = grid.get(key);
+                    if (cell) {
+                        cell.sumX += px * val;
+                        cell.sumY += py * val;
+                        cell.sumVal += val;
+                        cell.maxVal = Math.max(cell.maxVal, val);
+                        cell.count++;
+                    } else {
+                        grid.set(key, { sumX: px * val, sumY: py * val, sumVal: val, maxVal: val, count: 1 });
                     }
-                    // else: absolute image pixels — use as-is
-                    points.push([x, y, val]);
                 }
 
-                heat.data(points);
-                // Dense saliency: max must be very high relative to point count to avoid
-                // saturating the entire surface. Only the densest clusters should reach red.
-                heat.max(isDenseSaliency ? Math.max(20, Math.ceil(points.length * 0.15)) : Math.max(3, Math.ceil(points.length * 0.05)));
-                const minOpacity = isDenseSaliency ? 0.01 : (thresholdProp != null ? thresholdProp / 100 : 0.05);
-                heat.draw(minOpacity);
-
-                ctx.drawImage(heatCanvas, 0, 0);
+                // Extract centroids weighted by saliency, filter low-energy cells
+                const threshold = thresholdProp != null ? thresholdProp / 100 : 0.4;
+                points = [];
+                for (const cell of grid.values()) {
+                    if (cell.maxVal < threshold) continue;
+                    const cx = cell.sumX / cell.sumVal;
+                    const cy = cell.sumY / cell.sumVal;
+                    points.push([cx, cy, cell.maxVal]);
+                }
+            } else {
+                points = data.map(toPixel);
             }
+
+            heat.data(points);
+            heat.max(isDenseSaliency ? Math.max(1, points.length * 0.04) : Math.max(3, Math.ceil(points.length * 0.05)));
+            const minOpacity = isDenseSaliency ? 0.03 : (thresholdProp != null ? thresholdProp / 100 : 0.05);
+            heat.draw(minOpacity);
+
+            ctx.drawImage(heatCanvas, 0, 0);
+        }
 
     }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp, coordSystem]);
 
