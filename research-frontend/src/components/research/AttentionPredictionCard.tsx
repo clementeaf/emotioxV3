@@ -560,10 +560,52 @@ export const AttentionPredictionCard = ({
         onImportAoisDone?.();
     }, [pendingImportAois]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // When AI analysis is available, generate heatmap points from its semantic data
+    // (autoAois centers + gazePath fixations) instead of using raw TranSalNet saliency.
+    const effectiveHeatmapData: HeatmapPoint[] = useMemo(() => {
+        if (!aiAnalysis) return heatmapData;
+
+        const points: HeatmapPoint[] = [];
+        const intensityMap: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
+        const durationMap: Record<string, number> = { long: 1.0, moderate: 0.7, brief: 0.4 };
+
+        if (aiAnalysis.autoAois) {
+            for (const aoi of aiAnalysis.autoAois) {
+                const intensity = intensityMap[aoi.attentionLevel] ?? 0.5;
+                const cx = aoi.x + aoi.width / 2;
+                const cy = aoi.y + aoi.height / 2;
+                points.push({ x: cx, y: cy, value: intensity });
+                const stepsX = Math.max(2, Math.round(aoi.width / 5));
+                const stepsY = Math.max(2, Math.round(aoi.height / 5));
+                for (let sx = 0; sx <= stepsX; sx++) {
+                    for (let sy = 0; sy <= stepsY; sy++) {
+                        const px = aoi.x + (aoi.width * sx) / stepsX;
+                        const py = aoi.y + (aoi.height * sy) / stepsY;
+                        const distFromCenter = Math.sqrt(
+                            ((px - cx) / (aoi.width / 2)) ** 2 +
+                            ((py - cy) / (aoi.height / 2)) ** 2
+                        );
+                        const falloff = Math.max(0.1, 1 - distFromCenter * 0.5);
+                        points.push({ x: px, y: py, value: intensity * falloff });
+                    }
+                }
+            }
+        }
+
+        if (aiAnalysis.gazePath) {
+            for (const fix of aiAnalysis.gazePath) {
+                const intensity = durationMap[fix.duration] ?? 0.5;
+                points.push({ x: fix.x, y: fix.y, value: intensity });
+            }
+        }
+
+        return points.length > 0 ? points : heatmapData;
+    }, [aiAnalysis, heatmapData]);
+
     const computedAois: AOIWithStats[] = useMemo(() => {
-        const total = heatmapData.length;
+        const total = effectiveHeatmapData.length;
         return aoiList.map(aoi => {
-            const inside = heatmapData.filter(p => {
+            const inside = effectiveHeatmapData.filter(p => {
                 const px = p.x > 1 ? p.x : p.x * 100;
                 const py = p.y > 1 ? p.y : p.y * 100;
                 return px >= aoi.x && px <= aoi.x + aoi.width &&
@@ -574,7 +616,7 @@ export const AttentionPredictionCard = ({
                 percentage: total > 0 ? Math.round((inside / total) * 100) : 0,
             };
         });
-    }, [aoiList, heatmapData]);
+    }, [aoiList, effectiveHeatmapData]);
 
     const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
         const existingLabels = new Set(aoiList.map(a => a.label));
@@ -701,7 +743,7 @@ export const AttentionPredictionCard = ({
                 </div>
 
                 {/* Inline heatmap controls — visible on Prediction tab */}
-                {activeTab === 'prediction' && heatmapData.length > 0 && (
+                {activeTab === 'prediction' && effectiveHeatmapData.length > 0 && (
                     <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
                         <div className="flex gap-1">
                             {DETAIL_PRESETS.map(p => (
@@ -825,7 +867,7 @@ export const AttentionPredictionCard = ({
                                   <div style={zoomStyle} className="origin-top-left">
                                     <HeatmapRenderer
                                         imageUrl={imageUrl}
-                                        data={heatmapData}
+                                        data={effectiveHeatmapData}
                                         blur={settings.blur}
                                         opacity={settings.opacity}
                                         threshold={settings.threshold}
@@ -879,7 +921,7 @@ export const AttentionPredictionCard = ({
                                 ) : (
                                     <AttentionVideoPlayer
                                         imageUrl={imageUrl}
-                                        data={heatmapData}
+                                        data={effectiveHeatmapData}
                                         duration={5}
                                     />
                                 )}
@@ -949,7 +991,7 @@ export const AttentionPredictionCard = ({
             {showSettings && createPortal(
                 <SettingsModal
                     imageUrl={imageUrl}
-                    heatmapData={heatmapData}
+                    heatmapData={effectiveHeatmapData}
                     settings={settings}
                     onApply={setSettings}
                     onClose={() => setShowSettings(false)}
