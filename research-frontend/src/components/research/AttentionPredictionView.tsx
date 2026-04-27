@@ -39,7 +39,7 @@ interface AttentionPredictionViewProps {
 
 /**
  * View for Attention Prediction — upload stimuli and view AI-generated analysis.
- * After upload, automatically triggers saliency prediction via backend (synchronous await).
+ * After upload, automatically triggers AI analysis via backend (Gemini/GPT-4o Vision).
  */
 export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredictionViewProps) => {
     const queryClient = useQueryClient();
@@ -47,34 +47,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [isProcessing, setIsProcessing] = useState(false);
     const [predictionError, setPredictionError] = useState<string | null>(null);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+    const [showUploadModal, setShowUploadModal] = useState(false);
+    const [aiPanelOpen, setAiPanelOpen] = useState(true);
+    const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
 
     const stimuli = useMemo(() => {
         const settings = (research.settings as { stimuli?: StimulusItem[] }) || {};
         return settings.stimuli || [];
     }, [research.settings]);
 
-    const [showUploadModal, setShowUploadModal] = useState(false);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [aiPanelOpen, setAiPanelOpen] = useState(true);
-    const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
-
     const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
-    const hasHeatmap = activeStimulus?.heatmapData && activeStimulus.heatmapData.length > 0;
-    const storedError = activeStimulus?.predictionError;
     const aiAnalysis = activeStimulus?.aiAnalysis as AiAnalysisResult | undefined;
-
-    const handleAiAnalyze = useCallback(async () => {
-        if (!activeStimulus) return;
-        setIsAnalyzing(true);
-        try {
-            await mediaService.analyzeAttention(research.id, activeStimulus.mediaId);
-            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-        } catch {
-            // Silently fail — user can retry via the button
-        } finally {
-            setIsAnalyzing(false);
-        }
-    }, [activeStimulus, research.id, queryClient]);
+    const hasAnalysis = Boolean(aiAnalysis);
+    const storedError = activeStimulus?.predictionError;
 
     const persistStimuli = useCallback(async (updated: StimulusItem[]) => {
         await researchService.update(research.id, {
@@ -88,21 +73,21 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
     }, [research.id, research.settings, queryClient]);
 
-    const runPrediction = useCallback(async (mediaId: string) => {
+    const runAnalysis = useCallback(async (mediaId: string) => {
         setIsProcessing(true);
         setPredictionError(null);
         try {
-            await mediaService.predictAttention(research.id, mediaId);
+            // Single step: AI Analysis generates both heatmap data and qualitative insights
+            await mediaService.analyzeAttention(research.id, mediaId);
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Prediction failed';
-            setPredictionError(msg);
+        } catch {
+            setPredictionError('Analysis failed. Please retry.');
         } finally {
             setIsProcessing(false);
         }
     }, [research.id, queryClient]);
 
-    const [videoProgress, setVideoProgress] = useState<string | null>(null);
+
 
     const handleFilesChange = useCallback(async (files: UploadedFile[]) => {
         const newStimuli: StimulusItem[] = files
@@ -123,78 +108,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
         await persistStimuli(merged);
 
-        // Process each new stimulus — detect video vs image
+        // Run AI analysis on each new stimulus (Gemini/GPT-4o Vision)
         for (const stimulus of newStimuli) {
-            const isVideo = /\.(mp4|webm|mov|avi)$/i.test(stimulus.name);
-
-            if (isVideo) {
-                // Video: extract frames → upload each → predict each
-                setIsProcessing(true);
-                setPredictionError(null);
-                try {
-                    const { extractVideoFrames } = await import('../../utils/extractVideoFrames');
-                    const mediaUrlResponse = await mediaService.getMediaUrl(stimulus.mediaId);
-                    const resolvedUrl = mediaUrlResponse.url;
-
-                    setVideoProgress('Extracting frames...');
-                    const extractedFrames = await extractVideoFrames(resolvedUrl, 2, 12, (p) => {
-                        setVideoProgress(`Extracting frames... ${Math.round(p * 100)}%`);
-                    });
-
-                    const frameEntries: VideoFrame[] = [];
-
-                    for (let i = 0; i < extractedFrames.length; i++) {
-                        const frame = extractedFrames[i];
-                        setVideoProgress(`Uploading frame ${i + 1}/${extractedFrames.length}...`);
-
-                        // Upload frame as image
-                        const file = new File([frame.blob], `${stimulus.name}-frame-${i}.png`, { type: 'image/png' });
-                        const uploaded = await mediaService.uploadFile(research.id, file);
-
-                        setVideoProgress(`Predicting frame ${i + 1}/${extractedFrames.length}...`);
-
-                        // Run prediction on frame (synchronous — backend saves heatmapData to config)
-                        await mediaService.predictAttention(research.id, uploaded.mediaId);
-
-                        frameEntries.push({
-                            mediaId: uploaded.mediaId,
-                            timestamp: frame.timestamp,
-                        });
-                    }
-
-                    // Fetch fresh config from server (cache is stale after predictions)
-                    setVideoProgress('Finalizing...');
-                    const freshResearch = await researchService.getById(research.id);
-                    const freshSettings = (freshResearch.research.settings as Record<string, unknown>) || {};
-                    const freshStimuli = (freshSettings.stimuli as StimulusItem[]) || [];
-
-                    // Read heatmapData from fresh server data for each frame
-                    const framesWithData = frameEntries.map(fe => {
-                        const frameStimulus = freshStimuli.find(s => s.mediaId === fe.mediaId);
-                        return { ...fe, heatmapData: frameStimulus?.heatmapData };
-                    });
-
-                    const frameMediaIds = new Set(framesWithData.map(f => f.mediaId));
-
-                    const cleaned = freshStimuli
-                        .filter(s => !frameMediaIds.has(s.mediaId)) // Remove frame entries from top-level
-                        .map(s => s.mediaId === stimulus.mediaId ? { ...s, isVideo: true, frames: framesWithData, processedAt: new Date().toISOString() } : s);
-
-                    await persistStimuli(cleaned);
-                    setVideoProgress(null);
-                } catch (err) {
-                    const msg = err instanceof Error ? err.message : 'Video prediction failed';
-                    setPredictionError(msg);
-                    setVideoProgress(null);
-                } finally {
-                    setIsProcessing(false);
-                }
-            } else {
-                // Image: existing flow
-                await runPrediction(stimulus.mediaId);
-            }
+            await runAnalysis(stimulus.mediaId);
         }
-    }, [stimuli, persistStimuli, runPrediction, research.id, queryClient]);
+    }, [stimuli, persistStimuli, runAnalysis]);
 
     const handleDelete = useCallback(async (mediaId: string) => {
         setIsDeletingId(mediaId);
@@ -208,7 +126,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     const displayError = predictionError || storedError;
 
-    const showAiPanel = Boolean(activeStimulus && hasHeatmap);
+    const showAiPanel = Boolean(activeStimulus && hasAnalysis);
 
     return (
         <div className="flex h-full overflow-hidden">
@@ -241,48 +159,21 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
                                 <div>
-                                    <p className="text-sm font-medium text-blue-800">
-                                        {videoProgress || 'Processing attention prediction...'}
-                                    </p>
-                                    <p className="text-xs text-blue-600">
-                                        {videoProgress ? 'Video frame-by-frame analysis in progress.' : 'This may take a few seconds.'}
-                                    </p>
+                                    <p className="text-sm font-medium text-blue-800">Analyzing visual attention...</p>
+                                    <p className="text-xs text-blue-600">AI is analyzing the image. This may take 15-30 seconds.</p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Error indicator */}
-                        {displayError && !isProcessing && (
-                            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                                <svg className="h-5 w-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-red-800">Prediction failed</p>
-                                    <p className="text-xs text-red-600 truncate">{displayError}</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => { setPredictionError(null); runPrediction(activeStimulus.mediaId); }}
-                                    className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors flex-shrink-0"
-                                >
-                                    Retry
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Re-process button if no heatmap and no error */}
-                        {!hasHeatmap && !isProcessing && !displayError && (
+                        {/* Re-analyze button if no analysis and no error */}
+                        {!hasAnalysis && !isProcessing && !displayError && (
                             <button
                                 type="button"
-                                onClick={() => runPrediction(activeStimulus.mediaId)}
+                                onClick={() => runAnalysis(activeStimulus.mediaId)}
                                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Run Attention Prediction
+                                <Sparkles className="w-4 h-4" />
+                                Run AI Analysis
                             </button>
                         )}
                     </>
@@ -371,10 +262,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         <div className="w-[420px] border-l border-gray-200 bg-white overflow-y-auto">
                             <AiAnalysisPanel
                                 analysis={aiAnalysis ?? null}
-                                isAnalyzing={isAnalyzing}
-                                onAnalyze={handleAiAnalyze}
+                                isAnalyzing={isProcessing}
+                                onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId)}
                                 onImportAois={(aois) => setPendingImportAois(aois)}
-                                hasHeatmap={Boolean(hasHeatmap)}
+                                hasHeatmap={true}
                             />
                         </div>
                     )}
