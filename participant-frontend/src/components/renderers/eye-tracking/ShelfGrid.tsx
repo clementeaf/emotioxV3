@@ -25,7 +25,15 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
 }) => {
     // Ensure all uploaded images are shown: columns = max(shelfItems, urls.length)
     const effectiveCols = Math.max(shelfItems, urls.length);
-    const totalCells = shelfCount * effectiveCols;
+
+    // On small screens, cap columns to prevent unreadable images (min ~80px per cell)
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const maxCols = isMobile ? Math.min(effectiveCols, 4) : effectiveCols;
+    const effectiveRows = isMobile && effectiveCols > maxCols
+        ? Math.ceil((effectiveCols * shelfCount) / maxCols)
+        : shelfCount;
+
+    const totalCells = effectiveRows * maxCols;
     const loadedRef = useRef(0);
 
     const handleImageLoad = useCallback(() => {
@@ -40,27 +48,27 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     return (
         <div
             ref={containerRef}
-            className={`max-w-[80vw] max-h-[70vh] mx-auto select-none ${className}`}
+            className={`max-w-[85vw] max-h-[75vh] mx-auto select-none overflow-auto ${className}`}
             style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(${effectiveCols}, 1fr)`,
-                gridTemplateRows: `repeat(${shelfCount}, 1fr)`,
-                gap: 4,
+                gridTemplateColumns: `repeat(${maxCols}, 1fr)`,
+                gridTemplateRows: `repeat(${effectiveRows}, 1fr)`,
+                gap: isMobile ? 2 : 4,
                 ...(blur ? { filter: 'blur(12px)' } : {}),
                 ...(opacity != null ? { opacity } : {}),
                 ...style,
             }}
         >
             {Array.from({ length: totalCells }, (_, i) => {
-                const col = i % effectiveCols;
-                const url = urls[col % urls.length];
+                // Map cell index back to image: row-first then column cycling
+                const url = urls[i % urls.length];
                 return (
                     <img
                         key={i}
                         src={url}
                         alt={`Shelf item ${i + 1}`}
                         className="w-full h-full object-contain"
-                        style={{ maxHeight: '30vh' }}
+                        style={{ minWidth: isMobile ? 60 : 80, minHeight: isMobile ? 60 : 80 }}
                         draggable={false}
                         onLoad={handleImageLoad}
                     />
