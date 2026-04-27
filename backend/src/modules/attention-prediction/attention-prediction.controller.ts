@@ -327,10 +327,6 @@ export const handleAttentionPredictionRoutes = async (
             const stimulus = stimuli.find((s) => s.mediaId === mediaId);
             const heatmapData = (stimulus?.heatmapData ?? []) as Array<{ x: number; y: number; value: number }>;
 
-            if (heatmapData.length === 0) {
-                return error('Run prediction first — no heatmap data available', 400, undefined, origin);
-            }
-
             try {
                 const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName);
 
