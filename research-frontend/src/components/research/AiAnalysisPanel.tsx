@@ -24,7 +24,6 @@ import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 interface AiAnalysisPanelProps {
     analysis: AiAnalysisResult | null;
     isAnalyzing: boolean;
-    analysisError?: string;
     onAnalyze: () => void;
     onImportAois: (aois: AiAnalysisResult['autoAois']) => void;
     hasHeatmap: boolean;
@@ -146,7 +145,6 @@ const DurationBadge = ({ duration }: { duration: string }) => {
 export const AiAnalysisPanel = ({
     analysis,
     isAnalyzing,
-    analysisError,
     onAnalyze,
     onImportAois,
     hasHeatmap,
@@ -201,9 +199,6 @@ export const AiAnalysisPanel = ({
                     </button>
                 {!hasHeatmap && (
                     <p className="mt-3 text-xs text-amber-600">Run prediction first to enable AI analysis.</p>
-                )}
-                {analysisError && (
-                    <p className="mt-3 text-xs text-red-600">Error: {analysisError}</p>
                 )}
             </div>
         );

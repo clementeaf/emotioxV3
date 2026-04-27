@@ -55,7 +55,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
     const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
 
@@ -63,18 +62,15 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const hasHeatmap = activeStimulus?.heatmapData && activeStimulus.heatmapData.length > 0;
     const storedError = activeStimulus?.predictionError;
     const aiAnalysis = activeStimulus?.aiAnalysis as AiAnalysisResult | undefined;
-    const storedAnalysisError = activeStimulus?.aiAnalysisError;
 
     const handleAiAnalyze = useCallback(async () => {
         if (!activeStimulus) return;
         setIsAnalyzing(true);
-        setAnalysisError(null);
         try {
             await mediaService.analyzeAttention(research.id, activeStimulus.mediaId);
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : 'AI analysis failed';
-            setAnalysisError(msg);
+        } catch {
+            // Silently fail — user can retry via the button
         } finally {
             setIsAnalyzing(false);
         }
@@ -376,7 +372,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             <AiAnalysisPanel
                                 analysis={aiAnalysis ?? null}
                                 isAnalyzing={isAnalyzing}
-                                analysisError={analysisError || storedAnalysisError || undefined}
                                 onAnalyze={handleAiAnalyze}
                                 onImportAois={(aois) => setPendingImportAois(aois)}
                                 hasHeatmap={Boolean(hasHeatmap)}
