@@ -1,6 +1,7 @@
 import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
 import { configService } from './api/config.service';
+import type { AiAnalysisResult } from '../types/aiAnalysis.types';
 
 /**
  * Resolves a relative media URL against the backend origin.
@@ -205,6 +206,20 @@ class MediaService {
             );
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to check insights status');
+        }
+    }
+
+    /**
+     * Runs GPT-4o Vision analysis on a stimulus that already has TranSalNet heatmap data.
+     * Synchronous — awaits the full analysis and returns structured results.
+     */
+    async analyzeAttention(researchId: string, mediaId: string): Promise<{ analysis: AiAnalysisResult; status: string }> {
+        try {
+            return await apiClient.post<{ analysis: AiAnalysisResult; status: string }>(
+                `/attention-prediction/research/${researchId}/analyze/${mediaId}`
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to run AI attention analysis');
         }
     }
 

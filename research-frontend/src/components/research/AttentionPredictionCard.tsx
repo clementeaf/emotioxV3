@@ -5,6 +5,9 @@ import { cn } from '../../lib/utils';
 import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRenderer';
 import { AttentionVideoPlayer } from '../results/cognitive-task/components/AttentionVideoPlayer';
 import { researchService } from '../../services/research.service';
+import { AiAnalysisPanel } from './AiAnalysisPanel';
+import { GazePathOverlay } from './GazePathOverlay';
+import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
 /** Debounces a value — returns the latest value after `delay` ms of inactivity. */
 const useDebouncedValue = <T,>(value: T, delay: number): T => {
@@ -49,7 +52,7 @@ const DEFAULT_SETTINGS: HeatmapSettings = {
     preset: 'Balanced',
 };
 
-type TabId = 'prediction' | 'attention-video' | 'image';
+type TabId = 'prediction' | 'gaze-path' | 'attention-video' | 'image';
 
 interface VideoFrameData {
     mediaId: string;
@@ -72,10 +75,19 @@ interface AttentionPredictionCardProps {
     isVideo?: boolean;
     /** Per-frame predictions for video stimuli */
     videoFrames?: VideoFrameData[];
+    /** AI analysis result (GPT-4o Vision) */
+    aiAnalysis?: AiAnalysisResult;
+    /** Whether AI analysis is in progress */
+    isAnalyzing?: boolean;
+    /** AI analysis error message */
+    aiAnalysisError?: string;
+    /** Callback to trigger AI analysis */
+    onAiAnalyze?: () => void;
 }
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
+const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'prediction', label: 'Prediction', icon: 'eye' },
+    { id: 'gaze-path', label: 'Gaze Path', icon: 'route' },
     { id: 'attention-video', label: 'Attention Video', icon: 'video' },
     { id: 'image', label: 'Image', icon: 'image' },
 ];
@@ -85,6 +97,7 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
     video: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     image: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
     settings: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+    route: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /></svg>,
 };
 
 const DETAIL_PRESETS = ['Smooth', 'Balanced', 'Detailed'];
@@ -416,8 +429,20 @@ export const AttentionPredictionCard = ({
     stimulusMediaId,
     isVideo = false,
     videoFrames = [],
+    aiAnalysis,
+    isAnalyzing = false,
+    aiAnalysisError,
+    onAiAnalyze,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('prediction');
+
+    // Filter tabs: show Gaze Path only when AI analysis has gaze data
+    const tabs = useMemo(() => {
+        return BASE_TABS.filter(tab => {
+            if (tab.id === 'gaze-path') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
+            return true;
+        });
+    }, [aiAnalysis]);
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState<HeatmapSettings>(DEFAULT_SETTINGS);
     const [aoiList, setAoiList] = useState<AOI[]>([]);
@@ -519,6 +544,25 @@ export const AttentionPredictionCard = ({
         });
     }, [aoiList, heatmapData]);
 
+    const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
+        const existingLabels = new Set(aoiList.map(a => a.label));
+        const newAois: AOI[] = aiAois
+            .filter(a => !existingLabels.has(a.label))
+            .map(a => ({
+                id: `aoi_${crypto.randomUUID()}`,
+                label: a.label,
+                x: a.x,
+                y: a.y,
+                width: a.width,
+                height: a.height,
+            }));
+        if (newAois.length > 0) {
+            const updated = [...aoiList, ...newAois];
+            setAoiList(updated);
+            void persistAois(updated);
+        }
+    }, [aoiList, persistAois]);
+
     const handleDownloadImage = useCallback(async () => {
         const el = tabContentRef.current;
         if (!el) return;
@@ -573,7 +617,7 @@ export const AttentionPredictionCard = ({
                 <div className="border-b bg-white">
                     <div className="flex items-center px-4">
                         <div className="flex gap-1 flex-1">
-                            {TABS.map(tab => (
+                            {tabs.map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
@@ -609,6 +653,59 @@ export const AttentionPredictionCard = ({
                         </button>
                     </div>
                 </div>
+
+                {/* Inline heatmap controls — visible on Prediction tab */}
+                {activeTab === 'prediction' && heatmapData.length > 0 && (
+                    <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
+                        <div className="flex gap-1">
+                            {DETAIL_PRESETS.map(p => (
+                                <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => {
+                                        const vals = PRESET_VALUES[p];
+                                        setSettings(prev => ({ ...prev, preset: p, ...vals }));
+                                    }}
+                                    className={cn(
+                                        'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                                        settings.preset === p
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                    )}
+                                >
+                                    {p}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <label className="text-xs text-gray-500 w-10">Blur</label>
+                            <input
+                                type="range" min={0} max={50} value={settings.blur}
+                                onChange={e => setSettings(prev => ({ ...prev, blur: Number(e.target.value), preset: 'Custom' }))}
+                                className="w-20 accent-blue-600"
+                            />
+                            <span className="text-xs text-gray-500 w-6 text-right">{settings.blur}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <label className="text-xs text-gray-500 w-14">Opacity</label>
+                            <input
+                                type="range" min={0} max={100} value={settings.opacity}
+                                onChange={e => setSettings(prev => ({ ...prev, opacity: Number(e.target.value), preset: 'Custom' }))}
+                                className="w-20 accent-blue-600"
+                            />
+                            <span className="text-xs text-gray-500 w-6 text-right">{settings.opacity}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <label className="text-xs text-gray-500 w-16">Threshold</label>
+                            <input
+                                type="range" min={0} max={100} value={settings.threshold}
+                                onChange={e => setSettings(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
+                                className="w-20 accent-blue-600"
+                            />
+                            <span className="text-xs text-gray-500 w-6 text-right">{settings.threshold}</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Content */}
                 <div className="p-4" ref={tabContentRef}>
@@ -730,10 +827,32 @@ export const AttentionPredictionCard = ({
                         </div>
                     )}
 
+                    {/* Gaze Path Tab — AI predicted fixation sequence */}
+                    {activeTab === 'gaze-path' && aiAnalysis?.gazePath && (
+                        <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto relative">
+                            <img src={imageUrl} alt={title} className="max-h-[700px] w-auto block" />
+                            <GazePathOverlay gazePath={aiAnalysis.gazePath} visible={true} />
+                        </div>
+                    )}
+
                     {/* Image Tab — Clean image only */}
                     {activeTab === 'image' && (
                         <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
                             <img src={imageUrl} alt={title} className="max-h-[700px] w-auto block" />
+                        </div>
+                    )}
+
+                    {/* AI Analysis Panel */}
+                    {onAiAnalyze && (
+                        <div className="mt-4">
+                            <AiAnalysisPanel
+                                analysis={aiAnalysis ?? null}
+                                isAnalyzing={isAnalyzing}
+                                analysisError={aiAnalysisError}
+                                onAnalyze={onAiAnalyze}
+                                onImportAois={handleImportAois}
+                                hasHeatmap={heatmapData.length > 0}
+                            />
                         </div>
                     )}
 

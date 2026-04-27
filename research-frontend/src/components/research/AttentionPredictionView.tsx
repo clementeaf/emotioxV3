@@ -5,6 +5,7 @@ import { researchKeys } from '../../hooks/useResearchQuery';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { AttentionPredictionCard } from './AttentionPredictionCard';
 import { mediaService } from '../../services/media.service';
+import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
 interface VideoFrame {
     mediaId: string;
@@ -24,6 +25,9 @@ interface StimulusItem {
     isVideo?: boolean;
     /** Per-frame predictions for video stimuli */
     frames?: VideoFrame[];
+    /** AI analysis result from GPT-4o Vision */
+    aiAnalysis?: Record<string, unknown>;
+    aiAnalysisError?: string;
 }
 
 interface AttentionPredictionViewProps {
@@ -47,9 +51,29 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         return settings.stimuli || [];
     }, [research.settings]);
 
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
+
     const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
     const hasHeatmap = activeStimulus?.heatmapData && activeStimulus.heatmapData.length > 0;
     const storedError = activeStimulus?.predictionError;
+    const aiAnalysis = activeStimulus?.aiAnalysis as AiAnalysisResult | undefined;
+    const storedAnalysisError = activeStimulus?.aiAnalysisError;
+
+    const handleAiAnalyze = useCallback(async () => {
+        if (!activeStimulus) return;
+        setIsAnalyzing(true);
+        setAnalysisError(null);
+        try {
+            await mediaService.analyzeAttention(research.id, activeStimulus.mediaId);
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'AI analysis failed';
+            setAnalysisError(msg);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, [activeStimulus, research.id, queryClient]);
 
     const persistStimuli = useCallback(async (updated: StimulusItem[]) => {
         await researchService.update(research.id, {
@@ -198,6 +222,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         stimulusMediaId={activeStimulus.mediaId}
                         isVideo={activeStimulus.isVideo}
                         videoFrames={activeStimulus.frames}
+                        aiAnalysis={aiAnalysis}
+                        isAnalyzing={isAnalyzing}
+                        aiAnalysisError={analysisError || storedAnalysisError || undefined}
+                        onAiAnalyze={handleAiAnalyze}
                     />
 
                     {/* Processing indicator */}

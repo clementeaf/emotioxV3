@@ -60,7 +60,7 @@ export const handlePublicTrackingRoutes = async (
     try {
         // GET /public/tracking/:researchId/script.js — serve the tracking script
         const scriptMatch = path.match(/^\/public\/tracking\/([^/]+)\/script\.js$/);
-        if (scriptMatch && httpMethod === 'GET') {
+        if (scriptMatch && (httpMethod === 'GET' || httpMethod === 'HEAD')) {
             const researchId = scriptMatch[1];
 
             try {

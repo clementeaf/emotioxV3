@@ -17,7 +17,7 @@ Default stages: Screener → Welcome Screen → Research Configuration → Impli
   - Features: targets dinámicos, preview modal, flowchart reactivo, multi-lang instrucciones (EN/ES JSON).
 - **Eye Tracking** (`single_module`): stimuli (imágenes/video), modalidades Stand Alone y Shelf. Incluye Emotion Recognition y predicción de atención.
 - **Rendering genérico**: `ResearchBuilderPage` usa `module_collection` generalizada — todo lo que no sea Smart VOC usa `CognitiveTaskModuleCard`.
-- **Attention Prediction**: research type sin stages. TranSalNet ONNX, predict síncrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). Settings modal con detail presets (Smooth/Balanced/Detailed) + sliders manuales. `AttentionVideoPlayer` scanpath animado. AOIs persistidos en `stimulus.aois`. Upload siempre visible. Error state en stimulus config con UI de retry.
+- **Attention Prediction**: research type sin stages. TranSalNet ONNX genera heatmap, GPT-4o Vision genera análisis cualitativo. Predict síncrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). Inline controls (presets + sliders blur/opacity/threshold) + Settings modal para preview/download. `AttentionVideoPlayer` scanpath animado. AOIs manuales + auto-detectadas por IA (importables). `AiAnalysisPanel` con secciones colapsables: contexto, attention score (gauge SVG), confianza, AOIs auto, flujo de atención, gaze path predictivo, neuro-insights Gestalt, metodología. `GazePathOverlay` SVG con fijaciones numeradas. Resultados cacheados en `stimulus.aiAnalysis`. Upload siempre visible. Error state con retry.
 - **Insights Finding**: research type sin stages. Documentos (.csv, .txt, .xlsx, .docx, .pdf) → parseo client-side → GPT-4o analysis (sentiment/themes/keywords). Fire-and-forget + polling.
 - **`isFileBasedResearch`**: unifica Attention Prediction e Insights Finding (`skip_default_modules: true`).
 - **Custom Screening Questions**: preguntas de selección única con descalificación dentro de Demographics. Keys `customQuestion_<id>`, `questionLabel` editable.
@@ -218,7 +218,8 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **Micro-recalibration:** Every 45s during viewing, invisible dot probes gaze drift and updates IDW correction field. Constants in `hybridCalibrationField.ts` (`MICRO_RECALIB_*`).
 - **Quality gate:** Participants classified `good`/`fair`/`low` by calibration RMSE, integrity score, fixation count. Low excluded from aggregates. `qualitySummary` in ET response.
 - **Calibration click isolation:** WebEyeTrack registers a global `click` listener that feeds mouse coords as calibration. `CalibrationPhase` and `ValidationPhase` use `onClickCapture` + `stopImmediatePropagation()` so only our explicit `blaze.calibrate()` feeds the model. Validation RMSE threshold: 150px (`HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX`).
-- **Attention Prediction:** `POST /attention-prediction/research/:id/module/:moduleId/predict` — TranSalNet sobre stimulus, soporta `imageIndex` para multi-imagen (Nav Flow)
+- **Attention Prediction:** `POST /attention-prediction/research/:id/module/:moduleId/predict` — TranSalNet sobre stimulus, soporta `imageIndex` para multi-imagen (Nav Flow).
+- **AI Analysis:** `POST /attention-prediction/research/:id/analyze/:mediaId` — GPT-4o Vision sobre imagen + saliency. Retorna `AiAnalysisResult` (contexto, scores, AOIs, flujo, gaze path, neuro-insights). Síncrono (await). Cacheado en `stimulus.aiAnalysis`.
 - **Assessment:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
 - **Lab:** `/labs/eye-tracking` en research-frontend
 

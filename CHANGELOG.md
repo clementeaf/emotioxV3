@@ -1,3 +1,18 @@
+## v0.64.0 — AI Analysis panel for Attention Prediction, inline heatmap controls, Website Tracking HEAD fix (2026-04-27)
+
+### backend
+- **AI Analysis endpoint.** `POST /attention-prediction/research/:id/analyze/:mediaId` sends the original image + TranSalNet saliency summary to GPT-4o Vision. Returns structured JSON: context detection, attention score, confidence, auto-detected AOIs, attention flow (entry/exit/leak), predicted gaze path, neuro-insights & Gestalt principles, methodology. Synchronous (await). Result cached in `stimulus.aiAnalysis`.
+- **AI Analysis service.** `ai-analysis.service.ts` — resizes image to 1024px via sharp, base64-encodes for Vision API, summarizes top-15 heatmap hotspots as prompt context. Uses `OPENAI_MODEL` env var (default `gpt-4o`).
+- **Fix: Website Tracking HEAD request.** `script.js` endpoint now accepts `HEAD` in addition to `GET`. Fixes "Verify Installation" returning "Could not reach the tracking script".
+
+### research-frontend
+- **AI Analysis panel.** `AiAnalysisPanel` with collapsible sections: context & scores (SVG circular gauges), auto-detected AOIs with individual/bulk import, attention flow (entry→exit + leak areas + visual path), predicted gaze path list, neuro-insights & Gestalt cards, technical methodology. "Analyze with AI" button triggers analysis; "Re-analyze" overwrites cached result.
+- **Gaze Path tab.** New conditional tab in `AttentionPredictionCard` — renders `GazePathOverlay` (SVG numbered fixation points with saccade lines, blue→red color gradient by order).
+- **Inline heatmap controls.** Compact preset buttons (Smooth/Balanced/Detailed) + blur/opacity/threshold sliders rendered below the tabs on the Prediction tab. Settings modal remains for preview + download.
+- **Import AOIs from AI.** Auto-detected AOIs can be imported individually or in bulk into the manual AOI list. Duplicate labels are skipped.
+
+---
+
 ## v0.63.2 — Website Tracking snippet comment, improved verification, deploy ONNX model sync (2026-04-27)
 
 ### backend
