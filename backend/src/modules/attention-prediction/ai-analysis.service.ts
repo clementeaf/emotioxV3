@@ -1,20 +1,24 @@
 /**
  * AI Analysis Service
- * Uses GPT-4o Vision to analyze visual attention patterns in images.
+ * Uses Gemini 2.0 Flash to analyze visual attention patterns in images.
  * Receives the original image + TranSalNet saliency data to produce
  * structured UX insights: context, attention score, AOIs, gaze path, etc.
+ *
+ * Gemini Flash is ~30x cheaper than GPT-4o for vision tasks at comparable quality.
  */
 
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import sharp from 'sharp';
 import fs from 'fs';
 import type { AiAnalysisResult } from './ai-analysis.types';
 
-const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || '',
-});
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 
-const LLM_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const getClient = () => {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '';
+    if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+    return new GoogleGenerativeAI(apiKey);
+};
 
 const SYSTEM_PROMPT = `You are an expert in visual attention analysis, UX design, and neuro-design principles (Gestalt, cognitive load, visual hierarchy). You analyze images to predict where users will look, how attention flows, and provide actionable design recommendations.
 
@@ -71,7 +75,7 @@ Return a JSON object with exactly this structure:
       "recommendation": "Place key CTAs along the F-pattern hotspots"
     }
   ],
-  "methodology": "Combined TranSalNet computational saliency with GPT-4o visual analysis for context-aware attention prediction."
+  "methodology": "Combined TranSalNet computational saliency with Gemini visual analysis for context-aware attention prediction."
 }
 
 Rules:
@@ -104,57 +108,55 @@ const summarizeHeatmap = (
 };
 
 /**
- * Reads an image, resizes it for GPT-4o Vision, and returns a base64 data URI.
+ * Reads an image, resizes it, and returns base64 + mimeType for Gemini.
  */
-const imageToDataUri = async (imagePath: string): Promise<string> => {
+const imageToBase64 = async (imagePath: string): Promise<{ base64: string; mimeType: string }> => {
     const buffer = await sharp(imagePath)
         .resize(1024, undefined, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85 })
         .toBuffer();
 
-    const base64 = buffer.toString('base64');
-    return `data:image/jpeg;base64,${base64}`;
+    return {
+        base64: buffer.toString('base64'),
+        mimeType: 'image/jpeg',
+    };
 };
 
 /**
- * Analyzes an image using GPT-4o Vision combined with TranSalNet saliency data.
+ * Analyzes an image using Gemini Vision combined with TranSalNet saliency data.
  */
 export const analyzeAttentionWithAI = async (
     imagePath: string,
     heatmapData: Array<{ x: number; y: number; value: number }>,
     fileName: string
 ): Promise<AiAnalysisResult> => {
-    if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY not configured');
-    }
+    const client = getClient();
 
     if (!fs.existsSync(imagePath)) {
         throw new Error(`Image not found: ${imagePath}`);
     }
 
-    const dataUri = await imageToDataUri(imagePath);
+    const { base64, mimeType } = await imageToBase64(imagePath);
     const heatmapSummary = summarizeHeatmap(heatmapData);
     const userPrompt = buildUserPrompt(heatmapSummary, fileName);
 
-    console.log(`[AI Analysis] Calling GPT-4o Vision for "${fileName}"...`);
+    console.log(`[AI Analysis] Calling Gemini (${GEMINI_MODEL}) for "${fileName}"...`);
 
-    const response = await client.chat.completions.create({
-        model: LLM_MODEL,
-        max_tokens: 4000,
-        response_format: { type: 'json_object' },
-        messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            {
-                role: 'user',
-                content: [
-                    { type: 'image_url', image_url: { url: dataUri, detail: 'high' } },
-                    { type: 'text', text: userPrompt },
-                ],
-            },
-        ],
+    const model = client.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: SYSTEM_PROMPT,
+        generationConfig: {
+            responseMimeType: 'application/json',
+            maxOutputTokens: 4000,
+        },
     });
 
-    const text = response.choices[0]?.message?.content || '';
+    const result = await model.generateContent([
+        { inlineData: { data: base64, mimeType } },
+        { text: userPrompt },
+    ]);
+
+    const text = result.response.text();
     const parsed = JSON.parse(text) as AiAnalysisResult;
     parsed.analyzedAt = new Date().toISOString();
 
