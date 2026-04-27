@@ -159,6 +159,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
 
     // Camera management
     const startCamera = useCallback(async () => {
+        // Skip if camera is already running (prevents orphaned MediaStreams)
+        if (videoRef.current?.srcObject) return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia(BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS);
             if (videoRef.current) {
@@ -181,15 +183,19 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // Cleanup on unmount — release camera, stop BlazeGaze + face-api.
     // Critical for consecutive ET modules: without this, the 2nd module's
     // getUserMedia hangs because the previous stream is still active (Safari especially).
+    const videoRefForCleanup = videoRef;
     useEffect(() => {
+        const blazeRef = blaze;
+        const faceRef = faceEmotions;
+        const vidRef = videoRefForCleanup;
         return () => {
-            const video = videoRef.current;
+            const video = vidRef.current;
             if (video?.srcObject) {
                 (video.srcObject as MediaStream).getTracks().forEach(t => t.stop());
                 video.srcObject = null;
             }
-            blaze.stop();
-            faceEmotions.stop();
+            blazeRef.stop();
+            faceRef.stop();
         };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
