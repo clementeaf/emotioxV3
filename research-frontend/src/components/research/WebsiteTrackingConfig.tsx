@@ -77,16 +77,25 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
     }, [research.id, config, queryClient]);
 
     const [verifying, setVerifying] = useState(false);
-    const [verifyResult, setVerifyResult] = useState<'success' | 'none' | null>(null);
+    const [verifyResult, setVerifyResult] = useState<'success' | 'no_sessions' | 'script_error' | null>(null);
 
     const handleVerify = useCallback(async () => {
         setVerifying(true);
         setVerifyResult(null);
         try {
+            // First check if the script.js endpoint is reachable
+            const scriptUrl = `${import.meta.env.VITE_API_URL || 'https://emotio.cx/api'}/public/tracking/${research.id}/script.js`;
+            const scriptRes = await fetch(scriptUrl, { method: 'HEAD' });
+            if (!scriptRes.ok) {
+                setVerifyResult('script_error');
+                return;
+            }
+
+            // Then check for sessions
             const overview = await trackingService.getOverview(research.id);
-            setVerifyResult(overview.totalSessions > 0 ? 'success' : 'none');
+            setVerifyResult(overview.totalSessions > 0 ? 'success' : 'no_sessions');
         } catch {
-            setVerifyResult('none');
+            setVerifyResult('script_error');
         } finally {
             setVerifying(false);
         }
@@ -137,9 +146,14 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                                 Script is active — sessions detected
                             </span>
                         )}
-                        {verifyResult === 'none' && (
+                        {verifyResult === 'no_sessions' && (
                             <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                                No sessions detected yet — verify the script is installed
+                                Script endpoint is reachable but no sessions yet — visit the website to generate the first session
+                            </span>
+                        )}
+                        {verifyResult === 'script_error' && (
+                            <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                                Could not reach the tracking script — check that the research is active and the API is accessible
                             </span>
                         )}
                     </div>

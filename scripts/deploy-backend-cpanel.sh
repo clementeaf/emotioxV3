@@ -142,6 +142,26 @@ fi
 echo -e "${GREEN}✅ Archivos de despliegue verificados${NC}"
 echo ""
 
+# Paso 6b: Sincronizar modelo ONNX (gitignored, ~290MB)
+echo -e "${BLUE}🧠 Verificando modelo TranSalNet...${NC}"
+LOCAL_MODEL="$LOCAL_BACKEND_DIR/models/transalnet_res.onnx"
+REMOTE_MODEL="$REMOTE_BACKEND_DIR/models/transalnet_res.onnx"
+
+if [ -f "$LOCAL_MODEL" ]; then
+    MODEL_EXISTS=$(run_remote "test -f $REMOTE_MODEL && echo 'yes' || echo 'no'")
+    if [ "$MODEL_EXISTS" = "no" ]; then
+        echo -e "${YELLOW}⚠️  Modelo no encontrado en servidor, subiendo (~290MB)...${NC}"
+        run_remote "mkdir -p $REMOTE_BACKEND_DIR/models"
+        rsync -avz --progress "$LOCAL_MODEL" "$SSH_HOST:$REMOTE_MODEL"
+        echo -e "${GREEN}✅ Modelo subido${NC}"
+    else
+        echo -e "${GREEN}✅ Modelo ya existe en servidor${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Modelo no encontrado localmente ($LOCAL_MODEL) — Attention Prediction no funcionará${NC}"
+fi
+echo ""
+
 # Paso 7: Probar que el servidor puede iniciar
 echo -e "${BLUE}🧪 Probando inicio del servidor...${NC}"
 echo -e "${YELLOW}   (Esto puede tomar unos segundos)${NC}"

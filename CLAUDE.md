@@ -172,6 +172,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 ./scripts/deploy-participant-frontend-cpanel.sh # build local, rsync dist/ → ~/public_html/participant/
 ```
 Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/restart.txt"`
+- **ONNX model:** `backend/models/transalnet_res.onnx` (290MB) is gitignored. Deploy script auto-syncs it if missing on server. CI/CD excludes `models/` from rsync `--delete`.
 
 ### CI/CD (GitHub Actions, auto en push a main)
 - `deploy-backend-cpanel.yml` — trigger: `backend/**`
@@ -199,7 +200,8 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **Public endpoints (CORS `*`):** `POST .../session` (create), `POST .../events` (batch insert). OPTIONS preflight handled in tracking controller, not global router.
 - **Authenticated endpoints:** `/tracking/:id/overview`, `/heatmap?page=URL`, `/pages`, `/sessions`, `/snippet`, `PUT /config`.
 - **Tables:** `tracking_sessions` (visitor, page, viewport, UA), `tracking_events` (click/scroll/mousemove, x/y, selector, timestamp), `tracking_pages` (URL, screenshot s3key).
-- **Builder:** `WebsiteTrackingConfig` — snippet copiable, domain whitelist, capture toggles (clicks/scroll/mousemove/consent).
+- **Embed snippet:** `generateEmbedSnippet` outputs `<!-- EmotioCX Web Tracker -->` + `<script>` loader. Comment helps users identify the tag in their HTML (like Google Tag).
+- **Builder:** `WebsiteTrackingConfig` — snippet copiable, domain whitelist, capture toggles (clicks/scroll/mousemove/consent). "Verify Installation" does HEAD to `script.js` + session count check (3 states: active/no-sessions/unreachable).
 - **Results:** `WebsiteTrackingResults` — overview cards + page selector + click heatmap (reuses `HeatmapRenderer`/simpleheat) + tracked pages table.
 - **Detection:** `isWebsiteTracking` added to `isFileBasedResearch` in builder, sidebar, create form, results page.
 

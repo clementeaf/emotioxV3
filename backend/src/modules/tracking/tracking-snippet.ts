@@ -193,7 +193,8 @@ function init(){
  * Generates the HTML snippet tag for embedding.
  */
 export const generateEmbedSnippet = (researchId: string, apiBaseUrl: string): string => {
-    return `<script>
+    return `<!-- EmotioCX Web Tracker -->
+<script>
 (function(r,a){var s=document.createElement("script");s.async=true;
 s.src=a+"/public/tracking/"+r+"/script.js";document.head.appendChild(s);
 })("${researchId}","${apiBaseUrl}");

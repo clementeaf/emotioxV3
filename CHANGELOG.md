@@ -1,3 +1,17 @@
+## v0.63.2 — Website Tracking snippet comment, improved verification, deploy ONNX model sync (2026-04-27)
+
+### backend
+- **HTML comment in tracking snippet.** `generateEmbedSnippet` now prepends `<!-- EmotioCX Web Tracker -->` before the `<script>` tag, matching the Google Tag pattern for easy identification in source code.
+
+### research-frontend
+- **Improved Verify Installation.** Now performs a `HEAD` request to `script.js` before checking sessions. Three result states: script active with sessions (green), script reachable but no sessions yet (amber), script endpoint unreachable (red).
+
+### infra
+- **ONNX model sync in deploy script.** `deploy-backend-cpanel.sh` gains step 6b: checks if `transalnet_res.onnx` (~290MB) exists on the server and uploads it if missing.
+- **Protect models/ in CI/CD.** `deploy-backend-cpanel.yml` rsync now excludes `models/` so `--delete` doesn't wipe the ONNX model on each deploy.
+
+---
+
 ## v0.63.1 — Eye Tracking Shelf mode: column-based grid with auto-detection and auto-AOIs (2026-04-26)
 
 ### research-frontend
