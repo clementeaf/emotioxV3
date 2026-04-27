@@ -174,24 +174,19 @@ export const AiAnalysisPanel = ({
     // No analysis yet — show trigger button
     if (!analysis) {
         return (
-            <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <Sparkles className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-semibold text-slate-900">AI Analysis</h3>
-                            <p className="text-xs text-slate-500">
-                                GPT-4o analyzes visual attention patterns, gaze flow, and design effectiveness
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onAnalyze}
-                        disabled={!hasHeatmap || isAnalyzing}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
+            <div className="bg-gradient-to-b from-slate-50 to-blue-50 p-5 h-full flex flex-col items-center justify-center text-center">
+                <div className="p-3 bg-blue-100 rounded-xl mb-3">
+                    <Sparkles className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">AI Analysis</h3>
+                <p className="text-xs text-slate-500 mb-4 max-w-[280px]">
+                    Analyzes visual attention patterns, gaze flow, and design effectiveness
+                </p>
+                <button
+                    onClick={onAnalyze}
+                    disabled={!hasHeatmap || isAnalyzing}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
                         {isAnalyzing ? (
                             <>
                                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -204,12 +199,11 @@ export const AiAnalysisPanel = ({
                             </>
                         )}
                     </button>
-                </div>
                 {!hasHeatmap && (
-                    <p className="mt-2 text-xs text-amber-600">Run prediction first to enable AI analysis.</p>
+                    <p className="mt-3 text-xs text-amber-600">Run prediction first to enable AI analysis.</p>
                 )}
                 {analysisError && (
-                    <p className="mt-2 text-xs text-red-600">Error: {analysisError}</p>
+                    <p className="mt-3 text-xs text-red-600">Error: {analysisError}</p>
                 )}
             </div>
         );
@@ -217,9 +211,9 @@ export const AiAnalysisPanel = ({
 
     // Analysis available — show results
     return (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white overflow-hidden h-full flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-100 rounded-lg">
                         <Sparkles className="h-5 w-5 text-blue-600" />
@@ -241,10 +235,10 @@ export const AiAnalysisPanel = ({
                 </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {/* Context & Scores */}
-                <div className="flex items-start gap-6">
-                    <div className="flex-1">
+                <div className="flex items-start gap-4">
+                    <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-3">
                             <span className="text-xs font-medium px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full uppercase tracking-wide">
                                 {analysis.context.type}

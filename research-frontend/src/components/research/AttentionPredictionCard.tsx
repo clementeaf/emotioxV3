@@ -5,7 +5,6 @@ import { cn } from '../../lib/utils';
 import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRenderer';
 import { AttentionVideoPlayer } from '../results/cognitive-task/components/AttentionVideoPlayer';
 import { researchService } from '../../services/research.service';
-import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { GazePathOverlay } from './GazePathOverlay';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
@@ -75,14 +74,14 @@ interface AttentionPredictionCardProps {
     isVideo?: boolean;
     /** Per-frame predictions for video stimuli */
     videoFrames?: VideoFrameData[];
-    /** AI analysis result (GPT-4o Vision) */
+    /** AI analysis result (GPT-4o Vision) — used for Gaze Path tab */
     aiAnalysis?: AiAnalysisResult;
-    /** Whether AI analysis is in progress */
-    isAnalyzing?: boolean;
-    /** AI analysis error message */
-    aiAnalysisError?: string;
-    /** Callback to trigger AI analysis */
-    onAiAnalyze?: () => void;
+    /** AOIs to import from AI (set by parent when user clicks import in panel) */
+    pendingImportAois?: AiAnalysisResult['autoAois'];
+    /** Called after AOIs have been imported */
+    onImportAoisDone?: () => void;
+    /** Callback to add more stimuli */
+    onAddMore?: () => void;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -430,9 +429,9 @@ export const AttentionPredictionCard = ({
     isVideo = false,
     videoFrames = [],
     aiAnalysis,
-    isAnalyzing = false,
-    aiAnalysisError,
-    onAiAnalyze,
+    pendingImportAois,
+    onImportAoisDone,
+    onAddMore,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('prediction');
 
@@ -452,6 +451,32 @@ export const AttentionPredictionCard = ({
     const [isSavingAois, setIsSavingAois] = useState(false);
     const aoiContainerRef = useRef<HTMLDivElement>(null);
     const tabContentRef = useRef<HTMLDivElement>(null);
+
+    // Zoom & pan state
+    const [zoom, setZoom] = useState(1);
+    const zoomContainerRef = useRef<HTMLDivElement>(null);
+
+    // Native wheel listener with passive: false so preventDefault works
+    useEffect(() => {
+        const el = zoomContainerRef.current;
+        if (!el) return;
+        const handler = (e: WheelEvent) => {
+            if (drawingAoi) return;
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.15 : 0.15;
+            setZoom(prev => Math.min(5, Math.max(1, +(prev + delta).toFixed(2))));
+        };
+        el.addEventListener('wheel', handler, { passive: false });
+        return () => el.removeEventListener('wheel', handler);
+    }, [drawingAoi]);
+
+    const resetZoom = useCallback(() => {
+        setZoom(1);
+    }, []);
+
+    const zoomStyle: React.CSSProperties | undefined = zoom > 1 ? {
+        zoom,
+    } : undefined;
 
     // Load persisted AOIs from research settings
     useEffect(() => {
@@ -528,6 +553,13 @@ export const AttentionPredictionCard = ({
         void persistAois(updated);
     };
 
+    // Process pending AOI imports from the external AI panel
+    useEffect(() => {
+        if (!pendingImportAois || pendingImportAois.length === 0) return;
+        handleImportAois(pendingImportAois);
+        onImportAoisDone?.();
+    }, [pendingImportAois]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const computedAois: AOIWithStats[] = useMemo(() => {
         const total = heatmapData.length;
         return aoiList.map(aoi => {
@@ -589,7 +621,7 @@ export const AttentionPredictionCard = ({
 
     return (
         <>
-            <div className={cn('border rounded-lg overflow-hidden bg-white', className)}>
+            <div className={cn('border rounded-lg overflow-hidden bg-white max-h-[calc(100vh-120px)] flex flex-col', className)}>
                 {/* Title */}
                 <div className="p-4 border-b flex items-start justify-between">
                     <div>
@@ -598,19 +630,33 @@ export const AttentionPredictionCard = ({
                             Prediction of visual attention
                         </p>
                     </div>
-                    {onDelete && (
-                        <button
-                            type="button"
-                            onClick={onDelete}
-                            disabled={isDeleting}
-                            className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                            title="Remove stimulus"
+                    <div className="flex items-center gap-1">
+                        {onAddMore && (
+                            <button
+                                type="button"
+                                onClick={onAddMore}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Add more images or videos"
+                            >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                            </button>
+                        )}
+                        {onDelete && (
+                            <button
+                                type="button"
+                                onClick={onDelete}
+                                disabled={isDeleting}
+                                className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                                title="Remove stimulus"
                         >
                             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>
                     )}
+                    </div>
                 </div>
 
                 {/* Tabs + Settings */}
@@ -708,192 +754,194 @@ export const AttentionPredictionCard = ({
                 )}
 
                 {/* Content */}
-                <div className="p-4" ref={tabContentRef}>
-                    {/* Prediction Tab — Heatmap + AOI drawing */}
-                    {activeTab === 'prediction' && (
-                        <>
-                            {/* AOI toolbar */}
-                            <div className="flex items-center gap-3 mb-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setDrawingAoi(prev => !prev)}
-                                    className={cn(
-                                        'px-3 py-1.5 text-xs font-medium rounded transition-colors',
-                                        drawingAoi
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    )}
-                                >
-                                    {drawingAoi ? 'Drawing AOI...' : '+ Add AOI'}
-                                </button>
-                                {computedAois.length > 0 && (
-                                    <span className="text-xs text-gray-500">
-                                        {computedAois.length} AOI defined
-                                        {isSavingAois && ' — saving...'}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div
-                                ref={aoiContainerRef}
-                                className={cn(
-                                    'mb-4 rounded-lg overflow-hidden border bg-gray-100 relative w-fit mx-auto',
-                                    drawingAoi && 'cursor-crosshair'
-                                )}
-                                onMouseDown={drawingAoi ? (e) => {
-                                    const container = aoiContainerRef.current;
-                                    if (!container) return;
-                                    const pos = getMousePercent(e, container);
-                                    setAoiStart(pos);
-                                    setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
-                                } : undefined}
-                                onMouseMove={drawingAoi && aoiStart ? (e) => {
-                                    const container = aoiContainerRef.current;
-                                    if (!container) return;
-                                    const pos = getMousePercent(e, container);
-                                    setAoiCurrent({
-                                        x: Math.min(aoiStart.x, pos.x),
-                                        y: Math.min(aoiStart.y, pos.y),
-                                        w: Math.abs(pos.x - aoiStart.x),
-                                        h: Math.abs(pos.y - aoiStart.y),
-                                    });
-                                } : undefined}
-                                onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
-                                    addAoi(aoiCurrent);
-                                    setAoiStart(null);
-                                    setAoiCurrent(null);
-                                    setDrawingAoi(false);
-                                } : () => { setAoiStart(null); setAoiCurrent(null); }}
-                            >
-                                <HeatmapRenderer
-                                    imageUrl={imageUrl}
-                                    data={heatmapData}
-                                    blur={settings.blur}
-                                    opacity={settings.opacity}
-                                    threshold={settings.threshold}
-                                    className="w-full"
-                                />
-
-                                {/* AOI overlays */}
-                                <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    {computedAois.map(aoi => (
-                                        <g key={aoi.id}>
-                                            <rect
-                                                x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
-                                                fill="rgba(59, 130, 246, 0.1)"
-                                                stroke="#3B82F6"
-                                                strokeWidth="0.4"
-                                            />
-                                            <text
-                                                x={aoi.x + 0.5} y={aoi.y + 2.5}
-                                                fill="#1D4ED8" fontSize="2.5" fontWeight="bold"
-                                            >
-                                                {aoi.label} — {aoi.percentage}%
-                                            </text>
-                                        </g>
-                                    ))}
-                                    {/* Drawing preview */}
-                                    {aoiCurrent && aoiCurrent.w > 0 && (
-                                        <rect
-                                            x={aoiCurrent.x} y={aoiCurrent.y}
-                                            width={aoiCurrent.w} height={aoiCurrent.h}
-                                            fill="rgba(59, 130, 246, 0.15)"
-                                            stroke="#3B82F6"
-                                            strokeWidth="0.4"
-                                            strokeDasharray="1,1"
-                                        />
-                                    )}
-                                </svg>
-                            </div>
-                        </>
-                    )}
-
-                    {/* Attention Video Tab — per-frame heatmap or progressive scanpath */}
-                    {activeTab === 'attention-video' && (
-                        <div className="w-fit mx-auto">
-                            {isVideo && videoFrames.length > 0 ? (
-                                <VideoFrameScrubber
-                                    videoUrl={imageUrl}
-                                    frames={videoFrames}
-                                    settings={settings}
-                                />
-                            ) : (
-                                <AttentionVideoPlayer
-                                    imageUrl={imageUrl}
-                                    data={heatmapData}
-                                    duration={5}
-                                />
-                            )}
-                        </div>
-                    )}
-
-                    {/* Gaze Path Tab — AI predicted fixation sequence */}
-                    {activeTab === 'gaze-path' && aiAnalysis?.gazePath && (
-                        <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto relative">
-                            <img src={imageUrl} alt={title} className="max-h-[700px] w-auto block" />
-                            <GazePathOverlay gazePath={aiAnalysis.gazePath} visible={true} />
-                        </div>
-                    )}
-
-                    {/* Image Tab — Clean image only */}
-                    {activeTab === 'image' && (
-                        <div className="mb-4 rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
-                            <img src={imageUrl} alt={title} className="max-h-[700px] w-auto block" />
-                        </div>
-                    )}
-
-                    {/* AI Analysis Panel */}
-                    {onAiAnalyze && (
-                        <div className="mt-4">
-                            <AiAnalysisPanel
-                                analysis={aiAnalysis ?? null}
-                                isAnalyzing={isAnalyzing}
-                                analysisError={aiAnalysisError}
-                                onAnalyze={onAiAnalyze}
-                                onImportAois={handleImportAois}
-                                hasHeatmap={heatmapData.length > 0}
-                            />
-                        </div>
-                    )}
-
-                    {/* AOI list */}
-                    {computedAois.length > 0 && (
-                        <div className="space-y-2 mt-4">
-                            {computedAois.map(aoi => (
-                                <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
-                                    {/* Thumbnail */}
-                                    <div className="w-16 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
-                                        <img
-                                            src={imageUrl}
-                                            alt={aoi.label}
-                                            className="w-full h-full"
-                                            style={{
-                                                objectFit: 'cover',
-                                                objectPosition: `${aoi.x + aoi.width / 2}% ${aoi.y + aoi.height / 2}%`,
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Label */}
-                                    <span className="text-sm font-medium text-gray-900 flex-1 min-w-0">
-                                        {aoi.label}
-                                    </span>
-
-                                    {/* Percentage */}
-                                    <span className="text-sm font-semibold text-green-600">{aoi.percentage}%</span>
-
-                                    {/* Remove */}
+                <div className="p-4 flex-1 min-h-0 overflow-hidden flex flex-col" ref={(el) => { (tabContentRef as React.MutableRefObject<HTMLDivElement | null>).current = el; (zoomContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el; }}>
+                        {/* Prediction Tab — Heatmap + AOI drawing */}
+                        {activeTab === 'prediction' && (
+                            <>
+                                {/* AOI toolbar */}
+                                <div className="flex items-center gap-3 mb-3">
                                     <button
                                         type="button"
-                                        onClick={() => removeAoi(aoi.id)}
-                                        className="text-sm text-red-600 hover:text-red-700 font-medium whitespace-nowrap"
+                                        onClick={() => setDrawingAoi(prev => !prev)}
+                                        className={cn(
+                                            'px-3 py-1.5 text-xs font-medium rounded transition-colors',
+                                            drawingAoi
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        )}
                                     >
-                                        Remove AOI
+                                        {drawingAoi ? 'Drawing AOI...' : '+ Add AOI'}
                                     </button>
+                                    {computedAois.length > 0 && (
+                                        <span className="text-xs text-gray-500">
+                                            {computedAois.length} AOI defined
+                                            {isSavingAois && ' — saving...'}
+                                        </span>
+                                    )}
+                                    {zoom > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={resetZoom}
+                                            className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                                        >
+                                            {Math.round(zoom * 100)}% — Reset
+                                        </button>
+                                    )}
                                 </div>
-                            ))}
-                        </div>
-                    )}
+
+                                <div
+                                    ref={aoiContainerRef}
+                                    className={cn(
+                                        'rounded-lg border bg-gray-100 relative w-fit mx-auto flex-1 min-h-0',
+                                        zoom > 1 ? 'overflow-auto' : 'overflow-hidden',
+                                        drawingAoi ? 'cursor-crosshair' : zoom > 1 ? 'cursor-grab' : 'cursor-zoom-in'
+                                    )}
+
+                                    onMouseDown={drawingAoi ? (e) => {
+                                        const container = aoiContainerRef.current;
+                                        if (!container) return;
+                                        const pos = getMousePercent(e, container);
+                                        setAoiStart(pos);
+                                        setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
+                                    } : undefined}
+                                    onMouseMove={drawingAoi && aoiStart ? (e) => {
+                                        const container = aoiContainerRef.current;
+                                        if (!container) return;
+                                        const pos = getMousePercent(e, container);
+                                        setAoiCurrent({
+                                            x: Math.min(aoiStart.x, pos.x),
+                                            y: Math.min(aoiStart.y, pos.y),
+                                            w: Math.abs(pos.x - aoiStart.x),
+                                            h: Math.abs(pos.y - aoiStart.y),
+                                        });
+                                    } : undefined}
+                                    onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
+                                        addAoi(aoiCurrent);
+                                        setAoiStart(null);
+                                        setAoiCurrent(null);
+                                        setDrawingAoi(false);
+                                    } : () => { setAoiStart(null); setAoiCurrent(null); }}
+                                >
+                                  <div style={zoomStyle} className="origin-top-left">
+                                    <HeatmapRenderer
+                                        imageUrl={imageUrl}
+                                        data={heatmapData}
+                                        blur={settings.blur}
+                                        opacity={settings.opacity}
+                                        threshold={settings.threshold}
+                                        className="w-full"
+                                    />
+
+                                    {/* AOI overlays */}
+                                    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                        {computedAois.map(aoi => (
+                                            <g key={aoi.id}>
+                                                <rect
+                                                    x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
+                                                    fill="rgba(59, 130, 246, 0.1)"
+                                                    stroke="#3B82F6"
+                                                    strokeWidth="0.4"
+                                                />
+                                                <text
+                                                    x={aoi.x + 0.5} y={aoi.y + 2.5}
+                                                    fill="#1D4ED8" fontSize="2.5" fontWeight="bold"
+                                                >
+                                                    {aoi.label} — {aoi.percentage}%
+                                                </text>
+                                            </g>
+                                        ))}
+                                        {/* Drawing preview */}
+                                        {aoiCurrent && aoiCurrent.w > 0 && (
+                                            <rect
+                                                x={aoiCurrent.x} y={aoiCurrent.y}
+                                                width={aoiCurrent.w} height={aoiCurrent.h}
+                                                fill="rgba(59, 130, 246, 0.15)"
+                                                stroke="#3B82F6"
+                                                strokeWidth="0.4"
+                                                strokeDasharray="1,1"
+                                            />
+                                        )}
+                                    </svg>
+                                  </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Attention Video Tab — per-frame heatmap or progressive scanpath */}
+                        {activeTab === 'attention-video' && (
+                            <div className="w-fit mx-auto">
+                                {isVideo && videoFrames.length > 0 ? (
+                                    <VideoFrameScrubber
+                                        videoUrl={imageUrl}
+                                        frames={videoFrames}
+                                        settings={settings}
+                                    />
+                                ) : (
+                                    <AttentionVideoPlayer
+                                        imageUrl={imageUrl}
+                                        data={heatmapData}
+                                        duration={5}
+                                    />
+                                )}
+                            </div>
+                        )}
+
+                        {/* Gaze Path Tab — AI predicted fixation sequence */}
+                        {activeTab === 'gaze-path' && aiAnalysis?.gazePath && (
+                            <div className={cn(
+                                'mb-4 rounded-lg border bg-gray-100 w-fit mx-auto relative max-h-[calc(100vh-280px)]',
+                                zoom > 1 ? 'overflow-auto' : 'overflow-hidden'
+                            )}>
+                                <div style={zoomStyle} className="origin-top-left">
+                                    <img src={imageUrl} alt={title} className="max-h-[calc(100vh-280px)] w-auto block" />
+                                    <GazePathOverlay gazePath={aiAnalysis.gazePath} visible={true} />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Image Tab — Clean image only */}
+                        {activeTab === 'image' && (
+                            <div className={cn(
+                                'mb-4 rounded-lg border bg-gray-100 w-fit mx-auto max-h-[calc(100vh-280px)]',
+                                zoom > 1 ? 'overflow-auto' : 'overflow-hidden'
+                            )}>
+                                <div style={zoomStyle} className="origin-top-left">
+                                    <img src={imageUrl} alt={title} className="max-h-[calc(100vh-280px)] w-auto block" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* AOI list */}
+                        {computedAois.length > 0 && (
+                            <div className="space-y-2 mt-4">
+                                {computedAois.map(aoi => (
+                                    <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
+                                        <div className="w-16 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
+                                            <img
+                                                src={imageUrl}
+                                                alt={aoi.label}
+                                                className="w-full h-full"
+                                                style={{
+                                                    objectFit: 'cover',
+                                                    objectPosition: `${aoi.x + aoi.width / 2}% ${aoi.y + aoi.height / 2}%`,
+                                                }}
+                                            />
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-900 flex-1 min-w-0">
+                                            {aoi.label}
+                                        </span>
+                                        <span className="text-sm font-semibold text-green-600">{aoi.percentage}%</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAoi(aoi.id)}
+                                            className="text-sm text-red-600 hover:text-red-700 font-medium whitespace-nowrap"
+                                        >
+                                            Remove AOI
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                 </div>
             </div>
 

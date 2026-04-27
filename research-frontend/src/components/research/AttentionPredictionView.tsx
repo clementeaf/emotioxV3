@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { PanelRightOpen, PanelRightClose, Sparkles } from 'lucide-react';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { AttentionPredictionCard } from './AttentionPredictionCard';
+import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService } from '../../services/media.service';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
@@ -51,8 +53,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         return settings.stimuli || [];
     }, [research.settings]);
 
+    const [showUploadModal, setShowUploadModal] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
+    const [aiPanelOpen, setAiPanelOpen] = useState(true);
+    const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
 
     const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
     const hasHeatmap = activeStimulus?.heatmapData && activeStimulus.heatmapData.length > 0;
@@ -207,106 +212,179 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     const displayError = predictionError || storedError;
 
+    const showAiPanel = Boolean(activeStimulus && hasHeatmap);
+
     return (
-        <div className="space-y-6 p-6">
-            {/* Analysis — main content when a stimulus is selected */}
-            {activeStimulus && (
-                <>
-                    <AttentionPredictionCard
-                        imageUrl={activeStimulus.url}
-                        title={activeStimulus.name}
-                        heatmapData={activeStimulus.heatmapData}
-                        onDelete={() => handleDelete(activeStimulus.mediaId)}
-                        isDeleting={isDeletingId === activeStimulus.mediaId}
-                        researchId={research.id}
-                        stimulusMediaId={activeStimulus.mediaId}
-                        isVideo={activeStimulus.isVideo}
-                        videoFrames={activeStimulus.frames}
-                        aiAnalysis={aiAnalysis}
-                        isAnalyzing={isAnalyzing}
-                        aiAnalysisError={analysisError || storedAnalysisError || undefined}
-                        onAiAnalyze={handleAiAnalyze}
-                    />
+        <div className="flex h-full overflow-hidden">
+            {/* Left: main content area (scrollable) */}
+            <div className="flex-1 min-w-0 p-6 space-y-6 overflow-hidden">
+                {/* Analysis — main content when a stimulus is selected */}
+                {activeStimulus && (
+                    <>
+                        <AttentionPredictionCard
+                            imageUrl={activeStimulus.url}
+                            title={activeStimulus.name}
+                            heatmapData={activeStimulus.heatmapData}
+                            onDelete={() => handleDelete(activeStimulus.mediaId)}
+                            isDeleting={isDeletingId === activeStimulus.mediaId}
+                            researchId={research.id}
+                            stimulusMediaId={activeStimulus.mediaId}
+                            isVideo={activeStimulus.isVideo}
+                            videoFrames={activeStimulus.frames}
+                            aiAnalysis={aiAnalysis}
+                            pendingImportAois={pendingImportAois}
+                            onImportAoisDone={() => setPendingImportAois(undefined)}
+                            onAddMore={() => setShowUploadModal(true)}
+                        />
 
-                    {/* Processing indicator */}
-                    {isProcessing && (
-                        <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            <div>
-                                <p className="text-sm font-medium text-blue-800">
-                                    {videoProgress || 'Processing attention prediction...'}
-                                </p>
-                                <p className="text-xs text-blue-600">
-                                    {videoProgress ? 'Video frame-by-frame analysis in progress.' : 'This may take a few seconds.'}
-                                </p>
+                        {/* Processing indicator */}
+                        {isProcessing && (
+                            <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <svg className="animate-spin h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                <div>
+                                    <p className="text-sm font-medium text-blue-800">
+                                        {videoProgress || 'Processing attention prediction...'}
+                                    </p>
+                                    <p className="text-xs text-blue-600">
+                                        {videoProgress ? 'Video frame-by-frame analysis in progress.' : 'This may take a few seconds.'}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Error indicator */}
-                    {displayError && !isProcessing && (
-                        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <svg className="h-5 w-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-red-800">Prediction failed</p>
-                                <p className="text-xs text-red-600 truncate">{displayError}</p>
+                        {/* Error indicator */}
+                        {displayError && !isProcessing && (
+                            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+                                <svg className="h-5 w-5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-red-800">Prediction failed</p>
+                                    <p className="text-xs text-red-600 truncate">{displayError}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => { setPredictionError(null); runPrediction(activeStimulus.mediaId); }}
+                                    className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors flex-shrink-0"
+                                >
+                                    Retry
+                                </button>
                             </div>
+                        )}
+
+                        {/* Re-process button if no heatmap and no error */}
+                        {!hasHeatmap && !isProcessing && !displayError && (
                             <button
                                 type="button"
-                                onClick={() => { setPredictionError(null); runPrediction(activeStimulus.mediaId); }}
-                                className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors flex-shrink-0"
+                                onClick={() => runPrediction(activeStimulus.mediaId)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                             >
-                                Retry
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Run Attention Prediction
                             </button>
-                        </div>
-                    )}
+                        )}
+                    </>
+                )}
 
-                    {/* Re-process button if no heatmap and no error */}
-                    {!hasHeatmap && !isProcessing && !displayError && (
-                        <button
-                            type="button"
-                            onClick={() => runPrediction(activeStimulus.mediaId)}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Run Attention Prediction
-                        </button>
-                    )}
-                </>
-            )}
-
-            {/* Upload — always visible */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+                {/* Upload — inline only when no stimulus exists */}
                 {!activeStimulus && (
-                    <>
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-1">Stimulus Images</h2>
                         <p className="text-sm text-gray-500 mb-4">
                             Upload one or more images to analyze with the Attention Prediction algorithm.
                         </p>
-                    </>
+                        <FileUploadAdvanced
+                            label="Add Stimulus Images or Videos"
+                            acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']}
+                            maxSizeMB={50}
+                            multiple
+                            files={[]}
+                            onFilesChange={handleFilesChange}
+                            researchId={research.id}
+                            onUploadStart={() => setIsUploading(true)}
+                            onUploadComplete={() => setIsUploading(false)}
+                            onUploadError={() => setIsUploading(false)}
+                            disabled={isUploading || isProcessing}
+                        />
+                    </div>
                 )}
-                <FileUploadAdvanced
-                    label={activeStimulus ? 'Add more images or videos' : 'Add Stimulus Images or Videos'}
-                    acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']}
-                    maxSizeMB={50}
-                    multiple
-                    files={[]}
-                    onFilesChange={handleFilesChange}
-                    researchId={research.id}
-                    onUploadStart={() => setIsUploading(true)}
-                    onUploadComplete={() => setIsUploading(false)}
-                    onUploadError={() => setIsUploading(false)}
-                    disabled={isUploading || isProcessing}
-                />
+
+                {/* Upload Modal */}
+                {showUploadModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-base font-semibold text-gray-900">Add Stimulus</h3>
+                                <button
+                                    onClick={() => setShowUploadModal(false)}
+                                    className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <FileUploadAdvanced
+                                label="Upload images or videos"
+                                acceptedFormats={['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'video/mp4', 'video/webm', 'video/quicktime']}
+                                maxSizeMB={50}
+                                multiple
+                                files={[]}
+                                onFilesChange={(files) => { handleFilesChange(files); setShowUploadModal(false); }}
+                                researchId={research.id}
+                                onUploadStart={() => setIsUploading(true)}
+                                onUploadComplete={() => setIsUploading(false)}
+                                onUploadError={() => setIsUploading(false)}
+                                disabled={isUploading || isProcessing}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {/* Right: AI Analysis panel (collapsible drawer) */}
+            {showAiPanel && (
+                <div className="flex flex-shrink-0 h-full">
+                    {/* Collapse toggle strip */}
+                    <button
+                        onClick={() => setAiPanelOpen(prev => !prev)}
+                        className="w-8 flex flex-col items-center justify-center gap-2 bg-slate-50 border-l border-gray-200 hover:bg-slate-100 transition-colors flex-shrink-0"
+                        title={aiPanelOpen ? 'Collapse AI panel' : 'Expand AI panel'}
+                    >
+                        {aiPanelOpen ? (
+                            <PanelRightClose className="h-4 w-4 text-slate-500" />
+                        ) : (
+                            <>
+                                <PanelRightOpen className="h-4 w-4 text-slate-500" />
+                                <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+                                <span className="text-[10px] text-slate-500 font-medium [writing-mode:vertical-lr] rotate-180">
+                                    AI Analysis
+                                </span>
+                            </>
+                        )}
+                    </button>
+
+                    {/* Panel content */}
+                    {aiPanelOpen && (
+                        <div className="w-[420px] border-l border-gray-200 bg-white overflow-y-auto">
+                            <AiAnalysisPanel
+                                analysis={aiAnalysis ?? null}
+                                isAnalyzing={isAnalyzing}
+                                analysisError={analysisError || storedAnalysisError || undefined}
+                                onAnalyze={handleAiAnalyze}
+                                onImportAois={(aois) => setPendingImportAois(aois)}
+                                hasHeatmap={Boolean(hasHeatmap)}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
