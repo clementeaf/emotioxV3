@@ -1,24 +1,27 @@
 /**
  * AI Analysis Service
- * Uses Gemini 2.0 Flash to analyze visual attention patterns in images.
- * Receives the original image + TranSalNet saliency data to produce
- * structured UX insights: context, attention score, AOIs, gaze path, etc.
+ * Uses Gemini 2.0 Flash (primary) with GPT-4o fallback to analyze visual
+ * attention patterns in images. Receives the original image + TranSalNet
+ * saliency data to produce structured UX insights.
  *
- * Gemini Flash is ~30x cheaper than GPT-4o for vision tasks at comparable quality.
+ * Gemini Flash is ~30x cheaper than GPT-4o. Falls back to GPT-4o on failure.
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import sharp from 'sharp';
 import fs from 'fs';
 import type { AiAnalysisResult } from './ai-analysis.types';
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+// ─── Config ─────────────────────────────────────────────────────────
 
-const getClient = () => {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '';
-    if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-    return new GoogleGenerativeAI(apiKey);
-};
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+
+const hasGemini = () => Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY);
+const hasOpenAI = () => Boolean(process.env.OPENAI_API_KEY);
+
+// ─── Shared prompt ──────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `You are an expert in visual attention analysis, UX design, and neuro-design principles (Gestalt, cognitive load, visual hierarchy). You analyze images to predict where users will look, how attention flows, and provide actionable design recommendations.
 
@@ -75,7 +78,7 @@ Return a JSON object with exactly this structure:
       "recommendation": "Place key CTAs along the F-pattern hotspots"
     }
   ],
-  "methodology": "Combined TranSalNet computational saliency with Gemini visual analysis for context-aware attention prediction."
+  "methodology": "Combined TranSalNet computational saliency with AI visual analysis for context-aware attention prediction."
 }
 
 Rules:
@@ -90,57 +93,39 @@ Rules:
 - flowPath: narrative path of visual attention through the design
 - Return ONLY valid JSON, no markdown fences`;
 
-/**
- * Summarizes the top-N hottest zones from the saliency heatmap data.
- */
+// ─── Helpers ────────────────────────────────────────────────────────
+
 const summarizeHeatmap = (
     heatmapData: Array<{ x: number; y: number; value: number }>
 ): string => {
     const sorted = [...heatmapData].sort((a, b) => b.value - a.value);
     const top = sorted.slice(0, 15);
-
     if (top.length === 0) return 'No significant attention hotspots detected.';
-
-    const lines = top.map(
+    return top.map(
         (p, i) => `  ${i + 1}. x=${p.x.toFixed(1)}%, y=${p.y.toFixed(1)}%, intensity=${p.value.toFixed(3)}`
-    );
-    return lines.join('\n');
+    ).join('\n');
 };
 
-/**
- * Reads an image, resizes it, and returns base64 + mimeType for Gemini.
- */
 const imageToBase64 = async (imagePath: string): Promise<{ base64: string; mimeType: string }> => {
     const buffer = await sharp(imagePath)
         .resize(1024, undefined, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85 })
         .toBuffer();
-
-    return {
-        base64: buffer.toString('base64'),
-        mimeType: 'image/jpeg',
-    };
+    return { base64: buffer.toString('base64'), mimeType: 'image/jpeg' };
 };
 
-/**
- * Analyzes an image using Gemini Vision combined with TranSalNet saliency data.
- */
-export const analyzeAttentionWithAI = async (
-    imagePath: string,
-    heatmapData: Array<{ x: number; y: number; value: number }>,
+// ─── Gemini provider ────────────────────────────────────────────────
+
+const analyzeWithGemini = async (
+    base64: string,
+    mimeType: string,
+    userPrompt: string,
     fileName: string
 ): Promise<AiAnalysisResult> => {
-    const client = getClient();
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '';
+    const client = new GoogleGenerativeAI(apiKey);
 
-    if (!fs.existsSync(imagePath)) {
-        throw new Error(`Image not found: ${imagePath}`);
-    }
-
-    const { base64, mimeType } = await imageToBase64(imagePath);
-    const heatmapSummary = summarizeHeatmap(heatmapData);
-    const userPrompt = buildUserPrompt(heatmapSummary, fileName);
-
-    console.log(`[AI Analysis] Calling Gemini (${GEMINI_MODEL}) for "${fileName}"...`);
+    console.log(`[AI Analysis] Trying Gemini (${GEMINI_MODEL}) for "${fileName}"...`);
 
     const model = client.getGenerativeModel({
         model: GEMINI_MODEL,
@@ -156,14 +141,81 @@ export const analyzeAttentionWithAI = async (
         { text: userPrompt },
     ]);
 
-    const text = result.response.text();
-    const parsed = JSON.parse(text) as AiAnalysisResult;
-    parsed.analyzedAt = new Date().toISOString();
+    return JSON.parse(result.response.text()) as AiAnalysisResult;
+};
+
+// ─── OpenAI provider (fallback) ─────────────────────────────────────
+
+const analyzeWithOpenAI = async (
+    base64: string,
+    mimeType: string,
+    userPrompt: string,
+    fileName: string
+): Promise<AiAnalysisResult> => {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
+    const dataUri = `data:${mimeType};base64,${base64}`;
+
+    console.log(`[AI Analysis] Trying OpenAI (${OPENAI_MODEL}) for "${fileName}"...`);
+
+    const response = await client.chat.completions.create({
+        model: OPENAI_MODEL,
+        max_tokens: 4000,
+        response_format: { type: 'json_object' },
+        messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            {
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: dataUri, detail: 'high' } },
+                    { type: 'text', text: userPrompt },
+                ],
+            },
+        ],
+    });
+
+    return JSON.parse(response.choices[0]?.message?.content || '') as AiAnalysisResult;
+};
+
+// ─── Public API ─────────────────────────────────────────────────────
+
+export const analyzeAttentionWithAI = async (
+    imagePath: string,
+    heatmapData: Array<{ x: number; y: number; value: number }>,
+    fileName: string
+): Promise<AiAnalysisResult> => {
+    if (!hasGemini() && !hasOpenAI()) {
+        throw new Error('No AI API key configured (GEMINI_API_KEY or OPENAI_API_KEY)');
+    }
+
+    if (!fs.existsSync(imagePath)) {
+        throw new Error(`Image not found: ${imagePath}`);
+    }
+
+    const { base64, mimeType } = await imageToBase64(imagePath);
+    const heatmapSummary = summarizeHeatmap(heatmapData);
+    const userPrompt = buildUserPrompt(heatmapSummary, fileName);
+
+    let result: AiAnalysisResult;
+
+    // Try Gemini first (cheaper), fall back to OpenAI
+    if (hasGemini()) {
+        try {
+            result = await analyzeWithGemini(base64, mimeType, userPrompt, fileName);
+        } catch (geminiErr) {
+            console.warn('[AI Analysis] Gemini failed, falling back to OpenAI:', geminiErr instanceof Error ? geminiErr.message : geminiErr);
+            if (!hasOpenAI()) throw geminiErr;
+            result = await analyzeWithOpenAI(base64, mimeType, userPrompt, fileName);
+        }
+    } else {
+        result = await analyzeWithOpenAI(base64, mimeType, userPrompt, fileName);
+    }
+
+    result.analyzedAt = new Date().toISOString();
 
     console.log(
-        `[AI Analysis] Complete: score=${parsed.attentionScore}, ` +
-        `aois=${parsed.autoAois?.length || 0}, gazePath=${parsed.gazePath?.length || 0}`
+        `[AI Analysis] Complete: score=${result.attentionScore}, ` +
+        `aois=${result.autoAois?.length || 0}, gazePath=${result.gazePath?.length || 0}`
     );
 
-    return parsed;
+    return result;
 };

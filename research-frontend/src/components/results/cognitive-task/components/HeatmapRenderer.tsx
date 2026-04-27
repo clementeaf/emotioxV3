@@ -109,8 +109,8 @@ export const HeatmapRenderer = ({
                     1.0: '#fff',
                 });
 
-                // For dense saliency: filter out low-intensity points so only hotspots show
-                const minVal = isDenseSaliency ? (thresholdProp != null ? thresholdProp / 100 : 0.4) : 0;
+                // For dense saliency: only keep the top hotspot points to create focused blobs
+                const minVal = isDenseSaliency ? (thresholdProp != null ? thresholdProp / 100 : 0.55) : 0;
 
                 const points: Array<[number, number, number]> = [];
                 for (const point of data) {
@@ -139,9 +139,10 @@ export const HeatmapRenderer = ({
                 }
 
                 heat.data(points);
-                // For dense saliency: higher max so only the hottest areas reach full red
-                heat.max(isDenseSaliency ? Math.max(5, Math.ceil(points.length * 0.02)) : Math.max(3, Math.ceil(points.length * 0.05)));
-                const minOpacity = isDenseSaliency ? 0.02 : (thresholdProp != null ? thresholdProp / 100 : 0.05);
+                // Dense saliency: max must be very high relative to point count to avoid
+                // saturating the entire surface. Only the densest clusters should reach red.
+                heat.max(isDenseSaliency ? Math.max(20, Math.ceil(points.length * 0.15)) : Math.max(3, Math.ceil(points.length * 0.05)));
+                const minOpacity = isDenseSaliency ? 0.01 : (thresholdProp != null ? thresholdProp / 100 : 0.05);
                 heat.draw(minOpacity);
 
                 ctx.drawImage(heatCanvas, 0, 0);
