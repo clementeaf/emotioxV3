@@ -230,13 +230,18 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **Assessment:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
 - **Lab:** `/labs/eye-tracking` en research-frontend
 
-## Implicit Association Analytics (v0.58.0)
+## Implicit Association Analytics (v0.65.1)
 - **Greenwald D-score:** `computeGreenwaldDScore()` — filter >10s, pooled SD, D = (mean_incompat - mean_compat) / pooled_SD
 - **Per-participant D-scores:** Individual D + effect classification (none/slight/moderate/strong)
 - **Aggregate D-score:** Mean + 95% CI (t-distribution)
 - **Error analysis:** Per-phase (practice/test) y per-combination (target×attribute) error rates
 - **Effect size visualization:** D-score distribution histogram (7 buckets)
 - **Advanced filters:** Demographic sidebar en todos los result tabs (Screener, SmartVOC, Cognitive, IAT, Eye Tracking)
+- **Module filter:** Analytics query filters by module name (`Attribute`/`Comparing`/`Objects`), excluding non-IAT modules (e.g. Linear Scale) that may share the stage.
+- **Trial phases:** `computeIATScores` includes `block-1`/`block-2`/`block-3` trials (not just `phase === 'test'`).
+- **Compound targetId:** Comparing Attribute trials use `"object-N__criterion-UUID"` — base ID extracted for RT grouping.
+- **Objects Comparing scores:** Always uses `criteria-1`/`criteria-2` as chart dimensions. Per-target association derived from block-2 vs block-3 RT differences.
+- **Eye Tracking Shelf grid:** `ShelfGrid` uses `shelfItems` as column count (not `Math.max(shelfItems, urls.length)`).
 
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)

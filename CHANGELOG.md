@@ -1,3 +1,17 @@
+## v0.65.1 — Fix IAT analytics empty charts, fix Eye Tracking shelf grid overflow (2026-04-28)
+
+### backend
+- **Fix: IAT module filter.** Analytics query now filters by module name (`Attribute`/`Comparing`/`Objects`) instead of selecting all modules in the Implicit Association stage. Linear Scale modules in the stage were rendered as empty IAT cards.
+- **Fix: IAT trial phase filter.** `computeIATScores` accepted only `phase === 'test'` but real trials use `block-1`/`block-2`/`block-3`. All block trials now included.
+- **Fix: IAT compound targetId.** Comparing Attribute trials store `"object-1__criterion-UUID"` as targetId. Now extracts base ID (`object-1`) for RT grouping.
+- **Fix: Objects Comparing scores.** Always uses `criteria-1`/`criteria-2` as chart dimensions instead of the ranking list items. Computes per-target association via block-2 vs block-3 RT differences.
+- **Fix: ResponsiveContainer warning.** Added `minWidth={0}` to all IAT chart ResponsiveContainers.
+
+### participant-frontend
+- **Fix: Shelf grid column overflow.** `ShelfGrid` used `Math.max(shelfItems, urls.length)` as column count, expanding beyond researcher config when more images were uploaded. Now uses `shelfItems` directly.
+
+---
+
 ## v0.65.0 — Website Tracking overhaul: bug fixes, coordinate normalization, SPA support, onboarding (2026-04-28)
 
 ### backend

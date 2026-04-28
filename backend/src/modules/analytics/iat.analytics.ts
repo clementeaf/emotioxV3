@@ -166,8 +166,10 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
       }
     }
 
-    // Objects Comparing template: Positive/Negative inputs when ranking list produced no items
-    if (testType === 'objects_comparing' && attributes.length === 0) {
+    // Objects Comparing: criteria-1/criteria-2 are the two dimensions (e.g. Bueno/Malo).
+    // The ranking list items are individual criteria, not chart dimensions.
+    // Always override attributes with criteria-1/criteria-2 for Objects Comparing.
+    if (testType === 'objects_comparing') {
       const c1 = components.find((c: any) => c.id === 'criteria-1');
       const c2 = components.find((c: any) => c.id === 'criteria-2');
       const l1 = (c1?.value ?? c1?.placeholder?.text ?? '').toString().trim();
@@ -208,9 +210,9 @@ const computeIATScores = (
     try {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
-      // Only include test-phase trials (exclude exercise/practice)
+      // Include all block trials (block-1, block-2, block-3, test), exclude practice/exercise
       for (const t of trials) {
-        if (t.phase === 'test' && t.correct !== false) {
+        if (t.rt > 0 && (t.phase?.startsWith('block') || t.phase === 'test')) {
           allTrials.push(t);
         }
       }
@@ -218,11 +220,13 @@ const computeIATScores = (
   }
 
   // Group trials by (criterionId, targetId) → array of reaction times
+  // Trial targetId may be compound: "object-1__criterion-UUID" → extract base "object-1"
   const rtMap: Record<string, Record<string, number[]>> = {};
   for (const t of allTrials) {
+    const baseTargetId = t.targetId.includes('__') ? t.targetId.split('__')[0] : t.targetId;
     if (!rtMap[t.criterionId]) rtMap[t.criterionId] = {};
-    if (!rtMap[t.criterionId][t.targetId]) rtMap[t.criterionId][t.targetId] = [];
-    rtMap[t.criterionId][t.targetId].push(t.rt);
+    if (!rtMap[t.criterionId][baseTargetId]) rtMap[t.criterionId][baseTargetId] = [];
+    rtMap[t.criterionId][baseTargetId].push(t.rt);
   }
 
   // Compute overall mean RT and SD for normalization
@@ -231,6 +235,47 @@ const computeIATScores = (
   const overallSD = allRTs.length > 1
     ? Math.sqrt(allRTs.reduce((sum, rt) => sum + (rt - overallMean) ** 2, 0) / (allRTs.length - 1))
     : 1;
+
+  // For Objects Comparing: trials use combined-left/combined-right as criterionId, not criteria-1/criteria-2.
+  // Group target trials by block to derive dimension association from RT differences.
+  if (testType === 'objects_comparing' && attributes.length === 2) {
+    // Collect mean RT per target per block (only trials where targetId starts with "target-")
+    const targetBlockRTs: Record<string, Record<string, number[]>> = {};
+    for (const t of allTrials) {
+      if (!t.targetId.startsWith('target-')) continue;
+      if (!targetBlockRTs[t.targetId]) targetBlockRTs[t.targetId] = {};
+      if (!targetBlockRTs[t.targetId][t.phase]) targetBlockRTs[t.targetId][t.phase] = [];
+      targetBlockRTs[t.targetId][t.phase].push(t.rt);
+    }
+
+    // For each target, compute mean RT in block-2 vs block-3.
+    // Faster in block-2 → stronger association with the dimension on that side.
+    // We score as: dim1 strength = normalized(block-3 mean - block-2 mean), dim2 = inverse.
+    const dim1Scores: Record<string, number> = {};
+    const dim2Scores: Record<string, number> = {};
+
+    for (const target of targets) {
+      const b2rts = targetBlockRTs[target.id]?.['block-2'] ?? [];
+      const b3rts = targetBlockRTs[target.id]?.['block-3'] ?? [];
+      if (b2rts.length === 0 && b3rts.length === 0) {
+        dim1Scores[target.id] = 0;
+        dim2Scores[target.id] = 0;
+        continue;
+      }
+      const meanB2 = b2rts.length > 0 ? b2rts.reduce((a, b) => a + b, 0) / b2rts.length : overallMean;
+      const meanB3 = b3rts.length > 0 ? b3rts.reduce((a, b) => a + b, 0) / b3rts.length : overallMean;
+      // Positive D = faster in block-2 (associated with dim1), negative = faster in block-3 (dim2)
+      const d = overallSD > 0 ? (meanB3 - meanB2) / overallSD : 0;
+      const score = Math.max(-100, Math.min(100, Math.round(d * 50)));
+      dim1Scores[target.id] = Math.max(0, score);
+      dim2Scores[target.id] = Math.max(0, -score);
+    }
+
+    return [
+      { attributeId: attributes[0].id, attributeLabel: attributes[0].label, targetScores: dim1Scores },
+      { attributeId: attributes[1].id, attributeLabel: attributes[1].label, targetScores: dim2Scores },
+    ];
+  }
 
   return attributes.map(attr => {
     const targetScores: Record<string, number> = {};
@@ -548,10 +593,11 @@ export const getImplicitAssociationResults = async (researchId: string) => {
   }
   const stageId = stageResult.rows[0].stage_id;
 
-  // 2. Get modules in this stage
+  // 2. Get modules in this stage — only IAT modules (Attribute Testing, Comparing Attribute, Objects Comparing)
   const moduleQuery = `
     SELECT id, name, config FROM modules
     WHERE research_id = ? AND stage_id = ?
+      AND (LOWER(name) LIKE '%attribute%' OR LOWER(name) LIKE '%objects comparing%' OR LOWER(name) LIKE '%object comparing%')
     ORDER BY order_index
   `;
   const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);

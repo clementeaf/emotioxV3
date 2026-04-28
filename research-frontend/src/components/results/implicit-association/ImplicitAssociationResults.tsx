@@ -53,7 +53,7 @@ const AttributeTestingChart = ({ module: mod }: { module: IATModuleResult }) => 
         Priming display time set in {mod.primingTime} ms
       </p>
       <div className="w-full" style={{ height: Math.max(450, mod.attributes.length * 30 + 200) }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
             <PolarGrid stroke="#E5E7EB" />
             <PolarAngleAxis
@@ -126,7 +126,7 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
         Priming display time set in {mod.primingTime} ms
       </p>
       <div className="w-full" style={{ height: 400 }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart data={barData} barCategoryGap="20%" barGap={4}>
             <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
             <XAxis
@@ -236,7 +236,7 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
         Priming display time set in {mod.primingTime} ms
       </p>
       <div className="w-full" style={{ height: Math.max(300, mod.targets.length * 80 + 80) }}>
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart
             data={barData}
             layout="vertical"

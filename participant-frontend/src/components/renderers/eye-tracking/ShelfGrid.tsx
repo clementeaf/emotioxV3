@@ -23,8 +23,9 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     onAllLoaded,
     containerRef,
 }) => {
-    // Ensure all uploaded images are shown: columns = max(shelfItems, urls.length)
-    const effectiveCols = Math.max(shelfItems, urls.length);
+    // Use researcher-configured shelfItems as column count.
+    // Images cycle via urls[i % urls.length] if fewer images than cells.
+    const effectiveCols = shelfItems;
 
     // On small screens, cap columns to prevent unreadable images (min ~80px per cell)
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
