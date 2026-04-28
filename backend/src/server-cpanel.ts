@@ -85,6 +85,7 @@ app.options('/api/monitor/events/:researchId', (req: Request, res: Response) => 
 });
 
 app.use(express.json({ limit: '10mb' }));
+app.use(express.text({ type: 'text/plain', limit: '1mb' }));
 
 // Configure multer for file uploads (memory storage for direct processing)
 const upload = multer({
@@ -326,7 +327,7 @@ app.use(async (req: Request, res: Response) => {
         path: requestPath,
         headers: req.headers as Record<string, string>,
         multiValueHeaders: {},
-        body: req.body ? JSON.stringify(req.body) : null,
+        body: req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : null,
         isBase64Encoded: false,
         pathParameters: null,
         queryStringParameters: req.query as Record<string, string> || null,

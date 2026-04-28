@@ -1,3 +1,33 @@
+## v0.65.0 — Website Tracking overhaul: bug fixes, coordinate normalization, SPA support, onboarding (2026-04-28)
+
+### backend
+- **Fix: apiBaseUrl construction.** Uses `API_BASE_URL` env var instead of deriving from `Host` header (unreliable in cPanel/Passenger).
+- **Fix: script.js blocked in draft.** Removed status check from `getTrackingConfig` — script is now servable in draft for testing. Session creation still enforces active status.
+- **Fix: sendBeacon CORS preflight.** Snippet now sends `text/plain` instead of `application/json`. Added `express.text()` middleware in both servers. Prevents silent event loss from failed preflight.
+- **Fix: body parsing for text/plain.** `server.ts` and `server-cpanel.ts` detect string vs object body to avoid double-stringify.
+- **Coordinate normalization.** Click and mousemove coordinates stored as viewport-relative percentages (`clientX/innerWidth*100`, `pageY/innerWidth*100`). Heatmap query clusters by `ROUND(x,1)`.
+- **Domain validation server-side.** `createSession` validates `Origin`/`Referer` against `allowedDomains` config. Rejects requests from unauthorized domains.
+- **Verification endpoint.** `GET /tracking/:id/verify?since=N` returns recent session count for real-time installation verification.
+- **Consent banner configurable.** `consentText`, `consentAcceptLabel`, `consentDeclineLabel`, `consentPosition` (top/bottom) in tracking config with defaults.
+- **Multi-viewport bucketing.** `getClickHeatmapData` accepts `device` param (mobile/tablet/desktop) filtering by viewport width breakpoints (0-767/768-1024/1025+).
+
+### research-frontend
+- **Verification polling.** "Verify Installation" polls for 60s with countdown, checking for real incoming sessions instead of HEAD-only check.
+- **Screenshot prompt.** After successful verification, shows upload CTA for page screenshot to enable heatmap overlay.
+- **Consent banner config UI.** When consent is enabled, shows text, accept/decline labels, and position (top/bottom) inputs.
+- **Device filter on heatmap.** All/Desktop/Tablet/Mobile segmented buttons filter click heatmap by viewport category.
+- **Onboarding checklist.** 4-step visual checklist: Activate → Copy snippet → Verify → View results.
+- **Heatmap coordSystem.** Changed from `pixel` to `percent` for viewport-normalized coordinates.
+
+### tracking snippet
+- **Event buffering.** Capture listeners attach immediately; events buffer until session ID arrives, then flush.
+- **Domain validation client-side.** `checkDomain()` validates `location.hostname` against `allowedDomains` at init.
+- **Cache-busting.** Embed snippet adds `?v=` with hourly timestamp.
+- **SPA navigation.** Intercepts `pushState`, `replaceState`, `popstate`. Creates new session per route change.
+- **Configurable consent banner.** Text, button labels, and position (top/bottom) read from config.
+
+---
+
 ## v0.64.0 — AI Analysis panel for Attention Prediction, inline heatmap controls, Website Tracking HEAD fix (2026-04-27)
 
 ### backend

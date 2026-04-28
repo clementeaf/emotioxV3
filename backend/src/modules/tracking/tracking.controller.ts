@@ -21,6 +21,7 @@ import {
     getExportData,
     savePageScreenshot,
     saveTrackingConfig,
+    getRecentSessionCount,
 } from './tracking.service';
 import { generateTrackingSnippet, generateEmbedSnippet } from './tracking-snippet';
 
@@ -66,10 +67,8 @@ export const handlePublicTrackingRoutes = async (
             try {
                 const config = await getTrackingConfig(researchId);
 
-                // Determine API base URL from request
-                const host = event.headers.Host || event.headers.host || 'emotio.cx';
-                const proto = event.headers['X-Forwarded-Proto'] || 'https';
-                const apiBaseUrl = `${proto}://${host}/api`;
+                // Use env var for reliable API base URL (cPanel/Passenger headers can be inconsistent)
+                const apiBaseUrl = process.env.API_BASE_URL || 'https://emotio.cx/api';
 
                 const js = generateTrackingSnippet({
                     researchId,
@@ -80,6 +79,11 @@ export const handlePublicTrackingRoutes = async (
                     consentRequired: config.consentRequired,
                     flushIntervalMs: config.flushIntervalMs,
                     maxEventsPerFlush: config.maxEventsPerFlush,
+                    allowedDomains: config.allowedDomains,
+                    consentText: config.consentText,
+                    consentAcceptLabel: config.consentAcceptLabel,
+                    consentDeclineLabel: config.consentDeclineLabel,
+                    consentPosition: config.consentPosition,
                 });
 
                 return {
@@ -133,6 +137,7 @@ export const handlePublicTrackingRoutes = async (
                 screenHeight: body.screenHeight,
                 userAgent: body.userAgent,
                 referrer: body.referrer,
+                requestOrigin: event.headers.Origin || event.headers.origin || event.headers.Referer || event.headers.referer,
             });
 
             return trackingSuccess(result, 201);
@@ -193,6 +198,15 @@ export const handleTrackingRoutes = async (
     try {
         await requireAuth(event);
 
+        // GET /tracking/:researchId/verify — check for recent sessions (for installation verification)
+        const verifyMatch = path.match(/^\/tracking\/([^/]+)\/verify$/);
+        if (verifyMatch && httpMethod === 'GET') {
+            const researchId = verifyMatch[1];
+            const sinceSeconds = parseInt(event.queryStringParameters?.since || '120', 10);
+            const result = await getRecentSessionCount(researchId, sinceSeconds);
+            return success(result, 200, undefined, origin);
+        }
+
         // GET /tracking/:researchId/overview — overview metrics
         const overviewMatch = path.match(/^\/tracking\/([^/]+)\/overview$/);
         if (overviewMatch && httpMethod === 'GET') {
@@ -216,7 +230,8 @@ export const handleTrackingRoutes = async (
             const pageUrl = event.queryStringParameters?.page
                 ? decodeURIComponent(event.queryStringParameters.page)
                 : undefined;
-            const data = await getClickHeatmapData(researchId, pageUrl);
+            const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
+            const data = await getClickHeatmapData(researchId, pageUrl, device);
             return success(data, 200, undefined, origin);
         }
 
@@ -278,9 +293,7 @@ export const handleTrackingRoutes = async (
         const snippetMatch = path.match(/^\/tracking\/([^/]+)\/snippet$/);
         if (snippetMatch && httpMethod === 'GET') {
             const researchId = snippetMatch[1];
-            const host = event.headers.Host || event.headers.host || 'emotio.cx';
-            const proto = event.headers['X-Forwarded-Proto'] || 'https';
-            const apiBaseUrl = `${proto}://${host}/api`;
+            const apiBaseUrl = process.env.API_BASE_URL || 'https://emotio.cx/api';
             const snippet = generateEmbedSnippet(researchId, apiBaseUrl);
             return success({ snippet }, 200, undefined, origin);
         }

@@ -194,15 +194,22 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
 
-## Website Tracking (v0.63.0)
+## Website Tracking (v0.65.0)
 - **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
-- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS (<15KB). Captures clicks (+ optional scroll, mousemove). Consent banner, `localStorage` visitor ID, `sendBeacon` flush every 2s, buffer cap 50 events.
-- **Public endpoints (CORS `*`):** `POST .../session` (create), `POST .../events` (batch insert). OPTIONS preflight handled in tracking controller, not global router.
-- **Authenticated endpoints:** `/tracking/:id/overview`, `/heatmap?page=URL`, `/pages`, `/sessions`, `/snippet`, `PUT /config`.
-- **Tables:** `tracking_sessions` (visitor, page, viewport, UA), `tracking_events` (click/scroll/mousemove, x/y, selector, timestamp), `tracking_pages` (URL, screenshot s3key).
-- **Embed snippet:** `generateEmbedSnippet` outputs `<!-- EmotioCX Web Tracker -->` + `<script>` loader. Comment helps users identify the tag in their HTML (like Google Tag).
-- **Builder:** `WebsiteTrackingConfig` — snippet copiable, domain whitelist, capture toggles (clicks/scroll/mousemove/consent). "Verify Installation" does HEAD to `script.js` + session count check (3 states: active/no-sessions/unreachable).
-- **Results:** `WebsiteTrackingResults` — overview cards + page selector + click heatmap (reuses `HeatmapRenderer`/simpleheat) + tracked pages table.
+- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS. Captures clicks, scroll, mousemove. `sendBeacon` with `text/plain` (avoids CORS preflight). Buffer cap 50 events, flush every 2s. Consent banner configurable (text, labels, position). `localStorage` visitor ID. Domain validation client-side.
+- **Coordinates:** Viewport-relative percentages. X = `clientX/innerWidth*100`, Y = `pageY/innerWidth*100`. Heatmap clusters by `ROUND(x,1)`. `HeatmapRenderer` uses `coordSystem="percent"`.
+- **SPA support:** Snippet intercepts `pushState`/`replaceState`/`popstate`. New session per route change. Listeners attach once, sessions re-create.
+- **Event buffering:** Capture starts immediately. Events buffer until session ID arrives, then flush. No clicks lost during session creation.
+- **Public endpoints (CORS `*`):** `POST .../session` (create, validates domain server-side), `POST .../events` (batch insert). Body as `text/plain` parsed by `express.text()`. OPTIONS preflight in tracking controller.
+- **Authenticated endpoints:** `/tracking/:id/overview`, `/heatmap?page=URL&device=mobile|tablet|desktop`, `/pages`, `/sessions`, `/verify?since=N`, `/snippet`, `PUT /config`.
+- **Domain validation:** Client-side `checkDomain()` at init + server-side `createSession` validates `Origin`/`Referer` against `allowedDomains`.
+- **Tables:** `tracking_sessions` (visitor, page, viewport, UA), `tracking_events` (click/scroll/mousemove, x/y as %, selector, timestamp), `tracking_pages` (URL, screenshot s3key).
+- **Embed snippet:** `generateEmbedSnippet` outputs `<!-- EmotioCX Web Tracker -->` + `<script>` loader with `?v=` hourly cache-busting.
+- **apiBaseUrl:** Uses `process.env.API_BASE_URL || 'https://emotio.cx/api'` (not derived from Host header).
+- **Script in draft:** `getTrackingConfig` no longer checks research status. Script servable in draft for testing. `createSession` still enforces active status.
+- **Builder:** `WebsiteTrackingConfig` — setup checklist (4 steps), snippet copiable, domain whitelist, capture toggles (clicks/scroll/mousemove), consent config (text/labels/position). "Verify Installation" polls 60s for real sessions with countdown. Screenshot upload prompt post-verification.
+- **Results:** `WebsiteTrackingResults` — overview cards + page selector + click heatmap with device filter (All/Desktop/Tablet/Mobile) + tracked pages table.
+- **Multi-viewport:** Heatmap endpoint accepts `?device=mobile|tablet|desktop`. Breakpoints: mobile <768, tablet 768-1024, desktop >1024.
 - **Detection:** `isWebsiteTracking` added to `isFileBasedResearch` in builder, sidebar, create form, results page.
 
 ## Eye Tracking (v0.58.0)

@@ -67,6 +67,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+app.use(express.text({ type: 'text/plain', limit: '1mb' }));
 
 // Convert Express request to Lambda event format and handle with context
 app.use(async (req, res) => {
@@ -81,7 +82,7 @@ app.use(async (req, res) => {
             path: req.path,
             headers: req.headers as Record<string, string>,
             multiValueHeaders: {},
-            body: req.body ? JSON.stringify(req.body) : null,
+            body: req.body ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) : null,
             isBase64Encoded: false,
             pathParameters: null,
             queryStringParameters: (req.query as Record<string, string>) || null,

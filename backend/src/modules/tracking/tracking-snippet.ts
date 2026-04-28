@@ -12,6 +12,11 @@ interface SnippetConfig {
     consentRequired: boolean;
     flushIntervalMs: number;
     maxEventsPerFlush: number;
+    allowedDomains: string[];
+    consentText: string;
+    consentAcceptLabel: string;
+    consentDeclineLabel: string;
+    consentPosition: 'bottom' | 'top';
 }
 
 export const generateTrackingSnippet = (config: SnippetConfig): string => {
@@ -26,9 +31,24 @@ var C=${JSON.stringify({
         consent: config.consentRequired,
         flush: config.flushIntervalMs,
         max: config.maxEventsPerFlush,
+        domains: config.allowedDomains,
+        cText: config.consentText,
+        cAccept: config.consentAcceptLabel,
+        cDecline: config.consentDeclineLabel,
+        cPos: config.consentPosition,
     })};
 
 var sid=null,vid=null,buf=[],timer=null,consented=!C.consent;
+
+// Domain validation — abort if hostname not in allowedDomains
+function checkDomain(){
+    if(!C.domains||!C.domains.length)return true;
+    var h=location.hostname;
+    for(var i=0;i<C.domains.length;i++){
+        if(h===C.domains[i]||h.endsWith("."+C.domains[i]))return true;
+    }
+    return false;
+}
 
 // Visitor ID (persistent per browser)
 function getVid(){
@@ -59,14 +79,14 @@ function getText(el){
     return t.substr(0,255);
 }
 
-// Push event to buffer
+// Push event to buffer (accepts events before session is ready)
 function push(evt){
-    if(!sid||!consented)return;
+    if(!consented)return;
     buf.push(evt);
-    if(buf.length>=C.max)flush();
+    if(sid&&buf.length>=C.max)flush();
 }
 
-// Flush buffer to API
+// Flush buffer to API — uses text/plain to avoid CORS preflight with sendBeacon
 function flush(){
     if(!buf.length||!sid)return;
     var batch=buf.splice(0,C.max);
@@ -74,19 +94,22 @@ function flush(){
     try{
         if(navigator.sendBeacon){
             navigator.sendBeacon(C.api+"/public/tracking/"+C.rid+"/events",
-                new Blob([body],{type:"application/json"}));
+                new Blob([body],{type:"text/plain"}));
         }else{
             var xhr=new XMLHttpRequest();
             xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/events",true);
-            xhr.setRequestHeader("Content-Type","application/json");
+            xhr.setRequestHeader("Content-Type","text/plain");
             xhr.send(body);
         }
     }catch(e){}
 }
 
-// Start session
-function startSession(){
-    vid=getVid();
+var capturing=false,lastUrl="";
+
+// Create a new session on the backend
+function createNewSession(){
+    flush();
+    sid=null;
     var body=JSON.stringify({
         visitorId:vid,
         pageUrl:location.href,
@@ -100,19 +123,30 @@ function startSession(){
     });
     var xhr=new XMLHttpRequest();
     xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/session",true);
-    xhr.setRequestHeader("Content-Type","application/json");
+    xhr.setRequestHeader("Content-Type","text/plain");
     xhr.onload=function(){
-        try{var r=JSON.parse(xhr.responseText);sid=r.sessionId;startCapture();}catch(e){}
+        try{var r=JSON.parse(xhr.responseText);sid=r.sessionId;flush();}catch(e){}
     };
     xhr.send(body);
+    lastUrl=location.href;
+    push({eventType:"pageview",timestampMs:Date.now()});
+}
+
+// Start session — capture listeners attach once, session can be re-created for SPA nav
+function startSession(){
+    vid=getVid();
+    if(!capturing){startCapture();capturing=true;}
+    createNewSession();
 }
 
 // Consent banner
 function showConsent(){
+    var pos=C.cPos==="top"?"top:0;":"bottom:0;";
+    var shadow=C.cPos==="top"?"box-shadow:0 2px 10px rgba(0,0,0,0.15);":"box-shadow:0 -2px 10px rgba(0,0,0,0.15);";
     var d=document.createElement("div");
     d.id="_ecx_consent";
-    d.style.cssText="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#fff;padding:12px 20px;font-family:-apple-system,sans-serif;font-size:14px;z-index:2147483647;display:flex;align-items:center;justify-content:space-between;box-shadow:0 -2px 10px rgba(0,0,0,0.15);";
-    d.innerHTML='<span>This site uses interaction tracking for UX research. <a href="#" style="color:#60a5fa;text-decoration:underline;">Learn more</a></span><div><button id="_ecx_accept" style="background:#2563eb;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;margin-left:8px;font-size:13px;">Accept</button><button id="_ecx_reject" style="background:transparent;color:#94a3b8;border:1px solid #475569;padding:6px 16px;border-radius:6px;cursor:pointer;margin-left:8px;font-size:13px;">Decline</button></div>';
+    d.style.cssText="position:fixed;"+pos+"left:0;right:0;background:#1e293b;color:#fff;padding:12px 20px;font-family:-apple-system,sans-serif;font-size:14px;z-index:2147483647;display:flex;align-items:center;justify-content:space-between;"+shadow;
+    d.innerHTML='<span>'+C.cText+'</span><div><button id="_ecx_accept" style="background:#2563eb;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;margin-left:8px;font-size:13px;">'+C.cAccept+'</button><button id="_ecx_reject" style="background:transparent;color:#94a3b8;border:1px solid #475569;padding:6px 16px;border-radius:6px;cursor:pointer;margin-left:8px;font-size:13px;">'+C.cDecline+'</button></div>';
     document.body.appendChild(d);
     document.getElementById("_ecx_accept").onclick=function(){
         consented=true;d.remove();
@@ -125,11 +159,12 @@ function showConsent(){
     };
 }
 
-// Capture listeners
+// Capture listeners — attach immediately, events buffer until session is ready
 function startCapture(){
     if(C.clicks){
         document.addEventListener("click",function(e){
-            push({eventType:"click",x:e.pageX,y:e.pageY,targetSelector:getSelector(e.target),targetText:getText(e.target),timestampMs:Date.now()});
+            var vw=window.innerWidth||1;
+            push({eventType:"click",x:Math.round(e.clientX/vw*10000)/100,y:Math.round(e.pageY/vw*10000)/100,targetSelector:getSelector(e.target),targetText:getText(e.target),timestampMs:Date.now()});
         },true);
     }
 
@@ -151,12 +186,10 @@ function startCapture(){
             var now=Date.now();
             if(now-lastMove<50)return;
             lastMove=now;
-            push({eventType:"mousemove",x:e.pageX,y:e.pageY,timestampMs:now});
+            var mvw=window.innerWidth||1;
+            push({eventType:"mousemove",x:Math.round(e.clientX/mvw*10000)/100,y:Math.round(e.pageY/mvw*10000)/100,timestampMs:now});
         },true);
     }
-
-    // Pageview event
-    push({eventType:"pageview",timestampMs:Date.now()});
 
     // Periodic flush
     timer=setInterval(flush,C.flush);
@@ -166,6 +199,15 @@ function startCapture(){
     document.addEventListener("visibilitychange",function(){
         if(document.visibilityState==="hidden")flush();
     });
+
+    // SPA navigation detection — new session per route change
+    var origPush=history.pushState,origReplace=history.replaceState;
+    function onNav(){
+        if(location.href!==lastUrl)createNewSession();
+    }
+    history.pushState=function(){origPush.apply(history,arguments);onNav();};
+    history.replaceState=function(){origReplace.apply(history,arguments);onNav();};
+    window.addEventListener("popstate",onNav);
 }
 
 // Init
@@ -174,6 +216,7 @@ if(document.readyState==="loading"){
 }else{init();}
 
 function init(){
+    if(!checkDomain())return;
     if(C.consent){
         try{
             var prev=localStorage.getItem("_ecx_consent_"+C.rid);
@@ -196,7 +239,8 @@ export const generateEmbedSnippet = (researchId: string, apiBaseUrl: string): st
     return `<!-- EmotioCX Web Tracker -->
 <script>
 (function(r,a){var s=document.createElement("script");s.async=true;
-s.src=a+"/public/tracking/"+r+"/script.js";document.head.appendChild(s);
+s.src=a+"/public/tracking/"+r+"/script.js?v="+Math.floor(Date.now()/3600000);
+document.head.appendChild(s);
 })("${researchId}","${apiBaseUrl}");
 </script>`;
 };

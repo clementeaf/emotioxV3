@@ -19,6 +19,7 @@ interface CreateSessionInput {
     screenHeight?: number;
     userAgent?: string;
     referrer?: string;
+    requestOrigin?: string;
 }
 
 interface TrackingEvent {
@@ -41,6 +42,10 @@ interface TrackingConfig {
     flushIntervalMs: number;
     maxEventsPerFlush: number;
     allowedDomains: string[];
+    consentText: string;
+    consentAcceptLabel: string;
+    consentDeclineLabel: string;
+    consentPosition: 'bottom' | 'top';
 }
 
 // ─── Session Management ──────────────────────────────────────────────
@@ -56,6 +61,31 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
     }
     if (research.rows[0].status !== 'active') {
         throw new Error('Research is not active');
+    }
+
+    // Validate domain if allowedDomains is configured
+    let config: Record<string, unknown> = {};
+    try {
+        const raw = research.rows[0].config;
+        config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+    } catch { config = {}; }
+    const trackingConfig = (config.trackingConfig || {}) as Record<string, unknown>;
+    const allowedDomains = (trackingConfig.allowedDomains as string[]) || [];
+
+    if (allowedDomains.length > 0) {
+        let hostname = '';
+        try {
+            // Extract hostname from pageUrl or request origin
+            const source = input.requestOrigin || input.pageUrl;
+            hostname = new URL(source.startsWith('http') ? source : `https://${source}`).hostname;
+        } catch { /* invalid URL — will fail validation */ }
+
+        const domainAllowed = allowedDomains.some(
+            (d) => hostname === d || hostname.endsWith(`.${d}`)
+        );
+        if (!domainAllowed) {
+            throw new Error('Domain not allowed');
+        }
     }
 
     const sessionId = uuidv4();
@@ -147,15 +177,14 @@ export const saveEvents = async (sessionId: string, events: TrackingEvent[]): Pr
 // ─── Tracking Config ─────────────────────────────────────────────────
 
 export const getTrackingConfig = async (researchId: string): Promise<TrackingConfig> => {
+    // No status check here — script.js should be servable in draft for testing installation.
+    // Session creation (createSession) enforces the active-status requirement independently.
     const result = await pool.query(
-        'SELECT config, status FROM researches WHERE id = ? AND deleted_at IS NULL',
+        'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
         [researchId]
     );
     if (result.rows.length === 0) {
         throw new Error('Research not found');
-    }
-    if (result.rows[0].status !== 'active') {
-        throw new Error('Research is not active');
     }
 
     let config: Record<string, unknown> = {};
@@ -176,17 +205,39 @@ export const getTrackingConfig = async (researchId: string): Promise<TrackingCon
         flushIntervalMs: (trackingConfig.flushIntervalMs as number) || 2000,
         maxEventsPerFlush: (trackingConfig.maxEventsPerFlush as number) || 50,
         allowedDomains: (trackingConfig.allowedDomains as string[]) || [],
+        consentText: (trackingConfig.consentText as string) || 'This site uses interaction tracking for UX research.',
+        consentAcceptLabel: (trackingConfig.consentAcceptLabel as string) || 'Accept',
+        consentDeclineLabel: (trackingConfig.consentDeclineLabel as string) || 'Decline',
+        consentPosition: (trackingConfig.consentPosition as 'bottom' | 'top') || 'bottom',
     };
 };
 
 // ─── Analytics: Click Heatmap Data ────────���──────────────────────────
 
+// Viewport breakpoints for device bucketing
+const DEVICE_BREAKPOINTS = {
+    mobile: { min: 0, max: 767 },
+    tablet: { min: 768, max: 1024 },
+    desktop: { min: 1025, max: 99999 },
+} as const;
+
+const getDeviceFilter = (device?: 'mobile' | 'tablet' | 'desktop'): { clause: string; params: unknown[] } => {
+    if (!device || !DEVICE_BREAKPOINTS[device]) return { clause: '', params: [] };
+    const bp = DEVICE_BREAKPOINTS[device];
+    return { clause: ' AND ts.viewport_width >= ? AND ts.viewport_width <= ?', params: [bp.min, bp.max] };
+};
+
 export const getClickHeatmapData = async (
     researchId: string,
-    pageUrl?: string
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
 ): Promise<{ clicks: Array<{ x: number; y: number; count: number }>; totalClicks: number; sessions: number }> => {
+    const deviceFilter = getDeviceFilter(device);
+
+    // Coordinates are stored as viewport-relative percentages from the snippet.
+    // Round to 1 decimal to cluster nearby clicks for a cleaner heatmap.
     let query = `
-        SELECT te.x, te.y, COUNT(*) as count
+        SELECT ROUND(te.x, 1) as x, ROUND(te.y, 1) as y, COUNT(*) as count
         FROM tracking_events te
         JOIN tracking_sessions ts ON te.session_id = ts.id
         WHERE ts.research_id = ?
@@ -200,8 +251,10 @@ export const getClickHeatmapData = async (
         query += ' AND ts.page_url = ?';
         params.push(pageUrl);
     }
+    query += deviceFilter.clause;
+    params.push(...deviceFilter.params);
 
-    query += ' GROUP BY te.x, te.y ORDER BY count DESC';
+    query += ' GROUP BY ROUND(te.x, 1), ROUND(te.y, 1) ORDER BY count DESC';
 
     const result = await pool.query(query, params);
 
@@ -226,6 +279,8 @@ export const getClickHeatmapData = async (
         totalsQuery += ' AND ts.page_url = ?';
         totalsParams.push(pageUrl);
     }
+    totalsQuery += deviceFilter.clause;
+    totalsParams.push(...deviceFilter.params);
 
     const totals = await pool.query(totalsQuery, totalsParams);
     const totalClicks = Number(totals.rows[0]?.totalClicks || 0);
@@ -234,7 +289,22 @@ export const getClickHeatmapData = async (
     return { clicks, totalClicks, sessions };
 };
 
-// ─── Analytics: Overview Metrics ─────��───────────────────────────────
+// ─── Verification: Recent Sessions ──────────────────────────────────
+
+export const getRecentSessionCount = async (
+    researchId: string,
+    sinceSeconds: number
+): Promise<{ count: number; hasData: boolean }> => {
+    const result = await pool.query(
+        `SELECT COUNT(*) as cnt FROM tracking_sessions
+         WHERE research_id = ? AND started_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+        [researchId, Math.min(sinceSeconds, 300)]
+    );
+    const count = Number(result.rows[0]?.cnt || 0);
+    return { count, hasData: count > 0 };
+};
+
+// ─── Analytics: Overview Metrics ─────────────────────────────────────
 
 export const getOverviewMetrics = async (researchId: string) => {
     const result = await pool.query(

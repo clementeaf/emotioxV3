@@ -31,6 +31,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
     const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<ResultTab>('clicks');
     const [selectedPageUrl, setSelectedPageUrl] = useState<string | undefined>();
+    const [deviceFilter, setDeviceFilter] = useState<'all' | 'mobile' | 'tablet' | 'desktop'>('all');
     const [uploading, setUploading] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
@@ -105,9 +106,10 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
     }, [pages, selectedPageUrl]);
 
     // Fetch click heatmap for selected page
+    const activeDevice = deviceFilter === 'all' ? undefined : deviceFilter;
     const { data: heatmapData, isLoading: loadingHeatmap } = useQuery({
-        queryKey: ['tracking', researchId, 'heatmap', selectedPageUrl],
-        queryFn: () => trackingService.getClickHeatmap(researchId, selectedPageUrl),
+        queryKey: ['tracking', researchId, 'heatmap', selectedPageUrl, deviceFilter],
+        queryFn: () => trackingService.getClickHeatmap(researchId, selectedPageUrl, activeDevice),
         enabled: !!selectedPageUrl && activeTab === 'clicks',
         staleTime: 10_000,
     });
@@ -239,12 +241,29 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                         ) : screenshotUrl && heatmapPoints.length > 0 ? (
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <h3 className="text-sm font-semibold text-slate-800">
-                                        Click Heatmap
-                                        <span className="ml-2 text-xs font-normal text-gray-500">
-                                            {heatmapData?.totalClicks.toLocaleString()} clicks from {heatmapData?.sessions} sessions
-                                        </span>
-                                    </h3>
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-slate-800">
+                                            Click Heatmap
+                                            <span className="ml-2 text-xs font-normal text-gray-500">
+                                                {heatmapData?.totalClicks.toLocaleString()} clicks from {heatmapData?.sessions} sessions
+                                            </span>
+                                        </h3>
+                                        <div className="flex gap-1 mt-1.5">
+                                            {(['all', 'desktop', 'tablet', 'mobile'] as const).map((d) => (
+                                                <button
+                                                    key={d}
+                                                    onClick={() => setDeviceFilter(d)}
+                                                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                                                        deviceFilter === d
+                                                            ? 'bg-blue-100 text-blue-700 font-medium'
+                                                            : 'text-slate-500 hover:bg-slate-100'
+                                                    }`}
+                                                >
+                                                    {d === 'all' ? 'All' : d.charAt(0).toUpperCase() + d.slice(1)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                     {selectedPage && (
                                         <a href={selectedPage.pageUrl} target="_blank" rel="noopener noreferrer"
                                             className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
@@ -252,7 +271,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                         </a>
                                     )}
                                 </div>
-                                <HeatmapRenderer imageUrl={screenshotUrl} data={heatmapPoints} coordSystem="pixel" className="w-full" />
+                                <HeatmapRenderer imageUrl={screenshotUrl} data={heatmapPoints} coordSystem="percent" className="w-full" />
                             </div>
                         ) : heatmapPoints.length > 0 && !screenshotUrl ? (
                             <div className="bg-gray-50 rounded-lg p-8 text-center">

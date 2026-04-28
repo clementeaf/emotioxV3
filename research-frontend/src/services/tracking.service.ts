@@ -15,6 +15,10 @@ export interface TrackingConfig {
     flushIntervalMs: number;
     maxEventsPerFlush: number;
     allowedDomains: string[];
+    consentText: string;
+    consentAcceptLabel: string;
+    consentDeclineLabel: string;
+    consentPosition: 'bottom' | 'top';
 }
 
 export interface TrackingOverview {
@@ -67,8 +71,14 @@ export const getTrackedPages = async (researchId: string): Promise<TrackedPage[]
     return response.pages;
 };
 
-export const getClickHeatmap = async (researchId: string, pageUrl?: string): Promise<ClickHeatmapData> => {
-    const params = pageUrl ? { page: pageUrl } : {};
+export const getClickHeatmap = async (
+    researchId: string,
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
+): Promise<ClickHeatmapData> => {
+    const params: Record<string, string> = {};
+    if (pageUrl) params.page = pageUrl;
+    if (device) params.device = device;
     return apiClient.get<ClickHeatmapData>(`/tracking/${researchId}/heatmap`, { params });
 };
 
@@ -81,6 +91,15 @@ export const getSessions = async (
         params: { limit, offset },
     });
     return response.sessions;
+};
+
+export const verifyInstallation = async (
+    researchId: string,
+    sinceSeconds = 120
+): Promise<{ count: number; hasData: boolean }> => {
+    return apiClient.get<{ count: number; hasData: boolean }>(`/tracking/${researchId}/verify`, {
+        params: { since: sinceSeconds },
+    });
 };
 
 export const getEmbedSnippet = async (researchId: string): Promise<string> => {
