@@ -277,16 +277,28 @@ export const getClickHeatmapData = async (
 ): Promise<{ clicks: Array<{ x: number; y: number; count: number }>; totalClicks: number; sessions: number }> => {
     const deviceFilter = getDeviceFilter(device);
 
-    // Coordinates are stored as viewport-relative percentages from the snippet.
+    // Coordinates may be stored as viewport-relative percentages (new snippet)
+    // or raw pixels (legacy data). Normalize: if value > 100, treat as pixels
+    // and convert using the session's viewport_width.
     // Round to 1 decimal to cluster nearby clicks for a cleaner heatmap.
     let query = `
-        SELECT ROUND(te.x, 1) as x, ROUND(te.y, 1) as y, COUNT(*) as count
+        SELECT
+            ROUND(
+                CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100
+                     ELSE te.x END
+            , 1) as x,
+            ROUND(
+                CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100
+                     ELSE te.y END
+            , 1) as y,
+            COUNT(*) as count
         FROM tracking_events te
         JOIN tracking_sessions ts ON te.session_id = ts.id
         WHERE ts.research_id = ?
           AND te.event_type = 'click'
           AND te.x IS NOT NULL
           AND te.y IS NOT NULL
+          AND ts.viewport_width > 0
     `;
     const params: unknown[] = [researchId];
 
@@ -297,13 +309,21 @@ export const getClickHeatmapData = async (
     query += deviceFilter.clause;
     params.push(...deviceFilter.params);
 
-    query += ' GROUP BY ROUND(te.x, 1), ROUND(te.y, 1) ORDER BY count DESC';
+    query += ` GROUP BY ROUND(
+                CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100
+                     ELSE te.x END
+            , 1),
+            ROUND(
+                CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100
+                     ELSE te.y END
+            , 1)
+            ORDER BY count DESC`;
 
     const result = await pool.query(query, params);
 
     const clicks = result.rows.map((row: Record<string, unknown>) => ({
-        x: row.x as number,
-        y: row.y as number,
+        x: Number(row.x),
+        y: Number(row.y),
         count: Number(row.count),
     }));
 
@@ -530,13 +550,18 @@ export const getAttentionHeatmapData = async (
 
     // Get mousemove events with timestamps — consecutive moves in same zone = dwell
     // We bucket coordinates to 2% grid cells and sum inter-event time gaps
+    // Normalize legacy pixel coords using session viewport_width
     let query = `
-        SELECT te.session_id, ROUND(te.x, 0) as x, ROUND(te.y, 0) as y, te.timestamp_ms
+        SELECT te.session_id,
+            ROUND(CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100 ELSE te.x END, 0) as x,
+            ROUND(CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100 ELSE te.y END, 0) as y,
+            te.timestamp_ms
         FROM tracking_events te
         JOIN tracking_sessions ts ON te.session_id = ts.id
         WHERE ts.research_id = ?
           AND te.event_type IN ('mousemove', 'click')
           AND te.x IS NOT NULL AND te.y IS NOT NULL
+          AND ts.viewport_width > 0
     `;
     const params: unknown[] = [researchId];
     if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }

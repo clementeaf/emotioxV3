@@ -11,6 +11,8 @@ import {
     Download, ArrowDownUp, PlayCircle, TrendingDown, Eye,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
+import { configService } from '../../../services/api/config.service';
+import { useAuthStore } from '../../../stores/auth.store';
 import type { TrackingSession } from '../../../services/tracking.service';
 import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { StatCard } from '../../ui/StatCard';
@@ -575,8 +577,8 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                             {/* Page breakdown */}
                             {expanded && (
                                 <div className="bg-gray-50 border-t border-gray-100">
-                                    <div className="px-5 py-2 grid grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        <span>#</span><span>URL</span><span>Timeline</span><span>Duration</span><span>Events</span><span />
+                                    <div className="px-5 py-2 grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                                        <span>#</span><span>Time</span><span>URL</span><span>Timeline</span><span>Duration</span><span>Events</span><span />
                                     </div>
                                     {visitor.pages.map((page) => {
                                         const maxDur = Math.max(...visitor.pages.map(p => p.durationMs), 1);
@@ -584,9 +586,12 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                         return (
                                             <div
                                                 key={page.sessionId}
-                                                className="px-5 py-2 grid grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-x-4 items-center border-t border-gray-100 text-xs"
+                                                className="px-5 py-2 grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-x-4 items-center border-t border-gray-100 text-xs"
                                             >
                                                 <span className="text-gray-400 font-mono">#{page.index}</span>
+                                                <span className="text-[10px] text-gray-400 font-mono w-12">
+                                                    {page.startedAt ? new Date(page.startedAt as string).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                </span>
                                                 <span className="text-slate-700 truncate" title={page.pageUrl}>
                                                     {shortenUrl(page.pageUrl)}
                                                 </span>
@@ -623,13 +628,35 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
 // ─── Live Sessions Tab ──────────────────────────────────────────────
 
 const LiveSessionsTab = ({ researchId }: { researchId: string }) => {
-    const { data, isLoading, dataUpdatedAt } = useQuery({
-        queryKey: ['tracking', researchId, 'live'],
-        queryFn: () => trackingService.getLiveSessions(researchId),
-        refetchInterval: 5000,
-    });
+    const [sessions, setSessions] = useState<trackingService.LiveVisitor[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [dataUpdatedAt, setDataUpdatedAt] = useState(0);
 
-    const sessions = data?.sessions || [];
+    useEffect(() => {
+        const token = useAuthStore.getState().token;
+        if (!token) return;
+
+        const apiBase = configService.getBaseUrl();
+        const url = `${apiBase}/tracking/${researchId}/live/stream?token=${encodeURIComponent(token)}`;
+
+        const es = new EventSource(url);
+
+        es.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                setSessions(data.sessions || []);
+                setDataUpdatedAt(Date.now());
+                setIsLoading(false);
+            } catch { /* malformed message */ }
+        };
+
+        es.onerror = () => {
+            // EventSource reconnects automatically
+            setIsLoading(false);
+        };
+
+        return () => es.close();
+    }, [researchId]);
 
     if (isLoading) return <div className="h-64 bg-gray-100 rounded-xl animate-pulse" />;
 
@@ -644,7 +671,7 @@ const LiveSessionsTab = ({ researchId }: { researchId: string }) => {
                     Live Sessions
                     <span className="text-xs font-normal text-gray-500">{sessions.length} active</span>
                 </h3>
-                <span className="text-[10px] text-gray-400">Refreshes every 5s</span>
+                <span className="text-[10px] text-gray-400">Live stream</span>
             </div>
 
             {sessions.length === 0 ? (

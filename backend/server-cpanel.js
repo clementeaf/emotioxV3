@@ -239,6 +239,60 @@ app.use('/api/media', express.static(MEDIA_BASE_DIR, {
     index: false,
 }));
 
+// SSE endpoint for live tracking sessions
+app.get(['/api/tracking/:researchId/live/stream', '/tracking/:researchId/live/stream'], async (req, res) => {
+    try {
+        const { researchId } = req.params;
+        const { token } = req.query;
+
+        if (!token || typeof token !== 'string') {
+            return res.status(401).json({ error: 'Authentication token is required' });
+        }
+
+        try {
+            await verifyToken(token);
+        } catch {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        // SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        const { getLiveSessions } = require('./dist/modules/tracking/tracking.service');
+
+        // Send initial data
+        const initial = await getLiveSessions(researchId);
+        res.write(`data: ${JSON.stringify(initial)}\n\n`);
+
+        // Push updates every 5s
+        const interval = setInterval(async () => {
+            try {
+                const data = await getLiveSessions(researchId);
+                res.write(`data: ${JSON.stringify(data)}\n\n`);
+            } catch { /* skip tick */ }
+        }, 5000);
+
+        // Keep-alive ping every 30s
+        const pingInterval = setInterval(() => {
+            try { res.write(': ping\n\n'); } catch { /* dead */ }
+        }, 30000);
+
+        // Cleanup on disconnect
+        res.on('close', () => {
+            clearInterval(interval);
+            clearInterval(pingInterval);
+        });
+
+    } catch (err) {
+        console.error('[Tracking SSE] Error:', err);
+        res.status(500).json({ error: 'SSE connection failed' });
+    }
+});
+
 // SSE endpoint for real-time monitoring
 // GET /api/monitor/events/:researchId?token=xxx
 app.get('/api/monitor/events/:researchId', async (req, res) => {

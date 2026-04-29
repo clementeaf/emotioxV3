@@ -1,3 +1,15 @@
+## v0.66.2 — Website Tracking: SSE live stream, legacy coordinate normalization, visitor timestamps (2026-04-29)
+
+### backend
+- **Fix: legacy pixel coordinates.** Click and attention heatmap queries now normalize coordinates stored as raw pixels (legacy data) by dividing by `viewport_width` when values exceed 100. New data (already percentages) passes through unchanged.
+- **SSE live stream.** `GET /tracking/:id/live/stream?token=xxx` — Server-Sent Events endpoint replaces polling. Pushes live session data every 5s, pings every 30s, cleans up on disconnect. Registered in both `server-cpanel.js` (Passenger entry) and `server-cpanel.ts`.
+
+### research-frontend
+- **Live tab uses SSE.** `LiveSessionsTab` connects via `EventSource` when the tab is active, disconnects on tab change. Replaces `refetchInterval: 5000` polling.
+- **Visitor accordion timestamps.** Each page row in the expanded visitor accordion shows the visit time (HH:mm).
+
+---
+
 ## v0.66.1 — Website Tracking: fix snippet crash, heatmap coordinates, configurable funnels, replay modal (2026-04-29)
 
 ### backend
