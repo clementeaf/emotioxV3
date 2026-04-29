@@ -15,7 +15,8 @@ export function resolveMediaUrl(url: string): string {
     try {
         const baseUrl = configService.getBaseUrl(); // e.g. https://emotio.cx/api
         const origin = new URL(baseUrl).origin;     // e.g. https://emotio.cx
-        return `${origin}${url}`;
+        const sep = url.startsWith('/') ? '' : '/';
+        return `${origin}${sep}${url}`;
     } catch {
         return url;
     }

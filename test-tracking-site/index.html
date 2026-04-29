@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EmotioCX Test Site</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; }
+        .hero { background: linear-gradient(135deg, #006AFF 0%, #0044cc 100%); color: white; padding: 80px 20px; text-align: center; }
+        .hero h1 { font-size: 48px; margin-bottom: 16px; }
+        .hero p { font-size: 18px; opacity: 0.9; max-width: 600px; margin: 0 auto 32px; }
+        .hero button { background: white; color: #006AFF; border: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .hero button:hover { background: #f1f5f9; }
+        nav { background: white; border-bottom: 1px solid #e2e8f0; padding: 16px 40px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        nav .logo { font-size: 20px; font-weight: 700; }
+        nav .logo span { color: #006AFF; }
+        nav .links { display: flex; gap: 24px; }
+        nav .links a { text-decoration: none; color: #64748b; font-size: 14px; font-weight: 500; }
+        nav .links a:hover { color: #006AFF; }
+        .section { padding: 60px 40px; max-width: 1000px; margin: 0 auto; }
+        .section h2 { font-size: 32px; margin-bottom: 16px; }
+        .section p { font-size: 16px; color: #64748b; line-height: 1.7; margin-bottom: 16px; }
+        .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 40px; }
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+        .card h3 { font-size: 18px; margin-bottom: 8px; }
+        .card p { font-size: 14px; color: #94a3b8; }
+        .cta { background: #f8fafc; padding: 60px 40px; text-align: center; }
+        .cta h2 { font-size: 28px; margin-bottom: 12px; }
+        .cta button { background: #006AFF; color: white; border: none; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 20px; }
+        footer { background: #1e293b; color: #94a3b8; padding: 40px; text-align: center; font-size: 14px; }
+        footer a { color: #60a5fa; text-decoration: none; }
+    </style>
+    <!-- EmotioCX Web Tracker -->
+    <script>
+    (function(r,a){var s=document.createElement("script");s.async=true;
+    s.src=a+"/public/tracking/"+r+"/script.js?v="+Math.floor(Date.now()/3600000);
+    document.head.appendChild(s);
+    })("1d673c9f-c5dd-4c19-85c1-c027d632576d","https://emotio.cx/api");
+    </script>
+</head>
+<body>
+
+<nav>
+    <div class="logo">Emotio<span>CX</span></div>
+    <div class="links">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#about">About</a>
+        <a href="#contact">Contact</a>
+    </div>
+</nav>
+
+<div class="hero">
+    <h1>UX Research Platform</h1>
+    <p>Measure real emotions, track eye movement, and understand user behavior with science-backed methodologies.</p>
+    <button onclick="alert('CTA clicked!')">Get Started Free</button>
+</div>
+
+<div class="section" id="features">
+    <h2>Features</h2>
+    <p>Everything you need to understand your users deeply.</p>
+    <div class="features">
+        <div class="card">
+            <h3>Eye Tracking</h3>
+            <p>Browser-based gaze tracking with calibration, heatmaps, and scan paths. No hardware needed.</p>
+        </div>
+        <div class="card">
+            <h3>Implicit Association</h3>
+            <p>Measure unconscious attitudes with IAT, Reaction Time Tests, and D-score analytics.</p>
+        </div>
+        <div class="card">
+            <h3>SmartVOC</h3>
+            <p>NPS, CSAT, CES, NEV and VOC metrics with real-time dashboards and sentiment analysis.</p>
+        </div>
+        <div class="card">
+            <h3>Cognitive Tasks</h3>
+            <p>Ranking, preference tests, navigation flows, and more. Fully configurable.</p>
+        </div>
+        <div class="card">
+            <h3>Attention Prediction</h3>
+            <p>AI-powered saliency maps using TranSalNet. Know where users will look before testing.</p>
+        </div>
+        <div class="card">
+            <h3>Website Tracking</h3>
+            <p>Click heatmaps, scroll depth, session replay, and live visitor monitoring.</p>
+        </div>
+    </div>
+</div>
+
+<div class="cta" id="pricing">
+    <h2>Ready to understand your users?</h2>
+    <p style="color: #64748b;">Start with a free trial. No credit card required.</p>
+    <button onclick="alert('Pricing clicked!')">View Pricing</button>
+</div>
+
+<div class="section" id="about">
+    <h2>About EmotioCX</h2>
+    <p>EmotioCX is a SaaS platform for UX researchers. We combine biometric, cognitive, and predictive methodologies to give you a complete picture of user experience.</p>
+    <p>Founded in Santiago, Chile. Trusted by research teams worldwide.</p>
+</div>
+
+<footer>
+    <p>&copy; 2026 EmotioCX. <a href="#">Terms</a> &middot; <a href="#">Privacy</a></p>
+</footer>
+
+</body>
+</html>

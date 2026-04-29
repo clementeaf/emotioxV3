@@ -1,18 +1,21 @@
 import { Crosshair, Users } from 'lucide-react';
 import type { EyeTrackingAOI, EkmanEmotion } from '../../../services/analytics.service';
+import { resolveMediaUrl } from '../../../services/media.service';
 
 export type ViewMode = 'heatmap' | 'image' | 'emotions' | 'prediction' | 'video' | 'scanpath' | 'firstlook' | 'transparency' | 'sequence';
 
 /** Resolve stimulusUrl: may be a clean URL or a JSON array string from the backend. */
 export const resolveStimulusUrl = (raw: string): string => {
-  if (!raw || !raw.startsWith('[')) return raw;
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed[0].url || parsed[0].s3Key || '';
-    }
-  } catch { /* not JSON */ }
-  return raw;
+  let url = raw;
+  if (raw && raw.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        url = parsed[0].url || parsed[0].s3Key || '';
+      }
+    } catch { /* not JSON */ }
+  }
+  return resolveMediaUrl(url);
 };
 
 export const EMOTION_COLORS: Record<EkmanEmotion, { bg: string; text: string; bar: string }> = {

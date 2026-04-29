@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import { getMediaUrl } from '../../config/local-storage';
 
 /**
  * Eye Tracking Analytics
@@ -111,7 +112,8 @@ const extractEyeTrackingConfig = (config: any) => {
     try {
       const parsed = typeof fileUploadComp.value === 'string' ? JSON.parse(fileUploadComp.value) : fileUploadComp.value;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        stimulusUrl = parsed[0].url || parsed[0].s3Key || '';
+        // Prefer url (already resolved), fallback to s3Key (needs getMediaUrl)
+        stimulusUrl = parsed[0].url || (parsed[0].s3Key ? getMediaUrl(parsed[0].s3Key) : '');
       } else if (typeof parsed === 'string') {
         stimulusUrl = parsed;
       }
