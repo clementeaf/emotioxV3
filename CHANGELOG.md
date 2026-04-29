@@ -1,3 +1,40 @@
+## v0.66.0 — Website Tracking: heatmap views, session replay timeline, friction tags, live sessions (2026-04-29)
+
+### backend
+- **DOM snapshot capture.** `POST /public/tracking/:id/snapshot` stores page HTML (scripts stripped) in `tracking_pages.page_snapshot`. Snippet captures automatically after session creation.
+- **Attention heatmap.** `GET /tracking/:id/attention?page=URL&device=X` aggregates mousemove dwell time per 2% grid zone.
+- **Visitor journeys.** `GET /tracking/:id/visitors` groups sessions by visitor with page-by-page breakdown (duration, clicks per page).
+- **Live sessions.** `GET /tracking/:id/live` returns sessions active in last 5 minutes, grouped by visitor.
+- **Friction detection.** Snippet detects dead-click, rage-click (3+ in 1s same area), speed-browsing (<2s on page), mouse-out. Stored in event `metadata.friction`. Endpoints: `GET /tracking/:id/friction` (summary), `GET /tracking/:id/friction/sessions` (per-session tags).
+- **Date range filter.** `getOverviewMetrics` accepts `from`/`to` query params.
+- **Sampling rate.** Config field `samplingRate` (1-100%). Snippet checks at init with localStorage persistence per visitor.
+- **IP exclusion.** `excludedIPs` in config. `createSession` checks `X-Forwarded-For`.
+- **Page targeting.** `targetPages`/`excludePages` in config. Snippet checks URL patterns at init.
+- **Data retention.** `dataRetentionDays` in config (30/60/90/180).
+
+### research-frontend
+- **Heatmaps tab restructured.** Single "Heatmaps" tab with sub-tabs: Click, Scroll, Attention. Page metrics table replaces button selector (Views, Clicks, Snapshot status).
+- **DOM snapshot rendering.** `PageSnapshotHeatmap` renders captured HTML in sandboxed iframe with heatmap canvas overlay. Scripts sanitized (regex strip of `<script>`, inline handlers, `javascript:` URLs).
+- **Scroll heatmap overlay.** `ScrollHeatmapOverlay` renders gradient bands (green→red) over screenshot with % labels.
+- **Attention heatmap overlay.** `AttentionHeatmapOverlay` with blue→red simpleheat gradient.
+- **Heatmap intensity/opacity sliders.** Adjustable radius and overlay darkness on click and attention heatmaps.
+- **Session replay timeline bar.** Mouseflow-style colored bar: red=click, gray=move, dark=idle. Clickable for seeking. Playhead synced.
+- **Visitors tab.** Expandable visitor list with page-by-page journey (duration bars, click count, replay per page).
+- **Live sessions tab.** Real-time view polling every 5s with green dot indicator, visitor pages as tags.
+- **Friction badges.** Color-coded tags (dead-click, rage-click, speed-browsing, mouse-out) on session table rows.
+- **Date range filter.** Date inputs above overview cards, filters metrics by period.
+- **Tracking Configuration sidebar link.** Separate "Tracking Configuration" and "View Results" links for Website Tracking.
+- **Config layout.** Compact 3-column grid (Snippet, Domains, Capture). Status badge (Recording/Draft). Sampling slider, IP exclusion, page targeting, data retention controls.
+- **Consent banner config.** Separated labels from inputs, max-width on text field.
+
+### tracking snippet
+- **Friction detection.** Dead-click, rage-click, speed-browsing, mouse-out auto-detected and sent as event metadata.
+- **Sampling.** Checks `samplingRate` at init with localStorage-persisted decision per visitor.
+- **Page targeting.** `checkPage()` validates URL against include/exclude patterns.
+- **Content-Type fix.** Reverted to `application/json` (text/plain wasn't parsed by Express).
+
+---
+
 ## v0.65.1 — Fix IAT analytics empty charts, fix Eye Tracking shelf grid overflow (2026-04-28)
 
 ### backend

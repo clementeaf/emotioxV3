@@ -8,7 +8,8 @@ import {
     LogOut,
     Users,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Settings,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { researchService } from '../../services/research.service';
@@ -516,8 +517,37 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     </div>
                 )}
 
-                {/* Results Section - Hide for file-based research */}
-                {!isFileBasedResearch && (
+                {/* Website Tracking: Configuration link */}
+                {isWebsiteTracking && (
+                    <div>
+                        {!isCollapsed && (
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
+                                    Configuration
+                                </h3>
+                            </div>
+                        )}
+                        <div className={cn("space-y-1", !isCollapsed && "mt-2")}>
+                            <Link
+                                to={`/research/${activeResearch.id}/builder`}
+                                className={cn(
+                                    'flex items-center text-sm rounded transition-colors',
+                                    !location.pathname.includes('/builder/results')
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50',
+                                    isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
+                                )}
+                                title={isCollapsed ? "Tracking Configuration" : undefined}
+                            >
+                                <Settings className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                                {!isCollapsed && "Tracking Configuration"}
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
+                {/* Results Section - Hide for file-based research except Website Tracking */}
+                {(!isFileBasedResearch || isWebsiteTracking) && (
                     <div>
                         {!isCollapsed && (
                             <div className="flex items-center justify-between mb-2">
@@ -546,7 +576,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 )}
 
                 {/* Share */}
-                {!isFileBasedResearch && (
+                {(!isFileBasedResearch || isWebsiteTracking) && (
                     <div className={isCollapsed ? "" : "mt-6"}>
                         <button
                             onClick={() => setShowShareDrawer(true)}

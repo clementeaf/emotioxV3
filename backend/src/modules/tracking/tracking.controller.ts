@@ -22,6 +22,13 @@ import {
     savePageScreenshot,
     saveTrackingConfig,
     getRecentSessionCount,
+    getVisitorJourneys,
+    getLiveSessions,
+    getAttentionHeatmapData,
+    savePageSnapshot,
+    getPageSnapshotHtml,
+    getFrictionSummary,
+    getSessionFrictionTags,
 } from './tracking.service';
 import { generateTrackingSnippet, generateEmbedSnippet } from './tracking-snippet';
 
@@ -84,6 +91,9 @@ export const handlePublicTrackingRoutes = async (
                     consentAcceptLabel: config.consentAcceptLabel,
                     consentDeclineLabel: config.consentDeclineLabel,
                     consentPosition: config.consentPosition,
+                    samplingRate: config.samplingRate,
+                    targetPages: config.targetPages,
+                    excludePages: config.excludePages,
                 });
 
                 return {
@@ -138,6 +148,7 @@ export const handlePublicTrackingRoutes = async (
                 userAgent: body.userAgent,
                 referrer: body.referrer,
                 requestOrigin: event.headers.Origin || event.headers.origin || event.headers.Referer || event.headers.referer,
+                requestIP: event.headers['X-Forwarded-For']?.split(',')[0]?.trim() || event.headers['x-forwarded-for']?.split(',')[0]?.trim(),
             });
 
             return trackingSuccess(result, 201);
@@ -176,6 +187,21 @@ export const handlePublicTrackingRoutes = async (
             return trackingSuccess(result, 201);
         }
 
+        // POST /public/tracking/:researchId/snapshot — save DOM snapshot for a page
+        const snapshotMatch = path.match(/^\/public\/tracking\/([^/]+)\/snapshot$/);
+        if (snapshotMatch && httpMethod === 'POST') {
+            const researchId = snapshotMatch[1];
+            let body: Record<string, unknown>;
+            try { body = JSON.parse(event.body || '{}'); } catch { return trackingError('Invalid JSON'); }
+            const pageUrl = body.pageUrl as string;
+            const html = body.html as string;
+            if (!pageUrl || !html) return trackingError('Missing pageUrl or html');
+            // Cap at 2MB
+            if (html.length > 2097152) return trackingError('Snapshot too large', 413);
+            await savePageSnapshot(researchId, pageUrl, html);
+            return trackingSuccess({ saved: true }, 201);
+        }
+
         return trackingError('Route not found', 404);
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -211,7 +237,9 @@ export const handleTrackingRoutes = async (
         const overviewMatch = path.match(/^\/tracking\/([^/]+)\/overview$/);
         if (overviewMatch && httpMethod === 'GET') {
             const researchId = overviewMatch[1];
-            const metrics = await getOverviewMetrics(researchId);
+            const from = event.queryStringParameters?.from;
+            const to = event.queryStringParameters?.to;
+            const metrics = await getOverviewMetrics(researchId, from, to);
             return success(metrics, 200, undefined, origin);
         }
 
@@ -287,6 +315,64 @@ export const handleTrackingRoutes = async (
             const body = JSON.parse(event.body || '{}');
             await saveTrackingConfig(researchId, body);
             return success({ updated: true }, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/friction — friction event summary
+        const frictionMatch = path.match(/^\/tracking\/([^/]+)\/friction$/);
+        if (frictionMatch && httpMethod === 'GET') {
+            const researchId = frictionMatch[1];
+            const data = await getFrictionSummary(researchId);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/friction/sessions — friction tags per session
+        const frictionSessionsMatch = path.match(/^\/tracking\/([^/]+)\/friction\/sessions$/);
+        if (frictionSessionsMatch && httpMethod === 'GET') {
+            const researchId = frictionSessionsMatch[1];
+            const data = await getSessionFrictionTags(researchId);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/snapshot?page=URL — get page DOM snapshot HTML
+        const snapshotGetMatch = path.match(/^\/tracking\/([^/]+)\/snapshot$/);
+        if (snapshotGetMatch && httpMethod === 'GET') {
+            const researchId = snapshotGetMatch[1];
+            const pageUrl = event.queryStringParameters?.page
+                ? decodeURIComponent(event.queryStringParameters.page)
+                : undefined;
+            if (!pageUrl) return error('Missing page parameter', 400, undefined, origin);
+            const html = await getPageSnapshotHtml(researchId, pageUrl);
+            return success({ html }, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/attention?page=URL — attention (dwell time) heatmap
+        const attentionMatch = path.match(/^\/tracking\/([^/]+)\/attention$/);
+        if (attentionMatch && httpMethod === 'GET') {
+            const researchId = attentionMatch[1];
+            const pageUrl = event.queryStringParameters?.page
+                ? decodeURIComponent(event.queryStringParameters.page)
+                : undefined;
+            const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
+            const data = await getAttentionHeatmapData(researchId, pageUrl, device);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/visitors — visitor journeys with page breakdown
+        const visitorsMatch = path.match(/^\/tracking\/([^/]+)\/visitors$/);
+        if (visitorsMatch && httpMethod === 'GET') {
+            const researchId = visitorsMatch[1];
+            const limit = parseInt(event.queryStringParameters?.limit || '20', 10);
+            const offset = parseInt(event.queryStringParameters?.offset || '0', 10);
+            const data = await getVisitorJourneys(researchId, limit, offset);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/live — live sessions (active in last 5 min)
+        const liveMatch = path.match(/^\/tracking\/([^/]+)\/live$/);
+        if (liveMatch && httpMethod === 'GET') {
+            const researchId = liveMatch[1];
+            const data = await getLiveSessions(researchId);
+            return success(data, 200, undefined, origin);
         }
 
         // GET /tracking/:researchId/snippet — get embed snippet

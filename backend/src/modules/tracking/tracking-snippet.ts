@@ -17,6 +17,9 @@ interface SnippetConfig {
     consentAcceptLabel: string;
     consentDeclineLabel: string;
     consentPosition: 'bottom' | 'top';
+    samplingRate: number;
+    targetPages: string[];
+    excludePages: string[];
 }
 
 export const generateTrackingSnippet = (config: SnippetConfig): string => {
@@ -36,6 +39,9 @@ var C=${JSON.stringify({
         cAccept: config.consentAcceptLabel,
         cDecline: config.consentDeclineLabel,
         cPos: config.consentPosition,
+        sampling: config.samplingRate,
+        targetPg: config.targetPages,
+        excludePg: config.excludePages,
     })};
 
 var sid=null,vid=null,buf=[],timer=null,consented=!C.consent;
@@ -94,22 +100,65 @@ function flush(){
     try{
         if(navigator.sendBeacon){
             navigator.sendBeacon(C.api+"/public/tracking/"+C.rid+"/events",
-                new Blob([body],{type:"text/plain"}));
+                new Blob([body],{type:"application/json"}));
         }else{
             var xhr=new XMLHttpRequest();
             xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/events",true);
-            xhr.setRequestHeader("Content-Type","text/plain");
+            xhr.setRequestHeader("Content-Type","application/json");
             xhr.send(body);
         }
     }catch(e){}
 }
 
-var capturing=false,lastUrl="";
+var capturing=false,lastUrl="",snapshotSent={};
+
+// Capture DOM snapshot — strip scripts, absolutize URLs, send once per page URL
+function captureSnapshot(){
+    var url=location.href;
+    if(snapshotSent[url])return;
+    snapshotSent[url]=true;
+    try{
+        var clone=document.documentElement.cloneNode(true);
+        // Remove all script tags
+        var scripts=clone.querySelectorAll("script");
+        for(var i=0;i<scripts.length;i++)scripts[i].remove();
+        // Absolutize relative URLs in images, links, stylesheets
+        var base=location.origin;
+        function absUrl(el,attr){
+            var v=el.getAttribute(attr);
+            if(v&&v.indexOf("//")< 0&&v.charAt(0)==="/")el.setAttribute(attr,base+v);
+            else if(v&&v.indexOf("//")< 0&&v.indexOf("data:")< 0&&v.charAt(0)!=="/" &&v.charAt(0)!=="#")el.setAttribute(attr,base+"/"+v);
+        }
+        var els=clone.querySelectorAll("[src],[href]");
+        for(var j=0;j<els.length;j++){
+            if(els[j].hasAttribute("src"))absUrl(els[j],"src");
+            if(els[j].hasAttribute("href"))absUrl(els[j],"href");
+        }
+        // Absolutize CSS url() references in inline styles
+        var styled=clone.querySelectorAll("[style]");
+        for(var k=0;k<styled.length;k++){
+            var s=styled[k].getAttribute("style");
+            if(s&&s.indexOf("url(")>=0){styled[k].setAttribute("style",s.replace(/url\\(["']?\\/([^"')]+)["']?\\)/g,"url("+base+"/$1)"));}
+        }
+        var html="<!DOCTYPE html>"+clone.outerHTML;
+        // Cap at 2MB
+        if(html.length>2097152)return;
+        var xhr2=new XMLHttpRequest();
+        xhr2.open("POST",C.api+"/public/tracking/"+C.rid+"/snapshot",true);
+        xhr2.setRequestHeader("Content-Type","application/json");
+        xhr2.send(JSON.stringify({pageUrl:url,html:html}));
+    }catch(e){}
+}
 
 // Create a new session on the backend
 function createNewSession(){
+    // Speed-browsing for previous page
+    if(typeof pageStart!=="undefined"&&Date.now()-pageStart<2000){
+        push({eventType:"pageview",timestampMs:Date.now(),metadata:{friction:"speed-browsing"}});
+    }
     flush();
     sid=null;
+    pageStart=Date.now();
     var body=JSON.stringify({
         visitorId:vid,
         pageUrl:location.href,
@@ -123,9 +172,9 @@ function createNewSession(){
     });
     var xhr=new XMLHttpRequest();
     xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/session",true);
-    xhr.setRequestHeader("Content-Type","text/plain");
+    xhr.setRequestHeader("Content-Type","application/json");
     xhr.onload=function(){
-        try{var r=JSON.parse(xhr.responseText);sid=r.sessionId;flush();}catch(e){}
+        try{var r=JSON.parse(xhr.responseText);sid=r.sessionId;flush();captureSnapshot();}catch(e){}
     };
     xhr.send(body);
     lastUrl=location.href;
@@ -161,12 +210,43 @@ function showConsent(){
 
 // Capture listeners — attach immediately, events buffer until session is ready
 function startCapture(){
+    // Friction detection state
+    var clickLog=[],pageStart=Date.now();
+
     if(C.clicks){
         document.addEventListener("click",function(e){
-            var vw=window.innerWidth||1;
-            push({eventType:"click",x:Math.round(e.clientX/vw*10000)/100,y:Math.round(e.pageY/vw*10000)/100,targetSelector:getSelector(e.target),targetText:getText(e.target),timestampMs:Date.now()});
+            var now=Date.now(),vw=window.innerWidth||1;
+            var cx=Math.round(e.clientX/vw*10000)/100,cy=Math.round(e.pageY/vw*10000)/100;
+            var meta={};
+
+            // Rage-click: 3+ clicks within 1s in ~same area (5% radius)
+            clickLog.push({x:cx,y:cy,t:now});
+            clickLog=clickLog.filter(function(c){return now-c.t<1000;});
+            var nearby=clickLog.filter(function(c){return Math.abs(c.x-cx)<5&&Math.abs(c.y-cy)<5;});
+            if(nearby.length>=3)meta.friction="rage-click";
+
+            // Dead-click: click on non-interactive element
+            var tag=(e.target.tagName||"").toLowerCase();
+            var isInteractive=tag==="a"||tag==="button"||tag==="input"||tag==="select"||tag==="textarea"||e.target.closest("a,button,[role=button],[onclick]");
+            if(!isInteractive&&!meta.friction)meta.friction="dead-click";
+
+            push({eventType:"click",x:cx,y:cy,targetSelector:getSelector(e.target),targetText:getText(e.target),timestampMs:now,metadata:Object.keys(meta).length?meta:undefined});
         },true);
     }
+
+    // Mouse-out detection
+    document.addEventListener("visibilitychange",function(){
+        if(document.visibilityState==="hidden"){
+            push({eventType:"mouseleave",timestampMs:Date.now(),metadata:{friction:"mouse-out"}});
+            flush();
+        }
+    });
+
+    // Speed-browsing: detected on SPA nav or unload if page duration < 2s
+    window.addEventListener("beforeunload",function(){
+        if(Date.now()-pageStart<2000)push({eventType:"pageview",timestampMs:Date.now(),metadata:{friction:"speed-browsing"}});
+        flush();
+    });
 
     if(C.scroll){
         var scrollTimer=null;
@@ -215,8 +295,31 @@ if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",init);
 }else{init();}
 
+// Page targeting — check if current URL matches include/exclude patterns
+function checkPage(){
+    var url=location.href;
+    if(C.excludePg&&C.excludePg.length>0){
+        for(var i=0;i<C.excludePg.length;i++){if(url.indexOf(C.excludePg[i])>=0)return false;}
+    }
+    if(C.targetPg&&C.targetPg.length>0){
+        var ok=false;
+        for(var j=0;j<C.targetPg.length;j++){if(url.indexOf(C.targetPg[j])>=0)ok=true;}
+        return ok;
+    }
+    return true;
+}
+
 function init(){
     if(!checkDomain())return;
+    if(!checkPage())return;
+    // Sampling — skip this visitor with probability (100 - samplingRate)%
+    if(C.sampling<100){
+        try{
+            var sk=localStorage.getItem("_ecx_sample_"+C.rid);
+            if(sk==="0")return;
+            if(!sk){var sampled=Math.random()*100<C.sampling;localStorage.setItem("_ecx_sample_"+C.rid,sampled?"1":"0");if(!sampled)return;}
+        }catch(e){if(Math.random()*100>=C.sampling)return;}
+    }
     if(C.consent){
         try{
             var prev=localStorage.getItem("_ecx_consent_"+C.rid);

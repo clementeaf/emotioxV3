@@ -20,10 +20,11 @@ interface CreateSessionInput {
     userAgent?: string;
     referrer?: string;
     requestOrigin?: string;
+    requestIP?: string;
 }
 
 interface TrackingEvent {
-    eventType: 'click' | 'scroll' | 'mousemove' | 'resize' | 'pageview';
+    eventType: 'click' | 'scroll' | 'mousemove' | 'resize' | 'pageview' | 'mouseleave';
     x?: number;
     y?: number;
     scrollY?: number;
@@ -46,6 +47,11 @@ interface TrackingConfig {
     consentAcceptLabel: string;
     consentDeclineLabel: string;
     consentPosition: 'bottom' | 'top';
+    samplingRate: number;
+    excludedIPs: string[];
+    targetPages: string[];
+    excludePages: string[];
+    dataRetentionDays: number;
 }
 
 // ─── Session Management ──────────────────────────────────────────────
@@ -85,6 +91,14 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
         );
         if (!domainAllowed) {
             throw new Error('Domain not allowed');
+        }
+    }
+
+    // Check IP exclusion
+    const excludedIPs = (trackingConfig.excludedIPs as string[]) || [];
+    if (excludedIPs.length > 0 && input.requestIP) {
+        if (excludedIPs.includes(input.requestIP)) {
+            throw new Error('IP excluded from tracking');
         }
     }
 
@@ -209,10 +223,26 @@ export const getTrackingConfig = async (researchId: string): Promise<TrackingCon
         consentAcceptLabel: (trackingConfig.consentAcceptLabel as string) || 'Accept',
         consentDeclineLabel: (trackingConfig.consentDeclineLabel as string) || 'Decline',
         consentPosition: (trackingConfig.consentPosition as 'bottom' | 'top') || 'bottom',
+        samplingRate: typeof trackingConfig.samplingRate === 'number' ? trackingConfig.samplingRate : 100,
+        excludedIPs: (trackingConfig.excludedIPs as string[]) || [],
+        targetPages: (trackingConfig.targetPages as string[]) || [],
+        excludePages: (trackingConfig.excludePages as string[]) || [],
+        dataRetentionDays: (trackingConfig.dataRetentionDays as number) || 90,
     };
 };
 
 // ─── Analytics: Click Heatmap Data ────────���──────────────────────────
+
+// ─── Date Range Helper ──────────────────────────────────────────────
+
+const getDateFilter = (from?: string, to?: string): { clause: string; params: unknown[] } => {
+    if (!from && !to) return { clause: '', params: [] };
+    const parts: string[] = [];
+    const params: unknown[] = [];
+    if (from) { parts.push('ts.started_at >= ?'); params.push(from); }
+    if (to) { parts.push('ts.started_at <= ?'); params.push(to + ' 23:59:59'); }
+    return { clause: ' AND ' + parts.join(' AND '), params };
+};
 
 // Viewport breakpoints for device bucketing
 const DEVICE_BREAKPOINTS = {
@@ -306,7 +336,8 @@ export const getRecentSessionCount = async (
 
 // ─── Analytics: Overview Metrics ─────────────────────────────────────
 
-export const getOverviewMetrics = async (researchId: string) => {
+export const getOverviewMetrics = async (researchId: string, from?: string, to?: string) => {
+    const dateFilter = getDateFilter(from, to);
     const result = await pool.query(
         `SELECT
             COUNT(DISTINCT ts.id) as totalSessions,
@@ -316,8 +347,8 @@ export const getOverviewMetrics = async (researchId: string) => {
             AVG(TIMESTAMPDIFF(SECOND, ts.started_at, ts.ended_at)) as avgSessionDuration
          FROM tracking_sessions ts
          LEFT JOIN tracking_events te ON te.session_id = ts.id
-         WHERE ts.research_id = ?`,
-        [researchId]
+         WHERE ts.research_id = ?${dateFilter.clause}`,
+        [researchId, ...dateFilter.params]
     );
 
     const row = result.rows[0] || {};
@@ -337,6 +368,7 @@ export const getTrackedPages = async (researchId: string) => {
         `SELECT
             tp.id, tp.page_url, tp.page_title, tp.screenshot_s3_key,
             tp.viewport_width, tp.viewport_height,
+            (tp.page_snapshot IS NOT NULL) as hasSnapshot,
             COUNT(DISTINCT ts.id) as sessionCount,
             COUNT(te.id) as eventCount
          FROM tracking_pages tp
@@ -353,6 +385,7 @@ export const getTrackedPages = async (researchId: string) => {
         pageUrl: row.page_url,
         pageTitle: row.page_title,
         screenshotS3Key: row.screenshot_s3_key,
+        hasSnapshot: !!row.hasSnapshot,
         viewportWidth: row.viewport_width,
         viewportHeight: row.viewport_height,
         sessionCount: Number(row.sessionCount || 0),
@@ -391,6 +424,272 @@ export const getSessions = async (researchId: string, limit = 50, offset = 0) =>
         endedAt: row.ended_at,
         eventCount: Number(row.eventCount || 0),
     }));
+};
+
+// ─── Page Snapshot ──────────────────────────────────────────────────
+
+export const savePageSnapshot = async (
+    researchId: string,
+    pageUrl: string,
+    html: string
+): Promise<void> => {
+    // Only save if no snapshot exists yet for this page
+    const existing = await pool.query(
+        'SELECT id, page_snapshot FROM tracking_pages WHERE research_id = ? AND page_url = ?',
+        [researchId, pageUrl]
+    );
+    if (existing.rows.length > 0 && !existing.rows[0].page_snapshot) {
+        await pool.query(
+            'UPDATE tracking_pages SET page_snapshot = ? WHERE research_id = ? AND page_url = ?',
+            [html, researchId, pageUrl]
+        );
+    }
+};
+
+// ─── Friction Summary ───────────────────────────────────────────────
+
+export const getFrictionSummary = async (researchId: string) => {
+    const result = await pool.query(
+        `SELECT
+            te.metadata,
+            COUNT(*) as cnt
+         FROM tracking_events te
+         JOIN tracking_sessions ts ON te.session_id = ts.id
+         WHERE ts.research_id = ?
+           AND te.metadata IS NOT NULL
+           AND JSON_EXTRACT(te.metadata, '$.friction') IS NOT NULL
+         GROUP BY JSON_EXTRACT(te.metadata, '$.friction')`,
+        [researchId]
+    );
+
+    const tags: Record<string, number> = {};
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+        try {
+            const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+            if (meta?.friction) tags[meta.friction] = Number(row.cnt);
+        } catch { /* skip */ }
+    }
+
+    return { tags };
+};
+
+export const getSessionFrictionTags = async (researchId: string) => {
+    const result = await pool.query(
+        `SELECT
+            ts.id as session_id,
+            GROUP_CONCAT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(te.metadata, '$.friction'))) as friction_tags
+         FROM tracking_sessions ts
+         JOIN tracking_events te ON te.session_id = ts.id
+         WHERE ts.research_id = ?
+           AND te.metadata IS NOT NULL
+           AND JSON_EXTRACT(te.metadata, '$.friction') IS NOT NULL
+         GROUP BY ts.id`,
+        [researchId]
+    );
+
+    const sessionTags = new Map<string, string[]>();
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+        const tags = (row.friction_tags as string || '').split(',').filter(Boolean);
+        if (tags.length > 0) sessionTags.set(row.session_id as string, tags);
+    }
+
+    return { sessionTags: Object.fromEntries(sessionTags) };
+};
+
+export const getPageSnapshotHtml = async (researchId: string, pageUrl: string): Promise<string | null> => {
+    const result = await pool.query(
+        'SELECT page_snapshot FROM tracking_pages WHERE research_id = ? AND page_url = ?',
+        [researchId, pageUrl]
+    );
+    return result.rows[0]?.page_snapshot || null;
+};
+
+// ─── Attention Heatmap (dwell time per zone) ────────────────────────
+
+export const getAttentionHeatmapData = async (
+    researchId: string,
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
+): Promise<{ points: Array<{ x: number; y: number; dwell: number }>; totalSessions: number; maxDwell: number }> => {
+    const deviceFilter = getDeviceFilter(device);
+
+    // Get mousemove events with timestamps — consecutive moves in same zone = dwell
+    // We bucket coordinates to 2% grid cells and sum inter-event time gaps
+    let query = `
+        SELECT te.session_id, ROUND(te.x, 0) as x, ROUND(te.y, 0) as y, te.timestamp_ms
+        FROM tracking_events te
+        JOIN tracking_sessions ts ON te.session_id = ts.id
+        WHERE ts.research_id = ?
+          AND te.event_type IN ('mousemove', 'click')
+          AND te.x IS NOT NULL AND te.y IS NOT NULL
+    `;
+    const params: unknown[] = [researchId];
+    if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }
+    query += deviceFilter.clause;
+    params.push(...deviceFilter.params);
+    query += ' ORDER BY te.session_id, te.timestamp_ms ASC';
+
+    const result = await pool.query(query, params);
+
+    // Compute dwell time per 2% grid cell
+    const GRID = 2; // 2% buckets
+    const dwellMap = new Map<string, number>();
+    const sessions = new Set<string>();
+
+    let prevSession = '', prevTs = 0, prevCellKey = '';
+
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+        const sid = row.session_id as string;
+        const x = Number(row.x);
+        const y = Number(row.y);
+        const ts = Number(row.timestamp_ms);
+        sessions.add(sid);
+
+        const cellX = Math.floor(x / GRID) * GRID;
+        const cellY = Math.floor(y / GRID) * GRID;
+        const cellKey = `${cellX},${cellY}`;
+
+        // If same session and same cell, add time delta (capped at 3s to avoid idle inflation)
+        if (sid === prevSession && cellKey === prevCellKey) {
+            const delta = Math.min(ts - prevTs, 3000);
+            dwellMap.set(cellKey, (dwellMap.get(cellKey) || 0) + delta);
+        }
+
+        prevSession = sid;
+        prevTs = ts;
+        prevCellKey = cellKey;
+    }
+
+    let maxDwell = 0;
+    const points = [...dwellMap.entries()].map(([key, dwell]) => {
+        const [x, y] = key.split(',').map(Number);
+        if (dwell > maxDwell) maxDwell = dwell;
+        return { x, y, dwell };
+    });
+
+    return { points, totalSessions: sessions.size, maxDwell };
+};
+
+// ─── Visitor Journeys (page breakdown per visitor) ──────────────────
+
+export const getVisitorJourneys = async (researchId: string, limit = 20, offset = 0) => {
+    const visitorsResult = await pool.query(
+        `SELECT visitor_id, COUNT(*) as sessionCount,
+                MIN(started_at) as firstSeen, MAX(COALESCE(ended_at, started_at)) as lastSeen,
+                MAX(viewport_width) as viewportWidth,
+                SUBSTRING_INDEX(GROUP_CONCAT(user_agent ORDER BY started_at DESC), ',', 1) as userAgent,
+                SUBSTRING_INDEX(GROUP_CONCAT(page_url ORDER BY started_at ASC), ',', 1) as entryPage
+         FROM tracking_sessions
+         WHERE research_id = ?
+         GROUP BY visitor_id
+         ORDER BY lastSeen DESC
+         LIMIT ? OFFSET ?`,
+        [researchId, limit, offset]
+    );
+
+    const visitors = [];
+    for (const v of visitorsResult.rows as Array<Record<string, unknown>>) {
+        const visitorId = v.visitor_id as string;
+
+        const sessionsResult = await pool.query(
+            `SELECT ts.id, ts.page_url, ts.page_title, ts.started_at, ts.ended_at,
+                    COUNT(te.id) as eventCount,
+                    SUM(CASE WHEN te.event_type = 'click' THEN 1 ELSE 0 END) as clickCount
+             FROM tracking_sessions ts
+             LEFT JOIN tracking_events te ON te.session_id = ts.id
+             WHERE ts.research_id = ? AND ts.visitor_id = ?
+             GROUP BY ts.id
+             ORDER BY ts.started_at ASC`,
+            [researchId, visitorId]
+        );
+
+        const pages = sessionsResult.rows.map((s: Record<string, unknown>, idx: number) => {
+            const startedAt = s.started_at as Date;
+            const endedAt = s.ended_at as Date | null;
+            const durationMs = endedAt ? endedAt.getTime() - startedAt.getTime() : 0;
+            return {
+                index: idx + 1,
+                sessionId: s.id as string,
+                pageUrl: s.page_url as string,
+                pageTitle: s.page_title as string | null,
+                startedAt: s.started_at,
+                durationMs,
+                eventCount: Number(s.eventCount || 0),
+                clickCount: Number(s.clickCount || 0),
+            };
+        });
+
+        visitors.push({
+            visitorId,
+            sessionCount: Number(v.sessionCount),
+            entryPage: v.entryPage as string,
+            firstSeen: v.firstSeen,
+            lastSeen: v.lastSeen,
+            viewportWidth: Number(v.viewportWidth || 0),
+            userAgent: v.userAgent as string | null,
+            totalDurationMs: pages.reduce((sum, p) => sum + p.durationMs, 0),
+            pages,
+        });
+    }
+
+    const totalResult = await pool.query(
+        'SELECT COUNT(DISTINCT visitor_id) as total FROM tracking_sessions WHERE research_id = ?',
+        [researchId]
+    );
+
+    return { visitors, totalVisitors: Number(totalResult.rows[0]?.total || 0) };
+};
+
+// ─── Live Sessions ──────────────────────────────────────────────────
+
+export const getLiveSessions = async (researchId: string) => {
+    const result = await pool.query(
+        `SELECT ts.id, ts.visitor_id, ts.page_url, ts.page_title,
+                ts.viewport_width, ts.user_agent,
+                ts.started_at, COUNT(te.id) as eventCount,
+                MAX(te.timestamp_ms) as lastEventMs
+         FROM tracking_sessions ts
+         LEFT JOIN tracking_events te ON te.session_id = ts.id
+         WHERE ts.research_id = ?
+           AND ts.started_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+         GROUP BY ts.id
+         ORDER BY ts.started_at DESC`,
+        [researchId]
+    );
+
+    const visitorMap = new Map<string, {
+        visitorId: string;
+        pages: Array<{ sessionId: string; pageUrl: string; pageTitle: string | null; startedAt: unknown; eventCount: number }>;
+        viewportWidth: number;
+        userAgent: string | null;
+        firstSeen: unknown;
+        lastEventMs: number;
+    }>();
+
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+        const vid = row.visitor_id as string;
+        if (!visitorMap.has(vid)) {
+            visitorMap.set(vid, {
+                visitorId: vid,
+                pages: [],
+                viewportWidth: Number(row.viewport_width || 0),
+                userAgent: row.user_agent as string | null,
+                firstSeen: row.started_at,
+                lastEventMs: Number(row.lastEventMs || 0),
+            });
+        }
+        const visitor = visitorMap.get(vid)!;
+        visitor.pages.push({
+            sessionId: row.id as string,
+            pageUrl: row.page_url as string,
+            pageTitle: row.page_title as string | null,
+            startedAt: row.started_at,
+            eventCount: Number(row.eventCount || 0),
+        });
+        visitor.lastEventMs = Math.max(visitor.lastEventMs, Number(row.lastEventMs || 0));
+    }
+
+    return { sessions: [...visitorMap.values()] };
 };
 
 // ─── Save Page Screenshot ────────────────────────────────────────────

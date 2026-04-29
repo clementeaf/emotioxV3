@@ -19,6 +19,11 @@ export interface TrackingConfig {
     consentAcceptLabel: string;
     consentDeclineLabel: string;
     consentPosition: 'bottom' | 'top';
+    samplingRate: number;
+    excludedIPs: string[];
+    targetPages: string[];
+    excludePages: string[];
+    dataRetentionDays: number;
 }
 
 export interface TrackingOverview {
@@ -34,6 +39,7 @@ export interface TrackedPage {
     pageUrl: string;
     pageTitle: string | null;
     screenshotS3Key: string | null;
+    hasSnapshot?: boolean;
     viewportWidth: number | null;
     viewportHeight: number | null;
     sessionCount: number;
@@ -62,8 +68,11 @@ export interface TrackingSession {
 
 // ─── API Calls ───────────────────────────────────────────────────────
 
-export const getOverview = async (researchId: string): Promise<TrackingOverview> => {
-    return apiClient.get<TrackingOverview>(`/tracking/${researchId}/overview`);
+export const getOverview = async (researchId: string, from?: string, to?: string): Promise<TrackingOverview> => {
+    const params: Record<string, string> = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return apiClient.get<TrackingOverview>(`/tracking/${researchId}/overview`, { params });
 };
 
 export const getTrackedPages = async (researchId: string): Promise<TrackedPage[]> => {
@@ -191,4 +200,107 @@ export interface ExportData {
 
 export const getExportData = async (researchId: string): Promise<ExportData> => {
     return apiClient.get<ExportData>(`/tracking/${researchId}/export`);
+};
+
+// ─── Friction ───────────────────────────────────────────────────────
+
+export const getFrictionSummary = async (researchId: string): Promise<{ tags: Record<string, number> }> => {
+    return apiClient.get<{ tags: Record<string, number> }>(`/tracking/${researchId}/friction`);
+};
+
+export const getSessionFrictionTags = async (researchId: string): Promise<{ sessionTags: Record<string, string[]> }> => {
+    return apiClient.get<{ sessionTags: Record<string, string[]> }>(`/tracking/${researchId}/friction/sessions`);
+};
+
+// ─── Page Snapshot ──────────────────────────────────────────────────
+
+export const getPageSnapshot = async (researchId: string, pageUrl: string): Promise<string | null> => {
+    const response = await apiClient.get<{ html: string | null }>(`/tracking/${researchId}/snapshot`, {
+        params: { page: pageUrl },
+    });
+    return response.html;
+};
+
+// ─── Attention Heatmap ──────────────────────────────────────────────
+
+export interface AttentionHeatmapData {
+    points: Array<{ x: number; y: number; dwell: number }>;
+    totalSessions: number;
+    maxDwell: number;
+}
+
+export const getAttentionHeatmap = async (
+    researchId: string,
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
+): Promise<AttentionHeatmapData> => {
+    const params: Record<string, string> = {};
+    if (pageUrl) params.page = pageUrl;
+    if (device) params.device = device;
+    return apiClient.get<AttentionHeatmapData>(`/tracking/${researchId}/attention`, { params });
+};
+
+// ─── Visitor Journeys ───────────────────────────────────────────────
+
+export interface VisitorPage {
+    index: number;
+    sessionId: string;
+    pageUrl: string;
+    pageTitle: string | null;
+    startedAt: string;
+    durationMs: number;
+    eventCount: number;
+    clickCount: number;
+}
+
+export interface VisitorJourney {
+    visitorId: string;
+    sessionCount: number;
+    entryPage: string;
+    firstSeen: string;
+    lastSeen: string;
+    viewportWidth: number;
+    userAgent: string | null;
+    totalDurationMs: number;
+    pages: VisitorPage[];
+}
+
+export interface VisitorJourneysResponse {
+    visitors: VisitorJourney[];
+    totalVisitors: number;
+}
+
+export const getVisitorJourneys = async (
+    researchId: string,
+    limit = 20,
+    offset = 0
+): Promise<VisitorJourneysResponse> => {
+    return apiClient.get<VisitorJourneysResponse>(`/tracking/${researchId}/visitors`, {
+        params: { limit, offset },
+    });
+};
+
+// ─── Live Sessions ──────────────────────────────────────────────────
+
+export interface LiveVisitor {
+    visitorId: string;
+    pages: Array<{
+        sessionId: string;
+        pageUrl: string;
+        pageTitle: string | null;
+        startedAt: string;
+        eventCount: number;
+    }>;
+    viewportWidth: number;
+    userAgent: string | null;
+    firstSeen: string;
+    lastEventMs: number;
+}
+
+export interface LiveSessionsResponse {
+    sessions: LiveVisitor[];
+}
+
+export const getLiveSessions = async (researchId: string): Promise<LiveSessionsResponse> => {
+    return apiClient.get<LiveSessionsResponse>(`/tracking/${researchId}/live`);
 };

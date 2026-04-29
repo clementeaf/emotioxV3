@@ -104,10 +104,6 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         setPlaying(true);
     };
 
-    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setCurrentTime(Number(e.target.value));
-    };
-
     if (isLoading) {
         return <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />;
     }
@@ -178,6 +174,15 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                 )}
             </div>
 
+            {/* Activity timeline bar */}
+            <ActivityTimeline
+                events={events}
+                startTs={startTs}
+                duration={duration}
+                currentTime={currentTime}
+                onSeek={(t) => setCurrentTime(t)}
+            />
+
             {/* Controls */}
             <div className="border-t border-gray-200 px-4 py-3 flex items-center gap-4">
                 <button
@@ -190,18 +195,18 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                     <SkipBack className="h-4 w-4" />
                 </button>
 
-                {/* Timeline */}
+                {/* Time display */}
                 <div className="flex-1 flex items-center gap-2">
-                    <span className="text-xs text-gray-500 font-mono w-12">{formatMs(currentTime)}</span>
-                    <input
-                        type="range"
-                        min={0}
-                        max={duration}
-                        value={currentTime}
-                        onChange={handleSeek}
-                        className="flex-1 h-1.5 bg-gray-200 rounded-full appearance-none cursor-pointer accent-blue-600"
-                    />
-                    <span className="text-xs text-gray-500 font-mono w-12">{formatMs(duration)}</span>
+                    <span className="text-xs text-gray-500 font-mono">{formatMs(currentTime)}</span>
+                    <span className="text-xs text-gray-400">/</span>
+                    <span className="text-xs text-gray-500 font-mono">{formatMs(duration)}</span>
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />Click</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300" />Move</span>
+                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-800" />Idle</span>
                 </div>
 
                 {/* Speed */}
@@ -227,4 +232,123 @@ const formatMs = (ms: number): string => {
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60);
     return `${m}:${String(s % 60).padStart(2, '0')}`;
+};
+
+// ─── Activity Timeline Bar ──────────────────────────────────────────
+// Mouseflow-style colored bar: red=click, light gray=mousemove, dark=idle
+
+interface ActivityTimelineProps {
+    events: Array<{ eventType: string; timestampMs: number }>;
+    startTs: number;
+    duration: number;
+    currentTime: number;
+    onSeek: (time: number) => void;
+}
+
+type SegmentType = 'click' | 'move' | 'idle';
+
+const SEGMENT_COLORS: Record<SegmentType, string> = {
+    click: '#EF4444',   // red
+    move: '#D1D5DB',    // gray-300
+    idle: '#1F2937',    // gray-800
+};
+
+const IDLE_THRESHOLD_MS = 2000;
+
+const ActivityTimeline = ({ events, startTs, duration, currentTime, onSeek }: ActivityTimelineProps) => {
+    const barRef = useRef<HTMLDivElement>(null);
+
+    // Build segments: classify each time slice by dominant activity
+    const segments = useMemo(() => {
+        if (duration <= 0 || events.length === 0) return [];
+
+        // Quantize into N buckets
+        const BUCKET_COUNT = Math.min(500, Math.max(100, Math.round(duration / 100)));
+        const bucketMs = duration / BUCKET_COUNT;
+        const buckets: SegmentType[] = new Array(BUCKET_COUNT).fill('idle');
+
+        for (const evt of events) {
+            const relTime = evt.timestampMs - startTs;
+            const idx = Math.min(BUCKET_COUNT - 1, Math.max(0, Math.floor(relTime / bucketMs)));
+
+            if (evt.eventType === 'click') {
+                buckets[idx] = 'click';
+                // Extend click visibility to adjacent buckets
+                if (idx > 0 && buckets[idx - 1] !== 'click') buckets[idx - 1] = 'click';
+                if (idx < BUCKET_COUNT - 1) buckets[idx + 1] = 'click';
+            } else if (evt.eventType === 'mousemove' || evt.eventType === 'scroll') {
+                if (buckets[idx] !== 'click') buckets[idx] = 'move';
+            }
+        }
+
+        // Mark gaps > IDLE_THRESHOLD as idle (override move)
+        let lastEventBucket = 0;
+        for (let i = 0; i < BUCKET_COUNT; i++) {
+            if (buckets[i] !== 'idle') {
+                lastEventBucket = i;
+            } else if ((i - lastEventBucket) * bucketMs > IDLE_THRESHOLD_MS) {
+                buckets[i] = 'idle';
+            }
+        }
+
+        // Merge consecutive same-type buckets into segments
+        const result: Array<{ type: SegmentType; startPct: number; widthPct: number }> = [];
+        let segStart = 0;
+        let segType = buckets[0];
+
+        for (let i = 1; i <= BUCKET_COUNT; i++) {
+            if (i === BUCKET_COUNT || buckets[i] !== segType) {
+                result.push({
+                    type: segType,
+                    startPct: (segStart / BUCKET_COUNT) * 100,
+                    widthPct: ((i - segStart) / BUCKET_COUNT) * 100,
+                });
+                if (i < BUCKET_COUNT) {
+                    segStart = i;
+                    segType = buckets[i];
+                }
+            }
+        }
+
+        return result;
+    }, [events, startTs, duration]);
+
+    const handleBarClick = (e: React.MouseEvent) => {
+        if (!barRef.current) return;
+        const rect = barRef.current.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        onSeek(pct * duration);
+    };
+
+    const playheadPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+    return (
+        <div className="px-4 pt-3">
+            <div
+                ref={barRef}
+                className="relative h-3 rounded-full overflow-hidden cursor-pointer"
+                style={{ backgroundColor: '#1F2937' }}
+                onClick={handleBarClick}
+            >
+                {/* Activity segments */}
+                {segments.map((seg, i) => (
+                    <div
+                        key={i}
+                        className="absolute top-0 h-full"
+                        style={{
+                            left: `${seg.startPct}%`,
+                            width: `${seg.widthPct}%`,
+                            backgroundColor: SEGMENT_COLORS[seg.type],
+                        }}
+                    />
+                ))}
+
+                {/* Playhead */}
+                <div
+                    className="absolute top-0 h-full w-0.5 bg-white shadow-sm"
+                    style={{ left: `${playheadPct}%`, zIndex: 10 }}
+                />
+            </div>
+        </div>
+    );
 };

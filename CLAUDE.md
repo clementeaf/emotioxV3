@@ -194,23 +194,22 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
 
-## Website Tracking (v0.65.0)
+## Website Tracking (v0.66.0)
 - **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
-- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS. Captures clicks, scroll, mousemove. `sendBeacon` with `text/plain` (avoids CORS preflight). Buffer cap 50 events, flush every 2s. Consent banner configurable (text, labels, position). `localStorage` visitor ID. Domain validation client-side.
-- **Coordinates:** Viewport-relative percentages. X = `clientX/innerWidth*100`, Y = `pageY/innerWidth*100`. Heatmap clusters by `ROUND(x,1)`. `HeatmapRenderer` uses `coordSystem="percent"`.
-- **SPA support:** Snippet intercepts `pushState`/`replaceState`/`popstate`. New session per route change. Listeners attach once, sessions re-create.
-- **Event buffering:** Capture starts immediately. Events buffer until session ID arrives, then flush. No clicks lost during session creation.
-- **Public endpoints (CORS `*`):** `POST .../session` (create, validates domain server-side), `POST .../events` (batch insert). Body as `text/plain` parsed by `express.text()`. OPTIONS preflight in tracking controller.
-- **Authenticated endpoints:** `/tracking/:id/overview`, `/heatmap?page=URL&device=mobile|tablet|desktop`, `/pages`, `/sessions`, `/verify?since=N`, `/snippet`, `PUT /config`.
-- **Domain validation:** Client-side `checkDomain()` at init + server-side `createSession` validates `Origin`/`Referer` against `allowedDomains`.
-- **Tables:** `tracking_sessions` (visitor, page, viewport, UA), `tracking_events` (click/scroll/mousemove, x/y as %, selector, timestamp), `tracking_pages` (URL, screenshot s3key).
-- **Embed snippet:** `generateEmbedSnippet` outputs `<!-- EmotioCX Web Tracker -->` + `<script>` loader with `?v=` hourly cache-busting.
-- **apiBaseUrl:** Uses `process.env.API_BASE_URL || 'https://emotio.cx/api'` (not derived from Host header).
-- **Script in draft:** `getTrackingConfig` no longer checks research status. Script servable in draft for testing. `createSession` still enforces active status.
-- **Builder:** `WebsiteTrackingConfig` — setup checklist (4 steps), snippet copiable, domain whitelist, capture toggles (clicks/scroll/mousemove), consent config (text/labels/position). "Verify Installation" polls 60s for real sessions with countdown. Screenshot upload prompt post-verification.
-- **Results:** `WebsiteTrackingResults` — overview cards + page selector + click heatmap with device filter (All/Desktop/Tablet/Mobile) + tracked pages table.
-- **Multi-viewport:** Heatmap endpoint accepts `?device=mobile|tablet|desktop`. Breakpoints: mobile <768, tablet 768-1024, desktop >1024.
-- **Detection:** `isWebsiteTracking` added to `isFileBasedResearch` in builder, sidebar, create form, results page.
+- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS. Captures clicks, scroll, mousemove. `sendBeacon` with `application/json`. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server.
+- **Coordinates:** Viewport-relative percentages. X = `clientX/innerWidth*100`, Y = `pageY/innerWidth*100`. Heatmap clusters by `ROUND(x,1)`.
+- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session per route. Listeners attach once.
+- **Event buffering:** Capture starts immediately. Events buffer until session ID arrives, then flush.
+- **DOM snapshot:** Snippet captures `document.documentElement.outerHTML` (scripts stripped, URLs absolutized) after session creation. Stored in `tracking_pages.page_snapshot`. Frontend renders in sandboxed iframe with heatmap canvas overlay (`PageSnapshotHeatmap`).
+- **Friction detection:** Snippet auto-detects dead-click (non-interactive element), rage-click (3+ in 1s same area), speed-browsing (<2s on page), mouse-out (visibility hidden). Stored in `metadata.friction`. Endpoints: `/friction` (summary), `/friction/sessions` (per-session tags).
+- **Public endpoints (CORS `*`):** `POST .../session`, `POST .../events`, `POST .../snapshot`. OPTIONS in tracking controller.
+- **Authenticated endpoints:** `/overview?from&to`, `/heatmap?page&device`, `/attention?page&device`, `/pages`, `/sessions`, `/visitors`, `/live`, `/verify?since`, `/friction`, `/friction/sessions`, `/snapshot?page`, `/scroll?page`, `/funnels`, `/export`, `/snippet`, `PUT /config`.
+- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired` + `consentText`/`consentAcceptLabel`/`consentDeclineLabel`/`consentPosition`. `samplingRate` (1-100%), `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`.
+- **Builder:** `WebsiteTrackingConfig` — compact 3-column layout (Snippet, Domains, Capture). Setup checklist + status badge (Recording/Draft). Sampling slider, IP exclusion, page targeting, data retention. Consent customization row. Verify polls 60s. Sidebar: "Tracking Configuration" + "View Results" links.
+- **Results tabs:** Heatmaps (Click/Scroll/Attention sub-tabs with page metrics table + intensity/opacity sliders), Visitors (expandable journey with page breakdown), Sessions (replay + friction badges), Live (5s polling, green dot), Funnels. Date range filter on overview.
+- **Session replay:** `SessionReplayPlayer` with Mouseflow-style activity timeline bar (red=click, gray=move, dark=idle). Clickable seek + playhead.
+- **Multi-viewport:** `?device=mobile|tablet|desktop`. Breakpoints: mobile <768, tablet 768-1024, desktop >1024.
+- **Detection:** `isWebsiteTracking` in `isFileBasedResearch`. Sidebar shows config + results.
 
 ## Eye Tracking (v0.58.0)
 - **Motor:** BlazeGaze CNN (670KB, `webeyetrack`) — imagen de ojos + head pose
