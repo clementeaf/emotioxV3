@@ -654,6 +654,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                 currentStatus={activeResearch?.status}
                 isUpdatingStatus={isUpdatingStatus}
                 onChangeStatus={handleChangeStatus}
+                researchTypeName={activeResearch?.research_type_name}
             />
 
             {activeResearch && (

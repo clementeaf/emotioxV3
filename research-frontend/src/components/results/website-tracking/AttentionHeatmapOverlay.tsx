@@ -51,11 +51,10 @@ export const AttentionHeatmapOverlay = ({
     const points = useMemo(() => {
         if (!data?.points || !naturalSize.width) return [];
         const w = naturalSize.width;
-        const h = naturalSize.height;
         const max = data.maxDwell || 1;
         return data.points.map(p => [
             (p.x / 100) * w,
-            (p.y / 100) * h,
+            (p.y / 100) * w,
             p.dwell / max,
         ] as [number, number, number]);
     }, [data, naturalSize]);

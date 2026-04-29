@@ -6,7 +6,40 @@ interface StatusModalProps {
     currentStatus: string | undefined;
     isUpdatingStatus: boolean;
     onChangeStatus: (newStatus: string) => void;
+    researchTypeName?: string;
 }
+
+const getStatusDescriptions = (typeName?: string) => {
+    const lower = (typeName || '').toLowerCase();
+
+    if (lower.includes('website tracking')) {
+        return {
+            draft: 'Return to draft to edit tracking configuration. The script will stop recording new sessions.',
+            active: 'Start recording. The tracking script will capture visitor interactions.',
+            completed: 'Stop tracking. No new sessions will be recorded.',
+        };
+    }
+    if (lower.includes('attention prediction')) {
+        return {
+            draft: 'Return to draft to upload or change stimuli.',
+            active: 'Make the prediction analysis available.',
+            completed: 'Close the analysis. No further changes.',
+        };
+    }
+    if (lower.includes('insights finding')) {
+        return {
+            draft: 'Return to draft to upload or change documents.',
+            active: 'Make the analysis available.',
+            completed: 'Close the analysis. No further changes.',
+        };
+    }
+    // Default: survey-oriented
+    return {
+        draft: 'Return to draft to edit configuration, participation mode, and modules.',
+        active: 'Make available for participants.',
+        completed: 'Close the research. No new responses will be accepted.',
+    };
+};
 
 export const StatusModal = ({
     isOpen,
@@ -14,7 +47,10 @@ export const StatusModal = ({
     currentStatus,
     isUpdatingStatus,
     onChangeStatus,
+    researchTypeName,
 }: StatusModalProps) => {
+    const descriptions = getStatusDescriptions(researchTypeName);
+
     return (
         <Modal
             isOpen={isOpen}
@@ -35,7 +71,7 @@ export const StatusModal = ({
                     >
                         <div className="font-medium text-gray-900">Draft</div>
                         <p className="text-xs text-gray-500 mt-1">
-                            Return to draft to edit configuration, participation mode, and modules.
+                            {descriptions.draft}
                         </p>
                     </button>
                 )}
@@ -48,7 +84,7 @@ export const StatusModal = ({
                     >
                         <div className="font-medium text-blue-900">Active</div>
                         <p className="text-xs text-blue-700 mt-1">
-                            Make available for participants.
+                            {descriptions.active}
                         </p>
                     </button>
                 )}
@@ -61,7 +97,7 @@ export const StatusModal = ({
                     >
                         <div className="font-medium text-green-900">Completed</div>
                         <p className="text-xs text-green-700 mt-1">
-                            Close the research. No new responses will be accepted.
+                            {descriptions.completed}
                         </p>
                     </button>
                 )}

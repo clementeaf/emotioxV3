@@ -1,19 +1,34 @@
 /**
  * Session Replay Player
- * Animates cursor movement and clicks over a page screenshot.
+ * Animates cursor movement and clicks over a DOM snapshot.
+ * Rendered as a modal overlay.
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Play, Pause, SkipBack } from 'lucide-react';
+import { Play, Pause, SkipBack, X } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
-import { resolveMediaUrl } from '../../../services/media.service';
 
 interface SessionReplayPlayerProps {
     researchId: string;
     sessionId: string;
     onClose: () => void;
 }
+
+/**
+ * Strip scripts/handlers from snapshot HTML.
+ */
+const sanitizeSnapshot = (html: string): string => {
+    let clean = html;
+    clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    clean = clean.replace(/<script\b[^>]*\/>/gi, '');
+    clean = clean.replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '');
+    clean = clean.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
+    clean = clean.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+    clean = clean.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"');
+    clean = clean.replace(/href\s*=\s*'javascript:[^']*'/gi, "href='#'");
+    return clean;
+};
 
 export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionReplayPlayerProps) => {
     const { data, isLoading } = useQuery({
@@ -27,6 +42,8 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     const animRef = useRef<number>(0);
     const lastFrameRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const [iframeReady, setIframeReady] = useState(false);
 
     const events = useMemo(() => data?.events || [], [data?.events]);
     const session = data?.session;
@@ -35,10 +52,25 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     const endTs = events.length > 0 ? events[events.length - 1].timestampMs : 0;
     const duration = endTs - startTs;
 
-    const screenshotUrl = useMemo(() => {
-        if (!session?.screenshotS3Key) return null;
-        return resolveMediaUrl(session.screenshotS3Key);
-    }, [session]);
+    // Fetch DOM snapshot for the session's page
+    const { data: snapshotHtml } = useQuery({
+        queryKey: ['tracking', researchId, 'snapshot', session?.pageUrl],
+        queryFn: () => trackingService.getPageSnapshot(researchId, session!.pageUrl),
+        enabled: !!session?.pageUrl,
+        staleTime: 60_000,
+    });
+
+    const srcdoc = useMemo(() => {
+        if (!snapshotHtml) return '';
+        const sanitized = sanitizeSnapshot(snapshotHtml);
+        const injectStyle = `<style>
+            * { pointer-events: none !important; user-select: none !important; }
+            html, body { overflow: hidden !important; margin: 0 !important; }
+        </style>`;
+        return sanitized.replace('</head>', injectStyle + '</head>');
+    }, [snapshotHtml]);
+
+    const handleIframeLoad = useCallback(() => { setIframeReady(true); }, []);
 
     // Current cursor position based on time
     const cursorState = useMemo(() => {
@@ -104,125 +136,140 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         setPlaying(true);
     };
 
-    if (isLoading) {
-        return <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />;
-    }
+    // Close on Escape key
+    useEffect(() => {
+        const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, [onClose]);
 
-    if (!data || events.length === 0) {
+    const modalContent = (() => {
+        if (isLoading) {
+            return <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />;
+        }
+
+        if (!data || events.length === 0) {
+            return (
+                <div className="text-center py-12 text-gray-500 text-sm">No events in this session.</div>
+            );
+        }
+
         return (
-            <div className="text-center py-12 text-gray-500 text-sm">No events in this session.</div>
-        );
-    }
+            <>
+                {/* Replay viewport */}
+                <div
+                    ref={containerRef}
+                    className="relative bg-gray-900 overflow-hidden flex-1 min-h-0"
+                >
+                    {srcdoc ? (
+                        <iframe
+                            ref={iframeRef}
+                            srcDoc={srcdoc}
+                            sandbox="allow-same-origin"
+                            onLoad={handleIframeLoad}
+                            className="w-full h-full border-0"
+                            style={{ pointerEvents: 'none' }}
+                            title="Session replay snapshot"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+                            {snapshotHtml === undefined ? 'Loading snapshot...' : 'No page snapshot available'}
+                        </div>
+                    )}
 
-    // Scale coordinates from page pixels to rendered container
-    const vw = session?.viewportWidth || 1920;
-    const vh = session?.viewportHeight || 1080;
+                    {/* Cursor */}
+                    {cursorState.visible && (iframeReady || !srcdoc) && (
+                        <div
+                            className="absolute pointer-events-none transition-all duration-75"
+                            style={{
+                                left: `${cursorState.x}%`,
+                                top: `${cursorState.y}%`,
+                                transform: 'translate(-4px, -4px)',
+                            }}
+                        >
+                            <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg transition-all ${
+                                cursorState.clicking ? 'bg-red-500 scale-150' : 'bg-blue-500'
+                            }`} />
+                            {cursorState.clicking && (
+                                <div className="absolute inset-0 -m-3 w-10 h-10 rounded-full border-2 border-red-400 animate-ping opacity-50" />
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Activity timeline bar */}
+                <ActivityTimeline
+                    events={events}
+                    startTs={startTs}
+                    duration={duration}
+                    currentTime={currentTime}
+                    onSeek={(t) => setCurrentTime(t)}
+                />
+
+                {/* Controls */}
+                <div className="border-t border-gray-200 px-4 py-3 flex items-center gap-4">
+                    <button
+                        onClick={() => setPlaying(!playing)}
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    </button>
+                    <button onClick={handleRestart} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <SkipBack className="h-4 w-4" />
+                    </button>
+
+                    <div className="flex-1 flex items-center gap-2">
+                        <span className="text-xs text-gray-500 font-mono">{formatMs(currentTime)}</span>
+                        <span className="text-xs text-gray-400">/</span>
+                        <span className="text-xs text-gray-500 font-mono">{formatMs(duration)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />Click</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300" />Move</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-800" />Idle</span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                        {[1, 2, 4].map((s) => (
+                            <button
+                                key={s}
+                                onClick={() => setSpeed(s)}
+                                className={`px-2 py-1 text-xs rounded transition-colors ${
+                                    speed === s ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-100'
+                                }`}
+                            >
+                                {s}x
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </>
+        );
+    })();
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {/* Header */}
-            <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-sm font-semibold text-slate-800">Session Replay</h3>
-                    <span className="text-xs text-gray-500">{session?.pageTitle || session?.pageUrl}</span>
-                    <span className="text-xs text-gray-400">
-                        {events.length} events &middot; {formatMs(duration)}
-                    </span>
-                </div>
-                <button onClick={onClose} className="text-xs text-gray-500 hover:text-gray-700">&times; Close</button>
-            </div>
-
-            {/* Replay viewport */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
             <div
-                ref={containerRef}
-                className="relative bg-gray-900 overflow-hidden"
-                style={{ aspectRatio: `${vw}/${vh}`, maxHeight: '500px' }}
+                className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col"
+                style={{ width: '90vw', maxWidth: 1200, height: '85vh' }}
+                onClick={(e) => e.stopPropagation()}
             >
-                {screenshotUrl ? (
-                    <img
-                        src={screenshotUrl}
-                        alt="Page screenshot"
-                        className="w-full h-full object-contain"
-                        draggable={false}
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-                        No screenshot — cursor replay only
+                {/* Header */}
+                <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-slate-800">Session Replay</h3>
+                        <span className="text-xs text-gray-500">{session?.pageTitle || session?.pageUrl}</span>
+                        <span className="text-xs text-gray-400">
+                            {events.length} events &middot; {formatMs(duration)}
+                        </span>
                     </div>
-                )}
-
-                {/* Cursor */}
-                {cursorState.visible && (
-                    <div
-                        className="absolute pointer-events-none transition-all duration-75"
-                        style={{
-                            left: `${(cursorState.x / vw) * 100}%`,
-                            top: `${(cursorState.y / vh) * 100}%`,
-                            transform: 'translate(-4px, -4px)',
-                        }}
-                    >
-                        {/* Cursor dot */}
-                        <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg transition-all ${
-                            cursorState.clicking ? 'bg-red-500 scale-150' : 'bg-blue-500'
-                        }`} />
-
-                        {/* Click ripple */}
-                        {cursorState.clicking && (
-                            <div className="absolute inset-0 -m-3 w-10 h-10 rounded-full border-2 border-red-400 animate-ping opacity-50" />
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Activity timeline bar */}
-            <ActivityTimeline
-                events={events}
-                startTs={startTs}
-                duration={duration}
-                currentTime={currentTime}
-                onSeek={(t) => setCurrentTime(t)}
-            />
-
-            {/* Controls */}
-            <div className="border-t border-gray-200 px-4 py-3 flex items-center gap-4">
-                <button
-                    onClick={() => setPlaying(!playing)}
-                    className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                    {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </button>
-                <button onClick={handleRestart} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                    <SkipBack className="h-4 w-4" />
-                </button>
-
-                {/* Time display */}
-                <div className="flex-1 flex items-center gap-2">
-                    <span className="text-xs text-gray-500 font-mono">{formatMs(currentTime)}</span>
-                    <span className="text-xs text-gray-400">/</span>
-                    <span className="text-xs text-gray-500 font-mono">{formatMs(duration)}</span>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                        <X className="h-4 w-4 text-gray-500" />
+                    </button>
                 </div>
 
-                {/* Legend */}
-                <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />Click</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300" />Move</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-800" />Idle</span>
-                </div>
-
-                {/* Speed */}
-                <div className="flex items-center gap-1">
-                    {[1, 2, 4].map((s) => (
-                        <button
-                            key={s}
-                            onClick={() => setSpeed(s)}
-                            className={`px-2 py-1 text-xs rounded transition-colors ${
-                                speed === s ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-500 hover:bg-gray-100'
-                            }`}
-                        >
-                            {s}x
-                        </button>
-                    ))}
-                </div>
+                {modalContent}
             </div>
         </div>
     );

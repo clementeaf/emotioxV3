@@ -7,6 +7,17 @@ import apiClient from './api/client';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
+export interface FunnelStep {
+    url: string;
+    label: string;
+}
+
+export interface FunnelDefinition {
+    id: string;
+    name: string;
+    steps: FunnelStep[];
+}
+
 export interface TrackingConfig {
     captureClicks: boolean;
     captureScroll: boolean;
@@ -24,6 +35,20 @@ export interface TrackingConfig {
     targetPages: string[];
     excludePages: string[];
     dataRetentionDays: number;
+    funnels?: FunnelDefinition[];
+}
+
+export interface FunnelDropoffResult {
+    funnel: { id: string; name: string };
+    steps: Array<{
+        url: string;
+        label: string;
+        visitors: number;
+        percentage: number;
+        dropoff: number;
+    }>;
+    totalVisitors: number;
+    conversionRate: number;
 }
 
 export interface TrackingOverview {
@@ -44,6 +69,7 @@ export interface TrackedPage {
     viewportHeight: number | null;
     sessionCount: number;
     eventCount: number;
+    lastVisitedAt: string | null;
 }
 
 export interface ClickHeatmapData {
@@ -114,6 +140,10 @@ export const verifyInstallation = async (
 export const getEmbedSnippet = async (researchId: string): Promise<string> => {
     const response = await apiClient.get<{ snippet: string }>(`/tracking/${researchId}/snippet`);
     return response.snippet;
+};
+
+export const getTrackingConfig = async (researchId: string): Promise<TrackingConfig> => {
+    return apiClient.get<TrackingConfig>(`/tracking/${researchId}/config`);
 };
 
 export const updateConfig = async (
@@ -189,6 +219,10 @@ export interface FunnelData {
 
 export const getFunnels = async (researchId: string): Promise<FunnelData> => {
     return apiClient.get<FunnelData>(`/tracking/${researchId}/funnels`);
+};
+
+export const getFunnelDropoff = async (researchId: string, funnelId: string): Promise<FunnelDropoffResult> => {
+    return apiClient.get<FunnelDropoffResult>(`/tracking/${researchId}/funnels/${funnelId}`);
 };
 
 // ─── Export ──────────────────────────────────────────────────────────

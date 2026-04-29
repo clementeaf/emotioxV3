@@ -1,3 +1,25 @@
+## v0.66.1 — Website Tracking: fix snippet crash, heatmap coordinates, configurable funnels, replay modal (2026-04-29)
+
+### backend
+- **Fix: snippet `pageStart` scope crash.** Variable declared inside `startCapture` but assigned in `createNewSession` — `"use strict"` threw silent `ReferenceError`, preventing all session creation. Moved to IIFE scope.
+- **Fix: `getTrackedPages` adds `lastVisitedAt`.** `MAX(started_at)` included in query and response.
+- **Tracking config returns `funnels`.** `getTrackingConfig` now includes `funnels[]` from stored config.
+- **Authenticated GET config endpoint.** `GET /tracking/:id/config` (auth) returns full tracking config including funnels.
+- **Configurable funnels.** `FunnelDefinition` type: `{id, name, steps: [{url, label}]}`. Stored in `config.trackingConfig.funnels`. New `computeFunnelDropoff` computes sequential visitor reach per step.
+- **Funnel drop-off endpoint.** `GET /tracking/:id/funnels/:funnelId` returns per-step visitor count, percentage, drop-off, and overall conversion rate.
+
+### research-frontend
+- **Fix: heatmap Y coordinates.** Click, attention, and scroll overlays used `(y/100)*height` but Y is stored as `pageY/viewportWidth*100`. Changed to `(y/100)*width` in `PageSnapshotHeatmap` and `AttentionHeatmapOverlay`.
+- **Scroll tab uses DOM snapshot.** `PageSnapshotHeatmap` now supports `heatmapType="scroll"` — renders color-gradient bands (green→red) with percentage labels over the page snapshot. Replaces standalone `ScrollDepthChart` when a page is selected.
+- **Session replay as modal.** `SessionReplayPlayer` renders as a fixed overlay (90vw×85vh) instead of replacing the results view. Closes on `×`, backdrop click, or Escape. Uses DOM snapshot iframe instead of requiring a screenshot.
+- **Last Visit column.** Pages table shows formatted date+time (`dd/mm/yy HH:mm`) in a new "Last Visit" column.
+- **Date+time in Sessions tab.** DATE column now includes time via `formatDateTime`.
+- **Date+time in Visitors tab.** Last seen timestamp shown above page count.
+- **Configurable funnels UI.** "Create Funnel" button in Funnels tab. Inline editor with name + ordered URL steps + labels. Edit/delete existing funnels. `FunnelDropoffCard` shows step-by-step bars with visitor counts, percentages, drop-off between steps, and conversion rate badge.
+- **Status modal contextual texts.** `StatusModal` accepts `researchTypeName` and adapts Draft/Active/Completed descriptions for Website Tracking, Attention Prediction, and Insights Finding.
+
+---
+
 ## v0.66.0 — Website Tracking: heatmap views, session replay timeline, friction tags, live sessions (2026-04-29)
 
 ### backend

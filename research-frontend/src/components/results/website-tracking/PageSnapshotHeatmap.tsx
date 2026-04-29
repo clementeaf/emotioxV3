@@ -12,7 +12,7 @@ import * as trackingService from '../../../services/tracking.service';
 interface PageSnapshotHeatmapProps {
     researchId: string;
     pageUrl: string;
-    heatmapType: 'click' | 'attention';
+    heatmapType: 'click' | 'scroll' | 'attention';
     device?: 'mobile' | 'tablet' | 'desktop';
 }
 
@@ -34,6 +34,27 @@ const sanitizeSnapshot = (html: string): string => {
     clean = clean.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"');
     clean = clean.replace(/href\s*=\s*'javascript:[^']*'/gi, "href='#'");
     return clean;
+};
+
+// Map scroll reach percentage to color (green=most viewed → red=least viewed)
+const scrollPctToColor = (pct: number): string => {
+    const stops = [
+        { at: 100, color: [134, 239, 172] }, // green-300
+        { at: 75, color: [253, 224, 71] },   // yellow-300
+        { at: 50, color: [251, 146, 60] },   // orange-300
+        { at: 25, color: [252, 165, 165] },  // red-300
+        { at: 0, color: [253, 164, 175] },   // rose-300
+    ];
+    for (let i = 0; i < stops.length - 1; i++) {
+        if (pct >= stops[i + 1].at) {
+            const range = stops[i].at - stops[i + 1].at;
+            const t = range > 0 ? (pct - stops[i + 1].at) / range : 0;
+            const c = stops[i + 1].color.map((v, j) => Math.round(v + (stops[i].color[j] - v) * t));
+            return `rgb(${c[0]},${c[1]},${c[2]})`;
+        }
+    }
+    const last = stops[stops.length - 1].color;
+    return `rgb(${last[0]},${last[1]},${last[2]})`;
 };
 
 export const PageSnapshotHeatmap = ({
@@ -69,6 +90,14 @@ export const PageSnapshotHeatmap = ({
         queryKey: ['tracking', researchId, 'attention', pageUrl, device || 'all'],
         queryFn: () => trackingService.getAttentionHeatmap(researchId, pageUrl, device),
         enabled: heatmapType === 'attention' && !!snapshotHtml,
+        staleTime: 10_000,
+    });
+
+    // Fetch scroll depth data
+    const { data: scrollData } = useQuery({
+        queryKey: ['tracking', researchId, 'scroll', pageUrl],
+        queryFn: () => trackingService.getScrollDepth(researchId, pageUrl),
+        enabled: heatmapType === 'scroll' && !!snapshotHtml,
         staleTime: 10_000,
     });
 
@@ -120,11 +149,58 @@ export const PageSnapshotHeatmap = ({
         canvas.width = w;
         canvas.height = h;
 
-        // Dark overlay — controlled by opacity slider
+        if (heatmapType === 'scroll' && scrollData?.depths) {
+            // Scroll depth: gradient bands over the snapshot
+            const depths = scrollData.depths;
+            if (depths.length === 0) return;
+            const bandHeight = h / depths.length;
+
+            for (let i = 0; i < depths.length; i++) {
+                const d = depths[i];
+                const y = i * bandHeight;
+                const color = scrollPctToColor(d.percentage);
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.55;
+                ctx.fillRect(0, y, w, bandHeight);
+
+                // Percentage label pill on right edge
+                ctx.globalAlpha = 1;
+                const label = `${d.percentage}%`;
+                ctx.font = `bold ${Math.max(14, Math.round(w * 0.018))}px -apple-system, sans-serif`;
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                const labelY = y + bandHeight / 2;
+                const labelX = w - 12;
+                const metrics = ctx.measureText(label);
+                const pillW = metrics.width + 16;
+                const pillH = Math.max(20, Math.round(w * 0.022));
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.beginPath();
+                ctx.roundRect(labelX - pillW, labelY - pillH / 2, pillW + 4, pillH, 4);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.fillText(label, labelX, labelY + 1);
+            }
+
+            // Divider lines
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            for (let i = 1; i < depths.length; i++) {
+                const y = i * bandHeight;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+            return;
+        }
+
+        // Click / Attention: dark overlay + simpleheat
         ctx.fillStyle = `rgba(0, 0, 0, ${opacity / 100})`;
         ctx.fillRect(0, 0, w, h);
 
-        // Build heatmap — radius controlled by intensity slider
         const heatCanvas = document.createElement('canvas');
         heatCanvas.width = w;
         heatCanvas.height = h;
@@ -140,7 +216,7 @@ export const PageSnapshotHeatmap = ({
                 0.7: '#f80', 0.85: '#f00', 1.0: '#fff',
             });
             const points: Array<[number, number, number]> = clickData.clicks.map(c => [
-                (c.x / 100) * w, (c.y / 100) * h, c.count,
+                (c.x / 100) * w, (c.y / 100) * w, c.count,
             ]);
             heat.data(points);
             heat.max(Math.max(3, Math.ceil(points.length * 0.05)));
@@ -153,7 +229,7 @@ export const PageSnapshotHeatmap = ({
             });
             const max = attentionData.maxDwell || 1;
             const points: Array<[number, number, number]> = attentionData.points.map(p => [
-                (p.x / 100) * w, (p.y / 100) * h, p.dwell / max,
+                (p.x / 100) * w, (p.y / 100) * w, p.dwell / max,
             ]);
             heat.data(points);
             heat.max(1);
@@ -161,7 +237,7 @@ export const PageSnapshotHeatmap = ({
         }
 
         ctx.drawImage(heatCanvas, 0, 0);
-    }, [iframeReady, dimensions, heatmapType, clickData, attentionData, intensity, opacity]);
+    }, [iframeReady, dimensions, heatmapType, clickData, attentionData, scrollData, intensity, opacity]);
 
     if (!snapshotHtml) {
         return (
@@ -174,7 +250,8 @@ export const PageSnapshotHeatmap = ({
 
     return (
         <div>
-            {/* Sliders */}
+            {/* Sliders — not applicable for scroll overlay */}
+            {heatmapType !== 'scroll' && (
             <div className="flex items-center gap-6 mb-2 px-1">
                 <label className="flex items-center gap-2 text-[11px] text-slate-600">
                     Intensity
@@ -185,6 +262,7 @@ export const PageSnapshotHeatmap = ({
                     <input type="range" min={0} max={80} value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="w-24 h-1 accent-blue-600" />
                 </label>
             </div>
+            )}
         <div
             ref={containerRef}
             className="relative overflow-auto rounded-lg border border-gray-200 bg-gray-900"

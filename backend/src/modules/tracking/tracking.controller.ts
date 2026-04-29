@@ -18,6 +18,7 @@ import {
     getSessions,
     getSessionEvents,
     getPageFunnels,
+    computeFunnelDropoff,
     getExportData,
     savePageScreenshot,
     saveTrackingConfig,
@@ -224,6 +225,14 @@ export const handleTrackingRoutes = async (
     try {
         await requireAuth(event);
 
+        // GET /tracking/:researchId/config — get tracking config (authenticated)
+        const configGetMatch = path.match(/^\/tracking\/([^/]+)\/config$/);
+        if (configGetMatch && httpMethod === 'GET') {
+            const researchId = configGetMatch[1];
+            const config = await getTrackingConfig(researchId);
+            return success(config, 200, undefined, origin);
+        }
+
         // GET /tracking/:researchId/verify — check for recent sessions (for installation verification)
         const verifyMatch = path.match(/^\/tracking\/([^/]+)\/verify$/);
         if (verifyMatch && httpMethod === 'GET') {
@@ -289,6 +298,15 @@ export const handleTrackingRoutes = async (
         if (sessionEventsMatch && httpMethod === 'GET') {
             const sessionId = sessionEventsMatch[2];
             const data = await getSessionEvents(sessionId);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/funnels/:funnelId — custom funnel drop-off
+        const funnelDetailMatch = path.match(/^\/tracking\/([^/]+)\/funnels\/([^/]+)$/);
+        if (funnelDetailMatch && httpMethod === 'GET') {
+            const researchId = funnelDetailMatch[1];
+            const funnelId = funnelDetailMatch[2];
+            const data = await computeFunnelDropoff(researchId, funnelId);
             return success(data, 200, undefined, origin);
         }
 

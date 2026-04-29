@@ -110,7 +110,7 @@ function flush(){
     }catch(e){}
 }
 
-var capturing=false,lastUrl="",snapshotSent={};
+var capturing=false,lastUrl="",snapshotSent={},pageStart=Date.now();
 
 // Capture DOM snapshot — strip scripts, absolutize URLs, send once per page URL
 function captureSnapshot(){
@@ -211,7 +211,7 @@ function showConsent(){
 // Capture listeners — attach immediately, events buffer until session is ready
 function startCapture(){
     // Friction detection state
-    var clickLog=[],pageStart=Date.now();
+    var clickLog=[];
 
     if(C.clicks){
         document.addEventListener("click",function(e){

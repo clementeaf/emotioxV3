@@ -20,6 +20,12 @@ import { PageSnapshotHeatmap } from './PageSnapshotHeatmap';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
 import { FunnelChart } from './FunnelChart';
 
+const formatDateTime = (iso: string): string => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+};
+
 type ResultTab = 'heatmaps' | 'sessions' | 'visitors' | 'live' | 'funnels';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention';
 
@@ -128,16 +134,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         );
     }
 
-    // If replay is open, show it full-width
-    if (replaySessionId) {
-        return (
-            <SessionReplayPlayer
-                researchId={researchId}
-                sessionId={replaySessionId}
-                onClose={() => setReplaySessionId(null)}
-            />
-        );
-    }
+    // Replay modal rendered at the end of the component, not as early return
 
     const tabs: Array<{ id: ResultTab; label: string; icon: React.ReactNode }> = [
         { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" /> },
@@ -219,6 +216,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                             <thead>
                                 <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase">
                                     <th className="text-left px-4 py-2 font-medium">Page</th>
+                                    <th className="text-right px-2 py-2 font-medium">Last Visit</th>
                                     <th className="text-right px-2 py-2 font-medium">Views</th>
                                     <th className="text-right px-2 py-2 font-medium">Clicks</th>
                                     <th className="text-right px-2 py-2 font-medium">Snapshot</th>
@@ -239,6 +237,9 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                             <span className={`truncate block max-w-[300px] ${selectedPageUrl === page.pageUrl ? 'text-blue-700 font-medium' : 'text-slate-700'}`}>
                                                 {page.pageTitle || shortenUrl(page.pageUrl)}
                                             </span>
+                                        </td>
+                                        <td className="text-right px-2 py-2 text-gray-400 text-[10px] whitespace-nowrap">
+                                            {page.lastVisitedAt ? formatDateTime(page.lastVisitedAt) : '—'}
                                         </td>
                                         <td className="text-right px-2 py-2 text-gray-600">{page.sessionCount}</td>
                                         <td className="text-right px-2 py-2 text-gray-600">{page.eventCount}</td>
@@ -320,8 +321,15 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                             </div>
                         )}
 
-                        {heatmapSubTab === 'scroll' && (
-                            <ScrollDepthChart researchId={researchId} pageUrl={selectedPageUrl} />
+                        {heatmapSubTab === 'scroll' && selectedPageUrl && (
+                            <PageSnapshotHeatmap
+                                researchId={researchId}
+                                pageUrl={selectedPageUrl}
+                                heatmapType="scroll"
+                            />
+                        )}
+                        {heatmapSubTab === 'scroll' && !selectedPageUrl && (
+                            <ScrollDepthChart researchId={researchId} />
                         )}
 
                         {heatmapSubTab === 'attention' && selectedPageUrl && (
@@ -363,6 +371,15 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                 <div className="bg-white rounded-xl border border-gray-200 p-5">
                     <FunnelChart researchId={researchId} />
                 </div>
+            )}
+
+            {/* Session Replay Modal */}
+            {replaySessionId && (
+                <SessionReplayPlayer
+                    researchId={researchId}
+                    sessionId={replaySessionId}
+                    onClose={() => setReplaySessionId(null)}
+                />
             )}
         </div>
     );
@@ -422,7 +439,7 @@ const sessionColumns = (onReplay: (id: string) => void, frictionTags?: Record<st
         key: 'date',
         header: 'Date',
         align: 'right',
-        render: (s) => <span className="text-gray-400">{new Date(s.startedAt).toLocaleDateString()}</span>,
+        render: (s) => <span className="text-gray-400">{formatDateTime(s.startedAt)}</span>,
     },
     {
         key: 'replay',
@@ -548,6 +565,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                     </p>
                                 </div>
                                 <div className="text-right shrink-0">
+                                    <p className="text-[10px] text-gray-400">{visitor.lastSeen ? formatDateTime(visitor.lastSeen as string) : ''}</p>
                                     <p className="text-xs text-gray-500">{visitor.sessionCount} page{visitor.sessionCount !== 1 ? 's' : ''}</p>
                                     <p className="text-xs text-gray-400">{formatMs(visitor.totalDurationMs)}</p>
                                 </div>

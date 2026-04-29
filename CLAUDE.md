@@ -110,6 +110,11 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Benchmark research editor**: `ClientsBenchmarkView` has "Edit selection" panel — checkboxes for all ET researches. Saves to `config.stimuli[].researchId`. Live refresh.
 - **Benchmark CSV export**: "Export CSV" button on comparative table.
 - **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.
+- **Website Tracking coordinates**: Both X and Y stored as `coord/viewportWidth*100`. Rendering must multiply by **width**, not height: `(y/100)*w`.
+- **Website Tracking snippet**: `"use strict"` IIFE. All shared vars (`sid`, `vid`, `buf`, `pageStart`, etc.) must be declared at IIFE scope, not inside nested functions.
+- **Configurable funnels**: `config.trackingConfig.funnels` — array of `{id, name, steps: [{url, label}]}`. `computeFunnelDropoff` checks sequential visitor reach. Endpoint: `GET /tracking/:id/funnels/:funnelId`.
+- **Session replay modal**: `SessionReplayPlayer` renders as fixed overlay, not inline. Uses DOM snapshot (iframe) for background, not screenshots.
+- **Status modal contextual**: `StatusModal` adapts descriptions per `researchTypeName` — Website Tracking, Attention Prediction, Insights Finding have specific texts.
 
 ## Key Files
 ### Backend

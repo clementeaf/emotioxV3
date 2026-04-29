@@ -35,6 +35,17 @@ interface TrackingEvent {
     metadata?: Record<string, unknown>;
 }
 
+interface FunnelStep {
+    url: string;
+    label: string;
+}
+
+interface FunnelDefinition {
+    id: string;
+    name: string;
+    steps: FunnelStep[];
+}
+
 interface TrackingConfig {
     captureClicks: boolean;
     captureScroll: boolean;
@@ -52,6 +63,7 @@ interface TrackingConfig {
     targetPages: string[];
     excludePages: string[];
     dataRetentionDays: number;
+    funnels?: FunnelDefinition[];
 }
 
 // ─── Session Management ──────────────────────────────────────────────
@@ -228,6 +240,7 @@ export const getTrackingConfig = async (researchId: string): Promise<TrackingCon
         targetPages: (trackingConfig.targetPages as string[]) || [],
         excludePages: (trackingConfig.excludePages as string[]) || [],
         dataRetentionDays: (trackingConfig.dataRetentionDays as number) || 90,
+        funnels: (trackingConfig.funnels as FunnelDefinition[]) || [],
     };
 };
 
@@ -370,7 +383,8 @@ export const getTrackedPages = async (researchId: string) => {
             tp.viewport_width, tp.viewport_height,
             (tp.page_snapshot IS NOT NULL) as hasSnapshot,
             COUNT(DISTINCT ts.id) as sessionCount,
-            COUNT(te.id) as eventCount
+            COUNT(te.id) as eventCount,
+            MAX(ts.started_at) as lastVisitedAt
          FROM tracking_pages tp
          LEFT JOIN tracking_sessions ts ON ts.research_id = tp.research_id AND ts.page_url = tp.page_url
          LEFT JOIN tracking_events te ON te.session_id = ts.id
@@ -390,6 +404,7 @@ export const getTrackedPages = async (researchId: string) => {
         viewportHeight: row.viewport_height,
         sessionCount: Number(row.sessionCount || 0),
         eventCount: Number(row.eventCount || 0),
+        lastVisitedAt: row.lastVisitedAt as string | null,
     }));
 };
 
@@ -819,6 +834,80 @@ export const getSessionEvents = async (sessionId: string) => {
 };
 
 // ─── Analytics: Page Funnels ─────────────────────────────────────────
+
+// ─── Custom Funnel Drop-off ──────────────────────────────────────────
+
+export const computeFunnelDropoff = async (researchId: string, funnelId: string) => {
+    // Load funnel definition from config
+    const cfgResult = await pool.query(
+        'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+        [researchId]
+    );
+    if (cfgResult.rows.length === 0) throw new Error('Research not found');
+
+    let config: Record<string, unknown> = {};
+    try {
+        const raw = cfgResult.rows[0].config;
+        config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+    } catch { config = {}; }
+
+    const trackingCfg = (config.trackingConfig || {}) as Record<string, unknown>;
+    const funnels = (trackingCfg.funnels || []) as FunnelDefinition[];
+    const funnel = funnels.find(f => f.id === funnelId);
+    if (!funnel) throw new Error('Funnel not found');
+    if (funnel.steps.length === 0) return { funnel, steps: [], totalVisitors: 0 };
+
+    // Get per-visitor page visit sequence (ordered by first visit)
+    const result = await pool.query(
+        `SELECT ts.visitor_id, ts.page_url, MIN(ts.started_at) as first_visit
+         FROM tracking_sessions ts
+         WHERE ts.research_id = ?
+         GROUP BY ts.visitor_id, ts.page_url
+         ORDER BY ts.visitor_id, first_visit ASC`,
+        [researchId]
+    );
+
+    const visitorPaths = new Map<string, string[]>();
+    for (const row of result.rows as Array<Record<string, unknown>>) {
+        const vid = row.visitor_id as string;
+        if (!visitorPaths.has(vid)) visitorPaths.set(vid, []);
+        visitorPaths.get(vid)!.push(row.page_url as string);
+    }
+
+    // For each visitor, check how far they got through the funnel steps (in order)
+    const stepCounts = new Array(funnel.steps.length).fill(0);
+
+    for (const pages of visitorPaths.values()) {
+        let stepIdx = 0;
+        for (const pageUrl of pages) {
+            if (stepIdx >= funnel.steps.length) break;
+            if (pageUrl.includes(funnel.steps[stepIdx].url)) {
+                stepCounts[stepIdx]++;
+                stepIdx++;
+            }
+        }
+    }
+
+    const totalVisitors = visitorPaths.size;
+    const steps = funnel.steps.map((step, i) => ({
+        url: step.url,
+        label: step.label,
+        visitors: stepCounts[i],
+        percentage: totalVisitors > 0 ? Math.round((stepCounts[i] / totalVisitors) * 100) : 0,
+        dropoff: i === 0 ? 0 : (stepCounts[i - 1] > 0
+            ? Math.round(((stepCounts[i - 1] - stepCounts[i]) / stepCounts[i - 1]) * 100)
+            : 0),
+    }));
+
+    return {
+        funnel: { id: funnel.id, name: funnel.name },
+        steps,
+        totalVisitors,
+        conversionRate: totalVisitors > 0 && funnel.steps.length > 0
+            ? Math.round((stepCounts[stepCounts.length - 1] / stepCounts[0]) * 100) || 0
+            : 0,
+    };
+};
 
 export const getPageFunnels = async (researchId: string) => {
     // Get page visit sequence per visitor (ordered by first visit timestamp)
