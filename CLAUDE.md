@@ -118,6 +118,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Legacy coordinate normalization**: Heatmap queries detect pixel values (>100) and normalize via `value / viewport_width * 100`. Handles both legacy (px) and new (%) data transparently.
 - **Live tab SSE**: `GET /tracking/:id/live/stream?token=xxx` — SSE endpoint in `server-cpanel.js` (Passenger entry point). Frontend uses `EventSource`, no polling. Route registered with both `/api/` and `/` prefixes for Passenger compatibility.
 - **Passenger dual entry points**: `server-cpanel.js` (JS, Passenger entry) and `src/server-cpanel.ts` (TS, compiled to `dist/`). New Express routes must be added to **both** files — Passenger executes the JS wrapper, not the compiled TS.
+- **Session replay unified timeline**: `SessionReplayPlayer` loads ALL sessions of the same visitor via `visitorId`, merges events into one sorted timeline. DOM snapshot changes dynamically per active page. Clicks rendered as simpleheat heatmap overlay (no cursor dot).
+- **TranSalNet Enhanced roadmap**: PDF in `docs/TranSalNet Enhanced .pdf`. Planned: TranSalNet_Dense backbone, TTA (4-5 augmentations + logit fusion), post-processing (center bias, gaussian blur, sharpening). Alternative model: SUM (WACV 2025). Reference: `docs/gemini.png` (UE Attention Lab UI).
 
 ## Key Files
 ### Backend

@@ -1,3 +1,12 @@
+## v0.66.3 — Website Tracking: session replay heatmap, unified visitor timeline, live activity detail (2026-04-30)
+
+### research-frontend
+- **Session replay heatmap.** Clicks rendered as simpleheat overlay (green→red→white) with dark layer, replacing cursor dot. Accumulated progressively during playback.
+- **Unified visitor timeline.** Replay loads ALL sessions of the same visitor into one continuous timeline instead of single-session view. DOM snapshot updates dynamically as the playback crosses page boundaries.
+- **Live tab activity detail.** Each live visitor row shows page-by-page journey with timestamps (HH:mm:ss), event counts, and per-page replay buttons. Main "Replay" button opens the latest session.
+
+---
+
 ## v0.66.2 — Website Tracking: SSE live stream, legacy coordinate normalization, visitor timestamps (2026-04-29)
 
 ### backend

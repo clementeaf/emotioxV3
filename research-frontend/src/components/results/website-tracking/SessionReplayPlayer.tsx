@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Pause, SkipBack, X } from 'lucide-react';
+import simpleheat from 'simpleheat';
 import * as trackingService from '../../../services/tracking.service';
 
 interface SessionReplayPlayerProps {
@@ -31,10 +32,59 @@ const sanitizeSnapshot = (html: string): string => {
 };
 
 export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionReplayPlayerProps) => {
-    const { data, isLoading } = useQuery({
+    // First load the clicked session to get the visitorId
+    const { data: initialData } = useQuery({
         queryKey: ['tracking', researchId, 'replay', sessionId],
         queryFn: () => trackingService.getSessionReplay(researchId, sessionId),
     });
+
+    const visitorId = initialData?.session?.visitorId;
+
+    // Load ALL sessions for this visitor
+    const { data: visitorSessions } = useQuery({
+        queryKey: ['tracking', researchId, 'visitor-sessions', visitorId],
+        queryFn: async () => {
+            const all = await trackingService.getSessions(researchId, 200, 0);
+            return all
+                .filter(s => s.visitorId === visitorId)
+                .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+        },
+        enabled: !!visitorId,
+        staleTime: 30_000,
+    });
+
+    // Load events for ALL visitor sessions and merge into one timeline
+    const { data: allSessionsData, isLoading } = useQuery({
+        queryKey: ['tracking', researchId, 'visitor-replay-all', visitorId],
+        queryFn: async () => {
+            const sessionIds = visitorSessions!.map(s => s.id);
+            const results = await Promise.all(
+                sessionIds.map(sid => trackingService.getSessionReplay(researchId, sid))
+            );
+            return results;
+        },
+        enabled: !!visitorSessions && visitorSessions.length > 0,
+        staleTime: 30_000,
+    });
+
+    // Merge all events into a single sorted timeline
+    const { events, totalSessions } = useMemo(() => {
+        if (!allSessionsData) return { events: [] as Array<trackingService.SessionReplayEvent & { pageUrl: string }>, totalSessions: 0 };
+
+        const merged: Array<trackingService.SessionReplayEvent & { pageUrl: string }> = [];
+
+        for (const sessionData of allSessionsData) {
+            for (const evt of sessionData.events) {
+                merged.push({ ...evt, pageUrl: sessionData.session.pageUrl });
+            }
+        }
+
+        merged.sort((a, b) => a.timestampMs - b.timestampMs);
+
+        return { events: merged, totalSessions: allSessionsData.length };
+    }, [allSessionsData]);
+
+    const session = allSessionsData?.[0]?.session;
 
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -43,20 +93,31 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     const lastFrameRef = useRef<number>(0);
     const containerRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const heatCanvasRef = useRef<HTMLCanvasElement>(null);
     const [iframeReady, setIframeReady] = useState(false);
-
-    const events = useMemo(() => data?.events || [], [data?.events]);
-    const session = data?.session;
 
     const startTs = events.length > 0 ? events[0].timestampMs : 0;
     const endTs = events.length > 0 ? events[events.length - 1].timestampMs : 0;
     const duration = endTs - startTs;
 
-    // Fetch DOM snapshot for the session's page
+    // Current page based on playback time
+    const activePageUrl = useMemo(() => {
+        if (events.length === 0 || !allSessionsData) return session?.pageUrl || '';
+        const absTime = startTs + currentTime;
+        for (let i = allSessionsData.length - 1; i >= 0; i--) {
+            const sEvents = allSessionsData[i].events;
+            if (sEvents.length > 0 && sEvents[0].timestampMs <= absTime) {
+                return allSessionsData[i].session.pageUrl;
+            }
+        }
+        return allSessionsData[0]?.session.pageUrl || '';
+    }, [events, currentTime, startTs, allSessionsData, session]);
+
+    // Fetch DOM snapshot for the active page (changes during playback if visitor navigated)
     const { data: snapshotHtml } = useQuery({
-        queryKey: ['tracking', researchId, 'snapshot', session?.pageUrl],
-        queryFn: () => trackingService.getPageSnapshot(researchId, session!.pageUrl),
-        enabled: !!session?.pageUrl,
+        queryKey: ['tracking', researchId, 'snapshot', activePageUrl],
+        queryFn: () => trackingService.getPageSnapshot(researchId, activePageUrl),
+        enabled: !!activePageUrl,
         staleTime: 60_000,
     });
 
@@ -72,29 +133,68 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
 
     const handleIframeLoad = useCallback(() => { setIframeReady(true); }, []);
 
-    // Current cursor position based on time
-    const cursorState = useMemo(() => {
-        if (events.length === 0) return { x: 0, y: 0, clicking: false, visible: false };
-
+    // Accumulated clicks up to current time — for heatmap rendering
+    const accumulatedClicks = useMemo(() => {
         const absTime = startTs + currentTime;
-        let lastX = 0, lastY = 0;
+        return events.filter(
+            (e) => e.eventType === 'click' && e.timestampMs <= absTime && e.x != null && e.y != null
+        );
+    }, [events, currentTime, startTs]);
 
-        // Find the most recent event with coordinates
-        for (let i = events.length - 1; i >= 0; i--) {
-            if (events[i].timestampMs <= absTime && events[i].x != null && events[i].y != null) {
-                lastX = events[i].x!;
-                lastY = events[i].y!;
-                break;
-            }
+    // Render heatmap overlay on canvas
+    useEffect(() => {
+        const canvas = heatCanvasRef.current;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
+
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        if (w === 0 || h === 0) return;
+
+        canvas.width = w;
+        canvas.height = h;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Dark overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(0, 0, w, h);
+
+        if (accumulatedClicks.length === 0) return;
+
+        // Render clicks as heatmap
+        const offscreen = document.createElement('canvas');
+        offscreen.width = w;
+        offscreen.height = h;
+
+        const heat = simpleheat(offscreen);
+        const baseR = Math.max(20, Math.round(Math.min(w, h) * 0.05));
+        heat.radius(baseR, Math.round(baseR * 0.9));
+        heat.gradient({
+            0.15: '#0f0', 0.35: '#8f0', 0.5: '#ff0',
+            0.7: '#f80', 0.85: '#f00', 1.0: '#fff',
+        });
+
+        // Group clicks by position for count
+        const clickMap = new Map<string, { x: number; y: number; count: number }>();
+        for (const c of accumulatedClicks) {
+            const key = `${Math.round(c.x!)}:${Math.round(c.y!)}`;
+            const existing = clickMap.get(key);
+            if (existing) { existing.count++; }
+            else { clickMap.set(key, { x: c.x!, y: c.y!, count: 1 }); }
         }
 
-        // Check if there's a click near current time (within 200ms)
-        const clicking = events.some(
-            (e) => e.eventType === 'click' && Math.abs(e.timestampMs - absTime) < 200
-        );
+        const points: Array<[number, number, number]> = [...clickMap.values()].map(c => [
+            (c.x / 100) * w, (c.y / 100) * w, c.count,
+        ]);
 
-        return { x: lastX, y: lastY, clicking, visible: currentTime > 0 };
-    }, [events, currentTime, startTs]);
+        heat.data(points);
+        heat.max(Math.max(3, Math.ceil(points.length * 0.1)));
+        heat.draw(0.05);
+
+        ctx.drawImage(offscreen, 0, 0);
+    }, [accumulatedClicks, iframeReady]);
 
     // Store speed/duration in refs so the animation loop doesn't need recreation
     const speedRef = useRef(speed);
@@ -148,7 +248,7 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
             return <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />;
         }
 
-        if (!data || events.length === 0) {
+        if (!allSessionsData || events.length === 0) {
             return (
                 <div className="text-center py-12 text-gray-500 text-sm">No events in this session.</div>
             );
@@ -177,24 +277,12 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                         </div>
                     )}
 
-                    {/* Cursor */}
-                    {cursorState.visible && (iframeReady || !srcdoc) && (
-                        <div
-                            className="absolute pointer-events-none transition-all duration-75"
-                            style={{
-                                left: `${cursorState.x}%`,
-                                top: `${cursorState.y}%`,
-                                transform: 'translate(-4px, -4px)',
-                            }}
-                        >
-                            <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg transition-all ${
-                                cursorState.clicking ? 'bg-red-500 scale-150' : 'bg-blue-500'
-                            }`} />
-                            {cursorState.clicking && (
-                                <div className="absolute inset-0 -m-3 w-10 h-10 rounded-full border-2 border-red-400 animate-ping opacity-50" />
-                            )}
-                        </div>
-                    )}
+                    {/* Heatmap overlay — dark layer + accumulated clicks as simpleheat */}
+                    <canvas
+                        ref={heatCanvasRef}
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                    />
+
                 </div>
 
                 {/* Activity timeline bar */}
@@ -259,14 +347,16 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                 <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                         <h3 className="text-sm font-semibold text-slate-800">Session Replay</h3>
-                        <span className="text-xs text-gray-500">{session?.pageTitle || session?.pageUrl}</span>
+                        <span className="text-xs text-gray-500 font-mono">{visitorId?.slice(0, 12)}...</span>
                         <span className="text-xs text-gray-400">
-                            {events.length} events &middot; {formatMs(duration)}
+                            {totalSessions} page{totalSessions !== 1 ? 's' : ''} &middot; {events.length} events &middot; {formatMs(duration)}
                         </span>
                     </div>
-                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                        <X className="h-4 w-4 text-gray-500" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                            <X className="h-4 w-4 text-gray-500" />
+                        </button>
+                    </div>
                 </div>
 
                 {modalContent}

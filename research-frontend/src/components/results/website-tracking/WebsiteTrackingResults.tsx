@@ -366,7 +366,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
             )}
 
             {activeTab === 'live' && (
-                <LiveSessionsTab researchId={researchId} />
+                <LiveSessionsTab researchId={researchId} onReplay={setReplaySessionId} />
             )}
 
             {activeTab === 'funnels' && (
@@ -627,7 +627,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
 
 // ─── Live Sessions Tab ──────────────────────────────────────────────
 
-const LiveSessionsTab = ({ researchId }: { researchId: string }) => {
+const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onReplay: (id: string) => void }) => {
     const [sessions, setSessions] = useState<trackingService.LiveVisitor[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [dataUpdatedAt, setDataUpdatedAt] = useState(0);
@@ -685,29 +685,55 @@ const LiveSessionsTab = ({ researchId }: { researchId: string }) => {
                     {sessions.map((visitor) => {
                         const totalEvents = visitor.pages.reduce((sum, p) => sum + p.eventCount, 0);
                         const timeSinceStart = dataUpdatedAt > 0 ? dataUpdatedAt - new Date(visitor.firstSeen).getTime() : 0;
+                        const latestSession = visitor.pages[visitor.pages.length - 1];
                         return (
-                            <div key={visitor.visitorId} className="px-5 py-3 flex items-center gap-4">
-                                <span className="text-lg">{getDeviceIcon(visitor.viewportWidth)}</span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-slate-800 truncate">
-                                        {visitor.visitorId.slice(0, 12)}...
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        {visitor.pages.map((page, i) => (
-                                            <span key={i} className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[120px]">
-                                                {shortenUrl(page.pageUrl)}
-                                            </span>
-                                        ))}
+                            <div key={visitor.visitorId} className="px-5 py-3">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-lg">{getDeviceIcon(visitor.viewportWidth)}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-800 truncate">
+                                            {visitor.visitorId.slice(0, 12)}...
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 mt-0.5">
+                                            {formatMs(timeSinceStart)} on site · {totalEvents} events
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {latestSession && (
+                                            <button
+                                                onClick={() => onReplay(latestSession.sessionId)}
+                                                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                                            >
+                                                <PlayCircle className="h-3 w-3" /> Replay
+                                            </button>
+                                        )}
+                                        <span className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                                        </span>
                                     </div>
                                 </div>
-                                <div className="text-right shrink-0 space-y-0.5">
-                                    <p className="text-xs text-gray-500">{visitor.pages.length} page{visitor.pages.length !== 1 ? 's' : ''} · {totalEvents} events</p>
-                                    <p className="text-xs text-gray-400">{formatMs(timeSinceStart)} ago</p>
+                                {/* Page journey */}
+                                <div className="ml-10 mt-2 space-y-1">
+                                    {visitor.pages.map((page, i) => (
+                                        <div key={i} className="flex items-center gap-2 text-[10px]">
+                                            <span className="text-gray-400 font-mono w-12 shrink-0">
+                                                {page.startedAt ? new Date(page.startedAt).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}
+                                            </span>
+                                            <span className="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded truncate max-w-[200px]">
+                                                {shortenUrl(page.pageUrl)}
+                                            </span>
+                                            <span className="text-gray-400">{page.eventCount} events</span>
+                                            <button
+                                                onClick={() => onReplay(page.sessionId)}
+                                                className="p-0.5 rounded hover:bg-blue-50 text-blue-500"
+                                                title="Replay this page"
+                                            >
+                                                <PlayCircle className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
-                                <span className="relative flex h-2 w-2 shrink-0">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                                </span>
                             </div>
                         );
                     })}
