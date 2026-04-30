@@ -8,8 +8,8 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth.local';
 import { getRequestOrigin } from '../../utils/request';
-import { predictAttention } from './attention-prediction.service';
-import { analyzeAttentionWithAI } from './ai-analysis.service';
+import { predictAttention, predictAttentionRaw } from './attention-prediction.service';
+import { analyzeAttentionWithAI, generateHybridSaliency } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import pool from '../../config/database';
 
@@ -400,6 +400,87 @@ export const handleAttentionPredictionRoutes = async (
 
                 return error(msg, 500, undefined, origin);
             }
+        }
+
+        // POST /attention-prediction/research/:researchId/module/:moduleId/hybrid-predict
+        // Runs TranSalNet TTA + LLM semantic fusion → saves hybrid heatmap
+        const hybridMatch = path.match(
+            /^\/attention-prediction\/research\/([^/]+)\/module\/([^/]+)\/hybrid-predict$/
+        );
+        if (hybridMatch && httpMethod === 'POST') {
+            const researchId = hybridMatch[1];
+            const moduleIdOrMediaId = hybridMatch[2];
+            const body = event.body ? JSON.parse(event.body) : {};
+            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const alpha = typeof body.alpha === 'number' ? body.alpha : 0.65;
+            const beta = typeof body.beta === 'number' ? body.beta : 0.35;
+
+            // Resolve media path
+            const mediaResult = await pool.query(
+                'SELECT s3_key FROM media WHERE id = ? AND research_id = ?',
+                [moduleIdOrMediaId, researchId]
+            );
+            if (mediaResult.rows.length === 0) {
+                return error('Media not found', 404, undefined, origin);
+            }
+            const s3Key = mediaResult.rows[0].s3_key as string;
+            const imagePath = getMediaPath(s3Key);
+
+            // Step 1: TranSalNet TTA → raw map
+            const { map: transalnetMap, width, height } = await predictAttentionRaw(imagePath);
+
+            // Step 2: Hybrid fusion with LLM semantic saliency
+            const hybridMap = await generateHybridSaliency(imagePath, transalnetMap, width, height, alpha, beta);
+
+            // Step 3: Convert to heatmap points
+            const points: Array<{ x: number; y: number; value: number }> = [];
+            const step = 3;
+            for (let row = 0; row < height; row += step) {
+                for (let col = 0; col < width; col += step) {
+                    const value = hybridMap[row * width + col];
+                    if (value >= threshold) {
+                        points.push({
+                            x: (col / width) * 100,
+                            y: (row / height) * 100,
+                            value,
+                        });
+                    }
+                }
+            }
+
+            // Step 4: Save to research config
+            const researchResult = await pool.query(
+                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                [researchId]
+            );
+            if (researchResult.rows.length > 0) {
+                let config: Record<string, unknown> = {};
+                try {
+                    const raw = researchResult.rows[0].config;
+                    config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+                } catch { config = {}; }
+
+                const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+                config.stimuli = stimuli.map(s => {
+                    if (s.mediaId === moduleIdOrMediaId) {
+                        return { ...s, heatmapData: points, hybridPrediction: true, hybridAlpha: alpha, hybridBeta: beta };
+                    }
+                    return s;
+                });
+
+                await pool.query(
+                    'UPDATE researches SET config = ? WHERE id = ?',
+                    [JSON.stringify(config), researchId]
+                );
+            }
+
+            return success({
+                heatmapData: points,
+                totalPoints: points.length,
+                hybrid: true,
+                alpha,
+                beta,
+            }, 200, undefined, origin);
         }
 
         return error('Route not found', 404, undefined, origin);

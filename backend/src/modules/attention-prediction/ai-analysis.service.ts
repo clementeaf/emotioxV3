@@ -176,6 +176,207 @@ const analyzeWithOpenAI = async (
     return JSON.parse(response.choices[0]?.message?.content || '') as AiAnalysisResult;
 };
 
+// ─── Semantic Saliency Grid ─────────────────────────────────────────
+
+const SEMANTIC_GRID_PROMPT = `Analyze this image and predict human visual attention based on SEMANTIC content (objects, text, faces, brand logos, high-contrast elements, novelty).
+
+Return a JSON object with a "grid" property containing a 10x8 2D array (10 columns × 8 rows) of attention weights (0.0 to 1.0).
+Each cell represents a region of the image. 1.0 = highest semantic attention, 0.0 = no semantic interest.
+
+Focus on TOP-DOWN attention factors:
+- Human faces and eyes (very high weight)
+- Text and readable content (high weight)
+- Brand logos (high weight)
+- Products/objects of interest (medium-high weight)
+- High contrast areas (medium weight)
+- Novel or unexpected elements (medium-high weight)
+- Empty/repetitive areas (low weight)
+
+Return ONLY: {"grid": [[0.2, 0.5, ...], [0.1, 0.8, ...], ...]}
+The grid must have exactly 8 rows, each with exactly 10 values.`;
+
+const getSemanticGridFromGemini = async (
+    base64: string,
+    mimeType: string
+): Promise<number[][]> => {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '';
+    const client = new GoogleGenerativeAI(apiKey);
+    const model = client.getGenerativeModel({
+        model: GEMINI_MODEL,
+        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1500 },
+    });
+    const result = await model.generateContent([
+        { inlineData: { data: base64, mimeType } },
+        { text: SEMANTIC_GRID_PROMPT },
+    ]);
+    const parsed = JSON.parse(result.response.text()) as { grid: number[][] };
+    return parsed.grid;
+};
+
+const getSemanticGridFromOpenAI = async (
+    base64: string,
+    mimeType: string
+): Promise<number[][]> => {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
+    const dataUri = `data:${mimeType};base64,${base64}`;
+    const response = await client.chat.completions.create({
+        model: OPENAI_MODEL,
+        max_tokens: 1500,
+        response_format: { type: 'json_object' },
+        messages: [
+            {
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: dataUri, detail: 'low' } },
+                    { type: 'text', text: SEMANTIC_GRID_PROMPT },
+                ],
+            },
+        ],
+    });
+    const parsed = JSON.parse(response.choices[0]?.message?.content || '') as { grid: number[][] };
+    return parsed.grid;
+};
+
+/**
+ * Generates a semantic saliency map by running the LLM multiple times and averaging.
+ * This stabilizes the prediction (reduces hallucination variance).
+ * Returns a flat Float32Array of size gridRows × gridCols.
+ */
+const generateSemanticGrid = async (
+    base64: string,
+    mimeType: string,
+    iterations = 3
+): Promise<{ grid: number[][]; rows: number; cols: number }> => {
+    const GRID_ROWS = 8;
+    const GRID_COLS = 10;
+
+    const grids: number[][][] = [];
+
+    const getGrid = hasGemini()
+        ? () => getSemanticGridFromGemini(base64, mimeType)
+        : () => getSemanticGridFromOpenAI(base64, mimeType);
+
+    for (let i = 0; i < iterations; i++) {
+        try {
+            const g = await getGrid();
+            if (g.length === GRID_ROWS && g[0].length === GRID_COLS) {
+                grids.push(g);
+            }
+        } catch (err) {
+            console.warn(`[Semantic Grid] Iteration ${i + 1} failed:`, err instanceof Error ? err.message : err);
+        }
+    }
+
+    if (grids.length === 0) {
+        // Return uniform grid if all iterations failed
+        const uniform = Array.from({ length: GRID_ROWS }, () => new Array(GRID_COLS).fill(0.5));
+        return { grid: uniform, rows: GRID_ROWS, cols: GRID_COLS };
+    }
+
+    // Average grids
+    const averaged: number[][] = Array.from({ length: GRID_ROWS }, () => new Array(GRID_COLS).fill(0));
+    for (const g of grids) {
+        for (let r = 0; r < GRID_ROWS; r++) {
+            for (let c = 0; c < GRID_COLS; c++) {
+                averaged[r][c] += g[r][c] / grids.length;
+            }
+        }
+    }
+
+    return { grid: averaged, rows: GRID_ROWS, cols: GRID_COLS };
+};
+
+/**
+ * Interpolates a low-resolution semantic grid to match TranSalNet output dimensions.
+ * Uses bilinear interpolation.
+ */
+const interpolateGrid = (
+    grid: number[][],
+    gridRows: number,
+    gridCols: number,
+    targetW: number,
+    targetH: number
+): Float32Array => {
+    const result = new Float32Array(targetW * targetH);
+
+    for (let row = 0; row < targetH; row++) {
+        for (let col = 0; col < targetW; col++) {
+            // Map target pixel to grid coordinate
+            const gx = (col / targetW) * gridCols;
+            const gy = (row / targetH) * gridRows;
+
+            const gx0 = Math.min(Math.floor(gx), gridCols - 1);
+            const gx1 = Math.min(gx0 + 1, gridCols - 1);
+            const gy0 = Math.min(Math.floor(gy), gridRows - 1);
+            const gy1 = Math.min(gy0 + 1, gridRows - 1);
+
+            const fx = gx - gx0;
+            const fy = gy - gy0;
+
+            // Bilinear interpolation
+            const v00 = grid[gy0][gx0];
+            const v10 = grid[gy0][gx1];
+            const v01 = grid[gy1][gx0];
+            const v11 = grid[gy1][gx1];
+
+            result[row * targetW + col] =
+                v00 * (1 - fx) * (1 - fy) +
+                v10 * fx * (1 - fy) +
+                v01 * (1 - fx) * fy +
+                v11 * fx * fy;
+        }
+    }
+
+    return result;
+};
+
+/**
+ * Generates a hybrid saliency map: TranSalNet (computational) + LLM (semantic).
+ * @param imagePath - Path to the image
+ * @param transalnetMap - Raw TranSalNet saliency (384×288 Float32Array, normalized 0-1)
+ * @param alpha - Weight for computational map (default 0.65)
+ * @param beta - Weight for semantic map (default 0.35)
+ * @returns Fused saliency map as heatmap points
+ */
+export const generateHybridSaliency = async (
+    imagePath: string,
+    transalnetMap: Float32Array,
+    mapWidth: number,
+    mapHeight: number,
+    alpha = 0.65,
+    beta = 0.35
+): Promise<Float32Array> => {
+    const { base64, mimeType } = await imageToBase64(imagePath);
+
+    console.log('[Hybrid Saliency] Running semantic grid (3 iterations)...');
+    const { grid, rows, cols } = await generateSemanticGrid(base64, mimeType, 3);
+
+    // Interpolate semantic grid to match TranSalNet resolution
+    const semanticMap = interpolateGrid(grid, rows, cols, mapWidth, mapHeight);
+
+    // Fuse: final = α × computational + β × semantic
+    const fused = new Float32Array(transalnetMap.length);
+    for (let i = 0; i < fused.length; i++) {
+        fused[i] = alpha * transalnetMap[i] + beta * semanticMap[i];
+    }
+
+    // Normalize result to [0, 1]
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < fused.length; i++) {
+        if (fused[i] < min) min = fused[i];
+        if (fused[i] > max) max = fused[i];
+    }
+    const range = max - min;
+    if (range > 0) {
+        for (let i = 0; i < fused.length; i++) {
+            fused[i] = (fused[i] - min) / range;
+        }
+    }
+
+    console.log('[Hybrid Saliency] Fusion complete (α=%s, β=%s)', alpha, beta);
+    return fused;
+};
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 export const analyzeAttentionWithAI = async (

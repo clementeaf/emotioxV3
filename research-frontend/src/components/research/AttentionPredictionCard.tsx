@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS: HeatmapSettings = {
     preset: 'Balanced',
 };
 
-type TabId = 'prediction' | 'gaze-path' | 'attention-video' | 'image';
+type TabId = 'original' | 'heatmap' | 'gaze-paths' | 'aoi-editor';
 
 interface VideoFrameData {
     mediaId: string;
@@ -101,10 +101,10 @@ interface AttentionPredictionCardProps {
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
-    { id: 'prediction', label: 'Prediction', icon: 'eye' },
-    { id: 'gaze-path', label: 'Gaze Path', icon: 'route' },
-    { id: 'attention-video', label: 'Attention Video', icon: 'video' },
-    { id: 'image', label: 'Image', icon: 'image' },
+    { id: 'original', label: 'Original', icon: 'image' },
+    { id: 'heatmap', label: 'Heatmap', icon: 'eye' },
+    { id: 'gaze-paths', label: 'Gaze Paths', icon: 'route' },
+    { id: 'aoi-editor', label: 'AOI Editor', icon: 'aoi' },
 ];
 
 const TAB_ICONS: Record<string, React.ReactNode> = {
@@ -113,6 +113,7 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
     image: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
     settings: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
     route: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /></svg>,
+    aoi: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2" /><path strokeLinecap="round" d="M3 9h18M9 3v18" /></svg>,
 };
 
 const DETAIL_PRESETS = ['Smooth', 'Balanced', 'Detailed'];
@@ -451,12 +452,12 @@ export const AttentionPredictionCard = ({
     onRunAnalysis,
     isAnalyzing = false,
 }: AttentionPredictionCardProps) => {
-    const [activeTab, setActiveTab] = useState<TabId>('prediction');
+    const [activeTab, setActiveTab] = useState<TabId>('original');
 
-    // Filter tabs: show Gaze Path only when AI analysis has gaze data
+    // Filter tabs: show Gaze Paths only when AI analysis has gaze data
     const tabs = useMemo(() => {
         return BASE_TABS.filter(tab => {
-            if (tab.id === 'gaze-path') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
+            if (tab.id === 'gaze-paths') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
             return true;
         });
     }, [aiAnalysis]);
@@ -759,7 +760,7 @@ export const AttentionPredictionCard = ({
                 </div>
 
                 {/* Inline heatmap controls — visible on Prediction tab */}
-                {activeTab === 'prediction' && effectiveHeatmapData.length > 0 && (
+                {activeTab === 'heatmap' && effectiveHeatmapData.length > 0 && (
                     <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
                         <div className="flex gap-1">
                             {DETAIL_PRESETS.map(p => (
@@ -812,9 +813,87 @@ export const AttentionPredictionCard = ({
                 )}
 
                 {/* Content */}
-                <div className="p-4 flex-1 min-h-0 overflow-hidden flex flex-col" ref={tabContentRef}>
-                        {/* Prediction Tab — Heatmap + AOI drawing */}
-                        {activeTab === 'prediction' && (
+                <div className="p-4 flex-1 min-h-0 overflow-auto flex flex-col" ref={tabContentRef}>
+                        {/* Original Tab */}
+                        {activeTab === 'original' && (
+                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                <div className="rounded-lg border bg-gray-100 w-fit mx-auto overflow-hidden relative">
+                                    <ZoomControls />
+                                    <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
+                                        <img src={imageUrl} alt={title} className="max-h-[calc(100vh-280px)] w-auto block" />
+                                    </TransformComponent>
+                                </div>
+                            </TransformWrapper>
+                        )}
+
+                        {/* Heatmap Tab */}
+                        {activeTab === 'heatmap' && (
+                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                <div className="rounded-lg border bg-gray-100 w-fit mx-auto overflow-hidden relative">
+                                    <ZoomControls />
+                                    <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
+                                        {isVideo && videoFrames.length > 0 ? (
+                                            <VideoFrameScrubber
+                                                videoUrl={imageUrl}
+                                                frames={videoFrames}
+                                                settings={settings}
+                                            />
+                                        ) : effectiveHeatmapData.length > 0 ? (
+                                            <HeatmapRenderer
+                                                imageUrl={imageUrl}
+                                                data={effectiveHeatmapData}
+                                                blur={settings.blur}
+                                                opacity={settings.opacity}
+                                                threshold={settings.threshold}
+                                                className="w-full"
+                                            />
+                                        ) : (
+                                            <div className="relative">
+                                                <img src={imageUrl} alt={title} className="w-full block" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                                    <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">Run prediction to generate heatmap</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </TransformComponent>
+                                </div>
+                            </TransformWrapper>
+                        )}
+
+                        {/* Gaze Paths Tab — dark alpha background for visibility */}
+                        {activeTab === 'gaze-paths' && aiAnalysis?.gazePath && (
+                            <div>
+                                <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                    <div className="rounded-lg border bg-gray-900 w-fit mx-auto overflow-hidden relative">
+                                        <ZoomControls />
+                                        <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
+                                            <div className="relative">
+                                                <img src={imageUrl} alt={title} className="max-h-[calc(100vh-320px)] w-auto block" />
+                                                {/* Dark alpha overlay for gaze path visibility */}
+                                                <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+                                                <GazePathOverlay gazePath={aiAnalysis.gazePath} visible={true} />
+                                            </div>
+                                        </TransformComponent>
+                                    </div>
+                                </TransformWrapper>
+                                {/* Attention Video — scanpath animation */}
+                                {effectiveHeatmapData.length > 0 && !isVideo && (
+                                    <div className="mt-4">
+                                        <h4 className="text-xs font-medium text-gray-500 mb-2">Scanpath Animation</h4>
+                                        <div className="w-fit mx-auto">
+                                            <AttentionVideoPlayer
+                                                imageUrl={imageUrl}
+                                                data={effectiveHeatmapData}
+                                                duration={5}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* AOI Editor Tab */}
+                        {activeTab === 'aoi-editor' && (
                             <>
                                 {/* AOI toolbar */}
                                 <div className="flex items-center gap-3 mb-3">
@@ -828,11 +907,11 @@ export const AttentionPredictionCard = ({
                                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         )}
                                     >
-                                        {drawingAoi ? 'Drawing AOI...' : '+ Add AOI'}
+                                        {drawingAoi ? 'Drawing AOI...' : '+ Create Manual Zone'}
                                     </button>
                                     {computedAois.length > 0 && (
                                         <span className="text-xs text-gray-500">
-                                            {computedAois.length} AOI defined
+                                            {computedAois.length} zones defined
                                             {isSavingAois && ' — saving...'}
                                         </span>
                                     )}
@@ -878,31 +957,29 @@ export const AttentionPredictionCard = ({
                                     >
                                         <ZoomControls />
                                         <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                            <HeatmapRenderer
-                                                imageUrl={imageUrl}
-                                                data={effectiveHeatmapData}
-                                                blur={settings.blur}
-                                                opacity={settings.opacity}
-                                                threshold={settings.threshold}
-                                                className="w-full"
-                                            />
+                                            <img src={imageUrl} alt={title} className="w-full block" />
+                                            {/* AOI rectangles — colored semitransparent */}
                                             <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                                {computedAois.map(aoi => (
-                                                    <g key={aoi.id}>
-                                                        <rect
-                                                            x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
-                                                            fill="rgba(59, 130, 246, 0.1)"
-                                                            stroke="#3B82F6"
-                                                            strokeWidth="0.4"
-                                                        />
-                                                        <text
-                                                            x={aoi.x + 0.5} y={aoi.y + 2.5}
-                                                            fill="#1D4ED8" fontSize="2.5" fontWeight="bold"
-                                                        >
-                                                            {aoi.label} — {aoi.percentage}%
-                                                        </text>
-                                                    </g>
-                                                ))}
+                                                {computedAois.map((aoi, i) => {
+                                                    const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
+                                                    const color = colors[i % colors.length];
+                                                    return (
+                                                        <g key={aoi.id}>
+                                                            <rect
+                                                                x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
+                                                                fill={`${color}20`}
+                                                                stroke={color}
+                                                                strokeWidth="0.4"
+                                                            />
+                                                            <text
+                                                                x={aoi.x + 0.5} y={aoi.y + 2.5}
+                                                                fill={color} fontSize="2.2" fontWeight="bold"
+                                                            >
+                                                                {aoi.label} — {aoi.percentage}%
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })}
                                                 {aoiCurrent && aoiCurrent.w > 0 && (
                                                     <rect
                                                         x={aoiCurrent.x} y={aoiCurrent.y}
@@ -917,83 +994,44 @@ export const AttentionPredictionCard = ({
                                         </TransformComponent>
                                     </div>
                                 </TransformWrapper>
-                            </>
-                        )}
 
-                        {/* Attention Video Tab */}
-                        {activeTab === 'attention-video' && (
-                            <div className="w-fit mx-auto">
-                                {isVideo && videoFrames.length > 0 ? (
-                                    <VideoFrameScrubber
-                                        videoUrl={imageUrl}
-                                        frames={videoFrames}
-                                        settings={settings}
-                                    />
-                                ) : (
-                                    <AttentionVideoPlayer
-                                        imageUrl={imageUrl}
-                                        data={effectiveHeatmapData}
-                                        duration={5}
-                                    />
-                                )}
-                            </div>
-                        )}
-
-                        {/* Gaze Path Tab */}
-                        {activeTab === 'gaze-path' && aiAnalysis?.gazePath && (
-                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                <div className="mb-4 rounded-lg border bg-gray-100 w-fit mx-auto relative overflow-hidden">
-                                    <ZoomControls />
-                                    <TransformComponent>
-                                        <img src={imageUrl} alt={title} className="max-h-[calc(100vh-280px)] w-auto block" />
-                                        <GazePathOverlay gazePath={aiAnalysis.gazePath} visible={true} />
-                                    </TransformComponent>
-                                </div>
-                            </TransformWrapper>
-                        )}
-
-                        {/* Image Tab */}
-                        {activeTab === 'image' && (
-                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                <div className="mb-4 rounded-lg border bg-gray-100 w-fit mx-auto overflow-hidden">
-                                    <ZoomControls />
-                                    <TransformComponent>
-                                        <img src={imageUrl} alt={title} className="max-h-[calc(100vh-280px)] w-auto block" />
-                                    </TransformComponent>
-                                </div>
-                            </TransformWrapper>
-                        )}
-
-                        {/* AOI list */}
-                        {computedAois.length > 0 && (
-                            <div className="space-y-2 mt-4">
-                                {computedAois.map(aoi => (
-                                    <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
-                                        <div className="w-16 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
-                                            <img
-                                                src={imageUrl}
-                                                alt={aoi.label}
-                                                className="w-full h-full"
-                                                style={{
-                                                    objectFit: 'cover',
-                                                    objectPosition: `${aoi.x + aoi.width / 2}% ${aoi.y + aoi.height / 2}%`,
-                                                }}
-                                            />
-                                        </div>
-                                        <span className="text-sm font-medium text-gray-900 flex-1 min-w-0">
-                                            {aoi.label}
-                                        </span>
-                                        <span className="text-sm font-semibold text-green-600">{aoi.percentage}%</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeAoi(aoi.id)}
-                                            className="text-sm text-red-600 hover:text-red-700 font-medium whitespace-nowrap"
-                                        >
-                                            Remove AOI
-                                        </button>
+                                {/* AOI list below image */}
+                                {computedAois.length > 0 && (
+                                    <div className="space-y-2 mt-4">
+                                        {computedAois.map((aoi, i) => {
+                                            const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
+                                            const color = colors[i % colors.length];
+                                            return (
+                                                <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
+                                                    <div className="w-3 h-8 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                                                    <div className="w-16 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
+                                                        <img
+                                                            src={imageUrl}
+                                                            alt={aoi.label}
+                                                            className="w-full h-full"
+                                                            style={{
+                                                                objectFit: 'cover',
+                                                                objectPosition: `${aoi.x + aoi.width / 2}% ${aoi.y + aoi.height / 2}%`,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-gray-900 flex-1 min-w-0">
+                                                        {aoi.label}
+                                                    </span>
+                                                    <span className="text-sm font-semibold" style={{ color }}>{aoi.percentage}%</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeAoi(aoi.id)}
+                                                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                            </>
                         )}
                 </div>
             </div>

@@ -1,3 +1,20 @@
+## v0.67.0 — Attention Prediction: UI tabs, TTA pipeline, hybrid saliency fusion (2026-04-30)
+
+### backend
+- **TTA pipeline.** `predictAttention` now runs 4 augmented inferences (original, h-flip, brightness +10%, center crop 95%), fuses in logit space, applies center bias correction (gaussian σ=0.4), box blur (radius 5, 3-pass), and normalization. ~4x more stable predictions.
+- **`predictAttentionRaw` export.** Returns the raw Float32Array saliency map for downstream fusion.
+- **Semantic saliency grid.** `generateSemanticGrid` asks Gemini/GPT-4o to produce a 10×8 attention weight grid based on semantic content (faces, text, logos, objects). Runs 3 iterations and averages to reduce hallucination variance.
+- **Hybrid fusion endpoint.** `POST /attention-prediction/research/:id/module/:mediaId/hybrid-predict` — runs TranSalNet TTA + LLM semantic grid → bilinear interpolation → weighted fusion (`α=0.65` computational + `β=0.35` semantic). Saves result with `hybridPrediction: true` flag.
+
+### research-frontend
+- **AttentionPredictionCard tabs redesign.** 4 tabs over the stimulus image matching UE Attention Lab layout:
+  - **Original** — raw image with zoom
+  - **Heatmap** — saliency overlay with inline presets/sliders, video scrubber for video stimuli
+  - **Gaze Paths** — predicted fixations on dark alpha overlay (40% black) for visibility, scanpath animation below
+  - **AOI Editor** — dedicated tab with "+ Create Manual Zone", colored semitransparent rectangles (7 rotating colors), per-AOI color bar + percentage + remove
+
+---
+
 ## v0.66.3 — Website Tracking: session replay heatmap, unified visitor timeline, live activity detail (2026-04-30)
 
 ### research-frontend
