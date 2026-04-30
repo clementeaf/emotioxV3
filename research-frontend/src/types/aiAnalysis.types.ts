@@ -35,6 +35,18 @@ export interface AiAnalysisResult {
         label: string;
         duration: string;
     }>;
+    gazePathRoutes?: Array<{
+        id: string;
+        name: string;
+        description: string;
+        fixations: Array<{
+            order: number;
+            x: number;
+            y: number;
+            label: string;
+            duration: string;
+        }>;
+    }>;
     neuroInsights: Array<{
         principle: string;
         finding: string;

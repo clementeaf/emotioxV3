@@ -224,6 +224,21 @@ class MediaService {
         }
     }
 
+    async hybridPredict(
+        researchId: string,
+        mediaId: string,
+        options?: { alpha?: number; beta?: number; threshold?: number }
+    ): Promise<{ heatmapData: Array<{ x: number; y: number; value: number }>; totalPoints: number; hybrid: boolean }> {
+        try {
+            return await apiClient.post(
+                `/attention-prediction/research/${researchId}/module/${mediaId}/hybrid-predict`,
+                options || {}
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to run hybrid prediction');
+        }
+    }
+
     /**
      * Convenience: generate upload URL → PUT file → save metadata → return media ID.
      * Used for programmatic uploads (e.g. video frame extraction).

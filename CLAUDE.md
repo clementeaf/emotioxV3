@@ -122,6 +122,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Attention Prediction tabs**: `AttentionPredictionCard` has 4 tabs over the image: Original, Heatmap, Gaze Paths (dark alpha overlay), AOI Editor (colored rects, 7 rotating colors). Right panel (`AiAnalysisPanel`) remains.
 - **TTA pipeline (v0.67.0)**: `predictAttention` runs 4 augmentations (original, h-flip, brightness+10%, crop95%), fuses in logit space, post-processes (center bias σ=0.4, blur radius 5, normalize). `predictAttentionRaw` exports raw Float32Array.
 - **Hybrid saliency fusion (v0.67.0)**: `POST /attention-prediction/research/:id/module/:mediaId/hybrid-predict`. Pipeline: TranSalNet TTA → LLM semantic grid (10×8, 3 iterations averaged) → bilinear interpolation → weighted fusion (α=0.65 computational + β=0.35 semantic). Weights configurable per request. Uses Gemini primary, GPT-4o fallback.
+- **3 gaze path routes (v0.67.1)**: AI analysis returns `gazePathRoutes` — 3 viewing strategies (Typical Scan, Group Scan, Novelty Search). Frontend renders each with unique color (blue/green/amber), toggleable. `GazePathOverlay` accepts `routeColor` + `markerId` for multi-route rendering.
 - **Future model upgrades**: TranSalNet_Dense (DenseNet-161), SUM (WACV 2025, github.com/Arhosseini77/SUM), MDS-ViTNet (Swin Transformer). Reference: `docs/TranSalNet Enhanced .pdf`, `docs/gemini.png`.
 
 ## Key Files

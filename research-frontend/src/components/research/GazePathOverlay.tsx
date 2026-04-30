@@ -9,6 +9,10 @@ import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 interface GazePathOverlayProps {
     gazePath: AiAnalysisResult['gazePath'];
     visible: boolean;
+    /** Fixed color for all points (overrides gradient). Use for multi-route views. */
+    routeColor?: string;
+    /** Unique ID suffix for SVG markers to avoid conflicts with multiple overlays */
+    markerId?: string;
 }
 
 const DURATION_RADIUS: Record<string, number> = {
@@ -26,10 +30,13 @@ const getColor = (index: number, total: number): string => {
     return `rgb(${r},${g},${b})`;
 };
 
-export const GazePathOverlay = ({ gazePath, visible }: GazePathOverlayProps) => {
+export const GazePathOverlay = ({ gazePath, visible, routeColor, markerId }: GazePathOverlayProps) => {
     if (!visible || !gazePath || gazePath.length === 0) return null;
 
     const sorted = [...gazePath].sort((a, b) => a.order - b.order);
+    const arrowId = `gaze-arrow${markerId ? `-${markerId}` : ''}`;
+    const lineColor = routeColor ? `${routeColor}80` : 'rgba(255,255,255,0.5)';
+    const arrowColor = routeColor ? `${routeColor}99` : 'rgba(255,255,255,0.6)';
 
     return (
         <svg
@@ -39,14 +46,14 @@ export const GazePathOverlay = ({ gazePath, visible }: GazePathOverlayProps) => 
         >
             <defs>
                 <marker
-                    id="gaze-arrow"
+                    id={arrowId}
                     markerWidth="6"
                     markerHeight="4"
                     refX="5"
                     refY="2"
                     orient="auto"
                 >
-                    <path d="M0,0 L6,2 L0,4 Z" fill="rgba(255,255,255,0.6)" />
+                    <path d="M0,0 L6,2 L0,4 Z" fill={arrowColor} />
                 </marker>
             </defs>
 
@@ -61,17 +68,17 @@ export const GazePathOverlay = ({ gazePath, visible }: GazePathOverlayProps) => 
                         y1={prev.y}
                         x2={point.x}
                         y2={point.y}
-                        stroke="rgba(255,255,255,0.5)"
+                        stroke={lineColor}
                         strokeWidth="0.3"
                         strokeDasharray="0.8,0.4"
-                        markerEnd="url(#gaze-arrow)"
+                        markerEnd={`url(#${arrowId})`}
                     />
                 );
             })}
 
             {/* Fixation points */}
             {sorted.map((point, i) => {
-                const color = getColor(i, sorted.length);
+                const color = routeColor || getColor(i, sorted.length);
                 const radius = DURATION_RADIUS[point.duration] || 2.5;
 
                 return (

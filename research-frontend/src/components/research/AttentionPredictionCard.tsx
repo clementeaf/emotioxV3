@@ -96,6 +96,8 @@ interface AttentionPredictionCardProps {
     onAddMore?: () => void;
     /** Callback to run/re-run AI analysis */
     onRunAnalysis?: () => void;
+    /** Callback to run hybrid prediction (TranSalNet + LLM semantic fusion) */
+    onHybridPredict?: () => void;
     /** Whether AI analysis is in progress */
     isAnalyzing?: boolean;
 }
@@ -450,6 +452,7 @@ export const AttentionPredictionCard = ({
     onImportAoisDone,
     onAddMore,
     onRunAnalysis,
+    onHybridPredict,
     isAnalyzing = false,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
@@ -463,6 +466,7 @@ export const AttentionPredictionCard = ({
     }, [aiAnalysis]);
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState<HeatmapSettings>(DEFAULT_SETTINGS);
+    const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set(['typical-scan', 'group-scan', 'novelty-search']));
     const [aoiList, setAoiList] = useState<AOI[]>([]);
     const [drawingAoi, setDrawingAoi] = useState(false);
     const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
@@ -692,6 +696,27 @@ export const AttentionPredictionCard = ({
                             </svg>
                         </button>
                     )}
+                        {onHybridPredict && (
+                            <button
+                                type="button"
+                                onClick={onHybridPredict}
+                                disabled={isAnalyzing}
+                                className={cn(
+                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                                    'text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200',
+                                    isAnalyzing && 'opacity-50 cursor-not-allowed'
+                                )}
+                                title="Run hybrid prediction (TranSalNet + AI semantic fusion)"
+                            >
+                                <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    {isAnalyzing
+                                        ? <><circle className="opacity-25" cx="12" cy="12" r="10" /><path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" stroke="none" /></>
+                                        : <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    }
+                                </svg>
+                                {isAnalyzing ? 'Processing...' : 'Hybrid Predict'}
+                            </button>
+                        )}
                         {onRunAnalysis && (
                             <button
                                 type="button"
@@ -712,7 +737,7 @@ export const AttentionPredictionCard = ({
                                         : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                                     }
                                 </svg>
-                                {isAnalyzing ? 'Analyzing...' : aiAnalysis ? 'Re-analyze' : 'Run AI Analysis'}
+                                {isAnalyzing ? 'Analyzing...' : aiAnalysis ? 'Re-analyze' : 'AI Analysis'}
                             </button>
                         )}
                     </div>
@@ -860,18 +885,66 @@ export const AttentionPredictionCard = ({
                             </TransformWrapper>
                         )}
 
-                        {/* Gaze Paths Tab — dark alpha background for visibility */}
-                        {activeTab === 'gaze-paths' && aiAnalysis?.gazePath && (
+                        {/* Gaze Paths Tab — dark alpha background, toggleable routes */}
+                        {activeTab === 'gaze-paths' && aiAnalysis?.gazePath && (() => {
+                            const ROUTE_COLORS: Record<string, string> = {
+                                'typical-scan': '#3B82F6',    // blue
+                                'group-scan': '#10B981',      // green
+                                'novelty-search': '#F59E0B',  // amber
+                            };
+                            const routes = aiAnalysis.gazePathRoutes || [
+                                { id: 'typical-scan', name: 'Typical Scan', description: 'Default predicted path', fixations: aiAnalysis.gazePath },
+                            ];
+                            const toggleRoute = (id: string) => {
+                                setVisibleRoutes(prev => {
+                                    const next = new Set(prev);
+                                    if (next.has(id)) next.delete(id); else next.add(id);
+                                    return next;
+                                });
+                            };
+
+                            return (
                             <div>
+                                {/* Route toggles */}
+                                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider mr-1">Routes:</span>
+                                    {routes.map(route => {
+                                        const color = ROUTE_COLORS[route.id] || '#8B5CF6';
+                                        const active = visibleRoutes.has(route.id);
+                                        return (
+                                            <button
+                                                key={route.id}
+                                                onClick={() => toggleRoute(route.id)}
+                                                className={cn(
+                                                    'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all',
+                                                    active ? 'text-white' : 'bg-white text-gray-500 border-gray-200 opacity-50'
+                                                )}
+                                                style={active ? { backgroundColor: color, borderColor: color } : undefined}
+                                                title={route.description}
+                                            >
+                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? '#fff' : color }} />
+                                                {route.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
                                 <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
                                     <div className="rounded-lg border bg-gray-900 w-fit mx-auto overflow-hidden relative">
                                         <ZoomControls />
                                         <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
                                             <div className="relative">
-                                                <img src={imageUrl} alt={title} className="max-h-[calc(100vh-320px)] w-auto block" />
-                                                {/* Dark alpha overlay for gaze path visibility */}
+                                                <img src={imageUrl} alt={title} className="max-h-[calc(100vh-340px)] w-auto block" />
                                                 <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-                                                <GazePathOverlay gazePath={aiAnalysis.gazePath} visible={true} />
+                                                {routes.map(route => (
+                                                    <GazePathOverlay
+                                                        key={route.id}
+                                                        gazePath={route.fixations}
+                                                        visible={visibleRoutes.has(route.id)}
+                                                        routeColor={ROUTE_COLORS[route.id] || '#8B5CF6'}
+                                                        markerId={route.id}
+                                                    />
+                                                ))}
                                             </div>
                                         </TransformComponent>
                                     </div>
@@ -890,7 +963,7 @@ export const AttentionPredictionCard = ({
                                     </div>
                                 )}
                             </div>
-                        )}
+                        );})()}
 
                         {/* AOI Editor Tab */}
                         {activeTab === 'aoi-editor' && (

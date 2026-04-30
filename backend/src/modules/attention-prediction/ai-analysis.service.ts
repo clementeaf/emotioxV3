@@ -71,6 +71,33 @@ Return a JSON object with exactly this structure:
     { "order": 1, "x": 15, "y": 8, "label": "Logo", "duration": "brief" },
     { "order": 2, "x": 50, "y": 30, "label": "Hero image", "duration": "long" }
   ],
+  "gazePathRoutes": [
+    {
+      "id": "typical-scan",
+      "name": "Typical Scan (Z-Pattern)",
+      "description": "Natural reading/scanning pattern most viewers follow",
+      "fixations": [
+        { "order": 1, "x": 10, "y": 5, "label": "Top-left entry", "duration": "brief" },
+        { "order": 2, "x": 80, "y": 5, "label": "Top-right scan", "duration": "moderate" }
+      ]
+    },
+    {
+      "id": "group-scan",
+      "name": "Group/Category Scan",
+      "description": "Scanning by visual groups, brands, or categories",
+      "fixations": [
+        { "order": 1, "x": 25, "y": 30, "label": "First group", "duration": "long" }
+      ]
+    },
+    {
+      "id": "novelty-search",
+      "name": "Novelty/Differentiation Search",
+      "description": "Seeking unique, novel, or contrasting elements",
+      "fixations": [
+        { "order": 1, "x": 60, "y": 50, "label": "Standout element", "duration": "long" }
+      ]
+    }
+  ],
   "neuroInsights": [
     {
       "principle": "F-Pattern Reading",
@@ -88,6 +115,7 @@ Rules:
 - autoAois: 3-8 key areas of interest. x,y = top-left corner, width,height = dimensions, ALL in percentage (0-100)
 - attentionLevel: "high" (strong saliency), "medium", "low" (weak but notable)
 - gazePath: 5-12 predicted fixation points in chronological viewing order. duration: "brief" (<200ms), "moderate" (200-500ms), "long" (>500ms)
+- gazePathRoutes: EXACTLY 3 distinct viewing strategies. Each with 5-10 fixation points. The 3 routes must represent different cognitive strategies for viewing this specific image.
 - neuroInsights: 3-6 insights based on Gestalt principles, cognitive load, visual hierarchy, contrast, color theory, etc.
 - leakAreas: areas where attention dissipates or exits the design unintentionally
 - flowPath: narrative path of visual attention through the design

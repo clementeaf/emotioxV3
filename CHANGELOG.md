@@ -1,3 +1,16 @@
+## v0.67.1 — Attention Prediction: hybrid predict button, 3 toggleable gaze paths (2026-04-30)
+
+### backend
+- **AI analysis prompt: 3 gaze path routes.** Prompt now requests `gazePathRoutes` with 3 distinct viewing strategies (Typical Scan, Group/Category Scan, Novelty/Differentiation Search), each with 5-10 fixation points.
+- **`gazePathRoutes` type.** Added to `AiAnalysisResult` — array of `{id, name, description, fixations[]}`.
+
+### research-frontend
+- **Hybrid Predict button.** Purple "Hybrid Predict" button in AttentionPredictionCard header. Calls `POST /hybrid-predict` (TranSalNet TTA + LLM semantic fusion). Saves hybrid heatmap to stimulus config.
+- **3 toggleable gaze path routes.** Gaze Paths tab shows colored toggle buttons per route (blue/green/amber). Each route renders its own `GazePathOverlay` with unique color and arrow markers. Falls back to single path if `gazePathRoutes` not available.
+- **GazePathOverlay `routeColor` + `markerId`.** Supports fixed color and unique SVG marker IDs for multi-route rendering without conflicts.
+
+---
+
 ## v0.67.0 — Attention Prediction: UI tabs, TTA pipeline, hybrid saliency fusion (2026-04-30)
 
 ### backend

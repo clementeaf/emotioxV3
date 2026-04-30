@@ -83,6 +83,18 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         }
     }, [research.id, queryClient]);
 
+    const runHybridPredict = useCallback(async (mediaId: string) => {
+        setIsProcessing(true);
+        try {
+            await mediaService.hybridPredict(research.id, mediaId);
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } catch {
+            // Silent fail
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [research.id, queryClient]);
+
 
 
     const handleFilesChange = useCallback(async (files: UploadedFile[]) => {
@@ -144,6 +156,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onImportAoisDone={() => setPendingImportAois(undefined)}
                             onAddMore={() => setShowUploadModal(true)}
                             onRunAnalysis={() => runAnalysis(activeStimulus.mediaId)}
+                            onHybridPredict={() => runHybridPredict(activeStimulus.mediaId)}
                             isAnalyzing={isProcessing}
                         />
 
