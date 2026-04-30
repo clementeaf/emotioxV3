@@ -68,14 +68,11 @@ def convert(variant: str, output_path: str, repo_path: str):
         dummy_input,
         output_path,
         export_params=True,
-        opset_version=13,
+        opset_version=18,
         do_constant_folding=True,
         input_names=['input'],
         output_names=['output'],
-        dynamic_axes={
-            'input': {0: 'batch_size'},
-            'output': {0: 'batch_size'},
-        },
+        dynamo=False,
     )
 
     # Verify
