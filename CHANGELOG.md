@@ -1,3 +1,14 @@
+## v0.67.2 — Configurable saliency model, conversion scripts for TranSalNet_Dense and SUM (2026-04-30)
+
+### backend
+- **Configurable saliency model.** `SALIENCY_MODEL` env var selects ONNX file (default `transalnet_res.onnx`). `SALIENCY_WIDTH` / `SALIENCY_HEIGHT` configure input dimensions (default 384×288, SUM uses 256×256). Hot-swap on restart.
+
+### scripts
+- **`convert-transalnet-to-onnx.py`** — Converts TranSalNet_Dense (DenseNet-161) or TranSalNet_Res (ResNet-50) `.pth` to ONNX. Requires cloned repo + pretrained weights.
+- **`convert-sum-to-onnx.py`** — Converts SUM (WACV 2025) `.pth` to ONNX with condition code support (SALICON/eye-tracking/e-commerce/UI).
+
+---
+
 ## v0.67.1 — Attention Prediction: hybrid predict button, 3 toggleable gaze paths (2026-04-30)
 
 ### backend

@@ -9,24 +9,29 @@ import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 
-// Model constants
-const MODEL_WIDTH = 384;
-const MODEL_HEIGHT = 288;
+// Model constants — configurable for different architectures
+// TranSalNet: 384×288, SUM: 256×256
+const MODEL_WIDTH = parseInt(process.env.SALIENCY_WIDTH || '384', 10);
+const MODEL_HEIGHT = parseInt(process.env.SALIENCY_HEIGHT || '288', 10);
 const IMAGENET_MEAN = [0.485, 0.456, 0.406];
 const IMAGENET_STD = [0.229, 0.224, 0.225];
 
+// Configurable model file — defaults to transalnet_res.onnx
+// Set SALIENCY_MODEL env var to switch: transalnet_dense.onnx, sum_model.onnx, etc.
+const MODEL_FILE = process.env.SALIENCY_MODEL || 'transalnet_res.onnx';
+
 // Singleton session — loaded once, reused for all predictions
 let session: ort.InferenceSession | null = null;
+let loadedModelFile = '';
 
 /**
  * Resolves the ONNX model path.
  * Looks in backend/models/ relative to the project root.
  */
 const getModelPath = (): string => {
-    // Try multiple possible locations
     const candidates = [
-        path.join(process.cwd(), 'models', 'transalnet_res.onnx'),
-        path.join(__dirname, '..', '..', '..', 'models', 'transalnet_res.onnx'),
+        path.join(process.cwd(), 'models', MODEL_FILE),
+        path.join(__dirname, '..', '..', '..', 'models', MODEL_FILE),
     ];
 
     for (const p of candidates) {
@@ -34,22 +39,25 @@ const getModelPath = (): string => {
     }
 
     throw new Error(
-        `ONNX model not found. Searched: ${candidates.join(', ')}. ` +
-        'Place transalnet_res.onnx in backend/models/'
+        `ONNX model not found: ${MODEL_FILE}. Searched: ${candidates.join(', ')}. ` +
+        `Place ${MODEL_FILE} in backend/models/`
     );
 };
 
 /**
  * Loads the ONNX model session (lazy singleton).
+ * Reloads if SALIENCY_MODEL env var changed (supports hot-swapping).
  */
 const getSession = async (): Promise<ort.InferenceSession> => {
-    if (session) return session;
+    if (session && loadedModelFile === MODEL_FILE) return session;
 
     const modelPath = getModelPath();
+    console.log(`[Saliency] Loading model: ${MODEL_FILE} from ${modelPath}`);
     session = await ort.InferenceSession.create(modelPath, {
         executionProviders: ['cpu'],
         graphOptimizationLevel: 'all',
     });
+    loadedModelFile = MODEL_FILE;
 
     return session;
 };
