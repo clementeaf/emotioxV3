@@ -63,7 +63,7 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'X-Amz-Date', 'X-Api-Key', 'X-Amz-Security-Token'],
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.options('/api/monitor/events/:researchId', (req, res) => {
     const origin = req.headers.origin;

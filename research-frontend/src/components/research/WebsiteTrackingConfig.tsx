@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Globe, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import * as trackingService from '../../services/tracking.service';
 import type { TrackingConfig } from '../../services/tracking.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
@@ -116,6 +117,11 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                     setVerifyResult('success');
                     clearInterval(countdownTimer);
                     setVerifying(false);
+                    // Persist verified flag
+                    try {
+                        await trackingService.updateConfig(research.id, { ...config, verified: true });
+                        queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                    } catch { /* best-effort */ }
                     return;
                 }
                 await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -129,12 +135,12 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
             setVerifying(false);
             setVerifyCountdown(0);
         }
-    }, [research.id]);
+    }, [research.id, config, queryClient]);
 
     const isActive = research.status === 'active';
 
     const hasSnippet = !!snippet;
-    const hasVerified = verifyResult === 'success';
+    const hasVerified = verifyResult === 'success' || existingConfig.verified === true;
 
     return (
         <div className="space-y-3">
@@ -143,7 +149,21 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                 <ChecklistItem done={isActive} label="Activate" />
                 <ChecklistItem done={hasSnippet} label="Add snippet" />
                 <ChecklistItem done={hasVerified} label="Verify" />
-                <ChecklistItem done={false} label="View results" />
+                {hasVerified ? (
+                    <Link
+                        to={`/research/${research.id}/builder/results`}
+                        className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                    >
+                        <span>View results →</span>
+                    </Link>
+                ) : (
+                    <span
+                        className="flex items-center gap-1.5 text-xs text-slate-400 cursor-not-allowed"
+                        title="Verify the installation first to view results"
+                    >
+                        View results →
+                    </span>
+                )}
                 <div className="ml-auto flex items-center gap-2">
                     {isActive ? (
                         <span className="flex items-center gap-1.5 text-[10px] text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
@@ -172,7 +192,7 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                             >
                                 {verifying ? `Listening... ${verifyCountdown}s` : 'Verify'}
                             </button>
-                            {verifyResult === 'success' && <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>}
+                            {hasVerified && <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>}
                             {verifyResult === 'no_sessions' && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">No data</span>}
                             {verifyResult === 'script_error' && <span className="text-[10px] text-red-600 bg-red-50 px-1.5 py-0.5 rounded">Error</span>}
                         </div>

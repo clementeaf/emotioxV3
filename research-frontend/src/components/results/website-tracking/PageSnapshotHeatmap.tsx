@@ -14,6 +14,7 @@ interface PageSnapshotHeatmapProps {
     pageUrl: string;
     heatmapType: 'click' | 'scroll' | 'attention';
     device?: 'mobile' | 'tablet' | 'desktop';
+    screenshotUrl?: string | null;
 }
 
 /**
@@ -62,34 +63,43 @@ export const PageSnapshotHeatmap = ({
     pageUrl,
     heatmapType,
     device,
+    screenshotUrl,
 }: PageSnapshotHeatmapProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
+    const imgRef = useRef<HTMLImageElement>(null);
     const [iframeReady, setIframeReady] = useState(false);
+    const [imgReady, setImgReady] = useState(false);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [containerWidth, setContainerWidth] = useState(0);
     const [intensity, setIntensity] = useState(50);
     const [opacity, setOpacity] = useState(45);
 
-    // Fetch snapshot HTML
+    const useScreenshot = !!screenshotUrl;
+
+    // Fetch snapshot HTML (only if no screenshot available)
     const { data: snapshotHtml } = useQuery({
         queryKey: ['tracking', researchId, 'snapshot', pageUrl],
         queryFn: () => trackingService.getPageSnapshot(researchId, pageUrl),
+        enabled: !useScreenshot,
         staleTime: 60_000,
     });
+
+    const hasBackdrop = useScreenshot || !!snapshotHtml;
 
     // Fetch heatmap data
     const { data: clickData } = useQuery({
         queryKey: ['tracking', researchId, 'heatmap', pageUrl, device || 'all'],
         queryFn: () => trackingService.getClickHeatmap(researchId, pageUrl, device),
-        enabled: heatmapType === 'click' && !!snapshotHtml,
+        enabled: heatmapType === 'click' && hasBackdrop,
         staleTime: 10_000,
     });
 
     const { data: attentionData } = useQuery({
         queryKey: ['tracking', researchId, 'attention', pageUrl, device || 'all'],
         queryFn: () => trackingService.getAttentionHeatmap(researchId, pageUrl, device),
-        enabled: heatmapType === 'attention' && !!snapshotHtml,
+        enabled: heatmapType === 'attention' && hasBackdrop,
         staleTime: 10_000,
     });
 
@@ -97,7 +107,7 @@ export const PageSnapshotHeatmap = ({
     const { data: scrollData } = useQuery({
         queryKey: ['tracking', researchId, 'scroll', pageUrl],
         queryFn: () => trackingService.getScrollDepth(researchId, pageUrl),
-        enabled: heatmapType === 'scroll' && !!snapshotHtml,
+        enabled: heatmapType === 'scroll' && hasBackdrop,
         staleTime: 10_000,
     });
 
@@ -112,10 +122,22 @@ export const PageSnapshotHeatmap = ({
         return sanitized.replace('</head>', injectStyle + '</head>');
     }, [snapshotHtml]);
 
+    // Screenshot image loaded — measure natural dimensions
+    const handleImgLoad = useCallback(() => {
+        const img = imgRef.current;
+        if (!img) return;
+        const cw = containerRef.current?.clientWidth || 1200;
+        setContainerWidth(cw);
+        setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+        setImgReady(true);
+    }, []);
+
     // Measure dimensions from the iframe after load — use allow-same-origin for measurement
     const handleIframeLoad = useCallback(() => {
         const iframe = iframeRef.current;
         if (!iframe) return;
+        const cw = containerRef.current?.clientWidth || 1200;
+        setContainerWidth(cw);
         try {
             const doc = iframe.contentDocument;
             if (doc) {
@@ -131,14 +153,25 @@ export const PageSnapshotHeatmap = ({
             // Cross-origin fallback
         }
         // Fallback: use container width and 16:9 aspect ratio
-        const containerW = containerRef.current?.clientWidth || 1200;
-        setDimensions({ width: containerW, height: Math.round(containerW * 1.5) });
+        setDimensions({ width: cw, height: Math.round(cw * 1.5) });
         setIframeReady(true);
     }, []);
 
+    // Recalculate containerWidth when device filter changes (screenshot mode only)
+    useEffect(() => {
+        if (!useScreenshot || !containerRef.current) return;
+        const timer = setTimeout(() => {
+            const cw = containerRef.current?.clientWidth || 0;
+            if (cw > 0 && cw !== containerWidth) setContainerWidth(cw);
+        }, 50);
+        return () => clearTimeout(timer);
+    }, [device, useScreenshot]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const isReady = useScreenshot ? imgReady : iframeReady;
+
     // Render heatmap overlay on canvas
     useEffect(() => {
-        if (!iframeReady || !canvasRef.current || dimensions.width === 0) return;
+        if (!isReady || !canvasRef.current || dimensions.width === 0) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
@@ -197,7 +230,29 @@ export const PageSnapshotHeatmap = ({
             return;
         }
 
-        // Click / Attention: dark overlay + simpleheat
+        if (heatmapType === 'attention' && attentionData?.points) {
+            // Attention: horizontal bands painted directly — no simpleheat
+            // Each point has y (band center as % of viewport width) and dwell (ms)
+            const max = attentionData.maxDwell || 1;
+            const sorted = [...attentionData.points].sort((a, b) => a.y - b.y);
+
+            for (const p of sorted) {
+                const ratio = Math.min(p.dwell / max, 1);
+                // Green (low attention) → Yellow (mid) → Red (high)
+                const r2 = Math.round(ratio < 0.5 ? ratio * 2 * 255 : 255);
+                const g2 = Math.round(ratio < 0.5 ? 200 + ratio * 110 : 255 * (1 - (ratio - 0.5) * 2));
+                const b2 = 0;
+                const bandTop = (p.y / 100) * w;
+                const bandH = (2 / 100) * w; // 2% band height
+                ctx.globalAlpha = 0.35 + ratio * 0.35; // 35%-70% opacity based on intensity
+                ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+                ctx.fillRect(0, bandTop, w, bandH);
+            }
+            ctx.globalAlpha = 1;
+            return;
+        }
+
+        // Click: dark overlay + simpleheat
         ctx.fillStyle = `rgba(0, 0, 0, ${opacity / 100})`;
         ctx.fillRect(0, 0, w, h);
 
@@ -206,14 +261,14 @@ export const PageSnapshotHeatmap = ({
         heatCanvas.height = h;
 
         const heat = simpleheat(heatCanvas);
-        const baseR = Math.max(20, Math.round(Math.min(w, h) * 0.04));
-        const r = Math.round(baseR * (intensity / 50));
-        heat.radius(r, Math.round(r * 0.9));
 
         if (heatmapType === 'click' && clickData?.clicks) {
+            const baseR = Math.max(20, Math.round(Math.min(w, h) * 0.04));
+            const r = Math.round(baseR * (intensity / 50));
+            heat.radius(r, Math.round(r * 0.9));
             heat.gradient({
                 0.15: '#0f0', 0.35: '#8f0', 0.5: '#ff0',
-                0.7: '#f80', 0.85: '#f00', 1.0: '#fff',
+                0.7: '#f80', 0.85: '#f00', 1.0: '#f00',
             });
             const points: Array<[number, number, number]> = clickData.clicks.map(c => [
                 (c.x / 100) * w, (c.y / 100) * w, c.count,
@@ -221,25 +276,12 @@ export const PageSnapshotHeatmap = ({
             heat.data(points);
             heat.max(Math.max(3, Math.ceil(points.length * 0.05)));
             heat.draw(0.05);
-        } else if (heatmapType === 'attention' && attentionData?.points) {
-            heat.gradient({
-                0.0: 'rgba(0,100,255,0)', 0.15: '#0066ff', 0.3: '#00ccff',
-                0.45: '#00ff88', 0.6: '#aaff00', 0.75: '#ffcc00',
-                0.9: '#ff4400', 1.0: '#ff0000',
-            });
-            const max = attentionData.maxDwell || 1;
-            const points: Array<[number, number, number]> = attentionData.points.map(p => [
-                (p.x / 100) * w, (p.y / 100) * w, p.dwell / max,
-            ]);
-            heat.data(points);
-            heat.max(1);
-            heat.draw(0.05);
         }
 
         ctx.drawImage(heatCanvas, 0, 0);
-    }, [iframeReady, dimensions, heatmapType, clickData, attentionData, scrollData, intensity, opacity]);
+    }, [isReady, dimensions, heatmapType, clickData, attentionData, scrollData, intensity, opacity]);
 
-    if (!snapshotHtml) {
+    if (!useScreenshot && !snapshotHtml) {
         return (
             <div className="bg-gray-50 rounded-lg p-12 text-center">
                 <p className="text-sm text-gray-500">No page snapshot captured yet.</p>
@@ -263,37 +305,86 @@ export const PageSnapshotHeatmap = ({
                 </label>
             </div>
             )}
+        {/* Device viewport simulation — only when a real device screenshot exists */}
+        <div className={useScreenshot && device ? 'flex justify-center' : ''}>
         <div
             ref={containerRef}
-            className="relative overflow-auto rounded-lg border border-gray-200 bg-gray-900"
-            style={{ maxHeight: '70vh' }}
+            className="relative overflow-hidden rounded-lg border border-gray-200 bg-gray-100 transition-all duration-300"
+            style={{
+                maxHeight: '70vh',
+                overflowY: 'auto',
+                maxWidth: useScreenshot && device === 'mobile' ? 375 : useScreenshot && device === 'tablet' ? 768 : undefined,
+                width: '100%',
+            }}
         >
-            <iframe
-                ref={iframeRef}
-                srcDoc={srcdoc}
-                sandbox="allow-same-origin allow-scripts"
-                onLoad={handleIframeLoad}
-                className="w-full border-0"
-                style={{
-                    height: dimensions.height > 0 ? dimensions.height : '100vh',
-                    pointerEvents: 'none',
-                }}
-                title="Page snapshot"
-            />
+            {useScreenshot ? (
+                /* Screenshot mode: img + canvas overlay */
+                <div className="relative" style={{ width: '100%' }}>
+                    <img
+                        ref={imgRef}
+                        src={screenshotUrl!}
+                        onLoad={handleImgLoad}
+                        alt="Page screenshot"
+                        className="w-full h-auto block"
+                    />
+                    {imgReady && (
+                        <canvas
+                            ref={canvasRef}
+                            className="absolute top-0 left-0 pointer-events-none w-full h-full"
+                            style={{ width: '100%', height: '100%' }}
+                        />
+                    )}
+                </div>
+            ) : (
+                /* DOM snapshot fallback: iframe + canvas, scaled to fit */
+                <>
+                    {(() => {
+                        const scale = containerWidth > 0 && dimensions.width > 0
+                            ? Math.min(1, containerWidth / dimensions.width)
+                            : 1;
+                        const scaledH = dimensions.height * scale;
+                        return (
+                            <div style={{ width: containerWidth || '100%', height: scaledH || 'auto', position: 'relative' }}>
+                                <div style={{
+                                    width: dimensions.width || '100%',
+                                    height: dimensions.height || '100vh',
+                                    transform: `scale(${scale})`,
+                                    transformOrigin: 'top left',
+                                }}>
+                                    <iframe
+                                        ref={iframeRef}
+                                        srcDoc={srcdoc}
+                                        sandbox="allow-same-origin allow-scripts"
+                                        onLoad={handleIframeLoad}
+                                        className="border-0"
+                                        style={{
+                                            width: dimensions.width || '100%',
+                                            height: dimensions.height > 0 ? dimensions.height : '100vh',
+                                            pointerEvents: 'none',
+                                        }}
+                                        title="Page snapshot"
+                                    />
 
-            {iframeReady && (
-                <canvas
-                    ref={canvasRef}
-                    className="absolute top-0 left-0 pointer-events-none"
-                    style={{ width: dimensions.width, height: dimensions.height }}
-                />
+                                    {iframeReady && (
+                                        <canvas
+                                            ref={canvasRef}
+                                            className="absolute top-0 left-0 pointer-events-none"
+                                            style={{ width: dimensions.width, height: dimensions.height }}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </>
             )}
 
-            {!iframeReady && (
+            {!isReady && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                    <span className="text-gray-400 text-sm">Loading page snapshot...</span>
+                    <span className="text-gray-400 text-sm">{useScreenshot ? 'Loading screenshot...' : 'Loading page snapshot...'}</span>
                 </div>
             )}
+        </div>
         </div>
         </div>
     );

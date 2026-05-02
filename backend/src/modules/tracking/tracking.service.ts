@@ -4,7 +4,9 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
 import pool from '../../config/database';
+import { getMediaPath, ensureDirectoryExists } from '../../config/local-storage';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -399,7 +401,7 @@ export const getOverviewMetrics = async (researchId: string, from?: string, to?:
 export const getTrackedPages = async (researchId: string) => {
     const result = await pool.query(
         `SELECT
-            tp.id, tp.page_url, tp.page_title, tp.screenshot_s3_key,
+            tp.id, tp.page_url, tp.page_title, tp.screenshot_s3_key, tp.screenshot_devices,
             tp.viewport_width, tp.viewport_height,
             (tp.page_snapshot IS NOT NULL) as hasSnapshot,
             COUNT(DISTINCT ts.id) as sessionCount,
@@ -419,6 +421,11 @@ export const getTrackedPages = async (researchId: string) => {
         pageUrl: row.page_url,
         pageTitle: row.page_title,
         screenshotS3Key: row.screenshot_s3_key,
+        screenshotDevices: row.screenshot_devices
+            ? (typeof row.screenshot_devices === 'string'
+                ? JSON.parse(row.screenshot_devices as string)
+                : row.screenshot_devices) as Record<string, string>
+            : null,
         hasSnapshot: !!row.hasSnapshot,
         viewportWidth: row.viewport_width,
         viewportHeight: row.viewport_height,
@@ -541,6 +548,14 @@ export const getPageSnapshotHtml = async (researchId: string, pageUrl: string): 
 
 // ─── Attention Heatmap (dwell time per zone) ────────────────────────
 
+/**
+ * Attention heatmap based on viewport time — how long each horizontal band
+ * of the page was visible in the visitor's viewport.
+ *
+ * Uses scroll events (scrollY + timestamp) + session viewport_height to compute
+ * which page bands were in-view and for how long across all sessions.
+ * Result is a horizontal band map rendered as full-width heatmap rows.
+ */
 export const getAttentionHeatmapData = async (
     researchId: string,
     pageUrl?: string,
@@ -548,19 +563,16 @@ export const getAttentionHeatmapData = async (
 ): Promise<{ points: Array<{ x: number; y: number; dwell: number }>; totalSessions: number; maxDwell: number }> => {
     const deviceFilter = getDeviceFilter(device);
 
-    // Get mousemove events with timestamps — consecutive moves in same zone = dwell
-    // We bucket coordinates to 2% grid cells and sum inter-event time gaps
-    // Normalize legacy pixel coords using session viewport_width
+    // Get scroll events + pageview (initial position = scrollY 0) per session
     let query = `
-        SELECT te.session_id,
-            ROUND(CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100 ELSE te.x END, 0) as x,
-            ROUND(CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100 ELSE te.y END, 0) as y,
-            te.timestamp_ms
+        SELECT te.session_id, ts.viewport_height, ts.viewport_width,
+            te.scroll_y, te.timestamp_ms,
+            te.event_type
         FROM tracking_events te
         JOIN tracking_sessions ts ON te.session_id = ts.id
         WHERE ts.research_id = ?
-          AND te.event_type IN ('mousemove', 'click')
-          AND te.x IS NOT NULL AND te.y IS NOT NULL
+          AND te.event_type IN ('scroll', 'pageview')
+          AND ts.viewport_height > 0
           AND ts.viewport_width > 0
     `;
     const params: unknown[] = [researchId];
@@ -571,41 +583,58 @@ export const getAttentionHeatmapData = async (
 
     const result = await pool.query(query, params);
 
-    // Compute dwell time per 2% grid cell
-    const GRID = 2; // 2% buckets
-    const dwellMap = new Map<string, number>();
+    // Band size: 2% of page height (as percentage of viewport width for coordinate system)
+    const BAND_PCT = 2;
+    const dwellMap = new Map<number, number>(); // bandY → total ms across all sessions
     const sessions = new Set<string>();
 
-    let prevSession = '', prevTs = 0, prevCellKey = '';
+    let prevSession = '';
+    let prevTs = 0;
+    let prevScrollY = 0;
+    let prevVpH = 0;
+    let prevVpW = 0;
+
+    const flushInterval = (scrollY: number, vpH: number, vpW: number, duration: number) => {
+        if (duration <= 0 || duration > 30000) return; // cap 30s per interval
+        // Convert scrollY (px) to percentage of viewport width (matching coordinate system)
+        const topPct = (scrollY / vpW) * 100;
+        const bottomPct = ((scrollY + vpH) / vpW) * 100;
+        // Distribute time across visible bands
+        const firstBand = Math.floor(topPct / BAND_PCT) * BAND_PCT;
+        const lastBand = Math.floor(bottomPct / BAND_PCT) * BAND_PCT;
+        for (let b = firstBand; b <= lastBand; b += BAND_PCT) {
+            dwellMap.set(b, (dwellMap.get(b) || 0) + duration);
+        }
+    };
 
     for (const row of result.rows as Array<Record<string, unknown>>) {
         const sid = row.session_id as string;
-        const x = Number(row.x);
-        const y = Number(row.y);
+        const vpH = Number(row.viewport_height);
+        const vpW = Number(row.viewport_width);
+        const scrollY = row.scroll_y != null ? Number(row.scroll_y) : 0;
         const ts = Number(row.timestamp_ms);
         sessions.add(sid);
 
-        const cellX = Math.floor(x / GRID) * GRID;
-        const cellY = Math.floor(y / GRID) * GRID;
-        const cellKey = `${cellX},${cellY}`;
-
-        // If same session and same cell, add time delta (capped at 3s to avoid idle inflation)
-        if (sid === prevSession && cellKey === prevCellKey) {
-            const delta = Math.min(ts - prevTs, 3000);
-            dwellMap.set(cellKey, (dwellMap.get(cellKey) || 0) + delta);
+        if (sid === prevSession && prevTs > 0) {
+            // Flush the previous interval — time spent at prevScrollY position
+            flushInterval(prevScrollY, prevVpH, prevVpW, ts - prevTs);
         }
 
         prevSession = sid;
         prevTs = ts;
-        prevCellKey = cellKey;
+        prevScrollY = scrollY;
+        prevVpH = vpH;
+        prevVpW = vpW;
     }
 
+    // Convert bands to heatmap points — single center point per band
+    // Frontend renders with large horizontal radius to create full-width bands
     let maxDwell = 0;
-    const points = [...dwellMap.entries()].map(([key, dwell]) => {
-        const [x, y] = key.split(',').map(Number);
+    const points: Array<{ x: number; y: number; dwell: number }> = [];
+    for (const [bandY, dwell] of dwellMap.entries()) {
         if (dwell > maxDwell) maxDwell = dwell;
-        return { x, y, dwell };
-    });
+        points.push({ x: 50, y: bandY + BAND_PCT / 2, dwell });
+    }
 
     return { points, totalSessions: sessions.size, maxDwell };
 };
@@ -691,8 +720,9 @@ export const getLiveSessions = async (researchId: string) => {
          FROM tracking_sessions ts
          LEFT JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?
-           AND ts.started_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
          GROUP BY ts.id
+         HAVING MAX(te.timestamp_ms) >= (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
+            OR ts.started_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
          ORDER BY ts.started_at DESC`,
         [researchId]
     );
@@ -744,6 +774,57 @@ export const savePageScreenshot = async (
          WHERE research_id = ? AND page_url = ?`,
         [screenshotS3Key, researchId, pageUrl]
     );
+};
+
+/**
+ * Save a base64-encoded screenshot image to the filesystem and update the page record.
+ * Called by the public tracking snippet (client-side html2canvas capture).
+ * Stores per-device category (mobile/tablet/desktop) in screenshot_devices JSON.
+ */
+export const savePageScreenshotFromBase64 = async (
+    researchId: string,
+    pageUrl: string,
+    base64Data: string,
+    deviceCategory: 'mobile' | 'tablet' | 'desktop' = 'desktop'
+): Promise<string> => {
+    // Strip data URI prefix if present
+    const raw = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(raw, 'base64');
+
+    // Validate it's a real JPEG/PNG (check magic bytes)
+    const isJpeg = buffer[0] === 0xFF && buffer[1] === 0xD8;
+    const isPng = buffer[0] === 0x89 && buffer[1] === 0x50;
+    if (!isJpeg && !isPng) {
+        throw new Error('Invalid image data');
+    }
+
+    const ext = isPng ? 'png' : 'jpg';
+    const fileName = `screenshot_${deviceCategory}_${Date.now()}.${ext}`;
+    const relativePath = `research/${researchId}/tracking/${fileName}`;
+    const fullPath = getMediaPath(relativePath);
+
+    ensureDirectoryExists(fullPath);
+    fs.writeFileSync(fullPath, buffer);
+
+    // Update screenshot_devices JSON — merge with existing
+    const existing = await pool.query(
+        `SELECT screenshot_devices FROM tracking_pages WHERE research_id = ? AND page_url = ?`,
+        [researchId, pageUrl]
+    );
+    const currentDevices = existing.rows[0]?.screenshot_devices
+        ? (typeof existing.rows[0].screenshot_devices === 'string'
+            ? JSON.parse(existing.rows[0].screenshot_devices)
+            : existing.rows[0].screenshot_devices)
+        : {};
+    currentDevices[deviceCategory] = relativePath;
+
+    await pool.query(
+        `UPDATE tracking_pages SET screenshot_s3_key = ?, screenshot_devices = ?, updated_at = NOW()
+         WHERE research_id = ? AND page_url = ?`,
+        [relativePath, JSON.stringify(currentDevices), researchId, pageUrl]
+    );
+
+    return relativePath;
 };
 
 // ─── Analytics: Scroll Depth ─────────────────────────────────────────
@@ -832,6 +913,7 @@ export const getSessionEvents = async (sessionId: string) => {
     );
 
     const s = session.rows[0] as Record<string, unknown>;
+
     return {
         session: {
             id: s.id,
@@ -845,15 +927,15 @@ export const getSessionEvents = async (sessionId: string) => {
             endedAt: s.ended_at,
         },
         events: events.rows.map((e: Record<string, unknown>) => ({
-            eventType: e.event_type,
-            x: e.x,
-            y: e.y,
-            scrollY: e.scroll_y,
-            scrollDepthPct: e.scroll_depth_pct,
-            targetSelector: e.target_selector,
-            targetText: e.target_text,
+            eventType: e.event_type as string,
+            x: e.x as number | null,
+            y: e.y as number | null,
+            scrollY: e.scroll_y as number | null,
+            scrollDepthPct: e.scroll_depth_pct as number | null,
+            targetSelector: e.target_selector as string | null,
+            targetText: e.target_text as string | null,
             timestampMs: Number(e.timestamp_ms),
-            metadata: e.metadata,
+            metadata: e.metadata as Record<string, unknown> | null,
         })),
     };
 };

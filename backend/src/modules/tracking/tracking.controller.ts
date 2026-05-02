@@ -21,6 +21,7 @@ import {
     computeFunnelDropoff,
     getExportData,
     savePageScreenshot,
+    savePageScreenshotFromBase64,
     saveTrackingConfig,
     getRecentSessionCount,
     getVisitorJourneys,
@@ -200,6 +201,24 @@ export const handlePublicTrackingRoutes = async (
             // Cap at 2MB
             if (html.length > 2097152) return trackingError('Snapshot too large', 413);
             await savePageSnapshot(researchId, pageUrl, html);
+            return trackingSuccess({ saved: true }, 201);
+        }
+
+        // POST /public/tracking/:researchId/screenshot — save client-captured screenshot
+        const screenshotPublicMatch = path.match(/^\/public\/tracking\/([^/]+)\/screenshot$/);
+        if (screenshotPublicMatch && httpMethod === 'POST') {
+            const researchId = screenshotPublicMatch[1];
+            let body: Record<string, unknown>;
+            try { body = JSON.parse(event.body || '{}'); } catch { return trackingError('Invalid JSON'); }
+            const pageUrl = body.pageUrl as string;
+            const imageData = body.imageData as string;
+            const deviceCategory = (['mobile', 'tablet', 'desktop'].includes(body.device as string)
+                ? body.device as 'mobile' | 'tablet' | 'desktop'
+                : 'desktop');
+            if (!pageUrl || !imageData) return trackingError('Missing pageUrl or imageData');
+            // Cap base64 at ~5MB
+            if (imageData.length > 5242880) return trackingError('Screenshot too large', 413);
+            await savePageScreenshotFromBase64(researchId, pageUrl, imageData, deviceCategory);
             return trackingSuccess({ saved: true }, 201);
         }
 

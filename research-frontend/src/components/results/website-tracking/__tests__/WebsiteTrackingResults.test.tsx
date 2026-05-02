@@ -39,8 +39,8 @@ const mockOverview = {
 };
 
 const mockPages = [
-    { id: 'p1', pageUrl: 'https://example.com/', pageTitle: 'Home', screenshotS3Key: null, viewportWidth: 1920, viewportHeight: 1080, sessionCount: 15, eventCount: 300, lastVisitedAt: '2026-04-29T10:00:00Z' },
-    { id: 'p2', pageUrl: 'https://example.com/pricing', pageTitle: 'Pricing', screenshotS3Key: null, viewportWidth: 1920, viewportHeight: 1080, sessionCount: 10, eventCount: 150, lastVisitedAt: '2026-04-29T09:30:00Z' },
+    { id: 'p1', pageUrl: 'https://example.com/', pageTitle: 'Home', screenshotS3Key: null, screenshotDevices: null, viewportWidth: 1920, viewportHeight: 1080, sessionCount: 15, eventCount: 300, lastVisitedAt: '2026-04-29T10:00:00Z' },
+    { id: 'p2', pageUrl: 'https://example.com/pricing', pageTitle: 'Pricing', screenshotS3Key: null, screenshotDevices: null, viewportWidth: 1920, viewportHeight: 1080, sessionCount: 10, eventCount: 150, lastVisitedAt: '2026-04-29T09:30:00Z' },
 ];
 
 const mockHeatmap = {

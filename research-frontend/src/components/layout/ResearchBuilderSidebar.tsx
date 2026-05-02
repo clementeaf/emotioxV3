@@ -95,6 +95,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
 
     // Get stimuli from settings if it exists
     const settings = (activeResearch?.settings as Record<string, unknown>) || {};
+    const trackingVerified = isWebsiteTracking && (settings.trackingConfig as Record<string, unknown> | undefined)?.verified === true;
     const stimuli = (settings.stimuli as Array<{ url: string; mediaId: string; name: string }>) || [];
 
 
@@ -557,20 +558,33 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             </div>
                         )}
                         <div className={cn("space-y-1", !isCollapsed && "mt-2")}>
-                            <Link
-                                to={`/research/${activeResearch.id}/builder/results`}
-                                className={cn(
-                                    'flex items-center text-sm rounded transition-colors',
-                                    location.pathname.includes('/builder/results')
-                                        ? 'bg-blue-50 text-blue-600 font-medium'
-                                        : 'text-gray-700 hover:bg-gray-50',
-                                    isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
-                                )}
-                                title={isCollapsed ? "View Results" : undefined}
-                            >
-                                <BarChart3 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                                {!isCollapsed && "View Results"}
-                            </Link>
+                            {isWebsiteTracking && !trackingVerified ? (
+                                <span
+                                    className={cn(
+                                        'flex items-center text-sm rounded text-gray-400 cursor-not-allowed',
+                                        isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
+                                    )}
+                                    title="Verify the installation first to view results"
+                                >
+                                    <BarChart3 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                                    {!isCollapsed && "View Results"}
+                                </span>
+                            ) : (
+                                <Link
+                                    to={`/research/${activeResearch.id}/builder/results`}
+                                    className={cn(
+                                        'flex items-center text-sm rounded transition-colors',
+                                        location.pathname.includes('/builder/results')
+                                            ? 'bg-blue-50 text-blue-600 font-medium'
+                                            : 'text-gray-700 hover:bg-gray-50',
+                                        isCollapsed ? 'px-2 py-2 justify-center' : 'px-2 py-1.5'
+                                    )}
+                                    title={isCollapsed ? "View Results" : undefined}
+                                >
+                                    <BarChart3 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                                    {!isCollapsed && "View Results"}
+                                </Link>
+                            )}
                         </div>
                     </div>
                 )}

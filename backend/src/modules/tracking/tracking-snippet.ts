@@ -148,6 +148,90 @@ function captureSnapshot(){
         xhr2.setRequestHeader("Content-Type","application/json");
         xhr2.send(JSON.stringify({pageUrl:url,html:html}));
     }catch(e){}
+    // Also capture a pixel-perfect screenshot via html2canvas
+    captureScreenshot(url);
+}
+
+// Device category based on viewport width
+function getDeviceCat(){
+    var w=window.innerWidth;
+    if(w<768)return"mobile";
+    if(w<=1024)return"tablet";
+    return"desktop";
+}
+
+// Wait for all visible images to finish loading
+function waitForImages(){
+    var imgs=document.querySelectorAll("img");
+    var promises=[];
+    for(var i=0;i<imgs.length;i++){
+        if(!imgs[i].complete){
+            promises.push(new Promise(function(resolve){
+                var img=imgs[i];
+                img.addEventListener("load",resolve);
+                img.addEventListener("error",resolve);
+                // Timeout fallback per image
+                setTimeout(resolve,5000);
+            }));
+        }
+    }
+    return Promise.all(promises);
+}
+
+// Capture screenshot using html2canvas — loads lib dynamically, sends base64 JPEG
+var screenshotSent={};
+function captureScreenshot(url){
+    var cat=getDeviceCat();
+    var key=url+"__"+cat;
+    if(screenshotSent[key])return;
+    screenshotSent[key]=true;
+    function doCapture(){
+        waitForImages().then(function(){
+            try{
+                // Capture full page at current viewport width
+                var vw=window.innerWidth;
+                var fullH=Math.max(
+                    document.body.scrollHeight,
+                    document.body.offsetHeight,
+                    document.documentElement.scrollHeight,
+                    document.documentElement.offsetHeight
+                );
+                // Cap height to prevent memory issues (max ~8000px)
+                var captureH=Math.min(fullH,8000);
+                window.html2canvas(document.documentElement,{
+                    useCORS:true,
+                    allowTaint:false,
+                    scale:1,
+                    logging:false,
+                    width:vw,
+                    height:captureH,
+                    windowWidth:vw,
+                    windowHeight:captureH,
+                    x:0,
+                    y:0,
+                    scrollX:0,
+                    scrollY:0
+                }).then(function(canvas){
+                    var data=canvas.toDataURL("image/jpeg",0.8);
+                    // Cap at ~5MB base64
+                    if(data.length>5242880)return;
+                    var xhr3=new XMLHttpRequest();
+                    xhr3.open("POST",C.api+"/public/tracking/"+C.rid+"/screenshot",true);
+                    xhr3.setRequestHeader("Content-Type","application/json");
+                    xhr3.send(JSON.stringify({pageUrl:url,imageData:data,device:cat}));
+                }).catch(function(e){
+                    screenshotSent[key]=false;
+                });
+            }catch(e){screenshotSent[key]=false;}
+        });
+    }
+    // Load html2canvas if not already loaded
+    if(window.html2canvas){doCapture();return;}
+    var sc=document.createElement("script");
+    sc.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    sc.onload=doCapture;
+    sc.onerror=function(){screenshotSent[key]=false;};
+    document.head.appendChild(sc);
 }
 
 // Create a new session on the backend

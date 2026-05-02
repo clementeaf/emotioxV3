@@ -36,6 +36,7 @@ export interface TrackingConfig {
     excludePages: string[];
     dataRetentionDays: number;
     funnels?: FunnelDefinition[];
+    verified?: boolean;
 }
 
 export interface FunnelDropoffResult {
@@ -64,6 +65,7 @@ export interface TrackedPage {
     pageUrl: string;
     pageTitle: string | null;
     screenshotS3Key: string | null;
+    screenshotDevices: Record<string, string> | null;
     hasSnapshot?: boolean;
     viewportWidth: number | null;
     viewportHeight: number | null;

@@ -14,13 +14,13 @@ import * as trackingService from '../../../services/tracking.service';
 import { configService } from '../../../services/api/config.service';
 import { useAuthStore } from '../../../stores/auth.store';
 import type { TrackingSession } from '../../../services/tracking.service';
-import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { StatCard } from '../../ui/StatCard';
 import { EmptyState } from '../../ui/EmptyState';
 import { ScrollDepthChart } from './ScrollDepthChart';
 import { PageSnapshotHeatmap } from './PageSnapshotHeatmap';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
 import { FunnelChart } from './FunnelChart';
+import { resolveMediaUrl } from '../../../services/media.service';
 
 const formatDateTime = (iso: string): string => {
     const d = new Date(iso);
@@ -39,7 +39,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
     const [activeTab, setActiveTab] = useState<ResultTab>('heatmaps');
     const [heatmapSubTab, setHeatmapSubTab] = useState<HeatmapSubTab>('click');
     const [selectedPageUrl, setSelectedPageUrl] = useState<string | undefined>();
-    const [deviceFilter, setDeviceFilter] = useState<'all' | 'mobile' | 'tablet' | 'desktop'>('all');
+    const [deviceFilter, setDeviceFilter] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [exporting, setExporting] = useState(false);
@@ -83,7 +83,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
     });
 
     // Fetch sessions (for replay tab)
-    const { data: sessions } = useQuery({
+    const { data: sessions, isLoading: loadingSessions } = useQuery({
         queryKey: ['tracking', researchId, 'sessions-list'],
         queryFn: () => trackingService.getSessions(researchId, 50, 0),
         staleTime: 10_000,
@@ -109,6 +109,15 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         () => pages?.find((p) => p.pageUrl === selectedPageUrl),
         [pages, selectedPageUrl]
     );
+
+    const selectedScreenshotUrl = useMemo(() => {
+        if (!selectedPage) return null;
+        const devices = selectedPage.screenshotDevices;
+        const activeDevice = deviceFilter;
+        // Try device-specific screenshot, fallback to desktop, then legacy s3key
+        const key = devices?.[activeDevice] || devices?.desktop || selectedPage.screenshotS3Key;
+        return key ? resolveMediaUrl(`/api/media/${key}`) : null;
+    }, [selectedPage, deviceFilter]);
 
     const isLoading = loadingOverview || loadingPages;
 
@@ -281,21 +290,28 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
                         <div className="flex-1" />
 
-                        {/* Device filter */}
+                        {/* Device filter — only show devices that have screenshot data */}
                         <div className="flex gap-1">
-                            {(['all', 'desktop', 'tablet', 'mobile'] as const).map((d) => (
-                                <button
-                                    key={d}
-                                    onClick={() => setDeviceFilter(d)}
-                                    className={`px-2 py-1 text-xs rounded transition-colors ${
-                                        deviceFilter === d
-                                            ? 'bg-blue-100 text-blue-700 font-medium'
-                                            : 'text-slate-500 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    {d === 'all' ? 'All' : d.charAt(0).toUpperCase() + d.slice(1)}
-                                </button>
-                            ))}
+                            {(['desktop', 'tablet', 'mobile'] as const).map((d) => {
+                                const hasData = !!selectedPage?.screenshotDevices?.[d];
+                                return (
+                                    <button
+                                        key={d}
+                                        onClick={() => hasData && setDeviceFilter(d)}
+                                        disabled={!hasData}
+                                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                                            deviceFilter === d
+                                                ? 'bg-blue-100 text-blue-700 font-medium'
+                                                : hasData
+                                                    ? 'text-slate-500 hover:bg-slate-100'
+                                                    : 'text-slate-300 cursor-not-allowed'
+                                        }`}
+                                        title={!hasData ? `No ${d} data captured yet` : undefined}
+                                    >
+                                        {d.charAt(0).toUpperCase() + d.slice(1)}
+                                    </button>
+                                );
+                            })}
                         </div>
 
                         {selectedPage && (
@@ -313,7 +329,8 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                 researchId={researchId}
                                 pageUrl={selectedPageUrl}
                                 heatmapType="click"
-                                device={deviceFilter === 'all' ? undefined : deviceFilter}
+                                device={deviceFilter}
+                                screenshotUrl={selectedScreenshotUrl}
                             />
                         )}
                         {heatmapSubTab === 'click' && !selectedPageUrl && (
@@ -328,6 +345,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                 researchId={researchId}
                                 pageUrl={selectedPageUrl}
                                 heatmapType="scroll"
+                                screenshotUrl={selectedScreenshotUrl}
                             />
                         )}
                         {heatmapSubTab === 'scroll' && !selectedPageUrl && (
@@ -339,7 +357,8 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                 researchId={researchId}
                                 pageUrl={selectedPageUrl}
                                 heatmapType="attention"
-                                device={deviceFilter === 'all' ? undefined : deviceFilter}
+                                device={deviceFilter}
+                                screenshotUrl={selectedScreenshotUrl}
                             />
                         )}
                     </div>
@@ -354,14 +373,21 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                 <div className="bg-white rounded-xl border border-gray-200 p-5">
                     <h3 className="text-sm font-semibold text-slate-800 mb-4">
                         Sessions
-                        <span className="ml-2 text-xs font-normal text-gray-500">Click to replay</span>
+                        <span className="ml-2 text-xs font-normal text-gray-500">Grouped by visitor</span>
                     </h3>
-                    <DataTable<TrackingSession>
-                        columns={sessionColumns(setReplaySessionId, frictionData?.sessionTags)}
-                        data={sessions || []}
-                        rowKey={(s) => s.id}
-                        emptyMessage="No sessions recorded yet."
-                    />
+                    {loadingSessions ? (
+                        <div className="space-y-3">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+                            ))}
+                        </div>
+                    ) : (
+                        <GroupedSessionsList
+                            sessions={sessions || []}
+                            frictionTags={frictionData?.sessionTags}
+                            onReplay={setReplaySessionId}
+                        />
+                    )}
                 </div>
             )}
 
@@ -397,66 +423,6 @@ const FRICTION_COLORS: Record<string, string> = {
     'speed-browsing': 'bg-blue-100 text-blue-700',
     'mouse-out': 'bg-gray-200 text-gray-600',
 };
-
-const sessionColumns = (onReplay: (id: string) => void, frictionTags?: Record<string, string[]>): DataTableColumn<TrackingSession>[] => [
-    {
-        key: 'visitor',
-        header: 'Visitor',
-        render: (s) => <span className="font-mono text-gray-600">{s.visitorId.slice(0, 12)}</span>,
-    },
-    {
-        key: 'page',
-        header: 'Page',
-        render: (s) => <span className="text-gray-700 max-w-[200px] truncate block">{shortenUrl(s.pageUrl)}</span>,
-    },
-    { key: 'events', header: 'Events', accessor: 'eventCount', align: 'right', sortable: true },
-    {
-        key: 'friction',
-        header: 'Friction',
-        render: (s) => {
-            const tags = frictionTags?.[s.id] || [];
-            if (tags.length === 0) return null;
-            return (
-                <div className="flex flex-wrap gap-1">
-                    {tags.map((tag) => (
-                        <span key={tag} className={`px-1.5 py-0.5 text-[10px] rounded-full ${FRICTION_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>
-                            {tag}
-                        </span>
-                    ))}
-                </div>
-            );
-        },
-    },
-    {
-        key: 'duration',
-        header: 'Duration',
-        align: 'right',
-        render: (s) => (
-            <span className="text-gray-500">
-                {s.endedAt ? formatDuration(Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)) : '-'}
-            </span>
-        ),
-    },
-    {
-        key: 'date',
-        header: 'Date',
-        align: 'right',
-        render: (s) => <span className="text-gray-400">{formatDateTime(s.startedAt)}</span>,
-    },
-    {
-        key: 'replay',
-        header: 'Replay',
-        align: 'center',
-        render: (s) => (
-            <button
-                onClick={(e) => { e.stopPropagation(); onReplay(s.id); }}
-                className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-            >
-                <PlayCircle className="h-4 w-4" />
-            </button>
-        ),
-    },
-];
 
 // ─── Utilities ───────────────────────────────────────────────────────
 
@@ -577,8 +543,14 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                             {/* Page breakdown */}
                             {expanded && (
                                 <div className="bg-gray-50 border-t border-gray-100">
-                                    <div className="px-5 py-2 grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                        <span>#</span><span>Time</span><span>URL</span><span>Timeline</span><span>Duration</span><span>Events</span><span />
+                                    <div className="px-5 py-2 grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider overflow-visible">
+                                        <HTip label="#" tip="Visit order" />
+                                        <HTip label="Time" tip="Time of visit" />
+                                        <HTip label="URL" tip="Page URL" />
+                                        <HTip label="Timeline" tip="Red = clicks, Blue = view only. Length = relative time on page" />
+                                        <HTip label="Duration" tip="Time on page" align="right" />
+                                        <HTip label="Events" tip="Clicks + scrolls + mouse events" align="right" />
+                                        <span />
                                     </div>
                                     {visitor.pages.map((page) => {
                                         const maxDur = Math.max(...visitor.pages.map(p => p.durationMs), 1);
@@ -742,3 +714,113 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
         </div>
     );
 };
+
+// ─── Grouped Sessions List ──────────────────────────────────────────
+
+const GroupedSessionsList = ({
+    sessions,
+    frictionTags,
+    onReplay,
+}: {
+    sessions: TrackingSession[];
+    frictionTags?: Record<string, string[]>;
+    onReplay: (id: string) => void;
+}) => {
+    const [expandedVisitor, setExpandedVisitor] = useState<string | null>(null);
+
+    // Group sessions by visitorId
+    const grouped = useMemo(() => {
+        const map = new Map<string, TrackingSession[]>();
+        for (const s of sessions) {
+            const list = map.get(s.visitorId) || [];
+            list.push(s);
+            map.set(s.visitorId, list);
+        }
+        return [...map.entries()].map(([visitorId, items]) => ({
+            visitorId,
+            sessions: items.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),
+            totalEvents: items.reduce((sum, s) => sum + s.eventCount, 0),
+            lastSeen: items[0].startedAt,
+            viewportWidth: items[0].viewportWidth,
+        }));
+    }, [sessions]);
+
+    if (sessions.length === 0) {
+        return <p className="text-sm text-gray-500 text-center py-8">No sessions recorded yet.</p>;
+    }
+
+    return (
+        <div className="space-y-2">
+            {grouped.map((group) => {
+                const expanded = expandedVisitor === group.visitorId;
+                return (
+                    <div key={group.visitorId} className="border border-gray-100 rounded-lg overflow-hidden">
+                        <button
+                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                            onClick={() => setExpandedVisitor(expanded ? null : group.visitorId)}
+                        >
+                            <span className="text-lg">{getDeviceIcon(group.viewportWidth)}</span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-mono text-slate-700">{group.visitorId.slice(0, 14)}...</p>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-gray-400">
+                                <span>{group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''}</span>
+                                <span>{group.totalEvents} events</span>
+                                <span>{formatDateTime(group.lastSeen)}</span>
+                            </div>
+                            <span className="text-gray-400 text-xs">{expanded ? '▲' : '▼'}</span>
+                        </button>
+
+                        {expanded && (
+                            <div className="border-t border-gray-100 bg-gray-50">
+                                <div className="px-4 py-2 grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                                    <span>Page</span><span>Events</span><span>Friction</span><span>Duration</span><span>Date</span><span />
+                                </div>
+                                {group.sessions.map((s) => {
+                                    const tags = frictionTags?.[s.id] || [];
+                                    const dur = s.endedAt
+                                        ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)
+                                        : 0;
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            className="px-4 py-2 grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-4 items-center border-t border-gray-100 text-xs"
+                                        >
+                                            <span className="text-slate-700 truncate">{shortenUrl(s.pageUrl)}</span>
+                                            <span className="text-gray-500 text-right w-10">{s.eventCount}</span>
+                                            <div className="flex flex-wrap gap-1 w-32">
+                                                {tags.map((tag) => (
+                                                    <span key={tag} className={`px-1.5 py-0.5 text-[10px] rounded-full ${FRICTION_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>
+                                                        {tag}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <span className="text-gray-500 w-14 text-right">{dur > 0 ? formatDuration(dur) : '-'}</span>
+                                            <span className="text-gray-400 w-28 text-right">{formatDateTime(s.startedAt)}</span>
+                                            <button
+                                                onClick={() => onReplay(s.id)}
+                                                className="p-1 rounded hover:bg-blue-50 text-blue-600"
+                                                title="Replay this session"
+                                            >
+                                                <PlayCircle className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+const HTip = ({ label, tip, align = 'left' }: { label: string; tip: string; align?: 'left' | 'right' }) => (
+    <span className="group/tip relative cursor-default">
+        {label}
+        <span className={`invisible group-hover/tip:visible absolute bottom-full ${align === 'right' ? 'right-0' : 'left-0'} mb-1 px-2 py-1 rounded bg-slate-800 text-white text-[10px] font-normal normal-case tracking-normal whitespace-nowrap shadow-lg z-50`}>
+            {tip}
+        </span>
+    </span>
+);
