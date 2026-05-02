@@ -12,9 +12,10 @@ import { EmptyState } from '../../ui/EmptyState';
 
 interface FunnelChartProps {
     researchId: string;
+    onNavigateToPage?: (pageUrl: string) => void;
 }
 
-export const FunnelChart = ({ researchId }: FunnelChartProps) => {
+export const FunnelChart = ({ researchId, onNavigateToPage }: FunnelChartProps) => {
     const queryClient = useQueryClient();
     const [editingFunnel, setEditingFunnel] = useState<FunnelDefinition | null>(null);
     const [showEditor, setShowEditor] = useState(false);
@@ -104,6 +105,7 @@ export const FunnelChart = ({ researchId }: FunnelChartProps) => {
                                 funnel={funnel}
                                 onEdit={() => handleEditFunnel(funnel)}
                                 onDelete={() => handleDeleteFunnel(funnel.id)}
+                                onNavigateToPage={onNavigateToPage}
                             />
                         ))}
                     </div>
@@ -301,9 +303,10 @@ interface FunnelDropoffCardProps {
     funnel: FunnelDefinition;
     onEdit: () => void;
     onDelete: () => void;
+    onNavigateToPage?: (pageUrl: string) => void;
 }
 
-const FunnelDropoffCard = ({ researchId, funnel, onEdit, onDelete }: FunnelDropoffCardProps) => {
+const FunnelDropoffCard = ({ researchId, funnel, onEdit, onDelete, onNavigateToPage }: FunnelDropoffCardProps) => {
     const { data, isLoading } = useQuery({
         queryKey: ['tracking', researchId, 'funnel-dropoff', funnel.id],
         queryFn: () => trackingService.getFunnelDropoff(researchId, funnel.id),
@@ -336,45 +339,59 @@ const FunnelDropoffCard = ({ researchId, funnel, onEdit, onDelete }: FunnelDropo
                 {isLoading ? (
                     <div className="h-32 bg-gray-100 rounded-lg animate-pulse" />
                 ) : data && data.steps.length > 0 ? (
-                    <div className="space-y-1">
+                    <div className="flex flex-col items-center">
                         {data.steps.map((step, i) => {
                             const maxV = data.steps[0].visitors || 1;
-                            const pct = maxV > 0 ? Math.round((step.visitors / maxV) * 100) : 0;
+                            const widthPct = Math.max(20, Math.round((step.visitors / maxV) * 100));
+                            const nextWidthPct = i < data.steps.length - 1
+                                ? Math.max(20, Math.round((data.steps[i + 1].visitors / maxV) * 100))
+                                : widthPct;
+                            const color = getStepColor(i, data.steps.length);
+
                             return (
-                                <div key={i}>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-[10px] font-medium text-gray-400 w-4 text-right shrink-0">{i + 1}</span>
-                                        <div className="flex-1 relative">
-                                            <div className="h-9 bg-gray-100 rounded-md overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-md transition-all"
-                                                    style={{
-                                                        width: `${pct}%`,
-                                                        backgroundColor: getStepColor(i, data.steps.length),
-                                                    }}
+                                <div key={i} className="w-full flex flex-col items-center">
+                                    {/* Trapezoid step + Ver página button */}
+                                    <div className="relative w-full flex items-center justify-center gap-3">
+                                        <div className="relative flex-1 flex justify-center">
+                                            <svg
+                                                viewBox="0 0 200 50"
+                                                preserveAspectRatio="none"
+                                                className="h-12"
+                                                style={{ width: `${Math.max(widthPct, nextWidthPct)}%` }}
+                                            >
+                                                <polygon
+                                                    points={`${(200 - widthPct * 2) / 2},0 ${200 - (200 - widthPct * 2) / 2},0 ${200 - (200 - nextWidthPct * 2) / 2},50 ${(200 - nextWidthPct * 2) / 2},50`}
+                                                    fill={color}
+                                                    opacity="0.85"
                                                 />
-                                            </div>
-                                            <div className="absolute inset-0 flex items-center px-3 justify-between">
-                                                <span className="text-xs font-medium text-slate-700 truncate max-w-[50%]">
-                                                    {step.label || step.url}
+                                            </svg>
+                                            {/* Label overlay */}
+                                            <div className="absolute inset-0 flex items-center justify-center gap-3 pointer-events-none">
+                                                <span className="text-xs font-semibold text-white drop-shadow-sm truncate max-w-[40%]">
+                                                    {step.label || shortenUrl(step.url)}
                                                 </span>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <span className="text-xs text-gray-600 font-medium">{step.visitors}</span>
-                                                    <span className="text-[10px] text-gray-400">({step.percentage}%)</span>
-                                                </div>
+                                                <span className="text-[11px] text-white/90 font-medium drop-shadow-sm">
+                                                    {step.visitors} ({step.percentage}%)
+                                                </span>
                                             </div>
                                         </div>
+                                        {onNavigateToPage && (
+                                            <button
+                                                onClick={() => onNavigateToPage(step.url)}
+                                                className="shrink-0 px-3 py-1.5 text-[11px] font-medium text-white bg-slate-700 rounded-md hover:bg-slate-800 transition-colors"
+                                            >
+                                                Ver página
+                                            </button>
+                                        )}
                                     </div>
-                                    {/* Drop-off indicator between steps */}
+
+                                    {/* Drop-off between steps */}
                                     {i < data.steps.length - 1 && step.visitors > 0 && (
-                                        <div className="flex items-center gap-3 py-0.5">
-                                            <span className="w-4" />
-                                            <div className="flex items-center gap-1.5 pl-3">
-                                                <ArrowDown className="h-3 w-3 text-gray-300" />
-                                                <span className="text-[10px] text-red-400 font-medium">
-                                                    -{data.steps[i + 1].dropoff}% drop-off
-                                                </span>
-                                            </div>
+                                        <div className="flex items-center gap-1 py-0.5">
+                                            <ArrowDown className="h-3 w-3 text-gray-300" />
+                                            <span className="text-[10px] text-red-400 font-medium">
+                                                -{data.steps[i + 1].dropoff}%
+                                            </span>
                                         </div>
                                     )}
                                 </div>

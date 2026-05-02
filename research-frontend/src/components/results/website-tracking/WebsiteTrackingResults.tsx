@@ -28,7 +28,7 @@ const formatDateTime = (iso: string): string => {
         + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 };
 
-type ResultTab = 'heatmaps' | 'sessions' | 'visitors' | 'live' | 'funnels';
+type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention';
 
 interface WebsiteTrackingResultsProps {
@@ -36,7 +36,7 @@ interface WebsiteTrackingResultsProps {
 }
 
 export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsProps) => {
-    const [activeTab, setActiveTab] = useState<ResultTab>('heatmaps');
+    const [activeTab, setActiveTab] = useState<ResultTab>('funnels');
     const [heatmapSubTab, setHeatmapSubTab] = useState<HeatmapSubTab>('click');
     const [selectedPageUrl, setSelectedPageUrl] = useState<string | undefined>();
     const [deviceFilter, setDeviceFilter] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
@@ -119,6 +119,12 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         return key ? resolveMediaUrl(`/api/media/${key}`) : null;
     }, [selectedPage, deviceFilter]);
 
+    // Navigate to heatmap for a specific page (used by funnel "Ver página" and screenshot grid)
+    const navigateToPageHeatmap = useCallback((pageUrl: string) => {
+        setSelectedPageUrl(pageUrl);
+        setActiveTab('heatmaps');
+    }, []);
+
     const isLoading = loadingOverview || loadingPages;
 
     if (isLoading) {
@@ -145,14 +151,11 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         );
     }
 
-    // Replay modal rendered at the end of the component, not as early return
-
     const tabs: Array<{ id: ResultTab; label: string; icon: React.ReactNode }> = [
-        { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" /> },
-        { id: 'visitors', label: 'Visitors', icon: <Users className="h-4 w-4" /> },
-        { id: 'sessions', label: 'Sessions', icon: <PlayCircle className="h-4 w-4" /> },
-        { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" /> },
         { id: 'funnels', label: 'Funnels', icon: <TrendingDown className="h-4 w-4" /> },
+        { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" /> },
+        { id: 'sessions', label: 'Sessions', icon: <Users className="h-4 w-4" /> },
+        { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" /> },
     ];
 
     return (
@@ -365,29 +368,31 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                 </div>
             )}
 
-            {activeTab === 'visitors' && (
-                <VisitorJourneysTab researchId={researchId} onReplay={setReplaySessionId} />
-            )}
-
             {activeTab === 'sessions' && (
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <h3 className="text-sm font-semibold text-slate-800 mb-4">
-                        Sessions
-                        <span className="ml-2 text-xs font-normal text-gray-500">Grouped by visitor</span>
-                    </h3>
-                    {loadingSessions ? (
-                        <div className="space-y-3">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                                <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
-                            ))}
-                        </div>
-                    ) : (
-                        <GroupedSessionsList
-                            sessions={sessions || []}
-                            frictionTags={frictionData?.sessionTags}
-                            onReplay={setReplaySessionId}
-                        />
-                    )}
+                <div className="space-y-4">
+                    {/* Visitor journeys (previously separate "Visitors" tab) */}
+                    <VisitorJourneysTab researchId={researchId} onReplay={setReplaySessionId} />
+
+                    {/* Grouped sessions with replay */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                        <h3 className="text-sm font-semibold text-slate-800 mb-4">
+                            All Sessions
+                            <span className="ml-2 text-xs font-normal text-gray-500">Grouped by visitor</span>
+                        </h3>
+                        {loadingSessions ? (
+                            <div className="space-y-3">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
+                                ))}
+                            </div>
+                        ) : (
+                            <GroupedSessionsList
+                                sessions={sessions || []}
+                                frictionTags={frictionData?.sessionTags}
+                                onReplay={setReplaySessionId}
+                            />
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -396,8 +401,46 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
             )}
 
             {activeTab === 'funnels' && (
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <FunnelChart researchId={researchId} />
+                <div className="space-y-6">
+                    <div className="bg-white rounded-xl border border-gray-200 p-5">
+                        <FunnelChart researchId={researchId} onNavigateToPage={navigateToPageHeatmap} />
+                    </div>
+
+                    {/* Page screenshots grid */}
+                    {pages && pages.length > 0 && (
+                        <div className="bg-white rounded-xl border border-gray-200 p-5">
+                            <h3 className="text-sm font-semibold text-slate-800 mb-1">Tracked Pages</h3>
+                            <p className="text-xs text-gray-400 mb-4">Click a page to view its heatmap and metrics.</p>
+                            <div className="grid grid-cols-3 gap-4">
+                                {pages.map((page) => {
+                                    const key = page.screenshotDevices?.desktop || page.screenshotS3Key;
+                                    const imgUrl = key ? resolveMediaUrl(`/api/media/${key}`) : null;
+                                    return (
+                                        <button
+                                            key={page.id}
+                                            onClick={() => navigateToPageHeatmap(page.pageUrl)}
+                                            className="group text-left border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-md transition-all"
+                                        >
+                                            <div className="aspect-video bg-gray-100 overflow-hidden">
+                                                {imgUrl ? (
+                                                    <img src={imgUrl} alt={page.pageTitle || ''} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">🌐</div>
+                                                )}
+                                            </div>
+                                            <div className="p-2.5">
+                                                <p className="text-xs font-medium text-slate-700 truncate">{page.pageTitle || shortenUrl(page.pageUrl)}</p>
+                                                <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
+                                                    <span>{page.sessionCount} views</span>
+                                                    <span>{page.eventCount} events</span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
