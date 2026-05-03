@@ -8,6 +8,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { applyFocalEqualization, applyStochasticJitter } from './attention-prediction.service';
 import OpenAI from 'openai';
 import sharp from 'sharp';
 import fs from 'fs';
@@ -382,27 +383,33 @@ export const generateHybridSaliency = async (
     // Interpolate semantic grid to match TranSalNet resolution
     const semanticMap = interpolateGrid(grid, rows, cols, mapWidth, mapHeight);
 
-    // Fuse: final = α × computational + β × semantic
+    // Step 3: Fuse: final = α × computational + β × semantic
     const fused = new Float32Array(transalnetMap.length);
     for (let i = 0; i < fused.length; i++) {
         fused[i] = alpha * transalnetMap[i] + beta * semanticMap[i];
     }
 
+    // Step 4: Focal equalization — counteract center bias using semantic map as guide
+    const equalized = applyFocalEqualization(fused, semanticMap, mapWidth, mapHeight);
+
     // Normalize result to [0, 1]
     let min = Infinity, max = -Infinity;
-    for (let i = 0; i < fused.length; i++) {
-        if (fused[i] < min) min = fused[i];
-        if (fused[i] > max) max = fused[i];
+    for (let i = 0; i < equalized.length; i++) {
+        if (equalized[i] < min) min = equalized[i];
+        if (equalized[i] > max) max = equalized[i];
     }
     const range = max - min;
     if (range > 0) {
-        for (let i = 0; i < fused.length; i++) {
-            fused[i] = (fused[i] - min) / range;
+        for (let i = 0; i < equalized.length; i++) {
+            equalized[i] = (equalized[i] - min) / range;
         }
     }
 
-    console.log('[Hybrid Saliency] Fusion complete (α=%s, β=%s)', alpha, beta);
-    return fused;
+    // Step 5: Stochastic jitter — break mechanical symmetry for realistic appearance
+    const jittered = applyStochasticJitter(equalized, mapWidth, mapHeight, 0.12);
+
+    console.log('[Hybrid Saliency] Fusion + focal equalization + jitter complete (α=%s, β=%s)', alpha, beta);
+    return jittered;
 };
 
 // ─── Public API ─────────────────────────────────────────────────────

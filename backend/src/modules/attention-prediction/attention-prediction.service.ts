@@ -95,22 +95,20 @@ const preprocessImage = async (imagePath: string): Promise<ort.Tensor> => {
 // ─── Test-Time Augmentation (TTA) ───────────────────────────────────
 
 /**
- * Generates augmented versions of an image for TTA.
- * Returns sharp instances: [original, h-flip, brightness+, crop95%]
- * Note: crop is applied after initial resize to MODEL dimensions so coordinates are predictable.
+ * Generates 3 augmented versions of an image for averaging.
+ * Returns sharp instances: [original, h-flip, center crop 90%]
  */
 const generateAugmentations = (imagePath: string): sharp.Sharp[] => {
-    const cropMargin = Math.round(MODEL_WIDTH * 0.025);
+    const cropMargin = Math.round(MODEL_WIDTH * 0.05);
     const cropW = MODEL_WIDTH - cropMargin * 2;
-    const cropH = MODEL_HEIGHT - cropMargin * 2;
+    const cropH = MODEL_HEIGHT - Math.round(MODEL_HEIGHT * 0.05) * 2;
 
     return [
         sharp(imagePath),                                          // original
         sharp(imagePath).flop(),                                   // horizontal flip
-        sharp(imagePath).modulate({ brightness: 1.1 }),            // brightness +10%
-        sharp(imagePath)                                           // center crop 95%
+        sharp(imagePath)                                           // center crop 90%
             .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
-            .extract({ left: cropMargin, top: Math.round(MODEL_HEIGHT * 0.025), width: cropW, height: cropH }),
+            .extract({ left: cropMargin, top: Math.round(MODEL_HEIGHT * 0.05), width: cropW, height: cropH }),
     ];
 };
 
@@ -156,10 +154,10 @@ const fuseInLogitSpace = (maps: Float32Array[]): Float32Array => {
 // ─── Post-processing ────────────────────────────────────────────────
 
 /**
- * Applies center bias correction — multiplies by a 2D gaussian centered on the image.
- * Reflects the natural tendency of viewers to look at the center of images.
+ * Applies center bias correction — light center weight to reflect natural viewing tendency.
+ * Uses a mild gaussian (not dominant) so peripheral content isn't suppressed.
  */
-const applyCenterBias = (map: Float32Array, w: number, h: number, sigma = 0.4): Float32Array => {
+const applyCenterBias = (map: Float32Array, w: number, h: number, sigma = 0.5): Float32Array => {
     const result = new Float32Array(map.length);
     const cx = w / 2;
     const cy = h / 2;
@@ -171,9 +169,51 @@ const applyCenterBias = (map: Float32Array, w: number, h: number, sigma = 0.4): 
             const dx = (col - cx) / sx;
             const dy = (row - cy) / sy;
             const gaussian = Math.exp(-0.5 * (dx * dx + dy * dy));
-            result[row * w + col] = map[row * w + col] * (0.3 + 0.7 * gaussian);
+            // Mild bias: floor at 0.6 so periphery retains 60% of its value
+            result[row * w + col] = map[row * w + col] * (0.6 + 0.4 * gaussian);
         }
     }
+    return result;
+};
+
+/**
+ * Focal equalization — counteracts TranSalNet's over-concentration on center.
+ * Uses the semantic map as a guide: areas with high semantic weight but low saliency
+ * get boosted, while over-saturated center areas get attenuated.
+ * This produces a distribution closer to real eye-tracking data.
+ */
+export const applyFocalEqualization = (
+    saliencyMap: Float32Array,
+    semanticMap: Float32Array | null,
+    w: number,
+    h: number
+): Float32Array => {
+    const result = new Float32Array(saliencyMap.length);
+
+    // Step 1: Compute center-distance weight — periphery gets a boost factor
+    const cx = w / 2;
+    const cy = h / 2;
+    const maxDist = Math.sqrt(cx * cx + cy * cy);
+
+    for (let row = 0; row < h; row++) {
+        for (let col = 0; col < w; col++) {
+            const idx = row * w + col;
+            const dist = Math.sqrt((col - cx) ** 2 + (row - cy) ** 2) / maxDist;
+
+            // Peripheral boost: 1.0 at center → up to 1.5 at edges
+            const peripheralBoost = 1.0 + dist * 0.5;
+
+            // Semantic boost: if semantic map says this area is important, boost more
+            const semanticWeight = semanticMap ? semanticMap[idx] : 0.5;
+            const semanticBoost = 0.7 + semanticWeight * 0.6; // 0.7 to 1.3
+
+            // Center attenuation: reduce over-saturated center values
+            const centerAttenuation = 0.7 + dist * 0.3; // 0.7 at center → 1.0 at edges
+
+            result[idx] = saliencyMap[idx] * peripheralBoost * semanticBoost * centerAttenuation;
+        }
+    }
+
     return result;
 };
 
@@ -241,6 +281,70 @@ const normalizeMap = (map: Float32Array): Float32Array => {
     for (let i = 0; i < map.length; i++) {
         result[i] = (map[i] - min) / range;
     }
+    return result;
+};
+
+/**
+ * Adds controlled stochastic jitter to break mechanical symmetry.
+ * Simulates inter-subject variability in eye movements.
+ *
+ * Uses Box-Muller transform for gaussian noise, then smooths the noise
+ * field to create organic-looking perturbations (not per-pixel noise).
+ *
+ * @param jitter - Intensity 0-1 (0 = no jitter, 0.15 = subtle, 0.3 = moderate)
+ */
+export const applyStochasticJitter = (
+    map: Float32Array,
+    w: number,
+    h: number,
+    jitter = 0.15
+): Float32Array => {
+    if (jitter <= 0) return map;
+
+    const result = new Float32Array(map.length);
+
+    // Generate smooth noise field at lower resolution, then interpolate
+    const noiseW = Math.ceil(w / 8);
+    const noiseH = Math.ceil(h / 8);
+    const noiseField = new Float32Array(noiseW * noiseH);
+
+    // Box-Muller gaussian noise
+    for (let i = 0; i < noiseField.length; i += 2) {
+        const u1 = Math.max(1e-10, Math.random());
+        const u2 = Math.random();
+        const mag = Math.sqrt(-2 * Math.log(u1));
+        noiseField[i] = mag * Math.cos(2 * Math.PI * u2);
+        if (i + 1 < noiseField.length) {
+            noiseField[i + 1] = mag * Math.sin(2 * Math.PI * u2);
+        }
+    }
+
+    // Apply jitter: perturb saliency values using interpolated noise
+    for (let row = 0; row < h; row++) {
+        for (let col = 0; col < w; col++) {
+            // Bilinear interpolation from noise grid
+            const nx = (col / w) * (noiseW - 1);
+            const ny = (row / h) * (noiseH - 1);
+            const x0 = Math.floor(nx);
+            const y0 = Math.floor(ny);
+            const x1 = Math.min(x0 + 1, noiseW - 1);
+            const y1 = Math.min(y0 + 1, noiseH - 1);
+            const fx = nx - x0;
+            const fy = ny - y0;
+
+            const n = noiseField[y0 * noiseW + x0] * (1 - fx) * (1 - fy)
+                + noiseField[y0 * noiseW + x1] * fx * (1 - fy)
+                + noiseField[y1 * noiseW + x0] * (1 - fx) * fy
+                + noiseField[y1 * noiseW + x1] * fx * fy;
+
+            const idx = row * w + col;
+            const original = map[idx];
+            // Scale noise by local saliency — high saliency areas get more variation
+            const perturbation = n * jitter * original;
+            result[idx] = Math.max(0, Math.min(1, original + perturbation));
+        }
+    }
+
     return result;
 };
 
@@ -325,43 +429,61 @@ const postprocessSaliencyMap = (
 export const predictAttention = async (
     imagePath: string,
     threshold: number = 0.3
-): Promise<Array<{ x: number; y: number; value: number }>> => {
+): Promise<{
+    points: Array<{ x: number; y: number; value: number }>;
+    autoPresets: ReturnType<typeof computeAutoPresets>;
+    griddedAOIs: ReturnType<typeof computeGriddedAOIs>;
+}> => {
     if (!fs.existsSync(imagePath)) {
         throw new Error(`Image not found: ${imagePath}`);
     }
 
     const sess = await getSession();
 
-    // Step 1-2: Generate augmentations and run inference on each
+    // Step 1: Run 3 augmentations and average (not logit — preserves natural distribution)
     const augmentations = generateAugmentations(imagePath);
     const rawMaps: Float32Array[] = [];
 
     for (let i = 0; i < augmentations.length; i++) {
         const map = await inferSaliencyRaw(sess, augmentations[i]);
-
-        // Step 3: Un-augment — flip back the h-flip result (index 1)
-        if (i === 1) {
-            rawMaps.push(unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT));
-        } else {
-            rawMaps.push(map);
-        }
+        // Un-augment: flip back the h-flip result (index 1)
+        rawMaps.push(i === 1 ? unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT) : map);
     }
 
-    // Step 4: Fuse in logit space
-    let fused = fuseInLogitSpace(rawMaps);
+    // Step 2: Simple average of 3 maps
+    const len = rawMaps[0].length;
+    let averaged = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+        let sum = 0;
+        for (const m of rawMaps) sum += m[i];
+        averaged[i] = sum / rawMaps.length;
+    }
 
-    // Step 5: Post-processing
-    fused = applyCenterBias(fused, MODEL_WIDTH, MODEL_HEIGHT, 0.4);
-    fused = applyBlur(fused, MODEL_WIDTH, MODEL_HEIGHT, 5);
-    fused = normalizeMap(fused);
+    // Step 3: Light center bias + blur + normalize
+    const biased = applyCenterBias(averaged, MODEL_WIDTH, MODEL_HEIGHT, 0.5);
+    const blurred = applyBlur(biased, MODEL_WIDTH, MODEL_HEIGHT, 5);
+    const normalized = normalizeMap(blurred);
+
+    // Step 4: Stochastic jitter — break mechanical symmetry
+    const jittered = applyStochasticJitter(normalized, MODEL_WIDTH, MODEL_HEIGHT, 0.15);
+    const final_ = normalizeMap(jittered);
+
+    // Compute auto-presets and gridded AOIs from the final map
+    const autoPresets = computeAutoPresets(final_);
+    const griddedAOIs = computeGriddedAOIs(final_, MODEL_WIDTH, MODEL_HEIGHT);
 
     // Convert to heatmap data points
-    return saliencyMapToPoints(fused, threshold);
+    const points = saliencyMapToPoints(final_, threshold);
+    return { points, autoPresets, griddedAOIs };
 };
 
 /**
  * Generates the raw fused TranSalNet saliency map (TTA pipeline) as Float32Array.
  * Useful for hybrid fusion with semantic saliency.
+ */
+/**
+ * Generates the raw averaged TranSalNet saliency map (3 augmentations).
+ * Used by hybrid fusion pipeline.
  */
 export const predictAttentionRaw = async (
     imagePath: string
@@ -376,24 +498,187 @@ export const predictAttentionRaw = async (
 
     for (let i = 0; i < augmentations.length; i++) {
         const map = await inferSaliencyRaw(sess, augmentations[i]);
-        if (i === 1) {
-            rawMaps.push(unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT));
-        } else {
-            rawMaps.push(map);
-        }
+        rawMaps.push(i === 1 ? unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT) : map);
     }
 
-    let fused = fuseInLogitSpace(rawMaps);
-    fused = applyCenterBias(fused, MODEL_WIDTH, MODEL_HEIGHT, 0.4);
-    fused = applyBlur(fused, MODEL_WIDTH, MODEL_HEIGHT, 5);
-    fused = normalizeMap(fused);
+    // Simple average
+    const len = rawMaps[0].length;
+    let averaged = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+        let sum = 0;
+        for (const m of rawMaps) sum += m[i];
+        averaged[i] = sum / rawMaps.length;
+    }
 
-    return { map: fused, width: MODEL_WIDTH, height: MODEL_HEIGHT };
+    // Light post-processing (no heavy center bias — hybrid will apply focal equalization)
+    const blurredRaw = applyBlur(averaged, MODEL_WIDTH, MODEL_HEIGHT, 4);
+    const normalizedRaw = normalizeMap(blurredRaw);
+
+    return { map: normalizedRaw, width: MODEL_WIDTH, height: MODEL_HEIGHT };
 };
 
 /**
  * Converts a raw saliency Float32Array to heatmap data points.
  */
+/**
+ * Analyzes saliency map distribution and recommends visualization presets.
+ * Returns optimal blur, opacity, threshold based on map characteristics.
+ */
+export const computeAutoPresets = (data: Float32Array): {
+    blur: number;
+    opacity: number;
+    threshold: number;
+    concentration: number;  // 0-1 how concentrated the attention is
+    coverage: number;       // 0-1 what fraction of the image has attention
+} => {
+    const len = data.length;
+    if (len === 0) return { blur: 15, opacity: 72, threshold: 40, concentration: 0.5, coverage: 0.5 };
+
+    // Compute statistics
+    let sum = 0, sumSq = 0;
+    let above30 = 0, above60 = 0;
+    for (let i = 0; i < len; i++) {
+        sum += data[i];
+        sumSq += data[i] * data[i];
+        if (data[i] > 0.3) above30++;
+        if (data[i] > 0.6) above60++;
+    }
+
+    const mean = sum / len;
+    const variance = sumSq / len - mean * mean;
+    const std = Math.sqrt(Math.max(0, variance));
+
+    // Coverage: fraction of pixels with meaningful saliency (>0.3)
+    const coverage = above30 / len;
+
+    // Concentration: ratio of high saliency to medium saliency (peaky vs diffuse)
+    const concentration = above30 > 0 ? above60 / above30 : 0;
+
+    // Auto-presets based on distribution:
+    // - High concentration (peaky) → more blur, lower threshold (spread it out)
+    // - Low concentration (diffuse) → less blur, higher threshold (sharpen)
+    // - High coverage → higher opacity to see the page beneath
+    // - Low coverage → lower opacity for stronger overlay
+    const blur = Math.round(10 + concentration * 15 + std * 10);     // 10-35
+    const opacity = Math.round(55 + coverage * 30);                   // 55-85
+    const threshold = Math.round(25 + (1 - concentration) * 25);     // 25-50
+
+    return {
+        blur: Math.max(5, Math.min(40, blur)),
+        opacity: Math.max(40, Math.min(90, opacity)),
+        threshold: Math.max(15, Math.min(60, threshold)),
+        concentration,
+        coverage,
+    };
+};
+
+/**
+ * Generates gridded AOIs from the saliency map.
+ * Divides the image into a grid (default 4×4), computes average attention per cell,
+ * then identifies clusters of high-attention cells as AOIs.
+ * Inspired by EyeMap paper's Gridded AOI approach.
+ *
+ * @returns Array of detected AOIs with bounding boxes and attention scores
+ */
+export const computeGriddedAOIs = (
+    data: Float32Array,
+    w: number,
+    h: number,
+    gridCols = 4,
+    gridRows = 4,
+    attentionThreshold = 0.45
+): Array<{
+    label: string;
+    x: number; y: number; width: number; height: number; // percentages 0-100
+    attention: number; // average attention 0-1
+    rank: number;
+}> => {
+    const cellW = Math.floor(w / gridCols);
+    const cellH = Math.floor(h / gridRows);
+
+    // Compute average saliency per grid cell
+    const cellScores: Array<{ row: number; col: number; score: number }> = [];
+    for (let gr = 0; gr < gridRows; gr++) {
+        for (let gc = 0; gc < gridCols; gc++) {
+            let sum = 0, count = 0;
+            for (let r = gr * cellH; r < Math.min((gr + 1) * cellH, h); r++) {
+                for (let c = gc * cellW; c < Math.min((gc + 1) * cellW, w); c++) {
+                    sum += data[r * w + c];
+                    count++;
+                }
+            }
+            cellScores.push({ row: gr, col: gc, score: count > 0 ? sum / count : 0 });
+        }
+    }
+
+    // Find high-attention cells
+    const hotCells = cellScores.filter(c => c.score >= attentionThreshold);
+
+    // Cluster adjacent hot cells into AOIs using simple flood-fill
+    const visited = new Set<string>();
+    const aois: Array<{
+        label: string;
+        x: number; y: number; width: number; height: number;
+        attention: number;
+        rank: number;
+    }> = [];
+
+    const getKey = (r: number, c: number) => `${r},${c}`;
+    const hotSet = new Set(hotCells.map(c => getKey(c.row, c.col)));
+
+    for (const cell of hotCells) {
+        const key = getKey(cell.row, cell.col);
+        if (visited.has(key)) continue;
+
+        // Flood-fill to find cluster
+        const cluster: typeof hotCells = [];
+        const queue = [cell];
+        while (queue.length > 0) {
+            const current = queue.pop()!;
+            const ck = getKey(current.row, current.col);
+            if (visited.has(ck)) continue;
+            visited.add(ck);
+            cluster.push(current);
+
+            // Check 4-connected neighbors
+            for (const [dr, dc] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+                const nr = current.row + dr;
+                const nc = current.col + dc;
+                const nk = getKey(nr, nc);
+                if (hotSet.has(nk) && !visited.has(nk)) {
+                    const neighbor = hotCells.find(c => c.row === nr && c.col === nc);
+                    if (neighbor) queue.push(neighbor);
+                }
+            }
+        }
+
+        if (cluster.length === 0) continue;
+
+        // Compute bounding box of cluster
+        const minCol = Math.min(...cluster.map(c => c.col));
+        const maxCol = Math.max(...cluster.map(c => c.col));
+        const minRow = Math.min(...cluster.map(c => c.row));
+        const maxRow = Math.max(...cluster.map(c => c.row));
+        const avgScore = cluster.reduce((s, c) => s + c.score, 0) / cluster.length;
+
+        aois.push({
+            label: `Zone ${aois.length + 1}`,
+            x: (minCol * cellW / w) * 100,
+            y: (minRow * cellH / h) * 100,
+            width: ((maxCol - minCol + 1) * cellW / w) * 100,
+            height: ((maxRow - minRow + 1) * cellH / h) * 100,
+            attention: Math.round(avgScore * 100) / 100,
+            rank: 0,
+        });
+    }
+
+    // Rank by attention score
+    aois.sort((a, b) => b.attention - a.attention);
+    aois.forEach((aoi, i) => { aoi.rank = i + 1; });
+
+    return aois;
+};
+
 const saliencyMapToPoints = (
     data: Float32Array,
     threshold: number
@@ -432,23 +717,27 @@ export const predictAttentionAsImage = async (
 
     const sess = await getSession();
 
-    // TTA pipeline — same as predictAttention
+    // 3-augmentation average pipeline — same as predictAttention
     const augmentations = generateAugmentations(imagePath);
     const rawMaps: Float32Array[] = [];
 
     for (let i = 0; i < augmentations.length; i++) {
         const map = await inferSaliencyRaw(sess, augmentations[i]);
-        if (i === 1) {
-            rawMaps.push(unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT));
-        } else {
-            rawMaps.push(map);
-        }
+        rawMaps.push(i === 1 ? unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT) : map);
     }
 
-    let fused = fuseInLogitSpace(rawMaps);
-    fused = applyCenterBias(fused, MODEL_WIDTH, MODEL_HEIGHT, 0.4);
-    fused = applyBlur(fused, MODEL_WIDTH, MODEL_HEIGHT, 5);
-    fused = normalizeMap(fused);
+    const len = rawMaps[0].length;
+    let averaged = new Float32Array(len);
+    for (let i = 0; i < len; i++) {
+        let sum = 0;
+        for (const m of rawMaps) sum += m[i];
+        averaged[i] = sum / rawMaps.length;
+    }
+
+    const biased = applyCenterBias(averaged, MODEL_WIDTH, MODEL_HEIGHT, 0.5);
+    const blurred = applyBlur(biased, MODEL_WIDTH, MODEL_HEIGHT, 5);
+    const normalized = normalizeMap(blurred);
+    const fused = applyStochasticJitter(normalized, MODEL_WIDTH, MODEL_HEIGHT, 0.15);
 
     // Convert to 0-255 grayscale
     const uint8Data = new Uint8Array(fused.length);

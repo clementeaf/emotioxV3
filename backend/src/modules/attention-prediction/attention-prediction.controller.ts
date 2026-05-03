@@ -24,7 +24,7 @@ const runPredictionAsync = async (
     threshold: number
 ): Promise<void> => {
     try {
-        const heatmapData = await predictAttention(imagePath, threshold);
+        const { points: heatmapData, autoPresets, griddedAOIs } = await predictAttention(imagePath, threshold);
 
         // Read current config
         const researchResult = await pool.query(
@@ -41,13 +41,15 @@ const runPredictionAsync = async (
             config = {};
         }
 
-        // Merge heatmapData into the matching stimulus
+        // Merge heatmapData + autoPresets into the matching stimulus
         const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
         const updatedStimuli = stimuli.map((s) => {
             if (s.mediaId === mediaId) {
                 return {
                     ...s,
                     heatmapData,
+                    autoPresets,
+                    griddedAOIs,
                     processedAt: new Date().toISOString(),
                     predictionError: undefined,
                     predictionErrorAt: undefined,
@@ -112,7 +114,7 @@ const runModulePredictionAsync = async (
     imageKey?: string
 ): Promise<void> => {
     try {
-        const heatmapData = await predictAttention(imagePath, threshold);
+        const { points: heatmapData, autoPresets, griddedAOIs } = await predictAttention(imagePath, threshold);
 
         const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
         if (moduleResult.rows.length === 0) return;
@@ -126,11 +128,13 @@ const runModulePredictionAsync = async (
         if (imageKey) {
             // Multi-image: store per-image predictions in a map
             const predictions = (config.predictionHeatmaps ?? {}) as Record<string, unknown>;
-            predictions[imageKey] = { heatmapData, processedAt: new Date().toISOString() };
+            predictions[imageKey] = { heatmapData, autoPresets, griddedAOIs, processedAt: new Date().toISOString() };
             config.predictionHeatmaps = predictions;
         } else {
             // Single stimulus (Eye Tracking)
             config.predictionHeatmap = heatmapData;
+            config.predictionAutoPresets = autoPresets;
+            config.predictionGriddedAOIs = griddedAOIs;
             config.predictionProcessedAt = new Date().toISOString();
         }
 

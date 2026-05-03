@@ -1,3 +1,41 @@
+## v0.68.0 — Website Tracking UX overhaul, attention prediction pipeline v2 (2026-05-03)
+
+### backend — Website Tracking
+- **Verify flag persisted.** `trackingConfig.verified` saved on first successful verification. Survives page reload.
+- **Client-side screenshot capture.** Snippet uses `html2canvas` to capture pixel-perfect screenshots per device category (mobile/tablet/desktop). `POST /public/tracking/:id/screenshot` saves base64 JPEG to filesystem. `screenshot_devices` JSON column in `tracking_pages`.
+- **Attention heatmap: viewport time.** Replaces mousemove dwell with scroll-based viewport time per horizontal band. Measures how long each page zone was visible in the visitor's viewport.
+- **Live sessions fix.** Detects active sessions by last event timestamp (not just `started_at`), so long-running tabs appear as live.
+- **Session replay: all events returned.** Removed burst filtering — frontend handles compression/speed.
+- **JSON body limit 10mb** in `server-cpanel.js` for screenshot payloads.
+
+### backend — Attention Prediction
+- **3× TranSalNet averaged.** Runs 3 augmentations (original, h-flip, crop 90%) and averages directly (replaces 4-augmentation logit-space fusion). Preserves natural distribution.
+- **Mild center bias.** σ=0.5, floor 60% — periphery retains most of its value instead of being suppressed.
+- **Stochastic jitter.** Post-fusion gaussian noise (Box-Muller, smooth field interpolation) breaks mechanical symmetry. Jitter=0.15 for standard, 0.12 for hybrid. Simulates inter-subject variability.
+- **Focal equalization.** In hybrid predict: peripheral boost (1.0→1.5) × semantic boost (0.7→1.3) × center attenuation (0.7→1.0). Redistributes attention toward periphery where content exists.
+- **Auto-presets.** `computeAutoPresets` analyzes map distribution (concentration, coverage) and recommends blur/opacity/threshold. Returned with each prediction in `autoPresets`.
+- **Gridded AOIs.** `computeGriddedAOIs` divides saliency map into 4×4 grid, clusters high-attention cells via flood-fill. Returns ranked AOIs with bounding boxes. Saved as `griddedAOIs` per stimulus.
+
+### research-frontend — Website Tracking
+- **Tabs reordered.** Funnels (default) → Heatmaps → Sessions → Live. Visitors and Sessions merged into single "Sessions" tab.
+- **Funnel visual.** SVG trapezoids narrowing by conversion rate. "Ver página" button on each step navigates to the page's heatmap.
+- **Tracked Pages grid.** Screenshot thumbnail cards below funnels — click opens page heatmap.
+- **Device filter.** Desktop/Tablet/Mobile buttons enabled only when screenshot data exists for that device.
+- **Attention tab.** Horizontal color bands (green→yellow→red) based on viewport time. No simpleheat — direct canvas bands.
+- **Click heatmap.** Red-only gradient (no white center holes).
+- **Sessions tab.** Visitor journeys + grouped sessions with expandable accordion. Skeleton loading.
+- **Session Replay rewritten.** Screenshot background + animated cursor (blue ring) + click ripples (red, 2s fade). Real timestamps, 1x/4x/8x/16x speed controls, "Skip idle" button. Portal-based modal for full-screen coverage.
+- **Tooltips.** Instant CSS hover tooltips on Visitors table headers (Visit order, Timeline, Duration, Events).
+
+### tracking snippet
+- **html2canvas screenshot.** Dynamically loads from CDN, captures `document.documentElement`, waits for images to load, JPEG quality 0.85, 8000px height cap. Device classification by viewport width.
+- **No `allowTaint`.** Fixes `SecurityError` on `toDataURL` with cross-origin images.
+
+### database
+- **Migration 026.** `screenshot_devices` JSON column on `tracking_pages`.
+
+---
+
 ## v0.67.2 — Configurable saliency model, conversion scripts for TranSalNet_Dense and SUM (2026-04-30)
 
 ### backend

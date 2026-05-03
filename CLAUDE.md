@@ -120,8 +120,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Passenger dual entry points**: `server-cpanel.js` (JS, Passenger entry) and `src/server-cpanel.ts` (TS, compiled to `dist/`). New Express routes must be added to **both** files — Passenger executes the JS wrapper, not the compiled TS.
 - **Session replay unified timeline**: `SessionReplayPlayer` loads ALL sessions of the same visitor via `visitorId`, merges events into one sorted timeline. DOM snapshot changes dynamically per active page. Clicks rendered as simpleheat heatmap overlay (no cursor dot).
 - **Attention Prediction tabs**: `AttentionPredictionCard` has 4 tabs over the image: Original, Heatmap, Gaze Paths (dark alpha overlay), AOI Editor (colored rects, 7 rotating colors). Right panel (`AiAnalysisPanel`) remains.
-- **TTA pipeline (v0.67.0)**: `predictAttention` runs 4 augmentations (original, h-flip, brightness+10%, crop95%), fuses in logit space, post-processes (center bias σ=0.4, blur radius 5, normalize). `predictAttentionRaw` exports raw Float32Array.
-- **Hybrid saliency fusion (v0.67.0)**: `POST /attention-prediction/research/:id/module/:mediaId/hybrid-predict`. Pipeline: TranSalNet TTA → LLM semantic grid (10×8, 3 iterations averaged) → bilinear interpolation → weighted fusion (α=0.65 computational + β=0.35 semantic). Weights configurable per request. Uses Gemini primary, GPT-4o fallback.
+- **Prediction pipeline v2 (v0.68.0)**: `predictAttention` runs 3 augmentations (original, h-flip, crop 90%), averages directly (no logit fusion). Post-process: mild center bias (σ=0.5, floor 60%), blur, stochastic jitter (0.15), normalize. Returns `{ points, autoPresets, griddedAOIs }`. `autoPresets` recommends blur/opacity/threshold from map distribution. `griddedAOIs` detects AOIs via 4×4 grid + flood-fill clustering.
+- **Hybrid saliency fusion (v0.68.0)**: `POST /attention-prediction/research/:id/module/:mediaId/hybrid-predict`. Pipeline: 3× TranSalNet averaged → Gemini semantic grid (10×8, 3 iterations) → weighted fusion (α=0.65 + β=0.35) → focal equalization (peripheral boost × semantic boost × center attenuation) → stochastic jitter (0.12). Produces eye-tracking-like distribution. Uses Gemini primary, GPT-4o fallback.
 - **3 gaze path routes (v0.67.1)**: AI analysis returns `gazePathRoutes` — 3 viewing strategies (Typical Scan, Group Scan, Novelty Search). Frontend renders each with unique color (blue/green/amber), toggleable. `GazePathOverlay` accepts `routeColor` + `markerId` for multi-route rendering.
 - **Configurable saliency model (v0.67.2)**: `SALIENCY_MODEL` env var (default `transalnet_res.onnx`). `SALIENCY_WIDTH`/`SALIENCY_HEIGHT` for different architectures. Conversion scripts: `scripts/convert-transalnet-to-onnx.py` (Dense/Res), `scripts/convert-sum-to-onnx.py` (SUM, WACV 2025). To swap: convert → upload `.onnx` to `backend/models/` → set env var → restart.
 
@@ -208,21 +208,20 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
 
-## Website Tracking (v0.66.0)
+## Website Tracking (v0.68.0)
 - **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
-- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS. Captures clicks, scroll, mousemove. `sendBeacon` with `application/json`. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server.
-- **Coordinates:** Viewport-relative percentages. X = `clientX/innerWidth*100`, Y = `pageY/innerWidth*100`. Heatmap clusters by `ROUND(x,1)`.
-- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session per route. Listeners attach once.
-- **Event buffering:** Capture starts immediately. Events buffer until session ID arrives, then flush.
-- **DOM snapshot:** Snippet captures `document.documentElement.outerHTML` (scripts stripped, URLs absolutized) after session creation. Stored in `tracking_pages.page_snapshot`. Frontend renders in sandboxed iframe with heatmap canvas overlay (`PageSnapshotHeatmap`).
-- **Friction detection:** Snippet auto-detects dead-click (non-interactive element), rage-click (3+ in 1s same area), speed-browsing (<2s on page), mouse-out (visibility hidden). Stored in `metadata.friction`. Endpoints: `/friction` (summary), `/friction/sessions` (per-session tags).
-- **Public endpoints (CORS `*`):** `POST .../session`, `POST .../events`, `POST .../snapshot`. OPTIONS in tracking controller.
-- **Authenticated endpoints:** `/overview?from&to`, `/heatmap?page&device`, `/attention?page&device`, `/pages`, `/sessions`, `/visitors`, `/live`, `/verify?since`, `/friction`, `/friction/sessions`, `/snapshot?page`, `/scroll?page`, `/funnels`, `/export`, `/snippet`, `PUT /config`.
-- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired` + `consentText`/`consentAcceptLabel`/`consentDeclineLabel`/`consentPosition`. `samplingRate` (1-100%), `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`.
-- **Builder:** `WebsiteTrackingConfig` — compact 3-column layout (Snippet, Domains, Capture). Setup checklist + status badge (Recording/Draft). Sampling slider, IP exclusion, page targeting, data retention. Consent customization row. Verify polls 60s. Sidebar: "Tracking Configuration" + "View Results" links.
-- **Results tabs:** Heatmaps (Click/Scroll/Attention sub-tabs with page metrics table + intensity/opacity sliders), Visitors (expandable journey with page breakdown), Sessions (replay + friction badges), Live (5s polling, green dot), Funnels. Date range filter on overview.
-- **Session replay:** `SessionReplayPlayer` with Mouseflow-style activity timeline bar (red=click, gray=move, dark=idle). Clickable seek + playhead.
-- **Multi-viewport:** `?device=mobile|tablet|desktop`. Breakpoints: mobile <768, tablet 768-1024, desktop >1024.
+- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS. Captures clicks, scroll, mousemove. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server. html2canvas screenshot capture per device category.
+- **Screenshots:** Snippet captures pixel-perfect JPEG via html2canvas (CDN loaded). Classified by viewport: mobile (<768), tablet (768-1024), desktop (>1024). Stored in `tracking_pages.screenshot_devices` JSON. `POST /public/tracking/:id/screenshot`.
+- **Coordinates:** Viewport-relative percentages. X = `clientX/innerWidth*100`, Y = `pageY/innerWidth*100`.
+- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session per route.
+- **DOM snapshot:** Captured as fallback for session replay. `tracking_pages.page_snapshot`.
+- **Friction detection:** dead-click, rage-click (3+ in 1s), speed-browsing (<2s), mouse-out. Stored in `metadata.friction`.
+- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired`, `samplingRate`, `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`, `verified`, `funnels[]`.
+- **Builder:** `WebsiteTrackingConfig` — checklist (Activate/Snippet/Verify/View Results). Verify persists. View Results disabled until verified (config + sidebar).
+- **Results tabs:** Funnels (default, SVG trapezoids + "Ver página" + page screenshot grid) → Heatmaps (Click/Scroll/Attention) → Sessions (merged Visitors+Sessions, grouped by visitor) → Live (SSE, last-event detection).
+- **Heatmaps:** Screenshot-based (`<img>`) when available, DOM snapshot fallback (`<iframe>`). Device filter enabled per available screenshots. Click: red gradient. Attention: viewport-time color bands (green→yellow→red). Scroll: depth gradient bands.
+- **Session replay:** `SessionReplayPlayer` — screenshot background, animated cursor (blue ring), click ripples (red fade), scroll sync (`translateY`). Real timestamps, 1x/4x/8x/16x speed, "Skip idle" button. Portal modal. Activity timeline bar (red=click, blue=cursor, dark=idle).
+- **Live sessions:** SSE stream. Active = last event within 5 minutes (not just `started_at`).
 - **Detection:** `isWebsiteTracking` in `isFileBasedResearch`. Sidebar shows config + results.
 
 ## Eye Tracking (v0.58.0)
