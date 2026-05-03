@@ -371,6 +371,54 @@ export const AiAnalysisPanel = ({
                     </div>
                 </Section>
 
+                {/* Brand Attention (Hosseini 2024) */}
+                {analysis.brandAttention && analysis.brandAttention.logos.length > 0 && (
+                    <Section title={`Brand Attention (${analysis.brandAttention.logos.length} logos)`} icon={<Eye className="h-4 w-4" />}>
+                        <div className="mt-3 space-y-3">
+                            {/* Score */}
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-medium text-slate-700">Brand Visibility Score</span>
+                                        <span className={`text-sm font-bold ${
+                                            analysis.brandAttention.brandAttentionScore >= 70 ? 'text-green-600' :
+                                            analysis.brandAttention.brandAttentionScore >= 40 ? 'text-amber-600' : 'text-red-600'
+                                        }`}>{analysis.brandAttention.brandAttentionScore}/100</span>
+                                    </div>
+                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${analysis.brandAttention.brandAttentionScore}%` }} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Logos */}
+                            {analysis.brandAttention.logos.map((logo, i) => (
+                                <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
+                                    <div>
+                                        <span className="text-sm font-medium text-slate-800">{logo.brand}</span>
+                                        <span className="text-xs text-slate-500 ml-2">
+                                            ({logo.x.toFixed(0)}%, {logo.y.toFixed(0)}%) {logo.width.toFixed(0)}x{logo.height.toFixed(0)}%
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="h-2 w-16 bg-slate-200 rounded-full overflow-hidden">
+                                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${logo.saliencyScore * 100}%` }} />
+                                        </div>
+                                        <span className="text-xs font-mono text-slate-600">{(logo.saliencyScore * 100).toFixed(0)}%</span>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Recommendation */}
+                            {analysis.brandAttention.recommendation && (
+                                <p className="text-xs text-blue-700 bg-blue-50 px-2 py-1.5 rounded">
+                                    {analysis.brandAttention.recommendation}
+                                </p>
+                            )}
+                        </div>
+                    </Section>
+                )}
+
                 {/* Methodology */}
                 <Section title="Technical Methodology" icon={<BookOpen className="h-4 w-4" />} defaultOpen={false}>
                     <p className="mt-3 text-sm text-slate-600 leading-relaxed">{analysis.methodology}</p>

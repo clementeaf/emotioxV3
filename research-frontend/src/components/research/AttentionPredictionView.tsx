@@ -5,6 +5,7 @@ import { type Research, researchService } from '../../services/research.service'
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { AttentionPredictionCard } from './AttentionPredictionCard';
+import { AnalysisProfilePanel, type AnalysisProfile } from './AnalysisProfilePanel';
 import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService } from '../../services/media.service';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
@@ -53,6 +54,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
     const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
+
+    // Analysis profile — stored in research settings for persistence
+    const [analysisProfile, setAnalysisProfile] = useState<AnalysisProfile>(() => {
+        const settings = research.settings as Record<string, unknown> || {};
+        return (settings.analysisProfile as AnalysisProfile) || {};
+    });
+
+    const handleProfileChange = useCallback(async (profile: AnalysisProfile) => {
+        setAnalysisProfile(profile);
+        await researchService.update(research.id, {
+            settings: { ...(research.settings as Record<string, unknown> || {}), analysisProfile: profile },
+        });
+    }, [research.id, research.settings]);
 
     const stimuli = useMemo(() => {
         const settings = (research.settings as { stimuli?: StimulusItem[] }) || {};
@@ -131,6 +145,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             {/* Left: main content area (scrollable) */}
             <div className="flex-1 min-w-0 p-6 space-y-4 overflow-y-auto">
                 {/* Analysis — main content when a stimulus is selected */}
+                {/* Analysis Profile — configurable target demographic */}
+                <AnalysisProfilePanel profile={analysisProfile} onChange={handleProfileChange} />
+
                 {activeStimulus && (
                     <>
                         <AttentionPredictionCard
