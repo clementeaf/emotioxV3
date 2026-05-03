@@ -452,7 +452,6 @@ export const AttentionPredictionCard = ({
     onImportAoisDone,
     onAddMore,
     onRunAnalysis,
-    onHybridPredict,
     isAnalyzing = false,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
@@ -696,27 +695,6 @@ export const AttentionPredictionCard = ({
                             </svg>
                         </button>
                     )}
-                        {onHybridPredict && (
-                            <button
-                                type="button"
-                                onClick={onHybridPredict}
-                                disabled={isAnalyzing}
-                                className={cn(
-                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                                    'text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200',
-                                    isAnalyzing && 'opacity-50 cursor-not-allowed'
-                                )}
-                                title="Run hybrid prediction (TranSalNet + AI semantic fusion)"
-                            >
-                                <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                    {isAnalyzing
-                                        ? <><circle className="opacity-25" cx="12" cy="12" r="10" /><path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" stroke="none" /></>
-                                        : <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                    }
-                                </svg>
-                                {isAnalyzing ? 'Processing...' : 'Hybrid Predict'}
-                            </button>
-                        )}
                         {onRunAnalysis && (
                             <button
                                 type="button"
@@ -1068,36 +1046,26 @@ export const AttentionPredictionCard = ({
                                     </div>
                                 </TransformWrapper>
 
-                                {/* AOI list below image */}
+                                {/* AOI list — compact horizontal chips below image */}
                                 {computedAois.length > 0 && (
-                                    <div className="space-y-2 mt-4">
+                                    <div className="flex flex-wrap gap-2 mt-3">
                                         {computedAois.map((aoi, i) => {
                                             const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
                                             const color = colors[i % colors.length];
                                             return (
-                                                <div key={aoi.id} className="flex items-center gap-4 p-3 bg-white border rounded-lg">
-                                                    <div className="w-3 h-8 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-                                                    <div className="w-16 h-12 rounded overflow-hidden flex-shrink-0 border bg-gray-50">
-                                                        <img
-                                                            src={imageUrl}
-                                                            alt={aoi.label}
-                                                            className="w-full h-full"
-                                                            style={{
-                                                                objectFit: 'cover',
-                                                                objectPosition: `${aoi.x + aoi.width / 2}% ${aoi.y + aoi.height / 2}%`,
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-sm font-medium text-gray-900 flex-1 min-w-0">
-                                                        {aoi.label}
-                                                    </span>
-                                                    <span className="text-sm font-semibold" style={{ color }}>{aoi.percentage}%</span>
+                                                <div
+                                                    key={aoi.id}
+                                                    className="flex items-center gap-2 px-2.5 py-1.5 bg-white border rounded-lg text-xs"
+                                                >
+                                                    <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                                                    <span className="font-medium text-gray-700">{aoi.label}</span>
+                                                    <span className="font-semibold" style={{ color }}>{aoi.percentage}%</span>
                                                     <button
                                                         type="button"
                                                         onClick={() => removeAoi(aoi.id)}
-                                                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                                                        className="text-gray-400 hover:text-red-500 ml-0.5"
                                                     >
-                                                        Remove
+                                                        ×
                                                     </button>
                                                 </div>
                                             );

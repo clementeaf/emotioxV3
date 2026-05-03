@@ -8,13 +8,17 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth.local';
 import { getRequestOrigin } from '../../utils/request';
-import { predictAttention, predictAttentionRaw } from './attention-prediction.service';
+import { predictAttentionRaw, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import pool from '../../config/database';
 
 /**
- * Runs prediction and saves result to research config.
+ * Runs the unified hybrid prediction pipeline:
+ * 1. 3× TranSalNet averaged (no center bias — model has inherent bias)
+ * 2. Gemini semantic grid → fusion → focal equalization → jitter
+ * 3. Auto-presets + gridded AOIs
+ *
  * On failure, saves error state to the stimulus entry and re-throws.
  */
 const runPredictionAsync = async (
@@ -24,7 +28,32 @@ const runPredictionAsync = async (
     threshold: number
 ): Promise<void> => {
     try {
-        const { points: heatmapData, autoPresets, griddedAOIs } = await predictAttention(imagePath, threshold);
+        // Step 1: TranSalNet 3× averaged
+        const { map: transalnetMap, width, height } = await predictAttentionRaw(imagePath);
+
+        // Step 2: Hybrid fusion with Gemini semantic saliency + focal equalization + jitter
+        let finalMap: Float32Array;
+        try {
+            finalMap = await generateHybridSaliency(imagePath, transalnetMap, width, height);
+        } catch (hybridErr) {
+            // Fallback to TranSalNet-only if Gemini fails
+            console.warn('[Predict] Hybrid fusion failed, using TranSalNet only:', hybridErr);
+            finalMap = transalnetMap;
+        }
+
+        // Step 3: Extract points + auto-presets + gridded AOIs
+        const autoPresets = computeAutoPresets(finalMap);
+        const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
+        const heatmapData: Array<{ x: number; y: number; value: number }> = [];
+        const step = 3;
+        for (let row = 0; row < height; row += step) {
+            for (let col = 0; col < width; col += step) {
+                const value = finalMap[row * width + col];
+                if (value >= threshold) {
+                    heatmapData.push({ x: (col / width) * 100, y: (row / height) * 100, value });
+                }
+            }
+        }
 
         // Read current config
         const researchResult = await pool.query(
@@ -114,7 +143,27 @@ const runModulePredictionAsync = async (
     imageKey?: string
 ): Promise<void> => {
     try {
-        const { points: heatmapData, autoPresets, griddedAOIs } = await predictAttention(imagePath, threshold);
+        // Unified hybrid pipeline
+        const { map: transalnetMap, width, height } = await predictAttentionRaw(imagePath);
+        let finalMap: Float32Array;
+        try {
+            finalMap = await generateHybridSaliency(imagePath, transalnetMap, width, height);
+        } catch {
+            finalMap = transalnetMap;
+        }
+
+        const autoPresets = computeAutoPresets(finalMap);
+        const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
+        const heatmapData: Array<{ x: number; y: number; value: number }> = [];
+        const step = 3;
+        for (let row = 0; row < height; row += step) {
+            for (let col = 0; col < width; col += step) {
+                const value = finalMap[row * width + col];
+                if (value >= threshold) {
+                    heatmapData.push({ x: (col / width) * 100, y: (row / height) * 100, value });
+                }
+            }
+        }
 
         const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
         if (moduleResult.rows.length === 0) return;
@@ -407,84 +456,34 @@ export const handleAttentionPredictionRoutes = async (
         }
 
         // POST /attention-prediction/research/:researchId/module/:moduleId/hybrid-predict
-        // Runs TranSalNet TTA + LLM semantic fusion → saves hybrid heatmap
+        // Legacy endpoint — redirects to the same unified pipeline as predict
         const hybridMatch = path.match(
             /^\/attention-prediction\/research\/([^/]+)\/module\/([^/]+)\/hybrid-predict$/
         );
         if (hybridMatch && httpMethod === 'POST') {
             const researchId = hybridMatch[1];
-            const moduleIdOrMediaId = hybridMatch[2];
+            const mediaId = hybridMatch[2];
             const body = event.body ? JSON.parse(event.body) : {};
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
-            const alpha = typeof body.alpha === 'number' ? body.alpha : 0.65;
-            const beta = typeof body.beta === 'number' ? body.beta : 0.35;
 
-            // Resolve media path
             const mediaResult = await pool.query(
                 'SELECT s3_key FROM media WHERE id = ? AND research_id = ?',
-                [moduleIdOrMediaId, researchId]
+                [mediaId, researchId]
             );
             if (mediaResult.rows.length === 0) {
                 return error('Media not found', 404, undefined, origin);
             }
+
             const s3Key = mediaResult.rows[0].s3_key as string;
             const imagePath = getMediaPath(s3Key);
 
-            // Step 1: TranSalNet TTA → raw map
-            const { map: transalnetMap, width, height } = await predictAttentionRaw(imagePath);
-
-            // Step 2: Hybrid fusion with LLM semantic saliency
-            const hybridMap = await generateHybridSaliency(imagePath, transalnetMap, width, height, alpha, beta);
-
-            // Step 3: Convert to heatmap points
-            const points: Array<{ x: number; y: number; value: number }> = [];
-            const step = 3;
-            for (let row = 0; row < height; row += step) {
-                for (let col = 0; col < width; col += step) {
-                    const value = hybridMap[row * width + col];
-                    if (value >= threshold) {
-                        points.push({
-                            x: (col / width) * 100,
-                            y: (row / height) * 100,
-                            value,
-                        });
-                    }
-                }
+            try {
+                await runPredictionAsync(researchId, mediaId, imagePath, threshold);
+                return success({ status: 'complete', mediaId }, 200, undefined, origin);
+            } catch (predErr) {
+                const msg = predErr instanceof Error ? predErr.message : 'Prediction failed';
+                return error(msg, 500, undefined, origin);
             }
-
-            // Step 4: Save to research config
-            const researchResult = await pool.query(
-                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
-                [researchId]
-            );
-            if (researchResult.rows.length > 0) {
-                let config: Record<string, unknown> = {};
-                try {
-                    const raw = researchResult.rows[0].config;
-                    config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
-                } catch { config = {}; }
-
-                const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
-                config.stimuli = stimuli.map(s => {
-                    if (s.mediaId === moduleIdOrMediaId) {
-                        return { ...s, heatmapData: points, hybridPrediction: true, hybridAlpha: alpha, hybridBeta: beta };
-                    }
-                    return s;
-                });
-
-                await pool.query(
-                    'UPDATE researches SET config = ? WHERE id = ?',
-                    [JSON.stringify(config), researchId]
-                );
-            }
-
-            return success({
-                heatmapData: points,
-                totalPoints: points.length,
-                hybrid: true,
-                alpha,
-                beta,
-            }, 200, undefined, origin);
         }
 
         return error('Route not found', 404, undefined, origin);
