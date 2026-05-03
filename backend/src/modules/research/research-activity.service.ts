@@ -290,3 +290,150 @@ export const getResearchDetail = async (researchId: string): Promise<ResearchDet
 export const logResearchActivity = async (): Promise<void> => {
     // Activity is derived from existing tables, no write needed
 };
+
+export interface DashboardSummary {
+    totalResearches: number;
+    byStatus: Record<string, number>;
+    totalParticipants: number;
+    totalResponses: number;
+    avgCompletionRate: number;
+    researchesOverTime: Array<{ month: string; count: number }>;
+    participantsOverTime: Array<{ month: string; count: number }>;
+    metricsTrends: Array<{
+        month: string;
+        avgNps: number | null;
+        avgCsat: number | null;
+        avgCes: number | null;
+        researchCount: number;
+    }>;
+    topResearches: Array<{
+        id: string;
+        name: string;
+        status: string;
+        techniqueName: string | null;
+        participantCount: number;
+        responseCount: number;
+        completionRate: number;
+        createdAt: string;
+    }>;
+}
+
+export const getDashboardSummary = async (userId: string, role?: string): Promise<DashboardSummary> => {
+    const { buildOwnershipClause } = await import('./research.helpers');
+    const { clause, params } = buildOwnershipClause(userId, role);
+
+    const [statsResult, timelineResult, topResult, participantsTimelineResult, metricsTrendsResult] = await Promise.all([
+        pool.query(
+            `SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN r.status = 'draft' THEN 1 ELSE 0 END) AS draft_count,
+                SUM(CASE WHEN r.status = 'active' THEN 1 ELSE 0 END) AS active_count,
+                SUM(CASE WHEN r.status IN ('closed','completed') THEN 1 ELSE 0 END) AS completed_count,
+                (SELECT COUNT(DISTINCT resp.participant_id) FROM responses resp
+                 JOIN researches r2 ON r2.id = resp.research_id
+                 WHERE r2.deleted_at IS NULL AND ${clause.replace(/r\./g, 'r2.')}) AS total_participants,
+                (SELECT COUNT(*) FROM responses resp2
+                 JOIN researches r3 ON r3.id = resp2.research_id
+                 WHERE r3.deleted_at IS NULL AND ${clause.replace(/r\./g, 'r3.')}) AS total_responses
+             FROM researches r
+             WHERE r.deleted_at IS NULL AND ${clause}`,
+            [...params, ...params, ...params]
+        ),
+        pool.query(
+            `SELECT DATE_FORMAT(r.created_at, '%Y-%m') AS month, COUNT(*) AS cnt
+             FROM researches r
+             WHERE r.deleted_at IS NULL AND ${clause}
+             GROUP BY month ORDER BY month DESC LIMIT 12`,
+            params
+        ),
+        pool.query(
+            `SELECT r.id, r.name, r.status, r.created_at,
+                    rt.name AS technique_name,
+                    COUNT(DISTINCT resp.participant_id) AS participant_count,
+                    COUNT(resp.id) AS response_count
+             FROM researches r
+             LEFT JOIN research_techniques rt ON rt.id = r.research_technique_id
+             LEFT JOIN responses resp ON resp.research_id = r.id
+             WHERE r.deleted_at IS NULL AND ${clause}
+             GROUP BY r.id
+             ORDER BY r.updated_at DESC
+             LIMIT 10`,
+            params
+        ),
+        // Participants over time
+        pool.query(
+            `SELECT DATE_FORMAT(resp.created_at, '%Y-%m') AS month,
+                    COUNT(DISTINCT resp.participant_id) AS cnt
+             FROM responses resp
+             JOIN researches r ON r.id = resp.research_id
+             WHERE r.deleted_at IS NULL AND ${clause}
+             GROUP BY month ORDER BY month DESC LIMIT 12`,
+            params
+        ),
+        // SmartVOC metrics trends (NPS/CSAT/CES averages per month)
+        pool.query(
+            `SELECT DATE_FORMAT(resp.created_at, '%Y-%m') AS month,
+                    AVG(CASE WHEN m.name = 'NPS' AND resp.component_id IN ('answer','scale','choice')
+                         THEN CAST(JSON_UNQUOTE(resp.value) AS DECIMAL) END) AS avg_nps,
+                    AVG(CASE WHEN m.name = 'CSAT' AND resp.component_id IN ('answer','scale','choice')
+                         THEN CAST(JSON_UNQUOTE(resp.value) AS DECIMAL) END) AS avg_csat,
+                    AVG(CASE WHEN m.name = 'CES' AND resp.component_id IN ('answer','scale','choice')
+                         THEN CAST(JSON_UNQUOTE(resp.value) AS DECIMAL) END) AS avg_ces,
+                    COUNT(DISTINCT resp.research_id) AS research_count
+             FROM responses resp
+             JOIN modules m ON m.id = resp.module_id
+             JOIN researches r ON r.id = resp.research_id
+             WHERE r.deleted_at IS NULL AND ${clause}
+               AND m.name IN ('NPS','CSAT','CES')
+               AND resp.component_id IN ('answer','scale','choice')
+             GROUP BY month ORDER BY month DESC LIMIT 12`,
+            params
+        ),
+    ]);
+
+    const stats = statsResult.rows[0];
+    const totalResearches = Number(stats?.total) || 0;
+    const activeCount = Number(stats?.active_count) || 0;
+    const completedCount = Number(stats?.completed_count) || 0;
+    const totalWithActivity = activeCount + completedCount;
+    const avgCompletionRate = totalWithActivity > 0
+        ? Math.round((completedCount / totalWithActivity) * 100)
+        : 0;
+
+    return {
+        totalResearches,
+        byStatus: {
+            draft: Number(stats?.draft_count) || 0,
+            active: activeCount,
+            completed: completedCount,
+        },
+        totalParticipants: Number(stats?.total_participants) || 0,
+        totalResponses: Number(stats?.total_responses) || 0,
+        avgCompletionRate,
+        researchesOverTime: timelineResult.rows.map(r => ({
+            month: r.month,
+            count: Number(r.cnt) || 0,
+        })).reverse(),
+        participantsOverTime: participantsTimelineResult.rows.map(r => ({
+            month: r.month,
+            count: Number(r.cnt) || 0,
+        })).reverse(),
+        metricsTrends: metricsTrendsResult.rows.map(r => ({
+            month: r.month,
+            avgNps: r.avg_nps !== null ? Math.round(Number(r.avg_nps) * 10) / 10 : null,
+            avgCsat: r.avg_csat !== null ? Math.round(Number(r.avg_csat) * 10) / 10 : null,
+            avgCes: r.avg_ces !== null ? Math.round(Number(r.avg_ces) * 10) / 10 : null,
+            researchCount: Number(r.research_count) || 0,
+        })).reverse(),
+        topResearches: topResult.rows.map(r => ({
+            id: r.id,
+            name: r.name,
+            status: r.status || 'draft',
+            techniqueName: r.technique_name || null,
+            participantCount: Number(r.participant_count) || 0,
+            responseCount: Number(r.response_count) || 0,
+            completionRate: 0, // computed client-side from progress
+            createdAt: r.created_at,
+        })),
+    };
+};

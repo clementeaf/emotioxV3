@@ -86,6 +86,24 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             const body = JSON.parse(event.body || '{}');
             try {
                 const result = await publicService.saveParticipantResponses(researchId, body);
+
+                // Auto-trigger text analysis every 10 participants
+                checkAutoAnalysisThreshold(researchId).catch(err =>
+                    console.error('[Auto-analysis threshold]', err.message)
+                );
+
+                // Check for alerts
+                import('../analytics/alerts.service').then(({ checkAlerts }) =>
+                    checkAlerts(researchId).catch(() => {})
+                );
+
+                // Register participant DID on Cerulean Ledger
+                if (body.participantId) {
+                    import('../cerulean/integration.service').then(cl =>
+                        cl.registerParticipantDID(researchId, body.participantId).catch(() => {})
+                    ).catch(() => {});
+                }
+
                 return success(result, 201, undefined, origin);
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : 'Failed to save responses';
@@ -184,3 +202,47 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
         return error(errorMessage, 500, undefined, origin);
     }
 };
+
+const AUTO_ANALYSIS_THRESHOLD = 10;
+
+/**
+ * Check if participant count reached a threshold multiple and trigger text analysis.
+ * Only runs at multiples of AUTO_ANALYSIS_THRESHOLD (10, 20, 30...).
+ */
+async function checkAutoAnalysisThreshold(researchId: string): Promise<void> {
+    const pool = (await import('../../config/database')).default;
+
+    const result = await pool.query(
+        'SELECT COUNT(DISTINCT participant_id) AS cnt FROM responses WHERE research_id = ?',
+        [researchId]
+    );
+    const count = Number(result.rows[0]?.cnt) || 0;
+
+    // Only trigger at exact threshold multiples
+    if (count === 0 || count % AUTO_ANALYSIS_THRESHOLD !== 0) return;
+
+    // Check if already analyzed at this count (avoid duplicate runs)
+    const configResult = await pool.query(
+        'SELECT config FROM researches WHERE id = ?',
+        [researchId]
+    );
+    const config = typeof configResult.rows[0]?.config === 'string'
+        ? JSON.parse(configResult.rows[0].config)
+        : configResult.rows[0]?.config || {};
+
+    const lastAutoCount = config.lastAutoAnalysisCount || 0;
+    if (lastAutoCount >= count) return;
+
+    // Mark this count
+    config.lastAutoAnalysisCount = count;
+    await pool.query(
+        'UPDATE researches SET config = ? WHERE id = ?',
+        [JSON.stringify(config), researchId]
+    );
+
+    // Trigger analysis for VOC
+    const { triggerTextAnalysis } = await import('../analytics/text-analysis.service');
+    await triggerTextAnalysis(researchId, 'voc').catch(() => {});
+
+    console.log(`[Auto-analysis] Triggered at ${count} participants for research ${researchId}`);
+}

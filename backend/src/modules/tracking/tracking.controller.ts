@@ -12,6 +12,7 @@ import {
     saveEvents,
     getTrackingConfig,
     getClickHeatmapData,
+    getMouseAttentionData,
     getScrollDepthData,
     getOverviewMetrics,
     getTrackedPages,
@@ -288,6 +289,16 @@ export const handleTrackingRoutes = async (
                 : undefined;
             const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
             const data = await getClickHeatmapData(researchId, pageUrl, device);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/mouse-attention?page=URL — mouse-based gaze proxy heatmap
+        const mouseAttentionMatch = path.match(/^\/tracking\/([^/]+)\/mouse-attention$/);
+        if (mouseAttentionMatch && httpMethod === 'GET') {
+            const researchId = mouseAttentionMatch[1];
+            const pageUrl = event.queryStringParameters?.page ? decodeURIComponent(event.queryStringParameters.page) : undefined;
+            const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
+            const data = await getMouseAttentionData(researchId, pageUrl, device);
             return success(data, 200, undefined, origin);
         }
 

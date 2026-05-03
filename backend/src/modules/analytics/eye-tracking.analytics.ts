@@ -39,6 +39,21 @@ interface EmotionAggregation {
   }>;
   /** Downsampled timeline (1s buckets) aggregated across all participants */
   timeline: EmotionSample[];
+  /** Aggregated micro-expression detections across all participants */
+  microExpressions?: {
+    total: number;
+    briefCount: number;
+    microCount: number;
+    byEmotion: Record<string, number>;
+    events: Array<{
+      participantId: string;
+      emotion: string;
+      durationMs: number;
+      startTimestamp: number;
+      category: 'brief' | 'micro';
+      peakConfidence: number;
+    }>;
+  };
 }
 
 interface EyeTrackingStimulus {
@@ -66,6 +81,8 @@ interface EyeTrackingStimulus {
     fixationCount: number;
     avgDuration: number;
     participantCount: number;
+    /** Attention-memory gap: high attention + low recall = missed opportunity (Chu 2022) */
+    attentionMemoryGap?: number;
   }>;
   participants: Array<{
     participantId: string;
@@ -283,6 +300,47 @@ const computeEmotionMetrics = (
     timeline.push({ timestamp: ts, emotion: bDominant, confidence: bConf, actionUnits: avgAUs });
   }
 
+  // Micro-expression aggregation from stored detections
+  let microExpressionsAgg: EmotionAggregation['microExpressions'];
+  const allMicroEvents: EmotionAggregation['microExpressions'] extends undefined ? never : NonNullable<EmotionAggregation['microExpressions']>['events'] = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const micros = parsed?.microExpressions;
+      if (Array.isArray(micros)) {
+        for (const m of micros) {
+          allMicroEvents.push({
+            participantId: row.participant_id,
+            emotion: m.emotion,
+            durationMs: m.durationMs,
+            startTimestamp: m.startTimestamp,
+            category: m.category,
+            peakConfidence: m.peakConfidence,
+          });
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  if (allMicroEvents.length > 0) {
+    const byEmotion: Record<string, number> = {};
+    let briefCount = 0;
+    let microCount = 0;
+    for (const e of allMicroEvents) {
+      byEmotion[e.emotion] = (byEmotion[e.emotion] || 0) + 1;
+      if (e.category === 'brief') briefCount++;
+      else microCount++;
+    }
+    microExpressionsAgg = {
+      total: allMicroEvents.length,
+      briefCount,
+      microCount,
+      byEmotion,
+      events: allMicroEvents,
+    };
+  }
+
   return {
     enabled: true,
     totalSamples: total,
@@ -291,6 +349,7 @@ const computeEmotionMetrics = (
     avgConfidence: totalConfidence / total,
     perParticipant,
     timeline,
+    microExpressions: microExpressionsAgg,
   };
 };
 
@@ -320,10 +379,17 @@ function classifyQuality(
   calibrationRmsePx: number | null,
   integrityScore: number,
   fixationCount: number,
+  calibrationQuality?: string,
 ): QualityGrade {
+  // Click-proxy (mobile/tablet) data is capped at 'fair' — never 'good'
+  const isClickProxy = calibrationQuality === 'click-proxy';
+
   if (fixationCount < ET_QUALITY_THRESHOLDS.minFixationCount) return 'low';
   if (integrityScore < ET_QUALITY_THRESHOLDS.minIntegrityScore) return 'low';
   if (calibrationRmsePx !== null && calibrationRmsePx > ET_QUALITY_THRESHOLDS.maxCalibrationRmsePx) return 'low';
+
+  if (isClickProxy) return 'fair';
+
   // Fair: borderline values
   if (calibrationRmsePx !== null && calibrationRmsePx > ET_QUALITY_THRESHOLDS.maxCalibrationRmsePx * 0.7) return 'fair';
   if (integrityScore < ET_QUALITY_THRESHOLDS.minIntegrityScore * 1.5) return 'fair';
@@ -370,10 +436,11 @@ const computeEyeTrackingMetrics = (
       const integrity = typeof parsed?.integrityScore === 'number' ? parsed.integrityScore
         : typeof parsed?.integrityScore === 'string' ? parseFloat(parsed.integrityScore) || 0
         : 0;
-      const grade = classifyQuality(rmsePx, integrity, fixations.length);
+      const calQuality = parsed?.calibrationQuality ?? 'unknown';
+      const grade = classifyQuality(rmsePx, integrity, fixations.length, calQuality);
 
       participantMap.set(pid, {
-        calibrationQuality: parsed?.calibrationQuality ?? 'unknown',
+        calibrationQuality: calQuality,
         calibrationRmsePx: rmsePx,
         integrityScore: integrity,
         totalFixations: fixations.length,

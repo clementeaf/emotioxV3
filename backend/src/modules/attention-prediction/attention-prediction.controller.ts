@@ -25,7 +25,8 @@ const runPredictionAsync = async (
     researchId: string,
     mediaId: string,
     imagePath: string,
-    threshold: number
+    threshold: number,
+    profile?: import('./ai-analysis.service').AnalysisProfile,
 ): Promise<void> => {
     try {
         // Step 1: TranSalNet 3× averaged
@@ -34,7 +35,7 @@ const runPredictionAsync = async (
         // Step 2: Hybrid fusion with Gemini semantic saliency + focal equalization + jitter
         let finalMap: Float32Array;
         try {
-            finalMap = await generateHybridSaliency(imagePath, transalnetMap, width, height);
+            finalMap = await generateHybridSaliency(imagePath, transalnetMap, width, height, profile);
         } catch (hybridErr) {
             // Fallback to TranSalNet-only if Gemini fails
             console.warn('[Predict] Hybrid fusion failed, using TranSalNet only:', hybridErr);
@@ -79,6 +80,7 @@ const runPredictionAsync = async (
                     heatmapData,
                     autoPresets,
                     griddedAOIs,
+                    analysisProfile: profile || undefined,
                     processedAt: new Date().toISOString(),
                     predictionError: undefined,
                     predictionErrorAt: undefined,
@@ -240,10 +242,11 @@ export const handleAttentionPredictionRoutes = async (
 
             const body = event.body ? JSON.parse(event.body) : {};
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const profile = body.profile || undefined;
 
             // Synchronous — await result and return directly
             try {
-                await runPredictionAsync(researchId, mediaId, imagePath, threshold);
+                await runPredictionAsync(researchId, mediaId, imagePath, threshold, profile);
                 return success(
                     { status: 'complete', mediaId },
                     200,
@@ -465,6 +468,7 @@ export const handleAttentionPredictionRoutes = async (
             const mediaId = hybridMatch[2];
             const body = event.body ? JSON.parse(event.body) : {};
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const profile = body.profile || undefined;
 
             const mediaResult = await pool.query(
                 'SELECT s3_key FROM media WHERE id = ? AND research_id = ?',
@@ -478,7 +482,7 @@ export const handleAttentionPredictionRoutes = async (
             const imagePath = getMediaPath(s3Key);
 
             try {
-                await runPredictionAsync(researchId, mediaId, imagePath, threshold);
+                await runPredictionAsync(researchId, mediaId, imagePath, threshold, profile);
                 return success({ status: 'complete', mediaId }, 200, undefined, origin);
             } catch (predErr) {
                 const msg = predErr instanceof Error ? predErr.message : 'Prediction failed';

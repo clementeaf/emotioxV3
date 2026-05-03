@@ -6,6 +6,7 @@ import * as researchInProgressService from './research-in-progress.service';
 import * as researchActivityService from './research-activity.service';
 import * as authService from '../auth/auth.service';
 import * as publicService from '../public/index';
+import * as researchTagsService from './research-tags.service';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -61,6 +62,12 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ activities }, 200, undefined, origin);
         }
 
+        // GET /research/dashboard-summary
+        if (path === '/research/dashboard-summary' && httpMethod === 'GET') {
+            const summary = await researchActivityService.getDashboardSummary(user.id, user.role);
+            return success({ summary }, 200, undefined, origin);
+        }
+
         // POST /research
         if (path === '/research' && httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
@@ -68,6 +75,12 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             console.log('[Research Controller] research_type_id:', body.research_type_id);
             console.log('[Research Controller] use_default_modules:', body.use_default_modules);
             const research = await researchService.create(user.id, body);
+
+            // Cerulean audit trail
+            import('../cerulean/integration.service').then(cl =>
+                cl.recordAuditEvent(research.id, 'research.created', user.id, { name: body.name }).catch(() => {})
+            ).catch(() => {});
+
             return success({ research }, 201, undefined, origin);
         }
 
@@ -149,6 +162,28 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             const id = statusMatch[1];
             const body = JSON.parse(event.body || '{}');
             const research = await researchService.updateStatus(id, user.id, body.status, user.role);
+
+            // Auto-trigger text analysis when research is completed/closed
+            if (body.status === 'completed' || body.status === 'closed') {
+                autoTriggerTextAnalysis(id).catch(err =>
+                    console.error('[Auto-analysis] Error:', err.message)
+                );
+
+                // Cerulean Ledger: certify integrity + issue certificate + audit trail
+                import('../cerulean/integration.service').then(async (cl) => {
+                    await cl.certifyResearchIntegrity(id).catch(() => {});
+                    await cl.issueStudyCertificate(id).catch(() => {});
+                    await cl.recordAuditEvent(id, 'research.closed', user.id).catch(() => {});
+                }).catch(() => {});
+            }
+
+            // Cerulean audit trail for status changes
+            if (body.status === 'active') {
+                import('../cerulean/integration.service').then(cl =>
+                    cl.recordAuditEvent(id, 'research.activated', user.id).catch(() => {})
+                ).catch(() => {});
+            }
+
             return success({ research }, 200, undefined, origin);
         }
 
@@ -387,6 +422,56 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             return success({ message: 'Collaborator removed' }, 200, undefined, origin);
         }
 
+        // GET /research/tags — all unique tags for user
+        if (path === '/research/tags' && httpMethod === 'GET') {
+            const tags = await researchTagsService.getAllTags(user.id, user.role);
+            return success({ tags }, 200, undefined, origin);
+        }
+
+        // GET /research/:id/tags
+        const tagsGetMatch = path.match(/^\/research\/([^\/]+)\/tags$/);
+        if (tagsGetMatch && httpMethod === 'GET') {
+            const researchId = tagsGetMatch[1];
+            const tags = await researchTagsService.getTagsForResearch(researchId);
+            return success({ tags }, 200, undefined, origin);
+        }
+
+        // POST /research/:id/tags
+        if (tagsGetMatch && httpMethod === 'POST') {
+            const researchId = tagsGetMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            if (!body.tag || typeof body.tag !== 'string') {
+                return error('Tag is required', 400, undefined, origin);
+            }
+            await researchTagsService.addTag(researchId, body.tag);
+            return success({ message: 'Tag added' }, 201, undefined, origin);
+        }
+
+        // DELETE /research/:id/tags/:tag
+        const tagDeleteMatch = path.match(/^\/research\/([^\/]+)\/tags\/(.+)$/);
+        if (tagDeleteMatch && httpMethod === 'DELETE') {
+            const researchId = tagDeleteMatch[1];
+            const tag = decodeURIComponent(tagDeleteMatch[2]);
+            await researchTagsService.removeTag(researchId, tag);
+            return success({ message: 'Tag removed' }, 200, undefined, origin);
+        }
+
+        // POST /research/:id/archive
+        const archiveMatch = path.match(/^\/research\/([^\/]+)\/archive$/);
+        if (archiveMatch && httpMethod === 'POST') {
+            const researchId = archiveMatch[1];
+            await researchTagsService.archiveResearch(researchId);
+            return success({ message: 'Research archived' }, 200, undefined, origin);
+        }
+
+        // POST /research/:id/unarchive
+        const unarchiveMatch = path.match(/^\/research\/([^\/]+)\/unarchive$/);
+        if (unarchiveMatch && httpMethod === 'POST') {
+            const researchId = unarchiveMatch[1];
+            await researchTagsService.unarchiveResearch(researchId);
+            return success({ message: 'Research unarchived' }, 200, undefined, origin);
+        }
+
         return error('Route not found', 404, undefined, origin);
     } catch (err: any) {
         console.error('Research controller error:', err);
@@ -398,3 +483,48 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
         return error(err.message || 'Internal server error', 500, undefined, origin);
     }
 };
+
+/**
+ * Auto-trigger text analysis for all text modules in a research.
+ * Finds VOC, Short Text, and Long Text modules and triggers LLM analysis
+ * for each. Fire-and-forget — errors are logged, not thrown.
+ */
+async function autoTriggerTextAnalysis(researchId: string): Promise<void> {
+    const pool = (await import('../../config/database')).default;
+    const { triggerTextAnalysis } = await import('../analytics/text-analysis.service');
+
+    // Find text-bearing modules: VOC + Short/Long Text
+    const result = await pool.query(
+        `SELECT m.id, m.name
+         FROM modules m
+         JOIN stages s ON s.id = m.stage_id
+         WHERE s.research_id = ?
+           AND (m.name IN ('VOC', 'Short Text', 'Long Text')
+                OR m.name LIKE '%Short Text%'
+                OR m.name LIKE '%Long Text%')`,
+        [researchId]
+    );
+
+    const moduleIds: string[] = result.rows.map((r) => (r as { id: string }).id);
+
+    // Also trigger for SmartVOC VOC (special moduleId = 'voc')
+    const vocCheck = await pool.query(
+        `SELECT 1 FROM responses
+         WHERE research_id = ? AND component_id = 'answer'
+         LIMIT 1`,
+        [researchId]
+    );
+    if (vocCheck.rows.length > 0) {
+        moduleIds.push('voc');
+    }
+
+    console.log(`[Auto-analysis] Triggering for research ${researchId}, ${moduleIds.length} modules`);
+
+    for (const moduleId of moduleIds) {
+        try {
+            await triggerTextAnalysis(researchId, moduleId);
+        } catch (err) {
+            console.error(`[Auto-analysis] Failed for module ${moduleId}:`, err);
+        }
+    }
+}

@@ -113,6 +113,7 @@ export type { GazeSample, DetectedFixation } from './fixationDetector';
 
 export {
   extractActionUnits,
+  extractActionUnitsFrom68,
   classifyEmotion,
   extractEmotionFromFrame,
   aggregateEmotionTimeline,
@@ -124,3 +125,6 @@ export type {
   EmotionSample,
   EkmanEmotion,
 } from './facsClassifier';
+
+export { detectMicroExpressions } from './microExpressionDetector';
+export type { MicroExpression } from './microExpressionDetector';

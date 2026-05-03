@@ -11,7 +11,7 @@ export const list = async (userId: string, role?: string) => {
         const ownership = buildOwnershipClause(userId, role);
         // MySQL uses 'config' instead of 'settings', map it to 'settings' for frontend compatibility
         const query = `
-        SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.created_by, r.config, r.created_at, r.updated_at,
+        SELECT r.id, r.name, r.description, r.status, r.research_type_id, r.created_by, r.config, r.created_at, r.updated_at, r.archived_at,
                rt.name as research_type_name,
                rtech.name as research_technique_name,
                e.name as enterprise_name,

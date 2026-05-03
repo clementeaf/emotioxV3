@@ -5,6 +5,9 @@ import { CognitiveTaskRenderer } from '../renderers/CognitiveTaskRenderer';
 import { ScreenerRenderer } from '../renderers/ScreenerRenderer';
 import { ImplicitAssociationRenderer } from '../renderers/ImplicitAssociationRenderer';
 import { EyeTrackingRenderer } from '../renderers/EyeTrackingRenderer';
+import { EmotionAnalysisRenderer } from '../renderers/EmotionAnalysisRenderer';
+import { EEGRenderer } from '../renderers/EEGRenderer';
+import { WearableRenderer } from '../renderers/WearableRenderer';
 import { InputRenderer, TextareaRenderer } from '../renderers';
 import { useParticipantStore } from '../../stores/useParticipantStore';
 import { getComponentText, toStableString } from '../../utils/moduleComponent';
@@ -175,6 +178,21 @@ export const DynamicStep: React.FC<DynamicStepProps> = ({ module, onComplete }) 
     // If Implicit Association, use IAT renderer
     if (isImplicitAssociation) {
         return <ImplicitAssociationRenderer key={module.id} module={module} onComplete={onComplete} />;
+    }
+
+    // If Emotion Analysis, use standalone emotion renderer
+    if (module.name.toLowerCase().includes('emotion analysis')) {
+        return <EmotionAnalysisRenderer key={module.id} module={module} onComplete={onComplete} />;
+    }
+
+    // If EEG Recording, use EEG renderer
+    if (module.name.toLowerCase().includes('eeg')) {
+        return <EEGRenderer key={module.id} module={module} onComplete={onComplete} />;
+    }
+
+    // If Biometric Wearable, use wearable renderer
+    if (module.name.toLowerCase().includes('biometric wearable') || module.name.toLowerCase().includes('heart rate')) {
+        return <WearableRenderer key={module.id} module={module} onComplete={onComplete} />;
     }
 
     // If Eye Tracking, use eye tracking renderer

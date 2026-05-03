@@ -49,7 +49,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     return (
         <div
             ref={containerRef}
-            className={`max-w-[85vw] max-h-[75vh] mx-auto select-none overflow-auto ${className}`}
+            className={`max-w-[85vw] max-h-[75vh] mx-auto select-none overflow-hidden ${className}`}
             style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${maxCols}, 1fr)`,

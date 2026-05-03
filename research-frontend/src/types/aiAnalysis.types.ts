@@ -52,6 +52,19 @@ export interface AiAnalysisResult {
         finding: string;
         recommendation: string;
     }>;
+    brandAttention?: {
+        logos: Array<{
+            brand: string;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            saliencyScore: number;
+        }>;
+        brandAttentionScore: number;
+        dominantBrand: string;
+        recommendation: string;
+    };
     methodology: string;
     analyzedAt: string;
 }

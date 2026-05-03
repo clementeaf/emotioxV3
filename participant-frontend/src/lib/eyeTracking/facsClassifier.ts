@@ -427,6 +427,101 @@ export function downsampleEmotionTimeline(
 }
 
 // ---------------------------------------------------------------------------
+// face-api.js 68-landmark AU extraction
+// ---------------------------------------------------------------------------
+
+/**
+ * face-api.js 68-landmark indices mapped to FACS-relevant facial points.
+ * Reference: https://github.com/justadudewhohacks/face-api.js#68-point-face-landmark-positions
+ */
+const FACE_API_68 = {
+  leftInnerBrow: 21,
+  leftMidBrow: 19,
+  leftOuterBrow: 17,
+  rightInnerBrow: 22,
+  rightMidBrow: 24,
+  rightOuterBrow: 26,
+
+  leftEyeInner: 39,
+  leftEyeTop: 37,     // upper lid (avg with 38)
+  leftEyeBottom: 41,   // lower lid (avg with 40)
+  rightEyeInner: 42,
+  rightEyeTop: 43,     // upper lid (avg with 44)
+  rightEyeBottom: 47,  // lower lid (avg with 46)
+
+  noseBottom: 33,
+
+  mouthLeft: 48,
+  mouthRight: 54,
+  mouthUpperLipTop: 51,
+  mouthLowerLipBottom: 57,
+  mouthCenterLower: 57,
+
+  chinBottom: 8,
+} as const;
+
+/** Point type compatible with face-api landmark positions */
+interface Point2D {
+  x: number;
+  y: number;
+}
+
+/**
+ * Extract FACS Action Units from face-api.js 68-point landmarks.
+ * Same AU computations as the MediaPipe version but with face-api indices.
+ *
+ * @param points - Array of 68 {x, y} positions from face-api.js FaceLandmarks68
+ */
+export function extractActionUnitsFrom68(points: Point2D[]): ActionUnits | null {
+  if (!points || points.length < 68) return null;
+
+  const d2 = (a: Point2D, b: Point2D) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+
+  // Reference distance: inner eye corners
+  const rd = d2(points[FACE_API_68.leftEyeInner], points[FACE_API_68.rightEyeInner]) || 1e-5;
+
+  // AU1: Inner brow raiser
+  const leftBrowEyeL = d2(points[FACE_API_68.leftInnerBrow], points[FACE_API_68.leftEyeTop]) / rd;
+  const rightBrowEyeL = d2(points[FACE_API_68.rightInnerBrow], points[FACE_API_68.rightEyeTop]) / rd;
+  const au1 = clamp(((leftBrowEyeL + rightBrowEyeL) / 2 - 0.35) / 0.15);
+
+  // AU2: Outer brow raiser
+  const leftBrowEyeR = d2(points[FACE_API_68.leftOuterBrow], points[FACE_API_68.leftEyeTop]) / rd;
+  const rightBrowEyeR = d2(points[FACE_API_68.rightOuterBrow], points[FACE_API_68.rightEyeTop]) / rd;
+  const au2 = clamp(((leftBrowEyeR + rightBrowEyeR) / 2 - 0.35) / 0.15);
+
+  // AU4: Brow lowerer (inter-brow convergence)
+  const browConv = d2(points[FACE_API_68.leftMidBrow], points[FACE_API_68.rightMidBrow]) / rd;
+  const au4 = clamp((0.75 - browConv) / 0.15);
+
+  // AU6: Cheek raiser (eye aperture decrease)
+  const eyeHL = d2(points[FACE_API_68.leftEyeTop], points[FACE_API_68.leftEyeBottom]) / rd;
+  const eyeHR = d2(points[FACE_API_68.rightEyeTop], points[FACE_API_68.rightEyeBottom]) / rd;
+  const au6 = clamp((0.12 - (eyeHL + eyeHR) / 2) / 0.06);
+
+  // AU12: Lip corner puller (smile)
+  const mouthW = d2(points[FACE_API_68.mouthLeft], points[FACE_API_68.mouthRight]) / rd;
+  const au12 = clamp((mouthW - 0.50) / 0.20);
+
+  // AU15: Lip corner depressor
+  const mouthChinD = d2(points[FACE_API_68.mouthCenterLower], points[FACE_API_68.chinBottom]) / rd;
+  const au15 = clamp((mouthChinD - 0.55) / 0.15);
+
+  // AU20: Lip stretcher
+  const au20 = clamp((mouthW - 0.50) / 0.25);
+
+  // AU25: Lips part (mouth vertical opening)
+  const mouthH = d2(points[FACE_API_68.mouthUpperLipTop], points[FACE_API_68.mouthLowerLipBottom]) / rd;
+  const au25 = clamp((mouthH - 0.03) / 0.08);
+
+  // AU26: Jaw drop
+  const noseChinD = d2(points[FACE_API_68.noseBottom], points[FACE_API_68.chinBottom]) / rd;
+  const au26 = clamp((noseChinD - 0.90) / 0.20);
+
+  return { AU1: au1, AU2: au2, AU4: au4, AU6: au6, AU12: au12, AU15: au15, AU20: au20, AU25: au25, AU26: au26 };
+}
+
+// ---------------------------------------------------------------------------
 // Internal
 // ---------------------------------------------------------------------------
 

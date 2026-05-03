@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type { RefObject } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import type { EmotionSample, EkmanEmotion } from '../lib/eyeTracking';
+import { extractActionUnitsFrom68 } from '../lib/eyeTracking';
 
 /**
  * face-api.js emotion recognition hook.
@@ -41,6 +42,7 @@ async function ensureModelsLoaded(): Promise<void> {
   if (modelsLoaded) return;
   const modelPath = `${window.location.origin}/models`;
   await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
+  await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
   await faceapi.nets.faceExpressionNet.loadFromUri(modelPath);
   modelsLoaded = true;
 }
@@ -84,6 +86,7 @@ export function useFaceApiEmotions({
     try {
       const detection = await faceapi
         .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
+        .withFaceLandmarks()
         .withFaceExpressions();
 
       if (!detection) return null;
@@ -100,14 +103,18 @@ export function useFaceApiEmotions({
         }
       }
 
+      // Extract FACS Action Units from 68-point landmarks
+      const landmarks68 = detection.landmarks.positions;
+      const aus = extractActionUnitsFrom68(landmarks68) ?? {
+        AU1: 0, AU2: 0, AU4: 0, AU6: 0,
+        AU12: 0, AU15: 0, AU20: 0, AU25: 0, AU26: 0,
+      };
+
       const sample: EmotionSample = {
         timestamp: Math.round(now - startTimeRef.current),
         emotion: bestEmotion,
         confidence: bestScore,
-        actionUnits: {
-          AU1: 0, AU2: 0, AU4: 0, AU6: 0,
-          AU12: 0, AU15: 0, AU20: 0, AU25: 0, AU26: 0,
-        },
+        actionUnits: aus,
       };
 
       if (runningRef.current) {

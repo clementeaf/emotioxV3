@@ -1,13 +1,17 @@
 /**
  * Export Service
  *
- * Fetches all research data and generates an XLSX file with one row per participant
- * and columns for demographics, module responses, timing, and metadata.
- * Uses the xlsx library already available in the project.
+ * Fetches all research data and generates a multi-sheet XLSX file:
+ *   - Participants: one row per participant with demographics, responses, timing
+ *   - SmartVOC: per-participant scores (NPS, CSAT, CES, CV) + VOC text
+ *   - Eye Tracking: per-participant calibration quality, fixations, dwell time
+ *   - IAT: per-participant RT, D-score, quality, segmentation
  */
 
 import apiClient from './api/client';
 import * as XLSX from 'xlsx';
+
+/* ─── Types ─────────────────────────────────────────────────────── */
 
 interface ExportParticipant {
     participantId: string;
@@ -18,25 +22,60 @@ interface ExportParticipant {
     duration?: number;
 }
 
-/**
- * Fetches all analytics data for a research and builds a flat export dataset.
- */
-async function fetchExportData(researchId: string): Promise<{
-    participants: ExportParticipant[];
-    demographicKeys: string[];
-    responseColumns: string[];
-}> {
-    // Fetch demographics
-    const demoRes = await apiClient.get<{
+interface SmartVOCScore {
+    participantId: string;
+    value: number;
+    date: string;
+}
+
+interface SmartVOCExportRow {
+    participantId: string;
+    nps?: number;
+    csat?: number;
+    ces?: number;
+    cv?: number;
+    voc?: string;
+    vocSentiment?: string;
+    nev?: string;
+    date?: string;
+}
+
+interface ETParticipantRow {
+    participantId: string;
+    stimulus: string;
+    calibrationQuality?: string;
+    calibrationRmsePx?: number;
+    integrityScore?: number;
+    totalFixations?: number;
+    totalDwellTime?: number;
+    qualityGrade?: string;
+}
+
+interface IATParticipantRow {
+    participantId: string;
+    module: string;
+    testType: string;
+    quality?: string;
+    accuracy?: string;
+    dScore?: number;
+    dScoreEffect?: string;
+    [key: string]: unknown;
+}
+
+/* ─── Fetch helpers ─────────────────────────────────────────────── */
+
+async function fetchDemographics(researchId: string) {
+    const res = await apiClient.get<{
         results: {
             participants: Array<{ participantId: string; demographics: Record<string, string> }>;
             demographicTypes: string[];
         };
     }>(`/analytics/research/${researchId}/demographics`);
-    const demoData = demoRes.results;
+    return res.results;
+}
 
-    // Fetch cognitive tasks
-    const cogRes = await apiClient.get<{
+async function fetchCognitiveTasks(researchId: string) {
+    const res = await apiClient.get<{
         results: {
             modules: Array<{
                 moduleId: string;
@@ -46,52 +85,119 @@ async function fetchExportData(researchId: string): Promise<{
             }>;
         };
     }>(`/analytics/research/${researchId}/cognitive-tasks`);
-    const cogModules = cogRes.results?.modules || [];
+    return res.results?.modules || [];
+}
 
-    // Fetch IAT
-    const iatRes = await apiClient.get<{
-        results: {
-            modules: Array<{
-                moduleId: string;
-                moduleName: string;
-                testType: string;
-                totalResponses: number;
-                scores: Array<{ attributeId: string; attributeLabel: string; targetScores: Record<string, number> }>;
-            }>;
-        };
-    }>(`/analytics/research/${researchId}/implicit-association`);
-    const iatModules = iatRes.results?.modules || [];
-
-    // Fetch screener
-    let screenerChoices: Array<{ participantId: string; value: string }> = [];
+async function fetchScreener(researchId: string) {
     try {
-        const scrRes = await apiClient.get<{
+        const res = await apiClient.get<{
             results: { responses?: Array<{ participantId: string; value: string }> };
         }>(`/analytics/research/${researchId}/screener`);
-        screenerChoices = scrRes.results?.responses || [];
-    } catch { /* no screener */ }
+        return res.results?.responses || [];
+    } catch {
+        return [];
+    }
+}
 
-    // Build participant map
+interface IATModule {
+    moduleId: string;
+    moduleName: string;
+    testType: string;
+    targets: Array<{ id: string; name: string }>;
+    attributes: Array<{ id: string; label: string; targetId?: string }>;
+    participantData?: Array<{
+        participantId: string;
+        rtByCombination: Record<string, number>;
+        quality: string;
+        accuracy: number;
+        segmentation: Record<string, string>;
+        totalTrials: number;
+        fastTrials: number;
+        dScore?: number;
+        dScoreEffect?: string;
+    }>;
+}
+
+async function fetchIAT(researchId: string): Promise<IATModule[]> {
+    try {
+        const res = await apiClient.get<{ results: { modules: IATModule[] } }>(
+            `/analytics/research/${researchId}/implicit-association`
+        );
+        return res.results?.modules || [];
+    } catch {
+        return [];
+    }
+}
+
+interface SmartVOCData {
+    csatScores: SmartVOCScore[];
+    cesScores: SmartVOCScore[];
+    npsScores: SmartVOCScore[];
+    cvScores: SmartVOCScore[];
+    vocResponses: Array<{ text: string; sentiment?: string; participantId: string; createdAt: string }>;
+    nevResponsesData: Array<{ emotions: string[]; date: string; participantId: string }>;
+}
+
+async function fetchSmartVOC(researchId: string): Promise<SmartVOCData | null> {
+    try {
+        const res = await apiClient.get<{ results: SmartVOCData }>(
+            `/analytics/research/${researchId}/smartvoc`
+        );
+        return res.results;
+    } catch {
+        return null;
+    }
+}
+
+interface ETStimulus {
+    moduleId: string;
+    moduleName: string;
+    participants: Array<{
+        participantId: string;
+        calibrationQuality?: string;
+        calibrationRmsePx?: number;
+        integrityScore?: number;
+        totalFixations?: number;
+        totalDwellTime?: number;
+        qualityGrade?: string;
+    }>;
+}
+
+async function fetchEyeTracking(researchId: string): Promise<ETStimulus[]> {
+    try {
+        const res = await apiClient.get<{ results: { stimuli: ETStimulus[] } }>(
+            `/analytics/research/${researchId}/eye-tracking`
+        );
+        return res.results?.stimuli || [];
+    } catch {
+        return [];
+    }
+}
+
+/* ─── Sheet builders ────────────────────────────────────────────── */
+
+function buildParticipantsSheet(
+    demoData: Awaited<ReturnType<typeof fetchDemographics>>,
+    cogModules: Awaited<ReturnType<typeof fetchCognitiveTasks>>,
+    screenerChoices: Awaited<ReturnType<typeof fetchScreener>>,
+    smartvoc: SmartVOCData | null,
+) {
     const participantMap = new Map<string, ExportParticipant>();
 
     const getOrCreate = (pid: string): ExportParticipant => {
         if (!participantMap.has(pid)) {
-            participantMap.set(pid, {
-                participantId: pid,
-                demographics: {},
-                responses: {},
-            });
+            participantMap.set(pid, { participantId: pid, demographics: {}, responses: {} });
         }
         return participantMap.get(pid)!;
     };
 
-    // Fill demographics
+    // Demographics
     for (const p of demoData.participants) {
         const ep = getOrCreate(p.participantId);
         ep.demographics = p.demographics;
     }
 
-    // Fill cognitive task responses
+    // Cognitive task responses
     const responseColumns: string[] = [];
     for (const mod of cogModules) {
         const colName = mod.moduleName || mod.questionText || mod.moduleId;
@@ -109,117 +215,200 @@ async function fetchExportData(researchId: string): Promise<{
         }
     }
 
-    // Fill screener
+    // Screener
     if (screenerChoices.length > 0) {
         responseColumns.unshift('Screener');
         for (const r of screenerChoices) {
-            const ep = getOrCreate(r.participantId);
-            ep.responses['Screener'] = r.value;
+            getOrCreate(r.participantId).responses['Screener'] = r.value;
         }
     }
 
-    // Fill IAT per-participant data: RT by combination, quality, segmentation
-    for (const mod of iatModules) {
-        const modName = mod.moduleName;
+    // SmartVOC summary columns in participants sheet
+    if (smartvoc) {
+        const metricCols: string[] = [];
+        if (smartvoc.npsScores.length) metricCols.push('NPS Score');
+        if (smartvoc.csatScores.length) metricCols.push('CSAT Score');
+        if (smartvoc.cesScores.length) metricCols.push('CES Score');
+        if (smartvoc.cvScores.length) metricCols.push('CV Score');
 
-        // Quality + accuracy columns
-        const qualityCol = `${modName} — Quality`;
-        const accuracyCol = `${modName} — Accuracy`;
-        if (!responseColumns.includes(qualityCol)) responseColumns.push(qualityCol);
-        if (!responseColumns.includes(accuracyCol)) responseColumns.push(accuracyCol);
+        for (const col of metricCols) responseColumns.push(col);
 
-        // RT columns per combination
-        const rtColNames: string[] = [];
-        for (const attr of (mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []) {
-            for (const target of (mod as { targets?: Array<{ id: string; name: string }> }).targets || []) {
-                const col = `${modName} — RT ${attr.label} × ${target.name}`;
-                rtColNames.push(col);
-                if (!responseColumns.includes(col)) responseColumns.push(col);
-            }
-        }
-
-        // Segmentation columns per attribute
-        for (const attr of (mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []) {
-            const segCol = `${modName} — Seg ${attr.label}`;
-            if (!responseColumns.includes(segCol)) responseColumns.push(segCol);
-        }
-
-        // Fill participant rows
-        const participantData = (mod as { participantData?: Array<{ participantId: string; rtByCombination: Record<string, number>; quality: string; accuracy: number; segmentation: Record<string, string> }> }).participantData || [];
-        for (const pd of participantData) {
-            const ep = getOrCreate(pd.participantId);
-            ep.responses[qualityCol] = pd.quality;
-            ep.responses[accuracyCol] = `${Math.round(pd.accuracy * 100)}%`;
-
-            for (const [key, rt] of Object.entries(pd.rtByCombination)) {
-                const [critId, targetId] = key.split('×');
-                const attr = ((mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []).find(a => a.id === critId);
-                const target = ((mod as { targets?: Array<{ id: string; name: string }> }).targets || []).find(t => t.id === targetId);
-                if (attr && target) {
-                    ep.responses[`${modName} — RT ${attr.label} × ${target.name}`] = `${rt}ms`;
-                }
-            }
-
-            for (const [attrId, targetId] of Object.entries(pd.segmentation)) {
-                const attr = ((mod as { attributes?: Array<{ id: string; label: string }> }).attributes || []).find(a => a.id === attrId);
-                if (attr) {
-                    ep.responses[`${modName} — Seg ${attr.label}`] = targetId;
-                }
-            }
-        }
+        for (const s of smartvoc.npsScores) getOrCreate(s.participantId).responses['NPS Score'] = s.value;
+        for (const s of smartvoc.csatScores) getOrCreate(s.participantId).responses['CSAT Score'] = s.value;
+        for (const s of smartvoc.cesScores) getOrCreate(s.participantId).responses['CES Score'] = s.value;
+        for (const s of smartvoc.cvScores) getOrCreate(s.participantId).responses['CV Score'] = s.value;
     }
 
-    return {
-        participants: Array.from(participantMap.values()),
-        demographicKeys: demoData.demographicTypes || [],
-        responseColumns,
-    };
-}
+    const demographicKeys = demoData.demographicTypes || [];
+    const headers = ['participantId', ...demographicKeys, ...responseColumns, 'startDate', 'endDate', 'duration'];
 
-/**
- * Generates and downloads an XLSX file for a research.
- */
-export async function downloadResearchExport(researchId: string, researchName: string): Promise<void> {
-    const { participants, demographicKeys, responseColumns } = await fetchExportData(researchId);
-
-    // Build header row
-    const headers = [
-        'participantId',
-        ...demographicKeys,
-        ...responseColumns,
-        'startDate',
-        'endDate',
-        'duration',
-    ];
-
-    // Build data rows
-    const rows = participants.map(p => {
+    const rows = Array.from(participantMap.values()).map(p => {
         const row: Record<string, unknown> = { participantId: p.participantId };
-
-        for (const dk of demographicKeys) {
-            row[dk] = p.demographics[dk] || '';
-        }
-
+        for (const dk of demographicKeys) row[dk] = p.demographics[dk] || '';
         for (const rc of responseColumns) {
             const val = p.responses[rc];
             row[rc] = val !== undefined && val !== null ? String(val) : '';
         }
-
         row['startDate'] = p.startDate || '';
         row['endDate'] = p.endDate || '';
         row['duration'] = p.duration ? formatDuration(p.duration) : '';
-
         return row;
     });
 
-    // Generate XLSX
-    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+    return { rows, headers };
+}
 
-    // Auto-width columns
-    ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length, 12) }));
+function buildSmartVOCSheet(smartvoc: SmartVOCData): SmartVOCExportRow[] {
+    const participantMap = new Map<string, SmartVOCExportRow>();
+
+    const getOrCreate = (pid: string): SmartVOCExportRow => {
+        if (!participantMap.has(pid)) {
+            participantMap.set(pid, { participantId: pid });
+        }
+        return participantMap.get(pid)!;
+    };
+
+    for (const s of smartvoc.npsScores) { const r = getOrCreate(s.participantId); r.nps = s.value; r.date = s.date; }
+    for (const s of smartvoc.csatScores) { const r = getOrCreate(s.participantId); r.csat = s.value; if (!r.date) r.date = s.date; }
+    for (const s of smartvoc.cesScores) { const r = getOrCreate(s.participantId); r.ces = s.value; if (!r.date) r.date = s.date; }
+    for (const s of smartvoc.cvScores) { const r = getOrCreate(s.participantId); r.cv = s.value; if (!r.date) r.date = s.date; }
+
+    for (const v of smartvoc.vocResponses) {
+        const r = getOrCreate(v.participantId);
+        r.voc = v.text;
+        r.vocSentiment = v.sentiment || '';
+    }
+
+    for (const n of smartvoc.nevResponsesData) {
+        const r = getOrCreate(n.participantId);
+        r.nev = n.emotions.join(', ');
+    }
+
+    return Array.from(participantMap.values());
+}
+
+function buildEyeTrackingSheet(stimuli: ETStimulus[]): ETParticipantRow[] {
+    const rows: ETParticipantRow[] = [];
+    for (const stimulus of stimuli) {
+        for (const p of stimulus.participants) {
+            rows.push({
+                participantId: p.participantId,
+                stimulus: stimulus.moduleName,
+                calibrationQuality: p.calibrationQuality,
+                calibrationRmsePx: p.calibrationRmsePx,
+                integrityScore: p.integrityScore,
+                totalFixations: p.totalFixations,
+                totalDwellTime: p.totalDwellTime,
+                qualityGrade: p.qualityGrade,
+            });
+        }
+    }
+    return rows;
+}
+
+function buildIATSheet(iatModules: IATModule[]): IATParticipantRow[] {
+    const rows: IATParticipantRow[] = [];
+
+    for (const mod of iatModules) {
+        if (!mod.participantData) continue;
+
+        for (const pd of mod.participantData) {
+            const row: IATParticipantRow = {
+                participantId: pd.participantId,
+                module: mod.moduleName,
+                testType: mod.testType,
+                quality: pd.quality,
+                accuracy: `${Math.round(pd.accuracy * 100)}%`,
+                dScore: pd.dScore,
+                dScoreEffect: pd.dScoreEffect,
+            };
+
+            // RT per combination
+            for (const [key, rt] of Object.entries(pd.rtByCombination)) {
+                const [critId, targetId] = key.split('×');
+                const attr = mod.attributes.find(a => a.id === critId);
+                const target = mod.targets.find(t => t.id === targetId);
+                if (attr && target) {
+                    row[`RT ${attr.label} × ${target.name}`] = `${rt}ms`;
+                }
+            }
+
+            // Segmentation
+            for (const [attrId, targetId] of Object.entries(pd.segmentation)) {
+                const attr = mod.attributes.find(a => a.id === attrId);
+                if (attr) {
+                    row[`Seg ${attr.label}`] = targetId;
+                }
+            }
+
+            rows.push(row);
+        }
+    }
+
+    return rows;
+}
+
+/* ─── Main export ───────────────────────────────────────────────── */
+
+/**
+ * Generates and downloads a multi-sheet XLSX file for a research.
+ */
+export async function downloadResearchExport(researchId: string, researchName: string): Promise<void> {
+    // Fetch all data in parallel
+    const [demoData, cogModules, screenerChoices, iatModules, smartvoc, etStimuli] = await Promise.all([
+        fetchDemographics(researchId),
+        fetchCognitiveTasks(researchId),
+        fetchScreener(researchId),
+        fetchIAT(researchId),
+        fetchSmartVOC(researchId),
+        fetchEyeTracking(researchId),
+    ]);
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Responses');
+
+    // Sheet 1: Participants (always present)
+    const { rows: participantRows, headers } = buildParticipantsSheet(demoData, cogModules, screenerChoices, smartvoc);
+    const wsParticipants = XLSX.utils.json_to_sheet(participantRows, { header: headers });
+    wsParticipants['!cols'] = headers.map(h => ({ wch: Math.max(h.length, 12) }));
+    XLSX.utils.book_append_sheet(wb, wsParticipants, 'Participants');
+
+    // Sheet 2: SmartVOC (if data exists)
+    if (smartvoc && (smartvoc.npsScores.length || smartvoc.csatScores.length || smartvoc.vocResponses.length)) {
+        const vocRows = buildSmartVOCSheet(smartvoc);
+        const vocHeaders = ['participantId', 'nps', 'csat', 'ces', 'cv', 'voc', 'vocSentiment', 'nev', 'date'];
+        const wsVOC = XLSX.utils.json_to_sheet(vocRows, { header: vocHeaders });
+        wsVOC['!cols'] = vocHeaders.map(h => ({ wch: h === 'voc' ? 50 : Math.max(h.length, 12) }));
+        XLSX.utils.book_append_sheet(wb, wsVOC, 'SmartVOC');
+    }
+
+    // Sheet 3: Eye Tracking (if data exists)
+    if (etStimuli.length > 0) {
+        const etRows = buildEyeTrackingSheet(etStimuli);
+        if (etRows.length > 0) {
+            const etHeaders = ['participantId', 'stimulus', 'calibrationQuality', 'calibrationRmsePx', 'integrityScore', 'totalFixations', 'totalDwellTime', 'qualityGrade'];
+            const wsET = XLSX.utils.json_to_sheet(etRows, { header: etHeaders });
+            wsET['!cols'] = etHeaders.map(h => ({ wch: Math.max(h.length, 14) }));
+            XLSX.utils.book_append_sheet(wb, wsET, 'Eye Tracking');
+        }
+    }
+
+    // Sheet 4: IAT (if data exists)
+    if (iatModules.length > 0) {
+        const iatRows = buildIATSheet(iatModules);
+        if (iatRows.length > 0) {
+            // Collect all unique keys for dynamic RT columns
+            const allKeys = new Set<string>();
+            for (const row of iatRows) {
+                for (const key of Object.keys(row)) allKeys.add(key);
+            }
+            const iatHeaders = ['participantId', 'module', 'testType', 'quality', 'accuracy', 'dScore', 'dScoreEffect',
+                ...Array.from(allKeys).filter(k => !['participantId', 'module', 'testType', 'quality', 'accuracy', 'dScore', 'dScoreEffect'].includes(k))
+            ];
+            const wsIAT = XLSX.utils.json_to_sheet(iatRows, { header: iatHeaders });
+            wsIAT['!cols'] = iatHeaders.map(h => ({ wch: Math.max(h.length, 12) }));
+            XLSX.utils.book_append_sheet(wb, wsIAT, 'Implicit Association');
+        }
+    }
 
     // Download
     const fileName = `${researchName.replace(/[^a-zA-Z0-9_-]/g, '_')}_export.xlsx`;

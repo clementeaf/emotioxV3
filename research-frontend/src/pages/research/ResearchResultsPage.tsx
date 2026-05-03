@@ -1,16 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { BarChart3, Brain, Eye, Filter, Zap, Download } from 'lucide-react';
+import { BarChart3, Brain, Eye, Filter, Zap, Download, SmilePlus, Activity, Heart } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
 import { CognitiveTaskResults } from '../../components/results/cognitive-task/CognitiveTaskResults';
 import { ScreenerResults } from '../../components/results/screener/ScreenerResults';
 import { ImplicitAssociationResults } from '../../components/results/implicit-association/ImplicitAssociationResults';
 import { EyeTrackingResults } from '../../components/results/eye-tracking/EyeTrackingResults';
 import { WebsiteTrackingResults } from '../../components/results/website-tracking/WebsiteTrackingResults';
+import { EmotionAnalysisResults } from '../../components/results/emotion-analysis/EmotionAnalysisResults';
 import { useResearch } from '../../hooks/useResearchQuery';
 import { downloadResearchExport } from '../../services/export.service';
+import { ExecutiveSummaryPanel } from '../../components/results/shared/ExecutiveSummaryPanel';
+import { AlertsBar } from '../../components/results/shared/AlertsBar';
+import { ReportGeneratorButton } from '../../components/results/shared/ReportGenerator';
+import { BlockchainCertification } from '../../components/results/shared/BlockchainCertification';
 
-type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking';
+type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking' | 'emotion-analysis' | 'eeg' | 'wearable';
 
 interface TabDef {
     id: TabId;
@@ -55,6 +60,24 @@ const TAB_DEFS: TabDef[] = [
         label: 'Eye Tracking Results',
         icon: <Eye className="h-5 w-5" />,
         stageDetector: (name) => name.toLowerCase() === 'eye tracking',
+    },
+    {
+        id: 'emotion-analysis',
+        label: 'Emotion Analysis',
+        icon: <SmilePlus className="h-5 w-5" />,
+        stageDetector: (name) => name.toLowerCase().includes('emotion analysis'),
+    },
+    {
+        id: 'eeg',
+        label: 'EEG Recording',
+        icon: <Activity className="h-5 w-5" />,
+        stageDetector: (name) => name.toLowerCase().includes('eeg'),
+    },
+    {
+        id: 'wearable',
+        label: 'Biometric Wearable',
+        icon: <Heart className="h-5 w-5" />,
+        stageDetector: (name) => name.toLowerCase().includes('biometric wearable'),
     },
 ];
 
@@ -155,7 +178,17 @@ export const ResearchResultsPage = () => {
                     <Download className="h-4 w-4" />
                     {exporting ? 'Exporting...' : 'Export XLSX'}
                 </button>
+                <ReportGeneratorButton researchId={id} />
             </div>
+
+            {/* Alerts */}
+            <AlertsBar researchId={id} />
+
+            {/* Blockchain Certification */}
+            <BlockchainCertification researchId={id} />
+
+            {/* Executive Summary */}
+            <ExecutiveSummaryPanel researchId={id} />
 
             {/* Content */}
             <div className="min-h-0 flex-1">
@@ -172,6 +205,21 @@ export const ResearchResultsPage = () => {
                         {activeTab === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
                         {activeTab === 'implicit-association' && <ImplicitAssociationResults researchId={id} />}
                         {activeTab === 'eye-tracking' && <EyeTrackingResults researchId={id} />}
+                        {activeTab === 'emotion-analysis' && <EmotionAnalysisResults researchId={id} />}
+                        {activeTab === 'eeg' && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
+                                <Activity className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-500">EEG recording results will appear here when participants complete sessions with connected EEG devices.</p>
+                                <p className="text-xs text-gray-400 mt-2">Supports Muse 2/S, Emotiv Insight/EPOC, OpenBCI via Web Bluetooth</p>
+                            </div>
+                        )}
+                        {activeTab === 'wearable' && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
+                                <Heart className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-500">Heart rate and HRV results will appear here when participants complete sessions with connected wearables.</p>
+                                <p className="text-xs text-gray-400 mt-2">Supports any BLE heart rate monitor (Polar, Garmin, Wahoo, etc.)</p>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

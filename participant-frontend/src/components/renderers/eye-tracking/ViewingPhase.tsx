@@ -20,6 +20,7 @@ interface ViewingPhaseProps {
     onImageInteraction: (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
     onImageLoad: () => void;
     onVideoLoadedMetadata: () => void;
+    onVideoEnded?: () => void;
     shelfConfig: ShelfConfig | null;
 }
 
@@ -38,6 +39,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
     onImageInteraction,
     onImageLoad,
     onVideoLoadedMetadata,
+    onVideoEnded,
     shelfConfig,
 }) => {
     const { t } = useTranslation();
@@ -88,6 +90,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
                         playsInline
                         preload="auto"
                         onLoadedMetadata={onVideoLoadedMetadata}
+                        onEnded={onVideoEnded}
                     />
                 ) : (
                     <img

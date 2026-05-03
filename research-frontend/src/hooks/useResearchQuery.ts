@@ -200,3 +200,41 @@ export const useDuplicateResearch = () => {
     });
 };
 
+export const useDashboardSummary = () => {
+    return useQuery({
+        queryKey: ['dashboard-summary'] as const,
+        queryFn: () => researchService.getDashboardSummary(),
+        staleTime: 30_000,
+    });
+};
+
+export const useArchiveResearch = () => {
+    const queryClient = useQueryClient();
+    const toast = useToast();
+
+    return useMutation({
+        mutationFn: (id: string) => researchService.archiveResearch(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: researchKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+            toast.success('Research archived');
+        },
+        onError: () => toast.error('Failed to archive research'),
+    });
+};
+
+export const useUnarchiveResearch = () => {
+    const queryClient = useQueryClient();
+    const toast = useToast();
+
+    return useMutation({
+        mutationFn: (id: string) => researchService.unarchiveResearch(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: researchKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+            toast.success('Research unarchived');
+        },
+        onError: () => toast.error('Failed to unarchive research'),
+    });
+};
+

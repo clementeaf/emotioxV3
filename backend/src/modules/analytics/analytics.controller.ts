@@ -137,6 +137,68 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ status: 'analyzing' }, 202, undefined, origin);
         }
 
+        // GET /analytics/research/:id/emotion-analysis
+        const emotionAnalysisMatch = path.match(/^\/analytics\/research\/([^\/]+)\/emotion-analysis$/);
+        if (emotionAnalysisMatch && httpMethod === 'GET') {
+            const researchId = emotionAnalysisMatch[1];
+            const { getEmotionAnalysisResults } = await import('./emotion-analysis.analytics');
+            const results = await getEmotionAnalysisResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
+        // GET /analytics/research/:id/eeg
+        const eegMatch = path.match(/^\/analytics\/research\/([^\/]+)\/eeg$/);
+        if (eegMatch && httpMethod === 'GET') {
+            const researchId = eegMatch[1];
+            const { getEEGResults } = await import('./biometrics.analytics');
+            const results = await getEEGResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
+        // GET /analytics/research/:id/wearable
+        const wearableMatch = path.match(/^\/analytics\/research\/([^\/]+)\/wearable$/);
+        if (wearableMatch && httpMethod === 'GET') {
+            const researchId = wearableMatch[1];
+            const { getWearableResults } = await import('./biometrics.analytics');
+            const results = await getWearableResults(researchId);
+            return success({ results }, 200, undefined, origin);
+        }
+
+        // GET /analytics/research/:id/alerts
+        const alertsGetMatch = path.match(/^\/analytics\/research\/([^\/]+)\/alerts$/);
+        if (alertsGetMatch && httpMethod === 'GET') {
+            const researchId = alertsGetMatch[1];
+            const { checkAlerts } = await import('./alerts.service');
+            const alerts = await checkAlerts(researchId);
+            return success({ alerts }, 200, undefined, origin);
+        }
+
+        // POST /analytics/research/:id/alerts/:alertId/dismiss
+        const alertDismissMatch = path.match(/^\/analytics\/research\/([^\/]+)\/alerts\/([^\/]+)\/dismiss$/);
+        if (alertDismissMatch && httpMethod === 'POST') {
+            const [, researchId, alertId] = alertDismissMatch;
+            const { dismissAlert } = await import('./alerts.service');
+            await dismissAlert(researchId, alertId);
+            return success({ message: 'Alert dismissed' }, 200, undefined, origin);
+        }
+
+        // GET /analytics/research/:id/executive-summary
+        const execSummaryGetMatch = path.match(/^\/analytics\/research\/([^\/]+)\/executive-summary$/);
+        if (execSummaryGetMatch && httpMethod === 'GET') {
+            const researchId = execSummaryGetMatch[1];
+            const { getExecutiveSummary } = await import('./executive-summary.service');
+            const summary = await getExecutiveSummary(researchId);
+            return success({ summary }, 200, undefined, origin);
+        }
+
+        // POST /analytics/research/:id/executive-summary
+        if (execSummaryGetMatch && httpMethod === 'POST') {
+            const researchId = execSummaryGetMatch[1];
+            const { generateExecutiveSummary } = await import('./executive-summary.service');
+            const summary = await generateExecutiveSummary(researchId);
+            return success({ summary }, 201, undefined, origin);
+        }
+
         return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';

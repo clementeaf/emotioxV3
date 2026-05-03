@@ -49,6 +49,7 @@ export interface Research {
     updated_at: string;
     stages?: Stage[];
     settings?: Record<string, unknown>;
+    archived_at?: string | null;
 }
 
 export interface CreateResearchData {
@@ -82,6 +83,33 @@ export interface UpdateStatusData {
 
 export interface DeleteResponse {
     message: string;
+}
+
+export interface DashboardSummary {
+    totalResearches: number;
+    byStatus: Record<string, number>;
+    totalParticipants: number;
+    totalResponses: number;
+    avgCompletionRate: number;
+    researchesOverTime: Array<{ month: string; count: number }>;
+    participantsOverTime: Array<{ month: string; count: number }>;
+    metricsTrends: Array<{
+        month: string;
+        avgNps: number | null;
+        avgCsat: number | null;
+        avgCes: number | null;
+        researchCount: number;
+    }>;
+    topResearches: Array<{
+        id: string;
+        name: string;
+        status: string;
+        techniqueName: string | null;
+        participantCount: number;
+        responseCount: number;
+        completionRate: number;
+        createdAt: string;
+    }>;
 }
 
 export interface ResearchActivity {
@@ -380,6 +408,41 @@ class ResearchService {
                 return await apiClient.get<{ activities: ResearchActivity[] }>('/research/activity');
             }
             throw this.handleError(err, 'Failed to fetch research activity');
+        }
+    }
+
+    async getTagsForResearch(researchId: string): Promise<string[]> {
+        const res = await apiClient.get<{ tags: string[] }>(`/research/${researchId}/tags`);
+        return res.tags;
+    }
+
+    async getAllTags(): Promise<string[]> {
+        const res = await apiClient.get<{ tags: string[] }>('/research/tags');
+        return res.tags;
+    }
+
+    async addTag(researchId: string, tag: string): Promise<void> {
+        await apiClient.post(`/research/${researchId}/tags`, { tag });
+    }
+
+    async removeTag(researchId: string, tag: string): Promise<void> {
+        await apiClient.delete(`/research/${researchId}/tags/${encodeURIComponent(tag)}`);
+    }
+
+    async archiveResearch(researchId: string): Promise<void> {
+        await apiClient.post(`/research/${researchId}/archive`, {});
+    }
+
+    async unarchiveResearch(researchId: string): Promise<void> {
+        await apiClient.post(`/research/${researchId}/unarchive`, {});
+    }
+
+    async getDashboardSummary(): Promise<DashboardSummary> {
+        try {
+            const res = await apiClient.get<{ summary: DashboardSummary }>('/research/dashboard-summary');
+            return res.summary;
+        } catch (err: unknown) {
+            throw this.handleError(err, 'Failed to fetch dashboard summary');
         }
     }
 

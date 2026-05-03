@@ -36,6 +36,8 @@ interface DScoreResult {
   ciLower: number;
   /** 95% CI upper bound */
   ciUpper: number;
+  /** Split-half reliability (Spearman-Brown corrected), null if < 10 trials */
+  reliability: number | null;
 }
 
 interface IATParticipantData {
@@ -328,9 +330,9 @@ function classifyDScoreEffect(d: number): DScoreEffect {
  * @returns D-score or null if insufficient data
  */
 function computeGreenwaldDScore(compatibleRTs: number[], incompatibleRTs: number[]): number | null {
-  // Step 1: Remove trials > 10,000ms
-  const filteredCompat = compatibleRTs.filter(rt => rt <= 10000);
-  const filteredIncompat = incompatibleRTs.filter(rt => rt <= 10000);
+  // Step 1: Remove trials > 10,000ms and < 300ms (Greenwald 2003 improved algorithm)
+  const filteredCompat = compatibleRTs.filter(rt => rt >= 300 && rt <= 10000);
+  const filteredIncompat = incompatibleRTs.filter(rt => rt >= 300 && rt <= 10000);
 
   if (filteredCompat.length < 2 || filteredIncompat.length < 2) return null;
 
@@ -352,6 +354,44 @@ function computeGreenwaldDScore(compatibleRTs: number[], incompatibleRTs: number
 }
 
 /**
+ * Compute split-half reliability using odd/even trial split + Spearman-Brown correction.
+ * Returns null if fewer than 10 D-scores (insufficient for reliability estimate).
+ */
+function computeSplitHalfReliability(individualDScores: number[]): number | null {
+  const valid = individualDScores.filter(d => Number.isFinite(d));
+  if (valid.length < 10) return null;
+
+  // Split into odd/even halves
+  const odd = valid.filter((_, i) => i % 2 === 0);
+  const even = valid.filter((_, i) => i % 2 === 1);
+
+  if (odd.length < 2 || even.length < 2) return null;
+
+  // Pearson correlation between halves
+  const n = Math.min(odd.length, even.length);
+  const meanOdd = odd.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const meanEven = even.slice(0, n).reduce((a, b) => a + b, 0) / n;
+
+  let sumXY = 0, sumX2 = 0, sumY2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = odd[i] - meanOdd;
+    const dy = even[i] - meanEven;
+    sumXY += dx * dy;
+    sumX2 += dx * dx;
+    sumY2 += dy * dy;
+  }
+
+  const denom = Math.sqrt(sumX2 * sumY2);
+  if (denom === 0) return null;
+
+  const r = sumXY / denom;
+
+  // Spearman-Brown correction: reliability = 2r / (1 + r)
+  const reliability = (2 * r) / (1 + Math.abs(r));
+  return Math.round(Math.max(0, Math.min(1, reliability)) * 1000) / 1000;
+}
+
+/**
  * Compute aggregate D-score with 95% CI from individual participant D-scores.
  */
 function computeAggregateDScore(individualDScores: number[]): DScoreResult | undefined {
@@ -364,6 +404,7 @@ function computeAggregateDScore(individualDScores: number[]): DScoreResult | und
         validParticipants: 1,
         ciLower: valid[0],
         ciUpper: valid[0],
+        reliability: null,
       };
     }
     return undefined;
@@ -381,6 +422,7 @@ function computeAggregateDScore(individualDScores: number[]): DScoreResult | und
     validParticipants: valid.length,
     ciLower: Math.round((mean - tCrit * se) * 1000) / 1000,
     ciUpper: Math.round((mean + tCrit * se) * 1000) / 1000,
+    reliability: computeSplitHalfReliability(valid),
   };
 }
 

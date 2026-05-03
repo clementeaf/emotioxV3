@@ -26,6 +26,8 @@ import {
     MICRO_RECALIB_SAMPLE_COUNT,
     MICRO_RECALIB_POSITIONS,
     computeMicroRecalibResidual,
+    detectMicroExpressions,
+    isBlazeGazeCaptureResolutionLow,
 } from '../../lib/eyeTracking';
 import type { HybridCalibrationResidual } from '../../lib/eyeTracking';
 
@@ -111,6 +113,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const [timeLeft, setTimeLeft] = useState(Math.ceil(viewingDuration / 1000));
     const imgRef = useRef<HTMLImageElement>(null);
     const stimulusVideoRef = useRef<HTMLVideoElement>(null);
+    const videoEndedRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const shelfContainerRef = useRef<HTMLDivElement>(null);
     const lastClickRef = useRef<{ time: number } | null>(null);
@@ -134,6 +137,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const gazePosRef = useRef<[number, number]>([0, 0]);
     /** Tracks how many times the participant has re-calibrated (validation failed). */
     const recalibrationCountRef = useRef(0);
+    const [lowResWarning, setLowResWarning] = useState(false);
     /** Validation RMSE at the off-grid point (null until validation completes). */
     const [validationRmse, setValidationRmse] = useState<number | null>(null);
 
@@ -423,6 +427,17 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     useEffect(() => {
         if (phase !== 'calibration' || !isDesktop) return;
         blaze.start();
+
+        // Check capture resolution after a short delay for frames to arrive
+        const resCheckTimer = setTimeout(() => {
+            const stats = blaze.getFrameStats();
+            if (stats.captureWidthPx && stats.captureHeightPx) {
+                if (isBlazeGazeCaptureResolutionLow(stats.captureWidthPx, stats.captureHeightPx)) {
+                    setLowResWarning(true);
+                }
+            }
+        }, 2000);
+        return () => clearTimeout(resCheckTimer);
     }, [phase, isDesktop, blaze]);
 
     // Save results when complete
@@ -512,7 +527,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 })),
                 zoneMass,
                 calibrationQuality,
-                integrityScore: isDesktop ? Math.min(gazePointsRef.current.length / 100, 1.0) : 1.0,
+                integrityScore: isDesktop ? Math.min(gazePointsRef.current.length / 100, 1.0) : Math.min(fixations.length / 5, 0.8),
                 trackingMethod: isDesktop ? 'blazegaze' : 'click-proxy',
                 deviceType,
                 gazePointCount: isDesktop ? gazePointsRef.current.length : undefined,
@@ -521,7 +536,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 gazePipeline: isDesktop ? 'hybrid-zone-idt' : 'click-proxy',
                 calibrationRmsePx: isDesktop ? calibrationRmsePxRef.current : undefined,
                 emotions: hasEmotionRecognition ? faceEmotions.getSamples() : undefined,
+                microExpressions: hasEmotionRecognition ? detectMicroExpressions(faceEmotions.getSamples()) : undefined,
                 stimulusType: isShelf ? 'shelf' : isVideo ? 'video' : 'image',
+                ...(isVideo && { videoEnded: videoEndedRef.current }),
                 ...(isShelf && { displayMode, shelfCount, shelfItems, stimulusCount: resolvedShelfUrls.length }),
                 gazeTimeline: isVideo && isDesktop ? gazePointsRef.current.map(p => ({
                     x: p.x, y: p.y, t: p.t, videoTime: p.videoTime,
@@ -552,6 +569,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             naturalSizeRef.current = { w: v.videoWidth, h: v.videoHeight };
             setNaturalSize({ w: v.videoWidth, h: v.videoHeight });
         }
+    }, []);
+
+    const handleVideoEnded = useCallback(() => {
+        videoEndedRef.current = true;
     }, []);
 
     /** Returns the bounding-rect source element for the current mode. */
@@ -713,8 +734,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     }, [phase, blaze, viewingDuration]);
 
     /** Re-calibrate: reset residuals and go back to calibration phase.
-     *  Does NOT increment recalibrationCount — manual recalib is unlimited. */
+     *  Increments recalibrationCount so auto-retry offer stops after 2 attempts. */
     const handleRecalibrate = useCallback(() => {
+        recalibrationCountRef.current += 1;
         calibrationResidualsRef.current = [];
         calibrationRmsePxRef.current = null;
         setCalibrationIndex(0);
@@ -782,14 +804,21 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         );
     } else if (phase === 'calibration') {
         phaseContent = (
-            <CalibrationPhase
-                calibrationIndex={calibrationIndex}
-                resolvedUrl={resolvedUrl}
-                imgRef={imgRef}
-                onCalibrationClick={handleCalibrationClick}
-                onImageLoad={handleImageLoad}
-                shelfConfig={shelfConfig}
-            />
+            <>
+                {lowResWarning && (
+                    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2 rounded-lg shadow-md">
+                        Low camera resolution detected — accuracy may be reduced
+                    </div>
+                )}
+                <CalibrationPhase
+                    calibrationIndex={calibrationIndex}
+                    resolvedUrl={resolvedUrl}
+                    imgRef={imgRef}
+                    onCalibrationClick={handleCalibrationClick}
+                    onImageLoad={handleImageLoad}
+                    shelfConfig={shelfConfig}
+                />
+            </>
         );
     } else if (phase === 'validating') {
         phaseContent = (
@@ -821,6 +850,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 onImageInteraction={handleImageInteraction}
                 onImageLoad={handleImageLoad}
                 onVideoLoadedMetadata={handleVideoLoadedMetadata}
+                onVideoEnded={handleVideoEnded}
                 shelfConfig={shelfConfig}
             />
         );

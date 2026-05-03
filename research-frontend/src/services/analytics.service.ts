@@ -343,6 +343,7 @@ export interface DScoreResult {
     validParticipants: number;
     ciLower: number;
     ciUpper: number;
+    reliability: number | null;
 }
 
 export interface IATParticipantData {
@@ -415,6 +416,8 @@ export interface EyeTrackingAOI {
     dominantEmotion?: EkmanEmotion;
     /** Emotion distribution while looking at this AOI */
     emotionDistribution?: Record<EkmanEmotion, number>;
+    /** Attention-memory gap: high attention + low recall = missed opportunity (Chu 2022) */
+    attentionMemoryGap?: number;
 }
 
 export interface EyeTrackingParticipant {
@@ -449,6 +452,20 @@ export interface EmotionAggregation {
         distribution: Record<EkmanEmotion, number>;
     }>;
     timeline: EmotionSample[];
+    microExpressions?: {
+        total: number;
+        briefCount: number;
+        microCount: number;
+        byEmotion: Record<string, number>;
+        events: Array<{
+            participantId: string;
+            emotion: string;
+            durationMs: number;
+            startTimestamp: number;
+            category: 'brief' | 'micro';
+            peakConfidence: number;
+        }>;
+    };
 }
 
 export interface EyeTrackingStimulus {

@@ -163,11 +163,14 @@ class MediaService {
      * Runs attention prediction on a stimulus image (synchronous — awaits result).
      * Backend runs TranSalNet and saves heatmapData to research config.
      */
-    async predictAttention(researchId: string, mediaId: string, threshold?: number): Promise<{ status: string; mediaId: string }> {
+    async predictAttention(researchId: string, mediaId: string, threshold?: number, profile?: Record<string, unknown>): Promise<{ status: string; mediaId: string }> {
         try {
+            const body: Record<string, unknown> = {};
+            if (threshold != null) body.threshold = threshold;
+            if (profile) body.profile = profile;
             return await apiClient.post<{ status: string; mediaId: string }>(
                 `/attention-prediction/research/${researchId}/predict/${mediaId}`,
-                threshold != null ? { threshold } : {}
+                body
             );
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to run attention prediction');
@@ -227,7 +230,7 @@ class MediaService {
     async hybridPredict(
         researchId: string,
         mediaId: string,
-        options?: { alpha?: number; beta?: number; threshold?: number }
+        options?: { alpha?: number; beta?: number; threshold?: number; profile?: Record<string, unknown> }
     ): Promise<{ heatmapData: Array<{ x: number; y: number; value: number }>; totalPoints: number; hybrid: boolean }> {
         try {
             return await apiClient.post(

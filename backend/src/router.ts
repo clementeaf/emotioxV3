@@ -218,6 +218,12 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handleTrackingRoutes(normalizedEvent);
         }
 
+        // Cerulean Ledger integration routes
+        if (path.startsWith('/cerulean')) {
+            const { handleCeruleanRoutes } = await import('./modules/cerulean/cerulean.controller');
+            return await handleCeruleanRoutes(normalizedEvent);
+        }
+
         // Attention Prediction routes
         if (path.startsWith('/attention-prediction')) {
             const { handleAttentionPredictionRoutes } = await import('./modules/attention-prediction/attention-prediction.controller');

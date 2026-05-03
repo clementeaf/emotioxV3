@@ -106,6 +106,14 @@ Return a JSON object with exactly this structure:
       "recommendation": "Place key CTAs along the F-pattern hotspots"
     }
   ],
+  "brandAttention": {
+    "logos": [
+      { "brand": "Brand Name", "x": 10, "y": 5, "width": 15, "height": 8, "saliencyScore": 0.75 }
+    ],
+    "brandAttentionScore": 65,
+    "dominantBrand": "Brand Name",
+    "recommendation": "Logo placement is effective but could benefit from more contrast"
+  },
   "methodology": "Combined TranSalNet computational saliency with AI visual analysis for context-aware attention prediction."
 }
 
@@ -118,6 +126,7 @@ Rules:
 - gazePath: 5-12 predicted fixation points in chronological viewing order. duration: "brief" (<200ms), "moderate" (200-500ms), "long" (>500ms)
 - gazePathRoutes: EXACTLY 3 distinct viewing strategies. Each with 5-10 fixation points. The 3 routes must represent different cognitive strategies for viewing this specific image.
 - neuroInsights: 3-6 insights based on Gestalt principles, cognitive load, visual hierarchy, contrast, color theory, etc.
+- brandAttention: detect ALL brand logos/marks visible in the image. For each, provide bounding box (x,y,width,height in %), saliency score (0-1 = how much attention it gets), brand name. brandAttentionScore (0-100) = overall brand visibility effectiveness. If no logos detected, set logos to empty array and brandAttentionScore to 0.
 - leakAreas: areas where attention dissipates or exits the design unintentionally
 - flowPath: narrative path of visual attention through the design
 - Return ONLY valid JSON, no markdown fences`;
@@ -207,26 +216,100 @@ const analyzeWithOpenAI = async (
 
 // ─── Semantic Saliency Grid ─────────────────────────────────────────
 
-const SEMANTIC_GRID_PROMPT = `Analyze this image and predict human visual attention based on SEMANTIC content (objects, text, faces, brand logos, high-contrast elements, novelty).
+// ─── Analysis Profile Types ─────────────────────────────────────────
 
+export interface AnalysisProfile {
+    /** Target viewer gender */
+    gender?: 'male' | 'female' | 'any';
+    /** Target viewer age range */
+    ageRange?: string; // e.g. "25-35"
+    /** Target viewer interests/context */
+    interests?: string; // e.g. "luxury fashion, social events"
+    /** Stimulus context type — affects scan pattern and β weight */
+    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'general';
+    /** Viewer intention */
+    intention?: 'utilitarian' | 'emotional' | 'browsing';
+    /** Free-form description for maximum flexibility */
+    description?: string; // e.g. "Mujer, 30 años, Lima, buscando yogurt light"
+}
+
+const buildSemanticGridPrompt = (profile?: AnalysisProfile): string => {
+    const profileContext = profile ? buildProfileContext(profile) : '';
+
+    return `Analyze this image and predict human visual attention based on SEMANTIC content.
+${profileContext}
 Return a JSON object with a "grid" property containing a 10x8 2D array (10 columns × 8 rows) of attention weights (0.0 to 1.0).
 Each cell represents a region of the image. 1.0 = highest semantic attention, 0.0 = no semantic interest.
 
 Focus on TOP-DOWN attention factors:
 - Human faces and eyes (very high weight)
 - Text and readable content (high weight)
-- Brand logos (high weight)
+- Brand logos and product branding (high weight)
 - Products/objects of interest (medium-high weight)
 - High contrast areas (medium weight)
 - Novel or unexpected elements (medium-high weight)
-- Empty/repetitive areas (low weight)
+${profile?.context === 'shelf' || profile?.context === 'packaging' ? `- Nutritional claims and certifications (medium-high weight)
+- Premium vs basic packaging cues (medium weight)
+- Price tags and promotional labels (high weight)
+- Brand mascots and characters (high weight)
+` : ''}- Empty/repetitive areas (low weight)
 
 Return ONLY: {"grid": [[0.2, 0.5, ...], [0.1, 0.8, ...], ...]}
 The grid must have exactly 8 rows, each with exactly 10 values.`;
+};
+
+function buildProfileContext(profile: AnalysisProfile): string {
+    const parts: string[] = [];
+
+    if (profile.description) {
+        parts.push(`TARGET VIEWER: ${profile.description}`);
+    } else {
+        const demo: string[] = [];
+        if (profile.gender && profile.gender !== 'any') demo.push(profile.gender);
+        if (profile.ageRange) demo.push(`age ${profile.ageRange}`);
+        if (profile.interests) demo.push(`interested in ${profile.interests}`);
+        if (demo.length > 0) parts.push(`TARGET VIEWER: ${demo.join(', ')}`);
+    }
+
+    if (profile.intention === 'utilitarian') {
+        parts.push('INTENTION: Searching for specific information (price, specs, nutrition). Prioritize text, labels, and data.');
+    } else if (profile.intention === 'emotional') {
+        parts.push('INTENTION: Seeking inspiration/emotion (aesthetics, lifestyle). Prioritize imagery, colors, and mood.');
+    }
+
+    if (profile.context === 'shelf') {
+        parts.push('CONTEXT: Supermarket shelf display. Viewer scans left-to-right, top-to-bottom. Eye-level products (rows 3-5) get more attention. Brand differentiation and color standout are key.');
+    } else if (profile.context === 'web') {
+        parts.push('CONTEXT: Web page or e-commerce. F-pattern scanning: top-left gets most attention, horizontal sweeps decrease down the page.');
+    } else if (profile.context === 'advertisement') {
+        parts.push('CONTEXT: Print or digital advertisement. Z-pattern scanning. Hero image and headline dominate first fixation.');
+    } else if (profile.context === 'packaging') {
+        parts.push('CONTEXT: Product packaging close-up. Focus on brand logo, product name, key claims, and visual hierarchy.');
+    }
+
+    if (parts.length === 0) return '';
+    return `\nAdjust your attention prediction for the following viewer profile:\n${parts.join('\n')}\n`;
+}
+
+/** Get semantic weight (β) based on context. Retail/packaging benefits from higher semantic weight. */
+function getSemanticBeta(profile?: AnalysisProfile): number {
+    if (!profile?.context) return 0.35;
+    switch (profile.context) {
+        case 'shelf': return 0.50;
+        case 'packaging': return 0.50;
+        case 'advertisement': return 0.45;
+        case 'web': return 0.40;
+        default: return 0.35;
+    }
+}
+
+// Legacy constant for backward compat (used when no profile is provided)
+const SEMANTIC_GRID_PROMPT = buildSemanticGridPrompt();
 
 const getSemanticGridFromGemini = async (
     base64: string,
-    mimeType: string
+    mimeType: string,
+    profile?: AnalysisProfile,
 ): Promise<number[][]> => {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '';
     const client = new GoogleGenerativeAI(apiKey);
@@ -234,9 +317,10 @@ const getSemanticGridFromGemini = async (
         model: GEMINI_MODEL,
         generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1500 },
     });
+    const prompt = profile ? buildSemanticGridPrompt(profile) : SEMANTIC_GRID_PROMPT;
     const result = await model.generateContent([
         { inlineData: { data: base64, mimeType } },
-        { text: SEMANTIC_GRID_PROMPT },
+        { text: prompt },
     ]);
     const parsed = JSON.parse(result.response.text()) as { grid: number[][] };
     return parsed.grid;
@@ -244,10 +328,12 @@ const getSemanticGridFromGemini = async (
 
 const getSemanticGridFromOpenAI = async (
     base64: string,
-    mimeType: string
+    mimeType: string,
+    profile?: AnalysisProfile,
 ): Promise<number[][]> => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
     const dataUri = `data:${mimeType};base64,${base64}`;
+    const prompt = profile ? buildSemanticGridPrompt(profile) : SEMANTIC_GRID_PROMPT;
     const response = await client.chat.completions.create({
         model: OPENAI_MODEL,
         max_tokens: 1500,
@@ -257,7 +343,7 @@ const getSemanticGridFromOpenAI = async (
                 role: 'user',
                 content: [
                     { type: 'image_url', image_url: { url: dataUri, detail: 'low' } },
-                    { type: 'text', text: SEMANTIC_GRID_PROMPT },
+                    { type: 'text', text: prompt },
                 ],
             },
         ],
@@ -274,7 +360,8 @@ const getSemanticGridFromOpenAI = async (
 const generateSemanticGrid = async (
     base64: string,
     mimeType: string,
-    iterations = 3
+    iterations = 3,
+    profile?: AnalysisProfile,
 ): Promise<{ grid: number[][]; rows: number; cols: number }> => {
     const GRID_ROWS = 8;
     const GRID_COLS = 10;
@@ -282,8 +369,8 @@ const generateSemanticGrid = async (
     const grids: number[][][] = [];
 
     const getGrid = hasGemini()
-        ? () => getSemanticGridFromGemini(base64, mimeType)
-        : () => getSemanticGridFromOpenAI(base64, mimeType);
+        ? () => getSemanticGridFromGemini(base64, mimeType, profile)
+        : () => getSemanticGridFromOpenAI(base64, mimeType, profile);
 
     for (let i = 0; i < iterations; i++) {
         try {
@@ -372,13 +459,32 @@ export const generateHybridSaliency = async (
     transalnetMap: Float32Array,
     mapWidth: number,
     mapHeight: number,
-    alpha = 0.65,
-    beta = 0.35
+    profile?: AnalysisProfile,
 ): Promise<Float32Array> => {
+    const beta = getSemanticBeta(profile);
+    const alpha = 1.0 - beta;
+
     const { base64, mimeType } = await imageToBase64(imagePath);
 
-    console.log('[Hybrid Saliency] Running semantic grid (3 iterations)...');
-    const { grid, rows, cols } = await generateSemanticGrid(base64, mimeType, 3);
+    console.log(`[Hybrid Saliency] Running semantic grid (3 iterations, profile: ${profile?.context || 'general'}, β=${beta})...`);
+    const { grid: semanticGrid, rows, cols } = await generateSemanticGrid(base64, mimeType, 3, profile);
+
+    // ViT-inspired bottom-up attention grid (Dahou 2023: "ViTs are inherent saliency learners")
+    // Use 1 iteration with a feature-integration-theory prompt as lightweight ensemble
+    let grid: number[][];
+    try {
+        const { grid: vitGrid } = await generateSemanticGrid(base64, mimeType, 1, {
+            description: 'Analyze ONLY bottom-up visual features: color contrast, edge density, texture uniqueness, spatial frequency. Ignore semantic meaning. High weight = high visual pop-out.',
+            context: 'general',
+        });
+        // Ensemble: 70% semantic + 30% bottom-up (feature integration)
+        grid = semanticGrid.map((row, r) =>
+            row.map((val, c) => val * 0.7 + (vitGrid[r]?.[c] ?? 0.5) * 0.3)
+        );
+        console.log('[Hybrid Saliency] ViT-inspired ensemble applied (70% semantic + 30% bottom-up)');
+    } catch {
+        grid = semanticGrid;
+    }
 
     // Interpolate semantic grid to match TranSalNet resolution
     const semanticMap = interpolateGrid(grid, rows, cols, mapWidth, mapHeight);
@@ -408,7 +514,7 @@ export const generateHybridSaliency = async (
     // Step 5: Stochastic jitter — break mechanical symmetry for realistic appearance
     const jittered = applyStochasticJitter(equalized, mapWidth, mapHeight, 0.12);
 
-    console.log('[Hybrid Saliency] Fusion + focal equalization + jitter complete (α=%s, β=%s)', alpha, beta);
+    console.log(`[Hybrid Saliency] Fusion + focal equalization + jitter complete (α=${alpha}, β=${beta}, profile=${profile?.context || 'none'})`);
     return jittered;
 };
 

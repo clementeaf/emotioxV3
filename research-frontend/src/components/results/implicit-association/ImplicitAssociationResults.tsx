@@ -416,6 +416,9 @@ const DScoreCard = ({ module: mod }: { module: IATModuleResult }) => {
       {/* CI + participant count */}
       <p className="text-xs text-gray-500 mt-2">
         95% CI: [{ds.ciLower}, {ds.ciUpper}] &middot; {ds.validParticipants} valid participant{ds.validParticipants !== 1 ? 's' : ''}
+        {ds.reliability !== null && ds.reliability !== undefined && (
+          <> &middot; Split-half reliability: <span className={`font-semibold ${ds.reliability >= 0.7 ? 'text-green-600' : ds.reliability >= 0.5 ? 'text-amber-600' : 'text-red-600'}`}>{ds.reliability}</span></>
+        )}
       </p>
 
       {/* Per-participant D-scores table */}

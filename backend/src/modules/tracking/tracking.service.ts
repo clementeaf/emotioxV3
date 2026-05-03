@@ -354,6 +354,59 @@ export const getClickHeatmapData = async (
     return { clicks, totalClicks, sessions };
 };
 
+/**
+ * Mouse-based attention heatmap — mousemove positions as gaze proxy (Ischen 2022).
+ * Groups by 2% grid cells for cleaner density map.
+ */
+export const getMouseAttentionData = async (
+    researchId: string,
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
+): Promise<{ points: Array<{ x: number; y: number; dwell: number }>; totalMoves: number; sessions: number }> => {
+    const deviceFilter = getDeviceFilter(device);
+
+    let query = `
+        SELECT
+            ROUND(
+                CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100
+                     ELSE te.x END
+            , 0) as x,
+            ROUND(
+                CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100
+                     ELSE te.y END
+            , 0) as y,
+            COUNT(*) as dwell
+        FROM tracking_events te
+        JOIN tracking_sessions ts ON te.session_id = ts.id
+        WHERE ts.research_id = ?
+          AND te.event_type = 'mousemove'
+          AND te.x IS NOT NULL AND te.y IS NOT NULL
+          AND ts.viewport_width > 0
+    `;
+    const params: unknown[] = [researchId];
+    if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }
+    query += deviceFilter.clause;
+    params.push(...deviceFilter.params);
+    query += ` GROUP BY ROUND(CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100 ELSE te.x END, 0),
+                        ROUND(CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100 ELSE te.y END, 0)
+               ORDER BY dwell DESC LIMIT 5000`;
+
+    const result = await pool.query(query, params);
+    const points = result.rows.map((row: Record<string, unknown>) => ({
+        x: Number(row.x), y: Number(row.y), dwell: Number(row.dwell),
+    }));
+
+    let totalsQuery = `SELECT COUNT(*) as total, COUNT(DISTINCT ts.id) as sessions
+        FROM tracking_events te JOIN tracking_sessions ts ON te.session_id = ts.id
+        WHERE ts.research_id = ? AND te.event_type = 'mousemove'`;
+    const tp: unknown[] = [researchId];
+    if (pageUrl) { totalsQuery += ' AND ts.page_url = ?'; tp.push(pageUrl); }
+    totalsQuery += deviceFilter.clause; tp.push(...deviceFilter.params);
+    const totals = await pool.query(totalsQuery, tp);
+
+    return { points, totalMoves: Number(totals.rows[0]?.total || 0), sessions: Number(totals.rows[0]?.sessions || 0) };
+};
+
 // ─── Verification: Recent Sessions ──────────────────────────────────
 
 export const getRecentSessionCount = async (
