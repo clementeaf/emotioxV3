@@ -96,8 +96,8 @@ interface AttentionPredictionCardProps {
     onAddMore?: () => void;
     /** Callback to run/re-run AI analysis */
     onRunAnalysis?: () => void;
-    /** Callback to run hybrid prediction (TranSalNet + LLM semantic fusion) */
-    onHybridPredict?: () => void;
+    /** Auto-presets from prediction (blur, opacity, threshold computed from map distribution) */
+    autoPresets?: { blur: number; opacity: number; threshold: number };
     /** Whether AI analysis is in progress */
     isAnalyzing?: boolean;
 }
@@ -452,6 +452,7 @@ export const AttentionPredictionCard = ({
     onImportAoisDone,
     onAddMore,
     onRunAnalysis,
+    autoPresets,
     isAnalyzing = false,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
@@ -464,7 +465,29 @@ export const AttentionPredictionCard = ({
         });
     }, [aiAnalysis]);
     const [showSettings, setShowSettings] = useState(false);
-    const [settings, setSettings] = useState<HeatmapSettings>(DEFAULT_SETTINGS);
+    const [settings, setSettings] = useState<HeatmapSettings>(() => {
+        if (autoPresets) {
+            return {
+                blur: autoPresets.blur,
+                opacity: autoPresets.opacity,
+                threshold: autoPresets.threshold,
+                preset: 'Auto',
+            };
+        }
+        return { ...DEFAULT_SETTINGS };
+    });
+
+    // Update settings when autoPresets change (new prediction)
+    useEffect(() => {
+        if (autoPresets) {
+            setSettings({
+                blur: autoPresets.blur,
+                opacity: autoPresets.opacity,
+                threshold: autoPresets.threshold,
+                preset: 'Auto',
+            });
+        }
+    }, [autoPresets]);
     const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set(['typical-scan', 'group-scan', 'novelty-search']));
     const [aoiList, setAoiList] = useState<AOI[]>([]);
     const [drawingAoi, setDrawingAoi] = useState(false);

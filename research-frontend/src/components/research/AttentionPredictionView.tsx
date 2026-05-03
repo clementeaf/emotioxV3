@@ -30,6 +30,8 @@ interface StimulusItem {
     /** AI analysis result from GPT-4o Vision */
     aiAnalysis?: Record<string, unknown>;
     aiAnalysisError?: string;
+    /** Auto-presets from prediction pipeline */
+    autoPresets?: { blur: number; opacity: number; threshold: number };
 }
 
 interface AttentionPredictionViewProps {
@@ -78,18 +80,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch {
             // Silent fail — user can retry via the button in the card header
-        } finally {
-            setIsProcessing(false);
-        }
-    }, [research.id, queryClient]);
-
-    const runHybridPredict = useCallback(async (mediaId: string) => {
-        setIsProcessing(true);
-        try {
-            await mediaService.hybridPredict(research.id, mediaId);
-            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-        } catch {
-            // Silent fail
         } finally {
             setIsProcessing(false);
         }
@@ -156,7 +146,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onImportAoisDone={() => setPendingImportAois(undefined)}
                             onAddMore={() => setShowUploadModal(true)}
                             onRunAnalysis={() => runAnalysis(activeStimulus.mediaId)}
-                            onHybridPredict={() => runHybridPredict(activeStimulus.mediaId)}
+                            autoPresets={activeStimulus.autoPresets as { blur: number; opacity: number; threshold: number } | undefined}
                             isAnalyzing={isProcessing}
                         />
 
