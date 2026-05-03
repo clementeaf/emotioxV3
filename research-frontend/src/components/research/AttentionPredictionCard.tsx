@@ -483,7 +483,7 @@ export const AttentionPredictionCard = ({
             const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
             const stimulus = stimuli.find(st => st.mediaId === stimulusMediaId);
             const savedAois = (stimulus?.aois as AOI[]) || [];
-            if (savedAois.length > 0) setAoiList(savedAois);
+            setAoiList(savedAois);
         }).catch(() => { /* ignore load errors */ });
     }, [researchId, stimulusMediaId]);
 
