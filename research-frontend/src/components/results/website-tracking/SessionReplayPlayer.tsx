@@ -227,23 +227,21 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                                 </div>
                             )}
 
-                            {/* Cursor dot */}
-                            {containerW > 0 && (
-                                <div
-                                    className="absolute pointer-events-none z-20"
-                                    style={{
-                                        left: (cursorX / 100) * containerW,
-                                        top: (cursorY / 100) * containerW,
-                                        transform: 'translate(-50%, -50%)',
-                                    }}
-                                >
-                                    <div className="w-8 h-8 rounded-full border-2 border-blue-500 bg-blue-500/25 shadow-lg shadow-blue-500/30" />
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-blue-600" />
-                                </div>
-                            )}
+                            {/* Cursor dot — use paddingBottom trick: coords are both as % of viewport width */}
+                            <div
+                                className="absolute pointer-events-none z-20 transition-all duration-100 ease-out"
+                                style={{
+                                    left: `${cursorX}%`,
+                                    top: containerW > 0 ? (cursorY / 100) * containerW : 0,
+                                    transform: 'translate(-50%, -50%)',
+                                }}
+                            >
+                                <div className="w-8 h-8 rounded-full border-2 border-blue-500 bg-blue-500/25 shadow-lg shadow-blue-500/30" />
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-blue-600" />
+                            </div>
 
                             {/* Click ripples */}
-                            {containerW > 0 && recentClicks.map((click, i) => {
+                            {recentClicks.map((click, i) => {
                                 const opacity = Math.max(0, 1 - click.age / 2000);
                                 const rippleScale = 1 + (click.age / 2000) * 2;
                                 return (
@@ -251,8 +249,8 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                                         key={`click-${i}-${click.x}-${click.y}`}
                                         className="absolute pointer-events-none z-10"
                                         style={{
-                                            left: (click.x / 100) * containerW,
-                                            top: (click.y / 100) * containerW,
+                                            left: `${click.x}%`,
+                                            top: containerW > 0 ? (click.y / 100) * containerW : 0,
                                             transform: `translate(-50%, -50%) scale(${rippleScale})`,
                                             opacity,
                                         }}

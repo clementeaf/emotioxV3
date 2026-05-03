@@ -98,6 +98,8 @@ interface AttentionPredictionCardProps {
     onRunAnalysis?: () => void;
     /** Auto-presets from prediction (blur, opacity, threshold computed from map distribution) */
     autoPresets?: { blur: number; opacity: number; threshold: number };
+    /** Gridded AOIs detected from saliency map */
+    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
     /** Whether AI analysis is in progress */
     isAnalyzing?: boolean;
 }
@@ -453,6 +455,7 @@ export const AttentionPredictionCard = ({
     onAddMore,
     onRunAnalysis,
     autoPresets,
+    griddedAOIs,
     isAnalyzing = false,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
@@ -983,6 +986,26 @@ export const AttentionPredictionCard = ({
                                     >
                                         {drawingAoi ? 'Drawing AOI...' : '+ Create Manual Zone'}
                                     </button>
+                                    {griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const imported: AOI[] = griddedAOIs.map((g, i) => ({
+                                                    id: `grid-${Date.now()}-${i}`,
+                                                    label: g.label,
+                                                    x: g.x,
+                                                    y: g.y,
+                                                    width: g.width,
+                                                    height: g.height,
+                                                }));
+                                                setAoiList(imported);
+                                                persistAois(imported);
+                                            }}
+                                            className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded transition-colors"
+                                        >
+                                            Import detected zones ({griddedAOIs.length})
+                                        </button>
+                                    )}
                                     {computedAois.length > 0 && (
                                         <span className="text-xs text-gray-500">
                                             {computedAois.length} zones defined

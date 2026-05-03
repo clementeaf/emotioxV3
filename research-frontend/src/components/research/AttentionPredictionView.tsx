@@ -32,6 +32,8 @@ interface StimulusItem {
     aiAnalysisError?: string;
     /** Auto-presets from prediction pipeline */
     autoPresets?: { blur: number; opacity: number; threshold: number };
+    /** Gridded AOIs detected from saliency map */
+    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
 }
 
 interface AttentionPredictionViewProps {
@@ -147,6 +149,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onAddMore={() => setShowUploadModal(true)}
                             onRunAnalysis={() => runAnalysis(activeStimulus.mediaId)}
                             autoPresets={activeStimulus.autoPresets as { blur: number; opacity: number; threshold: number } | undefined}
+                            griddedAOIs={activeStimulus.griddedAOIs}
                             isAnalyzing={isProcessing}
                         />
 
