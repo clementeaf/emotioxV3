@@ -44,22 +44,40 @@ export const AnalysisProfilePanel = ({ profile, onChange }: AnalysisProfilePanel
 
     const hasProfile = profile.context || profile.gender || profile.description || profile.interests;
 
+    const profileSummary = (() => {
+        if (!hasProfile) return '';
+        if (profile.description) return profile.description;
+        const parts: string[] = [];
+        const genderLabel = GENDER_OPTIONS.find(o => o.value === profile.gender)?.label;
+        if (profile.gender && profile.gender !== 'any') parts.push(genderLabel || profile.gender);
+        if (profile.ageRange) parts.push(`${profile.ageRange} years`);
+        const intentionLabel = INTENTION_OPTIONS.find(o => o.value === profile.intention)?.label;
+        if (profile.intention && profile.intention !== 'browsing') parts.push(intentionLabel || profile.intention);
+        if (profile.interests) parts.push(profile.interests);
+        return parts.join(', ');
+    })();
+
     return (
         <div className="border border-gray-200 rounded-lg overflow-hidden">
             <button
                 onClick={() => setExpanded(!expanded)}
                 className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 transition-colors"
             >
-                <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-purple-500" />
-                    <span className="text-sm font-medium text-gray-700">Analysis Profile</span>
+                <div className="flex items-center gap-2 min-w-0">
+                    <Users className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-700 flex-shrink-0">Analysis Profile</span>
                     {hasProfile && (
-                        <span className="px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 rounded-full font-medium">
+                        <span className="px-1.5 py-0.5 text-[10px] bg-purple-100 text-purple-700 rounded-full font-medium flex-shrink-0">
                             {profile.context || 'custom'}
                         </span>
                     )}
+                    {!expanded && profileSummary && (
+                        <span className="text-xs text-gray-500 truncate" title={profileSummary}>
+                            {profileSummary}
+                        </span>
+                    )}
                 </div>
-                {expanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                {expanded ? <ChevronUp className="h-4 w-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />}
             </button>
 
             {expanded && (
