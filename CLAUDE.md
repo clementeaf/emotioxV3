@@ -125,6 +125,16 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **3 gaze path routes (v0.67.1)**: AI analysis returns `gazePathRoutes` — 3 viewing strategies (Typical Scan, Group Scan, Novelty Search). Frontend renders each with unique color (blue/green/amber), toggleable. `GazePathOverlay` accepts `routeColor` + `markerId` for multi-route rendering.
 - **Configurable saliency model (v0.67.2)**: `SALIENCY_MODEL` env var (default `transalnet_res.onnx`). `SALIENCY_WIDTH`/`SALIENCY_HEIGHT` for different architectures. Conversion scripts: `scripts/convert-transalnet-to-onnx.py` (Dense/Res), `scripts/convert-sum-to-onnx.py` (SUM, WACV 2025). To swap: convert → upload `.onnx` to `backend/models/` → set env var → restart.
 
+- **Analysis profiles (v0.69.0)**: `AnalysisProfile` type in `ai-analysis.service.ts`. Context-aware β: shelf/packaging=0.50, ad=0.45, web=0.40, general=0.35. Profile injected into Gemini/GPT-4o semantic grid prompt. ViT bottom-up ensemble (70% semantic + 30% feature-integration). `AnalysisProfilePanel` in `AttentionPredictionView`, persisted in `research.settings.analysisProfile`.
+- **Brand attention (v0.69.0)**: AI analysis prompt auto-detects logos → `brandAttention` in `AiAnalysisResult` (logos[], brandAttentionScore, recommendation). `Brand Attention` section in `AiAnalysisPanel`.
+- **FACS Action Units (v0.69.0)**: `extractActionUnitsFrom68()` in `facsClassifier.ts` — 9 AUs from face-api 68 landmarks. `face_landmark_68` model in `public/models/`. `ActionUnitsPanel` + `MicroExpressionsPanel` in `EmotionPanel`.
+- **Standalone modules (v0.69.0)**: `Emotion Analysis` (webcam only, no ET), `EEG Recording` (Web Bluetooth), `Biometric Wearable` (BLE HR 0x180D). DynamicStep dispatches by module name. Module templates in migrations 028-029.
+- **Cerulean Ledger (v0.69.0)**: `backend/src/modules/cerulean/` — client + integration service + controller. Routes under `/cerulean/`. `CERULEAN_ENABLED=true` to activate. Auto-triggers on study close (integrity hash + credential + audit). `BlockchainCertification` component in results.
+- **Dashboard (v0.69.0)**: `GET /research/dashboard-summary` returns stats, trends, top researches. `useDashboardSummary` hook. Search + archive toggle + activity chart + metrics trends in `DashboardPage`.
+- **Automation (v0.69.0)**: Auto-trigger LLM on close + every 10 participants. Executive summary (`/analytics/research/:id/executive-summary`). Alerts (`/analytics/research/:id/alerts`). PDF report via `ReportGeneratorButton`.
+- **Research tags (v0.69.0)**: `research_tags` table (migration 027). `GET /research/tags`, `POST/DELETE /research/:id/tags/:tag`. `archived_at` column, `POST /research/:id/archive|unarchive`.
+- **Mouse attention (v0.69.0)**: `GET /tracking/:id/mouse-attention` — mousemove events aggregated as gaze-proxy heatmap.
+
 ## Key Files
 ### Backend
 - `backend/src/router.ts` — routing central, CORS, path normalization

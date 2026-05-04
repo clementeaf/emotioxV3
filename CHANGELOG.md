@@ -1,3 +1,50 @@
+## v0.69.0 — Roadmap completion: Neuro, AI automation, blockchain integration (2026-05-03)
+
+### Fase 3 — Data visualization & management
+- **Multi-sheet XLSX export.** Participants + SmartVOC + Eye Tracking + IAT in separate sheets.
+- **Dashboard cross-research.** Summary cards (total, active, participants, completion rate), activity chart, status breakdown, top-by-participants, NPS/CSAT/CES trends. `GET /research/dashboard-summary`.
+- **Search & archive.** Search by name, archive/unarchive toggle, `research_tags` table (migration 027).
+- **Enterprise metrics trends.** Participants over time chart, SmartVOC metric deltas (month-over-month).
+
+### Fase 5 — Analysis automation
+- **Auto-trigger LLM.** Text analysis fires on status→completed and every 10 participants (`checkAutoAnalysisThreshold`).
+- **Executive summary.** `POST/GET /analytics/research/:id/executive-summary`. GPT-4o generates overview, key findings, recommendations with historical benchmark comparison. Cached in config. `ExecutiveSummaryPanel` collapsible in results.
+- **Alerts.** `GET /analytics/research/:id/alerts`. NPS drop, negative sentiment spike, participant milestones. `AlertsBar` dismissable in results.
+- **PDF report.** `ReportGeneratorButton` opens print-optimized HTML window with metrics, findings, sentiment bars.
+
+### Fase 2 — Neuro completion
+- **ET quality fixes.** Recalibration counter increment, mobile integrityScore capped at 0.8, click-proxy classified as max `fair`, video `onEnded` handler, ShelfGrid `overflow-hidden`, low-res camera warning.
+- **FACS Action Units.** `extractActionUnitsFrom68()` — 9 AUs (AU1,2,4,6,12,15,20,25,26) from face-api 68 landmarks. `face_landmark_68` model added. `ActionUnitsPanel` in EmotionPanel (bars + timeline heatmap).
+- **Micro-expressions.** `microExpressionDetector.ts` — sliding window, brief (<200ms) + micro (200-500ms). Stored in response, aggregated in backend, `MicroExpressionsPanel` in results.
+- **IAT D-score.** Trials <300ms excluded (Greenwald 2003). Split-half reliability with Spearman-Brown correction.
+
+### New modules
+- **Emotion Analysis.** Standalone webcam emotion module (no eye tracking). Module template (migration 028), `EmotionAnalysisRenderer`, `EmotionAnalysisResults`, `GET /analytics/research/:id/emotion-analysis`.
+- **EEG Recording.** Web Bluetooth pairing (Muse/Emotiv/OpenBCI), 5-band power, attention/meditation indices. Module template (migration 029), `EEGRenderer`, `GET /analytics/research/:id/eeg`.
+- **Biometric Wearable.** BLE heart rate (standard 0x180D), RR intervals, HRV (RMSSD/SDNN), stress index. Module template (migration 029), `WearableRenderer`, `GET /analytics/research/:id/wearable`.
+
+### Cerulean Ledger integration
+- **Research integrity.** SHA-256 hash of all responses → blockchain transaction. `POST /cerulean/research/:id/certify`, `GET .../verify`. Auto-triggered on study close.
+- **Study certificate.** Verifiable credential issued on completion. `POST/GET /cerulean/research/:id/certificate`.
+- **Participant DID.** Privacy-preserving `did:cerulean:participant-{hash}` registered on response save.
+- **Audit trail.** Create/activate/close/certify actions recorded as immutable transactions.
+- **Frontend.** `BlockchainCertification` component with verified/mismatch status and expandable details.
+- **Config.** `CERULEAN_ENABLED`, `CERULEAN_API_URL`, `CERULEAN_ORG_ID` env vars.
+
+### Attention prediction enhancements
+- **Analysis profiles.** `AnalysisProfile` type (gender, age, interests, context, intention, description). Dynamic β by context: shelf/packaging=0.50, ad=0.45, web=0.40. Profile-aware prompts for Gemini/GPT-4o. `AnalysisProfilePanel` in AttentionPredictionView. Persisted in research settings.
+- **Brand attention score.** AI analysis prompt detects logos, reports bbox + saliencyScore + brandAttentionScore. `Brand Attention` section in AiAnalysisPanel.
+- **ViT ensemble.** Bottom-up feature-integration grid (1 iteration) ensembled with semantic grid (70/30).
+- **Mouse attention map.** `GET /tracking/:id/mouse-attention` — mousemove events as gaze proxy heatmap.
+- **Attention-memory gap.** `attentionMemoryGap` field in AOI metrics for post-survey recall correlation.
+
+### Database
+- Migration 027: `research_tags` table + `archived_at` column on researches.
+- Migration 028: Emotion Analysis module + stage template.
+- Migration 029: EEG Recording + Biometric Wearable module + stage templates.
+
+---
+
 ## v0.68.0 — Website Tracking UX overhaul, attention prediction pipeline v2 (2026-05-03)
 
 ### backend — Website Tracking
