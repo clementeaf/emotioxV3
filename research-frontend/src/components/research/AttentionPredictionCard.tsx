@@ -1014,83 +1014,77 @@ export const AttentionPredictionCard = ({
                                     )}
                                 </div>
 
-                                <TransformWrapper
-                                    disabled={drawingAoi}
-                                    minScale={1}
-                                    maxScale={5}
-                                    wheel={{ step: 0.15 }}
-                                    panning={{ disabled: drawingAoi }}
+                                <div
+                                    ref={aoiContainerRef}
+                                    className={cn(
+                                        'rounded-lg border bg-gray-100 relative overflow-hidden',
+                                        drawingAoi && 'cursor-crosshair'
+                                    )}
+                                    onMouseDown={drawingAoi ? (e) => {
+                                        const container = aoiContainerRef.current;
+                                        if (!container) return;
+                                        const pos = getMousePercent(e, container);
+                                        setAoiStart(pos);
+                                        setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
+                                    } : undefined}
+                                    onMouseMove={drawingAoi && aoiStart ? (e) => {
+                                        const container = aoiContainerRef.current;
+                                        if (!container) return;
+                                        const pos = getMousePercent(e, container);
+                                        setAoiCurrent({
+                                            x: Math.min(aoiStart.x, pos.x),
+                                            y: Math.min(aoiStart.y, pos.y),
+                                            w: Math.abs(pos.x - aoiStart.x),
+                                            h: Math.abs(pos.y - aoiStart.y),
+                                        });
+                                    } : undefined}
+                                    onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
+                                        addAoi(aoiCurrent);
+                                        setAoiStart(null);
+                                        setAoiCurrent(null);
+                                        setDrawingAoi(false);
+                                    } : () => { setAoiStart(null); setAoiCurrent(null); }}
                                 >
-                                    <div
-                                        ref={aoiContainerRef}
-                                        className={cn(
-                                            'rounded-lg border bg-gray-100 relative w-fit mx-auto flex-1 min-h-0 overflow-hidden',
-                                            drawingAoi && 'cursor-crosshair'
-                                        )}
-                                        onMouseDown={drawingAoi ? (e) => {
-                                            const container = aoiContainerRef.current;
-                                            if (!container) return;
-                                            const pos = getMousePercent(e, container);
-                                            setAoiStart(pos);
-                                            setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
-                                        } : undefined}
-                                        onMouseMove={drawingAoi && aoiStart ? (e) => {
-                                            const container = aoiContainerRef.current;
-                                            if (!container) return;
-                                            const pos = getMousePercent(e, container);
-                                            setAoiCurrent({
-                                                x: Math.min(aoiStart.x, pos.x),
-                                                y: Math.min(aoiStart.y, pos.y),
-                                                w: Math.abs(pos.x - aoiStart.x),
-                                                h: Math.abs(pos.y - aoiStart.y),
-                                            });
-                                        } : undefined}
-                                        onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
-                                            addAoi(aoiCurrent);
-                                            setAoiStart(null);
-                                            setAoiCurrent(null);
-                                            setDrawingAoi(false);
-                                        } : () => { setAoiStart(null); setAoiCurrent(null); }}
-                                    >
-                                        <ZoomControls />
-                                        <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                            <img src={imageUrl} alt={title} className="w-full block" />
-                                            {/* AOI rectangles — colored semitransparent */}
-                                            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                                {computedAois.map((aoi, i) => {
-                                                    const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
-                                                    const color = colors[i % colors.length];
-                                                    return (
-                                                        <g key={aoi.id}>
-                                                            <rect
-                                                                x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height}
-                                                                fill={`${color}20`}
-                                                                stroke={color}
-                                                                strokeWidth="0.4"
-                                                            />
-                                                            <text
-                                                                x={aoi.x + 0.5} y={aoi.y + 2.5}
-                                                                fill={color} fontSize="2.2" fontWeight="bold"
-                                                            >
-                                                                {aoi.label} — {aoi.percentage}%
-                                                            </text>
-                                                        </g>
-                                                    );
-                                                })}
-                                                {aoiCurrent && aoiCurrent.w > 0 && (
-                                                    <rect
-                                                        x={aoiCurrent.x} y={aoiCurrent.y}
-                                                        width={aoiCurrent.w} height={aoiCurrent.h}
-                                                        fill="rgba(59, 130, 246, 0.15)"
-                                                        stroke="#3B82F6"
-                                                        strokeWidth="0.4"
-                                                        strokeDasharray="1,1"
-                                                    />
-                                                )}
-                                            </svg>
-                                        </TransformComponent>
-                                    </div>
-                                </TransformWrapper>
+                                    <img src={imageUrl} alt={title} className="w-full block" />
+                                    {/* AOI rectangles — CSS positioned to avoid viewBox distortion */}
+                                    {computedAois.map((aoi, i) => {
+                                        const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
+                                        const color = colors[i % colors.length];
+                                        return (
+                                            <div
+                                                key={aoi.id}
+                                                className="absolute pointer-events-none border-2"
+                                                style={{
+                                                    left: `${aoi.x}%`,
+                                                    top: `${aoi.y}%`,
+                                                    width: `${aoi.width}%`,
+                                                    height: `${aoi.height}%`,
+                                                    backgroundColor: `${color}20`,
+                                                    borderColor: color,
+                                                }}
+                                            >
+                                                <span
+                                                    className="absolute top-1 left-1 text-[10px] font-bold px-1 rounded"
+                                                    style={{ color, backgroundColor: `${color}15` }}
+                                                >
+                                                    {aoi.label} — {aoi.percentage}%
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                    {aoiCurrent && aoiCurrent.w > 0 && (
+                                        <div
+                                            className="absolute pointer-events-none border-2 border-dashed border-blue-500"
+                                            style={{
+                                                left: `${aoiCurrent.x}%`,
+                                                top: `${aoiCurrent.y}%`,
+                                                width: `${aoiCurrent.w}%`,
+                                                height: `${aoiCurrent.h}%`,
+                                                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                                            }}
+                                        />
+                                    )}
+                                </div>
 
                                 {/* AOI list — compact horizontal chips below image */}
                                 {computedAois.length > 0 && (
