@@ -383,19 +383,10 @@ export const handleAttentionPredictionRoutes = async (
             const stimulus = stimuli.find((s) => s.mediaId === mediaId);
             const heatmapData = (stimulus?.heatmapData ?? []) as Array<{ x: number; y: number; value: number }>;
 
-            // Read analysis profile from research settings
-            const settingsResult = await pool.query(
-                'SELECT settings FROM researches WHERE id = ? AND deleted_at IS NULL',
-                [researchId]
-            );
-            let profile: import('./ai-analysis.service').AnalysisProfile | undefined;
-            try {
-                const rawSettings = settingsResult.rows[0]?.settings;
-                const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : (rawSettings || {});
-                if (settings.analysisProfile && Object.keys(settings.analysisProfile).length > 0) {
-                    profile = settings.analysisProfile;
-                }
-            } catch { /* no profile */ }
+            // Read analysis profile from research config (MySQL column = 'config', frontend calls it 'settings')
+            const profile = (config.analysisProfile && typeof config.analysisProfile === 'object' && Object.keys(config.analysisProfile as Record<string, unknown>).length > 0)
+                ? config.analysisProfile as import('./ai-analysis.service').AnalysisProfile
+                : undefined;
 
             try {
                 const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile);
