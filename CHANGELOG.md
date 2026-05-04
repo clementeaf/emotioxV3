@@ -1,3 +1,14 @@
+## v0.69.1 — Fix attention score gauge and profile-aware AI analysis (2026-05-04)
+
+### research-frontend
+- **Fix: attention score gauge number.** `ScoreGauge` SVG text was invisible due to CSS `rotate-90 origin-center` not working on SVG `<text>` elements. Replaced with native SVG `transform="rotate(90, cx, cy)"`.
+
+### backend
+- **Fix: AI analysis ignoring analysis profile.** `analyzeAttentionWithAI` now receives the `AnalysisProfile` and injects viewer context (gender, age, interests, intention, stimulus context) into the LLM prompt. Previously, the profile only affected the hybrid saliency heatmap but not the textual analysis (AOIs, attention flow, gaze path, neuro-insights), causing identical results across different profiles.
+- **Controller reads profile from research settings.** `/analyze/:mediaId` endpoint reads `settings.analysisProfile` and passes it through the analysis chain.
+
+---
+
 ## v0.69.0 — Roadmap completion: Neuro, AI automation, blockchain integration (2026-05-03)
 
 ### Fase 3 — Data visualization & management

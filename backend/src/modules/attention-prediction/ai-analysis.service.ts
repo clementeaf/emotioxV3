@@ -32,8 +32,12 @@ Always respond with valid JSON matching the exact schema provided. All coordinat
 
 const buildUserPrompt = (
     heatmapSummary: string,
-    fileName: string
-): string => `Analyze this image for visual attention patterns. The image is from a UX research study file "${fileName}".
+    fileName: string,
+    profile?: AnalysisProfile
+): string => {
+    const profileContext = profile ? buildProfileContext(profile) : '';
+    return `Analyze this image for visual attention patterns. The image is from a UX research study file "${fileName}".
+${profileContext}
 
 A computational saliency model (TranSalNet) has already generated attention data. Here are the top attention hotspots (coordinates as percentage of image width/height, value 0-1 = attention intensity):
 
@@ -130,6 +134,7 @@ Rules:
 - leakAreas: areas where attention dissipates or exits the design unintentionally
 - flowPath: narrative path of visual attention through the design
 - Return ONLY valid JSON, no markdown fences`;
+};
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -523,7 +528,8 @@ export const generateHybridSaliency = async (
 export const analyzeAttentionWithAI = async (
     imagePath: string,
     heatmapData: Array<{ x: number; y: number; value: number }>,
-    fileName: string
+    fileName: string,
+    profile?: AnalysisProfile
 ): Promise<AiAnalysisResult> => {
     if (!hasGemini() && !hasOpenAI()) {
         throw new Error('No AI API key configured (GEMINI_API_KEY or OPENAI_API_KEY)');
@@ -535,7 +541,7 @@ export const analyzeAttentionWithAI = async (
 
     const { base64, mimeType } = await imageToBase64(imagePath);
     const heatmapSummary = summarizeHeatmap(heatmapData);
-    const userPrompt = buildUserPrompt(heatmapSummary, fileName);
+    const userPrompt = buildUserPrompt(heatmapSummary, fileName, profile);
 
     let result: AiAnalysisResult;
 

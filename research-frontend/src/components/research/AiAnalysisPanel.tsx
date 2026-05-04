@@ -66,7 +66,7 @@ const ScoreGauge = ({ score, size = 80 }: { score: number; size?: number }) => {
                 y={size / 2}
                 textAnchor="middle"
                 dominantBaseline="central"
-                className="transform rotate-90 origin-center"
+                transform={`rotate(90, ${size / 2}, ${size / 2})`}
                 fill={color}
                 fontSize={size * 0.28}
                 fontWeight="bold"
