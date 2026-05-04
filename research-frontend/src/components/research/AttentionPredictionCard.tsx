@@ -846,10 +846,10 @@ export const AttentionPredictionCard = ({
                         {/* Original Tab */}
                         {activeTab === 'original' && (
                             <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                <div className="rounded-lg border bg-gray-100 w-fit mx-auto overflow-hidden relative">
+                                <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
                                     <ZoomControls />
                                     <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                        <img src={imageUrl} alt={title} className="max-h-[calc(100vh-280px)] w-auto block" />
+                                        <img src={imageUrl} alt={title} className="w-full block" />
                                     </TransformComponent>
                                 </div>
                             </TransformWrapper>
@@ -858,7 +858,7 @@ export const AttentionPredictionCard = ({
                         {/* Heatmap Tab */}
                         {activeTab === 'heatmap' && (
                             <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                <div className="rounded-lg border bg-gray-100 w-fit mx-auto overflow-hidden relative">
+                                <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
                                     <ZoomControls />
                                     <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
                                         {isVideo && videoFrames.length > 0 ? (
@@ -934,11 +934,11 @@ export const AttentionPredictionCard = ({
                                 </div>
 
                                 <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                    <div className="rounded-lg border bg-gray-900 w-fit mx-auto overflow-hidden relative">
+                                    <div className="rounded-lg border bg-gray-900 overflow-hidden relative">
                                         <ZoomControls />
                                         <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
                                             <div className="relative">
-                                                <img src={imageUrl} alt={title} className="max-h-[calc(100vh-340px)] w-auto block" />
+                                                <img src={imageUrl} alt={title} className="w-full block" />
                                                 <div className="absolute inset-0 bg-black/40 pointer-events-none" />
                                                 {routes.map(route => (
                                                     <GazePathOverlay
