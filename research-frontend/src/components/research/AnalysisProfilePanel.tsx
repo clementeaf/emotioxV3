@@ -5,7 +5,7 @@ export interface AnalysisProfile {
     gender?: 'male' | 'female' | 'any';
     ageRange?: string;
     interests?: string;
-    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'general';
+    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'app' | 'social_media' | 'dashboard' | 'print' | 'general';
     intention?: 'utilitarian' | 'emotional' | 'browsing';
     description?: string;
 }
@@ -13,15 +13,32 @@ export interface AnalysisProfile {
 interface AnalysisProfilePanelProps {
     profile: AnalysisProfile;
     onChange: (profile: AnalysisProfile) => void;
+    /** AI-detected context type from analysis result (e.g. "mobile", "web") — used for auto-suggestion */
+    detectedContext?: string;
 }
 
 const CONTEXT_OPTIONS = [
     { value: 'general', label: 'General' },
-    { value: 'shelf', label: 'Shelf / Retail Display' },
-    { value: 'packaging', label: 'Product Packaging' },
     { value: 'web', label: 'Web / E-commerce' },
+    { value: 'app', label: 'App / Mobile' },
+    { value: 'shelf', label: 'Shelf / Retail' },
+    { value: 'packaging', label: 'Packaging' },
     { value: 'advertisement', label: 'Advertisement' },
+    { value: 'social_media', label: 'Social Media' },
+    { value: 'dashboard', label: 'Dashboard / UI' },
+    { value: 'print', label: 'Print / Editorial' },
 ];
+
+/** Maps AI analysis context.type values to profile context values */
+const DETECTED_TO_PROFILE: Record<string, string> = {
+    web: 'web',
+    mobile: 'app',
+    poster: 'print',
+    print: 'print',
+    packaging: 'packaging',
+    billboard: 'advertisement',
+    social_media: 'social_media',
+};
 
 const INTENTION_OPTIONS = [
     { value: 'browsing', label: 'Browsing' },
@@ -35,7 +52,7 @@ const GENDER_OPTIONS = [
     { value: 'male', label: 'Male' },
 ];
 
-export const AnalysisProfilePanel = ({ profile, onChange }: AnalysisProfilePanelProps) => {
+export const AnalysisProfilePanel = ({ profile, onChange, detectedContext }: AnalysisProfilePanelProps) => {
     const [expanded, setExpanded] = useState(false);
 
     const update = useCallback((field: keyof AnalysisProfile, value: string) => {
@@ -43,6 +60,10 @@ export const AnalysisProfilePanel = ({ profile, onChange }: AnalysisProfilePanel
     }, [profile, onChange]);
 
     const hasProfile = profile.context || profile.gender || profile.description || profile.interests;
+
+    // Map AI-detected context to a profile suggestion
+    const suggestedContext = detectedContext ? DETECTED_TO_PROFILE[detectedContext] : undefined;
+    const hasSuggestion = suggestedContext && suggestedContext !== profile.context;
 
     const profileSummary = (() => {
         if (!hasProfile) return '';
@@ -85,6 +106,20 @@ export const AnalysisProfilePanel = ({ profile, onChange }: AnalysisProfilePanel
                     {/* Context */}
                     <div>
                         <label className="text-xs font-medium text-gray-600 mb-1 block">Stimulus Context</label>
+                        {hasSuggestion && (
+                            <div className="flex items-center gap-2 mb-2 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                                <span className="text-xs text-amber-700">
+                                    AI detected: <strong>{CONTEXT_OPTIONS.find(o => o.value === suggestedContext)?.label || suggestedContext}</strong>
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => update('context', suggestedContext)}
+                                    className="text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded transition-colors"
+                                >
+                                    Apply
+                                </button>
+                            </div>
+                        )}
                         <div className="flex flex-wrap gap-1.5">
                             {CONTEXT_OPTIONS.map(opt => (
                                 <button
@@ -165,11 +200,20 @@ export const AnalysisProfilePanel = ({ profile, onChange }: AnalysisProfilePanel
                     </div>
 
                     {/* Info about β weight */}
-                    {profile.context && profile.context !== 'general' && (
-                        <p className="text-[10px] text-gray-400">
-                            Semantic weight adjusted: {profile.context === 'shelf' || profile.context === 'packaging' ? 'β=0.50 (high)' : profile.context === 'advertisement' ? 'β=0.45' : 'β=0.40'} — higher semantic influence for {profile.context} context
-                        </p>
-                    )}
+                    {profile.context && profile.context !== 'general' && (() => {
+                        const betas: Record<string, string> = {
+                            shelf: '0.50 (high)', packaging: '0.50 (high)',
+                            advertisement: '0.45', app: '0.45',
+                            social_media: '0.42', print: '0.42',
+                            web: '0.40', dashboard: '0.40',
+                        };
+                        const beta = betas[profile.context] || '0.35';
+                        return (
+                            <p className="text-[10px] text-gray-400">
+                                Semantic weight: β={beta} for {CONTEXT_OPTIONS.find(o => o.value === profile.context)?.label || profile.context}
+                            </p>
+                        );
+                    })()}
                 </div>
             )}
         </div>

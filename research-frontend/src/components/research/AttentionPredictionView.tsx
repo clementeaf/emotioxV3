@@ -146,7 +146,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             <div className="flex-1 min-w-0 p-6 space-y-4 overflow-y-auto">
                 {/* Analysis — main content when a stimulus is selected */}
                 {/* Analysis Profile — configurable target demographic */}
-                <AnalysisProfilePanel profile={analysisProfile} onChange={handleProfileChange} />
+                <AnalysisProfilePanel
+                    profile={analysisProfile}
+                    onChange={handleProfileChange}
+                    detectedContext={aiAnalysis?.context?.type}
+                />
 
                 {activeStimulus && (
                     <>

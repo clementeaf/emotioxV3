@@ -231,7 +231,7 @@ export interface AnalysisProfile {
     /** Target viewer interests/context */
     interests?: string; // e.g. "luxury fashion, social events"
     /** Stimulus context type — affects scan pattern and β weight */
-    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'general';
+    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'app' | 'social_media' | 'dashboard' | 'print' | 'general';
     /** Viewer intention */
     intention?: 'utilitarian' | 'emotional' | 'browsing';
     /** Free-form description for maximum flexibility */
@@ -257,6 +257,14 @@ ${profile?.context === 'shelf' || profile?.context === 'packaging' ? `- Nutritio
 - Premium vs basic packaging cues (medium weight)
 - Price tags and promotional labels (high weight)
 - Brand mascots and characters (high weight)
+` : ''}${profile?.context === 'app' ? `- Navigation bars and tab bars (high weight)
+- Floating action buttons (high weight)
+- Modal/bottom sheet content (very high weight)
+- Status bar and system UI (low weight)
+` : ''}${profile?.context === 'social_media' ? `- Profile picture and username (high weight)
+- Engagement metrics and buttons (medium-high weight)
+- Hashtags and mentions (medium weight)
+- Autoplay video thumbnail (very high weight)
 ` : ''}- Empty/repetitive areas (low weight)
 
 Return ONLY: {"grid": [[0.2, 0.5, ...], [0.1, 0.8, ...], ...]}
@@ -282,14 +290,18 @@ function buildProfileContext(profile: AnalysisProfile): string {
         parts.push('INTENTION: Seeking inspiration/emotion (aesthetics, lifestyle). Prioritize imagery, colors, and mood.');
     }
 
-    if (profile.context === 'shelf') {
-        parts.push('CONTEXT: Supermarket shelf display. Viewer scans left-to-right, top-to-bottom. Eye-level products (rows 3-5) get more attention. Brand differentiation and color standout are key.');
-    } else if (profile.context === 'web') {
-        parts.push('CONTEXT: Web page or e-commerce. F-pattern scanning: top-left gets most attention, horizontal sweeps decrease down the page.');
-    } else if (profile.context === 'advertisement') {
-        parts.push('CONTEXT: Print or digital advertisement. Z-pattern scanning. Hero image and headline dominate first fixation.');
-    } else if (profile.context === 'packaging') {
-        parts.push('CONTEXT: Product packaging close-up. Focus on brand logo, product name, key claims, and visual hierarchy.');
+    const contextPrompts: Record<string, string> = {
+        shelf: 'CONTEXT: Supermarket shelf display. Viewer scans left-to-right, top-to-bottom. Eye-level products (rows 3-5) get more attention. Brand differentiation and color standout are key.',
+        web: 'CONTEXT: Web page or e-commerce. F-pattern scanning: top-left gets most attention, horizontal sweeps decrease down the page.',
+        advertisement: 'CONTEXT: Print or digital advertisement. Z-pattern scanning. Hero image and headline dominate first fixation.',
+        packaging: 'CONTEXT: Product packaging close-up. Focus on brand logo, product name, key claims, and visual hierarchy.',
+        app: 'CONTEXT: Mobile app screen. Thumb-zone priority: bottom-center most reachable, top corners least. Tab bars, floating action buttons, and modal sheets dominate attention. Vertical scroll bias.',
+        social_media: 'CONTEXT: Social media post or feed. Vertical scroll, autoplay bias. Profile picture and name anchor top-left. Image/video dominates center. Engagement buttons (like, comment) at bottom.',
+        dashboard: 'CONTEXT: Analytics dashboard or data UI. Users scan for KPI cards first (top row), then charts left-to-right. High data density — color coding and anomalies draw attention.',
+        print: 'CONTEXT: Print material (brochure, magazine, poster). Z-pattern or Gutenberg diagonal. Headlines and hero images dominate first fixation. Fine print gets low attention.',
+    };
+    if (profile.context && contextPrompts[profile.context]) {
+        parts.push(contextPrompts[profile.context]);
     }
 
     if (parts.length === 0) return '';
@@ -299,13 +311,17 @@ function buildProfileContext(profile: AnalysisProfile): string {
 /** Get semantic weight (β) based on context. Retail/packaging benefits from higher semantic weight. */
 function getSemanticBeta(profile?: AnalysisProfile): number {
     if (!profile?.context) return 0.35;
-    switch (profile.context) {
-        case 'shelf': return 0.50;
-        case 'packaging': return 0.50;
-        case 'advertisement': return 0.45;
-        case 'web': return 0.40;
-        default: return 0.35;
-    }
+    const betas: Record<string, number> = {
+        shelf: 0.50,
+        packaging: 0.50,
+        advertisement: 0.45,
+        app: 0.45,
+        social_media: 0.42,
+        web: 0.40,
+        dashboard: 0.40,
+        print: 0.42,
+    };
+    return betas[profile.context] ?? 0.35;
 }
 
 // Legacy constant for backward compat (used when no profile is provided)
