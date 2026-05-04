@@ -349,6 +349,117 @@ export const applyStochasticJitter = (
 };
 
 /**
+ * Context-aware scan pattern overlay.
+ * Multiplies the saliency map by a scan pattern mask that reflects real
+ * eye-movement behavior for the given context type.
+ *
+ * Patterns are based on eye-tracking literature:
+ * - Shelf: horizontal sweep at eye-level, row-by-row (Chandon et al. 2009)
+ * - App: thumb-zone bias, top-down flow (Steven Hoober 2013)
+ * - Web: F-pattern with strong top-left bias (Nielsen 2006)
+ * - Ad/Print: Z-pattern diagonal (Gutenberg diagram)
+ * - General: mild center bias only
+ */
+export const applyScanPattern = (
+    map: Float32Array,
+    w: number,
+    h: number,
+    context?: string,
+): Float32Array => {
+    if (!context || context === 'general') return map;
+
+    const result = new Float32Array(map.length);
+
+    for (let row = 0; row < h; row++) {
+        for (let col = 0; col < w; col++) {
+            const nx = col / w; // 0..1 normalized x
+            const ny = row / h; // 0..1 normalized y
+            let weight = 1.0;
+
+            switch (context) {
+                case 'shelf':
+                case 'packaging': {
+                    // Horizontal sweep: eye-level rows (30-60% height) get boost
+                    // Each row scanned left-to-right with mild left bias
+                    const eyeLevel = 1.0 - 2.0 * Math.abs(ny - 0.45); // peak at 45% height
+                    const rowWeight = Math.max(0.3, eyeLevel);
+                    const leftBias = 1.0 - nx * 0.15; // slight left-to-right decay
+                    // Reduce center blob: attenuate center-x concentration
+                    const centerX = Math.abs(nx - 0.5);
+                    const antiCenterX = 0.6 + centerX * 0.8; // boost edges, attenuate center
+                    weight = rowWeight * leftBias * antiCenterX;
+                    break;
+                }
+                case 'app': {
+                    // Thumb zone: bottom-center reachable, top-down content flow
+                    const thumbReach = 1.0 - Math.abs(nx - 0.5) * 0.8; // center-x preferred
+                    const topDown = 0.5 + ny * 0.5; // bottom half preferred for interaction
+                    const contentFlow = 1.0 - ny * 0.3; // top content still important
+                    weight = thumbReach * Math.max(topDown * 0.6, contentFlow);
+                    break;
+                }
+                case 'web':
+                case 'dashboard': {
+                    // F-pattern: strong top-left, horizontal sweeps decay downward
+                    const fTopBias = Math.max(0.3, 1.0 - ny * 0.8); // top row strongest
+                    const fLeftBias = Math.max(0.4, 1.0 - nx * 0.5); // left side preferred
+                    // Horizontal sweep bands (simulates the 3 horizontal movements of F)
+                    const band1 = Math.exp(-((ny - 0.15) ** 2) / 0.01) * 0.3;
+                    const band2 = Math.exp(-((ny - 0.40) ** 2) / 0.02) * 0.2;
+                    weight = fTopBias * fLeftBias + band1 + band2;
+                    break;
+                }
+                case 'advertisement':
+                case 'print':
+                case 'social_media': {
+                    // Z-pattern: TL → TR → BL → BR diagonal
+                    const zTop = Math.max(0.4, 1.0 - ny * 0.6); // top preference
+                    // Diagonal boost: TL-to-BR
+                    const diagDist = Math.abs(nx - ny);
+                    const diagBoost = 1.0 + (1.0 - diagDist) * 0.3;
+                    // Corner anchors
+                    const tlDist = Math.sqrt(nx * nx + ny * ny);
+                    const trDist = Math.sqrt((1 - nx) ** 2 + ny * ny);
+                    const cornerBoost = Math.exp(-tlDist * 3) * 0.2 + Math.exp(-trDist * 3) * 0.15;
+                    weight = zTop * diagBoost + cornerBoost;
+                    break;
+                }
+            }
+
+            const idx = row * w + col;
+            result[idx] = map[idx] * Math.max(0.2, weight); // floor 0.2 — never fully suppress
+        }
+    }
+
+    return result;
+};
+
+/**
+ * Percentile-based normalization — prevents over-saturation.
+ * Instead of min-max (where one hot pixel → everything else dark),
+ * clips at the given percentile so the distribution is more readable.
+ */
+export const normalizePercentile = (
+    map: Float32Array,
+    percentile = 95,
+): Float32Array => {
+    // Find the percentile value
+    const sorted = Float32Array.from(map).sort();
+    const pIdx = Math.min(Math.floor(sorted.length * percentile / 100), sorted.length - 1);
+    const pValue = sorted[pIdx];
+    const minValue = sorted[Math.floor(sorted.length * 0.02)]; // 2nd percentile as floor
+
+    const range = pValue - minValue;
+    if (range <= 0) return map;
+
+    const result = new Float32Array(map.length);
+    for (let i = 0; i < map.length; i++) {
+        result[i] = Math.max(0, Math.min(1, (map[i] - minValue) / range));
+    }
+    return result;
+};
+
+/**
  * Un-flips a horizontally flipped saliency map back to original orientation.
  */
 const unflipHorizontal = (map: Float32Array, w: number, h: number): Float32Array => {

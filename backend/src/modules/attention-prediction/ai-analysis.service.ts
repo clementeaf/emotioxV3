@@ -8,7 +8,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { applyFocalEqualization, applyStochasticJitter } from './attention-prediction.service';
+import { applyFocalEqualization, applyStochasticJitter, applyScanPattern, normalizePercentile } from './attention-prediction.service';
 import OpenAI from 'openai';
 import sharp from 'sharp';
 import fs from 'fs';
@@ -519,23 +519,16 @@ export const generateHybridSaliency = async (
     // Step 4: Focal equalization — counteract center bias using semantic map as guide
     const equalized = applyFocalEqualization(fused, semanticMap, mapWidth, mapHeight);
 
-    // Normalize result to [0, 1]
-    let min = Infinity, max = -Infinity;
-    for (let i = 0; i < equalized.length; i++) {
-        if (equalized[i] < min) min = equalized[i];
-        if (equalized[i] > max) max = equalized[i];
-    }
-    const range = max - min;
-    if (range > 0) {
-        for (let i = 0; i < equalized.length; i++) {
-            equalized[i] = (equalized[i] - min) / range;
-        }
-    }
+    // Step 5: Context-aware scan pattern — applies reading/scanning behavior
+    const scanned = applyScanPattern(equalized, mapWidth, mapHeight, profile?.context);
 
-    // Step 5: Stochastic jitter — break mechanical symmetry for realistic appearance
-    const jittered = applyStochasticJitter(equalized, mapWidth, mapHeight, 0.12);
+    // Step 6: Percentile normalization — prevents over-saturation (single hot blob)
+    const normalized = normalizePercentile(scanned, 95);
 
-    console.log(`[Hybrid Saliency] Fusion + focal equalization + jitter complete (α=${alpha}, β=${beta}, profile=${profile?.context || 'none'})`);
+    // Step 7: Stochastic jitter — break mechanical symmetry for realistic appearance
+    const jittered = applyStochasticJitter(normalized, mapWidth, mapHeight, 0.12);
+
+    console.log(`[Hybrid Saliency] Pipeline complete: fusion → equalization → scan(${profile?.context || 'none'}) → percentile norm → jitter (α=${alpha}, β=${beta})`);
     return jittered;
 };
 
