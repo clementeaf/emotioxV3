@@ -58,7 +58,7 @@ interface HeatmapSettings {
 
 const DEFAULT_SETTINGS: HeatmapSettings = {
     blur: 15,
-    opacity: 72,
+    opacity: 50,
     threshold: 40,
     preset: 'Balanced',
 };
@@ -124,9 +124,9 @@ const DETAIL_PRESETS = ['Smooth', 'Balanced', 'Detailed'];
 
 /** Each preset adjusts blur, threshold, and opacity for a different detail level. */
 const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
-    'Smooth':   { blur: 20, threshold: 50, opacity: 60 },
-    'Balanced': { blur: 12, threshold: 35, opacity: 72 },
-    'Detailed': { blur: 6,  threshold: 25, opacity: 85 },
+    'Smooth':   { blur: 20, threshold: 50, opacity: 40 },
+    'Balanced': { blur: 12, threshold: 35, opacity: 50 },
+    'Detailed': { blur: 6,  threshold: 25, opacity: 65 },
 };
 
 /* ─── Settings Modal ─── */

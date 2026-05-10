@@ -1,3 +1,13 @@
+## v0.70.2 — Attention Prediction heatmap transparency fix (2026-05-10)
+
+### research-frontend
+- **Fix: heatmap too opaque.** Dark overlay reduced from 45-72% to max 40% (scaled). Heatmap canvas drawn with `globalAlpha` (50-100%) so the image always shows through clearly.
+- **Fix: white flash on heatmap peaks.** Gradient endpoint changed from `#fff` to `#f00` — max intensity is solid red, no white artifacts.
+- **Fix: canvas readback warning.** Added `willReadFrequently: true` to both canvas contexts in `HeatmapRenderer`.
+- **Presets adjusted.** Smooth: 40%, Balanced: 50%, Detailed: 65% (was 60/72/85%).
+
+---
+
 ## v0.70.1 — Website Tracking: PDF report with AI analysis, tooltip fixes (2026-05-10)
 
 ### research-frontend

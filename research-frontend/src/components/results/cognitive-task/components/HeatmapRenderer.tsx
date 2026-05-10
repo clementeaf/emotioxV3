@@ -58,7 +58,7 @@ export const HeatmapRenderer = ({
         if (!imageLoaded || !canvasRef.current || !imgRef.current) return;
 
         const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) return;
 
         const img = imgRef.current;
@@ -70,8 +70,8 @@ export const HeatmapRenderer = ({
         // 1. Draw background image
         ctx.drawImage(img, 0, 0);
 
-        // 2. Dark overlay
-        const overlayOpacity = opacityProp != null ? opacityProp / 100 : 0.45;
+        // 2. Light dark overlay — just enough contrast for heatmap visibility
+        const overlayOpacity = opacityProp != null ? (opacityProp / 100) * 0.4 : 0.18;
         ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
         ctx.fillRect(0, 0, w, h);
 
@@ -83,7 +83,7 @@ export const HeatmapRenderer = ({
                 heatCanvasRef.current.height = h;
             }
             const heatCanvas = heatCanvasRef.current;
-            const heatCtx = heatCanvas.getContext('2d');
+            const heatCtx = heatCanvas.getContext('2d', { willReadFrequently: true });
             if (heatCtx) heatCtx.clearRect(0, 0, w, h);
 
             const heat = simpleheat(heatCanvas);
@@ -101,7 +101,7 @@ export const HeatmapRenderer = ({
                 0.5: '#ff0',
                 0.7: '#f80',
                 0.85: '#f00',
-                1.0: '#fff',
+                1.0: '#f00',
             });
 
             // Convert all points to pixel coords first
@@ -161,7 +161,11 @@ export const HeatmapRenderer = ({
             const minOpacity = isDenseSaliency ? 0.03 : (thresholdProp != null ? thresholdProp / 100 : 0.05);
             heat.draw(minOpacity);
 
+            // Draw heatmap with controlled transparency so image shows through
+            const heatAlpha = opacityProp != null ? 0.5 + (opacityProp / 100) * 0.5 : 0.7;
+            ctx.globalAlpha = heatAlpha;
             ctx.drawImage(heatCanvas, 0, 0);
+            ctx.globalAlpha = 1;
         }
 
     }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp, coordSystem]);
