@@ -68,3 +68,8 @@ infrastructure/terraform.tfstate.backup
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+
+# Research papers and large binaries
+docs/*.pdf
+backend/models/*.data
+backend/tsconfig.tsbuildinfo
