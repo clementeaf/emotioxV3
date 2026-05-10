@@ -4,20 +4,19 @@
  * Overview metrics + export + page selector.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-    MousePointerClick, Users, Globe, Activity, Clock, ExternalLink,
-    Download, ArrowDownUp, PlayCircle, TrendingDown, Eye,
+    MousePointerClick, Users, Activity,
+    Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
 import { configService } from '../../../services/api/config.service';
 import { useAuthStore } from '../../../stores/auth.store';
-import type { TrackingSession } from '../../../services/tracking.service';
-import { StatCard } from '../../ui/StatCard';
 import { EmptyState } from '../../ui/EmptyState';
-import { ScrollDepthChart } from './ScrollDepthChart';
-import { PageSnapshotHeatmap } from './PageSnapshotHeatmap';
+import { CustomSelect } from '../../ui/CustomSelect';
+import { MultiLayerHeatmap } from './MultiLayerHeatmap';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
 import { FunnelChart } from './FunnelChart';
 import { resolveMediaUrl } from '../../../services/media.service';
@@ -29,7 +28,8 @@ const formatDateTime = (iso: string): string => {
 };
 
 type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live';
-type HeatmapSubTab = 'click' | 'scroll' | 'attention';
+type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
+type FunnelSubTab = 'custom-funnels' | 'page-visits' | 'transitions';
 
 interface WebsiteTrackingResultsProps {
     researchId: string;
@@ -37,7 +37,10 @@ interface WebsiteTrackingResultsProps {
 
 export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsProps) => {
     const [activeTab, setActiveTab] = useState<ResultTab>('funnels');
-    const [heatmapSubTab, setHeatmapSubTab] = useState<HeatmapSubTab>('click');
+    const [heatmapLayers, setHeatmapLayers] = useState<Record<HeatmapSubTab, boolean>>({ click: true, scroll: true, attention: true, density: false });
+    const [heatmapIntensity, setHeatmapIntensity] = useState(50);
+    const [heatmapOpacity, setHeatmapOpacity] = useState(45);
+    const [funnelSubTab, setFunnelSubTab] = useState<FunnelSubTab>('custom-funnels');
     const [selectedPageUrl, setSelectedPageUrl] = useState<string | undefined>();
     const [deviceFilter, setDeviceFilter] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
     const [dateFrom, setDateFrom] = useState('');
@@ -82,21 +85,6 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         staleTime: 10_000,
     });
 
-    // Fetch sessions (for replay tab)
-    const { data: sessions, isLoading: loadingSessions } = useQuery({
-        queryKey: ['tracking', researchId, 'sessions-list'],
-        queryFn: () => trackingService.getSessions(researchId, 50, 0),
-        staleTime: 10_000,
-        enabled: activeTab === 'sessions',
-    });
-
-    // Friction tags per session
-    const { data: frictionData } = useQuery({
-        queryKey: ['tracking', researchId, 'friction-sessions'],
-        queryFn: () => trackingService.getSessionFrictionTags(researchId),
-        staleTime: 10_000,
-        enabled: activeTab === 'sessions',
-    });
 
     // Auto-select first page
     useEffect(() => {
@@ -119,11 +107,6 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         return key ? resolveMediaUrl(`/api/media/${key}`) : null;
     }, [selectedPage, deviceFilter]);
 
-    // Navigate to heatmap for a specific page (used by funnel "Ver página" and screenshot grid)
-    const navigateToPageHeatmap = useCallback((pageUrl: string) => {
-        setSelectedPageUrl(pageUrl);
-        setActiveTab('heatmaps');
-    }, []);
 
     const isLoading = loadingOverview || loadingPages;
 
@@ -151,249 +134,194 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         );
     }
 
-    const tabs: Array<{ id: ResultTab; label: string; icon: React.ReactNode }> = [
-        { id: 'funnels', label: 'Funnels', icon: <TrendingDown className="h-4 w-4" /> },
-        { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" /> },
-        { id: 'sessions', label: 'Sessions', icon: <Users className="h-4 w-4" /> },
-        { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" /> },
+    const tabs: Array<{ id: ResultTab; label: string; icon: React.ReactNode; tooltip: string }> = [
+        { id: 'funnels', label: 'Funnels', icon: <TrendingDown className="h-4 w-4" />, tooltip: 'Conversion funnels and page flow analysis' },
+        { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" />, tooltip: 'Click, scroll, and attention overlays on your pages' },
+        { id: 'sessions', label: 'Sessions', icon: <Users className="h-4 w-4" />, tooltip: 'Visitor journeys with session replay' },
+        { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" />, tooltip: 'Currently active visitors on your site' },
     ];
 
     return (
-        <div className="space-y-6">
-            {/* Date range + Overview Cards */}
-            <div className="flex items-center gap-3 mb-1">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase">Period</span>
-                <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="px-2 py-1 text-[11px] border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-                <span className="text-[10px] text-gray-400">to</span>
-                <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="px-2 py-1 text-[11px] border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 outline-none"
-                />
-                {(dateFrom || dateTo) && (
-                    <button
-                        onClick={() => { setDateFrom(''); setDateTo(''); }}
-                        className="text-[10px] text-blue-600 hover:text-blue-800"
-                    >
-                        Clear
-                    </button>
-                )}
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                <StatCard icon={<Users className="h-5 w-5" />} label="Unique Visitors" value={overview.uniqueVisitors} />
-                <StatCard icon={<Activity className="h-5 w-5" />} label="Total Sessions" value={overview.totalSessions} />
-                <StatCard icon={<Globe className="h-5 w-5" />} label="Pages Tracked" value={overview.pagesTracked} />
-                <StatCard icon={<MousePointerClick className="h-5 w-5" />} label="Total Events" value={overview.totalEvents.toLocaleString()} />
-                <StatCard icon={<Clock className="h-5 w-5" />} label="Avg. Duration" value={formatDuration(overview.avgSessionDuration)} />
-            </div>
-
-            {/* Tabs + Export */}
-            <div className="border-b border-gray-200 flex items-center justify-between">
+        <div className="space-y-4">
+            {/* Toolbar: Tabs + inline stats + date + export */}
+            <div className="flex items-center gap-2 border-b border-gray-200 pb-px">
+                {/* Tabs */}
                 <nav className="flex gap-1">
                     {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 transition-colors ${
-                                activeTab === tab.id
-                                    ? 'border-blue-600 text-blue-600 font-medium'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            {tab.icon}
-                            {tab.label}
-                        </button>
+                        <Tip key={tab.id} tip={tab.tooltip}>
+                            <button
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors ${
+                                    activeTab === tab.id
+                                        ? 'border-blue-600 text-blue-600 font-medium'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                {tab.icon}
+                                {tab.label}
+                            </button>
+                        </Tip>
                     ))}
                 </nav>
-                <button
-                    onClick={handleExport}
-                    disabled={exporting}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors mb-1"
-                >
-                    <Download className="h-4 w-4" />
-                    {exporting ? 'Exporting...' : 'Export CSV'}
-                </button>
+
+                <div className="h-4 w-px bg-gray-200 mx-1" />
+
+                {/* Inline stats */}
+                <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                    <span><strong className="text-slate-800">{overview.uniqueVisitors}</strong> visitors</span>
+                    <span><strong className="text-slate-800">{overview.totalSessions}</strong> sessions</span>
+                    <span><strong className="text-slate-800">{overview.pagesTracked}</strong> pages</span>
+                    <span><strong className="text-slate-800">{formatDuration(overview.avgSessionDuration)}</strong> avg</span>
+                </div>
+
+                {/* Right side: date filter + export */}
+                <div className="ml-auto flex items-center gap-2">
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="px-2 py-1 text-[11px] border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                    <span className="text-[10px] text-gray-400">—</span>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="px-2 py-1 text-[11px] border border-gray-200 rounded-md focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                    {(dateFrom || dateTo) && (
+                        <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-[10px] text-blue-600 hover:text-blue-800">
+                            Clear
+                        </button>
+                    )}
+                    <button
+                        onClick={handleExport}
+                        disabled={exporting}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        {exporting ? '...' : 'CSV'}
+                    </button>
+                </div>
             </div>
 
             {/* Tab Content */}
             {activeTab === 'heatmaps' && (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                    {/* Page metrics table */}
-                    <div className="border-b border-gray-200">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase">
-                                    <th className="text-left px-4 py-2 font-medium">Page</th>
-                                    <th className="text-right px-2 py-2 font-medium">Last Visit</th>
-                                    <th className="text-right px-2 py-2 font-medium">Views</th>
-                                    <th className="text-right px-2 py-2 font-medium">Clicks</th>
-                                    <th className="text-right px-2 py-2 font-medium">Snapshot</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pages?.map((page) => (
-                                    <tr
-                                        key={page.id}
-                                        onClick={() => setSelectedPageUrl(page.pageUrl)}
-                                        className={`cursor-pointer border-b border-gray-50 transition-colors ${
-                                            selectedPageUrl === page.pageUrl
-                                                ? 'bg-blue-50'
-                                                : 'hover:bg-gray-50'
+                <div className="space-y-3">
+                    {/* Toolbar: page selector + layer toggles + controls */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <div className="w-72">
+                            <CustomSelect
+                                label="Page"
+                                labelPosition="inline"
+                                value={selectedPageUrl || ''}
+                                onChange={(val) => setSelectedPageUrl(val)}
+                                options={(pages || []).map((page) => ({
+                                    value: page.pageUrl,
+                                    label: `${page.pageTitle || shortenUrl(page.pageUrl)} — ${page.sessionCount} views`,
+                                }))}
+                                placeholder="Select a page"
+                            />
+                        </div>
+
+                        {/* Layer toggles */}
+                        <div className="flex items-center gap-1">
+                            {([
+                                { id: 'click' as const, label: 'Click', icon: <MousePointerClick className="h-3.5 w-3.5" />, color: 'red', tip: 'Where users click on the page' },
+                                { id: 'scroll' as const, label: 'Scroll', icon: <ArrowDownUp className="h-3.5 w-3.5" />, color: 'green', tip: 'How far down users scroll' },
+                                { id: 'attention' as const, label: 'Attention', icon: <Eye className="h-3.5 w-3.5" />, color: 'blue', tip: 'Time spent viewing each zone' },
+                                { id: 'density' as const, label: 'Density', icon: <Grid3X3 className="h-3.5 w-3.5" />, color: 'purple', tip: 'Click concentration areas' },
+                            ]).map((layer) => (
+                                <Tip key={layer.id} tip={layer.tip}>
+                                    <button
+                                        onClick={() => setHeatmapLayers(prev => ({ ...prev, [layer.id]: !prev[layer.id] }))}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                            heatmapLayers[layer.id]
+                                                ? layer.color === 'red'
+                                                    ? 'bg-red-50 border-red-200 text-red-700'
+                                                    : layer.color === 'green'
+                                                        ? 'bg-green-50 border-green-200 text-green-700'
+                                                        : layer.color === 'purple'
+                                                            ? 'bg-purple-50 border-purple-200 text-purple-700'
+                                                            : 'bg-blue-50 border-blue-200 text-blue-700'
+                                                : 'bg-white border-gray-200 text-gray-400'
                                         }`}
                                     >
-                                        <td className="px-4 py-2">
-                                            <span className={`truncate block max-w-[300px] ${selectedPageUrl === page.pageUrl ? 'text-blue-700 font-medium' : 'text-slate-700'}`}>
-                                                {page.pageTitle || shortenUrl(page.pageUrl)}
-                                            </span>
-                                        </td>
-                                        <td className="text-right px-2 py-2 text-gray-400 text-[10px] whitespace-nowrap">
-                                            {page.lastVisitedAt ? formatDateTime(page.lastVisitedAt) : '—'}
-                                        </td>
-                                        <td className="text-right px-2 py-2 text-gray-600">{page.sessionCount}</td>
-                                        <td className="text-right px-2 py-2 text-gray-600">{page.eventCount}</td>
-                                        <td className="text-right px-2 py-2">
-                                            {page.hasSnapshot ? (
-                                                <span className="text-green-500 text-[10px]">&#x25CF;</span>
-                                            ) : (
-                                                <span className="text-gray-300 text-[10px]">&#x25CB;</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                        {layer.icon}
+                                        {layer.label}
+                                    </button>
+                                </Tip>
+                            ))}
+                        </div>
 
-                    {/* Heatmap sub-tabs: Click / Scroll / Attention */}
-                    <div className="border-b border-gray-200 px-4 py-2 flex items-center gap-1">
-                        {([
-                            { id: 'click' as const, label: 'Click', icon: <MousePointerClick className="h-3.5 w-3.5" /> },
-                            { id: 'scroll' as const, label: 'Scroll', icon: <ArrowDownUp className="h-3.5 w-3.5" /> },
-                            { id: 'attention' as const, label: 'Attention', icon: <Eye className="h-3.5 w-3.5" /> },
-                        ]).map((sub) => (
-                            <button
-                                key={sub.id}
-                                onClick={() => setHeatmapSubTab(sub.id)}
-                                className={`flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg transition-colors ${
-                                    heatmapSubTab === sub.id
-                                        ? 'bg-slate-900 text-white font-medium'
-                                        : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                            >
-                                {sub.icon}
-                                {sub.label}
-                            </button>
-                        ))}
+                        {/* Intensity & Opacity */}
+                        <Tip tip="Heatmap point radius — higher values spread heat wider">
+                            <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-default">
+                                Intensity
+                                <input type="range" min={10} max={100} value={heatmapIntensity} onChange={(e) => setHeatmapIntensity(Number(e.target.value))} className="w-16 h-1 accent-blue-600" />
+                            </label>
+                        </Tip>
+                        <Tip tip="Dark overlay transparency behind the heatmap">
+                            <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-default">
+                                Opacity
+                                <input type="range" min={0} max={80} value={heatmapOpacity} onChange={(e) => setHeatmapOpacity(Number(e.target.value))} className="w-16 h-1 accent-blue-600" />
+                            </label>
+                        </Tip>
 
-                        <div className="flex-1" />
-
-                        {/* Device filter — only show devices that have screenshot data */}
-                        <div className="flex gap-1">
+                        {/* Device filter */}
+                        <div className="flex gap-1 ml-auto">
                             {(['desktop', 'tablet', 'mobile'] as const).map((d) => {
                                 const hasData = !!selectedPage?.screenshotDevices?.[d];
+                                const tipText = hasData
+                                    ? `View ${d} heatmap`
+                                    : `No ${d} screenshot captured yet`;
                                 return (
-                                    <button
-                                        key={d}
-                                        onClick={() => hasData && setDeviceFilter(d)}
-                                        disabled={!hasData}
-                                        className={`px-2 py-1 text-xs rounded transition-colors ${
-                                            deviceFilter === d
-                                                ? 'bg-blue-100 text-blue-700 font-medium'
-                                                : hasData
-                                                    ? 'text-slate-500 hover:bg-slate-100'
-                                                    : 'text-slate-300 cursor-not-allowed'
-                                        }`}
-                                        title={!hasData ? `No ${d} data captured yet` : undefined}
-                                    >
-                                        {d.charAt(0).toUpperCase() + d.slice(1)}
-                                    </button>
+                                    <Tip key={d} tip={tipText}>
+                                        <button
+                                            onClick={() => hasData && setDeviceFilter(d)}
+                                            disabled={!hasData}
+                                            className={`px-2 py-1 text-[10px] rounded transition-colors ${
+                                                deviceFilter === d
+                                                    ? 'bg-blue-100 text-blue-700 font-medium'
+                                                    : hasData
+                                                        ? 'text-slate-500 hover:bg-slate-100'
+                                                        : 'text-slate-300 cursor-not-allowed'
+                                            }`}
+                                        >
+                                            {d.charAt(0).toUpperCase() + d.slice(1)}
+                                        </button>
+                                    </Tip>
                                 );
                             })}
                         </div>
-
-                        {selectedPage && (
-                            <a href={selectedPage.pageUrl} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 ml-2">
-                                Visit page <ExternalLink className="h-3 w-3" />
-                            </a>
-                        )}
                     </div>
 
-                    {/* Heatmap content */}
-                    <div className="p-4">
-                        {heatmapSubTab === 'click' && selectedPageUrl && (
-                            <PageSnapshotHeatmap
-                                researchId={researchId}
-                                pageUrl={selectedPageUrl}
-                                heatmapType="click"
-                                device={deviceFilter}
-                                screenshotUrl={selectedScreenshotUrl}
-                            />
-                        )}
-                        {heatmapSubTab === 'click' && !selectedPageUrl && (
-                            <div className="flex flex-col items-center justify-center py-16 text-center">
-                                <MousePointerClick className="h-8 w-8 text-gray-300 mb-3" />
-                                <p className="text-sm text-gray-500">Select a page above to view the click heatmap.</p>
+                    {/* Heatmap inline */}
+                    {selectedPageUrl ? (
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 220px)' }}>
+                            <div className="h-full overflow-auto p-4">
+                                <MultiLayerHeatmap
+                                    researchId={researchId}
+                                    pageUrl={selectedPageUrl}
+                                    device={deviceFilter}
+                                    screenshotUrl={selectedScreenshotUrl}
+                                    layers={heatmapLayers}
+                                    intensity={heatmapIntensity}
+                                    opacity={heatmapOpacity}
+                                />
                             </div>
-                        )}
-
-                        {heatmapSubTab === 'scroll' && selectedPageUrl && (
-                            <PageSnapshotHeatmap
-                                researchId={researchId}
-                                pageUrl={selectedPageUrl}
-                                heatmapType="scroll"
-                                screenshotUrl={selectedScreenshotUrl}
-                            />
-                        )}
-                        {heatmapSubTab === 'scroll' && !selectedPageUrl && (
-                            <ScrollDepthChart researchId={researchId} />
-                        )}
-
-                        {heatmapSubTab === 'attention' && selectedPageUrl && (
-                            <PageSnapshotHeatmap
-                                researchId={researchId}
-                                pageUrl={selectedPageUrl}
-                                heatmapType="attention"
-                                device={deviceFilter}
-                                screenshotUrl={selectedScreenshotUrl}
-                            />
-                        )}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl border border-gray-200 flex items-center justify-center" style={{ height: 'calc(100vh - 220px)' }}>
+                            <p className="text-sm text-gray-400">Select a page to view its heatmap</p>
+                        </div>
+                    )}
                 </div>
             )}
 
-            {activeTab === 'sessions' && (
-                <div className="space-y-4">
-                    {/* Visitor journeys (previously separate "Visitors" tab) */}
-                    <VisitorJourneysTab researchId={researchId} onReplay={setReplaySessionId} />
 
-                    {/* Grouped sessions with replay */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                        <h3 className="text-sm font-semibold text-slate-800 mb-4">
-                            All Sessions
-                            <span className="ml-2 text-xs font-normal text-gray-500">Grouped by visitor</span>
-                        </h3>
-                        {loadingSessions ? (
-                            <div className="space-y-3">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                    <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
-                                ))}
-                            </div>
-                        ) : (
-                            <GroupedSessionsList
-                                sessions={sessions || []}
-                                frictionTags={frictionData?.sessionTags}
-                                onReplay={setReplaySessionId}
-                            />
-                        )}
-                    </div>
-                </div>
+            {activeTab === 'sessions' && (
+                <VisitorJourneysTab researchId={researchId} onReplay={setReplaySessionId} />
             )}
 
             {activeTab === 'live' && (
@@ -401,46 +329,32 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
             )}
 
             {activeTab === 'funnels' && (
-                <div className="space-y-6">
-                    <div className="bg-white rounded-xl border border-gray-200 p-5">
-                        <FunnelChart researchId={researchId} onNavigateToPage={navigateToPageHeatmap} />
+                <div className="space-y-4">
+                    {/* Funnel sub-tabs */}
+                    <div className="flex gap-1 border-b border-gray-200 pb-px">
+                        {([
+                            { id: 'custom-funnels' as const, label: 'Custom Funnels', tip: 'Define step-by-step conversion paths and measure drop-off' },
+                            { id: 'page-visits' as const, label: 'Page Visits', tip: 'Total visits per page ranked by traffic' },
+                            { id: 'transitions' as const, label: 'Transitions', tip: 'Most common page-to-page navigation paths' },
+                        ]).map((sub) => (
+                            <Tip key={sub.id} tip={sub.tip}>
+                                <button
+                                    onClick={() => setFunnelSubTab(sub.id)}
+                                    className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                                        funnelSubTab === sub.id
+                                            ? 'border-blue-600 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {sub.label}
+                                </button>
+                            </Tip>
+                        ))}
                     </div>
 
-                    {/* Page screenshots grid */}
-                    {pages && pages.length > 0 && (
-                        <div className="bg-white rounded-xl border border-gray-200 p-5">
-                            <h3 className="text-sm font-semibold text-slate-800 mb-1">Tracked Pages</h3>
-                            <p className="text-xs text-gray-400 mb-4">Click a page to view its heatmap and metrics.</p>
-                            <div className="grid grid-cols-3 gap-4">
-                                {pages.map((page) => {
-                                    const key = page.screenshotDevices?.desktop || page.screenshotS3Key;
-                                    const imgUrl = key ? resolveMediaUrl(`/api/media/${key}`) : null;
-                                    return (
-                                        <button
-                                            key={page.id}
-                                            onClick={() => navigateToPageHeatmap(page.pageUrl)}
-                                            className="group text-left border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 hover:shadow-md transition-all"
-                                        >
-                                            <div className="aspect-video bg-gray-100 overflow-hidden">
-                                                {imgUrl ? (
-                                                    <img src={imgUrl} alt={page.pageTitle || ''} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-gray-300 text-3xl">🌐</div>
-                                                )}
-                                            </div>
-                                            <div className="p-2.5">
-                                                <p className="text-xs font-medium text-slate-700 truncate">{page.pageTitle || shortenUrl(page.pageUrl)}</p>
-                                                <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
-                                                    <span>{page.sessionCount} views</span>
-                                                    <span>{page.eventCount} events</span>
-                                                </div>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
+                    <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 280px)' }}>
+                        <FunnelChart researchId={researchId} view={funnelSubTab === 'custom-funnels' ? 'custom-funnels' : funnelSubTab === 'page-visits' ? 'page-visits' : 'transitions'} />
+                    </div>
                 </div>
             )}
 
@@ -458,13 +372,52 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
 // ─── Helper Components ───────────────────────────────────────────────
 
-// ─── Column Definitions ──────────────────────────────────────────────
+/** Portal-based tooltip that never clips. Wraps any children. */
+const Tip = ({ tip, children }: { tip: string; children: React.ReactNode }) => {
+    const ref = useRef<HTMLDivElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
+    const [hover, setHover] = useState(false);
+    const [style, setStyle] = useState<React.CSSProperties>({});
 
-const FRICTION_COLORS: Record<string, string> = {
-    'dead-click': 'bg-amber-100 text-amber-700',
-    'rage-click': 'bg-red-100 text-red-700',
-    'speed-browsing': 'bg-blue-100 text-blue-700',
-    'mouse-out': 'bg-gray-200 text-gray-600',
+    useEffect(() => {
+        if (hover && ref.current) {
+            const rect = ref.current.getBoundingClientRect();
+            const top = rect.bottom + 8;
+            let left = rect.left + rect.width / 2;
+
+            // After initial render, measure tooltip and clamp
+            requestAnimationFrame(() => {
+                if (tooltipRef.current) {
+                    const tw = tooltipRef.current.offsetWidth;
+                    const vw = window.innerWidth;
+                    // Clamp: don't overflow left or right edge (8px margin)
+                    const minLeft = tw / 2 + 8;
+                    const maxLeft = vw - tw / 2 - 8;
+                    left = Math.max(minLeft, Math.min(maxLeft, left));
+                    setStyle({ top, left, transform: 'translateX(-50%)' });
+                }
+            });
+
+            setStyle({ top, left, transform: 'translateX(-50%)' });
+        }
+    }, [hover]);
+
+    return (
+        <div ref={ref} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} className="inline-flex">
+            {children}
+            {hover && createPortal(
+                <div
+                    ref={tooltipRef}
+                    className="fixed pointer-events-none z-[99999] px-2.5 py-1.5 bg-slate-800 text-white text-[11px] rounded-md whitespace-nowrap shadow-lg"
+                    style={style}
+                >
+                    {tip}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-800" />
+                </div>,
+                document.body
+            )}
+        </div>
+    );
 };
 
 // ─── Utilities ───────────────────────────────────────────────────────
@@ -758,106 +711,6 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
     );
 };
 
-// ─── Grouped Sessions List ──────────────────────────────────────────
-
-const GroupedSessionsList = ({
-    sessions,
-    frictionTags,
-    onReplay,
-}: {
-    sessions: TrackingSession[];
-    frictionTags?: Record<string, string[]>;
-    onReplay: (id: string) => void;
-}) => {
-    const [expandedVisitor, setExpandedVisitor] = useState<string | null>(null);
-
-    // Group sessions by visitorId
-    const grouped = useMemo(() => {
-        const map = new Map<string, TrackingSession[]>();
-        for (const s of sessions) {
-            const list = map.get(s.visitorId) || [];
-            list.push(s);
-            map.set(s.visitorId, list);
-        }
-        return [...map.entries()].map(([visitorId, items]) => ({
-            visitorId,
-            sessions: items.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()),
-            totalEvents: items.reduce((sum, s) => sum + s.eventCount, 0),
-            lastSeen: items[0].startedAt,
-            viewportWidth: items[0].viewportWidth,
-        }));
-    }, [sessions]);
-
-    if (sessions.length === 0) {
-        return <p className="text-sm text-gray-500 text-center py-8">No sessions recorded yet.</p>;
-    }
-
-    return (
-        <div className="space-y-2">
-            {grouped.map((group) => {
-                const expanded = expandedVisitor === group.visitorId;
-                return (
-                    <div key={group.visitorId} className="border border-gray-100 rounded-lg overflow-hidden">
-                        <button
-                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                            onClick={() => setExpandedVisitor(expanded ? null : group.visitorId)}
-                        >
-                            <span className="text-lg">{getDeviceIcon(group.viewportWidth)}</span>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-xs font-mono text-slate-700">{group.visitorId.slice(0, 14)}...</p>
-                            </div>
-                            <div className="flex items-center gap-4 text-xs text-gray-400">
-                                <span>{group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''}</span>
-                                <span>{group.totalEvents} events</span>
-                                <span>{formatDateTime(group.lastSeen)}</span>
-                            </div>
-                            <span className="text-gray-400 text-xs">{expanded ? '▲' : '▼'}</span>
-                        </button>
-
-                        {expanded && (
-                            <div className="border-t border-gray-100 bg-gray-50">
-                                <div className="px-4 py-2 grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider">
-                                    <span>Page</span><span>Events</span><span>Friction</span><span>Duration</span><span>Date</span><span />
-                                </div>
-                                {group.sessions.map((s) => {
-                                    const tags = frictionTags?.[s.id] || [];
-                                    const dur = s.endedAt
-                                        ? Math.round((new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime()) / 1000)
-                                        : 0;
-                                    return (
-                                        <div
-                                            key={s.id}
-                                            className="px-4 py-2 grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-4 items-center border-t border-gray-100 text-xs"
-                                        >
-                                            <span className="text-slate-700 truncate">{shortenUrl(s.pageUrl)}</span>
-                                            <span className="text-gray-500 text-right w-10">{s.eventCount}</span>
-                                            <div className="flex flex-wrap gap-1 w-32">
-                                                {tags.map((tag) => (
-                                                    <span key={tag} className={`px-1.5 py-0.5 text-[10px] rounded-full ${FRICTION_COLORS[tag] || 'bg-gray-100 text-gray-500'}`}>
-                                                        {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                            <span className="text-gray-500 w-14 text-right">{dur > 0 ? formatDuration(dur) : '-'}</span>
-                                            <span className="text-gray-400 w-28 text-right">{formatDateTime(s.startedAt)}</span>
-                                            <button
-                                                onClick={() => onReplay(s.id)}
-                                                className="p-1 rounded hover:bg-blue-50 text-blue-600"
-                                                title="Replay this session"
-                                            >
-                                                <PlayCircle className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                );
-            })}
-        </div>
-    );
-};
 
 const HTip = ({ label, tip, align = 'left' }: { label: string; tip: string; align?: 'left' | 'right' }) => (
     <span className="group/tip relative cursor-default">

@@ -1,3 +1,26 @@
+## v0.70.0 — Website Tracking: snippet rewrite, layout overhaul (2026-05-10)
+
+### backend — Tracking snippet v2
+- **Raw pixel coordinates.** Snippet now stores `pageX`/`pageY` as integers. Backend normalizes at query time (`x / viewport_width * 100`). Eliminates double-normalization bug that made all heatmaps render incorrectly.
+- **Event queue with retry.** Events buffer until session ID confirms, then flush. Session creation retries once on failure. No more lost events.
+- **Viewport heartbeat.** Emits scroll position every 1s for accurate attention heatmap (time-per-zone).
+- **Mousemove throttle 100ms.** Matches Hotjar (10 events/s instead of 20).
+- **Auth token via query param.** `proxy-page` endpoint accepts `?token=` for iframe authentication.
+- **Auth error handling.** Tracking routes return 401 (not 500) on invalid token.
+
+### research-frontend — Results layout
+- **Heatmap inline.** Removed modal — heatmap renders directly in the tab with full viewport height.
+- **Compact toolbar.** Stats collapsed to inline text. Tabs + stats + date + export in one row.
+- **Page selector.** CustomSelect dropdown replaces intermediate table. Select → see heatmap instantly.
+- **Sessions unified.** Removed redundant "All Sessions" table — only Visitor accordion with expandable journeys.
+- **Funnels simplified.** 3 sub-tabs (Custom Funnels, Page Visits, Transitions). Removed "Tracked Pages" grid.
+- **Portal tooltips.** All tabs, layer buttons, sliders, and device filters have portal-based tooltips (never clipped by overflow, viewport-clamped).
+
+### infrastructure
+- **Test page fixed.** `emotio.cx/test-tracking` updated with correct research ID. `allowedDomains` corrected from `"emotio.cx/test-tracking"` to `"emotio.cx"`.
+
+---
+
 ## v0.69.1 — Fix attention score gauge and profile-aware AI analysis (2026-05-04)
 
 ### research-frontend

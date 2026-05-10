@@ -26,7 +26,7 @@ interface CreateSessionInput {
 }
 
 interface TrackingEvent {
-    eventType: 'click' | 'scroll' | 'mousemove' | 'resize' | 'pageview' | 'mouseleave';
+    eventType: 'click' | 'scroll' | 'mousemove' | 'resize' | 'pageview';
     x?: number;
     y?: number;
     scrollY?: number;
@@ -34,6 +34,10 @@ interface TrackingEvent {
     targetSelector?: string;
     targetText?: string;
     timestampMs: number;
+    elementOffsetX?: number;
+    elementOffsetY?: number;
+    elementWidth?: number;
+    elementHeight?: number;
     metadata?: Record<string, unknown>;
 }
 
@@ -170,7 +174,7 @@ export const saveEvents = async (sessionId: string, events: TrackingEvent[]): Pr
     const capped = events.slice(0, 50);
 
     // Batch INSERT
-    const placeholders = capped.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+    const placeholders = capped.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const values = capped.flatMap((e) => [
         uuidv4(),
         sessionId,
@@ -183,11 +187,15 @@ export const saveEvents = async (sessionId: string, events: TrackingEvent[]): Pr
         e.targetText ?? null,
         e.timestampMs,
         e.metadata ? JSON.stringify(e.metadata) : null,
+        e.elementOffsetX ?? null,
+        e.elementOffsetY ?? null,
+        e.elementWidth ?? null,
+        e.elementHeight ?? null,
     ]);
 
     await pool.query(
         `INSERT INTO tracking_events
-         (id, session_id, event_type, x, y, scroll_y, scroll_depth_pct, target_selector, target_text, timestamp_ms, metadata)
+         (id, session_id, event_type, x, y, scroll_y, scroll_depth_pct, target_selector, target_text, timestamp_ms, metadata, element_offset_x, element_offset_y, element_width, element_height)
          VALUES ${placeholders}`,
         values
     );
@@ -279,20 +287,13 @@ export const getClickHeatmapData = async (
 ): Promise<{ clicks: Array<{ x: number; y: number; count: number }>; totalClicks: number; sessions: number }> => {
     const deviceFilter = getDeviceFilter(device);
 
-    // Coordinates may be stored as viewport-relative percentages (new snippet)
-    // or raw pixels (legacy data). Normalize: if value > 100, treat as pixels
-    // and convert using the session's viewport_width.
-    // Round to 1 decimal to cluster nearby clicks for a cleaner heatmap.
+    // Coordinates stored as raw pixels (pageX, pageY).
+    // Normalize to percentage-of-viewport-width at query time.
+    // Rendering: (x_pct/100)*renderWidth, (y_pct/100)*renderWidth
     let query = `
         SELECT
-            ROUND(
-                CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100
-                     ELSE te.x END
-            , 1) as x,
-            ROUND(
-                CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100
-                     ELSE te.y END
-            , 1) as y,
+            ROUND(te.x / ts.viewport_width * 100, 1) as x,
+            ROUND(te.y / ts.viewport_width * 100, 1) as y,
             COUNT(*) as count
         FROM tracking_events te
         JOIN tracking_sessions ts ON te.session_id = ts.id
@@ -311,14 +312,8 @@ export const getClickHeatmapData = async (
     query += deviceFilter.clause;
     params.push(...deviceFilter.params);
 
-    query += ` GROUP BY ROUND(
-                CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100
-                     ELSE te.x END
-            , 1),
-            ROUND(
-                CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100
-                     ELSE te.y END
-            , 1)
+    query += ` GROUP BY ROUND(te.x / ts.viewport_width * 100, 1),
+            ROUND(te.y / ts.viewport_width * 100, 1)
             ORDER BY count DESC`;
 
     const result = await pool.query(query, params);
@@ -355,6 +350,62 @@ export const getClickHeatmapData = async (
 };
 
 /**
+ * Element-based click data — returns clicks grouped by CSS selector with element-relative offsets.
+ * Used for precise heatmap rendering over live iframe (Hotjar-style).
+ */
+export const getElementClickData = async (
+    researchId: string,
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
+): Promise<{ clicks: Array<{ selector: string; offsetX: number; offsetY: number; elementWidth: number; elementHeight: number; count: number; x: number; y: number }> }> => {
+    const deviceFilter = getDeviceFilter(device);
+
+    let query = `
+        SELECT
+            te.target_selector as selector,
+            ROUND(te.element_offset_x, 1) as offsetX,
+            ROUND(te.element_offset_y, 1) as offsetY,
+            te.element_width as elementWidth,
+            te.element_height as elementHeight,
+            ROUND(te.x / ts.viewport_width * 100, 1) as x,
+            ROUND(te.y / ts.viewport_width * 100, 1) as y,
+            COUNT(*) as count
+        FROM tracking_events te
+        JOIN tracking_sessions ts ON te.session_id = ts.id
+        WHERE ts.research_id = ?
+          AND te.event_type = 'click'
+          AND te.x IS NOT NULL
+          AND te.y IS NOT NULL
+          AND ts.viewport_width > 0
+    `;
+    const params: unknown[] = [researchId];
+    if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }
+    query += deviceFilter.clause;
+    params.push(...deviceFilter.params);
+
+    query += ` GROUP BY te.target_selector, ROUND(te.element_offset_x, 1), ROUND(te.element_offset_y, 1),
+               te.element_width, te.element_height,
+               ROUND(te.x / ts.viewport_width * 100, 1),
+               ROUND(te.y / ts.viewport_width * 100, 1)
+               ORDER BY count DESC`;
+
+    const result = await pool.query(query, params);
+
+    return {
+        clicks: result.rows.map((row: Record<string, unknown>) => ({
+            selector: (row.selector as string) || '',
+            offsetX: Number(row.offsetX) || 0,
+            offsetY: Number(row.offsetY) || 0,
+            elementWidth: Number(row.elementWidth) || 0,
+            elementHeight: Number(row.elementHeight) || 0,
+            x: Number(row.x),
+            y: Number(row.y),
+            count: Number(row.count),
+        })),
+    };
+};
+
+/**
  * Mouse-based attention heatmap — mousemove positions as gaze proxy (Ischen 2022).
  * Groups by 2% grid cells for cleaner density map.
  */
@@ -367,14 +418,8 @@ export const getMouseAttentionData = async (
 
     let query = `
         SELECT
-            ROUND(
-                CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100
-                     ELSE te.x END
-            , 0) as x,
-            ROUND(
-                CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100
-                     ELSE te.y END
-            , 0) as y,
+            ROUND(te.x / ts.viewport_width * 100, 0) as x,
+            ROUND(te.y / ts.viewport_width * 100, 0) as y,
             COUNT(*) as dwell
         FROM tracking_events te
         JOIN tracking_sessions ts ON te.session_id = ts.id
@@ -387,8 +432,8 @@ export const getMouseAttentionData = async (
     if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }
     query += deviceFilter.clause;
     params.push(...deviceFilter.params);
-    query += ` GROUP BY ROUND(CASE WHEN te.x > 100 THEN te.x / ts.viewport_width * 100 ELSE te.x END, 0),
-                        ROUND(CASE WHEN te.y > 100 THEN te.y / ts.viewport_width * 100 ELSE te.y END, 0)
+    query += ` GROUP BY ROUND(te.x / ts.viewport_width * 100, 0),
+                        ROUND(te.y / ts.viewport_width * 100, 0)
                ORDER BY dwell DESC LIMIT 5000`;
 
     const result = await pool.query(query, params);
@@ -649,7 +694,7 @@ export const getAttentionHeatmapData = async (
 
     const flushInterval = (scrollY: number, vpH: number, vpW: number, duration: number) => {
         if (duration <= 0 || duration > 30000) return; // cap 30s per interval
-        // Convert scrollY (px) to percentage of viewport width (matching coordinate system)
+        // scrollY is raw pixels from the snippet. Convert to % of viewport width.
         const topPct = (scrollY / vpW) * 100;
         const bottomPct = ((scrollY + vpH) / vpW) * 100;
         // Distribute time across visible bands
@@ -966,6 +1011,7 @@ export const getSessionEvents = async (sessionId: string) => {
     );
 
     const s = session.rows[0] as Record<string, unknown>;
+    const vpW = Number(s.viewport_width) || 1;
 
     return {
         session: {
@@ -981,8 +1027,9 @@ export const getSessionEvents = async (sessionId: string) => {
         },
         events: events.rows.map((e: Record<string, unknown>) => ({
             eventType: e.event_type as string,
-            x: e.x as number | null,
-            y: e.y as number | null,
+            // Normalize raw pixel coordinates to % of viewport width
+            x: e.x != null ? Math.round(Number(e.x) / vpW * 10000) / 100 : null,
+            y: e.y != null ? Math.round(Number(e.y) / vpW * 10000) / 100 : null,
             scrollY: e.scroll_y as number | null,
             scrollDepthPct: e.scroll_depth_pct as number | null,
             targetSelector: e.target_selector as string | null,

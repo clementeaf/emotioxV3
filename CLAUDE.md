@@ -110,12 +110,12 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Benchmark research editor**: `ClientsBenchmarkView` has "Edit selection" panel — checkboxes for all ET researches. Saves to `config.stimuli[].researchId`. Live refresh.
 - **Benchmark CSV export**: "Export CSV" button on comparative table.
 - **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.
-- **Website Tracking coordinates**: Both X and Y stored as `coord/viewportWidth*100`. Rendering must multiply by **width**, not height: `(y/100)*w`.
-- **Website Tracking snippet**: `"use strict"` IIFE. All shared vars (`sid`, `vid`, `buf`, `pageStart`, etc.) must be declared at IIFE scope, not inside nested functions.
+- **Website Tracking coordinates (v0.70.0)**: Snippet stores **raw pixels** (`pageX`, `pageY`). Backend normalizes at query time: `x / viewport_width * 100`. Frontend renders: `(pct/100) * renderWidth`. Never normalize in the client snippet.
+- **Website Tracking snippet v2**: Event queue buffers until session confirms. Viewport heartbeat every 1s (scroll events). Mousemove throttle 100ms. Session retry on failure. No `mouseleave` event type — use `pageview` with `metadata.friction`.
+- **Website Tracking results layout (v0.70.0)**: Heatmap renders inline (no modal). `Tip` component (portal-based, viewport-clamped) for all tooltips. Sessions tab = Visitor accordion only (no "All Sessions" table).
 - **Configurable funnels**: `config.trackingConfig.funnels` — array of `{id, name, steps: [{url, label}]}`. `computeFunnelDropoff` checks sequential visitor reach. Endpoint: `GET /tracking/:id/funnels/:funnelId`.
 - **Session replay modal**: `SessionReplayPlayer` renders as fixed overlay, not inline. Uses DOM snapshot (iframe) for background, not screenshots.
 - **Status modal contextual**: `StatusModal` adapts descriptions per `researchTypeName` — Website Tracking, Attention Prediction, Insights Finding have specific texts.
-- **Legacy coordinate normalization**: Heatmap queries detect pixel values (>100) and normalize via `value / viewport_width * 100`. Handles both legacy (px) and new (%) data transparently.
 - **Live tab SSE**: `GET /tracking/:id/live/stream?token=xxx` — SSE endpoint in `server-cpanel.js` (Passenger entry point). Frontend uses `EventSource`, no polling. Route registered with both `/api/` and `/` prefixes for Passenger compatibility.
 - **Passenger dual entry points**: `server-cpanel.js` (JS, Passenger entry) and `src/server-cpanel.ts` (TS, compiled to `dist/`). New Express routes must be added to **both** files — Passenger executes the JS wrapper, not the compiled TS.
 - **Session replay unified timeline**: `SessionReplayPlayer` loads ALL sessions of the same visitor via `visitorId`, merges events into one sorted timeline. DOM snapshot changes dynamically per active page. Clicks rendered as simpleheat heatmap overlay (no cursor dot).

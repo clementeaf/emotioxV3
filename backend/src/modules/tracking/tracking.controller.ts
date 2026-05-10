@@ -12,6 +12,7 @@ import {
     saveEvents,
     getTrackingConfig,
     getClickHeatmapData,
+    getElementClickData,
     getMouseAttentionData,
     getScrollDepthData,
     getOverviewMetrics,
@@ -184,6 +185,10 @@ export const handlePublicTrackingRoutes = async (
                 targetSelector: typeof e.targetSelector === 'string' ? e.targetSelector : undefined,
                 targetText: typeof e.targetText === 'string' ? e.targetText : undefined,
                 timestampMs: typeof e.timestampMs === 'number' ? e.timestampMs : Date.now(),
+                elementOffsetX: typeof e.elementOffsetX === 'number' ? e.elementOffsetX : undefined,
+                elementOffsetY: typeof e.elementOffsetY === 'number' ? e.elementOffsetY : undefined,
+                elementWidth: typeof e.elementWidth === 'number' ? e.elementWidth : undefined,
+                elementHeight: typeof e.elementHeight === 'number' ? e.elementHeight : undefined,
                 metadata: typeof e.metadata === 'object' ? e.metadata as Record<string, unknown> : undefined,
             })));
 
@@ -243,6 +248,10 @@ export const handleTrackingRoutes = async (
     const origin = getRequestOrigin(event);
 
     try {
+        // Support token in query param (for iframe src where headers aren't available)
+        if (event.queryStringParameters?.token && !event.headers.Authorization && !event.headers.authorization) {
+            event.headers.Authorization = `Bearer ${event.queryStringParameters.token}`;
+        }
         await requireAuth(event);
 
         // GET /tracking/:researchId/config — get tracking config (authenticated)
@@ -280,6 +289,63 @@ export const handleTrackingRoutes = async (
             return success({ pages }, 200, undefined, origin);
         }
 
+        // GET /tracking/:researchId/proxy-page?url=URL — proxy page for same-origin iframe rendering
+        const proxyPageMatch = path.match(/^\/tracking\/([^/]+)\/proxy-page$/);
+        if (proxyPageMatch && httpMethod === 'GET') {
+            const pageUrl = event.queryStringParameters?.url
+                ? decodeURIComponent(event.queryStringParameters.url)
+                : null;
+            if (!pageUrl) return error('Missing url parameter', 400, undefined, origin);
+
+            try {
+                const response = await fetch(pageUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EmotioCX/1.0)' },
+                    redirect: 'follow',
+                });
+                let html = await response.text();
+
+                // Extract origin for <base> tag
+                const urlObj = new URL(pageUrl);
+                const baseHref = urlObj.origin + '/';
+
+                // Strip all <script> tags
+                html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+                html = html.replace(/<script\b[^>]*\/>/gi, '');
+
+                // Strip inline event handlers
+                html = html.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
+                html = html.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+
+                // Inject <base> tag so all relative URLs resolve to the original domain
+                if (html.includes('<head>')) {
+                    html = html.replace('<head>', `<head><base href="${baseHref}">`);
+                } else if (html.includes('<HEAD>')) {
+                    html = html.replace('<HEAD>', `<HEAD><base href="${baseHref}">`);
+                } else {
+                    html = `<base href="${baseHref}">` + html;
+                }
+
+                // Inject styles to disable interactions
+                const disableStyle = `<style>
+                    * { pointer-events: none !important; user-select: none !important; }
+                    body { overflow: visible !important; }
+                </style>`;
+                html = html.replace('</head>', disableStyle + '</head>');
+
+                return {
+                    statusCode: 200,
+                    headers: {
+                        'Content-Type': 'text/html; charset=utf-8',
+                        'Access-Control-Allow-Origin': origin || '*',
+                        'Cache-Control': 'public, max-age=300',
+                    },
+                    body: html,
+                };
+            } catch (e) {
+                return error('Failed to fetch page', 502, undefined, origin);
+            }
+        }
+
         // GET /tracking/:researchId/heatmap?page=URL — click heatmap data
         const heatmapMatch = path.match(/^\/tracking\/([^/]+)\/heatmap$/);
         if (heatmapMatch && httpMethod === 'GET') {
@@ -289,6 +355,16 @@ export const handleTrackingRoutes = async (
                 : undefined;
             const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
             const data = await getClickHeatmapData(researchId, pageUrl, device);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/element-clicks?page=URL — element-based click data for live iframe
+        const elementClicksMatch = path.match(/^\/tracking\/([^/]+)\/element-clicks$/);
+        if (elementClicksMatch && httpMethod === 'GET') {
+            const researchId = elementClicksMatch[1];
+            const pageUrl = event.queryStringParameters?.page ? decodeURIComponent(event.queryStringParameters.page) : undefined;
+            const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
+            const data = await getElementClickData(researchId, pageUrl, device);
             return success(data, 200, undefined, origin);
         }
 
@@ -447,6 +523,10 @@ export const handleTrackingRoutes = async (
         return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
+        const isAuthError = msg.includes('Unauthorized') || msg.includes('token') || msg.includes('jwt') || msg.includes('No token');
+        if (isAuthError) {
+            return error('Unauthorized', 401, undefined, origin);
+        }
         console.error('[Tracking] Error:', err);
         return error(msg, 500, undefined, origin);
     }
