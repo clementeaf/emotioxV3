@@ -17,6 +17,7 @@ import { useAuthStore } from '../../../stores/auth.store';
 import { EmptyState } from '../../ui/EmptyState';
 import { CustomSelect } from '../../ui/CustomSelect';
 import { MultiLayerHeatmap } from './MultiLayerHeatmap';
+import { WebTrackingReportButton } from './WebTrackingReportButton';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
 import { FunnelChart } from './FunnelChart';
 import { resolveMediaUrl } from '../../../services/media.service';
@@ -202,6 +203,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                         <Download className="h-3.5 w-3.5" />
                         {exporting ? '...' : 'CSV'}
                     </button>
+                    <WebTrackingReportButton researchId={researchId} />
                 </div>
             </div>
 

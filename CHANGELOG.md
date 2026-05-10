@@ -1,3 +1,18 @@
+## v0.70.1 — Website Tracking: PDF report with AI analysis, tooltip fixes (2026-05-10)
+
+### research-frontend
+- **PDF Report with section picker.** `WebTrackingReportButton` shows grouped checkboxes matching tab/subtab structure (Funnels, Heatmaps, Sessions, Live, AI Analysis). Only fetches data for selected sections.
+- **AI Analysis in PDF.** When enabled, calls `POST /tracking/:id/report` with selected sections. GPT-4o generates contextual analysis (usability score, findings, recommendations, issues) based only on provided data.
+- **Portal tooltips.** `Tip` component renders via `createPortal` with viewport clamping. Applied to all tabs, layer toggles, sliders, device buttons, and funnel sub-tabs.
+- **Heatmap inline.** Removed modal — heatmap renders directly in tab with full height. Page selector uses `CustomSelect`.
+- **Sessions simplified.** Removed "All Sessions" table, only Visitor accordion remains.
+
+### backend
+- **`POST /tracking/:id/report`** — contextual AI report generation. Prompt built dynamically from selected sections. Cached in `config.trackingReport`.
+- **`GET /tracking/:id/report`** — returns cached report.
+
+---
+
 ## v0.70.0 — Website Tracking: snippet rewrite, layout overhaul (2026-05-10)
 
 ### backend — Tracking snippet v2

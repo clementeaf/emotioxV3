@@ -1,0 +1,482 @@
+/**
+ * Website Tracking PDF Report
+ * Shows a section picker matching the tab/subtab structure, then generates
+ * a print-optimized HTML report. Uses window.print() — no extra dependencies.
+ */
+
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { FileText } from 'lucide-react';
+import * as trackingService from '../../../services/tracking.service';
+import { useResearch } from '../../../hooks/useResearchQuery';
+
+interface ReportSections {
+    funnels_custom: boolean;
+    funnels_pageVisits: boolean;
+    funnels_transitions: boolean;
+    heatmaps_click: boolean;
+    heatmaps_scroll: boolean;
+    heatmaps_attention: boolean;
+    heatmaps_density: boolean;
+    sessions: boolean;
+    live: boolean;
+    aiAnalysis: boolean;
+}
+
+const DEFAULT_SECTIONS: ReportSections = {
+    funnels_custom: true,
+    funnels_pageVisits: true,
+    funnels_transitions: true,
+    heatmaps_click: true,
+    heatmaps_scroll: true,
+    heatmaps_attention: true,
+    heatmaps_density: false,
+    sessions: true,
+    live: false,
+    aiAnalysis: true,
+};
+
+interface SectionGroup {
+    label: string;
+    items: Array<{ key: keyof ReportSections; label: string }>;
+}
+
+const SECTION_GROUPS: SectionGroup[] = [
+    {
+        label: 'Funnels',
+        items: [
+            { key: 'funnels_custom', label: 'Custom Funnels' },
+            { key: 'funnels_pageVisits', label: 'Page Visits' },
+            { key: 'funnels_transitions', label: 'Transitions' },
+        ],
+    },
+    {
+        label: 'Heatmaps',
+        items: [
+            { key: 'heatmaps_click', label: 'Click' },
+            { key: 'heatmaps_scroll', label: 'Scroll' },
+            { key: 'heatmaps_attention', label: 'Attention' },
+            { key: 'heatmaps_density', label: 'Density' },
+        ],
+    },
+    {
+        label: 'Sessions',
+        items: [
+            { key: 'sessions', label: 'Visitor journeys' },
+        ],
+    },
+    {
+        label: 'Live',
+        items: [
+            { key: 'live', label: 'Active visitors snapshot' },
+        ],
+    },
+    {
+        label: 'AI Analysis',
+        items: [
+            { key: 'aiAnalysis', label: 'Professional UX analysis (GPT-4o)' },
+        ],
+    },
+];
+
+export const WebTrackingReportButton = ({ researchId }: { researchId: string }) => {
+    const { data: research } = useResearch(researchId);
+    const [generating, setGenerating] = useState(false);
+    const [showPicker, setShowPicker] = useState(false);
+    const [sections, setSections] = useState<ReportSections>(DEFAULT_SECTIONS);
+    const pickerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!showPicker) return;
+        const handler = (e: MouseEvent) => {
+            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+                setShowPicker(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showPicker]);
+
+    const toggleSection = (key: keyof ReportSections) => {
+        setSections(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const toggleGroup = (group: SectionGroup) => {
+        const allChecked = group.items.every(item => sections[item.key]);
+        setSections(prev => {
+            const next = { ...prev };
+            for (const item of group.items) next[item.key] = !allChecked;
+            return next;
+        });
+    };
+
+    const selectedCount = Object.values(sections).filter(Boolean).length;
+
+    const handleGenerate = useCallback(async () => {
+        setGenerating(true);
+        setShowPicker(false);
+        try {
+            const needsFunnels = sections.funnels_custom || sections.funnels_pageVisits || sections.funnels_transitions;
+            const needsHeatmaps = sections.heatmaps_click || sections.heatmaps_scroll || sections.heatmaps_attention || sections.heatmaps_density;
+            const needsSessions = sections.sessions;
+            const needsLive = sections.live;
+            const needsAI = sections.aiAnalysis;
+
+            const [overview, pages, config, visitors, liveSessions, scrollDepth, friction, aiReport] = await Promise.all([
+                trackingService.getOverview(researchId),
+                trackingService.getTrackedPages(researchId),
+                needsFunnels ? trackingService.getTrackingConfig(researchId) : Promise.resolve(null),
+                needsSessions ? trackingService.getVisitorJourneys(researchId, 20, 0) : Promise.resolve(null),
+                needsLive ? trackingService.getLiveSessions(researchId) : Promise.resolve(null),
+                (needsHeatmaps && sections.heatmaps_scroll) ? trackingService.getScrollDepth(researchId) : Promise.resolve(null),
+                needsHeatmaps ? trackingService.getFrictionSummary(researchId) : Promise.resolve(null),
+                needsAI ? trackingService.generateTrackingReport(researchId, sections) : Promise.resolve(null),
+            ]);
+
+            openTrackingReport(research?.name || 'Website Tracking', {
+                sections,
+                overview,
+                pages,
+                funnels: config?.funnels || [],
+                visitors: visitors?.visitors || [],
+                liveSessions: liveSessions?.sessions || [],
+                scrollDepth: scrollDepth || { depths: [] },
+                friction: friction?.tags || {},
+                aiReport,
+            });
+        } catch (e) {
+            console.error('Failed to generate report:', e);
+        } finally {
+            setGenerating(false);
+        }
+    }, [researchId, research?.name, sections]);
+
+    return (
+        <div className="relative" ref={pickerRef}>
+            <button
+                onClick={() => setShowPicker(!showPicker)}
+                disabled={generating}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
+            >
+                <FileText className="h-3.5 w-3.5" />
+                {generating ? 'Generating...' : 'PDF Report'}
+            </button>
+
+            {showPicker && (
+                <div className="absolute top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3">
+                    <p className="text-xs font-semibold text-slate-700 mb-2">Include in report:</p>
+                    <div className="space-y-2">
+                        {SECTION_GROUPS.map((group) => {
+                            const allChecked = group.items.every(item => sections[item.key]);
+                            const someChecked = group.items.some(item => sections[item.key]);
+                            return (
+                                <div key={group.label}>
+                                    <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={allChecked}
+                                            ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                                            onChange={() => toggleGroup(group)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                                        />
+                                        <span className="text-xs font-medium text-slate-700">{group.label}</span>
+                                    </label>
+                                    {group.items.length > 1 && (
+                                        <div className="ml-6 space-y-0.5">
+                                            {group.items.map((item) => (
+                                                <label key={item.key} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1 transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={sections[item.key]}
+                                                        onChange={() => toggleSection(item.key)}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3 w-3"
+                                                    />
+                                                    <span className="text-[11px] text-slate-500">{item.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
+                        <span className="text-[10px] text-gray-400">{selectedCount} selected</span>
+                        <button
+                            onClick={handleGenerate}
+                            disabled={selectedCount === 0}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                            Generate
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Report HTML Generator ───────────────────────────────────────────
+
+interface ReportInput {
+    sections: ReportSections;
+    overview: trackingService.TrackingOverview;
+    pages: trackingService.TrackedPage[];
+    funnels: trackingService.FunnelDefinition[];
+    visitors: trackingService.VisitorJourney[];
+    liveSessions: trackingService.LiveVisitor[];
+    scrollDepth: { depths: Array<{ depthPct: number; percentage: number }> };
+    friction: Record<string, number>;
+    aiReport: trackingService.TrackingReport | null;
+}
+
+function openTrackingReport(researchName: string, data: ReportInput) {
+    const { sections, overview, pages, funnels, visitors, liveSessions, scrollDepth, friction, aiReport } = data;
+    const topPages = [...pages].sort((a, b) => b.sessionCount - a.sessionCount).slice(0, 10);
+    const frictionEntries = Object.entries(friction).sort((a, b) => b[1] - a[1]);
+    const totalFriction = frictionEntries.reduce((sum, [, v]) => sum + v, 0);
+
+    let body = '';
+
+    // Always show overview
+    body += `
+<h2>Overview</h2>
+<div class="metrics">
+  <div class="metric"><div class="metric-value">${overview.uniqueVisitors}</div><div class="metric-label">Unique Visitors</div></div>
+  <div class="metric"><div class="metric-value">${overview.totalSessions}</div><div class="metric-label">Sessions</div></div>
+  <div class="metric"><div class="metric-value">${overview.pagesTracked}</div><div class="metric-label">Pages Tracked</div></div>
+  <div class="metric"><div class="metric-value">${overview.totalEvents.toLocaleString()}</div><div class="metric-label">Total Events</div></div>
+  <div class="metric"><div class="metric-value">${formatDur(overview.avgSessionDuration)}</div><div class="metric-label">Avg. Duration</div></div>
+</div>`;
+
+    // Funnels
+    if (sections.funnels_custom && funnels.length > 0) {
+        body += `<h2>Custom Funnels</h2>`;
+        for (const funnel of funnels) {
+            body += `
+<h3>${funnel.name}</h3>
+<table>
+  <thead><tr><th>#</th><th>Step</th><th>URL</th></tr></thead>
+  <tbody>
+    ${funnel.steps.map((s, i) => `<tr><td>${i + 1}</td><td>${s.label || '—'}</td><td class="url">${shortenUrl(s.url)}</td></tr>`).join('')}
+  </tbody>
+</table>`;
+        }
+    }
+
+    if (sections.funnels_pageVisits && topPages.length > 0) {
+        body += `
+<h2>Page Visits</h2>
+<table>
+  <thead><tr><th>Page</th><th>Views</th><th>Events</th></tr></thead>
+  <tbody>
+    ${topPages.map(p => `<tr><td>${p.pageTitle || shortenUrl(p.pageUrl)}</td><td>${p.sessionCount}</td><td>${p.eventCount}</td></tr>`).join('')}
+  </tbody>
+</table>`;
+    }
+
+    if (sections.funnels_transitions && topPages.length > 1) {
+        body += `
+<h2>Top Page Transitions</h2>
+<p class="note">Pages ordered by traffic volume — sequential pairs indicate common navigation paths.</p>
+<table>
+  <thead><tr><th>From</th><th>To</th></tr></thead>
+  <tbody>
+    ${topPages.slice(0, -1).map((p, i) => `<tr><td>${p.pageTitle || shortenUrl(p.pageUrl)}</td><td>${topPages[i + 1].pageTitle || shortenUrl(topPages[i + 1].pageUrl)}</td></tr>`).join('')}
+  </tbody>
+</table>`;
+    }
+
+    // Heatmaps section
+    const heatmapSections: string[] = [];
+    if (sections.heatmaps_click) heatmapSections.push('Click heatmap — shows where users click on each page');
+    if (sections.heatmaps_scroll) heatmapSections.push('Scroll depth — how far users scroll');
+    if (sections.heatmaps_attention) heatmapSections.push('Attention — time spent viewing each zone');
+    if (sections.heatmaps_density) heatmapSections.push('Density — click concentration areas');
+
+    if (heatmapSections.length > 0) {
+        body += `<h2>Heatmaps</h2>
+<p class="note">Heatmap layers included in this analysis:</p>
+<ul>${heatmapSections.map(s => `<li>${s}</li>`).join('')}</ul>`;
+
+        if (sections.heatmaps_click) {
+            body += `
+<h3>Click Distribution — Top Pages</h3>
+<table>
+  <thead><tr><th>Page</th><th>Total Clicks</th><th>Sessions</th></tr></thead>
+  <tbody>
+    ${topPages.slice(0, 5).map(p => `<tr><td>${p.pageTitle || shortenUrl(p.pageUrl)}</td><td>${p.eventCount}</td><td>${p.sessionCount}</td></tr>`).join('')}
+  </tbody>
+</table>`;
+        }
+
+        if (sections.heatmaps_scroll && scrollDepth.depths.length > 0) {
+            body += `
+<h3>Scroll Depth</h3>
+<table>
+  <thead><tr><th>Depth</th><th>Reached</th><th></th></tr></thead>
+  <tbody>
+    ${scrollDepth.depths.map(d => `<tr>
+      <td>${d.depthPct}%</td>
+      <td>${d.percentage}%</td>
+      <td><div class="bar-container"><div class="bar-fill" style="width:${d.percentage}%;background:#3b82f6">${d.percentage > 10 ? d.percentage + '%' : ''}</div></div></td>
+    </tr>`).join('')}
+  </tbody>
+</table>`;
+        }
+
+        if (frictionEntries.length > 0 && (sections.heatmaps_click || sections.heatmaps_attention)) {
+            body += `
+<h3>Friction Events</h3>
+<p class="note">${totalFriction} friction events detected.</p>
+<div class="metrics">
+  ${frictionEntries.map(([tag, count]) => {
+      const colors: Record<string, string> = { 'dead-click': '#f59e0b', 'rage-click': '#ef4444', 'speed-browsing': '#3b82f6', 'mouse-out': '#6b7280' };
+      return `<div class="metric" style="border-color:${colors[tag] || '#e2e8f0'}">
+        <div class="metric-value" style="color:${colors[tag] || '#0f172a'}">${count}</div>
+        <div class="metric-label">${tag.replace(/-/g, ' ')}</div>
+      </div>`;
+  }).join('')}
+</div>`;
+        }
+    }
+
+    // Sessions
+    if (sections.sessions && visitors.length > 0) {
+        body += `
+<h2>Sessions — Visitor Summary</h2>
+<p class="note">${visitors.length} visitors recorded.</p>
+<table>
+  <thead><tr><th>Visitor</th><th>Sessions</th><th>Pages</th><th>Last Seen</th></tr></thead>
+  <tbody>
+    ${visitors.slice(0, 20).map(v => `<tr>
+      <td class="mono">${v.visitorId.slice(0, 14)}...</td>
+      <td>${v.sessionCount}</td>
+      <td>${v.pages.length}</td>
+      <td class="url">${new Date(v.lastSeen as string).toLocaleDateString()}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>`;
+    }
+
+    // Live
+    if (sections.live) {
+        body += `
+<h2>Live — Snapshot</h2>
+<p class="note">${liveSessions.length} active visitor${liveSessions.length !== 1 ? 's' : ''} at time of report generation.</p>`;
+        if (liveSessions.length > 0) {
+            body += `<table>
+  <thead><tr><th>Visitor</th><th>Current Page</th></tr></thead>
+  <tbody>
+    ${liveSessions.slice(0, 10).map(s => `<tr><td class="mono">${s.visitorId.slice(0, 14)}...</td><td class="url">${s.pages[0] ? shortenUrl(s.pages[0].pageUrl) : '—'}</td></tr>`).join('')}
+  </tbody>
+</table>`;
+        }
+    }
+
+    // AI Analysis
+    if (sections.aiAnalysis && aiReport) {
+        const severityColors: Record<string, string> = { high: '#ef4444', medium: '#f59e0b', low: '#6b7280' };
+
+        body += `
+<h2>AI Professional Analysis</h2>
+<div class="metrics">
+  <div class="metric" style="min-width:160px"><div class="metric-value" style="color:#2563eb">${aiReport.usabilityScore}/100</div><div class="metric-label">Usability Score</div></div>
+</div>
+
+<p class="overview">${aiReport.overview}</p>
+
+${aiReport.engagementAnalysis ? `<h3>Engagement</h3><p class="note">${aiReport.engagementAnalysis}</p>` : ''}
+${aiReport.funnelAnalysis ? `<h3>Funnel & Page Flow</h3><p class="note">${aiReport.funnelAnalysis}</p>` : ''}
+${aiReport.scrollBehavior ? `<h3>Scroll Behavior</h3><p class="note">${aiReport.scrollBehavior}</p>` : ''}
+${aiReport.frictionAnalysis ? `<h3>Friction Analysis</h3><p class="note">${aiReport.frictionAnalysis}</p>` : ''}
+
+<h3>Key Findings</h3>
+${aiReport.keyFindings.map((f, i) => `<div class="finding"><div class="finding-num">${i + 1}</div><div class="finding-text">${f}</div></div>`).join('')}
+
+<h3>Recommendations</h3>
+${aiReport.recommendations.map(r => `<div class="rec"><div class="rec-dot"></div><div class="rec-text">${r}</div></div>`).join('')}
+
+${aiReport.topIssues.length > 0 ? `
+<h3>Top Issues</h3>
+<table>
+  <thead><tr><th>Issue</th><th>Severity</th><th>Suggestion</th></tr></thead>
+  <tbody>
+    ${aiReport.topIssues.map(issue => `<tr>
+      <td>${issue.issue}</td>
+      <td><span style="color:${severityColors[issue.severity] || '#6b7280'};font-weight:600;text-transform:uppercase;font-size:0.75rem">${issue.severity}</span></td>
+      <td class="note">${issue.suggestion}</td>
+    </tr>`).join('')}
+  </tbody>
+</table>` : ''}`;
+    }
+
+    const html = `<!DOCTYPE html>
+<html><head>
+<title>${researchName} — Website Tracking Report</title>
+<style>
+  @media print { @page { margin: 1.5cm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; line-height: 1.6; padding: 2rem; max-width: 800px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 1.8rem 0 0.5rem; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.25rem; }
+  h3 { font-size: 0.95rem; margin: 1rem 0 0.5rem; color: #475569; }
+  .subtitle { color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .note { font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; }
+  .metrics { display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap; }
+  .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; text-align: center; min-width: 120px; }
+  .metric-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
+  .metric-label { font-size: 0.75rem; color: #64748b; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.85rem; }
+  th { text-align: left; padding: 0.5rem; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase; }
+  td { padding: 0.5rem; border-bottom: 1px solid #f1f5f9; }
+  .mono { font-family: monospace; font-size: 0.8rem; }
+  .url { font-size: 0.8rem; color: #64748b; }
+  ul { margin: 0.5rem 0 0.5rem 1.5rem; font-size: 0.85rem; color: #475569; }
+  li { margin: 0.25rem 0; }
+  .bar-container { width: 100%; height: 20px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 6px; font-size: 0.7rem; font-weight: 600; color: white; }
+  .overview { font-size: 0.95rem; color: #475569; margin: 1rem 0; }
+  .finding { display: flex; gap: 0.75rem; margin: 0.5rem 0; align-items: flex-start; }
+  .finding-num { width: 24px; height: 24px; border-radius: 50%; background: #dbeafe; color: #2563eb; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .finding-text { font-size: 0.9rem; color: #475569; }
+  .rec { display: flex; gap: 0.5rem; margin: 0.5rem 0; align-items: flex-start; }
+  .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; margin-top: 8px; }
+  .rec-text { font-size: 0.9rem; color: #475569; }
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 0.75rem; display: flex; justify-content: space-between; }
+  .print-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+  @media print { .print-btn { display: none; } }
+</style>
+</head><body>
+<button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+
+<h1>${researchName}</h1>
+<p class="subtitle">Website Tracking Report — Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+${body}
+
+<div class="footer">
+  <span>EmotioCX — Website Tracking Report</span>
+  <span>${new Date().toISOString().split('T')[0]}</span>
+</div>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+    }
+}
+
+function formatDur(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+function shortenUrl(url: string): string {
+    try {
+        const u = new URL(url);
+        return u.pathname === '/' ? u.hostname : u.hostname + u.pathname;
+    } catch { return url; }
+}

@@ -520,6 +520,25 @@ export const handleTrackingRoutes = async (
             return success({ updated: true }, 200, undefined, origin);
         }
 
+        // GET /tracking/:researchId/report — get cached AI report
+        const reportGetMatch = path.match(/^\/tracking\/([^/]+)\/report$/);
+        if (reportGetMatch && httpMethod === 'GET') {
+            const researchId = reportGetMatch[1];
+            const { getTrackingReport } = await import('./tracking-report.service');
+            const report = await getTrackingReport(researchId);
+            return success({ report }, 200, undefined, origin);
+        }
+
+        // POST /tracking/:researchId/report — generate AI report
+        const reportPostMatch = path.match(/^\/tracking\/([^/]+)\/report$/);
+        if (reportPostMatch && httpMethod === 'POST') {
+            const researchId = reportPostMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            const { generateTrackingReport } = await import('./tracking-report.service');
+            const report = await generateTrackingReport(researchId, body.sections);
+            return success({ report }, 200, undefined, origin);
+        }
+
         return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';

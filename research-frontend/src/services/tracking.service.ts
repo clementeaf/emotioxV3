@@ -362,3 +362,29 @@ export interface LiveSessionsResponse {
 export const getLiveSessions = async (researchId: string): Promise<LiveSessionsResponse> => {
     return apiClient.get<LiveSessionsResponse>(`/tracking/${researchId}/live`);
 };
+
+// ─── AI Report ─────────────────────────────────────────────────────
+
+export interface TrackingReport {
+    generatedAt: string;
+    overview: string;
+    keyFindings: string[];
+    recommendations: string[];
+    usabilityScore: number;
+    engagementAnalysis: string;
+    frictionAnalysis: string;
+    scrollBehavior: string;
+    funnelAnalysis: string;
+    topIssues: Array<{ issue: string; severity: 'high' | 'medium' | 'low'; suggestion: string }>;
+    analyzedSections: string[];
+}
+
+export const getTrackingReport = async (researchId: string): Promise<TrackingReport | null> => {
+    const res = await apiClient.get<{ report: TrackingReport | null }>(`/tracking/${researchId}/report`);
+    return res.report;
+};
+
+export const generateTrackingReport = async (researchId: string, sections?: Record<string, boolean> | object): Promise<TrackingReport> => {
+    const res = await apiClient.post<{ report: TrackingReport }>(`/tracking/${researchId}/report`, { sections });
+    return res.report;
+};
