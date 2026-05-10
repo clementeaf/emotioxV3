@@ -9,7 +9,7 @@ VALUES (
 )
 ON DUPLICATE KEY UPDATE structure = VALUES(structure), description = VALUES(description), updated_at = NOW();
 
-INSERT INTO stage_templates (id, name, stage_type, description, is_active, created_at, updated_at)
+INSERT INTO stage_templates (id, name, type, description, is_active, created_at, updated_at)
 VALUES (UUID(), 'EEG Recording', 'single_module', 'Brain activity measurement via EEG', 1, NOW(), NOW())
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
@@ -29,7 +29,7 @@ VALUES (
 )
 ON DUPLICATE KEY UPDATE structure = VALUES(structure), description = VALUES(description), updated_at = NOW();
 
-INSERT INTO stage_templates (id, name, stage_type, description, is_active, created_at, updated_at)
+INSERT INTO stage_templates (id, name, type, description, is_active, created_at, updated_at)
 VALUES (UUID(), 'Biometric Wearable', 'single_module', 'Heart rate and stress via wearable', 1, NOW(), NOW())
 ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 

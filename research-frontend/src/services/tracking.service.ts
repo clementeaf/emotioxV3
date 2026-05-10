@@ -119,6 +119,28 @@ export const getClickHeatmap = async (
     return apiClient.get<ClickHeatmapData>(`/tracking/${researchId}/heatmap`, { params });
 };
 
+export interface ElementClick {
+    selector: string;
+    offsetX: number;
+    offsetY: number;
+    elementWidth: number;
+    elementHeight: number;
+    x: number;
+    y: number;
+    count: number;
+}
+
+export const getElementClicks = async (
+    researchId: string,
+    pageUrl?: string,
+    device?: 'mobile' | 'tablet' | 'desktop'
+): Promise<{ clicks: ElementClick[] }> => {
+    const params: Record<string, string> = {};
+    if (pageUrl) params.page = pageUrl;
+    if (device) params.device = device;
+    return apiClient.get<{ clicks: ElementClick[] }>(`/tracking/${researchId}/element-clicks`, { params });
+};
+
 export const getSessions = async (
     researchId: string,
     limit = 50,

@@ -15,6 +15,10 @@ interface PageSnapshotHeatmapProps {
     heatmapType: 'click' | 'scroll' | 'attention';
     device?: 'mobile' | 'tablet' | 'desktop';
     screenshotUrl?: string | null;
+    /** External intensity value (0-100). If provided, hides internal slider. */
+    externalIntensity?: number;
+    /** External opacity value (0-80). If provided, hides internal slider. */
+    externalOpacity?: number;
 }
 
 /**
@@ -64,7 +68,10 @@ export const PageSnapshotHeatmap = ({
     heatmapType,
     device,
     screenshotUrl,
+    externalIntensity,
+    externalOpacity,
 }: PageSnapshotHeatmapProps) => {
+    const hasExternalControls = externalIntensity !== undefined && externalOpacity !== undefined;
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -73,8 +80,10 @@ export const PageSnapshotHeatmap = ({
     const [imgReady, setImgReady] = useState(false);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [containerWidth, setContainerWidth] = useState(0);
-    const [intensity, setIntensity] = useState(50);
-    const [opacity, setOpacity] = useState(45);
+    const [_intensity, setIntensity] = useState(50);
+    const [_opacity, setOpacity] = useState(45);
+    const intensity = externalIntensity ?? _intensity;
+    const opacity = externalOpacity ?? _opacity;
 
     const useScreenshot = !!screenshotUrl;
 
@@ -292,8 +301,8 @@ export const PageSnapshotHeatmap = ({
 
     return (
         <div>
-            {/* Sliders — not applicable for scroll overlay */}
-            {heatmapType !== 'scroll' && (
+            {/* Sliders — hidden when controlled externally, not applicable for scroll */}
+            {!hasExternalControls && heatmapType !== 'scroll' && (
             <div className="flex items-center gap-6 mb-2 px-1">
                 <label className="flex items-center gap-2 text-[11px] text-slate-600">
                     Intensity

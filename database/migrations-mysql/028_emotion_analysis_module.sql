@@ -25,7 +25,7 @@ ON DUPLICATE KEY UPDATE
   updated_at = NOW();
 
 -- 2. Create stage template for Emotion Analysis
-INSERT INTO stage_templates (id, name, stage_type, description, is_active, created_at, updated_at)
+INSERT INTO stage_templates (id, name, type, description, is_active, created_at, updated_at)
 VALUES (
   UUID(),
   'Emotion Analysis',
