@@ -643,11 +643,33 @@ ${body}
 </div>
 </body></html>`;
 
-    const win = window.open('', '_blank');
-    if (win) {
-        win.document.write(html);
-        win.document.close();
-    }
+    // Render HTML in a hidden container, convert to PDF, download
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '0';
+    container.style.width = '800px';
+    document.body.appendChild(container);
+
+    import('html2pdf.js').then((mod) => {
+        const html2pdf = mod.default;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (html2pdf() as any)
+            .set({
+                margin: [10, 10, 10, 10],
+                filename: `${researchName.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`,
+                image: { type: 'jpeg', quality: 0.95 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+            })
+            .from(container)
+            .save()
+            .then(() => {
+                document.body.removeChild(container);
+            });
+    });
 }
 
 function formatDur(seconds: number): string {

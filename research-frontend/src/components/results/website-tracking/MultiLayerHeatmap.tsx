@@ -69,9 +69,10 @@ export const MultiLayerHeatmap = ({
         return `${base}/tracking/${researchId}/proxy-page?url=${encodeURIComponent(pageUrl)}&token=${encodeURIComponent(token || '')}`;
     }, [researchId, pageUrl, token]);
 
-    const useProxy = !proxyFailed;
-    const useScreenshot = proxyFailed && !!screenshotUrl;
-    const hasBackdrop = useProxy || useScreenshot;
+    // Screenshot first (reliable), proxy fallback only if no screenshot
+    const useScreenshot = !!screenshotUrl;
+    const useProxy = !useScreenshot && !proxyFailed;
+    const hasBackdrop = useScreenshot || useProxy;
 
     const { data: clickData } = useQuery({
         queryKey: ['tracking', researchId, 'heatmap', pageUrl, device || 'all'],

@@ -1,3 +1,13 @@
+## v0.70.7 — Direct PDF download, screenshot-first heatmap (2026-05-11)
+
+### research-frontend
+- **Direct PDF download.** Replaced `window.print()` with `html2pdf.js` — generates and downloads PDF directly without print dialog. Applied to both `WebTrackingReportButton` and `ReportGenerator`.
+- **Screenshot-first heatmap.** `MultiLayerHeatmap` now uses captured screenshot as primary backdrop. Proxy iframe only as fallback when no screenshot exists. Fixes broken CSS/images in proxy rendering.
+- **PDF i18n.** EN/ES language selector in report picker. All labels, headers, dates respect selected language.
+- **Progress bar.** Generate button shows 0-100% fill with step label during report generation.
+
+---
+
 ## v0.70.6 — PDF report: i18n EN/ES, progress bar, language selector (2026-05-11)
 
 ### research-frontend
