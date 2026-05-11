@@ -1,3 +1,10 @@
+## v0.70.9 — Session replay: YouTube-style play/pause overlay (2026-05-11)
+
+### research-frontend
+- **Play/pause overlay.** Large centered button on replay viewport. Visible when paused, appears on hover when playing. Click anywhere on viewport to toggle. Matches YouTube behavior.
+
+---
+
 ## v0.70.8 — Sessions master-detail layout (2026-05-11)
 
 ### research-frontend

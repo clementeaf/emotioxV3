@@ -202,7 +202,8 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                 {/* Replay viewport */}
                 <div
                     ref={containerRef}
-                    className="relative bg-gray-100 overflow-hidden flex-1 min-h-0"
+                    className="relative bg-gray-100 overflow-hidden flex-1 min-h-0 cursor-pointer group/viewport"
+                    onClick={handlePlayPause}
                 >
                     {/* Scroll wrapper — moves vertically with scroll events */}
                     <div
@@ -259,6 +260,16 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                                     </div>
                                 );
                             })}
+                        </div>
+                    </div>
+
+                    {/* Big play/pause overlay — YouTube style */}
+                    <div className={`absolute inset-0 flex items-center justify-center z-30 pointer-events-none transition-opacity duration-200 ${playing ? 'opacity-0 group-hover/viewport:opacity-100' : 'opacity-100'}`}>
+                        <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-all ${playing ? 'bg-black/30' : 'bg-black/50'}`}>
+                            {playing
+                                ? <Pause className="h-7 w-7 text-white" />
+                                : <Play className="h-7 w-7 text-white ml-1" />
+                            }
                         </div>
                     </div>
                 </div>
