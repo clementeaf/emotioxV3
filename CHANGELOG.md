@@ -1,3 +1,16 @@
+## v0.71.1 — Studio layout, PPTX export, prediction trigger (2026-05-11)
+
+### research-frontend
+- **Studio layout.** Results page fills viewport — no page scroll. Top bar (tabs + exports), content below with internal scroll only.
+- **Executive Summary as Drawer.** Moved from inline card to slide-in Drawer (520px). "Summary" button in top bar opens it. Download PDF button inside.
+- **AlertsBar as popover.** Converted from full-width cards to bell icon with notification dot in top bar. Click opens dropdown with dismissable alerts.
+- **PPTX export.** "Slides" button generates Google Slides-compatible presentation: title, executive summary, SmartVOC metrics/NPS/NEV/VOC, Cognitive Tasks (choice/scale/text/ranking), themes. Uses `pptxgenjs` (lazy-loaded).
+- **Cognitive module selector.** Checkbox dropdown above cards to filter which modules are visible. Shows count ("3 of 7 modules").
+- **Navigation Test prediction trigger.** "Run Attention Prediction" button in Prediction tab when no data exists. Calls `POST /attention-prediction/.../predict` with `imageIndex` for multi-image.
+- **Export buttons unified.** XLSX, Slides, PDF buttons same height (`px-3 py-1.5 text-xs`).
+
+---
+
 ## v0.71.0 — Funnel comparison, executive summary overhaul, filter-aware exports (2026-05-11)
 
 ### research-frontend
