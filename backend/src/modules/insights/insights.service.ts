@@ -19,7 +19,7 @@ export interface InsightsAnalysis {
         description: string;
         actionables: string[];
     };
-    themes: Array<{ name: string; count: number; description: string; magnitude: number; sentimentScore: number }>;
+    themes: Array<{ name: string; count: number; description: string; magnitude: number; sentimentScore: number; supportingQuotes?: string[] }>;
     keywords: Array<{ word: string; count: number; sentiment: string }>;
 }
 
@@ -63,7 +63,7 @@ Return a JSON object with exactly this structure:
     "actionables": ["actionable insight 1", "actionable insight 2", "actionable insight 3"]
   },
   "themes": [
-    { "name": "theme name", "count": approximate_count, "description": "brief description", "magnitude": 0.89, "sentimentScore": 0.75 }
+    { "name": "theme name", "count": approximate_count, "description": "brief description", "magnitude": 0.89, "sentimentScore": 0.75, "supportingQuotes": ["exact quote from entry 1", "exact quote from entry 2", "exact quote from entry 3"] }
   ],
   "keywords": [
     { "word": "keyword", "count": approximate_count, "sentiment": "positive|negative|neutral" }
@@ -71,7 +71,7 @@ Return a JSON object with exactly this structure:
 }
 
 Rules:
-- 3-5 themes, sorted by relevance. magnitude is 0-1 (importance). sentimentScore is -1 to +1 (negative to positive).
+- 3-5 themes, sorted by relevance. magnitude is 0-1 (importance). sentimentScore is -1 to +1 (negative to positive). supportingQuotes: 2-5 EXACT verbatim quotes from the entries that support this theme (copy-paste, do not paraphrase).
 - 8-12 keywords, sorted by frequency
 - 3-5 actionables, specific and practical
 - Be concise but insightful

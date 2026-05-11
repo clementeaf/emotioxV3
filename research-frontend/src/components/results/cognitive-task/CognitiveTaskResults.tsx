@@ -1,17 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Card } from '../../ui/Card';
-import { Filters, type DemographicFiltersState } from '../shared/Filters';
+import { Filters } from '../shared/Filters';
 import { VOCComments } from '../smart-voc/components/VOCComments';
 import { cn } from '../../../lib/utils';
 import { useCognitiveTaskResults } from '../../../hooks/useCognitiveTaskResults';
+import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { NavigationFlowResultsWrapper } from './NavigationFlowResultsWrapper';
 import { PreferenceTestResultsWrapper } from './PreferenceTestResultsWrapper';
 import { ChoiceResultsWrapper } from './ChoiceResultsWrapper';
 import { ScaleResultsWrapper } from './ScaleResultsWrapper';
 import { RankingResultsWrapper } from './RankingResultsWrapper';
-import * as analyticsService from '../../../services/analytics.service';
-import apiClient from '../../../services/api/client';
 
 interface CognitiveTaskResultsProps {
   researchId: string;
@@ -41,78 +40,18 @@ interface TextResponseFormatted {
 
 export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskResultsProps) => {
   const { data, isLoading, error, refetch } = useCognitiveTaskResults(researchId);
-  const [demographicData, setDemographicData] = useState<analyticsService.DemographicResponsesResult | null>(null);
-  const [demographicFilters, setDemographicFilters] = useState<DemographicFiltersState>({});
-  const [userIdFilter, setUserIdFilter] = useState('');
-  const [completionMin, setCompletionMin] = useState(0);
-  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map());
-  const [sentimentFilter, setSentimentFilter] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!researchId) {
-      setDemographicData(null);
-      return;
-    }
-    let cancelled = false;
-    analyticsService.getDemographicResponses(researchId)
-      .then((result) => { if (!cancelled) setDemographicData(result); })
-      .catch(() => { if (!cancelled) setDemographicData({ participants: [], demographicTypes: [] }); });
-    return () => { cancelled = true; };
-  }, [researchId]);
-
-  useEffect(() => {
-    if (!researchId) return;
-    let cancelled = false;
-    apiClient.get<Array<{ id: string; progress: number }>>(`/research/${researchId}/participants/status`)
-      .then((res) => {
-        if (cancelled) return;
-        const arr = Array.isArray(res) ? res : (res as unknown as { data: Array<{ id: string; progress: number }> }).data ?? [];
-        const map = new Map<string, number>();
-        for (const p of arr) map.set(p.id, p.progress);
-        setProgressMap(map);
-      })
-      .catch(() => { if (!cancelled) setProgressMap(new Map()); });
-    return () => { cancelled = true; };
-  }, [researchId]);
-
-  const filteredParticipantIds = useMemo(() => {
-    if (!demographicData?.participants.length) {
-      // Even without demographics, apply completion filter if active
-      if (completionMin > 0 && progressMap.size > 0) {
-        return new Set(
-          Array.from(progressMap.entries())
-            .filter(([, prog]) => prog >= completionMin)
-            .map(([id]) => id)
-        );
-      }
-      return null;
-    }
-    const participants = demographicData.participants;
-    const hasAnyFilter = Object.values(demographicFilters).some((arr) => arr.length > 0) || userIdFilter.trim() !== '' || completionMin > 0;
-    if (!hasAnyFilter) return null;
-
-    const idSet = new Set(
-      participants
-        .filter((p) => {
-          for (const [type, selected] of Object.entries(demographicFilters)) {
-            if (selected.length === 0) continue;
-            const val = p.demographics[type];
-            const key = val != null && val !== '' ? String(val) : '—';
-            if (!selected.includes(key)) return false;
-          }
-          if (userIdFilter.trim()) {
-            if (!p.participantId.toLowerCase().includes(userIdFilter.trim().toLowerCase())) return false;
-          }
-          if (completionMin > 0) {
-            const prog = progressMap.get(p.participantId) ?? 0;
-            if (prog < completionMin) return false;
-          }
-          return true;
-        })
-        .map((p) => p.participantId)
-    );
-    return idSet;
-  }, [demographicData?.participants, demographicFilters, userIdFilter, completionMin, progressMap]);
+  const {
+    demographicData,
+    demographicFilters,
+    setDemographicFilters,
+    userIdFilter,
+    setUserIdFilter,
+    completionMin,
+    setCompletionMin,
+    filteredParticipantIds,
+    sentimentFilter,
+    setSentimentFilter,
+  } = useResultsFilter(researchId);
 
   const modulesToRender = useMemo(() => {
     const list = data?.modules?.filter((m) => {

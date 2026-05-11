@@ -4,13 +4,13 @@
  */
 
 import { useState, useCallback, useId } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, TrendingDown, Plus, Trash2, GripVertical, Pencil, ChevronDown } from 'lucide-react';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, TrendingDown, Plus, Trash2, GripVertical, Pencil, ChevronDown, Trophy, ArrowDown } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
-import type { FunnelDefinition } from '../../../services/tracking.service';
+import type { FunnelDefinition, FunnelDropoffResult } from '../../../services/tracking.service';
 import { EmptyState } from '../../ui/EmptyState';
 
-type FunnelView = 'custom-funnels' | 'page-visits' | 'transitions';
+type FunnelView = 'custom-funnels' | 'page-visits' | 'transitions' | 'comparison';
 
 interface FunnelChartProps {
     researchId: string;
@@ -65,6 +65,7 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
     const showCustomFunnels = showAll || view === 'custom-funnels';
     const showPageVisits = showAll || view === 'page-visits';
     const showTransitions = showAll || view === 'transitions';
+    const showComparison = view === 'comparison';
 
     return (
         <div className="space-y-6 h-full flex flex-col">
@@ -79,7 +80,7 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
                     {/* Saved Funnels — side-by-side with editor */}
                     <div className="flex gap-5 flex-1 min-h-0">
                         {/* Left: funnel cards */}
-                        <div className="flex-1 flex flex-wrap gap-2 min-w-0 content-start">
+                        <div className="flex-1 flex flex-wrap gap-2 min-w-0 content-start overflow-y-auto">
                             {savedFunnels.length > 0 ? (
                                 savedFunnels.map(funnel => (
                                     <FunnelDropoffCard
@@ -109,6 +110,18 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Funnel Comparison tab */}
+            {showComparison && (
+                savedFunnels.length >= 2 ? (
+                    <FunnelComparison researchId={researchId} funnels={savedFunnels} />
+                ) : (
+                    <EmptyState
+                        icon={<Trophy className="h-8 w-8" />}
+                        description="Create at least 2 custom funnels to compare their performance."
+                    />
+                )
             )}
 
             {/* Divider — only when rendering all sections */}
@@ -611,6 +624,149 @@ const TransitionRow = ({ node, depth, maxCount }: { node: TransitionNode; depth:
                 <TransitionRow key={child.url} node={child} depth={depth + 1} maxCount={maxCount} />
             ))}
         </>
+    );
+};
+
+// ─── Funnel Comparison ──────────────────────────────────────────────
+
+interface FunnelComparisonProps {
+    researchId: string;
+    funnels: FunnelDefinition[];
+}
+
+const FunnelComparison = ({ researchId, funnels }: FunnelComparisonProps) => {
+    const results = useQueries({
+        queries: funnels.map((funnel) => ({
+            queryKey: ['tracking', researchId, 'funnel-dropoff', funnel.id],
+            queryFn: () => trackingService.getFunnelDropoff(researchId, funnel.id),
+            staleTime: 10_000,
+        })),
+    });
+
+    const allLoaded = results.every(r => !r.isLoading);
+    if (!allLoaded) {
+        return <div className="h-20 bg-gray-100 rounded-lg animate-pulse mb-4" />;
+    }
+
+    const rows = results
+        .map((r) => r.data)
+        .filter((d): d is FunnelDropoffResult => !!d && d.steps.length > 0)
+        .map((d) => {
+            const avgDropoff = d.steps.length > 1
+                ? Math.round(d.steps.slice(1).reduce((sum, s) => sum + (s.dropoff || 0), 0) / (d.steps.length - 1))
+                : 0;
+            const worstIdx = d.steps.reduce((wi, s, i) => i > 0 && (s.dropoff || 0) > (d.steps[wi].dropoff || 0) ? i : wi, 1);
+            const bestIdx = d.steps.reduce((bi, s, i) => i > 0 && (s.dropoff || 0) < (d.steps[bi].dropoff || 0) ? i : bi, 1);
+            return {
+                name: d.funnel.name,
+                visitors: d.totalVisitors,
+                conversion: d.conversionRate,
+                avgDropoff,
+                steps: d.steps.length,
+                worstStep: d.steps.length > 1 ? (d.steps[worstIdx].label || shortenUrl(d.steps[worstIdx].url)) : '—',
+                worstDropoff: d.steps.length > 1 ? d.steps[worstIdx].dropoff || 0 : 0,
+                bestStep: d.steps.length > 1 ? (d.steps[bestIdx].label || shortenUrl(d.steps[bestIdx].url)) : '—',
+                bestDropoff: d.steps.length > 1 ? d.steps[bestIdx].dropoff || 0 : 0,
+            };
+        })
+        .sort((a, b) => b.conversion - a.conversion);
+
+    if (rows.length < 2) return null;
+
+    const maxVisitors = Math.max(...rows.map(r => r.visitors), 1);
+    const maxConversion = Math.max(...rows.map(r => r.conversion), 1);
+
+    return (
+        <div className="mb-5 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+                <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                <h4 className="text-xs font-semibold text-slate-800">Funnel Comparison</h4>
+                <span className="text-[10px] text-gray-400">Ranked by conversion rate</span>
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400">
+                            <th className="text-left px-4 py-2 font-medium w-6">#</th>
+                            <th className="text-left px-4 py-2 font-medium">Funnel</th>
+                            <th className="text-left px-4 py-2 font-medium">Visitors</th>
+                            <th className="text-left px-4 py-2 font-medium">Conversion</th>
+                            <th className="text-left px-4 py-2 font-medium">Avg Drop-off</th>
+                            <th className="text-left px-4 py-2 font-medium">Best Step</th>
+                            <th className="text-left px-4 py-2 font-medium">Worst Step</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, i) => (
+                            <tr
+                                key={row.name}
+                                className={`border-b border-gray-50 ${i === 0 ? 'bg-green-50/40' : 'hover:bg-gray-50'} transition-colors`}
+                            >
+                                <td className="px-4 py-2.5">
+                                    {i === 0 ? (
+                                        <span className="text-amber-500 font-bold">1</span>
+                                    ) : (
+                                        <span className="text-gray-400">{i + 1}</span>
+                                    )}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                    <span className={`font-medium ${i === 0 ? 'text-green-700' : 'text-slate-700'}`}>
+                                        {row.name}
+                                    </span>
+                                    <span className="ml-1.5 text-[10px] text-gray-400">{row.steps} steps</span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-700 font-medium w-8">{row.visitors}</span>
+                                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-blue-400 rounded-full"
+                                                style={{ width: `${(row.visitors / maxVisitors) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-semibold w-10 ${
+                                            i === 0 ? 'text-green-600' : row.conversion > 0 ? 'text-slate-700' : 'text-gray-400'
+                                        }`}>
+                                            {row.conversion}%
+                                        </span>
+                                        <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${i === 0 ? 'bg-green-500' : 'bg-gray-400'}`}
+                                                style={{ width: `${(row.conversion / maxConversion) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                    <span className={`${row.avgDropoff > 50 ? 'text-red-500' : row.avgDropoff > 30 ? 'text-amber-500' : 'text-slate-600'}`}>
+                                        {row.avgDropoff}%
+                                    </span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                    <span className="text-green-600 truncate max-w-[120px] inline-block align-bottom" title={row.bestStep}>
+                                        {row.bestStep}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 ml-1">-{row.bestDropoff}%</span>
+                                </td>
+                                <td className="px-4 py-2.5">
+                                    <div className="flex items-center gap-1">
+                                        <ArrowDown className="h-3 w-3 text-red-400" />
+                                        <span className="text-red-500 truncate max-w-[120px] inline-block align-bottom" title={row.worstStep}>
+                                            {row.worstStep}
+                                        </span>
+                                        <span className="text-[10px] text-gray-400">-{row.worstDropoff}%</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     );
 };
 

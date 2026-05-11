@@ -353,7 +353,11 @@ function buildIATSheet(iatModules: IATModule[]): IATParticipantRow[] {
 /**
  * Generates and downloads a multi-sheet XLSX file for a research.
  */
-export async function downloadResearchExport(researchId: string, researchName: string): Promise<void> {
+export async function downloadResearchExport(researchId: string, researchName: string, filteredParticipantIds?: string[]): Promise<void> {
+    const pidSet = filteredParticipantIds ? new Set(filteredParticipantIds) : null;
+    const filterRows = <T extends { participantId: string }>(rows: T[]): T[] =>
+        pidSet ? rows.filter(r => pidSet.has(r.participantId)) : rows;
+
     // Fetch all data in parallel
     const [demoData, cogModules, screenerChoices, iatModules, smartvoc, etStimuli] = await Promise.all([
         fetchDemographics(researchId),
@@ -366,15 +370,39 @@ export async function downloadResearchExport(researchId: string, researchName: s
 
     const wb = XLSX.utils.book_new();
 
+    // Apply completion filter to demographics
+    const filteredDemoData = pidSet
+        ? { ...demoData, participants: demoData.participants.filter(p => pidSet.has(p.participantId)) }
+        : demoData;
+
+    // Filter module responses
+    const filteredCogModules = pidSet
+        ? cogModules.map(m => ({ ...m, responses: m.responses.filter(r => pidSet.has(r.participantId)) }))
+        : cogModules;
+    const filteredScreener = pidSet
+        ? screenerChoices.filter(r => pidSet.has(r.participantId))
+        : screenerChoices;
+    const filteredSmartVOC = pidSet && smartvoc
+        ? {
+            ...smartvoc,
+            npsScores: smartvoc.npsScores.filter(s => pidSet.has(s.participantId)),
+            csatScores: smartvoc.csatScores.filter(s => pidSet.has(s.participantId)),
+            cesScores: smartvoc.cesScores.filter(s => pidSet.has(s.participantId)),
+            cvScores: smartvoc.cvScores.filter(s => pidSet.has(s.participantId)),
+            vocResponses: smartvoc.vocResponses.filter(v => pidSet.has(v.participantId)),
+            nevResponsesData: smartvoc.nevResponsesData.filter(n => pidSet.has(n.participantId)),
+        }
+        : smartvoc;
+
     // Sheet 1: Participants (always present)
-    const { rows: participantRows, headers } = buildParticipantsSheet(demoData, cogModules, screenerChoices, smartvoc);
+    const { rows: participantRows, headers } = buildParticipantsSheet(filteredDemoData, filteredCogModules, filteredScreener, filteredSmartVOC);
     const wsParticipants = XLSX.utils.json_to_sheet(participantRows, { header: headers });
     wsParticipants['!cols'] = headers.map(h => ({ wch: Math.max(h.length, 12) }));
     XLSX.utils.book_append_sheet(wb, wsParticipants, 'Participants');
 
     // Sheet 2: SmartVOC (if data exists)
-    if (smartvoc && (smartvoc.npsScores.length || smartvoc.csatScores.length || smartvoc.vocResponses.length)) {
-        const vocRows = buildSmartVOCSheet(smartvoc);
+    if (filteredSmartVOC && (filteredSmartVOC.npsScores.length || filteredSmartVOC.csatScores.length || filteredSmartVOC.vocResponses.length)) {
+        const vocRows = buildSmartVOCSheet(filteredSmartVOC);
         const vocHeaders = ['participantId', 'nps', 'csat', 'ces', 'cv', 'voc', 'vocSentiment', 'nev', 'date'];
         const wsVOC = XLSX.utils.json_to_sheet(vocRows, { header: vocHeaders });
         wsVOC['!cols'] = vocHeaders.map(h => ({ wch: h === 'voc' ? 50 : Math.max(h.length, 12) }));
@@ -383,7 +411,8 @@ export async function downloadResearchExport(researchId: string, researchName: s
 
     // Sheet 3: Eye Tracking (if data exists)
     if (etStimuli.length > 0) {
-        const etRows = buildEyeTrackingSheet(etStimuli);
+        let etRows = buildEyeTrackingSheet(etStimuli);
+        if (pidSet) etRows = filterRows(etRows);
         if (etRows.length > 0) {
             const etHeaders = ['participantId', 'stimulus', 'calibrationQuality', 'calibrationRmsePx', 'integrityScore', 'totalFixations', 'totalDwellTime', 'qualityGrade'];
             const wsET = XLSX.utils.json_to_sheet(etRows, { header: etHeaders });
@@ -394,7 +423,8 @@ export async function downloadResearchExport(researchId: string, researchName: s
 
     // Sheet 4: IAT (if data exists)
     if (iatModules.length > 0) {
-        const iatRows = buildIATSheet(iatModules);
+        let iatRows = buildIATSheet(iatModules);
+        if (pidSet) iatRows = filterRows(iatRows);
         if (iatRows.length > 0) {
             // Collect all unique keys for dynamic RT columns
             const allKeys = new Set<string>();

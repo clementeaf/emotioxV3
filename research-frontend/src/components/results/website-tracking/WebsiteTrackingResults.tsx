@@ -30,7 +30,7 @@ const formatDateTime = (iso: string): string => {
 
 type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
-type FunnelSubTab = 'custom-funnels' | 'page-flow';
+type FunnelSubTab = 'custom-funnels' | 'page-flow' | 'comparison';
 
 interface WebsiteTrackingResultsProps {
     researchId: string;
@@ -337,6 +337,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                         {([
                             { id: 'custom-funnels' as const, label: 'Custom Funnels', tip: 'Define step-by-step conversion paths and measure drop-off' },
                             { id: 'page-flow' as const, label: 'Page Flow', tip: 'Page visits and navigation transitions side by side' },
+                            { id: 'comparison' as const, label: 'Comparison', tip: 'Compare all funnels side by side — which converts best?' },
                         ]).map((sub) => (
                             <Tip key={sub.id} tip={sub.tip}>
                                 <button
@@ -354,8 +355,14 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                     </div>
 
                     {funnelSubTab === 'custom-funnels' && (
-                        <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 280px)' }}>
+                        <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ height: 'calc(100vh - 280px)' }}>
                             <FunnelChart researchId={researchId} view="custom-funnels" />
+                        </div>
+                    )}
+
+                    {funnelSubTab === 'comparison' && (
+                        <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 280px)' }}>
+                            <FunnelChart researchId={researchId} view="comparison" />
                         </div>
                     )}
 

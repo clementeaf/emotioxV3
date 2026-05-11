@@ -179,11 +179,14 @@ export const triggerTextAnalysis = async (
     researchId: string,
     moduleId: string,
     participantIds?: string[],
+    selectedTexts?: Array<{ text: string; mood: string }>,
 ): Promise<void> => {
-    // Fetch entries (optionally filtered by participant)
-    const entries = moduleId === 'voc'
-        ? await fetchVOCEntries(researchId, participantIds)
-        : await fetchTextEntries(researchId, moduleId, participantIds);
+    // If frontend sent pre-selected texts, use those directly (skip DB fetch)
+    const entries = selectedTexts && selectedTexts.length > 0
+        ? selectedTexts.filter(e => e.text && e.text.trim().length > 0)
+        : moduleId === 'voc'
+            ? await fetchVOCEntries(researchId, participantIds)
+            : await fetchTextEntries(researchId, moduleId, participantIds);
 
     if (entries.length === 0) {
         const emptyAnalysis: InsightsAnalysis = {

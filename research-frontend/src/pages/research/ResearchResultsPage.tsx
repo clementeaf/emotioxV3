@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { BarChart3, Brain, Eye, Filter, Zap, Download, SmilePlus, Activity, Heart } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
@@ -14,6 +14,7 @@ import { ExecutiveSummaryPanel } from '../../components/results/shared/Executive
 import { AlertsBar } from '../../components/results/shared/AlertsBar';
 import { ReportGeneratorButton } from '../../components/results/shared/ReportGenerator';
 import { BlockchainCertification } from '../../components/results/shared/BlockchainCertification';
+import { useResultsFilter } from '../../hooks/useResultsFilter';
 
 type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking' | 'emotion-analysis' | 'eeg' | 'wearable';
 
@@ -92,17 +93,24 @@ export const ResearchResultsPage = () => {
     const [tabInitialized, setTabInitialized] = useState(false);
     const [exporting, setExporting] = useState(false);
 
+    // Read completionMin + filtered participant IDs from shared filter hook
+    const { filteredParticipantIds } = useResultsFilter(id || '');
+    const filteredPidsArray = useMemo(
+        () => filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined,
+        [filteredParticipantIds]
+    );
+
     const handleExport = useCallback(async () => {
         if (!id || exporting) return;
         setExporting(true);
         try {
-            await downloadResearchExport(id, research?.name || 'research');
+            await downloadResearchExport(id, research?.name || 'research', filteredPidsArray);
         } catch (error) {
             console.error('Export failed:', error);
         } finally {
             setExporting(false);
         }
-    }, [id, exporting, research?.name]);
+    }, [id, exporting, research?.name, filteredPidsArray]);
 
     useEffect(() => {
         if (!research || tabInitialized) return;
@@ -170,15 +178,17 @@ export const ResearchResultsPage = () => {
                         </button>
                     ))}
                 </nav>
-                <button
-                    onClick={handleExport}
-                    disabled={exporting}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors disabled:opacity-50 mb-1"
-                >
-                    <Download className="h-4 w-4" />
-                    {exporting ? 'Exporting...' : 'Export XLSX'}
-                </button>
-                <ReportGeneratorButton researchId={id} />
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleExport}
+                        disabled={exporting}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors disabled:opacity-50 mb-1"
+                    >
+                        <Download className="h-4 w-4" />
+                        {exporting ? 'Exporting...' : 'Export XLSX'}
+                    </button>
+                    <ReportGeneratorButton researchId={id} filteredParticipantIds={filteredPidsArray} />
+                </div>
             </div>
 
             {/* Alerts */}
@@ -188,7 +198,7 @@ export const ResearchResultsPage = () => {
             <BlockchainCertification researchId={id} />
 
             {/* Executive Summary */}
-            <ExecutiveSummaryPanel researchId={id} />
+            <ExecutiveSummaryPanel researchId={id} filteredParticipantIds={filteredPidsArray} />
 
             {/* Content */}
             <div className="min-h-0 flex-1">

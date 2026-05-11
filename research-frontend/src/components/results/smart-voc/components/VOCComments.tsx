@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { User, ClipboardList, Hash, Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import { User, ClipboardList, Hash, Sparkles, Loader2, RefreshCw, X, Quote } from 'lucide-react';
 import { Card } from '../../../ui/Card';
 import { Badge } from '../../../ui/Badge';
 import { cn } from '../../../../lib/utils';
@@ -47,6 +47,7 @@ export const VOCComments = ({
   const [analysis, setAnalysis] = useState<TextAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [selectedThemeIdx, setSelectedThemeIdx] = useState<number | null>(null);
 
   // Resolve researchId from prop or URL
   const researchId = researchIdProp ?? (() => {
@@ -77,14 +78,18 @@ export const VOCComments = ({
     return () => { cancelled = true; };
   }, [researchId, moduleId]);
 
-  // Trigger analysis (optionally filtered by participant IDs)
+  // Trigger analysis — uses selected comments if any, otherwise all (optionally filtered by participant IDs)
   const handleAnalyze = useCallback(async () => {
     if (!researchId || !moduleId || analyzing) return;
     setAnalyzing(true);
     try {
       const { triggerTextAnalysis, getTextAnalysis } = await import('../../../../services/analytics.service');
-      const pids = filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined;
-      await triggerTextAnalysis(researchId, moduleId, pids);
+      const hasSelection = selectedComments.length > 0 && selectedComments.length < comments.length;
+      const selectedTexts = hasSelection
+        ? selectedComments.map(i => comments[i]).filter(Boolean).map(c => ({ text: c.text, mood: c.mood || '' }))
+        : undefined;
+      const pids = !selectedTexts && filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined;
+      await triggerTextAnalysis(researchId, moduleId, pids, selectedTexts);
       // Poll for completion (max 30s)
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 3000));
@@ -99,7 +104,7 @@ export const VOCComments = ({
     } finally {
       setAnalyzing(false);
     }
-  }, [researchId, moduleId, analyzing, filteredParticipantIds]);
+  }, [researchId, moduleId, analyzing, filteredParticipantIds, selectedComments, comments]);
 
   const handleSelectAll = () => {
     if (selectedComments.length === comments.length) {
@@ -209,6 +214,9 @@ export const VOCComments = ({
 
   // Whether AI analysis is available for this component
   const canAnalyze = Boolean(researchId && moduleId && comments.length > 0);
+  const hasSelection = selectedComments.length > 0 && selectedComments.length < comments.length;
+  const analyzeLabel = hasSelection ? `Analyze ${selectedComments.length} selected` : 'Analyze with AI';
+  const refreshLabel = hasSelection ? `Re-analyze ${selectedComments.length} selected` : 'Refresh analysis';
 
   return (
     <Card className={cn('p-6 pb-24 space-y-6', className)}>
@@ -370,7 +378,7 @@ export const VOCComments = ({
                           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          Analyze with AI
+                          {analyzeLabel}
                         </button>
                       )}
                       {canAnalyze && !analyzing && !loadingAnalysis && analysis && (
@@ -379,7 +387,7 @@ export const VOCComments = ({
                           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
-                          Refresh analysis
+                          {refreshLabel}
                         </button>
                       )}
                       {analyzing && (
@@ -483,9 +491,23 @@ export const VOCComments = ({
                 {analysis && analysis.themes.length > 0 ? (
                   <div className="space-y-3">
                     {analysis.themes.map((theme, i) => (
-                      <div key={i} className="bg-gray-50 rounded-lg p-4 space-y-2">
+                      <div
+                        key={i}
+                        onClick={() => theme.supportingQuotes && theme.supportingQuotes.length > 0 && setSelectedThemeIdx(i)}
+                        className={cn(
+                          'bg-gray-50 rounded-lg p-4 space-y-2 transition-colors',
+                          theme.supportingQuotes && theme.supportingQuotes.length > 0
+                            ? 'cursor-pointer hover:bg-blue-50 hover:border-blue-200 border border-transparent'
+                            : ''
+                        )}
+                      >
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-gray-900">{theme.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">{theme.name}</span>
+                            {theme.supportingQuotes && theme.supportingQuotes.length > 0 && (
+                              <Quote className="h-3.5 w-3.5 text-blue-400" />
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-500">{theme.count} mentions ({comments.length > 0 ? Math.round((theme.count / comments.length) * 100) : 0}%)</span>
                             <span className={cn(
@@ -528,7 +550,7 @@ export const VOCComments = ({
                           className="mt-3 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors mx-auto"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          Analyze with AI
+                          {analyzeLabel}
                         </button>
                       )}
                     </div>
@@ -636,7 +658,7 @@ export const VOCComments = ({
                           className="mt-3 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-violet-600 text-white rounded-md hover:bg-violet-700 transition-colors mx-auto"
                         >
                           <Sparkles className="w-3.5 h-3.5" />
-                          Analyze with AI
+                          {analyzeLabel}
                         </button>
                       )}
                     </div>
@@ -647,6 +669,91 @@ export const VOCComments = ({
           </div>
         </div>
       </div>
+      {/* Theme Verbatim Drawer */}
+      {selectedThemeIdx !== null && analysis?.themes[selectedThemeIdx] && (
+        <ThemeVerbatimDrawer
+          theme={analysis.themes[selectedThemeIdx]}
+          onClose={() => setSelectedThemeIdx(null)}
+        />
+      )}
     </Card>
+  );
+};
+
+// ─── Theme Verbatim Drawer ──────────────────────────────────────────
+
+interface ThemeVerbatimDrawerProps {
+  theme: { name: string; count: number; description: string; sentimentScore: number; supportingQuotes?: string[] };
+  onClose: () => void;
+}
+
+const ThemeVerbatimDrawer = ({ theme, onClose }: ThemeVerbatimDrawerProps) => {
+  const quotes = theme.supportingQuotes || [];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/30 z-40 transition-opacity"
+        onClick={onClose}
+      />
+      {/* Drawer */}
+      <div className="fixed inset-y-0 right-0 w-[420px] max-w-[90vw] bg-white shadow-2xl z-50 flex flex-col animate-slide-in-right">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-slate-800 truncate">{theme.name}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {theme.count} mentions · {quotes.length} verbatim{quotes.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={cn(
+              'text-xs font-medium px-2 py-0.5 rounded-full',
+              theme.sentimentScore > 0.2 ? 'bg-green-100 text-green-700' :
+              theme.sentimentScore < -0.2 ? 'bg-red-100 text-red-700' :
+              'bg-gray-100 text-gray-600'
+            )}>
+              {theme.sentimentScore > 0.2 ? 'positive' : theme.sentimentScore < -0.2 ? 'negative' : 'neutral'}
+            </span>
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+              <X className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* Description */}
+        <div className="px-5 py-3 border-b border-gray-50 shrink-0">
+          <p className="text-xs text-gray-600 leading-relaxed">{theme.description}</p>
+        </div>
+
+        {/* Quotes list */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Supporting verbatims</h4>
+          {quotes.length > 0 ? (
+            quotes.map((quote, i) => (
+              <div key={i} className="flex gap-3 items-start">
+                <Quote className="h-4 w-4 text-blue-300 shrink-0 mt-0.5" />
+                <p className="text-sm text-gray-700 leading-relaxed italic">"{quote}"</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">
+              No verbatims available. Regenerate the analysis to include supporting quotes.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        .animate-slide-in-right {
+          animation: slideInRight 0.25s ease-out;
+        }
+      `}</style>
+    </>
   );
 };

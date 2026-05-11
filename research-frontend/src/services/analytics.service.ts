@@ -640,7 +640,7 @@ export interface TextAnalysis {
         description: string;
         actionables: string[];
     };
-    themes: Array<{ name: string; count: number; description: string; magnitude: number; sentimentScore: number }>;
+    themes: Array<{ name: string; count: number; description: string; magnitude: number; sentimentScore: number; supportingQuotes?: string[] }>;
     keywords: Array<{ word: string; count: number; sentiment: string }>;
 }
 
@@ -655,14 +655,21 @@ export const getTextAnalysis = async (
     return response.analysis;
 };
 
-/** Trigger LLM analysis (fire-and-forget, returns 202). Optionally filter by participant IDs. */
+/** Trigger LLM analysis (fire-and-forget, returns 202). Optionally filter by participant IDs or selected texts. */
 export const triggerTextAnalysis = async (
     researchId: string,
     moduleId: string,
     participantIds?: string[],
+    selectedTexts?: Array<{ text: string; mood: string }>,
 ): Promise<void> => {
+    const body: Record<string, unknown> = {};
+    if (selectedTexts && selectedTexts.length > 0) {
+        body.selectedTexts = selectedTexts;
+    } else if (participantIds && participantIds.length > 0) {
+        body.participantIds = participantIds;
+    }
     await apiClient.post(
         `/analytics/research/${researchId}/text-analysis/${moduleId}`,
-        participantIds && participantIds.length > 0 ? { participantIds } : {}
+        body
     );
 };

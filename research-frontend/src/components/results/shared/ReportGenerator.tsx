@@ -131,7 +131,7 @@ ${sentTotal > 0 ? `
     });
 }
 
-export const ReportGeneratorButton = ({ researchId }: { researchId: string }) => {
+export const ReportGeneratorButton = ({ researchId, filteredParticipantIds }: { researchId: string; filteredParticipantIds?: string[] }) => {
     const { data: research } = useResearch(researchId);
     const [generating, setGenerating] = useState(false);
 
@@ -152,9 +152,13 @@ export const ReportGeneratorButton = ({ researchId }: { researchId: string }) =>
             let reportData = summary;
 
             if (!reportData) {
+                const body: Record<string, unknown> = {};
+                if (filteredParticipantIds && filteredParticipantIds.length > 0) {
+                    body.participantIds = filteredParticipantIds;
+                }
                 const res = await apiClient.post<{ summary: ExecutiveSummary }>(
                     `/analytics/research/${researchId}/executive-summary`,
-                    {}
+                    body
                 );
                 reportData = res.summary;
             }

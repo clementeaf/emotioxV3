@@ -130,8 +130,9 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             const { triggerTextAnalysis } = await import('./text-analysis.service');
             const body = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : (event.body ?? {});
             const participantIds: string[] | undefined = Array.isArray(body.participantIds) ? body.participantIds : undefined;
+            const selectedTexts: Array<{ text: string; mood: string }> | undefined = Array.isArray(body.selectedTexts) ? body.selectedTexts : undefined;
             // Fire-and-forget: respond immediately, analysis runs in background
-            triggerTextAnalysis(researchId, moduleId, participantIds).catch(err =>
+            triggerTextAnalysis(researchId, moduleId, participantIds, selectedTexts).catch(err =>
                 console.error(`[TextAnalysis] Background analysis failed for ${researchId}/${moduleId}:`, err)
             );
             return success({ status: 'analyzing' }, 202, undefined, origin);
@@ -194,8 +195,10 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         // POST /analytics/research/:id/executive-summary
         if (execSummaryGetMatch && httpMethod === 'POST') {
             const researchId = execSummaryGetMatch[1];
+            const body = typeof event.body === 'string' ? JSON.parse(event.body || '{}') : (event.body ?? {});
+            const participantIds: string[] | undefined = Array.isArray(body.participantIds) ? body.participantIds : undefined;
             const { generateExecutiveSummary } = await import('./executive-summary.service');
-            const summary = await generateExecutiveSummary(researchId);
+            const summary = await generateExecutiveSummary(researchId, participantIds);
             return success({ summary }, 201, undefined, origin);
         }
 

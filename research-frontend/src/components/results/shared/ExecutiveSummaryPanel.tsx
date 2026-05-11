@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, RefreshCw, ChevronDown } from 'lucide-react';
 import apiClient from '../../../services/api/client';
 
 interface ExecutiveSummary {
@@ -22,7 +22,7 @@ interface ExecutiveSummary {
     };
 }
 
-export const ExecutiveSummaryPanel = ({ researchId }: { researchId: string }) => {
+export const ExecutiveSummaryPanel = ({ researchId, filteredParticipantIds }: { researchId: string; filteredParticipantIds?: string[] }) => {
     const [expanded, setExpanded] = useState(false);
     const queryClient = useQueryClient();
 
@@ -39,9 +39,13 @@ export const ExecutiveSummaryPanel = ({ researchId }: { researchId: string }) =>
 
     const generate = useMutation({
         mutationFn: async () => {
+            const body: Record<string, unknown> = {};
+            if (filteredParticipantIds && filteredParticipantIds.length > 0) {
+                body.participantIds = filteredParticipantIds;
+            }
             const res = await apiClient.post<{ summary: ExecutiveSummary }>(
                 `/analytics/research/${researchId}/executive-summary`,
-                {}
+                body
             );
             return res.summary;
         },
@@ -94,9 +98,12 @@ export const ExecutiveSummaryPanel = ({ researchId }: { researchId: string }) =>
     return (
         <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
             {/* Header */}
-            <button
+            <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setExpanded(!expanded)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(!expanded); } }}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer select-none"
             >
                 <div className="flex items-center gap-3">
                     <Sparkles className="h-5 w-5 text-blue-500" />
@@ -114,17 +121,17 @@ export const ExecutiveSummaryPanel = ({ researchId }: { researchId: string }) =>
                     >
                         <RefreshCw className={`h-4 w-4 ${generate.isPending ? 'animate-spin' : ''}`} />
                     </button>
-                    {expanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                    <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
                 </div>
-            </button>
+            </div>
 
             {/* Overview (always visible) */}
             <div className="px-4 pb-3">
                 <p className="text-sm text-gray-600 leading-relaxed">{summary.overview}</p>
             </div>
 
-            {/* Expanded content */}
-            {expanded && (
+            {/* Expanded content — smooth collapse */}
+            <CollapsibleContent expanded={expanded}>
                 <div className="px-4 pb-4 space-y-4 border-t border-gray-50 pt-4">
                     {/* Metrics row */}
                     <div className="flex gap-4 flex-wrap">
@@ -179,7 +186,32 @@ export const ExecutiveSummaryPanel = ({ researchId }: { researchId: string }) =>
                         </div>
                     )}
                 </div>
-            )}
+            </CollapsibleContent>
+        </div>
+    );
+};
+
+const CollapsibleContent = ({ expanded, children }: { expanded: boolean; children: React.ReactNode }) => {
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [height, setHeight] = useState(0);
+
+    useEffect(() => {
+        if (contentRef.current) {
+            setHeight(contentRef.current.scrollHeight);
+        }
+    }, [expanded, children]);
+
+    return (
+        <div
+            className="overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out"
+            style={{
+                maxHeight: expanded ? height : 0,
+                opacity: expanded ? 1 : 0,
+            }}
+        >
+            <div ref={contentRef}>
+                {children}
+            </div>
         </div>
     );
 };

@@ -1,3 +1,23 @@
+## v0.71.0 — Funnel comparison, executive summary overhaul, filter-aware exports (2026-05-11)
+
+### research-frontend
+- **Funnel Comparison tab.** New "Comparison" sub-tab in Funnels showing all custom funnels ranked by conversion rate. Table with visitors, conversion bars, avg drop-off, best/worst step. Uses `useQueries` for parallel data fetch (React Query dedup).
+- **Custom Funnels scroll containment.** Container uses fixed height with `overflow-y-auto` on cards panel — page never scrolls from funnel count.
+- **Executive Summary smooth collapse.** Replaced mount/unmount toggle with CSS `max-height` + `opacity` transition (300ms ease-in-out). Chevron rotates smoothly. Fixed nested `<button>` DOM warning — header now uses `<div role="button">`.
+- **Export XLSX + Report PDF grouped.** Both buttons wrapped in flex container, aligned together at right side of tab bar.
+- **Min. Completion filter persistence.** SmartVOC and Cognitive Task results migrated from inline filter logic to shared `useResultsFilter` hook. `completionMin` now persists in `localStorage` per research across all 5 result tabs.
+- **Min. Completion applied to exports.** Export XLSX, Report PDF, and Executive Summary all receive `filteredParticipantIds` from `useResultsFilter`. XLSX filters all sheets client-side. PDF and Executive Summary pass participant IDs to backend.
+- **Theme verbatim drawer.** Clicking a theme in VOC/Text analysis opens a slide-in drawer showing the exact participant quotes that support that theme. Themes with quotes show a quote icon and hover highlight.
+- **Comment checkboxes functional.** Selecting comments in the table now affects "Analyze with AI" — analyzes only selected comments instead of all. Button label updates dynamically ("Analyze 3 selected"). Backend accepts `selectedTexts` to skip DB fetch.
+
+### backend
+- **Executive Summary rewrite.** Prompt now in Spanish. Gathers data from all module types: SmartVOC (NPS/CSAT/CES/CV/NEV), Screener, Cognitive Tasks (choices, scales, ranking), IAT (reaction times), verbatims with sentiment. Demographics included as context only. Instructions: focus on results, cite verbatims as evidence.
+- **Executive Summary participant filter.** `POST /executive-summary` accepts `participantIds` in body. All SQL queries apply `AND resp.participant_id IN (...)` when provided.
+- **Theme supporting quotes.** `analyzeInsights` prompt now requests 2-5 exact verbatim quotes per theme (`supportingQuotes` field). No paraphrasing.
+- **Text analysis selected texts.** `POST /text-analysis/:moduleId` accepts `selectedTexts` array in body. When provided, uses those texts directly instead of fetching from DB.
+
+---
+
 ## v0.70.10 — Fix CORS for external tracking sites (2026-05-11)
 
 ### backend
