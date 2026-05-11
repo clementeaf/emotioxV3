@@ -101,6 +101,7 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
                         {/* Right: always-visible editor form */}
                         <div className="w-[420px] shrink-0">
                             <FunnelEditor
+                                key={editingFunnel?.id || newFunnelId}
                                 funnel={editingFunnel || { id: newFunnelId, name: '', steps: [{ url: '', label: '' }, { url: '', label: '' }] }}
                                 onSave={handleSaveFunnel}
                                 onCancel={() => setEditingFunnel(null)}
@@ -281,7 +282,7 @@ interface FunnelDropoffCardProps {
 }
 
 const FunnelDropoffCard = ({ researchId, funnel, onEdit, onDelete }: FunnelDropoffCardProps) => {
-    const [expanded, setExpanded] = useState(false);
+    const [expanded, setExpanded] = useState(true);
     const { data, isLoading } = useQuery({
         queryKey: ['tracking', researchId, 'funnel-dropoff', funnel.id],
         queryFn: () => trackingService.getFunnelDropoff(researchId, funnel.id),
