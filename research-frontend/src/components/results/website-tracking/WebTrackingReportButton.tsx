@@ -81,8 +81,11 @@ const SECTION_GROUPS: SectionGroup[] = [
 export const WebTrackingReportButton = ({ researchId }: { researchId: string }) => {
     const { data: research } = useResearch(researchId);
     const [generating, setGenerating] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [progressLabel, setProgressLabel] = useState('');
     const [showPicker, setShowPicker] = useState(false);
     const [sections, setSections] = useState<ReportSections>(DEFAULT_SECTIONS);
+    const [lang, setLang] = useState<'en' | 'es'>('en');
     const pickerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -114,6 +117,9 @@ export const WebTrackingReportButton = ({ researchId }: { researchId: string }) 
     const handleGenerate = useCallback(async () => {
         setGenerating(true);
         setShowPicker(false);
+        setProgress(0);
+        setProgressLabel('Loading overview...');
+
         try {
             const needsFunnels = sections.funnels_custom || sections.funnels_pageVisits || sections.funnels_transitions;
             const needsHeatmaps = sections.heatmaps_click || sections.heatmaps_scroll || sections.heatmaps_attention || sections.heatmaps_density;
@@ -121,16 +127,67 @@ export const WebTrackingReportButton = ({ researchId }: { researchId: string }) 
             const needsLive = sections.live;
             const needsAI = sections.aiAnalysis;
 
-            const [overview, pages, config, visitors, liveSessions, scrollDepth, friction, aiReport] = await Promise.all([
-                trackingService.getOverview(researchId),
-                trackingService.getTrackedPages(researchId),
-                needsFunnels ? trackingService.getTrackingConfig(researchId) : Promise.resolve(null),
-                needsSessions ? trackingService.getVisitorJourneys(researchId, 20, 0) : Promise.resolve(null),
-                needsLive ? trackingService.getLiveSessions(researchId) : Promise.resolve(null),
-                (needsHeatmaps && sections.heatmaps_scroll) ? trackingService.getScrollDepth(researchId) : Promise.resolve(null),
-                needsHeatmaps ? trackingService.getFrictionSummary(researchId) : Promise.resolve(null),
-                needsAI ? trackingService.generateTrackingReport(researchId, sections) : Promise.resolve(null),
-            ]);
+            // Count total steps for progress
+            let totalSteps = 2; // overview + pages always
+            if (needsFunnels) totalSteps++;
+            if (needsSessions) totalSteps++;
+            if (needsLive) totalSteps++;
+            if (needsHeatmaps && sections.heatmaps_scroll) totalSteps++;
+            if (needsHeatmaps) totalSteps++;
+            if (needsAI) totalSteps++;
+            totalSteps++; // final render step
+            let step = 0;
+
+            const advance = (label: string) => {
+                step++;
+                setProgress(Math.round((step / totalSteps) * 100));
+                setProgressLabel(label);
+            };
+
+            const overview = await trackingService.getOverview(researchId);
+            advance('Loading pages...');
+
+            const pages = await trackingService.getTrackedPages(researchId);
+            advance(needsFunnels ? 'Loading funnels...' : needsHeatmaps ? 'Loading heatmap data...' : 'Processing...');
+
+            let config: trackingService.TrackingConfig | null = null;
+            if (needsFunnels) {
+                config = await trackingService.getTrackingConfig(researchId);
+                advance('Loading heatmap data...');
+            }
+
+            let visitors: trackingService.VisitorJourneysResponse | null = null;
+            if (needsSessions) {
+                visitors = await trackingService.getVisitorJourneys(researchId, 20, 0);
+                advance('Loading sessions...');
+            }
+
+            let liveSessions: trackingService.LiveSessionsResponse | null = null;
+            if (needsLive) {
+                liveSessions = await trackingService.getLiveSessions(researchId);
+                advance('Loading scroll data...');
+            }
+
+            let scrollDepth: { depths: Array<{ depthPct: number; percentage: number }> } | null = null;
+            if (needsHeatmaps && sections.heatmaps_scroll) {
+                scrollDepth = await trackingService.getScrollDepth(researchId);
+                advance('Loading friction data...');
+            }
+
+            let friction: { tags: Record<string, number> } | null = null;
+            if (needsHeatmaps) {
+                friction = await trackingService.getFrictionSummary(researchId);
+                advance(needsAI ? 'Running AI analysis...' : 'Building report...');
+            }
+
+            let aiReport: trackingService.TrackingReport | null = null;
+            if (needsAI) {
+                aiReport = await trackingService.generateTrackingReport(researchId, sections);
+                advance('Building report...');
+            }
+
+            setProgress(100);
+            setProgressLabel('Opening report...');
 
             openTrackingReport(research?.name || 'Website Tracking', {
                 sections,
@@ -142,24 +199,36 @@ export const WebTrackingReportButton = ({ researchId }: { researchId: string }) 
                 scrollDepth: scrollDepth || { depths: [] },
                 friction: friction?.tags || {},
                 aiReport,
+                lang,
             });
         } catch (e) {
             console.error('Failed to generate report:', e);
         } finally {
             setGenerating(false);
+            setProgress(0);
+            setProgressLabel('');
         }
     }, [researchId, research?.name, sections]);
 
     return (
         <div className="relative" ref={pickerRef}>
-            <button
-                onClick={() => setShowPicker(!showPicker)}
-                disabled={generating}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
-            >
-                <FileText className="h-3.5 w-3.5" />
-                {generating ? 'Generating...' : 'PDF Report'}
-            </button>
+            {generating ? (
+                <div className="relative overflow-hidden px-2.5 py-1.5 text-white bg-blue-600 border border-blue-600 rounded-lg text-center" style={{ height: 28 }}>
+                    <div className="absolute inset-0 bg-blue-700 transition-all duration-300" style={{ width: `${progress}%` }} />
+                    <div className="relative flex items-center justify-center gap-1 h-full">
+                        <span className="text-[9px] font-semibold">{progress}%</span>
+                        <span className="text-[8px] text-blue-200 truncate max-w-[80px]">{progressLabel}</span>
+                    </div>
+                </div>
+            ) : (
+                <button
+                    onClick={() => setShowPicker(!showPicker)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                    <FileText className="h-3.5 w-3.5" />
+                    PDF Report
+                </button>
+            )}
 
             {showPicker && (
                 <div className="absolute top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-3">
@@ -200,7 +269,19 @@ export const WebTrackingReportButton = ({ researchId }: { researchId: string }) 
                         })}
                     </div>
                     <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-                        <span className="text-[10px] text-gray-400">{selectedCount} selected</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400">{selectedCount} selected</span>
+                            <div className="flex rounded-md border border-gray-200 overflow-hidden">
+                                <button
+                                    onClick={() => setLang('en')}
+                                    className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === 'en' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                                >EN</button>
+                                <button
+                                    onClick={() => setLang('es')}
+                                    className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${lang === 'es' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                                >ES</button>
+                            </div>
+                        </div>
                         <button
                             onClick={handleGenerate}
                             disabled={selectedCount === 0}
@@ -227,10 +308,113 @@ interface ReportInput {
     scrollDepth: { depths: Array<{ depthPct: number; percentage: number }> };
     friction: Record<string, number>;
     aiReport: trackingService.TrackingReport | null;
+    lang: 'en' | 'es';
 }
 
+const i18n = {
+    en: {
+        title: 'Website Tracking Report',
+        generated: 'Generated',
+        overview: 'Overview',
+        uniqueVisitors: 'Unique Visitors',
+        sessions: 'Sessions',
+        pagesTracked: 'Pages Tracked',
+        totalEvents: 'Total Events',
+        avgDuration: 'Avg. Duration',
+        customFunnels: 'Custom Funnels',
+        pageVisits: 'Page Visits',
+        transitions: 'Top Page Transitions',
+        page: 'Page',
+        views: 'Views',
+        events: 'Events',
+        step: 'Step',
+        from: 'From',
+        to: 'To',
+        heatmaps: 'Heatmaps',
+        heatmapLayers: 'Heatmap layers included in this analysis:',
+        clickDist: 'Click Distribution — Top Pages',
+        totalClicks: 'Total Clicks',
+        scrollDepth: 'Scroll Depth',
+        depth: 'Depth',
+        reached: 'Reached',
+        frictionEvents: 'Friction Events',
+        frictionDetected: 'friction events detected.',
+        sessionsSummary: 'Sessions — Visitor Summary',
+        visitorsRecorded: 'visitors recorded.',
+        visitor: 'Visitor',
+        pages_: 'Pages',
+        lastSeen: 'Last Seen',
+        liveSnapshot: 'Live — Snapshot',
+        activeVisitors: 'active visitor(s) at time of report generation.',
+        currentPage: 'Current Page',
+        aiAnalysis: 'Professional Analysis',
+        usabilityScore: 'Usability Score',
+        engagement: 'Engagement',
+        funnelFlow: 'Funnel & Page Flow',
+        scrollBehavior: 'Scroll Behavior',
+        frictionAnalysis: 'Friction Analysis',
+        keyFindings: 'Key Findings',
+        recommendations: 'Recommendations',
+        topIssues: 'Top Issues',
+        issue: 'Issue',
+        severity: 'Severity',
+        suggestion: 'Suggestion',
+        printBtn: 'Print / Save PDF',
+    },
+    es: {
+        title: 'Reporte de Tracking Web',
+        generated: 'Generado',
+        overview: 'Resumen',
+        uniqueVisitors: 'Visitantes Únicos',
+        sessions: 'Sesiones',
+        pagesTracked: 'Páginas Rastreadas',
+        totalEvents: 'Eventos Totales',
+        avgDuration: 'Duración Prom.',
+        customFunnels: 'Embudos Personalizados',
+        pageVisits: 'Visitas por Página',
+        transitions: 'Transiciones Principales',
+        page: 'Página',
+        views: 'Visitas',
+        events: 'Eventos',
+        step: 'Paso',
+        from: 'Desde',
+        to: 'Hacia',
+        heatmaps: 'Mapas de Calor',
+        heatmapLayers: 'Capas de mapa de calor incluidas en este análisis:',
+        clickDist: 'Distribución de Clicks — Páginas Principales',
+        totalClicks: 'Total Clicks',
+        scrollDepth: 'Profundidad de Scroll',
+        depth: 'Profundidad',
+        reached: 'Alcanzado',
+        frictionEvents: 'Eventos de Fricción',
+        frictionDetected: 'eventos de fricción detectados.',
+        sessionsSummary: 'Sesiones — Resumen de Visitantes',
+        visitorsRecorded: 'visitantes registrados.',
+        visitor: 'Visitante',
+        pages_: 'Páginas',
+        lastSeen: 'Última Visita',
+        liveSnapshot: 'En Vivo — Captura',
+        activeVisitors: 'visitante(s) activo(s) al momento de generar el reporte.',
+        currentPage: 'Página Actual',
+        aiAnalysis: 'Análisis Profesional',
+        usabilityScore: 'Puntaje de Usabilidad',
+        engagement: 'Engagement',
+        funnelFlow: 'Embudo y Flujo de Páginas',
+        scrollBehavior: 'Comportamiento de Scroll',
+        frictionAnalysis: 'Análisis de Fricción',
+        keyFindings: 'Hallazgos Clave',
+        recommendations: 'Recomendaciones',
+        topIssues: 'Problemas Principales',
+        issue: 'Problema',
+        severity: 'Severidad',
+        suggestion: 'Sugerencia',
+        printBtn: 'Imprimir / Guardar PDF',
+    },
+};
+
 function openTrackingReport(researchName: string, data: ReportInput) {
-    const { sections, overview, pages, funnels, visitors, liveSessions, scrollDepth, friction, aiReport } = data;
+    const { sections, overview, pages, funnels, visitors, liveSessions, scrollDepth, friction, aiReport, lang } = data;
+    const t = i18n[lang];
     const topPages = [...pages].sort((a, b) => b.sessionCount - a.sessionCount).slice(0, 10);
     const frictionEntries = Object.entries(friction).sort((a, b) => b[1] - a[1]);
     const totalFriction = frictionEntries.reduce((sum, [, v]) => sum + v, 0);
@@ -239,23 +423,23 @@ function openTrackingReport(researchName: string, data: ReportInput) {
 
     // Always show overview
     body += `
-<h2>Overview</h2>
+<h2>${t.overview}</h2>
 <div class="metrics">
-  <div class="metric"><div class="metric-value">${overview.uniqueVisitors}</div><div class="metric-label">Unique Visitors</div></div>
-  <div class="metric"><div class="metric-value">${overview.totalSessions}</div><div class="metric-label">Sessions</div></div>
-  <div class="metric"><div class="metric-value">${overview.pagesTracked}</div><div class="metric-label">Pages Tracked</div></div>
-  <div class="metric"><div class="metric-value">${overview.totalEvents.toLocaleString()}</div><div class="metric-label">Total Events</div></div>
-  <div class="metric"><div class="metric-value">${formatDur(overview.avgSessionDuration)}</div><div class="metric-label">Avg. Duration</div></div>
+  <div class="metric"><div class="metric-value">${overview.uniqueVisitors}</div><div class="metric-label">${t.uniqueVisitors}</div></div>
+  <div class="metric"><div class="metric-value">${overview.totalSessions}</div><div class="metric-label">${t.sessions}</div></div>
+  <div class="metric"><div class="metric-value">${overview.pagesTracked}</div><div class="metric-label">${t.pagesTracked}</div></div>
+  <div class="metric"><div class="metric-value">${overview.totalEvents.toLocaleString()}</div><div class="metric-label">${t.totalEvents}</div></div>
+  <div class="metric"><div class="metric-value">${formatDur(overview.avgSessionDuration)}</div><div class="metric-label">${t.avgDuration}</div></div>
 </div>`;
 
     // Funnels
     if (sections.funnels_custom && funnels.length > 0) {
-        body += `<h2>Custom Funnels</h2>`;
+        body += `<h2>${t.customFunnels}</h2>`;
         for (const funnel of funnels) {
             body += `
 <h3>${funnel.name}</h3>
 <table>
-  <thead><tr><th>#</th><th>Step</th><th>URL</th></tr></thead>
+  <thead><tr><th>#</th><th>${t.step}</th><th>URL</th></tr></thead>
   <tbody>
     ${funnel.steps.map((s, i) => `<tr><td>${i + 1}</td><td>${s.label || '—'}</td><td class="url">${shortenUrl(s.url)}</td></tr>`).join('')}
   </tbody>
@@ -265,9 +449,9 @@ function openTrackingReport(researchName: string, data: ReportInput) {
 
     if (sections.funnels_pageVisits && topPages.length > 0) {
         body += `
-<h2>Page Visits</h2>
+<h2>${t.pageVisits}</h2>
 <table>
-  <thead><tr><th>Page</th><th>Views</th><th>Events</th></tr></thead>
+  <thead><tr><th>${t.page}</th><th>${t.views}</th><th>${t.events}</th></tr></thead>
   <tbody>
     ${topPages.map(p => `<tr><td>${p.pageTitle || shortenUrl(p.pageUrl)}</td><td>${p.sessionCount}</td><td>${p.eventCount}</td></tr>`).join('')}
   </tbody>
@@ -276,10 +460,9 @@ function openTrackingReport(researchName: string, data: ReportInput) {
 
     if (sections.funnels_transitions && topPages.length > 1) {
         body += `
-<h2>Top Page Transitions</h2>
-<p class="note">Pages ordered by traffic volume — sequential pairs indicate common navigation paths.</p>
+<h2>${t.transitions}</h2>
 <table>
-  <thead><tr><th>From</th><th>To</th></tr></thead>
+  <thead><tr><th>${t.from}</th><th>${t.to}</th></tr></thead>
   <tbody>
     ${topPages.slice(0, -1).map((p, i) => `<tr><td>${p.pageTitle || shortenUrl(p.pageUrl)}</td><td>${topPages[i + 1].pageTitle || shortenUrl(topPages[i + 1].pageUrl)}</td></tr>`).join('')}
   </tbody>
@@ -288,21 +471,21 @@ function openTrackingReport(researchName: string, data: ReportInput) {
 
     // Heatmaps section
     const heatmapSections: string[] = [];
-    if (sections.heatmaps_click) heatmapSections.push('Click heatmap — shows where users click on each page');
-    if (sections.heatmaps_scroll) heatmapSections.push('Scroll depth — how far users scroll');
-    if (sections.heatmaps_attention) heatmapSections.push('Attention — time spent viewing each zone');
-    if (sections.heatmaps_density) heatmapSections.push('Density — click concentration areas');
+    if (sections.heatmaps_click) heatmapSections.push(lang === 'es' ? 'Click — muestra dónde hacen click los usuarios' : 'Click heatmap — shows where users click on each page');
+    if (sections.heatmaps_scroll) heatmapSections.push(lang === 'es' ? 'Scroll — profundidad de desplazamiento' : 'Scroll depth — how far users scroll');
+    if (sections.heatmaps_attention) heatmapSections.push(lang === 'es' ? 'Atención — tiempo de visualización por zona' : 'Attention — time spent viewing each zone');
+    if (sections.heatmaps_density) heatmapSections.push(lang === 'es' ? 'Densidad — concentración de clicks' : 'Density — click concentration areas');
 
     if (heatmapSections.length > 0) {
-        body += `<h2>Heatmaps</h2>
-<p class="note">Heatmap layers included in this analysis:</p>
+        body += `<h2>${t.heatmaps}</h2>
+<p class="note">${t.heatmapLayers}</p>
 <ul>${heatmapSections.map(s => `<li>${s}</li>`).join('')}</ul>`;
 
         if (sections.heatmaps_click) {
             body += `
-<h3>Click Distribution — Top Pages</h3>
+<h3>${t.clickDist}</h3>
 <table>
-  <thead><tr><th>Page</th><th>Total Clicks</th><th>Sessions</th></tr></thead>
+  <thead><tr><th>${t.page}</th><th>${t.totalClicks}</th><th>${t.sessions}</th></tr></thead>
   <tbody>
     ${topPages.slice(0, 5).map(p => `<tr><td>${p.pageTitle || shortenUrl(p.pageUrl)}</td><td>${p.eventCount}</td><td>${p.sessionCount}</td></tr>`).join('')}
   </tbody>
@@ -311,9 +494,9 @@ function openTrackingReport(researchName: string, data: ReportInput) {
 
         if (sections.heatmaps_scroll && scrollDepth.depths.length > 0) {
             body += `
-<h3>Scroll Depth</h3>
+<h3>${t.scrollDepth}</h3>
 <table>
-  <thead><tr><th>Depth</th><th>Reached</th><th></th></tr></thead>
+  <thead><tr><th>${t.depth}</th><th>${t.reached}</th><th></th></tr></thead>
   <tbody>
     ${scrollDepth.depths.map(d => `<tr>
       <td>${d.depthPct}%</td>
@@ -326,8 +509,8 @@ function openTrackingReport(researchName: string, data: ReportInput) {
 
         if (frictionEntries.length > 0 && (sections.heatmaps_click || sections.heatmaps_attention)) {
             body += `
-<h3>Friction Events</h3>
-<p class="note">${totalFriction} friction events detected.</p>
+<h3>${t.frictionEvents}</h3>
+<p class="note">${totalFriction} ${t.frictionDetected}</p>
 <div class="metrics">
   ${frictionEntries.map(([tag, count]) => {
       const colors: Record<string, string> = { 'dead-click': '#f59e0b', 'rage-click': '#ef4444', 'speed-browsing': '#3b82f6', 'mouse-out': '#6b7280' };
@@ -343,16 +526,16 @@ function openTrackingReport(researchName: string, data: ReportInput) {
     // Sessions
     if (sections.sessions && visitors.length > 0) {
         body += `
-<h2>Sessions — Visitor Summary</h2>
-<p class="note">${visitors.length} visitors recorded.</p>
+<h2>${t.sessionsSummary}</h2>
+<p class="note">${visitors.length} ${t.visitorsRecorded}</p>
 <table>
-  <thead><tr><th>Visitor</th><th>Sessions</th><th>Pages</th><th>Last Seen</th></tr></thead>
+  <thead><tr><th>${t.visitor}</th><th>${t.sessions}</th><th>${t.pages_}</th><th>${t.lastSeen}</th></tr></thead>
   <tbody>
     ${visitors.slice(0, 20).map(v => `<tr>
       <td class="mono">${v.visitorId.slice(0, 14)}...</td>
       <td>${v.sessionCount}</td>
       <td>${v.pages.length}</td>
-      <td class="url">${new Date(v.lastSeen as string).toLocaleDateString()}</td>
+      <td class="url">${new Date(v.lastSeen as string).toLocaleDateString(lang === 'es' ? 'es' : 'en-US')}</td>
     </tr>`).join('')}
   </tbody>
 </table>`;
@@ -361,11 +544,11 @@ function openTrackingReport(researchName: string, data: ReportInput) {
     // Live
     if (sections.live) {
         body += `
-<h2>Live — Snapshot</h2>
-<p class="note">${liveSessions.length} active visitor${liveSessions.length !== 1 ? 's' : ''} at time of report generation.</p>`;
+<h2>${t.liveSnapshot}</h2>
+<p class="note">${liveSessions.length} ${t.activeVisitors}</p>`;
         if (liveSessions.length > 0) {
             body += `<table>
-  <thead><tr><th>Visitor</th><th>Current Page</th></tr></thead>
+  <thead><tr><th>${t.visitor}</th><th>${t.currentPage}</th></tr></thead>
   <tbody>
     ${liveSessions.slice(0, 10).map(s => `<tr><td class="mono">${s.visitorId.slice(0, 14)}...</td><td class="url">${s.pages[0] ? shortenUrl(s.pages[0].pageUrl) : '—'}</td></tr>`).join('')}
   </tbody>
@@ -378,28 +561,28 @@ function openTrackingReport(researchName: string, data: ReportInput) {
         const severityColors: Record<string, string> = { high: '#ef4444', medium: '#f59e0b', low: '#6b7280' };
 
         body += `
-<h2>AI Professional Analysis</h2>
+<h2>${t.aiAnalysis}</h2>
 <div class="metrics">
-  <div class="metric" style="min-width:160px"><div class="metric-value" style="color:#2563eb">${aiReport.usabilityScore}/100</div><div class="metric-label">Usability Score</div></div>
+  <div class="metric" style="min-width:160px"><div class="metric-value" style="color:#2563eb">${aiReport.usabilityScore}/100</div><div class="metric-label">${t.usabilityScore}</div></div>
 </div>
 
 <p class="overview">${aiReport.overview}</p>
 
-${aiReport.engagementAnalysis ? `<h3>Engagement</h3><p class="note">${aiReport.engagementAnalysis}</p>` : ''}
-${aiReport.funnelAnalysis ? `<h3>Funnel & Page Flow</h3><p class="note">${aiReport.funnelAnalysis}</p>` : ''}
-${aiReport.scrollBehavior ? `<h3>Scroll Behavior</h3><p class="note">${aiReport.scrollBehavior}</p>` : ''}
-${aiReport.frictionAnalysis ? `<h3>Friction Analysis</h3><p class="note">${aiReport.frictionAnalysis}</p>` : ''}
+${aiReport.engagementAnalysis ? `<h3>${t.engagement}</h3><p class="note">${aiReport.engagementAnalysis}</p>` : ''}
+${aiReport.funnelAnalysis ? `<h3>${t.funnelFlow}</h3><p class="note">${aiReport.funnelAnalysis}</p>` : ''}
+${aiReport.scrollBehavior ? `<h3>${t.scrollBehavior}</h3><p class="note">${aiReport.scrollBehavior}</p>` : ''}
+${aiReport.frictionAnalysis ? `<h3>${t.frictionAnalysis}</h3><p class="note">${aiReport.frictionAnalysis}</p>` : ''}
 
-<h3>Key Findings</h3>
+<h3>${t.keyFindings}</h3>
 ${aiReport.keyFindings.map((f, i) => `<div class="finding"><div class="finding-num">${i + 1}</div><div class="finding-text">${f}</div></div>`).join('')}
 
-<h3>Recommendations</h3>
+<h3>${t.recommendations}</h3>
 ${aiReport.recommendations.map(r => `<div class="rec"><div class="rec-dot"></div><div class="rec-text">${r}</div></div>`).join('')}
 
 ${aiReport.topIssues.length > 0 ? `
-<h3>Top Issues</h3>
+<h3>${t.topIssues}</h3>
 <table>
-  <thead><tr><th>Issue</th><th>Severity</th><th>Suggestion</th></tr></thead>
+  <thead><tr><th>${t.issue}</th><th>${t.severity}</th><th>${t.suggestion}</th></tr></thead>
   <tbody>
     ${aiReport.topIssues.map(issue => `<tr>
       <td>${issue.issue}</td>
@@ -412,7 +595,7 @@ ${aiReport.topIssues.length > 0 ? `
 
     const html = `<!DOCTYPE html>
 <html><head>
-<title>${researchName} — Website Tracking Report</title>
+<title>${researchName} — ${t.title}</title>
 <style>
   @media print { @page { margin: 1.5cm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -447,15 +630,15 @@ ${aiReport.topIssues.length > 0 ? `
   @media print { .print-btn { display: none; } }
 </style>
 </head><body>
-<button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+<button class="print-btn" onclick="window.print()">${t.printBtn}</button>
 
 <h1>${researchName}</h1>
-<p class="subtitle">Website Tracking Report — Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+<p class="subtitle">${t.title} — ${t.generated} ${new Date().toLocaleDateString(lang === 'es' ? 'es' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
 
 ${body}
 
 <div class="footer">
-  <span>EmotioCX — Website Tracking Report</span>
+  <span>EmotioCX — ${t.title}</span>
   <span>${new Date().toISOString().split('T')[0]}</span>
 </div>
 </body></html>`;

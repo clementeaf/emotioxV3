@@ -1,3 +1,11 @@
+## v0.70.6 — PDF report: i18n EN/ES, progress bar, language selector (2026-05-11)
+
+### research-frontend
+- **PDF report language selector.** EN/ES toggle in picker footer. All report labels, headers, dates, and print button respect selected language.
+- **Progress bar in button.** Generate button fills 0-100% with step label while fetching data. Fixed height — no layout shift.
+
+---
+
 ## v0.70.5 — Funnels: Page Flow side by side, funnel editor fix (2026-05-11)
 
 ### research-frontend
