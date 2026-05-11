@@ -526,7 +526,7 @@ const getDeviceIcon = (vw: number) => {
 // ─── Visitor Journeys Tab ───────────────────────────────────────────
 
 const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onReplay: (id: string) => void }) => {
-    const [expandedVisitor, setExpandedVisitor] = useState<string | null>(null);
+    const [selectedVisitor, setSelectedVisitor] = useState<string | null>(null);
 
     const { data, isLoading } = useQuery({
         queryKey: ['tracking', researchId, 'visitors'],
@@ -547,93 +547,123 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
         );
     }
 
+    const active = visitors.find(v => v.visitorId === selectedVisitor);
+
     return (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100">
-                <h3 className="text-sm font-semibold text-slate-800">
-                    Visitors
-                    <span className="ml-2 text-xs font-normal text-gray-500">{data?.totalVisitors} total</span>
-                </h3>
-            </div>
-            <div className="divide-y divide-gray-100">
-                {visitors.map((visitor) => {
-                    const expanded = expandedVisitor === visitor.visitorId;
-                    return (
-                        <div key={visitor.visitorId}>
-                            {/* Visitor row */}
+        <div className="flex gap-0 bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
+            {/* Left: visitor list */}
+            <div className="w-[340px] shrink-0 border-r border-gray-100 flex flex-col">
+                <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+                    <h3 className="text-sm font-semibold text-slate-800">
+                        Visitors
+                        <span className="ml-2 text-xs font-normal text-gray-500">{data?.totalVisitors} total</span>
+                    </h3>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                    {visitors.map((visitor) => {
+                        const isActive = selectedVisitor === visitor.visitorId;
+                        return (
                             <button
-                                onClick={() => setExpandedVisitor(expanded ? null : visitor.visitorId)}
-                                className="w-full px-5 py-3 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
+                                key={visitor.visitorId}
+                                onClick={() => setSelectedVisitor(isActive ? null : visitor.visitorId)}
+                                className={`w-full px-4 py-3 flex items-center gap-3 text-left border-b border-gray-50 transition-colors ${
+                                    isActive ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50 border-l-2 border-l-transparent'
+                                }`}
                             >
-                                <span className="text-lg">{getDeviceIcon(visitor.viewportWidth)}</span>
+                                <span className="text-base">{getDeviceIcon(visitor.viewportWidth)}</span>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-slate-800 truncate">
-                                        {visitor.visitorId.slice(0, 12)}...
+                                    <p className={`text-xs font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-700'}`}>
+                                        {visitor.visitorId.slice(0, 14)}...
                                     </p>
-                                    <p className="text-xs text-gray-500 truncate">
+                                    <p className="text-[10px] text-gray-400 truncate">
                                         Entry: {shortenUrl(visitor.entryPage)}
                                     </p>
                                 </div>
                                 <div className="text-right shrink-0">
-                                    <p className="text-[10px] text-gray-400">{visitor.lastSeen ? formatDateTime(visitor.lastSeen as string) : ''}</p>
-                                    <p className="text-xs text-gray-500">{visitor.sessionCount} page{visitor.sessionCount !== 1 ? 's' : ''}</p>
-                                    <p className="text-xs text-gray-400">{formatMs(visitor.totalDurationMs)}</p>
+                                    <p className="text-[9px] text-gray-400">{visitor.lastSeen ? formatDateTime(visitor.lastSeen as string) : ''}</p>
+                                    <p className="text-[10px] text-gray-500">{visitor.pages.length} page{visitor.pages.length !== 1 ? 's' : ''}</p>
+                                    <p className="text-[10px] text-gray-400">{formatMs(visitor.totalDurationMs)}</p>
                                 </div>
-                                <span className={`text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`}>▸</span>
                             </button>
+                        );
+                    })}
+                </div>
+            </div>
 
-                            {/* Page breakdown */}
-                            {expanded && (
-                                <div className="bg-gray-50 border-t border-gray-100">
-                                    <div className="px-5 py-2 grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-x-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider overflow-visible">
-                                        <HTip label="#" tip="Visit order" />
-                                        <HTip label="Time" tip="Time of visit" />
-                                        <HTip label="URL" tip="Page URL" />
-                                        <HTip label="Timeline" tip="Red = clicks, Blue = view only. Length = relative time on page" />
-                                        <HTip label="Duration" tip="Time on page" align="right" />
-                                        <HTip label="Events" tip="Clicks + scrolls + mouse events" align="right" />
-                                        <span />
-                                    </div>
-                                    {visitor.pages.map((page) => {
-                                        const maxDur = Math.max(...visitor.pages.map(p => p.durationMs), 1);
-                                        const barPct = (page.durationMs / maxDur) * 100;
-                                        return (
-                                            <div
-                                                key={page.sessionId}
-                                                className="px-5 py-2 grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-x-4 items-center border-t border-gray-100 text-xs"
-                                            >
-                                                <span className="text-gray-400 font-mono">#{page.index}</span>
-                                                <span className="text-[10px] text-gray-400 font-mono w-12">
-                                                    {page.startedAt ? new Date(page.startedAt as string).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
-                                                </span>
-                                                <span className="text-slate-700 truncate" title={page.pageUrl}>
-                                                    {shortenUrl(page.pageUrl)}
-                                                </span>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div
-                                                            className={`h-full rounded-full ${page.clickCount > 0 ? 'bg-red-400' : 'bg-blue-400'}`}
-                                                            style={{ width: `${Math.max(2, barPct)}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <span className="text-gray-600 font-mono w-14 text-right">{formatMs(page.durationMs)}</span>
-                                                <span className="text-gray-500 w-10 text-right">{page.eventCount}</span>
-                                                <button
-                                                    onClick={() => onReplay(page.sessionId)}
-                                                    className="p-1 rounded hover:bg-blue-50 text-blue-600"
-                                                    title="Replay this page"
-                                                >
-                                                    <PlayCircle className="h-3.5 w-3.5" />
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+            {/* Right: detail panel */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {active ? (
+                    <>
+                        {/* Header */}
+                        <div className="px-5 py-3 border-b border-gray-100 shrink-0 flex items-center gap-3">
+                            <span className="text-lg">{getDeviceIcon(active.viewportWidth)}</span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-800 font-mono">{active.visitorId}</p>
+                                <p className="text-xs text-gray-500">
+                                    Entry: {shortenUrl(active.entryPage)} · {active.pages.length} pages · {formatMs(active.totalDurationMs)}
+                                </p>
+                            </div>
+                            <p className="text-[10px] text-gray-400 shrink-0">
+                                {active.lastSeen ? formatDateTime(active.lastSeen as string) : ''}
+                            </p>
                         </div>
-                    );
-                })}
+
+                        {/* Page list */}
+                        <div className="flex-1 overflow-y-auto">
+                            <div className="px-5 py-2 flex gap-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                                <span className="w-6">#</span>
+                                <span className="w-12">Time</span>
+                                <span className="flex-1">Page</span>
+                                <span className="w-24">Timeline</span>
+                                <span className="w-14 text-right">Duration</span>
+                                <span className="w-10 text-right">Events</span>
+                                <span className="w-8" />
+                            </div>
+                            {active.pages.map((page) => {
+                                const maxDur = Math.max(...active.pages.map(p => p.durationMs), 1);
+                                const barPct = (page.durationMs / maxDur) * 100;
+                                return (
+                                    <div
+                                        key={`${page.sessionId}-${page.index}`}
+                                        className="px-5 py-2.5 flex items-center gap-4 border-b border-gray-50 text-xs hover:bg-gray-50 transition-colors"
+                                    >
+                                        <span className="text-gray-400 font-mono w-6">#{page.index}</span>
+                                        <span className="text-[10px] text-gray-400 font-mono w-12">
+                                            {page.startedAt ? new Date(page.startedAt as string).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </span>
+                                        <span className="text-slate-700 truncate flex-1" title={page.pageUrl}>
+                                            {shortenUrl(page.pageUrl)}
+                                        </span>
+                                        <div className="w-24">
+                                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full ${page.clickCount > 0 ? 'bg-red-400' : 'bg-blue-400'}`}
+                                                    style={{ width: `${Math.max(2, barPct)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <span className="text-gray-600 font-mono w-14 text-right">{formatMs(page.durationMs)}</span>
+                                        <span className="text-gray-500 w-10 text-right">{page.eventCount}</span>
+                                        <button
+                                            onClick={() => onReplay(page.sessionId)}
+                                            className="p-1 rounded hover:bg-blue-50 text-blue-600 w-8 flex items-center justify-center"
+                                            title="Replay"
+                                        >
+                                            <PlayCircle className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="text-center">
+                            <Users className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+                            <p className="text-sm text-gray-400">Select a visitor to see their journey</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -758,11 +788,3 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
 };
 
 
-const HTip = ({ label, tip, align = 'left' }: { label: string; tip: string; align?: 'left' | 'right' }) => (
-    <span className="group/tip relative cursor-default">
-        {label}
-        <span className={`invisible group-hover/tip:visible absolute bottom-full ${align === 'right' ? 'right-0' : 'left-0'} mb-1 px-2 py-1 rounded bg-slate-800 text-white text-[10px] font-normal normal-case tracking-normal whitespace-nowrap shadow-lg z-50`}>
-            {tip}
-        </span>
-    </span>
-);

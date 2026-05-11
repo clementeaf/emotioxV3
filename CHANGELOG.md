@@ -1,3 +1,10 @@
+## v0.70.8 — Sessions master-detail layout (2026-05-11)
+
+### research-frontend
+- **Sessions master-detail.** Visitor list on the left (340px, scroll), detail panel on the right with page table (#, Time, URL, Timeline, Duration, Events, Replay). Selected visitor highlighted with blue left border. Empty state when no visitor selected.
+
+---
+
 ## v0.70.7 — Direct PDF download, screenshot-first heatmap (2026-05-11)
 
 ### research-frontend
