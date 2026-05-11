@@ -30,7 +30,7 @@ const formatDateTime = (iso: string): string => {
 
 type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
-type FunnelSubTab = 'custom-funnels' | 'page-visits' | 'transitions';
+type FunnelSubTab = 'custom-funnels' | 'page-flow';
 
 interface WebsiteTrackingResultsProps {
     researchId: string;
@@ -332,16 +332,15 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
             {activeTab === 'funnels' && (
                 <div className="space-y-4">
-                    {/* Funnel sub-tabs */}
+                    {/* Funnel sub-tabs: Custom Funnels | Page Flow */}
                     <div className="flex gap-1 border-b border-gray-200 pb-px">
                         {([
                             { id: 'custom-funnels' as const, label: 'Custom Funnels', tip: 'Define step-by-step conversion paths and measure drop-off' },
-                            { id: 'page-visits' as const, label: 'Page Visits', tip: 'Total visits per page ranked by traffic' },
-                            { id: 'transitions' as const, label: 'Transitions', tip: 'Most common page-to-page navigation paths' },
+                            { id: 'page-flow' as const, label: 'Page Flow', tip: 'Page visits and navigation transitions side by side' },
                         ]).map((sub) => (
                             <Tip key={sub.id} tip={sub.tip}>
                                 <button
-                                    onClick={() => setFunnelSubTab(sub.id)}
+                                    onClick={() => setFunnelSubTab(sub.id as FunnelSubTab)}
                                     className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
                                         funnelSubTab === sub.id
                                             ? 'border-blue-600 text-blue-600'
@@ -354,9 +353,29 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                         ))}
                     </div>
 
-                    <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 280px)' }}>
-                        <FunnelChart researchId={researchId} view={funnelSubTab === 'custom-funnels' ? 'custom-funnels' : funnelSubTab === 'page-visits' ? 'page-visits' : 'transitions'} />
-                    </div>
+                    {funnelSubTab === 'custom-funnels' && (
+                        <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 280px)' }}>
+                            <FunnelChart researchId={researchId} view="custom-funnels" />
+                        </div>
+                    )}
+
+                    {funnelSubTab === 'page-flow' && (
+                        <>
+                            {/* Desktop: side by side */}
+                            <div className="hidden md:flex gap-4" style={{ height: 'calc(100vh - 240px)' }}>
+                                <div className="flex-1 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
+                                    <FunnelChart researchId={researchId} view="page-visits" />
+                                </div>
+                                <div className="flex-1 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
+                                    <FunnelChart researchId={researchId} view="transitions" />
+                                </div>
+                            </div>
+                            {/* Mobile: tabs */}
+                            <div className="md:hidden">
+                                <PageFlowMobileTabs researchId={researchId} />
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -418,6 +437,31 @@ const Tip = ({ tip, children }: { tip: string; children: React.ReactNode }) => {
                 </div>,
                 document.body
             )}
+        </div>
+    );
+};
+
+/** Mobile-only tabs for Page Visits / Transitions */
+const PageFlowMobileTabs = ({ researchId }: { researchId: string }) => {
+    const [tab, setTab] = useState<'page-visits' | 'transitions'>('page-visits');
+    return (
+        <div>
+            <div className="flex gap-1 border-b border-gray-200 mb-3">
+                {(['page-visits', 'transitions'] as const).map((t) => (
+                    <button
+                        key={t}
+                        onClick={() => setTab(t)}
+                        className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
+                            tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'
+                        }`}
+                    >
+                        {t === 'page-visits' ? 'Page Visits' : 'Transitions'}
+                    </button>
+                ))}
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 320px)' }}>
+                <FunnelChart researchId={researchId} view={tab} />
+            </div>
         </div>
     );
 };

@@ -1,3 +1,12 @@
+## v0.70.5 — Funnels: Page Flow side by side, funnel editor fix (2026-05-11)
+
+### research-frontend
+- **Page Flow side by side.** "Page Visits" and "Transitions" merged into single "Page Flow" sub-tab. Desktop: flex 50/50 with internal scroll. Mobile: tab switcher.
+- **Funnel editor loads data.** Added `key={funnel.id}` to `FunnelEditor` — forces re-mount on edit, loads correct name and steps.
+- **Funnels expanded by default.** Funnel cards start expanded instead of collapsed.
+
+---
+
 ## v0.70.4 — Analyze endpoint: fire-and-forget with polling (2026-05-10)
 
 ### backend
