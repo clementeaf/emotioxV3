@@ -47,6 +47,8 @@ export interface NavigationStep {
 }
 
 export interface NavigationTestCardProps {
+  researchId?: string;
+  moduleId?: string;
   questionNumber: string;
   questionText: string;
   questionType?: string;

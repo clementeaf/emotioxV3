@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sparkles, RefreshCw, ChevronDown } from 'lucide-react';
+import { Sparkles, RefreshCw, ChevronDown, Download } from 'lucide-react';
 import apiClient from '../../../services/api/client';
 
 interface ExecutiveSummary {
@@ -53,6 +53,84 @@ export const ExecutiveSummaryPanel = ({ researchId, filteredParticipantIds }: { 
             queryClient.invalidateQueries({ queryKey: ['executive-summary', researchId] });
         },
     });
+
+    const handleDownloadPdf = useCallback(async () => {
+        if (!summary) return;
+        const html2pdf = (await import('html2pdf.js')).default;
+
+        const sentimentTotal = (summary.sentiment?.positive ?? 0) + (summary.sentiment?.negative ?? 0) + (summary.sentiment?.neutral ?? 0);
+        const sentimentHtml = sentimentTotal > 0 ? `
+            <h3 style="font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin:20px 0 10px">Sentiment Distribution</h3>
+            <div style="display:flex;gap:24px">
+                ${(['Positive', 'Neutral', 'Negative'] as const).map(label => {
+                    const val = label === 'Positive' ? summary.sentiment!.positive : label === 'Neutral' ? summary.sentiment!.neutral : summary.sentiment!.negative;
+                    const pct = Math.round((val / sentimentTotal) * 100);
+                    const color = label === 'Positive' ? '#22c55e' : label === 'Negative' ? '#ef4444' : '#9ca3af';
+                    return `<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:#4b5563">${label}</span><span style="font-size:12px;font-weight:600;color:#111827">${pct}%</span></div><div style="height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${color};border-radius:4px"></div></div></div>`;
+                }).join('')}
+            </div>` : '';
+
+        const html = `
+            <div style="font-family:'Plus Jakarta Sans',Inter,system-ui,sans-serif;max-width:700px;margin:0 auto;padding:40px 32px;color:#1e293b">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:8px;display:flex;align-items:center;justify-content:center">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+                    </div>
+                    <div>
+                        <h1 style="font-size:20px;font-weight:700;margin:0">Executive Summary</h1>
+                        <p style="font-size:12px;color:#9ca3af;margin:2px 0 0">${new Date(summary.generatedAt).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                    </div>
+                </div>
+
+                <div style="background:#f8fafc;border-radius:8px;padding:16px;margin-bottom:24px">
+                    <p style="font-size:14px;line-height:1.7;color:#475569;margin:0">${summary.overview}</p>
+                </div>
+
+                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+                    ${[
+                        { label: 'Participants', value: summary.metrics.participantCount },
+                        { label: 'Responses', value: summary.metrics.responseCount },
+                        ...(summary.metrics.nps !== undefined ? [{ label: 'NPS', value: summary.metrics.nps }] : []),
+                        ...(summary.metrics.csat !== undefined ? [{ label: 'CSAT', value: summary.metrics.csat }] : []),
+                        ...(summary.metrics.ces !== undefined ? [{ label: 'CES', value: summary.metrics.ces }] : []),
+                    ].map(m => `<div style="background:#f9fafb;border-radius:8px;padding:10px 16px"><p style="font-size:20px;font-weight:700;color:#111827;margin:0">${m.value}</p><p style="font-size:11px;color:#6b7280;margin:2px 0 0">${m.label}</p></div>`).join('')}
+                </div>
+
+                ${summary.keyFindings.length > 0 ? `
+                    <h3 style="font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 10px">Key Findings</h3>
+                    <ol style="padding-left:0;list-style:none;margin:0 0 24px">
+                        ${summary.keyFindings.map((f, i) => `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px"><span style="width:22px;height:22px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${i + 1}</span><span style="font-size:13px;color:#4b5563;line-height:1.6">${f}</span></li>`).join('')}
+                    </ol>
+                ` : ''}
+
+                ${summary.recommendations.length > 0 ? `
+                    <h3 style="font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 10px">Recommendations</h3>
+                    <ul style="padding-left:0;list-style:none;margin:0 0 24px">
+                        ${summary.recommendations.map(r => `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;flex-shrink:0;margin-top:7px"></span><span style="font-size:13px;color:#4b5563;line-height:1.6">${r}</span></li>`).join('')}
+                    </ul>
+                ` : ''}
+
+                ${sentimentHtml}
+
+                <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center">
+                    <p style="font-size:10px;color:#9ca3af">Generated by EmotioX · ${new Date(summary.generatedAt).toLocaleString('es')}</p>
+                </div>
+            </div>`;
+
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        document.body.appendChild(container);
+
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: `executive-summary-${researchId.slice(0, 8)}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        }).from(container).save();
+
+        document.body.removeChild(container);
+    }, [summary, researchId]);
 
     if (isLoading) {
         return (
@@ -113,6 +191,13 @@ export const ExecutiveSummaryPanel = ({ researchId, filteredParticipantIds }: { 
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleDownloadPdf(); }}
+                        className="p-1.5 text-gray-400 hover:text-green-600 rounded hover:bg-green-50"
+                        title="Download PDF"
+                    >
+                        <Download className="h-4 w-4" />
+                    </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); generate.mutate(); }}
                         disabled={generate.isPending}

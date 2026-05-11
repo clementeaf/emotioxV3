@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { toPng } from 'html-to-image';
+import { Loader2 } from 'lucide-react';
 import { Card } from '../../../ui/Card';
 import { Badge } from '../../../ui/Badge';
 import { cn } from '../../../../lib/utils';
@@ -12,6 +13,8 @@ import type { AOI, AOIWithStats, NavigationTestCardProps } from './navigationTes
 export type { NavigationStep, NavigationTestCardProps } from './navigationTestCard.types';
 
 export const NavigationTestCard = ({
+  researchId,
+  moduleId,
   questionNumber,
   questionText,
   questionType = 'Navigation Test',
@@ -24,6 +27,7 @@ export const NavigationTestCard = ({
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState('heat-click-map');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [predicting, setPredicting] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // AOI drawing state (per step, keyed by stepNumber)
@@ -484,12 +488,48 @@ export const NavigationTestCard = ({
                             />
                           </div>
                         ) : (
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                            <p className="text-sm text-gray-500">
-                              {step.imageUrl
-                                ? 'No prediction data yet. Run attention prediction from the research builder.'
-                                : 'No image available for prediction.'}
-                            </p>
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+                            {step.imageUrl && researchId && moduleId ? (
+                              <>
+                                <p className="text-sm text-gray-500 mb-3">No prediction data yet for this step.</p>
+                                <button
+                                  onClick={async () => {
+                                    const stepFileId = steps.length > 1 ? String(step.stepNumber) : undefined;
+                                    setPredicting(String(step.stepNumber));
+                                    try {
+                                      const { default: apiClient } = await import('../../../../services/api/client');
+                                      const body: Record<string, unknown> = {};
+                                      if (stepFileId) body.imageIndex = step.stepNumber - 1;
+                                      await apiClient.post(
+                                        `/attention-prediction/research/${researchId}/module/${moduleId}/predict`,
+                                        body
+                                      );
+                                      // Reload page to pick up new prediction data from module config
+                                      window.location.reload();
+                                    } catch (err) {
+                                      console.error('Prediction failed:', err);
+                                    } finally {
+                                      setPredicting(null);
+                                    }
+                                  }}
+                                  disabled={predicting === String(step.stepNumber)}
+                                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 mx-auto transition-colors"
+                                >
+                                  {predicting === String(step.stepNumber) ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Running prediction...
+                                    </>
+                                  ) : (
+                                    'Run Attention Prediction'
+                                  )}
+                                </button>
+                              </>
+                            ) : (
+                              <p className="text-sm text-gray-500">
+                                {step.imageUrl ? 'No prediction data available.' : 'No image available for prediction.'}
+                              </p>
+                            )}
                           </div>
                         )}
                       </>

@@ -285,6 +285,8 @@ export const NavigationFlowResultsWrapper = ({
 
     return (
         <NavigationTestCard
+            researchId={researchId}
+            moduleId={moduleId}
             questionNumber={questionNumber}
             questionText={moduleName}
             questionType="Navigation Test"

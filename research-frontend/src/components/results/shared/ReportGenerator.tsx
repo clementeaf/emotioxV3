@@ -180,17 +180,17 @@ export const ReportGeneratorButton = ({ researchId, filteredParticipantIds }: { 
         <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
         >
             {generating ? (
                 <>
-                    <FileText className="h-4 w-4 animate-pulse" />
-                    Generating...
+                    <FileText className="h-3.5 w-3.5 animate-pulse" />
+                    ...
                 </>
             ) : (
                 <>
-                    <Download className="h-4 w-4" />
-                    Report PDF
+                    <Download className="h-3.5 w-3.5" />
+                    PDF
                 </>
             )}
         </button>

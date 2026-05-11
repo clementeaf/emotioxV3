@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ListFilter } from 'lucide-react';
 import { Card } from '../../ui/Card';
 import { Filters } from '../shared/Filters';
 import { VOCComments } from '../smart-voc/components/VOCComments';
@@ -71,6 +72,38 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
       totalResponses: module.responses.filter((r) => filteredParticipantIds.has(r.participantId)).length,
     }));
   }, [data?.modules, filteredParticipantIds]);
+
+  // Module visibility filter
+  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<string> | null>(null);
+  const [moduleFilterOpen, setModuleFilterOpen] = useState(false);
+
+  const visibleModules = useMemo(() => {
+    if (!selectedModuleIds) return modulesToRender;
+    return modulesToRender.filter(m => selectedModuleIds.has(m.moduleId));
+  }, [modulesToRender, selectedModuleIds]);
+
+  const toggleModuleId = (moduleId: string) => {
+    setSelectedModuleIds(prev => {
+      const current = prev ?? new Set(modulesToRender.map(m => m.moduleId));
+      const next = new Set(current);
+      if (next.has(moduleId)) {
+        next.delete(moduleId);
+      } else {
+        next.add(moduleId);
+      }
+      // If all selected, reset to null (show all)
+      if (next.size === modulesToRender.length) return null;
+      return next;
+    });
+  };
+
+  const toggleAllModules = () => {
+    if (!selectedModuleIds || selectedModuleIds.size === modulesToRender.length) {
+      setSelectedModuleIds(new Set());
+    } else {
+      setSelectedModuleIds(null);
+    }
+  };
 
   // Helper to detect module type
   const detectModuleType = (moduleName: string): string => {
@@ -235,9 +268,64 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
         <div className="flex gap-6">
           {/* Left: Main Content */}
           <div className="flex-1 space-y-6">
+            {/* Module selector */}
+            {modulesToRender.length > 1 && (
+              <div className="relative">
+                <button
+                  onClick={() => setModuleFilterOpen(prev => !prev)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors',
+                    selectedModuleIds && selectedModuleIds.size < modulesToRender.length
+                      ? 'bg-blue-50 border-blue-200 text-blue-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  )}
+                >
+                  <ListFilter className="h-4 w-4" />
+                  {selectedModuleIds && selectedModuleIds.size < modulesToRender.length
+                    ? `${selectedModuleIds.size} of ${modulesToRender.length} modules`
+                    : `All modules (${modulesToRender.length})`}
+                </button>
+
+                {moduleFilterOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setModuleFilterOpen(false)} />
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-2 w-80 max-h-72 overflow-y-auto">
+                      {/* Select all */}
+                      <label className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-pointer border-b border-gray-100 mb-1">
+                        <input
+                          type="checkbox"
+                          checked={!selectedModuleIds || selectedModuleIds.size === modulesToRender.length}
+                          onChange={toggleAllModules}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-xs font-medium text-gray-700">Select all</span>
+                      </label>
+                      {modulesToRender.map((mod) => {
+                        const checked = !selectedModuleIds || selectedModuleIds.has(mod.moduleId);
+                        return (
+                          <label key={mod.moduleId} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleModuleId(mod.moduleId)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs text-gray-700 truncate block">{(mod as ModuleData).questionText || mod.moduleName}</span>
+                              <span className="text-[10px] text-gray-400">{mod.totalResponses} responses</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Dynamic Module Rendering */}
-            {modulesToRender.length > 0 ? (
-              modulesToRender.map((module, index) => renderModuleResults(module, index))
+            {visibleModules.length > 0 ? (
+              visibleModules.map((module, index) => renderModuleResults(module, index))
             ) : (
               <Card className="p-12 text-center bg-gray-50">
                 <div className="flex items-center justify-center mb-4">
