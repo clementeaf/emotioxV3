@@ -23,6 +23,8 @@ interface IATCriteriaEditorProps {
     researchId?: string;
     /** Available targets/objects from the module for the target selector */
     targets: IATTargetOption[];
+    /** When true, hides target selector — criteria iterate through all targets (no pre-assignment) */
+    hideTargetSelector?: boolean;
 }
 
 /**
@@ -30,7 +32,7 @@ interface IATCriteriaEditorProps {
  * Muestra una tabla: Orden | Nombre del atributo | Target (selector) | Eliminar.
  * El investigador asigna cada criteria a un target para determinar la respuesta correcta.
  */
-export const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCriteriaEditorProps) => {
+export const IATCriteriaEditor = ({ component, value, onChange, targets, hideTargetSelector }: IATCriteriaEditorProps) => {
     const minItems = (component.settings?.minItems as number) ?? 1;
     const maxItems = (component.settings?.maxItems as number) ?? 15;
 
@@ -112,11 +114,11 @@ export const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCr
 
             <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {/* Header */}
-                <div className="grid grid-cols-[2rem_3rem_1fr_auto_2.5rem_2.5rem] items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                <div className={`grid ${hideTargetSelector ? 'grid-cols-[2rem_3rem_1fr_2.5rem_2.5rem]' : 'grid-cols-[2rem_3rem_1fr_auto_2.5rem_2.5rem]'} items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wide`}>
                     <span />
                     <span>Order</span>
                     <span>Attribute name</span>
-                    <span>Target</span>
+                    {!hideTargetSelector && <span>Target</span>}
                     <span />
                     <span />
                 </div>
@@ -125,7 +127,7 @@ export const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCr
                 {items.map((item, index) => (
                     <div
                         key={item.id}
-                        className={`grid grid-cols-[2rem_3rem_1fr_auto_2.5rem_2.5rem] items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 ${item.hidden ? 'opacity-50 bg-gray-50' : ''}`}
+                        className={`grid ${hideTargetSelector ? 'grid-cols-[2rem_3rem_1fr_2.5rem_2.5rem]' : 'grid-cols-[2rem_3rem_1fr_auto_2.5rem_2.5rem]'} items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 ${item.hidden ? 'opacity-50 bg-gray-50' : ''}`}
                     >
                         {/* Drag handle (visual only) */}
                         <span className="text-gray-300 cursor-grab select-none text-lg leading-none">⠿</span>
@@ -142,15 +144,17 @@ export const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCr
                             className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         />
 
-                        {/* Target selector */}
-                        <div className="min-w-[140px]">
-                            <CustomSelect
-                                value={item.targetId || ''}
-                                onChange={(val) => handleTargetChange(item.id, val)}
-                                options={targets.map((t) => ({ value: t.id, label: t.name }))}
-                                placeholder="— Select —"
-                            />
-                        </div>
+                        {/* Target selector — hidden when criteria iterate all targets */}
+                        {!hideTargetSelector && (
+                            <div className="min-w-[140px]">
+                                <CustomSelect
+                                    value={item.targetId || ''}
+                                    onChange={(val) => handleTargetChange(item.id, val)}
+                                    options={targets.map((t) => ({ value: t.id, label: t.name }))}
+                                    placeholder="— Select —"
+                                />
+                            </div>
+                        )}
 
                         {/* Hide/Show toggle */}
                         <button
@@ -183,7 +187,7 @@ export const IATCriteriaEditor = ({ component, value, onChange, targets }: IATCr
                 </Button>
             )}
 
-            {targets.length >= 2 && items.some(item => item.label.trim() && !item.targetId && !item.hidden) && (
+            {!hideTargetSelector && targets.length >= 2 && items.some(item => item.label.trim() && !item.targetId && !item.hidden) && (
                 <p className="text-xs text-amber-600 mt-2">
                     Some criteria have no target assigned. Assign targets for accurate scoring.
                 </p>

@@ -31,6 +31,35 @@ const TARGET_COLORS = [
 // Reference line color
 const REFERENCE_LINE_COLOR = '#EF4444';
 
+// ─── Association strength classification ─────────────────────────
+type AssociationStrength = 'strong' | 'moderate' | 'weak' | 'none';
+
+const classifyAssociation = (score: number): AssociationStrength => {
+    const abs = Math.abs(score);
+    if (abs >= 70) return 'strong';
+    if (abs >= 40) return 'moderate';
+    if (abs >= 15) return 'weak';
+    return 'none';
+};
+
+const ASSOCIATION_STYLES: Record<AssociationStrength, { bg: string; text: string; label: string; labelEs: string }> = {
+    strong: { bg: 'bg-red-50 border-red-200', text: 'text-red-700', label: 'Strong', labelEs: 'Fuerte' },
+    moderate: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', label: 'Moderate', labelEs: 'Media' },
+    weak: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Weak', labelEs: 'Baja' },
+    none: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-500', label: 'None', labelEs: 'Sin asociación' },
+};
+
+const AssociationBadge = ({ score, targetName }: { score: number; targetName?: string }) => {
+    const strength = classifyAssociation(score);
+    const style = ASSOCIATION_STYLES[strength];
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${style.bg} ${style.text}`}>
+            {targetName && <span className="font-normal opacity-70">{targetName}:</span>}
+            {Math.abs(score)}% — {style.labelEs}
+        </span>
+    );
+};
+
 // ==========================================
 // ATTRIBUTE TESTING — RADAR CHART
 // ==========================================
@@ -93,6 +122,23 @@ const AttributeTestingChart = ({ module: mod }: { module: IATModuleResult }) => 
             />
           </RadarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Association strength summary */}
+      <div className="mt-4 space-y-2">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Association Strength</h4>
+        {mod.scores.map(score => {
+          const dominantTarget = mod.targets.reduce((best, t) =>
+            Math.abs(score.targetScores[t.id] ?? 0) > Math.abs(score.targetScores[best.id] ?? 0) ? t : best
+          , mod.targets[0]);
+          const dominantScore = score.targetScores[dominantTarget?.id] ?? 0;
+          return (
+            <div key={score.attributeId} className="flex items-center gap-3">
+              <span className="text-sm text-gray-700 w-32 truncate">{score.attributeLabel}</span>
+              <AssociationBadge score={dominantScore} targetName={dominantTarget?.name} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -193,6 +239,21 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
             />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Association strength per object */}
+      <div className="mt-4 space-y-2">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Association Strength</h4>
+        {mod.targets.map(target => {
+          const scores = mod.scores.map(s => s.targetScores[target.id] ?? 0);
+          const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+          return (
+            <div key={target.id} className="flex items-center gap-3">
+              <span className="text-sm text-gray-700 w-32 truncate">{target.name}</span>
+              <AssociationBadge score={avgScore} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -321,6 +382,23 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
             />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Association strength per object — which dimension dominates */}
+      <div className="mt-4 space-y-2">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Association Strength</h4>
+        {mod.targets.map(target => {
+          const dim1Score = mod.scores.find(s => s.attributeId === dim1?.id)?.targetScores[target.id] ?? 0;
+          const dim2Score = mod.scores.find(s => s.attributeId === dim2?.id)?.targetScores[target.id] ?? 0;
+          const dominant = Math.abs(dim1Score) >= Math.abs(dim2Score) ? dim1Label : dim2Label;
+          const dominantValue = Math.max(Math.abs(dim1Score), Math.abs(dim2Score));
+          return (
+            <div key={target.id} className="flex items-center gap-3">
+              <span className="text-sm text-gray-700 w-32 truncate">{target.name}</span>
+              <AssociationBadge score={dominantValue} targetName={dominant} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

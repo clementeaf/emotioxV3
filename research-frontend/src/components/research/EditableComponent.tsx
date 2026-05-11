@@ -28,6 +28,8 @@ interface EditableComponentProps {
     screenerMultipleChoiceMinOptions?: number;
     /** IAT: available targets for criteria assignment */
     iatTargets?: IATTargetOption[];
+    /** IAT Attribute Testing: hide target selector — criteria iterate all targets */
+    iatHideTargetSelector?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export const EditableComponent = ({
     screenerSingleChoiceLocked = false,
     screenerMultipleChoiceMinOptions,
     iatTargets,
+    iatHideTargetSelector,
 }: EditableComponentProps) => {
     const placeholder = component.placeholder?.enabled
         ? component.placeholder.text || ''
@@ -199,6 +202,7 @@ export const EditableComponent = ({
                         onChange={onChange}
                         researchId={researchId}
                         targets={iatTargets || []}
+                        hideTargetSelector={iatHideTargetSelector}
                     />
                 );
             }

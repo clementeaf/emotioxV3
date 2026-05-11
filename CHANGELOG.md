@@ -1,3 +1,12 @@
+## v0.71.2 — IAT association strength, preview images, no-bias criteria (2026-05-11)
+
+### research-frontend
+- **IAT association strength badges.** All 3 IAT charts (Attribute Testing, Comparing Attribute, Objects Comparing) now show association strength per item: Fuerte (≥70%), Media (40-69%), Baja (15-39%), Sin asociación (<15%). Color-coded badges below each chart.
+- **Attribute Testing: no target selector.** Criteria table hides the "Target" column — attributes iterate through all targets without pre-assignment (no prior bias). `hideTargetSelector` prop on `IATCriteriaEditor`.
+- **IAT Preview: stimulus images.** Trial phase now renders target images (via `resolveMediaUrl`) when available, instead of text-only. `stimulusImage` field added to `PreviewTrial`.
+
+---
+
 ## v0.71.1 — Studio layout, PPTX export, prediction trigger (2026-05-11)
 
 ### research-frontend

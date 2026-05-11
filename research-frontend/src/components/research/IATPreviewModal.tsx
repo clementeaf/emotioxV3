@@ -232,9 +232,20 @@ export const IATPreviewModal = ({
                     {phase === 'trial' && currentTrial && (
                         <div className="text-center space-y-8">
                             <div>
-                                <span className="text-2xl font-semibold text-gray-900">
-                                    {currentTrial.stimulusLabel}
-                                </span>
+                                {currentTrial.stimulusImage ? (
+                                    <div className="space-y-2">
+                                        <img
+                                            src={resolveMediaUrl(currentTrial.stimulusImage)}
+                                            alt={currentTrial.stimulusLabel}
+                                            className="max-h-40 max-w-xs mx-auto rounded object-contain"
+                                        />
+                                        <span className="text-sm text-gray-600 block">{currentTrial.stimulusLabel}</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-2xl font-semibold text-gray-900">
+                                        {currentTrial.stimulusLabel}
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center justify-center gap-6">
                                 <button className="px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-900 text-sm font-medium hover:bg-gray-50 transition-colors min-w-[120px]">
@@ -304,6 +315,7 @@ interface PreviewTrial {
     primingLabel: string;
     primingImage?: string;
     stimulusLabel: string;
+    stimulusImage?: string;
 }
 
 function buildTrials(
@@ -349,8 +361,8 @@ function buildTrials(
         for (const target of targets.slice(0, 3)) {
             trials.push({
                 primingLabel: '+',
-                primingImage: target.imageUrl,
                 stimulusLabel: target.name,
+                stimulusImage: target.imageUrl,
             });
         }
     }
