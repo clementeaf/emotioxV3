@@ -215,13 +215,30 @@ class MediaService {
 
     /**
      * Runs GPT-4o Vision analysis on a stimulus that already has TranSalNet heatmap data.
-     * Synchronous — awaits the full analysis and returns structured results.
+     * Fire-and-forget: POST launches background job, then polls GET /status every 3s.
      */
     async analyzeAttention(researchId: string, mediaId: string): Promise<{ analysis: AiAnalysisResult; status: string }> {
         try {
-            return await apiClient.post<{ analysis: AiAnalysisResult; status: string }>(
+            // Launch analysis — responds immediately (202)
+            await apiClient.post<{ status: string }>(
                 `/attention-prediction/research/${researchId}/analyze/${mediaId}`
             );
+
+            // Poll for result (max 3 attempts, 15s apart = 45s window)
+            const maxAttempts = 3;
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(resolve => setTimeout(resolve, 15000));
+                const result = await apiClient.get<{ status: string; analysis?: AiAnalysisResult; error?: string }>(
+                    `/attention-prediction/research/${researchId}/analyze/${mediaId}/status`
+                );
+                if (result.status === 'complete' && result.analysis) {
+                    return { analysis: result.analysis, status: 'complete' };
+                }
+                if (result.status === 'error') {
+                    throw new Error(result.error || 'AI analysis failed');
+                }
+            }
+            throw new Error('Analysis timed out');
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to run AI attention analysis');
         }

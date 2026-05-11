@@ -92,7 +92,10 @@ export const HeatmapRenderer = ({
             const r = radiusProp ?? (isDenseSaliency
                 ? Math.max(40, Math.round(Math.min(w, h) * 0.12))
                 : Math.max(12, Math.round(Math.min(w, h) * 0.035)));
-            const b = blurProp ?? Math.round(r * (isDenseSaliency ? 1.2 : 0.8));
+            // blur scales as fraction of radius: prop 6→30% of r, prop 12→60% of r, prop 20→100% of r
+            // Minimum blur = 50% of radius for dense saliency to prevent discrete dots
+            const blurFraction = blurProp != null ? Math.max(isDenseSaliency ? 0.5 : 0.3, blurProp / 20) : (isDenseSaliency ? 1.2 : 0.8);
+            const b = Math.round(r * blurFraction);
             heat.radius(r, b);
 
             heat.gradient({

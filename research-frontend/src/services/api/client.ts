@@ -151,6 +151,17 @@ class ApiClient {
                     }
                 }
 
+                // Retry on network errors (ERR_NETWORK_CHANGED, ERR_NETWORK, etc.)
+                const isNetworkError = !error.response && error.code !== 'ECONNABORTED' && error.message !== 'canceled';
+                const retryCount = (originalRequest as unknown as { _retryCount?: number })._retryCount || 0;
+
+                if (isNetworkError && retryCount < 2) {
+                    (originalRequest as unknown as { _retryCount: number })._retryCount = retryCount + 1;
+                    // Wait before retry: 1s first, 2s second
+                    await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
+                    return this.client(originalRequest);
+                }
+
                 return Promise.reject(error);
             }
         );

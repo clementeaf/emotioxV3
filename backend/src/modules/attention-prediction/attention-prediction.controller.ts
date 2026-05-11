@@ -343,7 +343,7 @@ export const handleAttentionPredictionRoutes = async (
         }
 
         // POST /attention-prediction/research/:researchId/analyze/:mediaId
-        // GPT-4o Vision analysis of visual attention (requires prediction first)
+        // Fire-and-forget: launches AI analysis in background, returns immediately
         const analyzeMatch = path.match(
             /^\/attention-prediction\/research\/([^/]+)\/analyze\/([^/]+)$/
         );
@@ -383,85 +383,108 @@ export const handleAttentionPredictionRoutes = async (
             const stimulus = stimuli.find((s) => s.mediaId === mediaId);
             const heatmapData = (stimulus?.heatmapData ?? []) as Array<{ x: number; y: number; value: number }>;
 
-            // Read analysis profile from research config (MySQL column = 'config', frontend calls it 'settings')
             const profile = (config.analysisProfile && typeof config.analysisProfile === 'object' && Object.keys(config.analysisProfile as Record<string, unknown>).length > 0)
                 ? config.analysisProfile as import('./ai-analysis.service').AnalysisProfile
                 : undefined;
 
-            try {
-                const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile);
+            // Mark as processing
+            const processingStimuli = stimuli.map((s) => {
+                if (s.mediaId === mediaId) {
+                    return { ...s, aiAnalysisStatus: 'processing', aiAnalysisError: undefined };
+                }
+                return s;
+            });
+            config.stimuli = processingStimuli;
+            await pool.query('UPDATE researches SET config = ? WHERE id = ?', [JSON.stringify(config), researchId]);
 
-                // Save to stimulus.aiAnalysis
-                const freshResult = await pool.query(
-                    'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
-                    [researchId]
-                );
-                let freshConfig: Record<string, unknown> = {};
+            // Fire-and-forget: run analysis in background
+            (async () => {
                 try {
-                    const raw = freshResult.rows[0].config;
-                    freshConfig = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
-                } catch { freshConfig = {}; }
+                    const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile);
 
-                const freshStimuli = (freshConfig.stimuli as Array<Record<string, unknown>>) || [];
-                freshConfig.stimuli = freshStimuli.map((s) => {
-                    if (s.mediaId === mediaId) {
-                        return {
-                            ...s,
-                            aiAnalysis: analysis,
-                            aiAnalysisError: undefined,
-                            aiAnalysisErrorAt: undefined,
-                        };
-                    }
-                    return s;
-                });
-
-                await pool.query(
-                    'UPDATE researches SET config = ? WHERE id = ?',
-                    [JSON.stringify(freshConfig), researchId]
-                );
-
-                return success({ analysis, status: 'complete' }, 200, undefined, origin);
-            } catch (err) {
-                const msg = err instanceof Error ? err.message : 'AI analysis failed';
-                console.error('[AI Analysis] Error:', err);
-
-                // Save error state
-                try {
-                    const errResult = await pool.query(
+                    // Save result
+                    const freshResult = await pool.query(
                         'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
                         [researchId]
                     );
-                    if (errResult.rows.length > 0) {
-                        let errConfig: Record<string, unknown> = {};
-                        try {
-                            const raw = errResult.rows[0].config;
-                            errConfig = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
-                        } catch { errConfig = {}; }
+                    let freshConfig: Record<string, unknown> = {};
+                    try {
+                        const raw = freshResult.rows[0].config;
+                        freshConfig = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+                    } catch { freshConfig = {}; }
 
-                        const errStimuli = (errConfig.stimuli as Array<Record<string, unknown>>) || [];
-                        errConfig.stimuli = errStimuli.map((s) => {
-                            if (s.mediaId === mediaId) {
-                                return {
-                                    ...s,
-                                    aiAnalysisError: msg,
-                                    aiAnalysisErrorAt: new Date().toISOString(),
-                                };
-                            }
-                            return s;
-                        });
-
-                        await pool.query(
-                            'UPDATE researches SET config = ? WHERE id = ?',
-                            [JSON.stringify(errConfig), researchId]
-                        );
-                    }
-                } catch {
-                    // Best-effort error save
+                    const freshStimuli = (freshConfig.stimuli as Array<Record<string, unknown>>) || [];
+                    freshConfig.stimuli = freshStimuli.map((s) => {
+                        if (s.mediaId === mediaId) {
+                            return { ...s, aiAnalysis: analysis, aiAnalysisStatus: 'complete', aiAnalysisError: undefined, aiAnalysisErrorAt: undefined };
+                        }
+                        return s;
+                    });
+                    await pool.query('UPDATE researches SET config = ? WHERE id = ?', [JSON.stringify(freshConfig), researchId]);
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'AI analysis failed';
+                    console.error('[AI Analysis] Background error:', err);
+                    try {
+                        const errResult = await pool.query('SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL', [researchId]);
+                        if (errResult.rows.length > 0) {
+                            let errConfig: Record<string, unknown> = {};
+                            try { const raw = errResult.rows[0].config; errConfig = typeof raw === 'string' ? JSON.parse(raw) : (raw || {}); } catch { errConfig = {}; }
+                            const errStimuli = (errConfig.stimuli as Array<Record<string, unknown>>) || [];
+                            errConfig.stimuli = errStimuli.map((s) => {
+                                if (s.mediaId === mediaId) {
+                                    return { ...s, aiAnalysisStatus: 'error', aiAnalysisError: msg, aiAnalysisErrorAt: new Date().toISOString() };
+                                }
+                                return s;
+                            });
+                            await pool.query('UPDATE researches SET config = ? WHERE id = ?', [JSON.stringify(errConfig), researchId]);
+                        }
+                    } catch { /* silent */ }
                 }
+            })();
 
-                return error(msg, 500, undefined, origin);
-            }
+            // Respond immediately
+            return success({ status: 'processing', mediaId }, 202, undefined, origin);
         }
+
+        // GET /attention-prediction/research/:researchId/analyze/:mediaId/status
+        // Poll for analysis result
+        const analyzeStatusMatch = path.match(
+            /^\/attention-prediction\/research\/([^/]+)\/analyze\/([^/]+)\/status$/
+        );
+        if (analyzeStatusMatch && httpMethod === 'GET') {
+            const researchId = analyzeStatusMatch[1];
+            const mediaId = analyzeStatusMatch[2];
+
+            const researchResult = await pool.query(
+                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                [researchId]
+            );
+            if (researchResult.rows.length === 0) {
+                return error('Research not found', 404, undefined, origin);
+            }
+
+            let config: Record<string, unknown> = {};
+            try {
+                const raw = researchResult.rows[0].config;
+                config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+            } catch { config = {}; }
+
+            const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+            const stimulus = stimuli.find((s) => s.mediaId === mediaId);
+
+            if (!stimulus) {
+                return error('Stimulus not found', 404, undefined, origin);
+            }
+
+            const status = (stimulus.aiAnalysisStatus as string) || (stimulus.aiAnalysis ? 'complete' : 'idle');
+
+            return success({
+                status,
+                analysis: status === 'complete' ? stimulus.aiAnalysis : undefined,
+                error: status === 'error' ? stimulus.aiAnalysisError : undefined,
+            }, 200, undefined, origin);
+        }
+
 
         // POST /attention-prediction/research/:researchId/module/:moduleId/hybrid-predict
         // Legacy endpoint — redirects to the same unified pipeline as predict

@@ -1,3 +1,31 @@
+## v0.70.4 — Analyze endpoint: fire-and-forget with polling (2026-05-10)
+
+### backend
+- **`POST /analyze/:mediaId` fire-and-forget.** Responds immediately (202) and runs GPT-4o in background. Saves status to `stimulus.aiAnalysisStatus` (processing/complete/error).
+- **`GET /analyze/:mediaId/status` polling endpoint.** Returns current status + analysis result when complete.
+
+### research-frontend
+- **Polling-based analysis.** `analyzeAttention` POST launches job, then polls status 3 times at 15s intervals (45s window). Immune to HTTP/2 proxy timeouts.
+- **Network retry.** `apiClient` retries 2x on network errors with backoff.
+- **Heatmap blur fix.** Blur scales as fraction of radius (min 50% for dense saliency).
+
+### infrastructure
+- **Apache `.htaccess` timeout 120s.** For other long-running endpoints.
+
+---
+
+## v0.70.3 — Fix request timeouts, heatmap blur, network retry (2026-05-10)
+
+### infrastructure
+- **Fix: Apache proxy timeout.** `TimeOut 120` + `RequestReadTimeout body=120` in `.htaccess`. Long-running endpoints (GPT-4o analysis, 30-60s) were being killed at 30s default, causing `ERR_NETWORK_CHANGED` in browser.
+
+### research-frontend
+- **Fix: heatmap "Detailed" preset artifacts.** Blur now scales as fraction of radius (min 50% for dense saliency). Prevents discrete dots when blur is low.
+- **Network retry.** `apiClient` retries up to 2x on network errors with 1s/2s backoff. Covers transient failures transparently.
+- **Canvas `willReadFrequently`.** Eliminates Chrome performance warning.
+
+---
+
 ## v0.70.2 — Attention Prediction heatmap transparency fix (2026-05-10)
 
 ### research-frontend
