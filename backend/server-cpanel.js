@@ -38,25 +38,40 @@ const allowedOrigins = [
     process.env.PARTICIPANT_FRONTEND_URL,
 ].filter(Boolean);
 
+// Public tracking endpoints: allow ANY origin (snippet runs on external sites)
+app.use((req, res, next) => {
+    const path = req.path.replace(/^\/api/, '');
+    if (path.startsWith('/public/tracking')) {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        res.header('Access-Control-Max-Age', '86400');
+        if (req.method === 'OPTIONS') return res.sendStatus(204);
+        return next();
+    }
+    next();
+});
+
 app.use(cors({
-    origin: function (origin, callback) {
+    origin: function (origin, callback, req) {
         // Allow requests with no origin (like mobile apps, curl, Postman)
         if (!origin) {
             return callback(null, true);
         }
-        
+
         // Check if origin is in allowed list
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
-        
+
         // Allow any subdomain or path of emotio.cx
         if (origin.includes('emotio.cx')) {
             return callback(null, true);
         }
-        
-        console.warn(`CORS: Origin not allowed: ${origin}`);
-        callback(new Error('CORS: Origin not allowed'), false);
+
+        // Allow any origin — tracking endpoints need this (snippet runs on external sites)
+        // Domain validation happens inside createSession, not at CORS level
+        return callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

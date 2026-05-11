@@ -1,3 +1,10 @@
+## v0.70.10 — Fix CORS for external tracking sites (2026-05-11)
+
+### backend
+- **Fix: CORS blocking external sites.** `server-cpanel.js` CORS middleware rejected origins not matching `emotio.cx`, preventing tracking on external sites (Joomla, WordPress, etc.). Now accepts any origin — domain validation handled by `createSession` via `allowedDomains` config.
+
+---
+
 ## v0.70.9 — Session replay: YouTube-style play/pause overlay (2026-05-11)
 
 ### research-frontend
