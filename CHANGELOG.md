@@ -1,8 +1,12 @@
-## v0.72.2 — Docs cleanup (2026-05-14)
+## v0.72.2 — Docs and .agent cleanup (2026-05-14)
 
 ### docs
-- **Removed obsolete files.** Deleted `CHANGELOG.md` (redundant with root), `FASE2_NEURO_COMPLETION_PLAN.md` (executed), `prompt.md` and `propuesta.md` (superseded by implementation), `design-system/README.md` (Vambe analysis, not EmotioX spec), `research/` sample images.
+- **Removed obsolete files.** Deleted `CHANGELOG.md` (redundant with root), `FASE2_NEURO_COMPLETION_PLAN.md` (executed), `prompt.md` and `propuesta.md` (superseded), `design-system/README.md` (Vambe analysis), `research/` sample images.
 - **Kept active docs.** `cpanel-runbook.md`, `design-system/` spec, `coolTool/` comparison, `credentials/`.
+
+### .agent
+- **Removed obsolete files.** Deleted `SYSTEM_ARCHITECTURE.md` (covered by CLAUDE.md) and `rules.md` (covered by Conventions in CLAUDE.md).
+- **Simplified README.** Replaced 393-line index with concise table pointing to 6 remaining docs.
 
 ---
 

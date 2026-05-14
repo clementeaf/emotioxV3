@@ -291,4 +291,4 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - [Patterns](patterns/) — patrones de construcción repetibles
 - [Issues & Fixes](docs/ISSUES_&_FIXES.md)
 - [Plan Modos de Participación](docs/PLAN_PARTICIPATION_MODES.md)
-- [.agent/](/.agent/) — 13 docs de arquitectura detallada
+- [.agent/](/.agent/) — 6 docs de referencia (API, flujos, decisiones técnicas, glossary, quick ref, module rules)
