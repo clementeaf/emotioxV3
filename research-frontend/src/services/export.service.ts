@@ -174,6 +174,49 @@ async function fetchEyeTracking(researchId: string): Promise<ETStimulus[]> {
     }
 }
 
+/* ─── IAT Raw Trials ───────────────────────────────────────────── */
+
+interface IATRawTrial {
+    participantId: string;
+    module: string;
+    testType: string;
+    phase: string;
+    targetId: string;
+    targetName: string;
+    criterionId: string;
+    criterionLabel: string;
+    rt: number;
+    correct: boolean;
+}
+
+async function fetchIATRawTrials(researchId: string): Promise<IATRawTrial[]> {
+    try {
+        const res = await apiClient.get<{ results: { trials: IATRawTrial[] } }>(
+            `/analytics/research/${researchId}/implicit-association/raw-trials`
+        );
+        return res.results?.trials || [];
+    } catch {
+        return [];
+    }
+}
+
+function buildIATRawTrialsSheet(trials: IATRawTrial[]) {
+    const headers = ['participantId', 'module', 'testType', 'phase', 'targetId', 'targetName', 'criterionId', 'criterionLabel', 'rt', 'correct'];
+    const rows = trials.map(t => ({
+        participantId: t.participantId,
+        module: t.module,
+        testType: t.testType,
+        phase: t.phase,
+        targetId: t.targetId,
+        targetName: t.targetName,
+        criterionId: t.criterionId,
+        criterionLabel: t.criterionLabel,
+        rt: t.rt,
+        correct: t.correct ? 'TRUE' : 'FALSE',
+    }));
+    return { rows, headers };
+}
+
 /* ─── Sheet builders ────────────────────────────────────────────── */
 
 function buildParticipantsSheet(
@@ -359,13 +402,14 @@ export async function downloadResearchExport(researchId: string, researchName: s
         pidSet ? rows.filter(r => pidSet.has(r.participantId)) : rows;
 
     // Fetch all data in parallel
-    const [demoData, cogModules, screenerChoices, iatModules, smartvoc, etStimuli] = await Promise.all([
+    const [demoData, cogModules, screenerChoices, iatModules, smartvoc, etStimuli, iatRawTrials] = await Promise.all([
         fetchDemographics(researchId),
         fetchCognitiveTasks(researchId),
         fetchScreener(researchId),
         fetchIAT(researchId),
         fetchSmartVOC(researchId),
         fetchEyeTracking(researchId),
+        fetchIATRawTrials(researchId),
     ]);
 
     const wb = XLSX.utils.book_new();
@@ -437,6 +481,17 @@ export async function downloadResearchExport(researchId: string, researchName: s
             const wsIAT = XLSX.utils.json_to_sheet(iatRows, { header: iatHeaders });
             wsIAT['!cols'] = iatHeaders.map(h => ({ wch: Math.max(h.length, 12) }));
             XLSX.utils.book_append_sheet(wb, wsIAT, 'Implicit Association');
+        }
+    }
+
+    // Sheet 5: IAT Raw Trials (if data exists)
+    if (iatRawTrials.length > 0) {
+        const filteredTrials = pidSet ? iatRawTrials.filter(t => pidSet.has(t.participantId)) : iatRawTrials;
+        if (filteredTrials.length > 0) {
+            const { rows: trialRows, headers: trialHeaders } = buildIATRawTrialsSheet(filteredTrials);
+            const wsTrials = XLSX.utils.json_to_sheet(trialRows, { header: trialHeaders });
+            wsTrials['!cols'] = trialHeaders.map(h => ({ wch: Math.max(h.length, 14) }));
+            XLSX.utils.book_append_sheet(wb, wsTrials, 'IAT Raw Trials');
         }
     }
 

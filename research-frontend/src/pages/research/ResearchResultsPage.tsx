@@ -121,14 +121,15 @@ export const ResearchResultsPage = () => {
         try {
             const { generateResultsPptx } = await import('../../services/pptx-export.service');
             const { smartVOCService } = await import('../../services/smartVOC.service');
-            const { getCognitiveTaskResults } = await import('../../services/analytics.service');
+            const { getCognitiveTaskResults, getImplicitAssociationResults } = await import('../../services/analytics.service');
 
-            const [smartvoc, cognitive, summaryRes] = await Promise.all([
+            const [smartvoc, cognitive, summaryRes, iat] = await Promise.all([
                 smartVOCService.getAnalytics(id).catch(() => null),
                 getCognitiveTaskResults(id).catch(() => null),
                 apiClient.get<{ summary: { overview: string; keyFindings: string[]; recommendations: string[] } | null }>(
                     `/analytics/research/${id}/executive-summary`
                 ).catch(() => null),
+                getImplicitAssociationResults(id).catch(() => null),
             ]);
 
             await generateResultsPptx({
@@ -137,6 +138,7 @@ export const ResearchResultsPage = () => {
                 smartvoc,
                 cognitive,
                 executiveSummary: summaryRes?.summary ?? null,
+                iat: iat && iat.modules.length > 0 ? iat : null,
             });
         } catch (error) {
             console.error('PPTX export failed:', error);

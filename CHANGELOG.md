@@ -1,3 +1,21 @@
+## v0.72.0 — IAT RT distribution, raw trial export, research filters (2026-05-14)
+
+### backend
+- **RT distribution stats.** `computeRTDistribution` returns box-plot data (min/Q1/median/Q3/max/mean/stdDev) per target. Whiskers capped at 1.5×IQR. Added `rtDistribution` to IAT response.
+- **Raw trial export endpoint.** `GET /analytics/research/:id/implicit-association/raw-trials` returns flat array of all IAT trials with resolved target/criterion names.
+- **Fix: Attribute Testing scores always 0%.** Trial data stores `criterionId` = target chosen and `targetId` = criterion shown (inverted semantics). Score lookup now uses `rtMap[target.id][attr.id]` for Attribute Testing.
+- **Fix: participant data phase filter.** `computeIATParticipantData` now includes `block-*` phases, not just `test`. Attribute Testing uses `block-2` for actual trials.
+
+### research-frontend
+- **RT Distribution box plot.** `RTDistributionCard` renders horizontal SVG box plots per condition with whiskers, IQR box, median line, mean dot. Applies to all 3 IAT paradigms.
+- **IAT raw trials in XLSX.** New "IAT Raw Trials" sheet with participantId, module, phase, target, criterion, RT, correct. Fetched via new endpoint.
+- **Export XLSX button in IAT results.** Header button triggers full XLSX export with participant filter support.
+- **IAT slides in PPTX.** Overview slide (metric cards + association scores table) + D-score detail slide (individual table, error summary). Wired into `ResearchResultsPage` export.
+- **Research page filters.** Search (name, author, enterprise), technique dropdown, enterprise dropdown, date range, archived toggle, clear button, result count. Both card and table views.
+- **Dashboard filters.** Same filter bar added to Dashboard research table: search, technique, enterprise, date range, archived toggle. Author and Enterprise columns replace Responses.
+
+---
+
 ## v0.71.2 — IAT association strength, preview images, no-bias criteria (2026-05-11)
 
 ### research-frontend

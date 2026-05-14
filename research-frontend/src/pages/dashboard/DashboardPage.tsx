@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useResearches, useDeleteResearch, useDuplicateResearch, useDashboardSummary, useArchiveResearch, useUnarchiveResearch } from '../../hooks/useResearchQuery';
 import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { Trash2, Copy, Users, FileText, BarChart3, CheckCircle, Archive, ArchiveRestore, Search } from 'lucide-react';
+import { Trash2, Copy, Users, FileText, BarChart3, CheckCircle, Archive, ArchiveRestore, Search, X } from 'lucide-react';
 import type { Research } from '../../services/research.service';
 
 /* ─── Summary Card ──────────────────────────────────────────────── */
@@ -71,7 +71,6 @@ const STATUS_STYLES: Record<string, string> = {
 const ResearchTableRow = memo(({
     research,
     participantCount,
-    responseCount,
     onRowClick,
     onDelete,
     onDuplicate,
@@ -79,7 +78,6 @@ const ResearchTableRow = memo(({
 }: {
     research: Research;
     participantCount: number;
-    responseCount: number;
     onRowClick: (id: string) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
     onDuplicate: (research: Research, e: React.MouseEvent) => void;
@@ -89,6 +87,8 @@ const ResearchTableRow = memo(({
     const statusClass = isArchived
         ? 'bg-orange-100 text-orange-800'
         : STATUS_STYLES[research.status.toLowerCase()] || 'bg-gray-100 text-gray-800';
+
+    const creatorName = [research.creator_first_name, research.creator_last_name].filter(Boolean).join(' ');
 
     return (
         <tr onClick={() => onRowClick(research.id)} className={`hover:bg-gray-50 cursor-pointer transition-colors ${isArchived ? 'opacity-60' : ''}`}>
@@ -102,13 +102,16 @@ const ResearchTableRow = memo(({
                 </span>
             </td>
             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
-                {participantCount > 0 ? participantCount : '—'}
+                <div className="text-sm text-gray-700 truncate max-w-[120px]">{creatorName || '—'}</div>
+            </td>
+            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell truncate max-w-[120px]">
+                {research.enterprise_name || '—'}
             </td>
             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
-                {responseCount > 0 ? responseCount : '—'}
+                {participantCount > 0 ? participantCount : '—'}
             </td>
             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
-                {new Date(research.updated_at || research.created_at).toLocaleDateString('en-US', {
+                {new Date(research.created_at).toLocaleDateString('en-US', {
                     month: '2-digit', day: '2-digit', year: 'numeric',
                 })}
             </td>
@@ -136,7 +139,8 @@ const TableSkeletonRow = memo(() => (
     <tr className="animate-pulse">
         <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-32" /></td>
         <td className="px-3 py-3"><div className="h-6 bg-gray-200 rounded-full w-16" /></td>
-        <td className="px-3 py-3 hidden md:table-cell"><div className="h-4 bg-gray-200 rounded w-12" /></td>
+        <td className="px-3 py-3 hidden md:table-cell"><div className="h-4 bg-gray-200 rounded w-20" /></td>
+        <td className="px-3 py-3 hidden lg:table-cell"><div className="h-4 bg-gray-200 rounded w-20" /></td>
         <td className="px-3 py-3 hidden lg:table-cell"><div className="h-4 bg-gray-200 rounded w-12" /></td>
         <td className="px-3 py-3 hidden xl:table-cell"><div className="h-4 bg-gray-200 rounded w-20" /></td>
         <td className="px-3 py-3"><div className="h-6 w-6 bg-gray-200 rounded" /></td>
@@ -162,11 +166,43 @@ export const DashboardPage = () => {
     const [activeFilter, setActiveFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showArchived, setShowArchived] = useState(false);
+    const [techniqueFilter, setTechniqueFilter] = useState<string>('all');
+    const [enterpriseFilter, setEnterpriseFilter] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [researchToDelete, setResearchToDelete] = useState<Research | null>(null);
     const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
     const [researchToDuplicate, setResearchToDuplicate] = useState<Research | null>(null);
     const [duplicateName, setDuplicateName] = useState('');
+
+    // Unique techniques and enterprises for dropdown filters
+    const techniques = useMemo(() => {
+        const set = new Map<string, string>();
+        for (const r of typedResearches) {
+            if (r.research_technique_name) set.set(r.research_technique_name, r.research_technique_name);
+        }
+        return Array.from(set.values()).sort();
+    }, [typedResearches]);
+
+    const enterprises = useMemo(() => {
+        const set = new Map<string, string>();
+        for (const r of typedResearches) {
+            if (r.enterprise_name) set.set(r.enterprise_name, r.enterprise_name);
+        }
+        return Array.from(set.values()).sort();
+    }, [typedResearches]);
+
+    const hasActiveFilters = activeFilter !== 'all' || techniqueFilter !== 'all' || enterpriseFilter !== 'all' || dateFrom || dateTo || searchQuery.trim();
+
+    const clearAllFilters = useCallback(() => {
+        setActiveFilter('all');
+        setTechniqueFilter('all');
+        setEnterpriseFilter('all');
+        setDateFrom('');
+        setDateTo('');
+        setSearchQuery('');
+    }, []);
 
     const filteredResearches = useMemo(() => {
         let result = typedResearches;
@@ -181,18 +217,41 @@ export const DashboardPage = () => {
             result = result.filter(r => r.research_type_id === activeFilter);
         }
 
-        // Filter by search
+        // Filter by technique
+        if (techniqueFilter !== 'all') {
+            result = result.filter(r => r.research_technique_name === techniqueFilter);
+        }
+
+        // Filter by enterprise
+        if (enterpriseFilter !== 'all') {
+            result = result.filter(r => r.enterprise_name === enterpriseFilter);
+        }
+
+        // Filter by date range
+        if (dateFrom) {
+            result = result.filter(r => r.created_at >= dateFrom);
+        }
+        if (dateTo) {
+            const toEnd = dateTo + 'T23:59:59';
+            result = result.filter(r => r.created_at <= toEnd);
+        }
+
+        // Filter by search (name, creator, technique, enterprise)
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
-            result = result.filter(r =>
-                r.name.toLowerCase().includes(q) ||
-                r.research_technique_name?.toLowerCase().includes(q) ||
-                r.research_type_name?.toLowerCase().includes(q)
-            );
+            result = result.filter(r => {
+                const creatorName = [r.creator_first_name, r.creator_last_name].filter(Boolean).join(' ').toLowerCase();
+                return r.name.toLowerCase().includes(q) ||
+                    creatorName.includes(q) ||
+                    (r.creator_email?.toLowerCase().includes(q) ?? false) ||
+                    (r.research_technique_name?.toLowerCase().includes(q) ?? false) ||
+                    (r.research_type_name?.toLowerCase().includes(q) ?? false) ||
+                    (r.enterprise_name?.toLowerCase().includes(q) ?? false);
+            });
         }
 
         return result;
-    }, [typedResearches, activeFilter, searchQuery, showArchived]);
+    }, [typedResearches, activeFilter, searchQuery, showArchived, techniqueFilter, enterpriseFilter, dateFrom, dateTo]);
 
     // Build participant/response lookup from summary
     const metricsMap = useMemo(() => {
@@ -268,17 +327,71 @@ export const DashboardPage = () => {
                 {/* Left: Research Table */}
                 <div className="flex-1 rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
                     {/* Search + filters */}
-                    <div className="flex items-center gap-2 p-3 border-b border-gray-100 overflow-x-auto flex-shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100 flex-shrink-0">
+                        {/* Search — searches name, creator, technique, enterprise */}
                         <div className="relative flex-shrink-0">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Search..."
+                                placeholder="Name, author, enterprise..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-44 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
+
+                        {/* Technique dropdown */}
+                        {techniques.length > 1 && (
+                            <select
+                                value={techniqueFilter}
+                                onChange={(e) => setTechniqueFilter(e.target.value)}
+                                className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                    techniqueFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                                }`}
+                            >
+                                <option value="all">All techniques</option>
+                                {techniques.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        )}
+
+                        {/* Enterprise dropdown */}
+                        {enterprises.length > 1 && (
+                            <select
+                                value={enterpriseFilter}
+                                onChange={(e) => setEnterpriseFilter(e.target.value)}
+                                className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                    enterpriseFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                                }`}
+                            >
+                                <option value="all">All enterprises</option>
+                                {enterprises.map(e => <option key={e} value={e}>{e}</option>)}
+                            </select>
+                        )}
+
+                        {/* Date range */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => setDateFrom(e.target.value)}
+                                className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                    dateFrom ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'
+                                }`}
+                                title="From date"
+                            />
+                            <span className="text-xs text-gray-400">–</span>
+                            <input
+                                type="date"
+                                value={dateTo}
+                                onChange={(e) => setDateTo(e.target.value)}
+                                className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                    dateTo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'
+                                }`}
+                                title="To date"
+                            />
+                        </div>
+
+                        {/* Archive toggle */}
                         <button
                             onClick={() => setShowArchived(!showArchived)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
@@ -288,7 +401,21 @@ export const DashboardPage = () => {
                             <Archive className="h-3 w-3" />
                             {showArchived ? 'Hide archived' : 'Show archived'}
                         </button>
+
+                        {/* Clear all filters */}
+                        {hasActiveFilters && (
+                            <button
+                                onClick={clearAllFilters}
+                                className="px-2 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1"
+                            >
+                                <X className="h-3 w-3" />
+                                Clear
+                            </button>
+                        )}
+
                         <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+
+                        {/* Type pills */}
                         <button
                             onClick={() => setActiveFilter('all')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
@@ -314,11 +441,12 @@ export const DashboardPage = () => {
                         <table className="w-full min-w-[600px] table-fixed">
                             <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                                 <tr>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[30%]">Name</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">Status</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">Participants</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[12%]">Responses</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell w-[14%]">Updated</th>
+                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[26%]">Name</th>
+                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Status</th>
+                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">Author</th>
+                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[12%]">Enterprise</th>
+                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[10%]">Participants</th>
+                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell w-[12%]">Created</th>
                                     <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Actions</th>
                                 </tr>
                             </thead>
@@ -327,10 +455,10 @@ export const DashboardPage = () => {
                                     [...Array(5)].map((_, i) => <TableSkeletonRow key={i} />)
                                 ) : filteredResearches.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-3 py-12 text-center text-gray-500">
+                                        <td colSpan={7} className="px-3 py-12 text-center text-gray-500">
                                             <p className="text-sm">No researches found</p>
-                                            {activeFilter !== 'all' && (
-                                                <button onClick={() => setActiveFilter('all')} className="mt-2 text-blue-600 hover:text-blue-800 text-sm">
+                                            {hasActiveFilters && (
+                                                <button onClick={clearAllFilters} className="mt-2 text-blue-600 hover:text-blue-800 text-sm">
                                                     Clear filters
                                                 </button>
                                             )}
@@ -344,7 +472,6 @@ export const DashboardPage = () => {
                                                 key={research.id}
                                                 research={research}
                                                 participantCount={metrics?.participants ?? 0}
-                                                responseCount={metrics?.responses ?? 0}
                                                 onRowClick={handleRowClick}
                                                 onDelete={handleDeleteClick}
                                                 onDuplicate={handleDuplicateClick}

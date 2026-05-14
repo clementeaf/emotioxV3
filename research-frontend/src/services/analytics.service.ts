@@ -358,6 +358,19 @@ export interface IATParticipantData {
     dScoreEffect?: DScoreEffect;
 }
 
+export interface RTDistributionStats {
+    label: string;
+    conditionId: string;
+    min: number;
+    q1: number;
+    median: number;
+    q3: number;
+    max: number;
+    mean: number;
+    stdDev: number;
+    count: number;
+}
+
 export interface IATModuleResult {
     moduleId: string;
     moduleName: string;
@@ -380,6 +393,7 @@ export interface IATModuleResult {
         overallErrorRate: number;
         overallFastRate: number;
     };
+    rtDistribution?: RTDistributionStats[];
 }
 
 export interface ImplicitAssociationResults {

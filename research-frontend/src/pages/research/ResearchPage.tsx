@@ -1,4 +1,4 @@
-import { useState, useCallback, memo, useEffect } from 'react';
+import { useState, useCallback, memo, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { CreateResearchForm } from '../../components/research/CreateResearchForm';
@@ -10,7 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Drawer } from '../../components/ui/Drawer';
 import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
-import { ArrowRight, Calendar, Clock, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink, User, UserPlus, Loader2, X } from 'lucide-react';
+import { ArrowRight, Calendar, Clock, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink, User, UserPlus, Loader2, X, Search, Archive } from 'lucide-react';
 import { researchService } from '../../services/research.service';
 import apiClient from '../../services/api/client';
 import type { Research } from '../../services/research.service';
@@ -297,6 +297,12 @@ export const ResearchPage = () => {
     const [inviteResult, setInviteResult] = useState<{ sent: string[]; failed: Array<{ email: string; message: string }> } | null>(null);
     const [viewers, setViewers] = useState<Array<{ id: string; email: string; firstName: string | null; lastName: string | null; createdAt: string }>>([]);
     const [viewersLoading, setViewersLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [techniqueFilter, setTechniqueFilter] = useState<string>('all');
+    const [enterpriseFilter, setEnterpriseFilter] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [showArchived, setShowArchived] = useState(false);
 
     useEffect(() => {
         if (searchParams.get('inviteViewer') !== '1') return;
@@ -333,12 +339,55 @@ export const ResearchPage = () => {
     // Type assertion para TypeScript
     const typedResearches = researches as Research[];
 
-    console.log('[ResearchPage] Render state:', {
-        isLoading,
-        error,
-        researchesCount: typedResearches.length,
-        researches: typedResearches
-    });
+    // Unique values for filter dropdowns
+    const techniques = useMemo(() => {
+        const set = new Set<string>();
+        for (const r of typedResearches) if (r.research_technique_name) set.add(r.research_technique_name);
+        return Array.from(set).sort();
+    }, [typedResearches]);
+
+    const enterpriseNames = useMemo(() => {
+        const set = new Set<string>();
+        for (const r of typedResearches) if (r.enterprise_name) set.add(r.enterprise_name);
+        return Array.from(set).sort();
+    }, [typedResearches]);
+
+    const hasActiveFilters = techniqueFilter !== 'all' || enterpriseFilter !== 'all' || dateFrom || dateTo || searchQuery.trim();
+
+    const clearAllFilters = useCallback(() => {
+        setSearchQuery('');
+        setTechniqueFilter('all');
+        setEnterpriseFilter('all');
+        setDateFrom('');
+        setDateTo('');
+    }, []);
+
+    const filteredResearches = useMemo(() => {
+        let result = typedResearches;
+
+        if (!showArchived) result = result.filter(r => !r.archived_at);
+
+        if (techniqueFilter !== 'all') result = result.filter(r => r.research_technique_name === techniqueFilter);
+        if (enterpriseFilter !== 'all') result = result.filter(r => r.enterprise_name === enterpriseFilter);
+
+        if (dateFrom) result = result.filter(r => r.created_at >= dateFrom);
+        if (dateTo) result = result.filter(r => r.created_at <= dateTo + 'T23:59:59');
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter(r => {
+                const creator = [r.creator_first_name, r.creator_last_name].filter(Boolean).join(' ').toLowerCase();
+                return r.name.toLowerCase().includes(q) ||
+                    creator.includes(q) ||
+                    (r.creator_email?.toLowerCase().includes(q) ?? false) ||
+                    (r.research_technique_name?.toLowerCase().includes(q) ?? false) ||
+                    (r.enterprise_name?.toLowerCase().includes(q) ?? false) ||
+                    (r.research_type_name?.toLowerCase().includes(q) ?? false);
+            });
+        }
+
+        return result;
+    }, [typedResearches, searchQuery, techniqueFilter, enterpriseFilter, dateFrom, dateTo, showArchived]);
 
     const handleResearchClick = useCallback((researchId: string) => {
         navigate(`/research/${researchId}/builder`);
@@ -491,8 +540,8 @@ export const ResearchPage = () => {
 
     return (
         <div className="h-full w-full flex flex-col p-4 sm:p-5 lg:p-6 overflow-hidden">
-            {/* View toggle */}
-            <div className="flex items-center justify-between gap-3 mb-3 flex-shrink-0">
+            {/* Top bar: view toggle + actions */}
+            <div className="flex items-center justify-between gap-3 mb-2 flex-shrink-0">
                 <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
                     <button
                         onClick={() => setViewMode('cards')}
@@ -526,6 +575,90 @@ export const ResearchPage = () => {
                 )}
             </div>
 
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-center gap-2 mb-3 flex-shrink-0">
+                <div className="relative flex-shrink-0">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Name, author, enterprise..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+
+                {techniques.length > 1 && (
+                    <select
+                        value={techniqueFilter}
+                        onChange={(e) => setTechniqueFilter(e.target.value)}
+                        className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            techniqueFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                        }`}
+                    >
+                        <option value="all">All techniques</option>
+                        {techniques.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                )}
+
+                {enterpriseNames.length > 1 && (
+                    <select
+                        value={enterpriseFilter}
+                        onChange={(e) => setEnterpriseFilter(e.target.value)}
+                        className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            enterpriseFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                        }`}
+                    >
+                        <option value="all">All enterprises</option>
+                        {enterpriseNames.map(e => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                )}
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            dateFrom ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'
+                        }`}
+                        title="From date"
+                    />
+                    <span className="text-xs text-gray-400">–</span>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            dateTo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'
+                        }`}
+                        title="To date"
+                    />
+                </div>
+
+                <button
+                    onClick={() => setShowArchived(!showArchived)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                        showArchived ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                >
+                    <Archive className="h-3 w-3" />
+                    {showArchived ? 'Hide archived' : 'Show archived'}
+                </button>
+
+                {hasActiveFilters && (
+                    <button
+                        onClick={clearAllFilters}
+                        className="px-2 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1"
+                    >
+                        <X className="h-3 w-3" />
+                        Clear
+                    </button>
+                )}
+
+                <span className="text-xs text-gray-400 ml-auto">{filteredResearches.length} research{filteredResearches.length !== 1 ? 'es' : ''}</span>
+            </div>
+
             {/* Research List */}
             <div className="flex-1 min-h-0 overflow-y-auto">
                 {typedResearches.length === 0 ? (
@@ -542,9 +675,15 @@ export const ResearchPage = () => {
                             </Button>
                         )}
                     </div>
+                ) : filteredResearches.length === 0 ? (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center">
+                        <Search className="mx-auto h-10 w-10 text-gray-300 mb-3" />
+                        <p className="text-sm text-gray-500 mb-3">No researches match the current filters</p>
+                        <button onClick={clearAllFilters} className="text-sm text-blue-600 hover:text-blue-800">Clear filters</button>
+                    </div>
                 ) : viewMode === 'cards' ? (
                     <div className="space-y-4">
-                        {typedResearches.map((research) => (
+                        {filteredResearches.map((research) => (
                             <ResearchCard
                                 key={research.id}
                                 research={research}
@@ -572,7 +711,7 @@ export const ResearchPage = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {typedResearches.map((research) => (
+                                {filteredResearches.map((research) => (
                                     <ResearchTableRow
                                         key={research.id}
                                         research={research}

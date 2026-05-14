@@ -5,7 +5,7 @@
 
 import PptxGenJS from 'pptxgenjs';
 import type { SmartVOCAnalytics } from './smartVOC.service';
-import type { CognitiveTaskResults } from './analytics.service';
+import type { CognitiveTaskResults, IATModuleResult } from './analytics.service';
 import { getTextAnalysis, type TextAnalysis } from './analytics.service';
 
 // ─── Brand ────────────────────────────────────────────────────────────
@@ -28,6 +28,7 @@ interface ExportContext {
         keyFindings: string[];
         recommendations: string[];
     } | null;
+    iat?: { modules: IATModuleResult[] } | null;
 }
 
 export async function generateResultsPptx(ctx: ExportContext): Promise<void> {
@@ -405,6 +406,13 @@ export async function generateResultsPptx(ctx: ExportContext): Promise<void> {
         }
     }
 
+    // ── IAT Slides ────────────────────────────────────────────────────
+    if (ctx.iat && ctx.iat.modules.length > 0) {
+        for (const mod of ctx.iat.modules) {
+            addIATSlide(pptx, mod);
+        }
+    }
+
     // ── Final slide ──────────────────────────────────────────────────
     const endSlide = pptx.addSlide();
     endSlide.background = { fill: DARK };
@@ -420,6 +428,149 @@ export async function generateResultsPptx(ctx: ExportContext): Promise<void> {
     // Download
     const fileName = `${ctx.researchName.replace(/[^a-zA-Z0-9_-]/g, '_')}_results.pptx`;
     await pptx.writeFile({ fileName });
+}
+
+// ─── IAT Slide ──────────────────────────────────────────────────────
+
+const TEST_TYPE_LABELS: Record<string, string> = {
+    attribute_testing: 'Attribute Testing (RTT)',
+    comparing_attribute: 'Comparing Attribute',
+    objects_comparing: 'Objects Comparing (IAT)',
+};
+
+function addIATSlide(pptx: PptxGenJS, mod: IATModuleResult) {
+    // Slide 1 — Overview
+    const slide = pptx.addSlide();
+    addSlideHeader(slide, `Implicit Association — ${TEST_TYPE_LABELS[mod.testType] ?? mod.testType}`);
+
+    if (mod.testTitle) {
+        slide.addText(mod.testTitle, {
+            x: 0.8, y: 1.2, w: 11, h: 0.35,
+            fontSize: 12, fontFace: FONT, color: BODY, italic: true,
+        });
+    }
+
+    // Metric cards
+    const cards: Array<{ label: string; value: string; color: string }> = [
+        { label: 'Responses', value: String(mod.totalResponses), color: ACCENT },
+        { label: 'Targets', value: String(mod.targets.length), color: DARK },
+        { label: 'Attributes', value: String(mod.attributes.length), color: DARK },
+    ];
+
+    if (mod.dScore) {
+        cards.push({ label: 'D-score', value: String(mod.dScore.value), color: Math.abs(mod.dScore.value) >= 0.35 ? AMBER : GREEN });
+        cards.push({ label: 'Effect', value: mod.dScore.effect.charAt(0).toUpperCase() + mod.dScore.effect.slice(1), color: BODY });
+        if (mod.dScore.reliability !== null && mod.dScore.reliability !== undefined) {
+            cards.push({ label: 'Reliability', value: String(mod.dScore.reliability), color: mod.dScore.reliability >= 0.7 ? GREEN : AMBER });
+        }
+    }
+
+    if (mod.errorAnalysis) {
+        cards.push({ label: 'Error Rate', value: `${mod.errorAnalysis.overallErrorRate}%`, color: mod.errorAnalysis.overallErrorRate > 15 ? RED : GREEN });
+    }
+
+    const startY = mod.testTitle ? 1.7 : 1.4;
+    const cardW = Math.min(1.6, 11 / Math.max(cards.length, 1));
+    cards.forEach((card, i) => {
+        const x = 0.8 + i * (cardW + 0.15);
+        slide.addShape(pptx.ShapeType.roundRect, {
+            x, y: startY, w: cardW, h: 1.1,
+            fill: { color: LIGHT_BG }, rectRadius: 0.08,
+        });
+        slide.addText(card.value, {
+            x, y: startY + 0.1, w: cardW, h: 0.5,
+            fontSize: 20, fontFace: FONT, color: card.color, bold: true, align: 'center',
+        });
+        slide.addText(card.label, {
+            x, y: startY + 0.6, w: cardW, h: 0.3,
+            fontSize: 9, fontFace: FONT, color: BODY, align: 'center',
+        });
+    });
+
+    // Association scores table
+    if (mod.scores.length > 0 && mod.targets.length > 0) {
+        const tableY = startY + 1.4;
+        const headerRow = [
+            { text: 'Attribute', options: { fontSize: 9, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true, align: 'left' as const } },
+            ...mod.targets.map(t => ({
+                text: t.name,
+                options: { fontSize: 9, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true, align: 'center' as const },
+            })),
+        ];
+
+        const dataRows = mod.scores.slice(0, 8).map(score => [
+            { text: score.attributeLabel, options: { fontSize: 9, fontFace: FONT, color: BODY, align: 'left' as const } },
+            ...mod.targets.map(t => ({
+                text: `${score.targetScores[t.id] ?? 0}%`,
+                options: { fontSize: 9, fontFace: FONT, color: DARK, align: 'center' as const, bold: Math.abs(score.targetScores[t.id] ?? 0) >= 70 },
+            })),
+        ]);
+
+        slide.addTable([headerRow, ...dataRows], {
+            x: 0.8, y: tableY, w: 11.4,
+            border: { type: 'solid', pt: 0.5, color: 'E5E7EB' },
+            rowH: 0.3,
+            colW: [3, ...mod.targets.map(() => Math.min(2, 8.4 / mod.targets.length))],
+        });
+    }
+
+    // Slide 2 — D-score detail (only if available)
+    if (mod.dScore && mod.participantData) {
+        const dsSlide = pptx.addSlide();
+        addSlideHeader(dsSlide, `D-score Detail — ${mod.moduleName}`);
+
+        const ds = mod.dScore;
+        dsSlide.addText(String(ds.value), {
+            x: 0.8, y: 1.4, w: 3, h: 1,
+            fontSize: 48, fontFace: FONT, color: ACCENT, bold: true, align: 'center',
+        });
+        dsSlide.addText(`95% CI: [${ds.ciLower}, ${ds.ciUpper}] · ${ds.validParticipants} participants`, {
+            x: 0.8, y: 2.4, w: 3, h: 0.3,
+            fontSize: 10, fontFace: FONT, color: BODY, align: 'center',
+        });
+
+        // Individual D-scores table (top 15)
+        const validPD = mod.participantData
+            .filter(p => p.dScore != null)
+            .sort((a, b) => Math.abs(b.dScore!) - Math.abs(a.dScore!))
+            .slice(0, 15);
+
+        if (validPD.length > 0) {
+            const pdHeader = [
+                { text: 'Participant', options: { fontSize: 8, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true } },
+                { text: 'D-score', options: { fontSize: 8, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true, align: 'center' as const } },
+                { text: 'Effect', options: { fontSize: 8, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true, align: 'center' as const } },
+                { text: 'Quality', options: { fontSize: 8, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true, align: 'center' as const } },
+                { text: 'Accuracy', options: { fontSize: 8, fontFace: FONT, color: 'FFFFFF', fill: { color: DARK }, bold: true, align: 'center' as const } },
+            ];
+
+            const pdRows = validPD.map(p => [
+                { text: p.participantId.slice(0, 20), options: { fontSize: 8, fontFace: FONT, color: BODY } },
+                { text: String(p.dScore), options: { fontSize: 8, fontFace: FONT, color: DARK, bold: true, align: 'center' as const } },
+                { text: p.dScoreEffect ?? '-', options: { fontSize: 8, fontFace: FONT, color: BODY, align: 'center' as const } },
+                { text: p.quality, options: { fontSize: 8, fontFace: FONT, color: BODY, align: 'center' as const } },
+                { text: `${Math.round(p.accuracy * 100)}%`, options: { fontSize: 8, fontFace: FONT, color: BODY, align: 'center' as const } },
+            ]);
+
+            dsSlide.addTable([pdHeader, ...pdRows], {
+                x: 4.5, y: 1.4, w: 8,
+                border: { type: 'solid', pt: 0.5, color: 'E5E7EB' },
+                rowH: 0.25,
+                colW: [2.5, 1.2, 1.3, 1.5, 1.5],
+            });
+        }
+
+        // Error summary footer
+        if (mod.errorAnalysis) {
+            dsSlide.addText(
+                `Overall: ${mod.errorAnalysis.overallErrorRate}% error rate · ${mod.errorAnalysis.overallFastRate}% fast responses (<300ms)`,
+                {
+                    x: 0.8, y: 6.5, w: 11, h: 0.3,
+                    fontSize: 10, fontFace: FONT, color: BODY,
+                },
+            );
+        }
+    }
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────

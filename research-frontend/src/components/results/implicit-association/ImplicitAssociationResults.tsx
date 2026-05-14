@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Download } from 'lucide-react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -638,6 +639,102 @@ const EffectSizeBar = ({ module: mod }: { module: IATModuleResult }) => {
 };
 
 // ==========================================
+// RT DISTRIBUTION BOX PLOT
+// ==========================================
+
+const RTDistributionCard = ({ module: mod }: { module: IATModuleResult }) => {
+  const dist = mod.rtDistribution;
+  if (!dist || dist.length === 0) return null;
+
+  // Compute axis range across all conditions
+  const globalMin = Math.min(...dist.map(d => d.min));
+  const globalMax = Math.max(...dist.map(d => d.max));
+  const padding = (globalMax - globalMin) * 0.1 || 50;
+  const axisMin = Math.max(0, Math.floor((globalMin - padding) / 50) * 50);
+  const axisMax = Math.ceil((globalMax + padding) / 50) * 50;
+  const range = axisMax - axisMin || 1;
+
+  const toX = (v: number) => ((v - axisMin) / range) * 100;
+
+  // Tick marks
+  const tickStep = range <= 500 ? 100 : range <= 1500 ? 200 : 500;
+  const ticks: number[] = [];
+  for (let t = Math.ceil(axisMin / tickStep) * tickStep; t <= axisMax; t += tickStep) {
+    ticks.push(t);
+  }
+
+  const rowH = 40;
+  const labelW = 128;
+  const statsW = 120;
+  const svgH = dist.length * rowH + 30; // +30 for axis
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 mt-4">
+      <h4 className="text-sm font-semibold text-gray-700 mb-3">Reaction Time Distribution (ms)</h4>
+      <div className="flex items-start">
+        {/* Labels */}
+        <div className="shrink-0" style={{ width: labelW }}>
+          {dist.map((d, i) => (
+            <div key={d.conditionId} className="flex items-center text-xs text-gray-700 truncate" style={{ height: rowH, paddingTop: i === 0 ? 0 : undefined }}>
+              {d.label}
+            </div>
+          ))}
+        </div>
+        {/* SVG box plots */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <svg width="100%" height={svgH} viewBox={`0 0 100 ${svgH}`} preserveAspectRatio="none">
+            {/* Grid lines */}
+            {ticks.map(t => (
+              <line key={t} x1={toX(t)} y1={0} x2={toX(t)} y2={dist.length * rowH} stroke="#E5E7EB" strokeWidth={0.3} />
+            ))}
+            {/* Box plots */}
+            {dist.map((d, i) => {
+              const cy = i * rowH + rowH / 2;
+              const boxH = 14;
+              const color = TARGET_COLORS[i % TARGET_COLORS.length];
+              return (
+                <g key={d.conditionId}>
+                  {/* Whisker line */}
+                  <line x1={toX(d.min)} y1={cy} x2={toX(d.max)} y2={cy} stroke={color} strokeWidth={0.5} />
+                  {/* Whisker caps */}
+                  <line x1={toX(d.min)} y1={cy - boxH / 3} x2={toX(d.min)} y2={cy + boxH / 3} stroke={color} strokeWidth={0.5} />
+                  <line x1={toX(d.max)} y1={cy - boxH / 3} x2={toX(d.max)} y2={cy + boxH / 3} stroke={color} strokeWidth={0.5} />
+                  {/* IQR box */}
+                  <rect
+                    x={toX(d.q1)} y={cy - boxH / 2}
+                    width={Math.max(0.5, toX(d.q3) - toX(d.q1))} height={boxH}
+                    fill={color} fillOpacity={0.2} stroke={color} strokeWidth={0.4} rx={0.5}
+                  />
+                  {/* Median line */}
+                  <line x1={toX(d.median)} y1={cy - boxH / 2} x2={toX(d.median)} y2={cy + boxH / 2} stroke={color} strokeWidth={0.8} />
+                  {/* Mean dot */}
+                  <circle cx={toX(d.mean)} cy={cy} r={1.2} fill={color} />
+                </g>
+              );
+            })}
+            {/* X axis */}
+            {ticks.map(t => (
+              <text key={t} x={toX(t)} y={dist.length * rowH + 15} textAnchor="middle" fontSize={3} fill="#9CA3AF">
+                {t}
+              </text>
+            ))}
+          </svg>
+        </div>
+        {/* Stats */}
+        <div className="shrink-0 ml-3" style={{ width: statsW }}>
+          {dist.map(d => (
+            <div key={d.conditionId} className="flex items-center text-[11px] text-gray-500" style={{ height: rowH }}>
+              <span>median: <span className="font-semibold text-gray-700">{d.median}ms</span></span>
+              <span className="ml-2 text-gray-400">(n={d.count})</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
 // MODULE CARD WRAPPER
 // ==========================================
 
@@ -661,6 +758,7 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
           <ErrorAnalysisCard module={mod} />
         </>
       )}
+      <RTDistributionCard module={mod} />
       {mod.totalResponses === 0 && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
           <p className="text-sm text-gray-500">
@@ -685,6 +783,7 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
   const [data, setData] = useState<analyticsService.ImplicitAssociationResults | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   const {
     demographicData,
@@ -744,8 +843,27 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
           <div className="flex-1 min-w-0">
             {/* Header */}
             <div className="mb-6">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4 flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-700">3.0.- Implicit Association</span>
+                <button
+                  onClick={async () => {
+                    if (exportingXlsx) return;
+                    setExportingXlsx(true);
+                    try {
+                      const { downloadResearchExport } = await import('../../../services/export.service');
+                      await downloadResearchExport(researchId, 'IAT_Export', filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined);
+                    } catch (e) {
+                      console.error('IAT export failed:', e);
+                    } finally {
+                      setExportingXlsx(false);
+                    }
+                  }}
+                  disabled={exportingXlsx}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {exportingXlsx ? '...' : 'Export XLSX'}
+                </button>
               </div>
             </div>
 

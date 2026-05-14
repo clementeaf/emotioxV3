@@ -59,6 +59,19 @@ interface IATParticipantData {
   dScoreEffect?: DScoreEffect;
 }
 
+interface RTDistributionStats {
+  label: string;
+  conditionId: string;
+  min: number;
+  q1: number;
+  median: number;
+  q3: number;
+  max: number;
+  mean: number;
+  stdDev: number;
+  count: number;
+}
+
 interface IATModuleResult {
   moduleId: string;
   moduleName: string;
@@ -87,6 +100,8 @@ interface IATModuleResult {
     /** Overall fast response rate */
     overallFastRate: number;
   };
+  /** RT distribution statistics per condition (box plot data) */
+  rtDistribution?: RTDistributionStats[];
 }
 
 /**
@@ -283,7 +298,12 @@ const computeIATScores = (
     const targetScores: Record<string, number> = {};
 
     for (const target of targets) {
-      const rts = rtMap[attr.id]?.[target.id] ?? [];
+      // Attribute Testing: trial data has inverted semantics —
+      // criterionId = target chosen, targetId = criterion shown (stimulus).
+      // So rtMap is keyed as rtMap[target.id][attr.id] instead of rtMap[attr.id][target.id].
+      const rts = testType === 'attribute_testing'
+        ? (rtMap[target.id]?.[attr.id] ?? [])
+        : (rtMap[attr.id]?.[target.id] ?? []);
       if (rts.length === 0 || overallSD === 0) {
         targetScores[target.id] = 0;
         continue;
@@ -523,7 +543,8 @@ const computeIATParticipantData = (
       const pid = row.participant_id;
       if (!byParticipant.has(pid)) byParticipant.set(pid, []);
       for (const t of trials) {
-        if (t.phase === 'test') byParticipant.get(pid)!.push(t);
+        // Include test-phase trials: 'test' (legacy), block-2+ (attribute_testing/objects_comparing)
+        if (t.phase === 'test' || t.phase?.startsWith('block')) byParticipant.get(pid)!.push(t);
       }
     } catch { /* skip */ }
   }
@@ -620,6 +641,173 @@ const computeIATParticipantData = (
   return result;
 };
 
+// ---------------------------------------------------------------------------
+// RT Distribution (box plot statistics per condition)
+// ---------------------------------------------------------------------------
+
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return 0;
+  if (sorted.length === 1) return sorted[0];
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+const computeRTDistribution = (
+  responses: any[],
+  targets: IATTarget[],
+  _attributes: IATAttribute[],
+  testType: IATModuleResult['testType'],
+): RTDistributionStats[] => {
+  type Trial = { targetId: string; criterionId: string; rt: number; correct: boolean; phase: string };
+  const allTrials: Trial[] = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+      for (const t of trials) {
+        if (t.rt > 0 && t.rt < 10000 && (t.phase?.startsWith('block') || t.phase === 'test')) {
+          allTrials.push(t);
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  if (allTrials.length === 0) return [];
+
+  // Group by condition — by target/object
+  const groups = new Map<string, { label: string; rts: number[] }>();
+
+  for (const t of allTrials) {
+    // Attribute Testing: criterionId = target chosen, targetId = criterion shown.
+    // Group by the actual target (criterionId), not the stimulus.
+    const groupKey = testType === 'attribute_testing'
+      ? t.criterionId
+      : (t.targetId.includes('__') ? t.targetId.split('__')[0] : t.targetId);
+    if (!groups.has(groupKey)) {
+      const target = targets.find(tg => tg.id === groupKey);
+      groups.set(groupKey, { label: target?.name ?? groupKey, rts: [] });
+    }
+    groups.get(groupKey)!.rts.push(t.rt);
+  }
+
+  const stats: RTDistributionStats[] = [];
+  for (const [conditionId, { label, rts }] of groups) {
+    if (rts.length === 0) continue;
+    const sorted = [...rts].sort((a, b) => a - b);
+    const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length;
+    const stdDev = sorted.length > 1
+      ? Math.sqrt(sorted.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (sorted.length - 1))
+      : 0;
+
+    const q1 = percentile(sorted, 25);
+    const q3 = percentile(sorted, 75);
+    const iqr = q3 - q1;
+    const whiskerLow = sorted.find(v => v >= q1 - 1.5 * iqr) ?? sorted[0];
+    const whiskerHigh = [...sorted].reverse().find(v => v <= q3 + 1.5 * iqr) ?? sorted[sorted.length - 1];
+
+    stats.push({
+      label,
+      conditionId,
+      min: whiskerLow,
+      q1: Math.round(q1),
+      median: Math.round(percentile(sorted, 50)),
+      q3: Math.round(q3),
+      max: whiskerHigh,
+      mean: Math.round(mean),
+      stdDev: Math.round(stdDev),
+      count: sorted.length,
+    });
+  }
+
+  return stats;
+};
+
+// ---------------------------------------------------------------------------
+// Raw trial export
+// ---------------------------------------------------------------------------
+
+export const getIATRawTrials = async (researchId: string) => {
+  // Reuse stage + module lookup from getImplicitAssociationResults
+  const stageQuery = `
+    SELECT s.id as stage_id
+    FROM stages s
+    WHERE s.research_id = ?
+      AND LOWER(s.name) = 'implicit association'
+    LIMIT 1
+  `;
+  const stageResult = await pool.query(stageQuery, [researchId]);
+  if (stageResult.rows.length === 0) return { trials: [] };
+  const stageId = stageResult.rows[0].stage_id;
+
+  const moduleQuery = `
+    SELECT id, name, config FROM modules
+    WHERE research_id = ? AND stage_id = ?
+      AND (LOWER(name) LIKE '%attribute%' OR LOWER(name) LIKE '%objects comparing%' OR LOWER(name) LIKE '%object comparing%')
+    ORDER BY order_index
+  `;
+  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+
+  interface RawTrial {
+    participantId: string;
+    module: string;
+    testType: string;
+    phase: string;
+    targetId: string;
+    targetName: string;
+    criterionId: string;
+    criterionLabel: string;
+    rt: number;
+    correct: boolean;
+  }
+
+  const trials: RawTrial[] = [];
+
+  for (const mod of moduleResult.rows) {
+    const testType = detectIATTestType(mod.name);
+    let config: any = {};
+    try { config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config; } catch { /* */ }
+    const { targets, attributes } = extractIATConfig(config, testType);
+
+    const targetMap = new Map(targets.map(t => [t.id, t.name]));
+    const attrMap = new Map(attributes.map(a => [a.id, a.label]));
+
+    const responsesQuery = `
+      SELECT r.value, r.participant_id
+      FROM responses r
+      WHERE r.research_id = ? AND r.module_id = ? AND r.component_id = 'iat-trials'
+    `;
+    const responsesResult = await pool.query(responsesQuery, [researchId, mod.id]);
+
+    for (const row of responsesResult.rows) {
+      try {
+        const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+        const trialList = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+        for (const t of trialList) {
+          const baseTargetId = t.targetId?.includes('__') ? t.targetId.split('__')[0] : (t.targetId ?? '');
+          trials.push({
+            participantId: row.participant_id,
+            module: mod.name,
+            testType,
+            phase: t.phase ?? '',
+            targetId: t.targetId ?? '',
+            targetName: targetMap.get(baseTargetId) ?? baseTargetId,
+            criterionId: t.criterionId ?? '',
+            criterionLabel: attrMap.get(t.criterionId) ?? (t.criterionId ?? ''),
+            rt: t.rt ?? 0,
+            correct: t.correct !== false,
+          });
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  return { trials };
+};
+
 export const getImplicitAssociationResults = async (researchId: string) => {
   // 1. Find the Implicit Association stage
   const stageQuery = `
@@ -687,6 +875,8 @@ export const getImplicitAssociationResults = async (researchId: string) => {
       ? computeIATErrorAnalysis(responsesResult.rows, targets, attributes)
       : undefined;
 
+    const rtDistribution = computeRTDistribution(responsesResult.rows, targets, attributes, testType);
+
     modules.push({
       moduleId: mod.id,
       moduleName: mod.name,
@@ -700,6 +890,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
       participantData,
       dScore,
       errorAnalysis,
+      rtDistribution: rtDistribution.length > 0 ? rtDistribution : undefined,
     });
   }
 
