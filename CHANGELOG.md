@@ -11,6 +11,9 @@
 ### patterns
 - **Removed `devops.md`.** Redundant with Deploy Skill + `cpanel-runbook.md`. Kept `backend.md`, `frontend.md`, `fullstack.md`.
 
+### infrastructure
+- **Removed entirely.** Legacy Terraform AWS config — project runs on cPanel/Passenger since v0.68.0.
+
 ---
 
 ## v0.72.1 — IAT error analysis readable (2026-05-14)

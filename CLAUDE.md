@@ -45,7 +45,6 @@ emotioxV3/
 ├── research-frontend/    # Herramienta del investigador (dashboard, builder, config, results)
 ├── participant-frontend/  # Interfaz del participante (survey flow, steps, thank you)
 ├── database/             # Migraciones MySQL (20 archivos)
-├── infrastructure/       # Terraform (legacy AWS)
 └── scripts/              # Deploy scripts, migraciones, utilidades
 ```
 - **Estado:** Zustand + localStorage persistence + React Query (server state)
