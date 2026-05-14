@@ -14,6 +14,9 @@
 ### infrastructure
 - **Removed entirely.** Legacy Terraform AWS config — project runs on cPanel/Passenger since v0.68.0.
 
+### scripts
+- **Removed 27 obsolete scripts.** AWS setup/CloudFront/Cognito/S3 (17), one-off migrations (4), manual quota tests (5), data copy SQL (1). Kept 12 active: 4 deploy, 2 ONNX converters, SSH, seeds, builds, monitoring.
+
 ---
 
 ## v0.72.1 — IAT error analysis readable (2026-05-14)
