@@ -131,23 +131,23 @@ Fuente EmotioX: codebase actual (backend, database, research-frontend)
 
 ## 8. Gaps identificados en EmotioX vs CoolTool
 
-| # | Gap | Impacto | Complejidad estimada |
-|---|-----|---------|---------------------|
-| 1 | **Sin flowchart visual** del test en el builder | UX: investigador no visualiza el flujo que experimentara el participante | Alta (componente nuevo de diagramas) |
-| 2 | **Sin preview** del test IAT desde el builder | UX: investigador no puede probar sin publicar | Media (reutilizar renderer del participant) |
-| 3 | **Sin "Hide option"** por criteria | Funcionalidad: no se puede ocultar criteria temporalmente | Baja (toggle booleano por item) |
-| 4 | **Sin titulo interno** del test (oculto al participante, visible en reportes) | Organizacion: investigador no puede nombrar el test para reportes | Baja (campo texto adicional) |
-| 5 | **Sin multi-idioma** en el builder | Limitacion: un solo idioma por test | Alta (sistema i18n por contenido de test) |
-| 6 | **Swap de nombres** en `detectIATTestType` | Tecnico: confusion en mantenimiento, "Comparing Attribute" retorna `objects_comparing` | Baja (refactor de nombres) |
-| 7 | **Targets fijos en template** (3 objects, 5 targets) en vez de dinamicos | UX: no se puede agregar/quitar targets desde el builder | Media (componente dinamico) |
-| 8 | **Sin Simple/Advanced editor mode** | UX: investigadores novatos ven toda la complejidad | Media (dos vistas del mismo config) |
+Actualizado: 2026-05-13
+
+| # | Gap | Estado | Como se cerro |
+|---|-----|--------|---------------|
+| 1 | **Sin flowchart visual** del test en el builder | ✅ Cerrado | Flowchart reactivo en builder IAT |
+| 2 | **Sin preview** del test IAT desde el builder | ✅ Cerrado | `IATPreviewModal` con trial phases + stimulus images (v0.71.2) |
+| 3 | **Sin "Hide option"** por criteria | ✅ Cerrado | Eye/EyeOff toggle por criterio, `hidden: true` en config |
+| 4 | **Sin titulo interno** del test | ✅ Cerrado | Campo `test-title` (oculto al participante, visible en results) |
+| 5 | **Sin multi-idioma** en el builder | ✅ Cerrado | Instrucciones EN/ES JSON editables |
+| 6 | **Swap de nombres** en `detectIATTestType` | ✅ Cerrado | Fix: mapeo correcto Comparing Attribute → `comparing_attribute`, Objects Comparing → `objects_comparing` |
+| 7 | **Targets fijos en template** | ✅ Cerrado | Targets dinamicos (agregar/quitar desde builder) |
+| 8 | **Sin Simple/Advanced editor mode** | ❌ Backlog | Pendiente — dos vistas del mismo config para investigadores novatos vs expertos |
 
 ---
 
 ## 9. Resumen
 
-EmotioX tiene **paridad funcional completa** en los 3 paradigmas IAT. Las diferencias principales son de **UX del builder** (CoolTool tiene flowchart, preview, hide option) y **flexibilidad del config** (CoolTool permite agregar/quitar targets dinamicamente).
+EmotioX tiene **paridad funcional completa** en los 3 paradigmas IAT y ha cerrado **7 de 8 gaps** identificados contra CoolTool. El unico gap pendiente es el dual editor mode (simple/advanced), que queda como backlog.
 
-En contrapartida, EmotioX tiene ventajas en **transparencia del config** (target assignment explicito, priming time visible, dimensions editables) y en **capacidad** (mas targets, mas criteria, instrucciones editables).
-
-Los gaps mas impactantes para cerrar son el **preview del test** y los **targets dinamicos**, que mejorarian la experiencia del investigador sin cambiar la logica del participante ni del backend.
+EmotioX mantiene ventajas en **transparencia del config** (target assignment explicito, priming time visible, dimensions editables), **capacidad** (mas targets, mas criteria, instrucciones editables), y ahora tambien en **UX del builder** (flowchart, preview modal, hide criteria, test title).

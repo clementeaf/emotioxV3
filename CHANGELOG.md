@@ -1,3 +1,11 @@
+## v0.72.2 — Docs cleanup (2026-05-14)
+
+### docs
+- **Removed obsolete files.** Deleted `CHANGELOG.md` (redundant with root), `FASE2_NEURO_COMPLETION_PLAN.md` (executed), `prompt.md` and `propuesta.md` (superseded by implementation), `design-system/README.md` (Vambe analysis, not EmotioX spec), `research/` sample images.
+- **Kept active docs.** `cpanel-runbook.md`, `design-system/` spec, `coolTool/` comparison, `credentials/`.
+
+---
+
 ## v0.72.1 — IAT error analysis readable (2026-05-14)
 
 ### backend
