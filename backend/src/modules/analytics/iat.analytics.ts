@@ -447,6 +447,17 @@ function computeAggregateDScore(individualDScores: number[]): DScoreResult | und
 }
 
 /**
+ * Readable phase labels for IAT blocks.
+ */
+const PHASE_LABELS: Record<string, string> = {
+  'block-1': 'Practice',
+  'block-2': 'Test A',
+  'block-3': 'Test B',
+  'test': 'Test',
+  'practice': 'Practice',
+};
+
+/**
  * Compute error analysis from all IAT trial data.
  */
 const computeIATErrorAnalysis = (
@@ -467,7 +478,17 @@ const computeIATErrorAnalysis = (
 
   if (allTrials.length === 0) return undefined;
 
-  // By phase
+  // Build name resolution maps — targets, attributes, AND criteria (criterion UUIDs)
+  const nameMap = new Map<string, string>();
+  for (const t of targets) nameMap.set(t.id, t.name);
+  for (const a of attributes) nameMap.set(a.id, a.label);
+  // combined-left/right → readable
+  nameMap.set('combined-left', 'Combined Left');
+  nameMap.set('combined-right', 'Combined Right');
+
+  const resolveName = (id: string): string => nameMap.get(id) ?? id;
+
+  // By phase — use readable labels, sorted by block order
   const phaseMap = new Map<string, { total: number; errors: number }>();
   for (const t of allTrials) {
     const p = t.phase || 'unknown';
@@ -476,40 +497,40 @@ const computeIATErrorAnalysis = (
     entry.total++;
     if (t.correct === false) entry.errors++;
   }
-  const byPhase = Array.from(phaseMap.entries()).map(([phase, data]) => ({
-    phase,
-    total: data.total,
-    errors: data.errors,
-    errorRate: Math.round((data.errors / data.total) * 10000) / 100,
-  }));
+  const byPhase = Array.from(phaseMap.entries())
+    .map(([phase, data]) => ({
+      phase: PHASE_LABELS[phase] ?? phase,
+      total: data.total,
+      errors: data.errors,
+      errorRate: Math.round((data.errors / data.total) * 10000) / 100,
+    }));
 
-  // By combination
-  const comboMap = new Map<string, { total: number; errors: number }>();
+  // By combination — aggregate at target level (not criterion UUID level)
+  // Group by (resolvedTarget × resolvedAttribute) to merge criterion UUIDs into their names
+  const comboMap = new Map<string, { targetName: string; attributeLabel: string; total: number; errors: number }>();
   for (const t of allTrials) {
-    const key = `${t.targetId}×${t.criterionId}`;
-    if (!comboMap.has(key)) comboMap.set(key, { total: 0, errors: 0 });
+    const tName = resolveName(t.targetId.includes('__') ? t.targetId.split('__')[0] : t.targetId);
+    const aName = resolveName(t.criterionId);
+    const key = `${tName}×${aName}`;
+    if (!comboMap.has(key)) comboMap.set(key, { targetName: tName, attributeLabel: aName, total: 0, errors: 0 });
     const entry = comboMap.get(key)!;
     entry.total++;
     if (t.correct === false) entry.errors++;
   }
 
-  const targetMap = new Map(targets.map(t => [t.id, t.name]));
-  const attrMap = new Map(attributes.map(a => [a.id, a.label]));
-
-  const byCombination = Array.from(comboMap.entries())
-    .map(([key, data]) => {
-      const [targetId, attributeId] = key.split('×');
-      return {
-        targetId,
-        targetName: targetMap.get(targetId) || targetId,
-        attributeId,
-        attributeLabel: attrMap.get(attributeId) || attributeId,
-        total: data.total,
-        errors: data.errors,
-        errorRate: Math.round((data.errors / data.total) * 10000) / 100,
-      };
-    })
-    .sort((a, b) => b.errorRate - a.errorRate);
+  const byCombination = Array.from(comboMap.values())
+    .filter(c => c.errors > 0) // only show combos with actual errors
+    .map(c => ({
+      targetId: '',
+      targetName: c.targetName,
+      attributeId: '',
+      attributeLabel: c.attributeLabel,
+      total: c.total,
+      errors: c.errors,
+      errorRate: Math.round((c.errors / c.total) * 10000) / 100,
+    }))
+    .sort((a, b) => b.errorRate - a.errorRate)
+    .slice(0, 10); // top 10 only
 
   const totalErrors = allTrials.filter(t => t.correct === false).length;
   const totalFast = allTrials.filter(t => t.rt < 300).length;

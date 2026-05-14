@@ -1,3 +1,13 @@
+## v0.72.1 — IAT error analysis readable (2026-05-14)
+
+### backend
+- **Readable error analysis.** Phase labels show Practice/Test A/Test B instead of block-1/block-2/block-3. Criterion UUIDs resolved to human names. Combinations aggregated by name, filtered to errors only, capped at top 10.
+
+### research-frontend
+- **Error table clarity.** Columns renamed to Stimulus/Response/Error %/Errors Total. Only non-zero error combinations shown.
+
+---
+
 ## v0.72.0 — IAT RT distribution, raw trial export, research filters (2026-05-14)
 
 ### backend

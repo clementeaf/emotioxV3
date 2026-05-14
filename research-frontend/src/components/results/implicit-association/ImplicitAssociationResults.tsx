@@ -439,13 +439,13 @@ const dScoreColumns: DataTableColumn<IATParticipantData>[] = [
 type ErrorCombination = { targetName: string; attributeLabel: string; errorRate: number; errors: number; total: number };
 
 const errorCombinationColumns: DataTableColumn<ErrorCombination>[] = [
-  { key: 'target', header: 'Target', accessor: 'targetName', cellClassName: 'text-gray-700' },
-  { key: 'attribute', header: 'Attribute', accessor: 'attributeLabel', cellClassName: 'text-gray-700' },
+  { key: 'stimulus', header: 'Stimulus', accessor: 'targetName', cellClassName: 'text-gray-700' },
+  { key: 'response', header: 'Response', accessor: 'attributeLabel', cellClassName: 'text-gray-700' },
   {
-    key: 'errorRate', header: 'Error Rate', align: 'right',
+    key: 'errorRate', header: 'Error %', align: 'right',
     render: (c) => <span className={`font-semibold ${c.errorRate > 20 ? 'text-red-600' : c.errorRate > 10 ? 'text-amber-600' : 'text-gray-600'}`}>{c.errorRate}%</span>,
   },
-  { key: 'trials', header: 'Trials', align: 'right', render: (c) => <span className="text-gray-400">{c.errors}/{c.total}</span> },
+  { key: 'trials', header: 'Errors / Total', align: 'right', render: (c) => <span className="text-gray-500">{c.errors} / {c.total}</span> },
 ];
 
 const DScoreCard = ({ module: mod }: { module: IATModuleResult }) => {
