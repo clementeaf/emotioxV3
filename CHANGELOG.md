@@ -8,6 +8,9 @@
 - **Removed obsolete files.** Deleted `SYSTEM_ARCHITECTURE.md` (covered by CLAUDE.md) and `rules.md` (covered by Conventions in CLAUDE.md).
 - **Simplified README.** Replaced 393-line index with concise table pointing to 6 remaining docs.
 
+### patterns
+- **Removed `devops.md`.** Redundant with Deploy Skill + `cpanel-runbook.md`. Kept `backend.md`, `frontend.md`, `fullstack.md`.
+
 ---
 
 ## v0.72.1 — IAT error analysis readable (2026-05-14)
