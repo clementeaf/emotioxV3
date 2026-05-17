@@ -1,15 +1,15 @@
 /**
- * Session Replay Player
- * Replays visitor sessions over a screenshot background with animated cursor and click indicators.
- * Rendered as a modal overlay.
+ * Session Replay Player (rrweb-based)
+ * Replays visitor sessions using rrweb's DOM-based recording.
+ * Falls back to the legacy screenshot-based replay when no rrweb data is available.
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Pause, SkipBack, X } from 'lucide-react';
+import type { Replayer as ReplayerType } from 'rrweb';
 import * as trackingService from '../../../services/tracking.service';
-import { resolveMediaUrl } from '../../../services/media.service';
 
 interface SessionReplayPlayerProps {
     researchId: string;
@@ -18,159 +18,146 @@ interface SessionReplayPlayerProps {
 }
 
 export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionReplayPlayerProps) => {
-    // Load only the clicked session (single request, fast)
-    const { data: sessionData, isLoading } = useQuery({
+    // Try rrweb events first
+    const { data: rrwebData, isLoading: rrwebLoading } = useQuery({
+        queryKey: ['tracking', researchId, 'rrweb-replay', sessionId],
+        queryFn: () => trackingService.getRrwebReplay(researchId, sessionId),
+        staleTime: 30_000,
+    });
+
+    // Fallback: load legacy heatmap events (for cursor overlay + timeline)
+    const { data: legacyData, isLoading: legacyLoading } = useQuery({
         queryKey: ['tracking', researchId, 'replay', sessionId],
         queryFn: () => trackingService.getSessionReplay(researchId, sessionId),
         staleTime: 30_000,
     });
 
-    const session = sessionData?.session;
-    const visitorId = session?.visitorId;
+    const hasRrwebEvents = (rrwebData?.events?.length ?? 0) > 0;
+    const isLoading = rrwebLoading || legacyLoading;
+    const session = rrwebData?.session || legacyData?.session;
 
-    // Real timeline — no compression, no filtering
-    const { events, duration } = useMemo(() => {
-        if (!sessionData || sessionData.events.length === 0) return {
-            events: [] as Array<trackingService.SessionReplayEvent & { relativeTs: number }>,
-            duration: 0,
-        };
-
-        const raw = sessionData.events;
-        const startTs = raw[0].timestampMs;
-        const mapped = raw.map(evt => ({ ...evt, relativeTs: evt.timestampMs - startTs }));
-        const dur = mapped[mapped.length - 1].relativeTs;
-
-        return { events: mapped, duration: Math.max(dur, 1000) };
-    }, [sessionData]);
-
+    const containerRef = useRef<HTMLDivElement>(null);
+    const replayerRef = useRef<ReplayerType | null>(null);
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [speed, setSpeed] = useState(4); // Default 4x — real-time is too slow for most sessions
-    const animRef = useRef<number>(0);
-    const lastFrameRef = useRef<number>(0);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [containerW, setContainerW] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [speed, setSpeed] = useState(4);
+    const [ready, setReady] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Measure container width reliably via ResizeObserver
+    // Initialize rrweb Replayer when data arrives
     useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                setContainerW(entry.contentRect.width);
-            }
-        });
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, []);
+        if (!hasRrwebEvents || !containerRef.current || !rrwebData) return;
 
-    // Get screenshot URL for this session's page
-    const { data: pages } = useQuery({
-        queryKey: ['tracking', researchId, 'pages'],
-        queryFn: () => trackingService.getTrackedPages(researchId),
-        staleTime: 60_000,
-        enabled: !!session,
-    });
-
-    const screenshotUrl = useMemo(() => {
-        if (!session) return null;
-        const page = pages?.find(p => p.pageUrl === session.pageUrl);
-        const key = page?.screenshotDevices?.desktop || page?.screenshotS3Key;
-        return key ? resolveMediaUrl(`/api/media/${key}`) : null;
-    }, [pages, session]);
-
-    // Check if there are any visible interaction events (mousemove/click with coords)
-    const hasVisibleInteraction = useMemo(
-        () => events.some(e => (e.eventType === 'click' || e.eventType === 'mousemove') && e.x != null && e.y != null),
-        [events]
-    );
-
-    // Initial scroll offset — so replay starts at the top of where the burst begins
-    const initialScrollY = useMemo(() => {
-        const firstScroll = events.find(e => e.eventType === 'scroll' && e.scrollY != null);
-        return firstScroll?.scrollY ?? 0;
-    }, [events]);
-
-    // Current cursor position and scroll
-    const { cursorX, cursorY, scrollY, recentClicks } = useMemo(() => {
-        // Start at the scroll position of the first scroll event so image+cursor align
-        let cx = 50, cy = 10;
-        let sy = initialScrollY;
-        const clicks: Array<{ x: number; y: number; age: number }> = [];
-
-        for (const evt of events) {
-            if (evt.relativeTs > currentTime) break;
-            if (evt.x != null && evt.y != null && (evt.eventType === 'mousemove' || evt.eventType === 'click')) {
-                cx = evt.x;
-                cy = evt.y;
-            }
-            if (evt.eventType === 'scroll' && evt.scrollY != null) {
-                sy = evt.scrollY;
-            }
-            if (evt.eventType === 'click' && evt.x != null && evt.y != null) {
-                clicks.push({ x: evt.x, y: evt.y, age: currentTime - evt.relativeTs });
-            }
+        // Clear previous replayer
+        if (replayerRef.current) {
+            try { replayerRef.current.destroy(); } catch { /* ignore */ }
+            replayerRef.current = null;
         }
 
-        // Only show clicks from last 2 seconds
-        const recent = clicks.filter(c => c.age < 2000);
-        return { cursorX: cx, cursorY: cy, scrollY: sy, recentClicks: recent };
-    }, [events, currentTime]);
+        // Clear container
+        containerRef.current.innerHTML = '';
 
+        // Dynamically import rrweb + CSS (lazy load ~137KB)
+        let cancelled = false;
+        Promise.all([
+            import('rrweb'),
+            import('rrweb/dist/rrweb.min.css'),
+        ]).then(([rrwebModule]) => {
+            if (cancelled || !containerRef.current) return;
+            const { Replayer } = rrwebModule;
 
-    // Animation loop — simple, gaps already compressed in timeline
-    const speedRef = useRef(speed);
-    const durationRef = useRef(duration);
-    useEffect(() => { speedRef.current = speed; }, [speed]);
-    useEffect(() => { durationRef.current = duration; }, [duration]);
+            try {
+                const replayer = new Replayer(rrwebData.events as ConstructorParameters<typeof Replayer>[0], {
+                    root: containerRef.current,
+                    skipInactive: true,
+                    showWarning: false,
+                    showDebug: false,
+                    speed,
+                    mouseTail: {
+                        strokeStyle: '#3B82F6',
+                        lineWidth: 2,
+                        lineCap: 'round',
+                    },
+                });
 
-    useEffect(() => {
-        if (!playing) { cancelAnimationFrame(animRef.current); return; }
-        lastFrameRef.current = 0;
-        const tick = (ts: number) => {
-            if (!lastFrameRef.current) lastFrameRef.current = ts;
-            const delta = (ts - lastFrameRef.current) * speedRef.current;
-            lastFrameRef.current = ts;
-            setCurrentTime(prev => {
-                const next = prev + delta;
-                if (next >= durationRef.current) { setPlaying(false); return durationRef.current; }
-                return next;
-            });
-            animRef.current = requestAnimationFrame(tick);
+                replayerRef.current = replayer;
+
+                const meta = replayer.getMetaData();
+                setDuration(meta.totalTime || 0);
+                setReady(true);
+                setCurrentTime(0);
+            } catch (err) {
+                console.error('[rrweb] Failed to initialize replayer:', err);
+                setReady(false);
+            }
+        }).catch(() => {
+            setReady(false);
+        });
+
+        return () => {
+            cancelled = true;
+            if (replayerRef.current) {
+                try { replayerRef.current.destroy(); } catch { /* ignore */ }
+                replayerRef.current = null;
+            }
         };
-        animRef.current = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(animRef.current);
-    }, [playing]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasRrwebEvents, rrwebData]);
 
-    const handleRestart = () => {
-        cancelAnimationFrame(animRef.current);
-        lastFrameRef.current = 0;
-        setCurrentTime(0);
-        setPlaying(true);
-    };
+    // Update speed when user changes it
+    useEffect(() => {
+        if (replayerRef.current) {
+            replayerRef.current.setConfig({ speed });
+        }
+    }, [speed]);
 
-    const handlePlayPause = () => {
+    // Timer to update currentTime during playback
+    useEffect(() => {
+        if (playing && replayerRef.current) {
+            timerRef.current = setInterval(() => {
+                const t = replayerRef.current?.getCurrentTime() ?? 0;
+                setCurrentTime(t);
+                if (t >= duration) {
+                    setPlaying(false);
+                    if (timerRef.current) clearInterval(timerRef.current);
+                }
+            }, 100);
+        } else {
+            if (timerRef.current) clearInterval(timerRef.current);
+        }
+        return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    }, [playing, duration]);
+
+    const handlePlayPause = useCallback(() => {
+        if (!replayerRef.current || !ready) return;
         if (playing) {
+            replayerRef.current.pause();
             setPlaying(false);
         } else {
-            // If at the end, restart from beginning
             if (currentTime >= duration) {
-                lastFrameRef.current = 0;
+                replayerRef.current.play(0);
                 setCurrentTime(0);
+            } else {
+                replayerRef.current.resume(currentTime);
             }
             setPlaying(true);
         }
-    };
+    }, [playing, currentTime, duration, ready]);
 
-    // Skip to the next event that has visible interaction (mousemove/click with coords)
-    const handleSkipIdle = () => {
-        const nextEvt = events.find(
-            e => e.relativeTs > currentTime && e.x != null && e.y != null
-        );
-        if (nextEvt) {
-            setCurrentTime(nextEvt.relativeTs);
-        }
-    };
+    const handleRestart = useCallback(() => {
+        if (!replayerRef.current || !ready) return;
+        replayerRef.current.play(0);
+        setCurrentTime(0);
+        setPlaying(true);
+    }, [ready]);
+
+    const handleSeek = useCallback((timeMs: number) => {
+        if (!replayerRef.current || !ready) return;
+        replayerRef.current.pause(timeMs);
+        setCurrentTime(timeMs);
+        setPlaying(false);
+    }, [ready]);
 
     // Escape to close
     useEffect(() => {
@@ -179,92 +166,43 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         return () => window.removeEventListener('keydown', h);
     }, [onClose]);
 
-    // Viewport dimensions for coordinate mapping
-    const vpW = session?.viewportWidth || 1440;
-    const scaledScrollY = containerW > 0 ? scrollY * (containerW / vpW) : 0;
+    // Compute timeline segments from legacy events
+    const legacyEvents = legacyData?.events ?? [];
+    const timelineEvents = legacyEvents.map(evt => ({
+        eventType: evt.eventType,
+        timestampMs: evt.timestampMs,
+        relativeTs: legacyEvents.length > 0 ? evt.timestampMs - legacyEvents[0].timestampMs : 0,
+    }));
 
     const modalContent = (() => {
         if (isLoading) return <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />;
-        if (!sessionData || events.length === 0) {
-            return <div className="text-center py-12 text-gray-500 text-sm">No events in this session.</div>;
-        }
-        if (!hasVisibleInteraction) {
+
+        if (!hasRrwebEvents) {
             return (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                    <p className="text-sm">This session only contains scroll events</p>
-                    <p className="text-xs mt-1">No mouse or click interaction was recorded</p>
+                    <div className="text-5xl mb-4">🎬</div>
+                    <p className="text-sm font-medium text-gray-500">No DOM recording available</p>
+                    <p className="text-xs mt-1">This session was recorded before rrweb migration.</p>
+                    <p className="text-xs mt-1">New sessions will have full DOM-based replay.</p>
                 </div>
             );
         }
 
         return (
             <>
-                {/* Replay viewport */}
+                {/* rrweb replay container */}
                 <div
-                    ref={containerRef}
-                    className="relative bg-gray-100 overflow-hidden flex-1 min-h-0 cursor-pointer group/viewport"
+                    className="relative flex-1 min-h-0 overflow-hidden bg-gray-50 cursor-pointer"
                     onClick={handlePlayPause}
                 >
-                    {/* Scroll wrapper — moves vertically with scroll events */}
                     <div
-                        className="absolute top-0 left-0 w-full"
-                        style={{ transform: `translateY(-${scaledScrollY}px)` }}
-                    >
-                        {/* Relative container for image + cursor + clicks positioning */}
-                        <div className="relative w-full">
-                            {screenshotUrl ? (
-                                <img
-                                    src={screenshotUrl}
-                                    alt="Page screenshot"
-                                    className="w-full h-auto block"
-                                    draggable={false}
-                                />
-                            ) : (
-                                <div className="w-full flex flex-col items-center justify-center bg-slate-50" style={{ height: containerW * 1.5 || 600 }}>
-                                    <div className="text-slate-300 text-6xl mb-4">🌐</div>
-                                    <p className="text-sm text-slate-400 font-medium">{session?.pageUrl ? new URL(session.pageUrl).hostname : 'Page'}</p>
-                                    <p className="text-xs text-slate-300 mt-1 max-w-md truncate">{session?.pageUrl}</p>
-                                    <p className="text-[10px] text-slate-300 mt-3">Screenshot will be captured on next visitor</p>
-                                </div>
-                            )}
+                        ref={containerRef}
+                        className="w-full h-full"
+                        style={{ position: 'relative' }}
+                    />
 
-                            {/* Cursor dot — use paddingBottom trick: coords are both as % of viewport width */}
-                            <div
-                                className="absolute pointer-events-none z-20 transition-all duration-100 ease-out"
-                                style={{
-                                    left: `${cursorX}%`,
-                                    top: containerW > 0 ? (cursorY / 100) * containerW : 0,
-                                    transform: 'translate(-50%, -50%)',
-                                }}
-                            >
-                                <div className="w-8 h-8 rounded-full border-2 border-blue-500 bg-blue-500/25 shadow-lg shadow-blue-500/30" />
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-blue-600" />
-                            </div>
-
-                            {/* Click ripples */}
-                            {recentClicks.map((click, i) => {
-                                const opacity = Math.max(0, 1 - click.age / 2000);
-                                const rippleScale = 1 + (click.age / 2000) * 2;
-                                return (
-                                    <div
-                                        key={`click-${i}-${click.x}-${click.y}`}
-                                        className="absolute pointer-events-none z-10"
-                                        style={{
-                                            left: `${click.x}%`,
-                                            top: containerW > 0 ? (click.y / 100) * containerW : 0,
-                                            transform: `translate(-50%, -50%) scale(${rippleScale})`,
-                                            opacity,
-                                        }}
-                                    >
-                                        <div className="w-10 h-10 rounded-full border-2 border-red-500 bg-red-500/40 shadow-lg shadow-red-500/30" />
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Big play/pause overlay — YouTube style */}
-                    <div className={`absolute inset-0 flex items-center justify-center z-30 pointer-events-none transition-opacity duration-200 ${playing ? 'opacity-0 group-hover/viewport:opacity-100' : 'opacity-100'}`}>
+                    {/* Play/pause overlay — YouTube style */}
+                    <div className={`absolute inset-0 flex items-center justify-center z-30 pointer-events-none transition-opacity duration-200 ${playing ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                         <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-all ${playing ? 'bg-black/30' : 'bg-black/50'}`}>
                             {playing
                                 ? <Pause className="h-7 w-7 text-white" />
@@ -276,11 +214,11 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
 
                 {/* Activity timeline bar */}
                 <ActivityTimeline
-                    events={events}
-                    startTs={events[0]?.timestampMs || 0}
+                    events={timelineEvents}
+                    startTs={timelineEvents[0]?.timestampMs || 0}
                     duration={duration}
                     currentTime={currentTime}
-                    onSeek={(t) => setCurrentTime(t)}
+                    onSeek={handleSeek}
                 />
 
                 {/* Controls */}
@@ -292,23 +230,10 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                         <SkipBack className="h-4 w-4" />
                     </button>
 
-                    <button
-                        onClick={handleSkipIdle}
-                        className="px-2 py-1 text-[10px] text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Skip to next mouse/click event"
-                    >
-                        Skip idle →
-                    </button>
-
                     <div className="flex-1 flex items-center gap-2">
                         <span className="text-xs text-gray-500 font-mono">{formatMs(currentTime)}</span>
                         <span className="text-xs text-gray-400">/</span>
                         <span className="text-xs text-gray-500 font-mono">{formatMs(duration)}</span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" />Click</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" />Cursor</span>
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -340,10 +265,17 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                 <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-3">
                         <h3 className="text-sm font-semibold text-slate-800">Session Replay</h3>
-                        <span className="text-xs text-gray-500 font-mono">{visitorId?.slice(0, 12)}...</span>
-                        <span className="text-xs text-gray-400">
-                            {events.length} events &middot; {formatMs(duration)}
-                        </span>
+                        {session && (
+                            <>
+                                <span className="text-xs text-gray-500 font-mono">{session.visitorId?.slice(0, 12)}...</span>
+                                <span className="text-xs text-gray-400">
+                                    {formatMs(duration)}
+                                </span>
+                                {hasRrwebEvents && (
+                                    <span className="px-1.5 py-0.5 text-[10px] bg-green-100 text-green-700 rounded font-medium">DOM Replay</span>
+                                )}
+                            </>
+                        )}
                     </div>
                     <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                         <X className="h-4 w-4 text-gray-500" />
@@ -377,7 +309,7 @@ type SegmentType = 'click' | 'move' | 'idle';
 
 const SEGMENT_COLORS: Record<SegmentType, string> = {
     click: '#EF4444',
-    move: '#93C5FD',  // blue-300 (cursor activity)
+    move: '#93C5FD',
     idle: '#1F2937',
 };
 
@@ -386,7 +318,7 @@ const IDLE_THRESHOLD_MS = 2000;
 const ActivityTimeline = ({ events, startTs, duration, currentTime, onSeek }: ActivityTimelineProps) => {
     const barRef = useRef<HTMLDivElement>(null);
 
-    const segments = useMemo(() => {
+    const segments = (() => {
         if (duration <= 0 || events.length === 0) return [];
 
         const BUCKET_COUNT = Math.min(500, Math.max(100, Math.round(duration / 100)));
@@ -428,7 +360,7 @@ const ActivityTimeline = ({ events, startTs, duration, currentTime, onSeek }: Ac
         }
 
         return result;
-    }, [events, startTs, duration]);
+    })();
 
     const handleBarClick = (e: React.MouseEvent) => {
         if (!barRef.current) return;

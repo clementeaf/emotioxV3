@@ -233,6 +233,26 @@ export const getSessionReplay = async (researchId: string, sessionId: string): P
     return apiClient.get<SessionReplayData>(`/tracking/${researchId}/sessions/${sessionId}/events`);
 };
 
+// ─── rrweb Session Replay ───────────────────────────────────────────
+
+export interface RrwebReplayData {
+    session: {
+        id: string;
+        visitorId: string;
+        pageUrl: string;
+        pageTitle: string | null;
+        viewportWidth: number;
+        viewportHeight: number;
+        startedAt: string;
+        endedAt: string | null;
+    };
+    events: unknown[];
+}
+
+export const getRrwebReplay = async (researchId: string, sessionId: string): Promise<RrwebReplayData> => {
+    return apiClient.get<RrwebReplayData>(`/tracking/${researchId}/sessions/${sessionId}/rrweb`);
+};
+
 // ─── Funnels ─────────────────────────────────────────────────────────
 
 export interface FunnelData {

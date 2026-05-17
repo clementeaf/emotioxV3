@@ -1040,6 +1040,81 @@ export const getSessionEvents = async (sessionId: string) => {
     };
 };
 
+// ─── rrweb Event Storage ─────────────────────────────────────────────
+
+/**
+ * Append rrweb events to a session. Events are stored as a JSON array in
+ * tracking_sessions.rrweb_events (LONGTEXT). Each call appends to the existing
+ * array so the snippet can send incremental batches.
+ */
+export const appendRrwebEvents = async (
+    sessionId: string,
+    events: unknown[]
+): Promise<{ saved: number }> => {
+    if (events.length === 0) return { saved: 0 };
+
+    // Validate session exists
+    const session = await pool.query(
+        'SELECT id, rrweb_events FROM tracking_sessions WHERE id = ?',
+        [sessionId]
+    );
+    if (session.rows.length === 0) throw new Error('Session not found');
+
+    // Merge with existing events
+    let existing: unknown[] = [];
+    const raw = session.rows[0].rrweb_events;
+    if (raw) {
+        try { existing = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { existing = []; }
+    }
+
+    const merged = [...existing, ...events];
+    // Cap at ~10MB of JSON to prevent abuse
+    const json = JSON.stringify(merged);
+    if (json.length > 10_485_760) throw new Error('rrweb events too large');
+
+    await pool.query(
+        'UPDATE tracking_sessions SET rrweb_events = ? WHERE id = ?',
+        [json, sessionId]
+    );
+
+    return { saved: events.length };
+};
+
+/**
+ * Retrieve rrweb events for a session (for replay).
+ */
+export const getRrwebEvents = async (sessionId: string) => {
+    const result = await pool.query(
+        `SELECT ts.id, ts.visitor_id, ts.page_url, ts.page_title,
+                ts.viewport_width, ts.viewport_height,
+                ts.started_at, ts.ended_at, ts.rrweb_events
+         FROM tracking_sessions ts
+         WHERE ts.id = ?`,
+        [sessionId]
+    );
+    if (result.rows.length === 0) throw new Error('Session not found');
+
+    const s = result.rows[0] as Record<string, unknown>;
+    let events: unknown[] = [];
+    if (s.rrweb_events) {
+        try { events = typeof s.rrweb_events === 'string' ? JSON.parse(s.rrweb_events as string) : s.rrweb_events as unknown[]; } catch { events = []; }
+    }
+
+    return {
+        session: {
+            id: s.id,
+            visitorId: s.visitor_id,
+            pageUrl: s.page_url,
+            pageTitle: s.page_title,
+            viewportWidth: s.viewport_width,
+            viewportHeight: s.viewport_height,
+            startedAt: s.started_at,
+            endedAt: s.ended_at,
+        },
+        events,
+    };
+};
+
 // ─── Analytics: Page Funnels ─────────────────────────────────────────
 
 // ─── Custom Funnel Drop-off ──────────────────────────────────────────

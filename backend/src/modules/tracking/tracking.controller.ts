@@ -33,6 +33,8 @@ import {
     getPageSnapshotHtml,
     getFrictionSummary,
     getSessionFrictionTags,
+    appendRrwebEvents,
+    getRrwebEvents,
 } from './tracking.service';
 import { generateTrackingSnippet, generateEmbedSnippet } from './tracking-snippet';
 
@@ -192,6 +194,20 @@ export const handlePublicTrackingRoutes = async (
                 metadata: typeof e.metadata === 'object' ? e.metadata as Record<string, unknown> : undefined,
             })));
 
+            return trackingSuccess(result, 201);
+        }
+
+        // POST /public/tracking/:researchId/rrweb-events — append rrweb recording events
+        const rrwebMatch = path.match(/^\/public\/tracking\/([^/]+)\/rrweb-events$/);
+        if (rrwebMatch && httpMethod === 'POST') {
+            let body: Record<string, unknown>;
+            try { body = JSON.parse(event.body || '{}'); } catch { return trackingError('Invalid JSON'); }
+            const sessionId = body.sessionId as string;
+            const rrwebEvts = body.events as unknown[];
+            if (!sessionId || !Array.isArray(rrwebEvts)) {
+                return trackingError('Missing sessionId or events array');
+            }
+            const result = await appendRrwebEvents(sessionId, rrwebEvts);
             return trackingSuccess(result, 201);
         }
 
@@ -404,6 +420,14 @@ export const handleTrackingRoutes = async (
         if (sessionEventsMatch && httpMethod === 'GET') {
             const sessionId = sessionEventsMatch[2];
             const data = await getSessionEvents(sessionId);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/sessions/:sessionId/rrweb — rrweb recording data for replay
+        const rrwebGetMatch = path.match(/^\/tracking\/([^/]+)\/sessions\/([^/]+)\/rrweb$/);
+        if (rrwebGetMatch && httpMethod === 'GET') {
+            const sessionId = rrwebGetMatch[2];
+            const data = await getRrwebEvents(sessionId);
             return success(data, 200, undefined, origin);
         }
 
