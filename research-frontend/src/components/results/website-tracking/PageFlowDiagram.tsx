@@ -111,12 +111,12 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                     const dy = (y2 - y1) * 0.45;
                     const path = `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
 
-                    // Label at midpoint
+                    // Label at midpoint — show transition count only
+                    // (transitions ≠ visitors, so % would be misleading)
                     const lx = (x1 + x2) / 2;
                     const ly = (y1 + y2) / 2;
-                    const pct = from.visitors > 0 ? Math.round(edge.count / from.visitors * 100) : 0;
-                    const labelText = `${edge.count} (${pct}%)`;
-                    const labelW = labelText.length * 5.5 + 12;
+                    const labelText = `${edge.count}×`;
+                    const labelW = labelText.length * 6 + 12;
 
                     return (
                         <g key={`e-${i}`}>
@@ -155,8 +155,8 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                 {nodes.map((node) => {
                     const intensity = node.visitors / maxVisitors;
                     const bgColor = getNodeColor(intensity);
-                    const textColor = intensity > 0.5 ? '#fff' : '#1E293B';
-                    const subColor = intensity > 0.5 ? 'rgba(255,255,255,0.75)' : '#64748B';
+                    const textColor = intensity > 0.15 ? '#fff' : '#1E293B';
+                    const subColor = intensity > 0.15 ? 'rgba(255,255,255,0.8)' : '#475569';
 
                     return (
                         <g key={node.id}>
@@ -190,7 +190,7 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                             >
                                 {truncate(node.label, 22)}
                             </text>
-                            {/* Visitor count */}
+                            {/* Visit count */}
                             <text
                                 x={node.x + NODE_W / 2}
                                 y={node.y + NODE_H / 2 + 10}
@@ -198,7 +198,7 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                                 fill={subColor}
                                 style={{ fontSize: 9, fontWeight: 500 }}
                             >
-                                {node.visitors} visitors
+                                {node.visitors} visits
                             </text>
                         </g>
                     );
@@ -339,9 +339,9 @@ function truncate(s: string, max: number): string {
 }
 
 function getNodeColor(intensity: number): string {
-    if (intensity > 0.7) return '#1D4ED8';
-    if (intensity > 0.5) return '#2563EB';
-    if (intensity > 0.3) return '#3B82F6';
-    if (intensity > 0.15) return '#93C5FD';
-    return '#F1F5F9';
+    if (intensity > 0.7) return '#1D4ED8';   // blue-700
+    if (intensity > 0.5) return '#2563EB';   // blue-600
+    if (intensity > 0.3) return '#3B82F6';   // blue-500
+    if (intensity > 0.15) return '#60A5FA';  // blue-400 (was blue-300, better contrast)
+    return '#DBEAFE';                         // blue-100 (was slate-100, now clearly a node)
 }

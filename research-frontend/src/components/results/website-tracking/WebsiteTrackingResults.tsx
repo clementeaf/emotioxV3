@@ -371,7 +371,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col" style={{ height: 'calc(100vh - 240px)' }}>
                             <div className="shrink-0 mb-3">
                                 <h3 className="text-sm font-semibold text-slate-800 mb-1">Page Flow</h3>
-                                <p className="text-xs text-gray-400">Visual map of visitor navigation between pages. Arrow thickness = traffic volume.</p>
+                                <p className="text-xs text-gray-400">Visual map of navigation between pages. Nodes = page visits. Arrows = transitions between pages (count).</p>
                             </div>
                             <div className="flex-1 min-h-0 overflow-auto rounded-lg">
                                 <PageFlowDiagram researchId={researchId} />
