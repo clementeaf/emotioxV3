@@ -343,7 +343,7 @@ function startCapture(){
         var lastMove=0;
         document.addEventListener("mousemove",function(e){
             var now=Date.now();
-            if(now-lastMove<100)return;
+            if(now-lastMove<500)return; // 2/s max (Mouseflow-level throttle)
             lastMove=now;
             push({
                 eventType:"mousemove",
@@ -371,8 +371,19 @@ function startCapture(){
     });
 
     // ── SPA NAVIGATION ──────────────────────────────────────────────
+    // Only create new session when pathname changes (ignore hash/query).
+    // Debounce 1s to avoid rapid-fire from framework route transitions.
     var origPush=history.pushState,origReplace=history.replaceState;
-    function onNav(){if(location.href!==lastUrl)createSession();}
+    var navTimer=null;
+    function getPath(){return location.origin+location.pathname;}
+    var lastPath=getPath();
+    function onNav(){
+        var p=getPath();
+        if(p===lastPath)return;
+        lastPath=p;
+        clearTimeout(navTimer);
+        navTimer=setTimeout(createSession,1000);
+    }
     history.pushState=function(){origPush.apply(history,arguments);onNav();};
     history.replaceState=function(){origReplace.apply(history,arguments);onNav();};
     window.addEventListener("popstate",onNav);
