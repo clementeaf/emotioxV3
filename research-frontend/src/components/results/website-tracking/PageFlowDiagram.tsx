@@ -30,6 +30,7 @@ interface LayoutNode {
     id: string;
     label: string;
     visitors: number;
+    exits: number;
     row: number;
     col: number;
     x: number;
@@ -154,9 +155,12 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                 {/* Nodes */}
                 {nodes.map((node) => {
                     const intensity = node.visitors / maxVisitors;
-                    const bgColor = getNodeColor(intensity);
-                    const textColor = intensity > 0.15 ? '#fff' : '#1E293B';
-                    const subColor = intensity > 0.15 ? 'rgba(255,255,255,0.8)' : '#475569';
+                    const exitRate = node.visitors > 0 ? node.exits / node.visitors : 0;
+                    const isExitNode = node.exits > 0 && exitRate >= 0.3; // ≥30% exit rate
+                    const bgColor = isExitNode ? '#FEF2F2' : getNodeColor(intensity);
+                    const borderColor = isExitNode ? '#EF4444' : (intensity > 0.3 ? 'transparent' : '#E2E8F0');
+                    const textColor = isExitNode ? '#991B1B' : (intensity > 0.15 ? '#fff' : '#1E293B');
+                    const subColor = isExitNode ? '#DC2626' : (intensity > 0.15 ? 'rgba(255,255,255,0.8)' : '#475569');
 
                     return (
                         <g key={node.id}>
@@ -167,7 +171,7 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                                 width={NODE_W}
                                 height={NODE_H}
                                 rx={10}
-                                fill="rgba(0,0,0,0.05)"
+                                fill={isExitNode ? 'rgba(239,68,68,0.08)' : 'rgba(0,0,0,0.05)'}
                             />
                             {/* Box */}
                             <rect
@@ -177,8 +181,9 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                                 height={NODE_H}
                                 rx={10}
                                 fill={bgColor}
-                                stroke={intensity > 0.3 ? 'transparent' : '#E2E8F0'}
-                                strokeWidth={1}
+                                stroke={borderColor}
+                                strokeWidth={isExitNode ? 2 : 1}
+                                strokeDasharray={isExitNode ? '6 3' : 'none'}
                             />
                             {/* Page label */}
                             <text
@@ -200,6 +205,28 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                             >
                                 {node.visitors} visits
                             </text>
+                            {/* Exit badge */}
+                            {isExitNode && (
+                                <>
+                                    <rect
+                                        x={node.x + NODE_W - 50}
+                                        y={node.y - 8}
+                                        width={50}
+                                        height={16}
+                                        rx={8}
+                                        fill="#EF4444"
+                                    />
+                                    <text
+                                        x={node.x + NODE_W - 25}
+                                        y={node.y + 4}
+                                        textAnchor="middle"
+                                        fill="white"
+                                        style={{ fontSize: 8, fontWeight: 700 }}
+                                    >
+                                        EXIT {Math.round(exitRate * 100)}%
+                                    </text>
+                                </>
+                            )}
                         </g>
                     );
                 })}
@@ -211,7 +238,7 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
 // ─── Layout Algorithm (top-down) ─────────────────────────────────────
 
 function computeLayout(
-    topPages: Array<{ pageUrl: string; visitors: number }>,
+    topPages: Array<{ pageUrl: string; visitors: number; exits?: number }>,
     transitions: Array<{ from: string; to: string; count: number }>
 ) {
     if (topPages.length === 0) {
@@ -232,6 +259,7 @@ function computeLayout(
     }
 
     const visitorsMap = new Map(topPages.map(p => [p.pageUrl, p.visitors]));
+    const exitsMap = new Map(topPages.map(p => [p.pageUrl, p.exits || 0]));
 
     // Find root: entry page (no incoming, or most visitors)
     const roots = topPages.filter(p => {
@@ -297,6 +325,7 @@ function computeLayout(
                 id: url,
                 label: shortenUrl(url),
                 visitors: visitorsMap.get(url) || 0,
+                exits: exitsMap.get(url) || 0,
                 row,
                 col,
                 x: offsetX + col * (NODE_W + H_GAP),

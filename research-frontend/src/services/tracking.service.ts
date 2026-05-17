@@ -258,7 +258,7 @@ export const getRrwebReplay = async (researchId: string, sessionId: string): Pro
 
 export interface FunnelData {
     totalVisitors: number;
-    topPages: Array<{ pageUrl: string; visitors: number }>;
+    topPages: Array<{ pageUrl: string; visitors: number; exits?: number }>;
     transitions: Array<{ from: string; to: string; count: number }>;
 }
 

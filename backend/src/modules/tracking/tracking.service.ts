@@ -1221,9 +1221,10 @@ export const getPageFunnels = async (researchId: string) => {
         visitorPaths.get(vid)!.push(row.page_url as string);
     }
 
-    // Count transitions: page A → page B
+    // Count transitions, visits, and exits
     const transitions = new Map<string, number>();
     const pageCounts = new Map<string, number>();
+    const exitCounts = new Map<string, number>();
 
     for (const pages of visitorPaths.values()) {
         for (let i = 0; i < pages.length; i++) {
@@ -1233,13 +1234,20 @@ export const getPageFunnels = async (researchId: string) => {
                 transitions.set(key, (transitions.get(key) || 0) + 1);
             }
         }
+        // Last page in visitor path = exit page
+        const exitPage = pages[pages.length - 1];
+        exitCounts.set(exitPage, (exitCounts.get(exitPage) || 0) + 1);
     }
 
-    // Top pages by visit count
+    // Top pages by visit count, with exit count
     const topPages = [...pageCounts.entries()]
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
-        .map(([url, count]) => ({ pageUrl: url, visitors: count }));
+        .map(([url, count]) => ({
+            pageUrl: url,
+            visitors: count,
+            exits: exitCounts.get(url) || 0,
+        }));
 
     // Top transitions
     const topTransitions = [...transitions.entries()]
