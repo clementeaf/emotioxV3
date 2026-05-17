@@ -4,7 +4,7 @@
  * Shows tracking config, embed snippet, and domain setup.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Globe, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -88,52 +88,27 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
 
     const [verifying, setVerifying] = useState(false);
     const [verifyResult, setVerifyResult] = useState<'success' | 'no_sessions' | 'script_error' | null>(null);
-    const [verifyCountdown, setVerifyCountdown] = useState(0);
-    const verifyAbortRef = useRef(false);
 
     const handleVerify = useCallback(async () => {
         setVerifying(true);
         setVerifyResult(null);
-        verifyAbortRef.current = false;
-
-        const TIMEOUT_S = 60;
-        const POLL_INTERVAL_MS = 1500;
-        setVerifyCountdown(TIMEOUT_S);
-
-        // Countdown timer
-        const countdownTimer = setInterval(() => {
-            setVerifyCountdown((prev) => {
-                if (prev <= 1) { clearInterval(countdownTimer); return 0; }
-                return prev - 1;
-            });
-        }, 1000);
 
         try {
-            const startTime = Date.now();
-            while (Date.now() - startTime < TIMEOUT_S * 1000) {
-                if (verifyAbortRef.current) break;
-                const result = await trackingService.verifyInstallation(research.id, TIMEOUT_S + 30);
-                if (result.hasData) {
-                    setVerifyResult('success');
-                    clearInterval(countdownTimer);
-                    setVerifying(false);
-                    // Persist verified flag
-                    try {
-                        await trackingService.updateConfig(research.id, { ...config, verified: true });
-                        queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-                    } catch { /* best-effort */ }
-                    return;
-                }
-                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+            // Single check — looks for any session in the last 5 minutes
+            const result = await trackingService.verifyInstallation(research.id, 300);
+            if (result.hasData) {
+                setVerifyResult('success');
+                try {
+                    await trackingService.updateConfig(research.id, { ...config, verified: true });
+                    queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                } catch { /* best-effort */ }
+            } else {
+                setVerifyResult('no_sessions');
             }
-            // Timeout — no sessions arrived
-            setVerifyResult('no_sessions');
         } catch {
             setVerifyResult('script_error');
         } finally {
-            clearInterval(countdownTimer);
             setVerifying(false);
-            setVerifyCountdown(0);
         }
     }, [research.id, config, queryClient]);
 
@@ -190,7 +165,7 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                                 disabled={verifying}
                                 className="text-[10px] text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
                             >
-                                {verifying ? `Listening... ${verifyCountdown}s` : 'Verify'}
+                                {verifying ? 'Checking...' : 'Verify'}
                             </button>
                             {hasVerified && <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>}
                             {verifyResult === 'no_sessions' && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">No data</span>}

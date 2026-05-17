@@ -104,9 +104,11 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
             hostname = new URL(source.startsWith('http') ? source : `https://${source}`).hostname;
         } catch { /* invalid URL — will fail validation */ }
 
-        const domainAllowed = allowedDomains.some(
-            (d) => hostname === d || hostname.endsWith(`.${d}`)
-        );
+        const domainAllowed = allowedDomains.some((d) => {
+            // Strip protocol, path, port — compare hostname only
+            const clean = d.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+            return hostname === clean || hostname.endsWith(`.${clean}`);
+        });
         if (!domainAllowed) {
             throw new Error('Domain not allowed');
         }
