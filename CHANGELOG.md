@@ -1,3 +1,43 @@
+## v0.73.0 — Website Tracking: rrweb migration, Page Flow diagram, snippet hardening (2026-05-17)
+
+### backend — Session replay migration
+- **rrweb-based DOM recording.** Snippet v3 loads rrweb from CDN, records full DOM snapshot + incremental mutations with CSS inlining. Replaces html2canvas screenshot approach. Events stored in `tracking_sessions.rrweb_events` (LONGTEXT). Migration 031.
+- **New endpoints.** `POST /public/tracking/:id/rrweb-events` (public, snippet sends batches via XHR). `GET /tracking/:id/sessions/:sid/rrweb` (auth, frontend fetches for replay).
+- **`hasRrweb` flag.** `getSessions` and `getVisitorJourneys` return boolean so frontend can distinguish legacy vs DOM-recorded sessions.
+- **Exit page tracking.** `getPageFunnels` now counts exits per page (last page in visitor path). Returned as `exits` field in `topPages`.
+- **Domain validation fix.** `createSession` and `saveTrackingConfig` strip protocol/path/port from `allowedDomains` — users pasting `emotio.cx/path` no longer causes "Domain not allowed".
+- **Session duration cap.** `getVisitorJourneys` caps `durationMs` at 30 min. `getOverviewMetrics` caps `avgSessionDuration` at 1800s. Prevents idle-tab inflation.
+
+### backend — Snippet v3
+- **rrweb recording.** `rrweb.record()` with `inlineStylesheet`, `inlineImages`, `maskAllInputs`, `collectFonts`. Events batched every 5s via XHR (not sendBeacon — 64KB limit breaks 500KB+ DOM snapshots).
+- **Heartbeat removed.** Viewport heartbeat (1s interval) was generating ~60 fake events/min, inflating session duration to 960+ minutes. Removed entirely — real scroll events are sufficient.
+- **Mousemove throttle.** 100ms → 500ms (10/s → 2/s). Matches Mouseflow. Eliminates event count bloat.
+- **SPA navigation debounce.** Only creates new session when pathname changes (ignores hash/query). 1s debounce prevents framework-triggered session spam.
+- **Domain check fix.** `checkDomain` strips path from configured domains before comparing with `location.hostname`.
+- **Session creation error handling.** Checks `xhr.status >= 400` instead of silently ignoring errors. Sends immediate heartbeat on session ready for faster verification.
+- **Cache-busting.** Script URL `?v=` changed from hourly to per-minute to prevent stale cached scripts.
+
+### research-frontend — Session replay
+- **rrweb Replayer.** `SessionReplayPlayer` lazy-loads rrweb `Replayer` class (~51KB gzip). Renders DOM-based replay in iframe with mouse trail, play/pause/seek controls. Falls back gracefully for pre-migration sessions.
+- **Legacy session indicator.** Replay button grayed out for sessions without DOM recording. Prevents confusing "No DOM recording" message.
+- **Friendly visitor names.** Cryptic IDs (`v_f4rc0yl7cqm...`) replaced with deterministic human-readable names (`Blue Fox`, `Jade Owl`) via hash-based lookup. Applied to Sessions, Live, and Replay.
+
+### research-frontend — Page Flow diagram
+- **Visual flowchart.** Replaced side-by-side Page Visits / Transitions lists with SVG flowchart. Page nodes as colored boxes (intensity = traffic), Bézier arrows with thickness proportional to transitions. Top-down layout, rows centered, internal scroll.
+- **Exit nodes.** Pages where visitors left the site show a separate red dashed box below with "N left / NN% exit", connected by red dashed arrow. Visually isolates leak points.
+- **Node contrast.** Light nodes use blue-400/blue-100 with white text (legible). Arrow labels show `N×` (transition count only, no misleading %).
+
+### research-frontend — Verification
+- **Single request.** Verify installation changed from 40-request polling loop (1.5s × 60s) to single check against last 5 minutes.
+
+### infra
+- **GitHub Actions removed.** All 4 CI/CD workflows deleted. Deploy is manual via scripts.
+
+### database
+- **Migration 031.** `ALTER TABLE tracking_sessions ADD COLUMN rrweb_events LONGTEXT DEFAULT NULL`.
+
+---
+
 ## v0.72.2 — Docs and .agent cleanup (2026-05-14)
 
 ### docs

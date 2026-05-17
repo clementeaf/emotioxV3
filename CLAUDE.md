@@ -237,21 +237,25 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
 
-## Website Tracking (v0.68.0)
+## Website Tracking (v0.73.0)
 - **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
-- **Injectable script:** `GET /public/tracking/:id/script.js` — async JS. Captures clicks, scroll, mousemove. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server. html2canvas screenshot capture per device category.
-- **Screenshots:** Snippet captures pixel-perfect JPEG via html2canvas (CDN loaded). Classified by viewport: mobile (<768), tablet (768-1024), desktop (>1024). Stored in `tracking_pages.screenshot_devices` JSON. `POST /public/tracking/:id/screenshot`.
-- **Coordinates:** Viewport-relative percentages. X = `clientX/innerWidth*100`, Y = `pageY/innerWidth*100`.
-- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session per route.
-- **DOM snapshot:** Captured as fallback for session replay. `tracking_pages.page_snapshot`.
+- **Injectable script v3:** `GET /public/tracking/:id/script.js` — loads rrweb from CDN for DOM recording + captures clicks/scroll/mousemove for heatmaps. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server (strips protocol/path/port from `allowedDomains`).
+- **DOM recording (rrweb):** `rrweb.record()` captures full DOM snapshot + incremental mutations + CSS inlining + fonts + inline images. Events stored in `tracking_sessions.rrweb_events` (LONGTEXT). Flushed every 5s via XHR (not sendBeacon — 64KB limit). Migration 031.
+- **Coordinates:** Raw pixels (`pageX`, `pageY`). Backend normalizes at query time.
+- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session only when pathname changes (ignores hash/query). 1s debounce prevents framework spam.
 - **Friction detection:** dead-click, rage-click (3+ in 1s), speed-browsing (<2s), mouse-out. Stored in `metadata.friction`.
-- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired`, `samplingRate`, `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`, `verified`, `funnels[]`.
-- **Builder:** `WebsiteTrackingConfig` — checklist (Activate/Snippet/Verify/View Results). Verify persists. View Results disabled until verified (config + sidebar).
-- **Results tabs:** Funnels (default, SVG trapezoids + "Ver página" + page screenshot grid) → Heatmaps (Click/Scroll/Attention) → Sessions (merged Visitors+Sessions, grouped by visitor) → Live (SSE, last-event detection).
-- **Heatmaps:** Screenshot-based (`<img>`) when available, DOM snapshot fallback (`<iframe>`). Device filter enabled per available screenshots. Click: red gradient. Attention: viewport-time color bands (green→yellow→red). Scroll: depth gradient bands.
-- **Session replay:** `SessionReplayPlayer` — screenshot background, animated cursor (blue ring), click ripples (red fade), scroll sync (`translateY`). Real timestamps, 1x/4x/8x/16x speed, "Skip idle" button. Portal modal. Activity timeline bar (red=click, blue=cursor, dark=idle).
-- **Live sessions:** SSE stream. Active = last event within 5 minutes (not just `started_at`).
+- **Mousemove throttle:** 500ms (2/s max). No viewport heartbeat (removed — was generating fake events).
+- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired`, `samplingRate`, `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`, `verified`, `funnels[]`. `saveTrackingConfig` sanitizes domains on save.
+- **Builder:** `WebsiteTrackingConfig` — checklist (Activate/Snippet/Verify/View Results). Verify = single request (no polling). Cache-busting per minute.
+- **Results tabs:** Funnels (SVG trapezoids + Page Flow diagram + Comparison) → Heatmaps (Click/Scroll/Attention) → Sessions (visitors with friendly names) → Live (SSE).
+- **Page Flow diagram:** `PageFlowDiagram` SVG flowchart — nodes as colored boxes (intensity = traffic), Bézier arrows (thickness = transitions). Exit nodes: red dashed boxes below pages where visitors left ("N left / NN% exit"). Top-down layout, internal scroll.
+- **Session replay (rrweb):** `SessionReplayPlayer` lazy-loads rrweb `Replayer` (~51KB gzip). DOM-based replay with mouse trail, play/pause/seek, speed controls. `hasRrweb` flag distinguishes legacy sessions (grayed replay button).
+- **Friendly visitor names:** `friendlyVisitorName()` — deterministic "Color Animal" names from visitor ID hash. Applied to Sessions, Live, Replay.
+- **Session duration:** Capped at 30 min in backend (`MAX_SESSION_MS`). `avgSessionDuration` capped at 1800s in SQL.
+- **Live sessions:** SSE stream. Active = last event within 5 minutes.
 - **Detection:** `isWebsiteTracking` in `isFileBasedResearch`. Sidebar shows config + results.
+- **Endpoints (rrweb):** `POST /public/tracking/:id/rrweb-events` (public). `GET /tracking/:id/sessions/:sid/rrweb` (auth).
+- **Exit tracking:** `getPageFunnels` returns `exits` per page (last page in visitor path).
 
 ## Eye Tracking (v0.58.0)
 - **Motor:** BlazeGaze CNN (670KB, `webeyetrack`) — imagen de ojos + head pose
