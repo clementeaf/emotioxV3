@@ -267,7 +267,7 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                         <h3 className="text-sm font-semibold text-slate-800">Session Replay</h3>
                         {session && (
                             <>
-                                <span className="text-xs text-gray-500 font-mono">{session.visitorId?.slice(0, 12)}...</span>
+                                <span className="text-xs text-gray-500">{friendlyVisitorName(session.visitorId || '')}</span>
                                 <span className="text-xs text-gray-400">
                                     {formatMs(duration)}
                                 </span>
@@ -288,6 +288,21 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         document.body
     );
 };
+
+const ANIMALS = ['Fox', 'Owl', 'Bear', 'Wolf', 'Hawk', 'Deer', 'Lion', 'Lynx', 'Crow', 'Seal',
+    'Hare', 'Dove', 'Frog', 'Wren', 'Puma', 'Ibis', 'Yak', 'Newt', 'Moth', 'Kite',
+    'Swan', 'Mole', 'Crab', 'Lark', 'Pike', 'Ram', 'Orca', 'Bee', 'Jay', 'Asp'];
+const COLORS = ['Blue', 'Red', 'Jade', 'Gold', 'Teal', 'Mint', 'Rose', 'Plum', 'Sage', 'Coral',
+    'Amber', 'Ruby', 'Lime', 'Sky', 'Sand', 'Aqua', 'Dusk', 'Fern', 'Rust', 'Snow'];
+
+function friendlyVisitorName(visitorId: string): string {
+    let hash = 0;
+    for (let i = 0; i < visitorId.length; i++) {
+        hash = ((hash << 5) - hash + visitorId.charCodeAt(i)) | 0;
+    }
+    const h = Math.abs(hash);
+    return `${COLORS[h % COLORS.length]} ${ANIMALS[(h >>> 8) % ANIMALS.length]}`;
+}
 
 const formatMs = (ms: number): string => {
     const s = Math.floor(ms / 1000);

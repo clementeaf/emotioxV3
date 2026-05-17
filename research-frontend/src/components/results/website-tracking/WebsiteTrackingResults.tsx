@@ -443,6 +443,23 @@ const Tip = ({ tip, children }: { tip: string; children: React.ReactNode }) => {
     );
 };
 
+// ─── Friendly Visitor Names ──────────────────────────────────────────
+
+const ANIMALS = ['Fox', 'Owl', 'Bear', 'Wolf', 'Hawk', 'Deer', 'Lion', 'Lynx', 'Crow', 'Seal',
+    'Hare', 'Dove', 'Frog', 'Wren', 'Puma', 'Ibis', 'Yak', 'Newt', 'Moth', 'Kite',
+    'Swan', 'Mole', 'Crab', 'Lark', 'Pike', 'Ram', 'Orca', 'Bee', 'Jay', 'Asp'];
+const COLORS = ['Blue', 'Red', 'Jade', 'Gold', 'Teal', 'Mint', 'Rose', 'Plum', 'Sage', 'Coral',
+    'Amber', 'Ruby', 'Lime', 'Sky', 'Sand', 'Aqua', 'Dusk', 'Fern', 'Rust', 'Snow'];
+
+function friendlyVisitorName(visitorId: string): string {
+    let hash = 0;
+    for (let i = 0; i < visitorId.length; i++) {
+        hash = ((hash << 5) - hash + visitorId.charCodeAt(i)) | 0;
+    }
+    const h = Math.abs(hash);
+    return `${COLORS[h % COLORS.length]} ${ANIMALS[(h >>> 8) % ANIMALS.length]}`;
+}
+
 // ─── Utilities ───────────────────────────────────────────────────────
 
 const formatDuration = (seconds: number): string => {
@@ -550,7 +567,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                 <span className="text-base">{getDeviceIcon(visitor.viewportWidth)}</span>
                                 <div className="flex-1 min-w-0">
                                     <p className={`text-xs font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-700'}`}>
-                                        {visitor.visitorId.slice(0, 14)}...
+                                        {friendlyVisitorName(visitor.visitorId)}
                                     </p>
                                     <p className="text-[10px] text-gray-400 truncate">
                                         Entry: {shortenUrl(visitor.entryPage)}
@@ -575,7 +592,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                         <div className="px-5 py-3 border-b border-gray-100 shrink-0 flex items-center gap-3">
                             <span className="text-lg">{getDeviceIcon(active.viewportWidth)}</span>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-slate-800 font-mono">{active.visitorId}</p>
+                                <p className="text-sm font-semibold text-slate-800">{friendlyVisitorName(active.visitorId)}</p>
                                 <p className="text-xs text-gray-500">
                                     Entry: {shortenUrl(active.entryPage)} · {active.pages.length} pages · {formatMs(active.totalDurationMs)}
                                 </p>
@@ -713,7 +730,7 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
                                     <span className="text-lg">{getDeviceIcon(visitor.viewportWidth)}</span>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-slate-800 truncate">
-                                            {visitor.visitorId.slice(0, 12)}...
+                                            {friendlyVisitorName(visitor.visitorId)}
                                         </p>
                                         <p className="text-[10px] text-gray-400 mt-0.5">
                                             {formatMs(timeSinceStart)} on site · {totalEvents} events
