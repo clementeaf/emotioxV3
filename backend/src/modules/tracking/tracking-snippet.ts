@@ -51,8 +51,6 @@ var C=${JSON.stringify({
         excludePg: config.excludePages,
     })};
 
-console.log("[ECX] Tracker v3 loaded",C.rid,C.consent?"consent":"no-consent");
-
 // ─── State ───────────────────────────────────────────────────────────
 var sid=null,vid=null,buf=[],flushing=false,consented=!C.consent;
 var timer=null,heartbeatTimer=null,pageStart=0,lastUrl="";
@@ -191,7 +189,6 @@ function createSession(){
     });
 
     function onSessionReady(sessionId){
-        console.log("[ECX] Session ready:",sessionId);
         sid=sessionId;
         // Immediate heartbeat so verification detects this session instantly
         push({eventType:"scroll",scrollY:Math.round(window.scrollY),
@@ -206,15 +203,13 @@ function createSession(){
     xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/session",true);
     xhr.setRequestHeader("Content-Type","application/json");
     xhr.onload=function(){
-        console.log("[ECX] Session response:",xhr.status,xhr.responseText.slice(0,100));
         if(xhr.status>=400)return;
         try{
             var r=JSON.parse(xhr.responseText);
             if(r.sessionId)onSessionReady(r.sessionId);
-        }catch(e){console.error("[ECX] Parse error:",e);}
+        }catch(e){}
     };
     xhr.onerror=function(){
-        console.warn("[ECX] Session XHR error");
         setTimeout(function(){
             var xhr2=new XMLHttpRequest();
             xhr2.open("POST",C.api+"/public/tracking/"+C.rid+"/session",true);
@@ -431,18 +426,14 @@ function startSession(){
 // ─── Load rrweb ──────────────────────────────────────────────────────
 
 function loadRrweb(cb){
-    if(window.rrweb&&window.rrweb.record){console.log("[ECX] rrweb already loaded");cb();return;}
-    console.log("[ECX] Loading rrweb from CDN...");
+    if(window.rrweb&&window.rrweb.record){cb();return;}
     var sc=document.createElement("script");
     sc.src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.4/dist/rrweb.min.js";
     sc.onload=function(){
-        if(window.rrweb&&window.rrweb.record){console.log("[ECX] rrweb loaded OK");cb();}
-        else{console.warn("[ECX] rrweb loaded but record not found");cb();}
+        if(window.rrweb&&window.rrweb.record)cb();
+        else cb();
     };
-    sc.onerror=function(){
-        console.warn("[ECX] rrweb CDN failed — heatmap-only mode");
-        cb();
-    };
+    sc.onerror=function(){cb();};
     document.head.appendChild(sc);
 }
 
@@ -487,7 +478,7 @@ export const generateEmbedSnippet = (researchId: string, apiBaseUrl: string): st
     return `<!-- EmotioCX Web Tracker -->
 <script>
 (function(r,a){var s=document.createElement("script");s.async=true;
-s.src=a+"/public/tracking/"+r+"/script.js?v="+Math.floor(Date.now()/3600000);
+s.src=a+"/public/tracking/"+r+"/script.js?v="+Math.floor(Date.now()/60000);
 document.head.appendChild(s);
 })("${researchId}","${apiBaseUrl}");
 </script>`;
