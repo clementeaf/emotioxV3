@@ -334,20 +334,9 @@ function startCapture(){
         },true);
     }
 
-    // ── VIEWPORT HEARTBEAT (attention tracking) ─────────────────────
-    // Only when page is visible — prevents inflating session duration on idle tabs.
-    heartbeatTimer=setInterval(function(){
-        if(!sid||document.visibilityState==="hidden")return;
-        push({
-            eventType:"scroll",
-            scrollY:Math.round(window.scrollY),
-            scrollDepthPct:Math.min(
-                Math.round((window.scrollY+window.innerHeight)/
-                    Math.max(document.body.scrollHeight||1,document.documentElement.scrollHeight||1)*100),
-                100
-            )
-        });
-    },1000);
+    // Viewport heartbeat removed — was generating ~60 events/min of noise,
+    // inflating session duration and event counts. Real scroll events from
+    // the user (above) are sufficient for attention heatmaps.
 
     // ── MOUSEMOVE ───────────────────────────────────────────────────
     if(C.mouse){
