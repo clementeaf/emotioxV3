@@ -640,13 +640,19 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                         </div>
                                         <span className="text-gray-600 font-mono w-14 text-right">{formatMs(page.durationMs)}</span>
                                         <span className="text-gray-500 w-10 text-right">{page.eventCount}</span>
-                                        <button
-                                            onClick={() => onReplay(page.sessionId)}
-                                            className="p-1 rounded hover:bg-blue-50 text-blue-600 w-8 flex items-center justify-center"
-                                            title="Replay"
-                                        >
-                                            <PlayCircle className="h-3.5 w-3.5" />
-                                        </button>
+                                        {page.hasRrweb ? (
+                                            <button
+                                                onClick={() => onReplay(page.sessionId)}
+                                                className="p-1 rounded hover:bg-blue-50 text-blue-600 w-8 flex items-center justify-center"
+                                                title="Replay (DOM recording)"
+                                            >
+                                                <PlayCircle className="h-3.5 w-3.5" />
+                                            </button>
+                                        ) : (
+                                            <span className="w-8 flex items-center justify-center" title="No DOM recording">
+                                                <PlayCircle className="h-3.5 w-3.5 text-gray-300" />
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })}

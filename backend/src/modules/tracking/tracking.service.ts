@@ -543,6 +543,7 @@ export const getSessions = async (researchId: string, limit = 50, offset = 0) =>
             ts.id, ts.visitor_id, ts.page_url, ts.page_title,
             ts.viewport_width, ts.viewport_height, ts.user_agent, ts.referrer,
             ts.started_at, ts.ended_at,
+            ts.rrweb_events IS NOT NULL as hasRrweb,
             COUNT(te.id) as eventCount
          FROM tracking_sessions ts
          LEFT JOIN tracking_events te ON te.session_id = ts.id
@@ -565,6 +566,7 @@ export const getSessions = async (researchId: string, limit = 50, offset = 0) =>
         startedAt: row.started_at,
         endedAt: row.ended_at,
         eventCount: Number(row.eventCount || 0),
+        hasRrweb: !!row.hasRrweb,
     }));
 };
 
@@ -762,6 +764,7 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
 
         const sessionsResult = await pool.query(
             `SELECT ts.id, ts.page_url, ts.page_title, ts.started_at, ts.ended_at,
+                    ts.rrweb_events IS NOT NULL as hasRrweb,
                     COUNT(te.id) as eventCount,
                     SUM(CASE WHEN te.event_type = 'click' THEN 1 ELSE 0 END) as clickCount
              FROM tracking_sessions ts
@@ -787,6 +790,7 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
                 durationMs,
                 eventCount: Number(s.eventCount || 0),
                 clickCount: Number(s.clickCount || 0),
+                hasRrweb: !!s.hasRrweb,
             };
         });
 

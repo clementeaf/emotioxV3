@@ -92,6 +92,7 @@ export interface TrackingSession {
     startedAt: string;
     endedAt: string | null;
     eventCount: number;
+    hasRrweb?: boolean;
 }
 
 // ─── API Calls ───────────────────────────────────────────────────────
@@ -329,6 +330,7 @@ export interface VisitorPage {
     durationMs: number;
     eventCount: number;
     clickCount: number;
+    hasRrweb?: boolean;
 }
 
 export interface VisitorJourney {
