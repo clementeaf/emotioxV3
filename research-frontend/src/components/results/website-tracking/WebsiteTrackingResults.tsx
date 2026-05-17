@@ -20,6 +20,7 @@ import { MultiLayerHeatmap } from './MultiLayerHeatmap';
 import { WebTrackingReportButton } from './WebTrackingReportButton';
 import { SessionReplayPlayer } from './SessionReplayPlayer';
 import { FunnelChart } from './FunnelChart';
+import { PageFlowDiagram } from './PageFlowDiagram';
 import { resolveMediaUrl } from '../../../services/media.service';
 
 const formatDateTime = (iso: string): string => {
@@ -367,21 +368,15 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                     )}
 
                     {funnelSubTab === 'page-flow' && (
-                        <>
-                            {/* Desktop: side by side */}
-                            <div className="hidden md:flex gap-4" style={{ height: 'calc(100vh - 240px)' }}>
-                                <div className="flex-1 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
-                                    <FunnelChart researchId={researchId} view="page-visits" />
-                                </div>
-                                <div className="flex-1 bg-white rounded-xl border border-gray-200 p-5 overflow-y-auto">
-                                    <FunnelChart researchId={researchId} view="transitions" />
-                                </div>
+                        <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col" style={{ height: 'calc(100vh - 240px)' }}>
+                            <div className="shrink-0 mb-3">
+                                <h3 className="text-sm font-semibold text-slate-800 mb-1">Page Flow</h3>
+                                <p className="text-xs text-gray-400">Visual map of visitor navigation between pages. Arrow thickness = traffic volume.</p>
                             </div>
-                            {/* Mobile: tabs */}
-                            <div className="md:hidden">
-                                <PageFlowMobileTabs researchId={researchId} />
+                            <div className="flex-1 min-h-0 overflow-auto rounded-lg">
+                                <PageFlowDiagram researchId={researchId} />
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             )}
@@ -444,31 +439,6 @@ const Tip = ({ tip, children }: { tip: string; children: React.ReactNode }) => {
                 </div>,
                 document.body
             )}
-        </div>
-    );
-};
-
-/** Mobile-only tabs for Page Visits / Transitions */
-const PageFlowMobileTabs = ({ researchId }: { researchId: string }) => {
-    const [tab, setTab] = useState<'page-visits' | 'transitions'>('page-visits');
-    return (
-        <div>
-            <div className="flex gap-1 border-b border-gray-200 mb-3">
-                {(['page-visits', 'transitions'] as const).map((t) => (
-                    <button
-                        key={t}
-                        onClick={() => setTab(t)}
-                        className={`px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-                            tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500'
-                        }`}
-                    >
-                        {t === 'page-visits' ? 'Page Visits' : 'Transitions'}
-                    </button>
-                ))}
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5" style={{ minHeight: 'calc(100vh - 320px)' }}>
-                <FunnelChart researchId={researchId} view={tab} />
-            </div>
         </div>
     );
 };
