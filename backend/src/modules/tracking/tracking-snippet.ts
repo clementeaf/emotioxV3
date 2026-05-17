@@ -63,7 +63,9 @@ function checkDomain(){
     if(!C.domains||!C.domains.length)return true;
     var h=location.hostname;
     for(var i=0;i<C.domains.length;i++){
-        if(h===C.domains[i]||h.endsWith("."+C.domains[i]))return true;
+        // Strip path/protocol — compare hostname only
+        var d=C.domains[i].replace(/^https?:\\/\\//,"").split("/")[0].split(":")[0];
+        if(h===d||h.endsWith("."+d))return true;
     }
     return false;
 }
