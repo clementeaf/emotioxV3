@@ -114,6 +114,9 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                     // Label at midpoint
                     const lx = (x1 + x2) / 2;
                     const ly = (y1 + y2) / 2;
+                    const pct = from.visitors > 0 ? Math.round(edge.count / from.visitors * 100) : 0;
+                    const labelText = `${edge.count} (${pct}%)`;
+                    const labelW = labelText.length * 5.5 + 12;
 
                     return (
                         <g key={`e-${i}`}>
@@ -126,9 +129,9 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                                 opacity={0.65}
                             />
                             <rect
-                                x={lx - 14}
+                                x={lx - labelW / 2}
                                 y={ly - 8}
-                                width={28}
+                                width={labelW}
                                 height={16}
                                 rx={8}
                                 fill="white"
@@ -142,7 +145,7 @@ export const PageFlowDiagram = ({ researchId }: PageFlowDiagramProps) => {
                                 fill="#94A3B8"
                                 style={{ fontSize: 9, fontWeight: 600 }}
                             >
-                                {edge.count}
+                                {labelText}
                             </text>
                         </g>
                     );
