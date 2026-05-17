@@ -142,12 +142,15 @@ function flush(){
 
 // ─── rrweb Event Queue ───────────────────────────────────────────────
 
-function flushRrweb(){
+function flushRrweb(useBeacon){
     if(!rrwebBuf.length||!sid)return;
     var batch=rrwebBuf.splice(0,rrwebBuf.length);
     var body=JSON.stringify({sessionId:sid,events:batch});
+    // rrweb full snapshots can be 500KB+ — sendBeacon has ~64KB limit.
+    // Use XHR for periodic flushes, sendBeacon only as last resort on unload.
     try{
-        if(navigator.sendBeacon){
+        if(useBeacon&&navigator.sendBeacon){
+            // sendBeacon may silently fail for large payloads — best effort
             navigator.sendBeacon(C.api+"/public/tracking/"+C.rid+"/rrweb-events",
                 new Blob([body],{type:"application/json"}));
         }else{
@@ -366,7 +369,7 @@ function startCapture(){
         if(document.visibilityState==="hidden"){
             push({eventType:"pageview",metadata:{friction:"mouse-out"}});
             flush();
-            flushRrweb();
+            flushRrweb(true);
         }
     });
 
@@ -375,7 +378,7 @@ function startCapture(){
             push({eventType:"pageview",metadata:{friction:"speed-browsing"}});
         }
         flush();
-        flushRrweb();
+        flushRrweb(true);
     });
 
     // ── SPA NAVIGATION ──────────────────────────────────────────────
