@@ -183,19 +183,25 @@ function createSession(){
         referrer:document.referrer
     });
 
+    function onSessionReady(sessionId){
+        sid=sessionId;
+        // Immediate heartbeat so verification detects this session instantly
+        push({eventType:"scroll",scrollY:Math.round(window.scrollY),
+            scrollDepthPct:Math.min(Math.round((window.scrollY+window.innerHeight)/
+                Math.max(document.body.scrollHeight||1,document.documentElement.scrollHeight||1)*100),100)});
+        if(buf.length>0)flush();
+        startRrwebRecording();
+        if(rrwebBuf.length>0)flushRrweb();
+    }
+
     var xhr=new XMLHttpRequest();
     xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/session",true);
     xhr.setRequestHeader("Content-Type","application/json");
     xhr.onload=function(){
+        if(xhr.status>=400)return;
         try{
             var r=JSON.parse(xhr.responseText);
-            if(r.sessionId){
-                sid=r.sessionId;
-                if(buf.length>0)flush();
-                startRrwebRecording();
-                // Flush any rrweb events that accumulated before session confirmed
-                if(rrwebBuf.length>0)flushRrweb();
-            }
+            if(r.sessionId)onSessionReady(r.sessionId);
         }catch(e){}
     };
     xhr.onerror=function(){
@@ -204,9 +210,10 @@ function createSession(){
             xhr2.open("POST",C.api+"/public/tracking/"+C.rid+"/session",true);
             xhr2.setRequestHeader("Content-Type","application/json");
             xhr2.onload=function(){
+                if(xhr2.status>=400)return;
                 try{
                     var r=JSON.parse(xhr2.responseText);
-                    if(r.sessionId){sid=r.sessionId;if(buf.length>0)flush();startRrwebRecording();if(rrwebBuf.length>0)flushRrweb();}
+                    if(r.sessionId)onSessionReady(r.sessionId);
                 }catch(e2){}
             };
             xhr2.send(body);

@@ -1073,7 +1073,7 @@ export const appendRrwebEvents = async (
     if (json.length > 10_485_760) throw new Error('rrweb events too large');
 
     await pool.query(
-        'UPDATE tracking_sessions SET rrweb_events = ? WHERE id = ?',
+        'UPDATE tracking_sessions SET rrweb_events = ?, ended_at = NOW() WHERE id = ?',
         [json, sessionId]
     );
 

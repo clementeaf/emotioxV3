@@ -97,7 +97,7 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
         verifyAbortRef.current = false;
 
         const TIMEOUT_S = 60;
-        const POLL_INTERVAL_MS = 3000;
+        const POLL_INTERVAL_MS = 1500;
         setVerifyCountdown(TIMEOUT_S);
 
         // Countdown timer
