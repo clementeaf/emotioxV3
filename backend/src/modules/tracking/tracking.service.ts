@@ -1306,7 +1306,16 @@ export const saveTrackingConfig = async (
         config = {};
     }
 
-    config.trackingConfig = { ...(config.trackingConfig as Record<string, unknown> || {}), ...trackingConfig };
+    const merged = { ...(config.trackingConfig as Record<string, unknown> || {}), ...trackingConfig };
+
+    // Sanitize allowedDomains — strip protocol, path, port (users often paste full URLs)
+    if (Array.isArray(merged.allowedDomains)) {
+        merged.allowedDomains = (merged.allowedDomains as string[]).map(
+            (d) => d.replace(/^https?:\/\//, '').split('/')[0].split(':')[0]
+        ).filter(Boolean);
+    }
+
+    config.trackingConfig = merged;
 
     await pool.query(
         'UPDATE researches SET config = ? WHERE id = ?',
