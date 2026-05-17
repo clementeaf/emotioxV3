@@ -477,7 +477,7 @@ export const getOverviewMetrics = async (researchId: string, from?: string, to?:
             COUNT(DISTINCT ts.visitor_id) as uniqueVisitors,
             COUNT(DISTINCT ts.page_url) as pagesTracked,
             COUNT(te.id) as totalEvents,
-            AVG(TIMESTAMPDIFF(SECOND, ts.started_at, ts.ended_at)) as avgSessionDuration
+            AVG(LEAST(TIMESTAMPDIFF(SECOND, ts.started_at, ts.ended_at), 1800)) as avgSessionDuration
          FROM tracking_sessions ts
          LEFT JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?${dateFilter.clause}`,
@@ -770,10 +770,12 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
             [researchId, visitorId]
         );
 
+        const MAX_SESSION_MS = 30 * 60 * 1000; // 30 min cap — idle tabs inflate duration
         const pages = sessionsResult.rows.map((s: Record<string, unknown>, idx: number) => {
             const startedAt = s.started_at as Date;
             const endedAt = s.ended_at as Date | null;
-            const durationMs = endedAt ? endedAt.getTime() - startedAt.getTime() : 0;
+            const rawMs = endedAt ? endedAt.getTime() - startedAt.getTime() : 0;
+            const durationMs = Math.min(rawMs, MAX_SESSION_MS);
             return {
                 index: idx + 1,
                 sessionId: s.id as string,

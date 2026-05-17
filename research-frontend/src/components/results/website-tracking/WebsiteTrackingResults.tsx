@@ -508,7 +508,9 @@ const formatMs = (ms: number): string => {
     const s = Math.round(ms / 1000);
     if (s < 60) return `${s}s`;
     const m = Math.floor(s / 60);
-    return `${m}m ${s % 60}s`;
+    if (m < 60) return `${m}m ${s % 60}s`;
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
 };
 
 const getDeviceIcon = (vw: number) => {

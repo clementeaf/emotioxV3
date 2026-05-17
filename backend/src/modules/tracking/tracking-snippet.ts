@@ -330,8 +330,9 @@ function startCapture(){
     }
 
     // ── VIEWPORT HEARTBEAT (attention tracking) ─────────────────────
+    // Only when page is visible — prevents inflating session duration on idle tabs.
     heartbeatTimer=setInterval(function(){
-        if(!sid)return;
+        if(!sid||document.visibilityState==="hidden")return;
         push({
             eventType:"scroll",
             scrollY:Math.round(window.scrollY),
