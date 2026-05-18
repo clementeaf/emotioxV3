@@ -209,7 +209,19 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     }));
 
     const modalContent = (() => {
-        if (isLoading) return <div className="h-96 bg-gray-100 rounded-lg animate-pulse" />;
+        if (isLoading) return (
+            <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="w-10 h-10 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3" />
+                <p className="text-xs text-gray-400">Loading session data...</p>
+            </div>
+        );
+
+        if (hasRrwebEvents && !ready) return (
+            <div className="flex-1 flex flex-col items-center justify-center">
+                <div className="w-10 h-10 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3" />
+                <p className="text-xs text-gray-400">Preparing DOM replay...</p>
+            </div>
+        );
 
         if (!hasRrwebEvents) {
             return (
