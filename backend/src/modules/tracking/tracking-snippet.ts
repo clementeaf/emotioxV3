@@ -54,7 +54,7 @@ var C=${JSON.stringify({
 
 // ─── State ───────────────────────────────────────────────────────────
 var sid=null,vid=null,buf=[],flushing=false,consented=!C.consent;
-var timer=null,pageStart=0,lastUrl="";
+var timer=null,pageStart=0;
 var capturing=false,rrwebStopFn=null,rrwebBuf=[];
 var RRWEB_FLUSH_MS=5000;
 var RRWEB_MAX_MS=300000; // Stop rrweb recording after 5 min per session
@@ -183,7 +183,6 @@ function createSession(){
     if(sid){flush();flushRrweb();}
     sid=null;
     pageStart=Date.now();
-    lastUrl=location.href;
 
     // Stop previous rrweb recording
     if(rrwebStopFn){try{rrwebStopFn();}catch(e){}rrwebStopFn=null;}
