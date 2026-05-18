@@ -224,23 +224,16 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
 
         return (
             <>
-                {/* rrweb replay container — scale to fit */}
+                {/* rrweb replay container — scale to fit, centered */}
                 <div
                     ref={wrapperRef}
-                    className="relative flex-1 min-h-0 overflow-hidden bg-gray-50 cursor-pointer"
+                    className="relative flex-1 min-h-0 overflow-hidden bg-gray-50 cursor-pointer flex items-start justify-center"
                     onClick={handlePlayPause}
                 >
                     <div
                         ref={containerRef}
-                        className="origin-top-left"
-                        style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            /* rrweb Replayer creates an iframe at the recorded viewport size.
-                               Scale it down to fit the modal container. The CSS class .rr-player
-                               and its iframe will inherit this transform. */
-                        }}
+                        className="origin-top"
+                        style={{ flexShrink: 0 }}
                     />
 
                     {/* Play/pause overlay — YouTube style */}
