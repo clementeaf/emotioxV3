@@ -208,35 +208,33 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         relativeTs: legacyEvents.length > 0 ? evt.timestampMs - legacyEvents[0].timestampMs : 0,
     }));
 
+    const showLoading = isLoading;
+    const showPreparing = !isLoading && hasRrwebEvents && !ready;
+    const showNoRrweb = !isLoading && !hasRrwebEvents;
+
     const modalContent = (() => {
-        if (isLoading) return (
+        if (showLoading) return (
             <div className="flex-1 flex flex-col items-center justify-center">
                 <div className="w-10 h-10 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3" />
                 <p className="text-xs text-gray-400">Loading session data...</p>
             </div>
         );
 
-        if (hasRrwebEvents && !ready) return (
-            <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="w-10 h-10 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3" />
-                <p className="text-xs text-gray-400">Preparing DOM replay...</p>
-            </div>
-        );
-
-        if (!hasRrwebEvents) {
+        if (showNoRrweb) {
             return (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
                     <div className="text-5xl mb-4">🎬</div>
                     <p className="text-sm font-medium text-gray-500">No DOM recording available</p>
                     <p className="text-xs mt-1">This session was recorded before rrweb migration.</p>
-                    <p className="text-xs mt-1">New sessions will have full DOM-based replay.</p>
                 </div>
             );
         }
 
+        // Always render the container so rrweb can mount into it.
+        // Spinner overlays while preparing.
         return (
             <>
-                {/* rrweb replay container — scale to fit, centered */}
+                {/* rrweb replay container — always mounted */}
                 <div
                     ref={wrapperRef}
                     className="relative flex-1 min-h-0 overflow-hidden bg-gray-50 cursor-pointer flex items-start justify-center"
@@ -248,7 +246,16 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                         style={{ flexShrink: 0 }}
                     />
 
+                    {/* Loading overlay while rrweb initializes */}
+                    {showPreparing && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-40">
+                            <div className="w-10 h-10 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3" />
+                            <p className="text-xs text-gray-400">Preparing DOM replay...</p>
+                        </div>
+                    )}
+
                     {/* Play/pause overlay — YouTube style */}
+                    {ready && (
                     <div className={`absolute inset-0 flex items-center justify-center z-30 pointer-events-none transition-opacity duration-200 ${playing ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                         <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-xl transition-all ${playing ? 'bg-black/30' : 'bg-black/50'}`}>
                             {playing
@@ -257,6 +264,7 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
                             }
                         </div>
                     </div>
+                    )}
                 </div>
 
                 {/* Activity timeline bar */}
