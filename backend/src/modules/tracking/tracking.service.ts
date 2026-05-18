@@ -558,6 +558,8 @@ export const getSessions = async (researchId: string, limit = 50, offset = 0) =>
          LEFT JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?
          GROUP BY ts.id
+         HAVING COUNT(te.id) > 0 OR ts.rrweb_events IS NOT NULL
+            OR ts.started_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
          ORDER BY ts.started_at DESC
          LIMIT ? OFFSET ?`,
         [researchId, limit, offset]
