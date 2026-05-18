@@ -50,20 +50,24 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     useEffect(() => {
         if (!ready || !containerRef.current || !wrapperRef.current) return;
         const wrapper = wrapperRef.current;
-        const iframe = containerRef.current.querySelector('iframe');
-        if (!iframe) return;
+
+        // rrweb creates .rr-player > .rr-player__frame with the recorded viewport size
+        const player = containerRef.current.querySelector('.rr-player') as HTMLElement | null;
+        const frame = containerRef.current.querySelector('.rr-player__frame') as HTMLElement | null;
+        const target = player || containerRef.current;
 
         const vpW = session?.viewportWidth || 1440;
-        const vpH = session?.viewportHeight || 900;
 
         const fitScale = () => {
-            const parentRect = wrapper.getBoundingClientRect();
-            const scaleX = parentRect.width / vpW;
-            const scaleY = parentRect.height / vpH;
-            const scale = Math.min(scaleX, scaleY, 1); // never upscale
-            containerRef.current!.style.transform = `scale(${scale})`;
-            containerRef.current!.style.width = `${vpW}px`;
-            containerRef.current!.style.height = `${vpH}px`;
+            const parentW = wrapper.clientWidth;
+            if (parentW <= 0) return;
+            const scale = Math.min(parentW / vpW, 1);
+            target.style.transformOrigin = 'top center';
+            target.style.transform = `scale(${scale})`;
+            // Prevent rrweb's internal fixed dimensions from overflowing
+            if (frame) {
+                frame.style.width = `${vpW}px`;
+            }
         };
 
         fitScale();
