@@ -37,6 +37,7 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     const session = rrwebData?.session || legacyData?.session;
 
     const containerRef = useRef<HTMLDivElement>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);
     const replayerRef = useRef<ReplayerType | null>(null);
     const [playing, setPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -44,6 +45,32 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
     const [speed, setSpeed] = useState(4);
     const [ready, setReady] = useState(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Scale rrweb replay to fit container
+    useEffect(() => {
+        if (!ready || !containerRef.current || !wrapperRef.current) return;
+        const wrapper = wrapperRef.current;
+        const iframe = containerRef.current.querySelector('iframe');
+        if (!iframe) return;
+
+        const vpW = session?.viewportWidth || 1440;
+        const vpH = session?.viewportHeight || 900;
+
+        const fitScale = () => {
+            const parentRect = wrapper.getBoundingClientRect();
+            const scaleX = parentRect.width / vpW;
+            const scaleY = parentRect.height / vpH;
+            const scale = Math.min(scaleX, scaleY, 1); // never upscale
+            containerRef.current!.style.transform = `scale(${scale})`;
+            containerRef.current!.style.width = `${vpW}px`;
+            containerRef.current!.style.height = `${vpH}px`;
+        };
+
+        fitScale();
+        const ro = new ResizeObserver(fitScale);
+        ro.observe(wrapper);
+        return () => ro.disconnect();
+    }, [ready, session?.viewportWidth, session?.viewportHeight]);
 
     // Initialize rrweb Replayer when data arrives
     useEffect(() => {
@@ -197,15 +224,23 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
 
         return (
             <>
-                {/* rrweb replay container */}
+                {/* rrweb replay container — scale to fit */}
                 <div
+                    ref={wrapperRef}
                     className="relative flex-1 min-h-0 overflow-hidden bg-gray-50 cursor-pointer"
                     onClick={handlePlayPause}
                 >
                     <div
                         ref={containerRef}
-                        className="w-full h-full"
-                        style={{ position: 'relative' }}
+                        className="origin-top-left"
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            /* rrweb Replayer creates an iframe at the recorded viewport size.
+                               Scale it down to fit the modal container. The CSS class .rr-player
+                               and its iframe will inherit this transform. */
+                        }}
                     />
 
                     {/* Play/pause overlay — YouTube style */}
