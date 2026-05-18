@@ -1,13 +1,14 @@
 /**
- * Tracking Snippet Generator v3
- * Generates the injectable JavaScript that captures user interactions on external websites.
+ * Tracking Snippet Generator v3.1
+ * Injectable JS for capturing user interactions on external websites.
  *
- * Architecture (rrweb-based, modeled after Hotjar/Mouseflow/PostHog):
- * - DOM recording: rrweb captures full DOM snapshot + incremental mutations + CSS inlining
- * - Heatmap data: clicks, scroll, mousemove stored as raw pixels (backend normalizes)
- * - Session: one per page (multi-page) or per route (SPA). Persistent visitor ID.
- * - Event queue: buffers heatmap events until session ID confirmed, then flushes.
- * - rrweb events: batched and sent every 5s to /rrweb-events endpoint.
+ * Architecture (rrweb + heatmap events):
+ * - DOM recording: rrweb full snapshot + incremental mutations + CSS inlining (5 min cap)
+ * - Heatmap data: clicks, scroll, mousemove as raw pixels (backend normalizes)
+ * - Session: one per page / per SPA pathname. Persistent visitor ID.
+ * - Consent: localStorage primary, sessionStorage fallback (incognito-safe)
+ * - rrweb events: XHR every 5s (not sendBeacon — 64KB limit)
+ * - Session end: visibilitychange (primary) + beforeunload (backup)
  */
 
 interface SnippetConfig {
@@ -53,9 +54,25 @@ var C=${JSON.stringify({
 
 // ─── State ───────────────────────────────────────────────────────────
 var sid=null,vid=null,buf=[],flushing=false,consented=!C.consent;
-var timer=null,heartbeatTimer=null,pageStart=0,lastUrl="";
+var timer=null,pageStart=0,lastUrl="";
 var capturing=false,rrwebStopFn=null,rrwebBuf=[];
 var RRWEB_FLUSH_MS=5000;
+var RRWEB_MAX_MS=300000; // Stop rrweb recording after 5 min per session
+var rrwebStartTime=0;
+
+// ─── Storage helpers (incognito-safe) ────────────────────────────────
+// localStorage primary, sessionStorage fallback, memory last resort
+var memStore={};
+function store(k,v){
+    try{localStorage.setItem(k,v);}catch(e){
+        try{sessionStorage.setItem(k,v);}catch(e2){memStore[k]=v;}
+    }
+}
+function load(k){
+    try{var v=localStorage.getItem(k);if(v!==null)return v;}catch(e){}
+    try{var v2=sessionStorage.getItem(k);if(v2!==null)return v2;}catch(e2){}
+    return memStore[k]||null;
+}
 
 // ─── Utilities ───────────────────────────────────────────────────────
 
@@ -63,7 +80,6 @@ function checkDomain(){
     if(!C.domains||!C.domains.length)return true;
     var h=location.hostname;
     for(var i=0;i<C.domains.length;i++){
-        // Strip path/protocol — compare hostname only
         var d=C.domains[i].replace(/^https?:\\/\\//,"").split("/")[0].split(":")[0];
         if(h===d||h.endsWith("."+d))return true;
     }
@@ -83,13 +99,11 @@ function checkPage(){
 }
 
 function getVid(){
-    try{
-        var v=localStorage.getItem("_ecx_vid");
-        if(v)return v;
-        v="v_"+Math.random().toString(36).substr(2,12)+Date.now().toString(36);
-        localStorage.setItem("_ecx_vid",v);
-        return v;
-    }catch(e){return "v_"+Math.random().toString(36).substr(2,12);}
+    var v=load("_ecx_vid");
+    if(v)return v;
+    v="v_"+Math.random().toString(36).substr(2,12)+Date.now().toString(36);
+    store("_ecx_vid",v);
+    return v;
 }
 
 function getSelector(el){
@@ -146,11 +160,9 @@ function flushRrweb(useBeacon){
     if(!rrwebBuf.length||!sid)return;
     var batch=rrwebBuf.splice(0,rrwebBuf.length);
     var body=JSON.stringify({sessionId:sid,events:batch});
-    // rrweb full snapshots can be 500KB+ — sendBeacon has ~64KB limit.
-    // Use XHR for periodic flushes, sendBeacon only as last resort on unload.
+    // rrweb snapshots can be 500KB+ — sendBeacon has ~64KB limit
     try{
         if(useBeacon&&navigator.sendBeacon){
-            // sendBeacon may silently fail for large payloads — best effort
             navigator.sendBeacon(C.api+"/public/tracking/"+C.rid+"/rrweb-events",
                 new Blob([body],{type:"application/json"}));
         }else{
@@ -173,7 +185,7 @@ function createSession(){
     pageStart=Date.now();
     lastUrl=location.href;
 
-    // Stop previous rrweb recording if running
+    // Stop previous rrweb recording
     if(rrwebStopFn){try{rrwebStopFn();}catch(e){}rrwebStopFn=null;}
 
     var body=JSON.stringify({
@@ -190,7 +202,7 @@ function createSession(){
 
     function onSessionReady(sessionId){
         sid=sessionId;
-        // Immediate heartbeat so verification detects this session instantly
+        // Immediate event so verification detects this session
         push({eventType:"scroll",scrollY:Math.round(window.scrollY),
             scrollDepthPct:Math.min(Math.round((window.scrollY+window.innerHeight)/
                 Math.max(document.body.scrollHeight||1,document.documentElement.scrollHeight||1)*100),100)});
@@ -233,28 +245,22 @@ function createSession(){
 
 function startRrwebRecording(){
     if(!window.rrweb||!window.rrweb.record)return;
+    rrwebStartTime=Date.now();
     rrwebStopFn=window.rrweb.record({
         emit:function(event){
+            // Cap recording at 5 min to prevent unbounded growth
+            if(Date.now()-rrwebStartTime>RRWEB_MAX_MS){
+                if(rrwebStopFn){try{rrwebStopFn();}catch(e){}rrwebStopFn=null;}
+                return;
+            }
             rrwebBuf.push(event);
         },
-        // Inline CSS rules so replay works without access to original stylesheets
         inlineStylesheet:true,
-        // Record canvas content
         recordCanvas:false,
-        // Mask all user input by default for privacy
         maskAllInputs:true,
-        // Sample mousemove to reduce data volume (every 50ms, 20/s)
-        sampling:{
-            mousemove:50,
-            mouseInteraction:true,
-            scroll:150,
-            input:"last"
-        },
-        // Collect fonts for accurate replay
+        sampling:{mousemove:50,mouseInteraction:true,scroll:150,input:"last"},
         collectFonts:true,
-        // Inline images as data URIs (prevents cross-origin issues)
         inlineImages:true,
-        // Capture cross-origin iframes when possible
         recordCrossOriginIframes:false
     });
 }
@@ -267,7 +273,6 @@ function startCapture(){
 
     var clickLog=[];
 
-    // ── CLICKS ──────────────────────────────────────────────────────
     if(C.clicks){
         document.addEventListener("click",function(e){
             var now=Date.now();
@@ -314,7 +319,6 @@ function startCapture(){
         },true);
     }
 
-    // ── SCROLL ──────────────────────────────────────────────────────
     if(C.scroll){
         var scrollTimer=null;
         window.addEventListener("scroll",function(){
@@ -334,16 +338,11 @@ function startCapture(){
         },true);
     }
 
-    // Viewport heartbeat removed — was generating ~60 events/min of noise,
-    // inflating session duration and event counts. Real scroll events from
-    // the user (above) are sufficient for attention heatmaps.
-
-    // ── MOUSEMOVE ───────────────────────────────────────────────────
     if(C.mouse){
         var lastMove=0;
         document.addEventListener("mousemove",function(e){
             var now=Date.now();
-            if(now-lastMove<500)return; // 2/s max (Mouseflow-level throttle)
+            if(now-lastMove<500)return; // 2/s max
             lastMove=now;
             push({
                 eventType:"mousemove",
@@ -353,7 +352,7 @@ function startCapture(){
         },true);
     }
 
-    // ── VISIBILITY / UNLOAD ─────────────────────────────────────────
+    // Session end: visibilitychange is more reliable than beforeunload (works on mobile)
     document.addEventListener("visibilitychange",function(){
         if(document.visibilityState==="hidden"){
             push({eventType:"pageview",metadata:{friction:"mouse-out"}});
@@ -370,9 +369,7 @@ function startCapture(){
         flushRrweb(true);
     });
 
-    // ── SPA NAVIGATION ──────────────────────────────────────────────
-    // Only create new session when pathname changes (ignore hash/query).
-    // Debounce 1s to avoid rapid-fire from framework route transitions.
+    // SPA navigation — new session only when pathname changes, 1s debounce
     var origPush=history.pushState,origReplace=history.replaceState;
     var navTimer=null;
     function getPath(){return location.origin+location.pathname;}
@@ -388,10 +385,7 @@ function startCapture(){
     history.replaceState=function(){origReplace.apply(history,arguments);onNav();};
     window.addEventListener("popstate",onNav);
 
-    // ── PERIODIC FLUSH ──────────────────────────────────────────────
     timer=setInterval(flush,C.flush);
-
-    // ── PERIODIC RRWEB FLUSH ────────────────────────────────────────
     setInterval(flushRrweb,RRWEB_FLUSH_MS);
 }
 
@@ -406,12 +400,12 @@ function showConsent(){
     document.body.appendChild(d);
     document.getElementById("_ecx_accept").onclick=function(){
         consented=true;d.remove();
-        try{localStorage.setItem("_ecx_consent_"+C.rid,"1");}catch(e){}
+        store("_ecx_consent_"+C.rid,"1");
         startSession();
     };
     document.getElementById("_ecx_reject").onclick=function(){
         d.remove();
-        try{localStorage.setItem("_ecx_consent_"+C.rid,"0");}catch(e){}
+        store("_ecx_consent_"+C.rid,"0");
     };
 }
 
@@ -429,10 +423,7 @@ function loadRrweb(cb){
     if(window.rrweb&&window.rrweb.record){cb();return;}
     var sc=document.createElement("script");
     sc.src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.4/dist/rrweb.min.js";
-    sc.onload=function(){
-        if(window.rrweb&&window.rrweb.record)cb();
-        else cb();
-    };
+    sc.onload=function(){cb();};
     sc.onerror=function(){cb();};
     document.head.appendChild(sc);
 }
@@ -442,23 +433,17 @@ function loadRrweb(cb){
 function init(){
     if(!checkDomain())return;
     if(!checkPage())return;
-    // Sampling
     if(C.sampling<100){
-        try{
-            var sk=localStorage.getItem("_ecx_sample_"+C.rid);
-            if(sk==="0")return;
-            if(!sk){var sampled=Math.random()*100<C.sampling;localStorage.setItem("_ecx_sample_"+C.rid,sampled?"1":"0");if(!sampled)return;}
-        }catch(e){if(Math.random()*100>=C.sampling)return;}
+        var sk=load("_ecx_sample_"+C.rid);
+        if(sk==="0")return;
+        if(!sk){var sampled=Math.random()*100<C.sampling;store("_ecx_sample_"+C.rid,sampled?"1":"0");if(!sampled)return;}
     }
-    // Load rrweb first, then start
     loadRrweb(function(){
         if(C.consent){
-            try{
-                var prev=localStorage.getItem("_ecx_consent_"+C.rid);
-                if(prev==="1"){consented=true;startSession();}
-                else if(prev==="0")return;
-                else showConsent();
-            }catch(e){showConsent();}
+            var prev=load("_ecx_consent_"+C.rid);
+            if(prev==="1"){consented=true;startSession();}
+            else if(prev==="0")return;
+            else showConsent();
         }else{
             consented=true;
             startSession();

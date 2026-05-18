@@ -94,17 +94,20 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
         setVerifyResult(null);
 
         try {
-            // Single check — looks for any session in the last 5 minutes
-            const result = await trackingService.verifyInstallation(research.id, 300);
-            if (result.hasData) {
-                setVerifyResult('success');
-                try {
-                    await trackingService.updateConfig(research.id, { ...config, verified: true });
-                    queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-                } catch { /* best-effort */ }
-            } else {
-                setVerifyResult('no_sessions');
+            // Brief polling: 5 checks over 15s — enough to catch a visitor loading the page
+            for (let i = 0; i < 5; i++) {
+                const result = await trackingService.verifyInstallation(research.id, 300);
+                if (result.hasData) {
+                    setVerifyResult('success');
+                    try {
+                        await trackingService.updateConfig(research.id, { ...config, verified: true });
+                        queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                    } catch { /* best-effort */ }
+                    return;
+                }
+                if (i < 4) await new Promise(r => setTimeout(r, 3000));
             }
+            setVerifyResult('no_sessions');
         } catch {
             setVerifyResult('script_error');
         } finally {
@@ -165,7 +168,7 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                                 disabled={verifying}
                                 className="text-[10px] text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
                             >
-                                {verifying ? 'Checking...' : 'Verify'}
+                                {verifying ? 'Listening...' : 'Verify'}
                             </button>
                             {hasVerified && <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Active</span>}
                             {verifyResult === 'no_sessions' && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">No data</span>}

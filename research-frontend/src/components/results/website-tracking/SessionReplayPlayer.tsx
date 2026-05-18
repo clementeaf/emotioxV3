@@ -58,6 +58,9 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         // Clear container
         containerRef.current.innerHTML = '';
 
+        // Need at least 2 rrweb events (meta + full snapshot) for Replayer
+        if (rrwebData.events.length < 2) { setReady(false); return; }
+
         // Dynamically import rrweb + CSS (lazy load ~137KB)
         let cancelled = false;
         Promise.all([
@@ -65,10 +68,14 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
             import('rrweb/dist/rrweb.min.css'),
         ]).then(([rrwebModule]) => {
             if (cancelled || !containerRef.current) return;
-            const { Replayer } = rrwebModule;
+            // rrweb ESM exports Replayer directly
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mod = rrwebModule as any;
+            const ReplayerClass = mod.Replayer || mod.default?.Replayer;
+            if (!ReplayerClass) { setReady(false); return; }
 
             try {
-                const replayer = new Replayer(rrwebData.events as ConstructorParameters<typeof Replayer>[0], {
+                const replayer = new ReplayerClass(rrwebData.events, {
                     root: containerRef.current,
                     skipInactive: true,
                     showWarning: false,

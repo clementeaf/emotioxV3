@@ -5,12 +5,12 @@
 
 import { useState, useCallback, useId } from 'react';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, TrendingDown, Plus, Trash2, GripVertical, Pencil, ChevronDown, Trophy, ArrowDown } from 'lucide-react';
+import { TrendingDown, Plus, Trash2, GripVertical, Pencil, ChevronDown, Trophy, ArrowDown } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
 import type { FunnelDefinition, FunnelDropoffResult } from '../../../services/tracking.service';
 import { EmptyState } from '../../ui/EmptyState';
 
-type FunnelView = 'custom-funnels' | 'page-visits' | 'transitions' | 'comparison';
+type FunnelView = 'custom-funnels' | 'comparison';
 
 interface FunnelChartProps {
     researchId: string;
@@ -22,12 +22,6 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
     const queryClient = useQueryClient();
     const newFunnelId = useId();
     const [editingFunnel, setEditingFunnel] = useState<FunnelDefinition | null>(null);
-
-    const { data, isLoading } = useQuery({
-        queryKey: ['tracking', researchId, 'funnels'],
-        queryFn: () => trackingService.getFunnels(researchId),
-        staleTime: 10_000,
-    });
 
     // Load tracking config to get saved funnel definitions
     const { data: trackingConfig } = useQuery({
@@ -61,10 +55,7 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
         setEditingFunnel({ ...funnel, steps: funnel.steps.map(s => ({ ...s })) });
     };
 
-    const showAll = !view;
-    const showCustomFunnels = showAll || view === 'custom-funnels';
-    const showPageVisits = showAll || view === 'page-visits';
-    const showTransitions = showAll || view === 'transitions';
+    const showCustomFunnels = !view || view === 'custom-funnels';
     const showComparison = view === 'comparison';
 
     return (
@@ -124,54 +115,6 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
                 )
             )}
 
-            {/* Divider — only when rendering all sections */}
-            {showAll && <div className="border-t border-gray-200" />}
-
-            {/* Page Visits — tree view */}
-            {showPageVisits && (
-                <>
-                    {isLoading ? (
-                        <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />
-                    ) : data && data.totalVisitors > 0 ? (
-                        <div>
-                            <h3 className="text-sm font-semibold text-slate-800 mb-1">
-                                Page Visits
-                                <span className="ml-2 text-xs font-normal text-gray-500">
-                                    {data.totalVisitors} unique visitors
-                                </span>
-                            </h3>
-                            <p className="text-xs text-gray-400 mb-4">Navigation tree based on visitor flow.</p>
-
-                            <PageVisitTree topPages={data.topPages} transitions={data.transitions} />
-                        </div>
-                    ) : (
-                        <EmptyState
-                            icon={<TrendingDown className="h-8 w-8" />}
-                            description="No page visit data yet."
-                        />
-                    )}
-                </>
-            )}
-
-            {/* Top Page Transitions — tree view */}
-            {showTransitions && (
-                <>
-                    {isLoading ? (
-                        <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />
-                    ) : data && data.transitions.length > 0 ? (
-                        <div>
-                            <h3 className="text-sm font-semibold text-slate-800 mb-1">Top Page Transitions</h3>
-                            <p className="text-xs text-gray-400 mb-4">Most common navigation paths between pages.</p>
-                            <TransitionTree transitions={data.transitions} />
-                        </div>
-                    ) : (
-                        <EmptyState
-                            icon={<TrendingDown className="h-8 w-8" />}
-                            description="No page transition data yet."
-                        />
-                    )}
-                </>
-            )}
         </div>
     );
 };
@@ -416,216 +359,6 @@ const FunnelTriangle = ({ steps }: { steps: FunnelStep[] }) => {
     );
 };
 
-// ─── Page Visit Tree ────────────────────────────────────────────────
-
-interface TreeNode {
-    url: string;
-    visitors: number;
-    children: TreeNode[];
-}
-
-const buildTree = (
-    topPages: { pageUrl: string; visitors: number }[],
-    transitions: { from: string; to: string; count: number }[],
-): TreeNode[] => {
-    if (topPages.length === 0) return [];
-
-    // Build adjacency: parent → children sorted by count desc
-    const childMap = new Map<string, { url: string; count: number }[]>();
-    for (const t of transitions) {
-        const arr = childMap.get(t.from) || [];
-        arr.push({ url: t.to, count: t.count });
-        childMap.set(t.from, arr);
-    }
-    for (const [, arr] of childMap) arr.sort((a, b) => b.count - a.count);
-
-    const visitorsMap = new Map(topPages.map(p => [p.pageUrl, p.visitors]));
-    const visited = new Set<string>();
-
-    const build = (url: string): TreeNode => {
-        visited.add(url);
-        const children = (childMap.get(url) || [])
-            .filter(c => !visited.has(c.url))
-            .slice(0, 5)
-            .map(c => build(c.url));
-        return { url, visitors: visitorsMap.get(url) || 0, children };
-    };
-
-    // Root = page with most visitors
-    const root = build(topPages[0].pageUrl);
-
-    // Add orphan pages not reachable from root
-    const orphans = topPages
-        .filter(p => !visited.has(p.pageUrl))
-        .map(p => ({ url: p.pageUrl, visitors: p.visitors, children: [] }));
-
-    return [root, ...orphans];
-};
-
-const PageVisitTree = ({
-    topPages,
-    transitions,
-}: {
-    topPages: { pageUrl: string; visitors: number }[];
-    transitions: { from: string; to: string; count: number }[];
-}) => {
-    const tree = buildTree(topPages, transitions);
-    const maxVisitors = topPages[0]?.visitors || 1;
-
-    return (
-        <div className="space-y-0.5">
-            {tree.map((node) => (
-                <TreeRow key={node.url} node={node} depth={0} maxVisitors={maxVisitors} />
-            ))}
-        </div>
-    );
-};
-
-const TreeRow = ({ node, depth, maxVisitors }: { node: TreeNode; depth: number; maxVisitors: number }) => {
-    const pct = Math.round((node.visitors / maxVisitors) * 100);
-    const barColor = depth === 0 ? '#3B82F6' : depth === 1 ? '#6366F1' : '#8B5CF6';
-
-    return (
-        <>
-            <div className="flex items-center gap-2" style={{ paddingLeft: depth * 24 }}>
-                {/* Tree connector */}
-                {depth > 0 && (
-                    <div className="flex items-center gap-1 shrink-0">
-                        <div className="w-4 border-t border-gray-300" />
-                        <ArrowRight className="h-3 w-3 text-gray-300 shrink-0" />
-                    </div>
-                )}
-
-                {/* Node */}
-                <div className="flex-1 flex items-center gap-3 py-1.5">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs font-medium text-slate-700 truncate">
-                                {shortenUrl(node.url)}
-                            </span>
-                            <span className="text-[11px] text-gray-500 shrink-0 ml-2">
-                                {node.visitors}
-                            </span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                                className="h-full rounded-full transition-all"
-                                style={{ width: `${Math.max(pct, 3)}%`, backgroundColor: barColor }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Children */}
-            {node.children.map((child) => (
-                <TreeRow key={child.url} node={child} depth={depth + 1} maxVisitors={maxVisitors} />
-            ))}
-        </>
-    );
-};
-
-// ─── Transition Tree ────────────────────────────────────────────────
-
-interface TransitionNode {
-    url: string;
-    count: number;
-    children: TransitionNode[];
-}
-
-const buildTransitionTree = (transitions: { from: string; to: string; count: number }[]): TransitionNode[] => {
-    if (transitions.length === 0) return [];
-
-    // Group by source
-    const childMap = new Map<string, { url: string; count: number }[]>();
-    const allTargets = new Set<string>();
-    for (const t of transitions) {
-        const arr = childMap.get(t.from) || [];
-        arr.push({ url: t.to, count: t.count });
-        childMap.set(t.from, arr);
-        allTargets.add(t.to);
-    }
-    for (const [, arr] of childMap) arr.sort((a, b) => b.count - a.count);
-
-    // Roots = sources that are not targets of any transition (entry points)
-    const roots = [...childMap.keys()].filter(k => !allTargets.has(k));
-    if (roots.length === 0) roots.push(transitions[0].from);
-
-    // Sort roots by total outgoing count
-    roots.sort((a, b) => {
-        const sumA = (childMap.get(a) || []).reduce((s, c) => s + c.count, 0);
-        const sumB = (childMap.get(b) || []).reduce((s, c) => s + c.count, 0);
-        return sumB - sumA;
-    });
-
-    const visited = new Set<string>();
-
-    const build = (url: string, totalCount: number): TransitionNode => {
-        visited.add(url);
-        const children = (childMap.get(url) || [])
-            .filter(c => !visited.has(c.url))
-            .slice(0, 4)
-            .map(c => build(c.url, c.count));
-        return { url, count: totalCount, children };
-    };
-
-    return roots.map(r => {
-        const total = (childMap.get(r) || []).reduce((s, c) => s + c.count, 0);
-        return build(r, total);
-    });
-};
-
-const TransitionTree = ({ transitions }: { transitions: { from: string; to: string; count: number }[] }) => {
-    const tree = buildTransitionTree(transitions);
-    const maxCount = Math.max(...tree.map(n => n.count), 1);
-
-    return (
-        <div className="space-y-0.5">
-            {tree.map((node) => (
-                <TransitionRow key={node.url} node={node} depth={0} maxCount={maxCount} />
-            ))}
-        </div>
-    );
-};
-
-const TransitionRow = ({ node, depth, maxCount }: { node: TransitionNode; depth: number; maxCount: number }) => {
-    const pct = Math.round((node.count / maxCount) * 100);
-    const barColor = depth === 0 ? '#3B82F6' : depth === 1 ? '#6366F1' : '#8B5CF6';
-
-    return (
-        <>
-            <div className="flex items-center gap-2" style={{ paddingLeft: depth * 24 }}>
-                {depth > 0 && (
-                    <div className="flex items-center gap-1 shrink-0">
-                        <div className="w-4 border-t border-gray-300" />
-                        <ArrowRight className="h-3 w-3 text-gray-300 shrink-0" />
-                    </div>
-                )}
-                <div className="flex-1 flex items-center gap-3 py-1.5">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-0.5">
-                            <span className="text-xs font-medium text-slate-700 truncate">
-                                {shortenUrl(node.url)}
-                            </span>
-                            <span className="text-[11px] text-gray-500 shrink-0 ml-2">
-                                {node.count}x
-                            </span>
-                        </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                                className="h-full rounded-full transition-all"
-                                style={{ width: `${Math.max(pct, 3)}%`, backgroundColor: barColor }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {node.children.map((child) => (
-                <TransitionRow key={child.url} node={child} depth={depth + 1} maxCount={maxCount} />
-            ))}
-        </>
-    );
-};
 
 // ─── Funnel Comparison ──────────────────────────────────────────────
 

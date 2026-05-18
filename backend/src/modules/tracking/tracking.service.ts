@@ -155,6 +155,15 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
         );
     }
 
+    // Lazy data retention cleanup (~1% of session creations)
+    const retentionDays = Number((trackingConfig.dataRetentionDays as number) || 0);
+    if (retentionDays > 0 && Math.random() < 0.01) {
+        pool.query(
+            `DELETE FROM tracking_sessions WHERE research_id = ? AND started_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+            [input.researchId, retentionDays]
+        ).catch(() => { /* best-effort cleanup */ });
+    }
+
     return { sessionId };
 };
 
@@ -1076,9 +1085,9 @@ export const appendRrwebEvents = async (
     }
 
     const merged = [...existing, ...events];
-    // Cap at ~10MB of JSON to prevent abuse
+    // Cap at 5MB of JSON to prevent unbounded growth
     const json = JSON.stringify(merged);
-    if (json.length > 10_485_760) throw new Error('rrweb events too large');
+    if (json.length > 5_242_880) throw new Error('rrweb events too large');
 
     await pool.query(
         'UPDATE tracking_sessions SET rrweb_events = ?, ended_at = NOW() WHERE id = ?',
