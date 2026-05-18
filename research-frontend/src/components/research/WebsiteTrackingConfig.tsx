@@ -4,7 +4,7 @@
  * Shows tracking config, embed snippet, and domain setup.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Globe, RefreshCw } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -74,17 +74,20 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
         }));
     }, []);
 
-    const handleSave = useCallback(async () => {
-        setSaving(true);
-        try {
-            await trackingService.updateConfig(research.id, config);
-            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-        } catch (err) {
-            console.error('Failed to save tracking config:', err);
-        } finally {
-            setSaving(false);
-        }
-    }, [research.id, config, queryClient]);
+    // Auto-save config on change (debounced 1s). Skip initial mount.
+    const mountedRef = useRef(false);
+    useEffect(() => {
+        if (!mountedRef.current) { mountedRef.current = true; return; }
+        const timer = setTimeout(() => {
+            setSaving(true);
+            trackingService.updateConfig(research.id, config)
+                .then(() => queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) }))
+                .catch(() => { /* best-effort */ })
+                .finally(() => setSaving(false));
+        }, 1000);
+        return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [config]);
 
     const [verifying, setVerifying] = useState(false);
     const [verifyResult, setVerifyResult] = useState<'success' | 'no_sessions' | 'script_error' | null>(null);
@@ -424,19 +427,13 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                 </div>
             </div>
 
-            {/* Save */}
-            <div className="flex justify-end">
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                    {saving ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    {saving ? 'Saving...' : 'Save Configuration'}
-                </button>
-            </div>
+            {/* Auto-save indicator */}
+            {saving && (
+                <div className="flex items-center justify-end gap-2 text-xs text-gray-400">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Saving...
+                </div>
+            )}
         </div>
     );
 };
