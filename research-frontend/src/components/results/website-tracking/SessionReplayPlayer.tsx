@@ -108,7 +108,7 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
             try {
                 const replayer = new ReplayerClass(rrwebData.events, {
                     root: containerRef.current,
-                    skipInactive: true,
+                    skipInactive: false,
                     showWarning: false,
                     showDebug: false,
                     speed,

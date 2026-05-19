@@ -134,18 +134,18 @@ function push(evt){
     if(sid&&buf.length>=C.max)flush();
 }
 
-function flush(){
+function flush(useBeacon){
     if(!buf.length||!sid||flushing)return;
     flushing=true;
     var batch=buf.splice(0,C.max);
     var body=JSON.stringify({sessionId:sid,events:batch});
+    var url=C.api+"/public/tracking/"+C.rid+"/events";
     try{
-        if(navigator.sendBeacon){
-            navigator.sendBeacon(C.api+"/public/tracking/"+C.rid+"/events",
-                new Blob([body],{type:"application/json"}));
+        if(useBeacon&&navigator.sendBeacon){
+            navigator.sendBeacon(url,new Blob([body],{type:"application/json"}));
         }else{
             var xhr=new XMLHttpRequest();
-            xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/events",true);
+            xhr.open("POST",url,true);
             xhr.setRequestHeader("Content-Type","application/json");
             xhr.send(body);
         }
@@ -355,7 +355,7 @@ function startCapture(){
     document.addEventListener("visibilitychange",function(){
         if(document.visibilityState==="hidden"){
             push({eventType:"pageview",metadata:{friction:"mouse-out"}});
-            flush();
+            flush(true);
             flushRrweb(true);
         }
     });
@@ -364,7 +364,7 @@ function startCapture(){
         if(pageStart&&Date.now()-pageStart<2000){
             push({eventType:"pageview",metadata:{friction:"speed-browsing"}});
         }
-        flush();
+        flush(true);
         flushRrweb(true);
     });
 

@@ -285,6 +285,7 @@ app.get(['/api/tracking/:researchId/live/stream', '/tracking/:researchId/live/st
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no');
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.flushHeaders();
 
         // Import lazily to avoid circular deps
         const { getLiveSessions } = await import('./modules/tracking/tracking.service');
@@ -292,12 +293,14 @@ app.get(['/api/tracking/:researchId/live/stream', '/tracking/:researchId/live/st
         // Send initial data
         const initial = await getLiveSessions(researchId);
         res.write(`data: ${JSON.stringify(initial)}\n\n`);
+        if (typeof (res as any).flush === 'function') (res as any).flush();
 
         // Push updates every 5s
         const interval = setInterval(async () => {
             try {
                 const data = await getLiveSessions(researchId);
                 res.write(`data: ${JSON.stringify(data)}\n\n`);
+                if (typeof (res as any).flush === 'function') (res as any).flush();
             } catch {
                 // DB query failed — skip this tick
             }
@@ -305,7 +308,7 @@ app.get(['/api/tracking/:researchId/live/stream', '/tracking/:researchId/live/st
 
         // Keep-alive ping every 30s
         const pingInterval = setInterval(() => {
-            try { res.write(': ping\n\n'); } catch { /* connection dead */ }
+            try { res.write(': ping\n\n'); if (typeof (res as any).flush === 'function') (res as any).flush(); } catch { /* connection dead */ }
         }, 30000);
 
         // Cleanup on disconnect

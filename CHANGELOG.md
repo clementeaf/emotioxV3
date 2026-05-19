@@ -1,3 +1,15 @@
+## v0.73.1 — SSE flush, snippet XHR, replay duration fix (2026-05-19)
+
+### backend
+- **SSE flush for LiteSpeed.** Added `res.flushHeaders()` and `res.flush()` after every `res.write()` in the live tracking SSE endpoint. Prevents LiteSpeed from buffering SSE chunks, which caused the Live tab to hang indefinitely.
+- **Snippet v3.2: XHR-first event flush.** `flush()` now uses XHR as the primary transport for heatmap events. `sendBeacon` is only used during `visibilitychange`/`beforeunload` (where XHR can't complete). Fixes silent event loss on sites where `sendBeacon` failed without error.
+
+### research-frontend
+- **Live tab loading timeout.** `LiveSessionsTab` now falls back to empty state after 8s if the SSE connection never delivers data, instead of showing an infinite skeleton.
+- **Replay duration consistency.** Disabled `skipInactive` in rrweb Replayer so the replay duration matches the session duration shown in the table. Users can use speed controls (4x/8x/16x) to skip idle periods.
+
+---
+
 ## v0.73.0 — Website Tracking: rrweb migration, Page Flow diagram, snippet hardening (2026-05-17)
 
 ### backend — Session replay migration

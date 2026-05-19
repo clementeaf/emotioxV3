@@ -680,14 +680,18 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
 
     useEffect(() => {
         const token = useAuthStore.getState().token;
-        if (!token) return;
+        if (!token) { setIsLoading(false); return; }
 
         const apiBase = configService.getBaseUrl();
         const url = `${apiBase}/tracking/${researchId}/live/stream?token=${encodeURIComponent(token)}`;
 
         const es = new EventSource(url);
 
+        // Fallback: if no message arrives within 8s, stop loading skeleton
+        const timeout = setTimeout(() => setIsLoading(false), 8000);
+
         es.onmessage = (event) => {
+            clearTimeout(timeout);
             try {
                 const data = JSON.parse(event.data);
                 setSessions(data.sessions || []);
@@ -697,11 +701,11 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
         };
 
         es.onerror = () => {
-            // EventSource reconnects automatically
+            clearTimeout(timeout);
             setIsLoading(false);
         };
 
-        return () => es.close();
+        return () => { es.close(); clearTimeout(timeout); };
     }, [researchId]);
 
     if (isLoading) return <div className="h-64 bg-gray-100 rounded-xl animate-pulse" />;

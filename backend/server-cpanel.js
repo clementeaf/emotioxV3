@@ -276,24 +276,27 @@ app.get(['/api/tracking/:researchId/live/stream', '/tracking/:researchId/live/st
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no');
         res.setHeader('Access-Control-Allow-Origin', '*');
+        res.flushHeaders();
 
         const { getLiveSessions } = require('./dist/modules/tracking/tracking.service');
 
         // Send initial data
         const initial = await getLiveSessions(researchId);
         res.write(`data: ${JSON.stringify(initial)}\n\n`);
+        if (typeof res.flush === 'function') res.flush();
 
         // Push updates every 5s
         const interval = setInterval(async () => {
             try {
                 const data = await getLiveSessions(researchId);
                 res.write(`data: ${JSON.stringify(data)}\n\n`);
+                if (typeof res.flush === 'function') res.flush();
             } catch { /* skip tick */ }
         }, 5000);
 
         // Keep-alive ping every 30s
         const pingInterval = setInterval(() => {
-            try { res.write(': ping\n\n'); } catch { /* dead */ }
+            try { res.write(': ping\n\n'); if (typeof res.flush === 'function') res.flush(); } catch { /* dead */ }
         }, 30000);
 
         // Cleanup on disconnect

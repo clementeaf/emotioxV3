@@ -239,7 +239,7 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 
 ## Website Tracking (v0.73.0)
 - **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
-- **Injectable script v3:** `GET /public/tracking/:id/script.js` — loads rrweb from CDN for DOM recording + captures clicks/scroll/mousemove for heatmaps. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server (strips protocol/path/port from `allowedDomains`).
+- **Injectable script v3.2:** `GET /public/tracking/:id/script.js` — loads rrweb from CDN for DOM recording + captures clicks/scroll/mousemove for heatmaps. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server (strips protocol/path/port from `allowedDomains`). Event flush uses XHR (primary) with `sendBeacon` only on page unload.
 - **DOM recording (rrweb):** `rrweb.record()` captures full DOM snapshot + incremental mutations + CSS inlining + fonts + inline images. Events stored in `tracking_sessions.rrweb_events` (LONGTEXT). Flushed every 5s via XHR (not sendBeacon — 64KB limit). Migration 031.
 - **Coordinates:** Raw pixels (`pageX`, `pageY`). Backend normalizes at query time.
 - **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session only when pathname changes (ignores hash/query). 1s debounce prevents framework spam.
@@ -249,10 +249,10 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 - **Builder:** `WebsiteTrackingConfig` — checklist (Activate/Snippet/Verify/View Results). Verify = single request (no polling). Cache-busting per minute.
 - **Results tabs:** Funnels (SVG trapezoids + Page Flow diagram + Comparison) → Heatmaps (Click/Scroll/Attention) → Sessions (visitors with friendly names) → Live (SSE).
 - **Page Flow diagram:** `PageFlowDiagram` SVG flowchart — nodes as colored boxes (intensity = traffic), Bézier arrows (thickness = transitions). Exit nodes: red dashed boxes below pages where visitors left ("N left / NN% exit"). Top-down layout, internal scroll.
-- **Session replay (rrweb):** `SessionReplayPlayer` lazy-loads rrweb `Replayer` (~51KB gzip). DOM-based replay with mouse trail, play/pause/seek, speed controls. `hasRrweb` flag distinguishes legacy sessions (grayed replay button).
+- **Session replay (rrweb):** `SessionReplayPlayer` lazy-loads rrweb `Replayer` (~51KB gzip). DOM-based replay with mouse trail, play/pause/seek, speed controls. `skipInactive: false` — replay duration matches session duration (use speed controls for idle periods). `hasRrweb` flag distinguishes legacy sessions (grayed replay button).
 - **Friendly visitor names:** `friendlyVisitorName()` — deterministic "Color Animal" names from visitor ID hash. Applied to Sessions, Live, Replay.
 - **Session duration:** Capped at 30 min in backend (`MAX_SESSION_MS`). `avgSessionDuration` capped at 1800s in SQL.
-- **Live sessions:** SSE stream. Active = last event within 5 minutes.
+- **Live sessions:** SSE stream with `flushHeaders()` + `flush()` (required for LiteSpeed). 8s client timeout fallback. Active = last event within 5 minutes.
 - **Detection:** `isWebsiteTracking` in `isFileBasedResearch`. Sidebar shows config + results.
 - **Endpoints (rrweb):** `POST /public/tracking/:id/rrweb-events` (public). `GET /tracking/:id/sessions/:sid/rrweb` (auth).
 - **Exit tracking:** `getPageFunnels` returns `exits` per page (last page in visitor path).
