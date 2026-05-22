@@ -1,3 +1,18 @@
+## v0.73.3 — Visit grouping, duration accuracy, font proxy (2026-05-22)
+
+### backend
+- **Visit-based grouping.** `getVisitorJourneys` now splits sessions into visits (30-min gap = new visit). Sessions from different days no longer merge under one visitor card — each real visit appears independently.
+- **Duration priority: rrweb > active > wall-clock.** Table duration now matches replay duration. `rrweb_duration_ms` computed from event timestamps on each append. `avgSessionDuration` prefers `active_duration_ms` over wall-clock.
+- **URL normalization.** `createSession` strips `www.` prefix so `camarablockchain.cl` and `www.camarablockchain.cl` share the same page entry and screenshots.
+- **Font proxy.** `GET /tracking/:id/proxy-asset?url=` proxies cross-origin fonts through the backend. `proxy-page` rewrites font URLs in HTML to use this proxy, fixing CORS errors on heatmap backdrop.
+- **Binary response support.** `server-cpanel.js` and `server-cpanel.ts` handle `isBase64Encoded` responses for proxied binary assets (fonts, images).
+
+### research-frontend
+- **Date in session table.** Visitor detail shows `dd/mm HH:MM` per session instead of time-only. Prevents confusion when sessions span multiple days.
+- **Unique visit keys.** Each visit card uses a unique key (visitorId + index) to prevent React duplicate key warnings when the same visitor has multiple visits.
+
+---
+
 ## v0.73.2 — Tracking data accuracy fixes (2026-05-22)
 
 ### backend

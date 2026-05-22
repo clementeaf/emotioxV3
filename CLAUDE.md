@@ -128,6 +128,10 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.
 - **Website Tracking coordinates (v0.70.0)**: Snippet stores **raw pixels** (`pageX`, `pageY`). Backend normalizes at query time: `x / viewport_width * 100`. Frontend renders: `(pct/100) * renderWidth`. Never normalize in the client snippet.
 - **Website Tracking snippet v3.3**: Visibility-aware (pauses on tab hidden, resumes on focus). Sync XHR on unload (no sendBeacon — 64KB limit drops rrweb snapshots). Active duration tracking (`activeMs`). Mousemove throttle 500ms. rrweb 5-min cap uses active time. Session retry on failure.
+- **Visit grouping (v0.73.3)**: `getVisitorJourneys` groups sessions by visit (30-min gap = new visit), not by visitor. Same visitor on different days = separate entries.
+- **Duration priority**: `rrweb_duration_ms` > `active_duration_ms` > wall-clock. Table duration matches replay modal. `rrweb_duration_ms` computed in `appendRrwebEvents` from first/last event timestamps.
+- **URL normalization**: `createSession` strips `www.` prefix so all URL variants share the same `tracking_pages` entry and screenshots.
+- **Font proxy**: `proxy-page` rewrites font URLs to `/tracking/:id/proxy-asset?url=`. Binary responses via `isBase64Encoded` in both `server-cpanel.js` and `server-cpanel.ts`.
 - **Scroll depth query**: `MAX(scroll_depth_pct)` per session before bucketing. Cumulative reach = sessions whose max depth >= X%.
 - **Tracking pages upsert**: `INSERT IGNORE` + UNIQUE index `(research_id, page_url)`. No SELECT→INSERT race.
 - **Website Tracking results layout (v0.70.0)**: Heatmap renders inline (no modal). `Tip` component (portal-based, viewport-clamped) for all tooltips. Sessions tab = Visitor accordion only (no "All Sessions" table).

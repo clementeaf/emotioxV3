@@ -422,6 +422,12 @@ app.use(async (req: Request, res: Response) => {
             });
         }
 
+        // Binary responses (base64-encoded) — decode and send as buffer
+        if (result.isBase64Encoded && typeof result.body === 'string') {
+            res.status(result.statusCode).send(Buffer.from(result.body, 'base64'));
+            return;
+        }
+
         // Parse body if it's a JSON string and send as JSON
         let bodyToSend: string | object = result.body;
         if (typeof result.body === 'string') {

@@ -122,6 +122,19 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
         }
     }
 
+    // Normalize page URL: strip www. prefix so camarablockchain.cl and www.camarablockchain.cl match
+    const normalizePageUrl = (url: string): string => {
+        try {
+            const u = new URL(url);
+            u.hostname = u.hostname.replace(/^www\./, '');
+            // Remove trailing slash for consistency (keep root /)
+            let normalized = u.toString();
+            if (normalized.endsWith('/') && u.pathname !== '/') normalized = normalized.slice(0, -1);
+            return normalized;
+        } catch { return url; }
+    };
+    const normalizedPageUrl = normalizePageUrl(input.pageUrl);
+
     const sessionId = uuidv4();
     await pool.query(
         `INSERT INTO tracking_sessions
@@ -131,7 +144,7 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
             sessionId,
             input.researchId,
             input.visitorId,
-            input.pageUrl,
+            normalizedPageUrl,
             input.pageTitle || null,
             input.viewportWidth,
             input.viewportHeight,
@@ -147,7 +160,7 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
     await pool.query(
         `INSERT IGNORE INTO tracking_pages (id, research_id, page_url, page_title, viewport_width, viewport_height)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), input.researchId, input.pageUrl, input.pageTitle || null, input.viewportWidth, input.viewportHeight]
+        [uuidv4(), input.researchId, normalizedPageUrl, input.pageTitle || null, input.viewportWidth, input.viewportHeight]
     );
 
     // Lazy data retention cleanup (~1% of session creations)
@@ -444,7 +457,7 @@ export const getOverviewMetrics = async (researchId: string, from?: string, to?:
             COUNT(DISTINCT ts.visitor_id) as uniqueVisitors,
             COUNT(DISTINCT ts.page_url) as pagesTracked,
             COUNT(te.id) as totalEvents,
-            AVG(LEAST(TIMESTAMPDIFF(SECOND, ts.started_at, ts.ended_at), 1800)) as avgSessionDuration
+            AVG(COALESCE(ts.active_duration_ms / 1000, LEAST(TIMESTAMPDIFF(SECOND, ts.started_at, ts.ended_at), 1800))) as avgSessionDuration
          FROM tracking_sessions ts
          LEFT JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?${dateFilter.clause}`,
@@ -741,81 +754,111 @@ export const getAttentionHeatmapData = async (
     return { points, totalSessions: sessions.size, maxDwell };
 };
 
-// ─── Visitor Journeys (page breakdown per visitor) ──────────────────
+// ─── Visitor Journeys (grouped by visit, not by visitor) ─────────────
+// A "visit" = cluster of sessions from the same visitor where the gap
+// between consecutive sessions is < 30 minutes. Sessions days apart
+// become separate visits so the researcher sees each real visit independently.
+
+const VISIT_GAP_MS = 30 * 60 * 1000; // 30 min gap = new visit
 
 export const getVisitorJourneys = async (researchId: string, limit = 20, offset = 0) => {
-    const visitorsResult = await pool.query(
-        `SELECT visitor_id, COUNT(*) as sessionCount,
-                MIN(started_at) as firstSeen, MAX(COALESCE(ended_at, started_at)) as lastSeen,
-                MAX(viewport_width) as viewportWidth,
-                SUBSTRING_INDEX(GROUP_CONCAT(user_agent ORDER BY started_at DESC), ',', 1) as userAgent,
-                SUBSTRING_INDEX(GROUP_CONCAT(page_url ORDER BY started_at ASC), ',', 1) as entryPage
-         FROM tracking_sessions
-         WHERE research_id = ?
-         GROUP BY visitor_id
-         ORDER BY lastSeen DESC
-         LIMIT ? OFFSET ?`,
-        [researchId, limit, offset]
-    );
-
-    const visitors = [];
-    for (const v of visitorsResult.rows as Array<Record<string, unknown>>) {
-        const visitorId = v.visitor_id as string;
-
-        const sessionsResult = await pool.query(
-            `SELECT ts.id, ts.page_url, ts.page_title, ts.started_at, ts.ended_at,
-                    ts.active_duration_ms,
-                    ts.rrweb_events IS NOT NULL as hasRrweb,
-                    COUNT(te.id) as eventCount,
-                    SUM(CASE WHEN te.event_type = 'click' THEN 1 ELSE 0 END) as clickCount
-             FROM tracking_sessions ts
-             LEFT JOIN tracking_events te ON te.session_id = ts.id
-             WHERE ts.research_id = ? AND ts.visitor_id = ?
-             GROUP BY ts.id
-             ORDER BY ts.started_at ASC`,
-            [researchId, visitorId]
-        );
-
-        const MAX_SESSION_MS = 30 * 60 * 1000; // 30 min cap — idle tabs inflate duration
-        const pages = sessionsResult.rows.map((s: Record<string, unknown>, idx: number) => {
-            const startedAt = s.started_at as Date;
-            const endedAt = s.ended_at as Date | null;
-            const rawMs = endedAt ? endedAt.getTime() - startedAt.getTime() : 0;
-            // Prefer active_duration_ms (real tab-visible time) over wall-clock
-            const activeDuration = s.active_duration_ms != null ? Number(s.active_duration_ms) : null;
-            const durationMs = activeDuration ?? Math.min(rawMs, MAX_SESSION_MS);
-            return {
-                index: idx + 1,
-                sessionId: s.id as string,
-                pageUrl: s.page_url as string,
-                pageTitle: s.page_title as string | null,
-                startedAt: s.started_at,
-                durationMs,
-                eventCount: Number(s.eventCount || 0),
-                clickCount: Number(s.clickCount || 0),
-                hasRrweb: !!s.hasRrweb,
-            };
-        });
-
-        visitors.push({
-            visitorId,
-            sessionCount: Number(v.sessionCount),
-            entryPage: v.entryPage as string,
-            firstSeen: v.firstSeen,
-            lastSeen: v.lastSeen,
-            viewportWidth: Number(v.viewportWidth || 0),
-            userAgent: v.userAgent as string | null,
-            totalDurationMs: pages.reduce((sum, p) => sum + p.durationMs, 0),
-            pages,
-        });
-    }
-
-    const totalResult = await pool.query(
-        'SELECT COUNT(DISTINCT visitor_id) as total FROM tracking_sessions WHERE research_id = ?',
+    // Fetch all sessions with event counts, ordered by time
+    const sessionsResult = await pool.query(
+        `SELECT ts.id, ts.visitor_id, ts.page_url, ts.page_title,
+                ts.started_at, ts.ended_at, ts.active_duration_ms, ts.rrweb_duration_ms,
+                ts.viewport_width, ts.user_agent,
+                ts.rrweb_events IS NOT NULL as hasRrweb,
+                COUNT(te.id) as eventCount,
+                SUM(CASE WHEN te.event_type = 'click' THEN 1 ELSE 0 END) as clickCount
+         FROM tracking_sessions ts
+         LEFT JOIN tracking_events te ON te.session_id = ts.id
+         WHERE ts.research_id = ?
+         GROUP BY ts.id
+         ORDER BY ts.started_at ASC`,
         [researchId]
     );
 
-    return { visitors, totalVisitors: Number(totalResult.rows[0]?.total || 0) };
+    // Group sessions into visits (gap > 30 min = new visit)
+    const MAX_SESSION_MS = 30 * 60 * 1000;
+    const visits: Array<{
+        visitorId: string;
+        entryPage: string;
+        firstSeen: Date;
+        lastSeen: Date;
+        viewportWidth: number;
+        userAgent: string | null;
+        totalDurationMs: number;
+        sessionCount: number;
+        pages: Array<{
+            index: number;
+            sessionId: string;
+            pageUrl: string;
+            pageTitle: string | null;
+            startedAt: Date;
+            durationMs: number;
+            eventCount: number;
+            clickCount: number;
+            hasRrweb: boolean;
+        }>;
+    }> = [];
+
+    let currentVisit: typeof visits[number] | null = null;
+    let prevEndedAt: Date | null = null;
+    let prevVisitorId = '';
+
+    for (const s of sessionsResult.rows as Array<Record<string, unknown>>) {
+        const visitorId = s.visitor_id as string;
+        const startedAt = s.started_at as Date;
+        const endedAt = s.ended_at as Date | null;
+        const rawMs = endedAt ? endedAt.getTime() - startedAt.getTime() : 0;
+        // Priority: rrweb replay duration (exact match with modal) > active time > wall-clock
+        const rrwebDuration = s.rrweb_duration_ms != null ? Number(s.rrweb_duration_ms) : null;
+        const activeDuration = s.active_duration_ms != null ? Number(s.active_duration_ms) : null;
+        const durationMs = rrwebDuration ?? activeDuration ?? Math.min(rawMs, MAX_SESSION_MS);
+
+        // New visit if: different visitor, or gap > 30 min since last session ended
+        const gap = prevEndedAt ? startedAt.getTime() - prevEndedAt.getTime() : Infinity;
+        const isNewVisit = visitorId !== prevVisitorId || gap > VISIT_GAP_MS;
+
+        if (isNewVisit) {
+            currentVisit = {
+                visitorId,
+                entryPage: s.page_url as string,
+                firstSeen: startedAt,
+                lastSeen: endedAt || startedAt,
+                viewportWidth: Number(s.viewport_width || 0),
+                userAgent: s.user_agent as string | null,
+                totalDurationMs: 0,
+                sessionCount: 0,
+                pages: [],
+            };
+            visits.push(currentVisit);
+        }
+
+        currentVisit!.pages.push({
+            index: currentVisit!.pages.length + 1,
+            sessionId: s.id as string,
+            pageUrl: s.page_url as string,
+            pageTitle: s.page_title as string | null,
+            startedAt,
+            durationMs,
+            eventCount: Number(s.eventCount || 0),
+            clickCount: Number(s.clickCount || 0),
+            hasRrweb: !!s.hasRrweb,
+        });
+        currentVisit!.totalDurationMs += durationMs;
+        currentVisit!.sessionCount += 1;
+        currentVisit!.lastSeen = endedAt || startedAt;
+
+        prevVisitorId = visitorId;
+        prevEndedAt = endedAt || startedAt;
+    }
+
+    // Sort by most recent visit first, then paginate
+    visits.sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
+    const paginated = visits.slice(offset, offset + limit);
+
+    return { visitors: paginated, totalVisitors: visits.length };
 };
 
 // ─── Live Sessions ──────────────────────────────────────────────────
@@ -1078,9 +1121,17 @@ export const appendRrwebEvents = async (
     const json = JSON.stringify(merged);
     if (json.length > 5_242_880) throw new Error('rrweb events too large');
 
+    // Compute rrweb replay duration from event timestamps
+    let rrwebDurationMs: number | null = null;
+    if (merged.length >= 2) {
+        const first = (merged[0] as { timestamp?: number })?.timestamp;
+        const last = (merged[merged.length - 1] as { timestamp?: number })?.timestamp;
+        if (first && last && last > first) rrwebDurationMs = last - first;
+    }
+
     await pool.query(
-        'UPDATE tracking_sessions SET rrweb_events = ?, ended_at = NOW() WHERE id = ?',
-        [json, sessionId]
+        'UPDATE tracking_sessions SET rrweb_events = ?, rrweb_duration_ms = ?, ended_at = NOW() WHERE id = ?',
+        [json, rrwebDurationMs, sessionId]
     );
 
     return { saved: events.length };

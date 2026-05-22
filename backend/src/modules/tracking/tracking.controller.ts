@@ -342,6 +342,17 @@ export const handleTrackingRoutes = async (
                     html = `<base href="${baseHref}">` + html;
                 }
 
+                // Rewrite font URLs to go through our proxy (avoids CORS on external fonts)
+                const assetProxyBase = `/api/tracking/${proxyPageMatch[1]}/proxy-asset?url=`;
+                html = html.replace(
+                    /url\(\s*['"]?([^'")]+\.(?:woff2?|ttf|eot|otf)(?:\?[^'")]*)?)\s*['"]?\)/gi,
+                    (match, fontUrl: string) => {
+                        // Resolve relative URLs against the page origin
+                        const resolved = fontUrl.startsWith('http') ? fontUrl : urlObj.origin + (fontUrl.startsWith('/') ? '' : '/') + fontUrl;
+                        return `url('${assetProxyBase}${encodeURIComponent(resolved)}')`;
+                    }
+                );
+
                 // Inject styles to disable interactions
                 const disableStyle = `<style>
                     * { pointer-events: none !important; user-select: none !important; }
@@ -360,6 +371,39 @@ export const handleTrackingRoutes = async (
                 };
             } catch (e) {
                 return error('Failed to fetch page', 502, undefined, origin);
+            }
+        }
+
+        // GET /tracking/:researchId/proxy-asset?url=URL — proxy fonts/images to avoid CORS
+        const proxyAssetMatch = path.match(/^\/tracking\/([^/]+)\/proxy-asset$/);
+        if (proxyAssetMatch && httpMethod === 'GET') {
+            const assetUrl = event.queryStringParameters?.url
+                ? decodeURIComponent(event.queryStringParameters.url)
+                : null;
+            if (!assetUrl) return error('Missing url parameter', 400, undefined, origin);
+
+            try {
+                const response = await fetch(assetUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EmotioCX/1.0)' },
+                    redirect: 'follow',
+                });
+                const arrayBuf = await response.arrayBuffer();
+                const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+                // Return base64 for Lambda compat; server-cpanel decodes Buffer
+                return {
+                    statusCode: 200,
+                    headers: {
+                        'Content-Type': contentType,
+                        'Access-Control-Allow-Origin': origin || '*',
+                        'Cache-Control': 'public, max-age=86400',
+                        'X-Binary': '1',
+                    },
+                    body: Buffer.from(arrayBuf).toString('base64'),
+                    isBase64Encoded: true,
+                };
+            } catch {
+                return error('Failed to fetch asset', 502, undefined, origin);
             }
         }
 

@@ -543,7 +543,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
         );
     }
 
-    const active = visitors.find(v => v.visitorId === selectedVisitor);
+    const active = selectedVisitor ? visitors.find((v, i) => `${v.visitorId}_${i}` === selectedVisitor) : undefined;
 
     return (
         <div className="flex gap-0 bg-white rounded-xl border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 200px)' }}>
@@ -556,12 +556,13 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                     </h3>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    {visitors.map((visitor) => {
-                        const isActive = selectedVisitor === visitor.visitorId;
+                    {visitors.map((visitor, vIdx) => {
+                        const visitKey = `${visitor.visitorId}_${vIdx}`;
+                        const isActive = selectedVisitor === visitKey;
                         return (
                             <button
-                                key={visitor.visitorId}
-                                onClick={() => setSelectedVisitor(isActive ? null : visitor.visitorId)}
+                                key={visitKey}
+                                onClick={() => setSelectedVisitor(isActive ? null : visitKey)}
                                 className={`w-full px-4 py-3 flex items-center gap-3 text-left border-b border-gray-50 transition-colors ${
                                     isActive ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50 border-l-2 border-l-transparent'
                                 }`}
@@ -608,7 +609,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                         <div className="flex-1 overflow-y-auto">
                             <div className="px-5 py-2 flex gap-4 text-[10px] font-medium text-gray-400 uppercase tracking-wider border-b border-gray-100">
                                 <span className="w-6">#</span>
-                                <span className="w-12">Time</span>
+                                <span className="w-20">Date</span>
                                 <span className="flex-1">Page</span>
                                 <span className="w-24">Timeline</span>
                                 <span className="w-14 text-right">Duration</span>
@@ -624,8 +625,8 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                         className="px-5 py-2.5 flex items-center gap-4 border-b border-gray-50 text-xs hover:bg-gray-50 transition-colors"
                                     >
                                         <span className="text-gray-400 font-mono w-6">#{page.index}</span>
-                                        <span className="text-[10px] text-gray-400 font-mono w-12">
-                                            {page.startedAt ? new Date(page.startedAt as string).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        <span className="text-[10px] text-gray-400 font-mono w-20">
+                                            {page.startedAt ? new Date(page.startedAt as string).toLocaleDateString('es', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(page.startedAt as string).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''}
                                         </span>
                                         <span className="text-slate-700 truncate flex-1" title={page.pageUrl}>
                                             {shortenUrl(page.pageUrl)}
@@ -732,12 +733,12 @@ const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onRepla
                 </div>
             ) : (
                 <div className="divide-y divide-gray-100">
-                    {sessions.map((visitor) => {
+                    {sessions.map((visitor, sIdx) => {
                         const totalEvents = visitor.pages.reduce((sum, p) => sum + p.eventCount, 0);
                         const timeSinceStart = dataUpdatedAt > 0 ? dataUpdatedAt - new Date(visitor.firstSeen).getTime() : 0;
                         const latestSession = visitor.pages[visitor.pages.length - 1];
                         return (
-                            <div key={visitor.visitorId} className="px-5 py-3">
+                            <div key={`${visitor.visitorId}_${sIdx}`} className="px-5 py-3">
                                 <div className="flex items-center gap-4">
                                     <span className="text-lg">{getDeviceIcon(visitor.viewportWidth)}</span>
                                     <div className="flex-1 min-w-0">
