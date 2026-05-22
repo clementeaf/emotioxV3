@@ -169,7 +169,7 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
 
 // ─── Event Ingestion ─────────────────────────────────────────────────
 
-export const saveEvents = async (sessionId: string, events: TrackingEvent[]): Promise<{ saved: number }> => {
+export const saveEvents = async (sessionId: string, events: TrackingEvent[], activeDurationMs?: number): Promise<{ saved: number }> => {
     if (events.length === 0) return { saved: 0 };
 
     // Validate session exists
@@ -211,12 +211,19 @@ export const saveEvents = async (sessionId: string, events: TrackingEvent[]): Pr
         values
     );
 
-    // Update session ended_at to last event timestamp
+    // Update session ended_at and active duration
     const lastTs = Math.max(...capped.map((e) => e.timestampMs));
-    await pool.query(
-        'UPDATE tracking_sessions SET ended_at = FROM_UNIXTIME(? / 1000) WHERE id = ?',
-        [lastTs, sessionId]
-    );
+    if (activeDurationMs !== undefined) {
+        await pool.query(
+            'UPDATE tracking_sessions SET ended_at = FROM_UNIXTIME(? / 1000), active_duration_ms = ? WHERE id = ?',
+            [lastTs, activeDurationMs, sessionId]
+        );
+    } else {
+        await pool.query(
+            'UPDATE tracking_sessions SET ended_at = FROM_UNIXTIME(? / 1000) WHERE id = ?',
+            [lastTs, sessionId]
+        );
+    }
 
     return { saved: capped.length };
 };
@@ -416,52 +423,6 @@ export const getElementClickData = async (
     };
 };
 
-/**
- * Mouse-based attention heatmap — mousemove positions as gaze proxy (Ischen 2022).
- * Groups by 2% grid cells for cleaner density map.
- */
-export const getMouseAttentionData = async (
-    researchId: string,
-    pageUrl?: string,
-    device?: 'mobile' | 'tablet' | 'desktop'
-): Promise<{ points: Array<{ x: number; y: number; dwell: number }>; totalMoves: number; sessions: number }> => {
-    const deviceFilter = getDeviceFilter(device);
-
-    let query = `
-        SELECT
-            ROUND(te.x / ts.viewport_width * 100, 0) as x,
-            ROUND(te.y / ts.viewport_width * 100, 0) as y,
-            COUNT(*) as dwell
-        FROM tracking_events te
-        JOIN tracking_sessions ts ON te.session_id = ts.id
-        WHERE ts.research_id = ?
-          AND te.event_type = 'mousemove'
-          AND te.x IS NOT NULL AND te.y IS NOT NULL
-          AND ts.viewport_width > 0
-    `;
-    const params: unknown[] = [researchId];
-    if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }
-    query += deviceFilter.clause;
-    params.push(...deviceFilter.params);
-    query += ` GROUP BY ROUND(te.x / ts.viewport_width * 100, 0),
-                        ROUND(te.y / ts.viewport_width * 100, 0)
-               ORDER BY dwell DESC LIMIT 5000`;
-
-    const result = await pool.query(query, params);
-    const points = result.rows.map((row: Record<string, unknown>) => ({
-        x: Number(row.x), y: Number(row.y), dwell: Number(row.dwell),
-    }));
-
-    let totalsQuery = `SELECT COUNT(*) as total, COUNT(DISTINCT ts.id) as sessions
-        FROM tracking_events te JOIN tracking_sessions ts ON te.session_id = ts.id
-        WHERE ts.research_id = ? AND te.event_type = 'mousemove'`;
-    const tp: unknown[] = [researchId];
-    if (pageUrl) { totalsQuery += ' AND ts.page_url = ?'; tp.push(pageUrl); }
-    totalsQuery += deviceFilter.clause; tp.push(...deviceFilter.params);
-    const totals = await pool.query(totalsQuery, tp);
-
-    return { points, totalMoves: Number(totals.rows[0]?.total || 0), sessions: Number(totals.rows[0]?.sessions || 0) };
-};
 
 // ─── Verification: Recent Sessions ──────────────────────────────────
 
@@ -720,6 +681,33 @@ export const getAttentionHeatmapData = async (
         }
     };
 
+    // Pre-fetch session end times so we can flush the last interval of each session
+    // (time between final scroll event and session end, e.g. user reads then closes tab).
+    const sessionEndMap = new Map<string, number>();
+    {
+        let endQuery = `
+            SELECT ts.id, UNIX_TIMESTAMP(ts.ended_at) * 1000 as ended_ms
+            FROM tracking_sessions ts
+            WHERE ts.research_id = ? AND ts.ended_at IS NOT NULL
+        `;
+        const endParams: unknown[] = [researchId];
+        if (pageUrl) { endQuery += ' AND ts.page_url = ?'; endParams.push(pageUrl); }
+        endQuery += deviceFilter.clause;
+        endParams.push(...deviceFilter.params);
+        const endResult = await pool.query(endQuery, endParams);
+        for (const r of endResult.rows as Array<Record<string, unknown>>) {
+            sessionEndMap.set(r.id as string, Number(r.ended_ms));
+        }
+    }
+
+    const flushTail = () => {
+        if (!prevSession || prevTs <= 0) return;
+        const endedMs = sessionEndMap.get(prevSession);
+        // Use real session end if available, otherwise 5s default
+        const tailDuration = endedMs && endedMs > prevTs ? endedMs - prevTs : 5000;
+        flushInterval(prevScrollY, prevVpH, prevVpW, tailDuration);
+    };
+
     for (const row of result.rows as Array<Record<string, unknown>>) {
         const sid = row.session_id as string;
         const vpH = Number(row.viewport_height);
@@ -728,8 +716,11 @@ export const getAttentionHeatmapData = async (
         const ts = Number(row.timestamp_ms);
         sessions.add(sid);
 
-        if (sid === prevSession && prevTs > 0) {
-            // Flush the previous interval — time spent at prevScrollY position
+        if (sid !== prevSession && prevSession) {
+            // Session changed — flush the tail of the previous session
+            flushTail();
+        } else if (sid === prevSession && prevTs > 0) {
+            // Same session — flush the interval between events
             flushInterval(prevScrollY, prevVpH, prevVpW, ts - prevTs);
         }
 
@@ -739,6 +730,9 @@ export const getAttentionHeatmapData = async (
         prevVpH = vpH;
         prevVpW = vpW;
     }
+
+    // Flush the tail of the very last session
+    flushTail();
 
     // Convert bands to heatmap points — single center point per band
     // Frontend renders with large horizontal radius to create full-width bands
@@ -775,6 +769,7 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
 
         const sessionsResult = await pool.query(
             `SELECT ts.id, ts.page_url, ts.page_title, ts.started_at, ts.ended_at,
+                    ts.active_duration_ms,
                     ts.rrweb_events IS NOT NULL as hasRrweb,
                     COUNT(te.id) as eventCount,
                     SUM(CASE WHEN te.event_type = 'click' THEN 1 ELSE 0 END) as clickCount
@@ -791,7 +786,9 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
             const startedAt = s.started_at as Date;
             const endedAt = s.ended_at as Date | null;
             const rawMs = endedAt ? endedAt.getTime() - startedAt.getTime() : 0;
-            const durationMs = Math.min(rawMs, MAX_SESSION_MS);
+            // Prefer active_duration_ms (real tab-visible time) over wall-clock
+            const activeDuration = s.active_duration_ms != null ? Number(s.active_duration_ms) : null;
+            const durationMs = activeDuration ?? Math.min(rawMs, MAX_SESSION_MS);
             return {
                 index: idx + 1,
                 sessionId: s.id as string,
@@ -950,40 +947,32 @@ export const getScrollDepthData = async (
     researchId: string,
     pageUrl?: string
 ): Promise<{ depths: Array<{ depthPct: number; sessions: number; percentage: number }>; totalSessions: number }> => {
-    // Get max scroll depth per session, bucketed at 10% intervals
-    let query = `
-        SELECT
-            FLOOR(te.scroll_depth_pct / 10) * 10 as depth_bucket,
-            COUNT(DISTINCT te.session_id) as session_count
-        FROM tracking_events te
-        JOIN tracking_sessions ts ON te.session_id = ts.id
-        WHERE ts.research_id = ?
-          AND te.event_type = 'scroll'
-          AND te.scroll_depth_pct IS NOT NULL
-    `;
+    // Get MAX scroll depth per session first, then bucket.
+    // Without the MAX, a session with events at 30% and 80% would be counted
+    // in both buckets, inflating cumulative percentages for lower depths.
+    let innerWhere = 'ts.research_id = ? AND te.event_type = \'scroll\' AND te.scroll_depth_pct IS NOT NULL';
     const params: unknown[] = [researchId];
     if (pageUrl) {
-        query += ' AND ts.page_url = ?';
+        innerWhere += ' AND ts.page_url = ?';
         params.push(pageUrl);
     }
-    query += ' GROUP BY depth_bucket ORDER BY depth_bucket ASC';
+
+    const query = `
+        SELECT
+            FLOOR(max_depth / 10) * 10 as depth_bucket,
+            COUNT(*) as session_count
+        FROM (
+            SELECT te.session_id, MAX(te.scroll_depth_pct) as max_depth
+            FROM tracking_events te
+            JOIN tracking_sessions ts ON te.session_id = ts.id
+            WHERE ${innerWhere}
+            GROUP BY te.session_id
+        ) per_session
+        GROUP BY depth_bucket
+        ORDER BY depth_bucket ASC
+    `;
 
     const result = await pool.query(query, params);
-
-    // Total sessions with scroll events
-    let totalQuery = `
-        SELECT COUNT(DISTINCT te.session_id) as total
-        FROM tracking_events te
-        JOIN tracking_sessions ts ON te.session_id = ts.id
-        WHERE ts.research_id = ? AND te.event_type = 'scroll'
-    `;
-    const totalParams: unknown[] = [researchId];
-    if (pageUrl) {
-        totalQuery += ' AND ts.page_url = ?';
-        totalParams.push(pageUrl);
-    }
-    const totalResult = await pool.query(totalQuery, totalParams);
-    const totalSessions = Number(totalResult.rows[0]?.total || 0);
 
     // Build cumulative: sessions that reached at least X%
     const buckets = result.rows.map((row: Record<string, unknown>) => ({
@@ -991,16 +980,19 @@ export const getScrollDepthData = async (
         sessionCount: Number(row.session_count),
     }));
 
+    // Total = sum of all buckets (each session appears in exactly one bucket now)
+    const totalSessions = buckets.reduce((sum, b) => sum + b.sessionCount, 0);
+
     // Cumulative from top: everyone who scrolled at all reached 0%, fewer reached 100%
     const depths: Array<{ depthPct: number; sessions: number; percentage: number }> = [];
     for (let pct = 0; pct <= 100; pct += 10) {
-        const sessionsAtOrBelow = buckets
+        const sessionsReached = buckets
             .filter((b) => b.depthPct >= pct)
             .reduce((sum, b) => sum + b.sessionCount, 0);
         depths.push({
             depthPct: pct,
-            sessions: sessionsAtOrBelow,
-            percentage: totalSessions > 0 ? Math.round((sessionsAtOrBelow / totalSessions) * 100) : 0,
+            sessions: sessionsReached,
+            percentage: totalSessions > 0 ? Math.round((sessionsReached / totalSessions) * 100) : 0,
         });
     }
 

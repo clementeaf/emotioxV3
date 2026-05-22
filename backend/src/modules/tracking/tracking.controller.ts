@@ -13,7 +13,6 @@ import {
     getTrackingConfig,
     getClickHeatmapData,
     getElementClickData,
-    getMouseAttentionData,
     getScrollDepthData,
     getOverviewMetrics,
     getTrackedPages,
@@ -178,6 +177,8 @@ export const handlePublicTrackingRoutes = async (
                 return trackingError('Missing sessionId or events array');
             }
 
+            const activeDurationMs = typeof body.activeDurationMs === 'number' ? body.activeDurationMs : undefined;
+
             const result = await saveEvents(sessionId, events.map((e) => ({
                 eventType: e.eventType as 'click' | 'scroll' | 'mousemove' | 'resize' | 'pageview',
                 x: typeof e.x === 'number' ? e.x : undefined,
@@ -192,7 +193,7 @@ export const handlePublicTrackingRoutes = async (
                 elementWidth: typeof e.elementWidth === 'number' ? e.elementWidth : undefined,
                 elementHeight: typeof e.elementHeight === 'number' ? e.elementHeight : undefined,
                 metadata: typeof e.metadata === 'object' ? e.metadata as Record<string, unknown> : undefined,
-            })));
+            })), activeDurationMs);
 
             return trackingSuccess(result, 201);
         }
@@ -381,16 +382,6 @@ export const handleTrackingRoutes = async (
             const pageUrl = event.queryStringParameters?.page ? decodeURIComponent(event.queryStringParameters.page) : undefined;
             const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
             const data = await getElementClickData(researchId, pageUrl, device);
-            return success(data, 200, undefined, origin);
-        }
-
-        // GET /tracking/:researchId/mouse-attention?page=URL — mouse-based gaze proxy heatmap
-        const mouseAttentionMatch = path.match(/^\/tracking\/([^/]+)\/mouse-attention$/);
-        if (mouseAttentionMatch && httpMethod === 'GET') {
-            const researchId = mouseAttentionMatch[1];
-            const pageUrl = event.queryStringParameters?.page ? decodeURIComponent(event.queryStringParameters.page) : undefined;
-            const device = event.queryStringParameters?.device as 'mobile' | 'tablet' | 'desktop' | undefined;
-            const data = await getMouseAttentionData(researchId, pageUrl, device);
             return success(data, 200, undefined, origin);
         }
 

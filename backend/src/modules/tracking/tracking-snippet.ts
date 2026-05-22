@@ -1,5 +1,5 @@
 /**
- * Tracking Snippet Generator v3.1
+ * Tracking Snippet Generator v3.3
  * Injectable JS for capturing user interactions on external websites.
  *
  * Architecture (rrweb + heatmap events):
@@ -8,6 +8,7 @@
  * - Session: one per page / per SPA pathname. Persistent visitor ID.
  * - Consent: localStorage primary, sessionStorage fallback (incognito-safe)
  * - rrweb events: XHR every 5s (not sendBeacon — 64KB limit)
+ * - Visibility-aware: pauses capture + rrweb when tab is hidden, resumes on focus
  * - Session end: visibilitychange (primary) + beforeunload (backup)
  */
 
@@ -59,6 +60,8 @@ var capturing=false,rrwebStopFn=null,rrwebBuf=[];
 var RRWEB_FLUSH_MS=5000;
 var RRWEB_MAX_MS=300000; // Stop rrweb recording after 5 min per session
 var rrwebStartTime=0;
+var paused=false; // true when tab is hidden — all capture stops
+var activeMs=0,activeStart=0; // track real active time
 
 // ─── Storage helpers (incognito-safe) ────────────────────────────────
 // localStorage primary, sessionStorage fallback, memory last resort
@@ -128,7 +131,7 @@ function getText(el){
 // ─── Heatmap Event Queue ─────────────────────────────────────────────
 
 function push(evt){
-    if(!consented)return;
+    if(!consented||paused)return;
     evt.timestampMs=evt.timestampMs||Date.now();
     buf.push(evt);
     if(sid&&buf.length>=C.max)flush();
@@ -138,17 +141,14 @@ function flush(useBeacon){
     if(!buf.length||!sid||flushing)return;
     flushing=true;
     var batch=buf.splice(0,C.max);
-    var body=JSON.stringify({sessionId:sid,events:batch});
+    var totalActive=activeMs+(activeStart>0?Date.now()-activeStart:0);
+    var body=JSON.stringify({sessionId:sid,events:batch,activeDurationMs:totalActive});
     var url=C.api+"/public/tracking/"+C.rid+"/events";
     try{
-        if(useBeacon&&navigator.sendBeacon){
-            navigator.sendBeacon(url,new Blob([body],{type:"application/json"}));
-        }else{
-            var xhr=new XMLHttpRequest();
-            xhr.open("POST",url,true);
-            xhr.setRequestHeader("Content-Type","application/json");
-            xhr.send(body);
-        }
+        var xhr=new XMLHttpRequest();
+        xhr.open("POST",url,!useBeacon); // sync on unload, async otherwise
+        xhr.setRequestHeader("Content-Type","application/json");
+        xhr.send(body);
     }catch(e){}
     flushing=false;
     if(buf.length>0)setTimeout(flush,100);
@@ -160,16 +160,21 @@ function flushRrweb(useBeacon){
     if(!rrwebBuf.length||!sid)return;
     var batch=rrwebBuf.splice(0,rrwebBuf.length);
     var body=JSON.stringify({sessionId:sid,events:batch});
-    // rrweb snapshots can be 500KB+ — sendBeacon has ~64KB limit
+    var url=C.api+"/public/tracking/"+C.rid+"/rrweb-events";
+    // rrweb snapshots can be 500KB+ — sendBeacon silently drops payloads over ~64KB.
+    // On page unload / visibility hidden, use synchronous XHR which has no size limit
+    // and is still supported in unload handlers by all major browsers.
     try{
-        if(useBeacon&&navigator.sendBeacon){
-            navigator.sendBeacon(C.api+"/public/tracking/"+C.rid+"/rrweb-events",
-                new Blob([body],{type:"application/json"}));
-        }else{
+        if(useBeacon){
             var xhr=new XMLHttpRequest();
-            xhr.open("POST",C.api+"/public/tracking/"+C.rid+"/rrweb-events",true);
+            xhr.open("POST",url,false); // synchronous — guaranteed delivery before tab dies
             xhr.setRequestHeader("Content-Type","application/json");
             xhr.send(body);
+        }else{
+            var xhr2=new XMLHttpRequest();
+            xhr2.open("POST",url,true);
+            xhr2.setRequestHeader("Content-Type","application/json");
+            xhr2.send(body);
         }
     }catch(e){}
 }
@@ -183,9 +188,13 @@ function createSession(){
     if(sid){flush();flushRrweb();}
     sid=null;
     pageStart=Date.now();
+    activeMs=0;
+    activeStart=Date.now();
+    paused=false;
 
     // Stop previous rrweb recording
     if(rrwebStopFn){try{rrwebStopFn();}catch(e){}rrwebStopFn=null;}
+    rrwebActiveMs=0;
 
     var body=JSON.stringify({
         visitorId:vid,
@@ -242,13 +251,15 @@ function createSession(){
 
 // ─── rrweb Recording ─────────────────────────────────────────────────
 
+var rrwebActiveMs=0; // accumulated active rrweb recording time
 function startRrwebRecording(){
     if(!window.rrweb||!window.rrweb.record)return;
     rrwebStartTime=Date.now();
     rrwebStopFn=window.rrweb.record({
         emit:function(event){
-            // Cap recording at 5 min to prevent unbounded growth
-            if(Date.now()-rrwebStartTime>RRWEB_MAX_MS){
+            // Cap recording at 5 min of active time to prevent unbounded growth
+            var elapsed=rrwebActiveMs+(Date.now()-rrwebStartTime);
+            if(elapsed>RRWEB_MAX_MS){
                 if(rrwebStopFn){try{rrwebStopFn();}catch(e){}rrwebStopFn=null;}
                 return;
             }
@@ -351,17 +362,35 @@ function startCapture(){
         },true);
     }
 
-    // Session end: visibilitychange is more reliable than beforeunload (works on mobile)
+    // Visibility-aware capture: pause when tab hidden, resume when visible
     document.addEventListener("visibilitychange",function(){
         if(document.visibilityState==="hidden"){
-            push({eventType:"pageview",metadata:{friction:"mouse-out"}});
+            // Tab lost focus — pause all capture
+            paused=true;
+            if(activeStart>0)activeMs+=Date.now()-activeStart;
+            activeStart=0;
+            // Accumulate rrweb active time and stop recording
+            if(rrwebStopFn){
+                rrwebActiveMs+=Date.now()-rrwebStartTime;
+                try{rrwebStopFn();}catch(e){}rrwebStopFn=null;
+            }
+            // Flush pending data before going to background
             flush(true);
             flushRrweb(true);
+        }else{
+            // Tab regained focus — resume capture
+            paused=false;
+            activeStart=Date.now();
+            // Restart rrweb recording (takes a fresh full snapshot)
+            startRrwebRecording();
         }
     });
 
     window.addEventListener("beforeunload",function(){
-        if(pageStart&&Date.now()-pageStart<2000){
+        if(activeStart>0)activeMs+=Date.now()-activeStart;
+        if(pageStart&&activeMs<2000){
+            // Force-push so the event gets into buf before flush
+            paused=false;
             push({eventType:"pageview",metadata:{friction:"speed-browsing"}});
         }
         flush(true);
