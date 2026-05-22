@@ -142,18 +142,13 @@ export const createSession = async (input: CreateSessionInput): Promise<{ sessio
         ]
     );
 
-    // Upsert tracking_pages entry for this URL
-    const existingPage = await pool.query(
-        'SELECT id FROM tracking_pages WHERE research_id = ? AND page_url = ?',
-        [input.researchId, input.pageUrl]
+    // Upsert tracking_pages entry for this URL (INSERT IGNORE avoids race condition
+    // when two concurrent sessions create the same page simultaneously)
+    await pool.query(
+        `INSERT IGNORE INTO tracking_pages (id, research_id, page_url, page_title, viewport_width, viewport_height)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), input.researchId, input.pageUrl, input.pageTitle || null, input.viewportWidth, input.viewportHeight]
     );
-    if (existingPage.rows.length === 0) {
-        await pool.query(
-            `INSERT INTO tracking_pages (id, research_id, page_url, page_title, viewport_width, viewport_height)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [uuidv4(), input.researchId, input.pageUrl, input.pageTitle || null, input.viewportWidth, input.viewportHeight]
-        );
-    }
 
     // Lazy data retention cleanup (~1% of session creations)
     const retentionDays = Number((trackingConfig.dataRetentionDays as number) || 0);

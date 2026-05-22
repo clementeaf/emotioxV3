@@ -152,7 +152,7 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Dashboard (v0.69.0)**: `GET /research/dashboard-summary` returns stats, trends, top researches. `useDashboardSummary` hook. Search + archive toggle + activity chart + metrics trends in `DashboardPage`.
 - **Automation (v0.69.0)**: Auto-trigger LLM on close + every 10 participants. Executive summary (`/analytics/research/:id/executive-summary`). Alerts (`/analytics/research/:id/alerts`). PDF report via `ReportGeneratorButton`.
 - **Research tags (v0.69.0)**: `research_tags` table (migration 027). `GET /research/tags`, `POST/DELETE /research/:id/tags/:tag`. `archived_at` column, `POST /research/:id/archive|unarchive`.
-- **Mouse attention (v0.69.0)**: `GET /tracking/:id/mouse-attention` — mousemove events aggregated as gaze-proxy heatmap.
+- **Attention heatmap**: `GET /tracking/:id/attention` — scroll-based dwell time per page band (viewport visibility × time). Flushes tail of each session using `ended_at`.
 
 ## Key Files
 ### Backend
