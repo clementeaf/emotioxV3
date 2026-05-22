@@ -127,7 +127,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Benchmark CSV export**: "Export CSV" button on comparative table.
 - **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.
 - **Website Tracking coordinates (v0.70.0)**: Snippet stores **raw pixels** (`pageX`, `pageY`). Backend normalizes at query time: `x / viewport_width * 100`. Frontend renders: `(pct/100) * renderWidth`. Never normalize in the client snippet.
-- **Website Tracking snippet v2**: Event queue buffers until session confirms. Viewport heartbeat every 1s (scroll events). Mousemove throttle 100ms. Session retry on failure. No `mouseleave` event type — use `pageview` with `metadata.friction`.
+- **Website Tracking snippet v3.3**: Visibility-aware (pauses on tab hidden, resumes on focus). Sync XHR on unload (no sendBeacon — 64KB limit drops rrweb snapshots). Active duration tracking (`activeMs`). Mousemove throttle 500ms. rrweb 5-min cap uses active time. Session retry on failure.
+- **Scroll depth query**: `MAX(scroll_depth_pct)` per session before bucketing. Cumulative reach = sessions whose max depth >= X%.
+- **Tracking pages upsert**: `INSERT IGNORE` + UNIQUE index `(research_id, page_url)`. No SELECT→INSERT race.
 - **Website Tracking results layout (v0.70.0)**: Heatmap renders inline (no modal). `Tip` component (portal-based, viewport-clamped) for all tooltips. Sessions tab = Visitor accordion only (no "All Sessions" table).
 - **Website Tracking PDF report (v0.70.1)**: `WebTrackingReportButton` with section picker (grouped by tab/subtab). AI Analysis option calls `POST /tracking/:id/report` with `{ sections }` — prompt contextual, only analyzes selected data. Cached in `config.trackingReport`.
 - **Configurable funnels**: `config.trackingConfig.funnels` — array of `{id, name, steps: [{url, label}]}`. `computeFunnelDropoff` checks sequential visitor reach. Endpoint: `GET /tracking/:id/funnels/:funnelId`.

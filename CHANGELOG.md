@@ -1,3 +1,23 @@
+## v0.73.2 — Tracking data accuracy fixes (2026-05-22)
+
+### backend
+- **Attention dwell: flush session tails.** `getAttentionHeatmapData` now accounts for the time between the last scroll event and `ended_at` for every session. Previously up to 30s of reading time per session was silently dropped.
+- **Scroll depth: fix inflated cumulative reach.** Query now takes `MAX(scroll_depth_pct)` per session before bucketing. Previously a session with events at 30% and 80% was counted in both buckets, inflating lower-depth percentages by 2-3x.
+- **Tracking pages: INSERT IGNORE.** Replaced SELECT→INSERT with `INSERT IGNORE` + UNIQUE index on `(research_id, page_url)`. Prevents duplicate key errors from concurrent session creation.
+- **Remove dead endpoint.** Deleted `/mouse-attention` endpoint and `getMouseAttentionData` — frontend uses `/attention` (scroll-based dwell time).
+
+### snippet v3.3
+- **Visibility-aware capture.** Pauses all event capture and rrweb recording when tab is hidden, resumes on focus. Prevents phantom events from background tabs.
+- **Sync XHR on unload.** Replaced `sendBeacon` with synchronous XHR for both heatmap and rrweb flushes on `visibilitychange`/`beforeunload`. Fixes silent loss of rrweb DOM snapshots exceeding sendBeacon's ~64KB limit.
+- **Active duration tracking.** Snippet tracks real tab-visible time (`activeMs`), sent with each event flush. Backend stores in `active_duration_ms` column; visitor journeys prefer it over wall-clock duration.
+- **rrweb active-time cap.** 5-minute recording limit now counts only active time, so background tabs don't consume the budget.
+
+### database
+- **Migration 032.** `active_duration_ms` column on `tracking_sessions`.
+- **Migration 033.** UNIQUE index on `tracking_pages(research_id, page_url)`.
+
+---
+
 ## v0.73.1 — SSE flush, snippet XHR, replay duration fix (2026-05-19)
 
 ### backend
