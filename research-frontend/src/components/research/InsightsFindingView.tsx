@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Upload } from 'lucide-react';
+import { Upload, ChevronDown, RotateCw } from 'lucide-react';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { mediaService } from '../../services/media.service';
@@ -38,6 +38,41 @@ const MOOD_COLORS: Record<string, string> = {
 
 type TabId = 'sentiment' | 'themes' | 'keywords';
 
+const DEFAULT_INSIGHTS_PROMPT = `Eres Emotio, Neuroeconomista especializado en Consumer Neuroscience y Neuromarketing aplicado a Branding y Packaging para categorías FMCG en Hispanoamérica (especialmente bebidas, alimentos y cuidado personal).
+
+Tu rol es analizar comentarios cualitativos de consumidores sobre conceptos de packaging o rediseños de marca. Debes combinar una lectura profunda de las respuestas con lentes de neuromarketing: Eye-Tracking (saliencia y jerarquía visual), respuestas emocionales implícitas, asociaciones automáticas, congruencia con la categoría y potencial de impacto comercial en punto de venta.
+
+Estilo de respuesta obligatorio (siempre seguir esta estructura exacta):
+
+**Síntesis Ejecutiva**
+[Una o dos oraciones con el veredicto claro: qué tan bueno o riesgoso es el concepto actual y el insight más importante].
+
+**Análisis Neurológico y de Comportamiento**
+1. Saliencia Visual & Eye-Tracking (qué elementos captan más atención y por qué)
+2. Respuesta Emocional (nivel de activación emocional, emociones específicas detectadas, presencia de respuestas neutrales/indeterminadas)
+3. Asociaciones Implícitas (qué construye el consumidor de forma automática: valores, personalidad de marca, congruencia con categoría)
+4. Fortalezas y Debilidades Estratégicas (desde el punto de vista del cerebro del consumidor hispanoamericano)
+
+**Insights Clave para Decisión de Negocio**
+- [Bullet points con las conclusiones más relevantes]
+
+**Recomendaciones Accionables y Priorizadas**
+**Prioridad Alta (hacer inmediatamente):**
+- [2-3 acciones concretas]
+**Prioridad Media:**
+- [acciones]
+**Prioridad Baja:**
+- [acciones]
+
+**Conclusión Estratégica**
+[Una frase fuerte que resuma el riesgo/oportunidad comercial real del packaging analizado].
+
+Reglas de análisis:
+- Sé crítico y honesto. No suavices resultados negativos.
+- Da más peso a lo que NO se menciona que a lo que se menciona (ausencias son muy importantes).
+- Siempre vincula los hallazgos a posible comportamiento en anaquel (prueba, elección impulsiva y lealtad).
+- Usa lenguaje profesional pero claro, orientado a negocio.`;
+
 /**
  * View for Insights Finding — shows text entries with LLM-powered analysis.
  */
@@ -49,6 +84,40 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
     const [selectedComments, setSelectedComments] = useState<number[]>([]);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const triggeredRef = useRef<string | null>(null); // prevent re-trigger loop
+
+    // Prompt editor state
+    const [isPromptOpen, setIsPromptOpen] = useState(false);
+    const [promptDraft, setPromptDraft] = useState('');
+    const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+
+    const savedPrompt = useMemo(() => {
+        const settings = research.settings as Record<string, unknown> | undefined;
+        return (typeof settings?.insightsPrompt === 'string' ? settings.insightsPrompt : '') as string;
+    }, [research.settings]);
+
+    // Sync draft with saved value
+    useEffect(() => {
+        setPromptDraft(savedPrompt || DEFAULT_INSIGHTS_PROMPT);
+    }, [savedPrompt]);
+
+    const handleSavePrompt = useCallback(async () => {
+        setIsSavingPrompt(true);
+        try {
+            const value = promptDraft.trim() === DEFAULT_INSIGHTS_PROMPT.trim() ? '' : promptDraft.trim();
+            await researchService.update(research.id, {
+                settings: { ...(research.settings as Record<string, unknown> || {}), insightsPrompt: value },
+            });
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } finally {
+            setIsSavingPrompt(false);
+        }
+    }, [promptDraft, research.id, research.settings, queryClient]);
+
+    const handleResetPrompt = useCallback(() => {
+        setPromptDraft(DEFAULT_INSIGHTS_PROMPT);
+    }, []);
+
+    const isPromptModified = promptDraft.trim() !== (savedPrompt || DEFAULT_INSIGHTS_PROMPT).trim();
 
     const files = useMemo(() => {
         const settings = (research.settings as { stimuli?: FileItem[] }) || {};
@@ -232,6 +301,54 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                         </svg>
                     </button>
                 </div>
+            </div>
+
+            {/* Analysis Prompt — collapsible editor */}
+            <div className="border rounded-lg bg-white overflow-hidden">
+                <button
+                    type="button"
+                    onClick={() => setIsPromptOpen(prev => !prev)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">Analysis Prompt</span>
+                        {savedPrompt && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">Custom</span>
+                        )}
+                    </div>
+                    <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', isPromptOpen && 'rotate-180')} />
+                </button>
+                {isPromptOpen && (
+                    <div className="px-4 pb-4 space-y-3 border-t">
+                        <p className="text-xs text-gray-500 pt-3">
+                            Customize the system prompt sent to the LLM for analysis. Changes apply to future analyses only.
+                        </p>
+                        <textarea
+                            value={promptDraft}
+                            onChange={e => setPromptDraft(e.target.value)}
+                            rows={12}
+                            className="w-full text-xs text-gray-700 border rounded-md p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                        />
+                        <div className="flex items-center justify-between">
+                            <button
+                                type="button"
+                                onClick={handleResetPrompt}
+                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                                <RotateCw className="w-3 h-3" />
+                                Reset to default
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!isPromptModified || isSavingPrompt}
+                                onClick={() => void handleSavePrompt()}
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isSavingPrompt ? 'Saving...' : 'Save prompt'}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {pendingCsvFile && (

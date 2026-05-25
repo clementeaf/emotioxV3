@@ -1,9 +1,15 @@
-## v0.73.4 — Insights Finding: CSV column selector (2026-05-25)
+## v0.73.4 — Insights Finding: CSV column selector, custom analysis prompt (2026-05-25)
+
+### backend
+- **Specialized analysis prompt.** Default Insights Finding prompt rewritten for consumer neuroscience / neuromarketing — structured output with executive synthesis, neurological analysis, business insights, and prioritized recommendations.
+- **Custom prompt support.** `analyzeInsights` accepts optional `customPrompt` parameter. Controller reads `config.insightsPrompt` from research settings and passes it to the service. Empty or default = uses built-in prompt.
+- **Increased max_tokens.** LLM response cap raised from 2000 to 3000 to accommodate the richer analysis structure.
 
 ### research-frontend
 - **CSV column selector.** When uploading a CSV or Excel file with multiple columns, a column picker appears showing headers and a 5-row preview. User selects which column contains the text to analyze. Applied to both research creation drawer and the "Add files" flow in `InsightsFindingView`.
 - **Robust column detection.** `detectCsvColumns` computes column count from the widest row across the entire file, not just the header — fixes sparse XLSX arrays hiding columns.
 - **Unified spreadsheet parser.** Merged duplicate `parseCsv` / `parseExcel` into single `parseSpreadsheet` function accepting optional `columnIndex`.
+- **Prompt editor.** Collapsible "Analysis Prompt" panel in `InsightsFindingView`. Textarea pre-filled with default prompt, editable per research. "Custom" badge when modified. "Reset to default" button. Saved to `research.settings.insightsPrompt`. Changes apply to future analyses only.
 
 ---
 

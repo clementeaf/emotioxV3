@@ -50,8 +50,9 @@ const runAnalysisAsync = async (
             return;
         }
 
-        // Run Claude analysis
-        const analysis = await analyzeInsights(file.entries, file.name);
+        // Run LLM analysis (with optional custom prompt from research config)
+        const customPrompt = typeof config.insightsPrompt === 'string' ? config.insightsPrompt : undefined;
+        const analysis = await analyzeInsights(file.entries, file.name, customPrompt);
 
         // Save analysis back to config
         const updatedStimuli = stimuli.map(s =>

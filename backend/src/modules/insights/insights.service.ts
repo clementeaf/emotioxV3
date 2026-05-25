@@ -24,14 +24,56 @@ export interface InsightsAnalysis {
 }
 
 /**
+ * Default system prompt — specialized in consumer neuroscience / neuromarketing.
+ * Researchers can override this per-research via config.insightsPrompt.
+ */
+export const DEFAULT_INSIGHTS_PROMPT = `Eres Emotio, Neuroeconomista especializado en Consumer Neuroscience y Neuromarketing aplicado a Branding y Packaging para categorías FMCG en Hispanoamérica (especialmente bebidas, alimentos y cuidado personal).
+
+Tu rol es analizar comentarios cualitativos de consumidores sobre conceptos de packaging o rediseños de marca. Debes combinar una lectura profunda de las respuestas con lentes de neuromarketing: Eye-Tracking (saliencia y jerarquía visual), respuestas emocionales implícitas, asociaciones automáticas, congruencia con la categoría y potencial de impacto comercial en punto de venta.
+
+Estilo de respuesta obligatorio (siempre seguir esta estructura exacta):
+
+**Síntesis Ejecutiva**
+[Una o dos oraciones con el veredicto claro: qué tan bueno o riesgoso es el concepto actual y el insight más importante].
+
+**Análisis Neurológico y de Comportamiento**
+1. Saliencia Visual & Eye-Tracking (qué elementos captan más atención y por qué)
+2. Respuesta Emocional (nivel de activación emocional, emociones específicas detectadas, presencia de respuestas neutrales/indeterminadas)
+3. Asociaciones Implícitas (qué construye el consumidor de forma automática: valores, personalidad de marca, congruencia con categoría)
+4. Fortalezas y Debilidades Estratégicas (desde el punto de vista del cerebro del consumidor hispanoamericano)
+
+**Insights Clave para Decisión de Negocio**
+- [Bullet points con las conclusiones más relevantes]
+
+**Recomendaciones Accionables y Priorizadas**
+**Prioridad Alta (hacer inmediatamente):**
+- [2-3 acciones concretas]
+**Prioridad Media:**
+- [acciones]
+**Prioridad Baja:**
+- [acciones]
+
+**Conclusión Estratégica**
+[Una frase fuerte que resuma el riesgo/oportunidad comercial real del packaging analizado].
+
+Reglas de análisis:
+- Sé crítico y honesto. No suavices resultados negativos.
+- Da más peso a lo que NO se menciona que a lo que se menciona (ausencias son muy importantes).
+- Siempre vincula los hallazgos a posible comportamiento en anaquel (prueba, elección impulsiva y lealtad).
+- Usa lenguaje profesional pero claro, orientado a negocio.`;
+
+/**
  * Analyzes text entries using GPT-4o to generate:
  * - Sentiment summary with descriptive paragraphs and actionables
  * - Theme extraction with magnitude and sentiment scores
  * - Keyword extraction with sentiment
+ *
+ * @param customPrompt Optional researcher-defined system prompt. Falls back to DEFAULT_INSIGHTS_PROMPT.
  */
 export const analyzeInsights = async (
     entries: Array<{ text: string; mood: string }>,
-    fileName: string
+    fileName: string,
+    customPrompt?: string
 ): Promise<InsightsAnalysis> => {
     if (!process.env.OPENAI_API_KEY) {
         console.warn('[Insights] OPENAI_API_KEY not set, returning empty analysis');
@@ -45,7 +87,9 @@ export const analyzeInsights = async (
         return acc;
     }, {} as Record<string, number>);
 
-    const prompt = `You are a UX research analyst. Analyze the following text data from a research study file "${fileName}".
+    const systemPrompt = (customPrompt && customPrompt.trim()) || DEFAULT_INSIGHTS_PROMPT;
+
+    const userPrompt = `Analyze the following text data from the research file "${fileName}".
 
 Total entries: ${entries.length}
 Mood distribution: ${JSON.stringify(moodDistribution)}
@@ -55,15 +99,15 @@ ${sampleTexts}
 
 Respond in the SAME LANGUAGE as the text entries (Spanish if Spanish, English if English).
 
-Return a JSON object with exactly this structure:
+In addition to the analysis above, return a JSON object with exactly this structure:
 {
   "sentiment": {
-    "summary": "One paragraph summarizing the overall sentiment and key findings",
-    "description": "Two paragraphs providing deeper analysis of patterns, notable observations, and context",
-    "actionables": ["actionable insight 1", "actionable insight 2", "actionable insight 3"]
+    "summary": "One paragraph with the executive synthesis and key verdict",
+    "description": "Two paragraphs with neurological analysis, behavioral patterns, and strategic strengths/weaknesses",
+    "actionables": ["prioritized actionable 1", "prioritized actionable 2", "prioritized actionable 3"]
   },
   "themes": [
-    { "name": "theme name", "count": approximate_count, "description": "brief description", "magnitude": 0.89, "sentimentScore": 0.75, "supportingQuotes": ["exact quote from entry 1", "exact quote from entry 2", "exact quote from entry 3"] }
+    { "name": "theme name", "count": approximate_count, "description": "brief description linking to business impact", "magnitude": 0.89, "sentimentScore": 0.75, "supportingQuotes": ["exact quote 1", "exact quote 2", "exact quote 3"] }
   ],
   "keywords": [
     { "word": "keyword", "count": approximate_count, "sentiment": "positive|negative|neutral" }
@@ -71,10 +115,11 @@ Return a JSON object with exactly this structure:
 }
 
 Rules:
-- 3-5 themes, sorted by relevance. magnitude is 0-1 (importance). sentimentScore is -1 to +1 (negative to positive). supportingQuotes: 2-5 EXACT verbatim quotes from the entries that support this theme (copy-paste, do not paraphrase).
+- 3-5 themes, sorted by relevance. magnitude is 0-1 (importance). sentimentScore is -1 to +1 (negative to positive). supportingQuotes: 2-5 EXACT verbatim quotes from the entries (copy-paste, do not paraphrase).
 - 8-12 keywords, sorted by frequency
-- 3-5 actionables, specific and practical
-- Be concise but insightful
+- 3-5 actionables, specific, prioritized, and linked to business impact
+- Be critical and honest. Do not soften negative results.
+- Give more weight to what is NOT mentioned than what is mentioned (absences are very important).
 - Return ONLY valid JSON, no markdown`;
 
     try {
@@ -82,11 +127,11 @@ Rules:
 
         const response = await client.chat.completions.create({
             model: LLM_MODEL,
-            max_tokens: 2000,
+            max_tokens: 3000,
             response_format: { type: 'json_object' },
             messages: [
-                { role: 'system', content: 'You are a UX research analyst. Always respond with valid JSON.' },
-                { role: 'user', content: prompt },
+                { role: 'system', content: systemPrompt + '\n\nAlways respond with valid JSON.' },
+                { role: 'user', content: userPrompt },
             ],
         });
 
