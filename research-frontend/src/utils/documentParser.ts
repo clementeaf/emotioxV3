@@ -33,10 +33,10 @@ export const detectCsvColumns = async (file: File): Promise<CsvColumnInfo | null
     const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
     if (colCount <= 1) return null;
 
-    const headers = Array.from({ length: colCount }, (_, i) => String(rows[0][i] ?? '').trim());
+    const headers = Array.from({ length: colCount }, (_, i) => repairMojibake(String(rows[0][i] ?? '').trim()));
     const dataRows = rows.slice(1);
     const preview = dataRows.slice(0, 5).map(row =>
-        Array.from({ length: colCount }, (_, ci) => String(row[ci] ?? '').trim())
+        Array.from({ length: colCount }, (_, ci) => repairMojibake(String(row[ci] ?? '').trim()))
     );
 
     return { headers, preview, totalRows: dataRows.length };
@@ -76,6 +76,24 @@ const parseTxt = async (file: File): Promise<string[]> => {
     return content.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
 };
 
+/**
+ * Repairs UTF-8→Latin-1 mojibake common in Spanish CSV files.
+ * e.g. "diseÃ±o" → "diseño", "PiÃ±a" → "Piña"
+ */
+const repairMojibake = (s: string): string => {
+    // Detect: if string contains Ã followed by a Latin-1 continuation byte char, it's mojibake
+    if (!/Ã/.test(s)) return s;
+    try {
+        // Re-encode as Latin-1 bytes, then decode as UTF-8
+        const bytes = new Uint8Array([...s].map(c => c.charCodeAt(0) & 0xFF));
+        const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        return decoded;
+    } catch {
+        // Not valid UTF-8 after re-encoding — return original
+        return s;
+    }
+};
+
 /** CSV/Excel: selected column of first sheet (skip header). Defaults to column 0. */
 const parseSpreadsheet = async (file: File, columnIndex = 0): Promise<string[]> => {
     const buffer = await file.arrayBuffer();
@@ -83,7 +101,7 @@ const parseSpreadsheet = async (file: File, columnIndex = 0): Promise<string[]> 
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
     return rows.slice(1)
-        .map(row => String(row[columnIndex] ?? '').trim())
+        .map(row => repairMojibake(String(row[columnIndex] ?? '').trim()))
         .filter(text => text.length > 0);
 };
 
