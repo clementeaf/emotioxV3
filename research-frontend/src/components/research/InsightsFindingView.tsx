@@ -524,18 +524,25 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                                                 </div>
                                                                 <p className="text-xs text-gray-600">{theme.description}</p>
                                                             </button>
-                                                            {/* Verbatims */}
-                                                            {isExpanded && hasQuotes && (
-                                                                <div className="px-3 pb-3 space-y-1.5 border-t border-gray-200 pt-2">
-                                                                    <div className="flex items-center gap-1.5 mb-1">
-                                                                        <MessageSquareQuote className="w-3 h-3 text-gray-400" />
-                                                                        <span className="text-[11px] font-medium text-gray-500">Supporting quotes</span>
+                                                            {/* Verbatims — smooth accordion via grid-rows */}
+                                                            {hasQuotes && (
+                                                                <div
+                                                                    className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+                                                                    style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
+                                                                >
+                                                                    <div className="overflow-hidden">
+                                                                        <div className="px-3 pb-3 space-y-1.5 border-t border-gray-200 pt-2">
+                                                                            <div className="flex items-center gap-1.5 mb-1">
+                                                                                <MessageSquareQuote className="w-3 h-3 text-gray-400" />
+                                                                                <span className="text-[11px] font-medium text-gray-500">Supporting quotes</span>
+                                                                            </div>
+                                                                            {theme.supportingQuotes!.map((quote, qi) => (
+                                                                                <p key={qi} className="text-xs text-gray-600 italic pl-3 border-l-2 border-blue-200">
+                                                                                    "{quote}"
+                                                                                </p>
+                                                                            ))}
+                                                                        </div>
                                                                     </div>
-                                                                    {theme.supportingQuotes!.map((quote, qi) => (
-                                                                        <p key={qi} className="text-xs text-gray-600 italic pl-3 border-l-2 border-blue-200">
-                                                                            "{quote}"
-                                                                        </p>
-                                                                    ))}
                                                                 </div>
                                                             )}
                                                         </div>
