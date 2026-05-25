@@ -1,6 +1,7 @@
 import { type FormEvent, useState, useEffect, useCallback } from 'react';
 import { analyzeSentimentLocal } from '../../utils/sentimentLocal';
-import { parseDocument } from '../../utils/documentParser';
+import { parseDocument, detectCsvColumns, type CsvColumnInfo } from '../../utils/documentParser';
+import { CsvColumnSelector } from './CsvColumnSelector';
 import { useNavigate } from 'react-router-dom';
 import { Stepper } from '../ui/Stepper';
 import { Button } from '../ui/Button';
@@ -60,6 +61,10 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
     const isWebsiteTracking = selectedType?.name === 'Website Tracking';
     // These types share: no stages, file upload drawer, sidebar shows files
     const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark || isWebsiteTracking;
+
+    // CSV column selection: when a CSV has multiple columns, user picks which one
+    const [csvColumnSelections, setCsvColumnSelections] = useState<Record<string, number>>({});
+    const [pendingCsvFile, setPendingCsvFile] = useState<{ file: File; columnInfo: CsvColumnInfo } | null>(null);
 
     // Client's Benchmark: state for research selection
     const [benchmarkResearches, setBenchmarkResearches] = useState<BenchmarkResearchOption[]>([]);
@@ -237,7 +242,8 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 const MAX_TEXT_LENGTH = 300;
                 try {
                     const parsedFiles = await Promise.all(filesToUpload.map(async (file) => {
-                        const texts = await parseDocument(file);
+                        const colIndex = csvColumnSelections[file.name];
+                        const texts = await parseDocument(file, colIndex);
                         const totalCount = texts.length;
                         const capped = texts.slice(0, MAX_ENTRIES);
                         const entries = capped.map(text => ({
@@ -576,7 +582,20 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                         return true;
                                     });
                                     if (valid.length > 0) {
-                                        handleFieldChange('stimulusFiles', [...formData.stimulusFiles, ...valid]);
+                                        // Check if any CSV/Excel has multiple columns
+                                        const processFiles = async () => {
+                                            for (const f of valid) {
+                                                const cols = await detectCsvColumns(f);
+                                                if (cols) {
+                                                    // Multi-column: show selector before adding
+                                                    setPendingCsvFile({ file: f, columnInfo: cols });
+                                                    return; // handle one at a time
+                                                }
+                                            }
+                                            // No multi-column files, add all directly
+                                            handleFieldChange('stimulusFiles', [...formData.stimulusFiles, ...valid]);
+                                        };
+                                        void processFiles();
                                     }
                                 } else {
                                     handleFieldChange('stimulusFiles', [...formData.stimulusFiles, ...files]);
@@ -587,6 +606,20 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                         />
                     </div>
                     
+                    {pendingCsvFile && (
+                        <CsvColumnSelector
+                            fileName={pendingCsvFile.file.name}
+                            columnInfo={pendingCsvFile.columnInfo}
+                            onSelect={(colIndex) => {
+                                const file = pendingCsvFile.file;
+                                setCsvColumnSelections(prev => ({ ...prev, [file.name]: colIndex }));
+                                handleFieldChange('stimulusFiles', [...formData.stimulusFiles, file]);
+                                setPendingCsvFile(null);
+                            }}
+                            onCancel={() => setPendingCsvFile(null)}
+                        />
+                    )}
+
                     {formData.stimulusFiles.length > 0 && (
                         <div className="space-y-2">
                             <h4 className="text-sm font-medium text-gray-700">
@@ -603,7 +636,14 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
-                                                <p className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                                <p className="text-xs text-gray-500">
+                                                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                                                    {csvColumnSelections[file.name] !== undefined && (
+                                                        <span className="ml-1.5 text-blue-600">
+                                                            · Column {csvColumnSelections[file.name] + 1}
+                                                        </span>
+                                                    )}
+                                                </p>
                                             </div>
                                         </div>
                                         <button

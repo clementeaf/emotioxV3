@@ -9,21 +9,54 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 // Disable external worker to avoid CSP issues — uses built-in fake worker
 GlobalWorkerOptions.workerSrc = '';
 
+export interface CsvColumnInfo {
+    headers: string[];
+    preview: string[][]; // first 5 rows × all columns
+    totalRows: number;
+}
+
+/**
+ * Detects columns in a CSV/Excel file. Returns headers, preview rows, and total count.
+ * Returns null for non-tabular files or files with only 1 column.
+ */
+export const detectCsvColumns = async (file: File): Promise<CsvColumnInfo | null> => {
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!['.csv', '.xlsx', '.xls'].includes(ext)) return null;
+
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    if (rows.length < 2) return null;
+
+    // Column count = max width across all rows (header + data), since sparse arrays vary in length
+    const colCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+    if (colCount <= 1) return null;
+
+    const headers = Array.from({ length: colCount }, (_, i) => String(rows[0][i] ?? '').trim());
+    const dataRows = rows.slice(1);
+    const preview = dataRows.slice(0, 5).map(row =>
+        Array.from({ length: colCount }, (_, ci) => String(row[ci] ?? '').trim())
+    );
+
+    return { headers, preview, totalRows: dataRows.length };
+};
+
 /**
  * Extracts text lines from a file.
+ * For CSV/Excel with multiple columns, pass columnIndex to select which column to parse.
  * Returns an array of non-empty text strings.
  */
-export const parseDocument = async (file: File): Promise<string[]> => {
+export const parseDocument = async (file: File, columnIndex?: number): Promise<string[]> => {
     const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
 
     switch (ext) {
         case '.txt':
             return parseTxt(file);
         case '.csv':
-            return parseCsv(file);
         case '.xlsx':
         case '.xls':
-            return parseExcel(file);
+            return parseSpreadsheet(file, columnIndex);
         case '.docx':
             return parseDocx(file);
         case '.pdf':
@@ -43,26 +76,14 @@ const parseTxt = async (file: File): Promise<string[]> => {
     return content.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
 };
 
-/** CSV: first column of each row (skip header) */
-const parseCsv = async (file: File): Promise<string[]> => {
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    // Skip header, take first column
-    return rows.slice(1)
-        .map(row => String(row[0] ?? '').trim())
-        .filter(text => text.length > 0);
-};
-
-/** Excel (.xlsx/.xls): first column of first sheet (skip header) */
-const parseExcel = async (file: File): Promise<string[]> => {
+/** CSV/Excel: selected column of first sheet (skip header). Defaults to column 0. */
+const parseSpreadsheet = async (file: File, columnIndex = 0): Promise<string[]> => {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
     return rows.slice(1)
-        .map(row => String(row[0] ?? '').trim())
+        .map(row => String(row[columnIndex] ?? '').trim())
         .filter(text => text.length > 0);
 };
 

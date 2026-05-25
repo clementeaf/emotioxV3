@@ -4,7 +4,8 @@ import { Upload } from 'lucide-react';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { mediaService } from '../../services/media.service';
-import { parseDocument } from '../../utils/documentParser';
+import { parseDocument, detectCsvColumns, type CsvColumnInfo } from '../../utils/documentParser';
+import { CsvColumnSelector } from './CsvColumnSelector';
 import { cn } from '../../lib/utils';
 
 interface InsightsAnalysis {
@@ -103,26 +104,36 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
 
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [pendingCsvFile, setPendingCsvFile] = useState<{ file: File; columnInfo: CsvColumnInfo } | null>(null);
+
+    const uploadSingleFile = useCallback(async (file: File, columnIndex?: number) => {
+        const MAX_ENTRIES = 200;
+        const MAX_TEXT_LENGTH = 500;
+        const { mediaId } = await mediaService.uploadFile(research.id, file);
+        const texts = await parseDocument(file, columnIndex);
+        const totalCount = texts.length;
+        const capped = texts.slice(0, MAX_ENTRIES);
+        const entries = capped.map(text => ({
+            text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text,
+            mood: 'indeterminate',
+        }));
+        return { mediaId, name: file.name, entries, totalCount, processedAt: new Date().toISOString() } as FileItem;
+    }, [research.id]);
 
     const handleFileUpload = useCallback(async (selectedFiles: FileList | null) => {
         if (!selectedFiles || selectedFiles.length === 0) return;
-        const MAX_ENTRIES = 200;
-        const MAX_TEXT_LENGTH = 500;
         setIsUploading(true);
         try {
             const newFiles: FileItem[] = [];
             for (const file of Array.from(selectedFiles)) {
-                // Upload media
-                const { mediaId } = await mediaService.uploadFile(research.id, file);
-                // Parse client-side
-                const texts = await parseDocument(file);
-                const totalCount = texts.length;
-                const capped = texts.slice(0, MAX_ENTRIES);
-                const entries = capped.map(text => ({
-                    text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text,
-                    mood: 'indeterminate',
-                }));
-                newFiles.push({ mediaId, name: file.name, entries, totalCount, processedAt: new Date().toISOString() });
+                // Check if CSV/Excel has multiple columns
+                const cols = await detectCsvColumns(file);
+                if (cols) {
+                    setPendingCsvFile({ file, columnInfo: cols });
+                    setIsUploading(false);
+                    return; // handle one at a time via selector
+                }
+                newFiles.push(await uploadSingleFile(file));
             }
             const existingIds = new Set(files.map(f => f.mediaId));
             const merged = [...files, ...newFiles.filter(f => !existingIds.has(f.mediaId))];
@@ -136,7 +147,27 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
-    }, [files, research.id, research.settings, queryClient]);
+    }, [files, research.id, research.settings, queryClient, uploadSingleFile]);
+
+    const handleCsvColumnSelected = useCallback(async (columnIndex: number) => {
+        if (!pendingCsvFile) return;
+        setIsUploading(true);
+        setPendingCsvFile(null);
+        try {
+            const newFile = await uploadSingleFile(pendingCsvFile.file, columnIndex);
+            const existingIds = new Set(files.map(f => f.mediaId));
+            const merged = existingIds.has(newFile.mediaId) ? files : [...files, newFile];
+            await researchService.update(research.id, {
+                settings: { ...(research.settings as Record<string, unknown> || {}), stimuli: merged },
+            });
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } catch (err) {
+            console.error('[InsightsFinding] CSV upload failed:', err);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    }, [pendingCsvFile, files, research.id, research.settings, queryClient, uploadSingleFile]);
 
     const handleSelectAll = () => {
         const entries = activeFile?.entries || [];
@@ -202,6 +233,20 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                     </button>
                 </div>
             </div>
+
+            {pendingCsvFile && (
+                <div className="border rounded-lg bg-white p-4">
+                    <CsvColumnSelector
+                        fileName={pendingCsvFile.file.name}
+                        columnInfo={pendingCsvFile.columnInfo}
+                        onSelect={(colIndex) => void handleCsvColumnSelected(colIndex)}
+                        onCancel={() => {
+                            setPendingCsvFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                    />
+                </div>
+            )}
 
             {hasEntries ? (
                 <div className="border rounded-lg bg-white overflow-hidden">

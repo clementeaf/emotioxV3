@@ -1,3 +1,12 @@
+## v0.73.4 — Insights Finding: CSV column selector (2026-05-25)
+
+### research-frontend
+- **CSV column selector.** When uploading a CSV or Excel file with multiple columns, a column picker appears showing headers and a 5-row preview. User selects which column contains the text to analyze. Applied to both research creation drawer and the "Add files" flow in `InsightsFindingView`.
+- **Robust column detection.** `detectCsvColumns` computes column count from the widest row across the entire file, not just the header — fixes sparse XLSX arrays hiding columns.
+- **Unified spreadsheet parser.** Merged duplicate `parseCsv` / `parseExcel` into single `parseSpreadsheet` function accepting optional `columnIndex`.
+
+---
+
 ## v0.73.3 — Visit grouping, duration accuracy, font proxy (2026-05-22)
 
 ### backend
