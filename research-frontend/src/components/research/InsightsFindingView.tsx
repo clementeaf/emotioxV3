@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Upload, ChevronDown, RotateCw } from 'lucide-react';
+import { Upload, RotateCw, Settings2 } from 'lucide-react';
+import { Drawer } from '../ui/Drawer';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { mediaService } from '../../services/media.service';
@@ -273,6 +274,18 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
             <div className="flex items-start justify-between">
                 <h3 className="text-base font-semibold text-gray-900">Insights finding research</h3>
                 <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setIsPromptOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
+                        title="Edit analysis prompt"
+                    >
+                        <Settings2 className="w-3.5 h-3.5" />
+                        Prompt
+                        {savedPrompt && (
+                            <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Custom</span>
+                        )}
+                    </button>
                     <label className={cn(
                         'cursor-pointer flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
                         isUploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
@@ -303,53 +316,43 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                 </div>
             </div>
 
-            {/* Analysis Prompt — collapsible editor */}
-            <div className="border rounded-lg bg-white overflow-hidden">
-                <button
-                    type="button"
-                    onClick={() => setIsPromptOpen(prev => !prev)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors"
-                >
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">Analysis Prompt</span>
-                        {savedPrompt && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">Custom</span>
-                        )}
+            {/* Analysis Prompt Drawer */}
+            <Drawer
+                isOpen={isPromptOpen}
+                onClose={() => setIsPromptOpen(false)}
+                title="Analysis Prompt"
+                width="lg"
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-500">
+                        Customize the system prompt sent to the LLM for analysis. Changes apply to future analyses only.
+                    </p>
+                    <textarea
+                        value={promptDraft}
+                        onChange={e => setPromptDraft(e.target.value)}
+                        rows={20}
+                        className="w-full text-sm text-gray-700 border rounded-md p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                    />
+                    <div className="flex items-center justify-between pt-2">
+                        <button
+                            type="button"
+                            onClick={handleResetPrompt}
+                            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                        >
+                            <RotateCw className="w-3.5 h-3.5" />
+                            Reset to default
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!isPromptModified || isSavingPrompt}
+                            onClick={() => { void handleSavePrompt(); setIsPromptOpen(false); }}
+                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isSavingPrompt ? 'Saving...' : 'Save prompt'}
+                        </button>
                     </div>
-                    <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', isPromptOpen && 'rotate-180')} />
-                </button>
-                {isPromptOpen && (
-                    <div className="px-4 pb-4 space-y-3 border-t">
-                        <p className="text-xs text-gray-500 pt-3">
-                            Customize the system prompt sent to the LLM for analysis. Changes apply to future analyses only.
-                        </p>
-                        <textarea
-                            value={promptDraft}
-                            onChange={e => setPromptDraft(e.target.value)}
-                            rows={12}
-                            className="w-full text-xs text-gray-700 border rounded-md p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
-                        />
-                        <div className="flex items-center justify-between">
-                            <button
-                                type="button"
-                                onClick={handleResetPrompt}
-                                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                                <RotateCw className="w-3 h-3" />
-                                Reset to default
-                            </button>
-                            <button
-                                type="button"
-                                disabled={!isPromptModified || isSavingPrompt}
-                                onClick={() => void handleSavePrompt()}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                            >
-                                {isSavingPrompt ? 'Saving...' : 'Save prompt'}
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                </div>
+            </Drawer>
 
             {pendingCsvFile && (
                 <div className="border rounded-lg bg-white p-4">
