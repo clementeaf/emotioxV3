@@ -82,7 +82,6 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [activeTab, setActiveTab] = useState<TabId>('sentiment');
-    const [selectedComments, setSelectedComments] = useState<number[]>([]);
     const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set());
     const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -241,11 +240,6 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
         }
     }, [pendingCsvFile, files, research.id, research.settings, queryClient, uploadSingleFile]);
 
-    const handleSelectAll = () => {
-        const entries = activeFile?.entries || [];
-        setSelectedComments(prev => prev.length === entries.length ? [] : entries.map((_, i) => i));
-    };
-
     if (!activeFile) {
         return (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -382,32 +376,14 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                         <div className="w-2/5 min-w-0 flex-shrink-0">
                             {/* Table header */}
                             <div className="flex items-center justify-between px-4 py-2 border-b bg-gray-50 text-xs text-gray-500">
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedComments.length === entries.length && entries.length > 0}
-                                        onChange={handleSelectAll}
-                                        className="rounded border-gray-300"
-                                    />
-                                    <span>Comment</span>
-                                </div>
+                                <span>Comment</span>
                                 <span>Mood</span>
                             </div>
                             {/* Entries */}
                             <div className="max-h-[500px] overflow-y-auto divide-y">
                                 {entries.map((entry, i) => (
                                     <div key={i} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedComments.includes(i)}
-                                                onChange={() => setSelectedComments(prev =>
-                                                    prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
-                                                )}
-                                                className="rounded border-gray-300 flex-shrink-0"
-                                            />
-                                            <span className="text-sm text-gray-700 truncate">{entry.text}</span>
-                                        </div>
+                                        <span className="text-sm text-gray-700 truncate flex-1 min-w-0 mr-3">{entry.text}</span>
                                         <span className={cn(
                                             'text-xs font-medium px-2 py-0.5 rounded-full capitalize flex-shrink-0 ml-3',
                                             MOOD_COLORS[entry.mood] || MOOD_COLORS.indeterminate
