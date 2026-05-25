@@ -129,6 +129,8 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **Themes tab (v0.73.4)**: Percentage bar + count per theme. Click expands `supportingQuotes` verbatims (smooth grid-rows accordion). `InsightsAnalysis` type includes `supportingQuotes`.
 - **Keywords tab (v0.73.4)**: Click keyword chip → filtered comments table below. Accent-insensitive + mojibake-aware matching.
 - **Drawer transition (v0.73.4)**: Drawer component has 300ms slide + overlay fade. Mount/visible state separation for exit animation. Global.
+- **Attention Prediction custom prompt (v0.73.4)**: "Prompt" button in `AttentionPredictionView` opens Drawer. Saved to `config.attentionPrompt`. Backend `analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile, customPrompt?)`.
+- **AOI drawing fixes (v0.73.4)**: `getMousePercent` clamps coordinates 0-100%. Document-level mouseMove/mouseUp handlers prevent stuck drawing on mouse escape. `preventDefault` on mouseDown avoids image drag. `overflow-hidden` removed from AOI container to prevent image clipping.
 - **Benchmark research editor**: `ClientsBenchmarkView` has "Edit selection" panel — checkboxes for all ET researches. Saves to `config.stimuli[].researchId`. Live refresh.
 - **Benchmark CSV export**: "Export CSV" button on comparative table.
 - **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.

@@ -1,17 +1,18 @@
-## v0.73.4 — Insights Finding overhaul (2026-05-25)
+## v0.73.4 — Insights Finding overhaul, editable prompts, AOI fixes (2026-05-25)
 
 ### backend
-- **Specialized analysis prompt.** Default prompt rewritten for consumer neuroscience / neuromarketing — structured output: executive synthesis, neurological analysis, business insights, prioritized recommendations.
-- **Custom prompt support.** `analyzeInsights` accepts optional `customPrompt`. Controller reads `config.insightsPrompt` per research. max_tokens raised to 3000.
+- **Specialized analysis prompt.** Insights Finding default prompt rewritten for consumer neuroscience / neuromarketing — structured output: executive synthesis, neurological analysis, business insights, prioritized recommendations. max_tokens raised to 3000.
+- **Custom prompt support.** Both `analyzeInsights` and `analyzeAttentionWithAI` accept optional `customPrompt`. Controllers read `config.insightsPrompt` and `config.attentionPrompt` per research.
 
 ### research-frontend
 - **CSV column selector.** Multi-column CSV/Excel shows a column picker with headers and 5-row preview. User picks which column to analyze. Applied in creation drawer and `InsightsFindingView`.
 - **Mojibake repair.** `repairMojibake()` in `documentParser.ts` fixes UTF-8→Latin-1 encoding (diseÃ±o → diseño) at parse time. Keyword matching also normalizes diacritics for existing data.
-- **Prompt editor.** "Prompt" button next to "Add files" opens a Drawer with editable textarea, reset to default, and save. "Custom" badge when modified. Saved to `config.insightsPrompt`.
+- **Editable prompts.** "Prompt" button opens a Drawer with editable textarea, reset to default, and save. Applied to both Insights Finding (`config.insightsPrompt`) and Attention Prediction (`config.attentionPrompt`). "Custom" badge when modified.
 - **Themes: percentage + verbatims.** Each theme shows a percentage bar and count. Click expands supporting quotes (smooth CSS grid-rows accordion).
-- **Keywords: comment filter.** Click a keyword chip to see all matching comments below. Accent-insensitive matching with mojibake repair.
+- **Keywords: comment filter.** Click a keyword chip → filtered comments table below. Accent-insensitive + mojibake-aware matching.
 - **Smooth Drawer transition.** Drawer component animates slide-in/out (300ms) with overlay fade. Applies globally.
-- **Removed unused checkboxes.** Comments table no longer has select checkboxes — analysis runs on all entries automatically.
+- **AOI Editor fixes.** Removed `overflow-hidden` that clipped images. Drawing coordinates clamped to 0-100%. Global document-level mouse handlers prevent stuck drawing when cursor leaves the container mid-drag.
+- **Removed unused checkboxes.** Insights Finding comments table cleaned up — analysis runs on all entries automatically.
 
 ---
 
