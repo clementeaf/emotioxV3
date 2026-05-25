@@ -1017,7 +1017,7 @@ export const AttentionPredictionCard = ({
                                 <div
                                     ref={aoiContainerRef}
                                     className={cn(
-                                        'rounded-lg border bg-gray-100 relative overflow-hidden',
+                                        'rounded-lg border bg-gray-100 relative',
                                         drawingAoi && 'cursor-crosshair'
                                     )}
                                     onMouseDown={drawingAoi ? (e) => {
