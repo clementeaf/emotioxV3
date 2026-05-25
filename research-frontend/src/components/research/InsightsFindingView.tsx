@@ -535,8 +535,14 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                 {/* Keywords tab */}
                                 {activeTab === 'keywords' && (() => {
                                     const kwList = analysis?.keywords || [];
-                                    const normalize = (s: string) =>
-                                        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                                    const normalize = (s: string) => {
+                                        // Repair common UTF-8→Latin-1 mojibake (Spanish)
+                                        const repaired = s
+                                            .replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
+                                            .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã±/g, 'ñ')
+                                            .replace(/Ã¼/g, 'ü').replace(/Ã'/g, 'Ñ');
+                                        return repaired.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                                    };
                                     const needle = selectedKeyword ? normalize(selectedKeyword) : '';
                                     const matchingEntries = selectedKeyword
                                         ? entries.filter(e => normalize(e.text).includes(needle))
