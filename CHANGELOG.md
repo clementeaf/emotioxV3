@@ -1,15 +1,17 @@
-## v0.73.4 — Insights Finding: CSV column selector, custom analysis prompt (2026-05-25)
+## v0.73.4 — Insights Finding overhaul (2026-05-25)
 
 ### backend
-- **Specialized analysis prompt.** Default Insights Finding prompt rewritten for consumer neuroscience / neuromarketing — structured output with executive synthesis, neurological analysis, business insights, and prioritized recommendations.
-- **Custom prompt support.** `analyzeInsights` accepts optional `customPrompt` parameter. Controller reads `config.insightsPrompt` from research settings and passes it to the service. Empty or default = uses built-in prompt.
-- **Increased max_tokens.** LLM response cap raised from 2000 to 3000 to accommodate the richer analysis structure.
+- **Specialized analysis prompt.** Default prompt rewritten for consumer neuroscience / neuromarketing — structured output: executive synthesis, neurological analysis, business insights, prioritized recommendations.
+- **Custom prompt support.** `analyzeInsights` accepts optional `customPrompt`. Controller reads `config.insightsPrompt` per research. max_tokens raised to 3000.
 
 ### research-frontend
-- **CSV column selector.** When uploading a CSV or Excel file with multiple columns, a column picker appears showing headers and a 5-row preview. User selects which column contains the text to analyze. Applied to both research creation drawer and the "Add files" flow in `InsightsFindingView`.
-- **Robust column detection.** `detectCsvColumns` computes column count from the widest row across the entire file, not just the header — fixes sparse XLSX arrays hiding columns.
-- **Unified spreadsheet parser.** Merged duplicate `parseCsv` / `parseExcel` into single `parseSpreadsheet` function accepting optional `columnIndex`.
-- **Prompt editor.** Collapsible "Analysis Prompt" panel in `InsightsFindingView`. Textarea pre-filled with default prompt, editable per research. "Custom" badge when modified. "Reset to default" button. Saved to `research.settings.insightsPrompt`. Changes apply to future analyses only.
+- **CSV column selector.** Multi-column CSV/Excel shows a column picker with headers and 5-row preview. User picks which column to analyze. Applied in creation drawer and `InsightsFindingView`.
+- **Mojibake repair.** `repairMojibake()` in `documentParser.ts` fixes UTF-8→Latin-1 encoding (diseÃ±o → diseño) at parse time. Keyword matching also normalizes diacritics for existing data.
+- **Prompt editor.** "Prompt" button next to "Add files" opens a Drawer with editable textarea, reset to default, and save. "Custom" badge when modified. Saved to `config.insightsPrompt`.
+- **Themes: percentage + verbatims.** Each theme shows a percentage bar and count. Click expands supporting quotes (smooth CSS grid-rows accordion).
+- **Keywords: comment filter.** Click a keyword chip to see all matching comments below. Accent-insensitive matching with mojibake repair.
+- **Smooth Drawer transition.** Drawer component animates slide-in/out (300ms) with overlay fade. Applies globally.
+- **Removed unused checkboxes.** Comments table no longer has select checkboxes — analysis runs on all entries automatically.
 
 ---
 
