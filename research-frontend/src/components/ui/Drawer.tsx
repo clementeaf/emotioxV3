@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
@@ -38,6 +38,26 @@ export const Drawer = ({
     closeOnEscape = true,
     className,
 }: DrawerProps) => {
+    // Keep mounted during exit transition
+    const [mounted, setMounted] = useState(false);
+    const [visible, setVisible] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setMounted(true);
+            // Trigger enter animation on next frame
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => setVisible(true));
+            });
+        } else {
+            setVisible(false);
+        }
+    }, [isOpen]);
+
+    const handleTransitionEnd = useCallback(() => {
+        if (!visible) setMounted(false);
+    }, [visible]);
+
     useEffect(() => {
         if (!isOpen || !closeOnEscape) return;
         const handleEscape = (e: KeyboardEvent): void => {
@@ -56,7 +76,7 @@ export const Drawer = ({
         return () => { document.body.style.overflow = ''; };
     }, [isOpen]);
 
-    if (!isOpen) return null;
+    if (!mounted) return null;
 
     const handleOverlayClick = (): void => {
         if (closeOnOverlayClick) onClose();
@@ -69,19 +89,26 @@ export const Drawer = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby={title ? 'drawer-title' : undefined}
+            onTransitionEnd={handleTransitionEnd}
         >
-            {/* Overlay — click to close */}
+            {/* Overlay */}
             <div
-                className="absolute inset-0 bg-black/40 transition-opacity"
+                className={cn(
+                    'absolute inset-0 bg-black/40 transition-opacity duration-300 ease-in-out',
+                    visible ? 'opacity-100' : 'opacity-0'
+                )}
                 onClick={handleOverlayClick}
             />
 
             {/* Panel */}
             <div
                 className={cn(
-                    'relative ml-auto flex h-full w-full flex-col bg-white shadow-xl',
+                    'relative ml-auto flex h-full w-full flex-col bg-white shadow-xl transition-transform duration-300 ease-in-out',
                     widthClasses[width],
                     side === 'left' && 'ml-0 mr-auto',
+                    side === 'right'
+                        ? (visible ? 'translate-x-0' : 'translate-x-full')
+                        : (visible ? 'translate-x-0' : '-translate-x-full'),
                     className
                 )}
                 onClick={(e) => e.stopPropagation()}
