@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Upload, RotateCw, Settings2 } from 'lucide-react';
+import { Upload, RotateCw, Settings2, ChevronDown, MessageSquareQuote } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
@@ -11,7 +11,7 @@ import { cn } from '../../lib/utils';
 
 interface InsightsAnalysis {
     sentiment: { summary: string; description: string; actionables: string[] };
-    themes: Array<{ name: string; count: number; description: string }>;
+    themes: Array<{ name: string; count: number; description: string; supportingQuotes?: string[] }>;
     keywords: Array<{ word: string; count: number; sentiment: string }>;
 }
 
@@ -83,6 +83,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [activeTab, setActiveTab] = useState<TabId>('sentiment');
     const [selectedComments, setSelectedComments] = useState<number[]>([]);
+    const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set());
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const triggeredRef = useRef<string | null>(null); // prevent re-trigger loop
 
@@ -474,24 +475,78 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                 )}
 
                                 {/* Themes tab */}
-                                {activeTab === 'themes' && (
-                                    <div className="space-y-3">
-                                        <h5 className="font-semibold text-sm text-gray-900">Themes</h5>
-                                        {analysis?.themes && analysis.themes.length > 0 ? (
-                                            analysis.themes.map((theme, i) => (
-                                                <div key={i} className="p-3 bg-gray-50 rounded-lg">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <span className="text-sm font-medium text-gray-900">{theme.name}</span>
-                                                        <span className="text-xs text-gray-500">{theme.count} mentions</span>
-                                                    </div>
-                                                    <p className="text-xs text-gray-600">{theme.description}</p>
-                                                </div>
-                                            ))
-                                        ) : !isAnalyzing ? (
-                                            <p className="text-sm text-gray-400">No themes data available yet.</p>
-                                        ) : null}
-                                    </div>
-                                )}
+                                {activeTab === 'themes' && (() => {
+                                    const themes = analysis?.themes || [];
+                                    const totalMentions = themes.reduce((sum, t) => sum + t.count, 0);
+                                    return (
+                                        <div className="space-y-3">
+                                            <h5 className="font-semibold text-sm text-gray-900">Themes</h5>
+                                            {themes.length > 0 ? (
+                                                themes.map((theme, i) => {
+                                                    const pct = totalMentions > 0 ? Math.round((theme.count / totalMentions) * 100) : 0;
+                                                    const hasQuotes = theme.supportingQuotes && theme.supportingQuotes.length > 0;
+                                                    const isExpanded = expandedThemes.has(i);
+                                                    return (
+                                                        <div key={i} className="bg-gray-50 rounded-lg overflow-hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => hasQuotes && setExpandedThemes(prev => {
+                                                                    const next = new Set(prev);
+                                                                    if (next.has(i)) next.delete(i); else next.add(i);
+                                                                    return next;
+                                                                })}
+                                                                className={cn(
+                                                                    'w-full text-left p-3',
+                                                                    hasQuotes && 'cursor-pointer hover:bg-gray-100 transition-colors'
+                                                                )}
+                                                            >
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm font-medium text-gray-900">{theme.name}</span>
+                                                                        {hasQuotes && (
+                                                                            <ChevronDown className={cn(
+                                                                                'w-3.5 h-3.5 text-gray-400 transition-transform',
+                                                                                isExpanded && 'rotate-180'
+                                                                            )} />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-semibold text-blue-600">{pct}%</span>
+                                                                        <span className="text-xs text-gray-500">{theme.count} mentions</span>
+                                                                    </div>
+                                                                </div>
+                                                                {/* Percentage bar */}
+                                                                <div className="w-full h-1.5 bg-gray-200 rounded-full mb-2">
+                                                                    <div
+                                                                        className="h-full bg-blue-500 rounded-full transition-all"
+                                                                        style={{ width: `${pct}%` }}
+                                                                    />
+                                                                </div>
+                                                                <p className="text-xs text-gray-600">{theme.description}</p>
+                                                            </button>
+                                                            {/* Verbatims */}
+                                                            {isExpanded && hasQuotes && (
+                                                                <div className="px-3 pb-3 space-y-1.5 border-t border-gray-200 pt-2">
+                                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                                        <MessageSquareQuote className="w-3 h-3 text-gray-400" />
+                                                                        <span className="text-[11px] font-medium text-gray-500">Supporting quotes</span>
+                                                                    </div>
+                                                                    {theme.supportingQuotes!.map((quote, qi) => (
+                                                                        <p key={qi} className="text-xs text-gray-600 italic pl-3 border-l-2 border-blue-200">
+                                                                            "{quote}"
+                                                                        </p>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })
+                                            ) : !isAnalyzing ? (
+                                                <p className="text-sm text-gray-400">No themes data available yet.</p>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Keywords tab */}
                                 {activeTab === 'keywords' && (
