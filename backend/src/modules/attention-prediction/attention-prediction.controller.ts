@@ -400,7 +400,8 @@ export const handleAttentionPredictionRoutes = async (
             // Fire-and-forget: run analysis in background
             (async () => {
                 try {
-                    const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile);
+                    const customPrompt = typeof config.attentionPrompt === 'string' ? config.attentionPrompt : undefined;
+                    const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile, customPrompt);
 
                     // Save result
                     const freshResult = await pool.query(

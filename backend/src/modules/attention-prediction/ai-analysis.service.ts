@@ -24,11 +24,14 @@ const hasOpenAI = () => Boolean(process.env.OPENAI_API_KEY);
 
 // ─── Shared prompt ──────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an expert in visual attention analysis, UX design, and neuro-design principles (Gestalt, cognitive load, visual hierarchy). You analyze images to predict where users will look, how attention flows, and provide actionable design recommendations.
+export const DEFAULT_ATTENTION_PROMPT = `You are an expert in visual attention analysis, UX design, and neuro-design principles (Gestalt, cognitive load, visual hierarchy). You analyze images to predict where users will look, how attention flows, and provide actionable design recommendations.
 
 You combine saliency map data (from a computational model) with your visual analysis expertise to produce structured, precise reports.
 
 Always respond with valid JSON matching the exact schema provided. All coordinate values must be percentages (0-100) relative to the image dimensions. Respond in the SAME LANGUAGE as any text visible in the image (Spanish if Spanish content, English if English, etc.).`;
+
+/** Active system prompt — uses custom if set, default otherwise */
+let activeSystemPrompt = DEFAULT_ATTENTION_PROMPT;
 
 const buildUserPrompt = (
     heatmapSummary: string,
@@ -172,7 +175,7 @@ const analyzeWithGemini = async (
 
     const model = client.getGenerativeModel({
         model: GEMINI_MODEL,
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: activeSystemPrompt,
         generationConfig: {
             responseMimeType: 'application/json',
             maxOutputTokens: 4000,
@@ -205,7 +208,7 @@ const analyzeWithOpenAI = async (
         max_tokens: 4000,
         response_format: { type: 'json_object' },
         messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: activeSystemPrompt },
             {
                 role: 'user',
                 content: [
@@ -538,7 +541,8 @@ export const analyzeAttentionWithAI = async (
     imagePath: string,
     heatmapData: Array<{ x: number; y: number; value: number }>,
     fileName: string,
-    profile?: AnalysisProfile
+    profile?: AnalysisProfile,
+    customPrompt?: string
 ): Promise<AiAnalysisResult> => {
     if (!hasGemini() && !hasOpenAI()) {
         throw new Error('No AI API key configured (GEMINI_API_KEY or OPENAI_API_KEY)');
@@ -547,6 +551,9 @@ export const analyzeAttentionWithAI = async (
     if (!fs.existsSync(imagePath)) {
         throw new Error(`Image not found: ${imagePath}`);
     }
+
+    // Set active prompt for this analysis run
+    activeSystemPrompt = (customPrompt && customPrompt.trim()) || DEFAULT_ATTENTION_PROMPT;
 
     const { base64, mimeType } = await imageToBase64(imagePath);
     const heatmapSummary = summarizeHeatmap(heatmapData);

@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { PanelRightOpen, PanelRightClose, Sparkles } from 'lucide-react';
+import { PanelRightOpen, PanelRightClose, Sparkles, Settings2, RotateCw } from 'lucide-react';
+import { Drawer } from '../ui/Drawer';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
@@ -42,6 +43,12 @@ interface AttentionPredictionViewProps {
     stimulusId: string;
 }
 
+const DEFAULT_ATTENTION_PROMPT = `You are an expert in visual attention analysis, UX design, and neuro-design principles (Gestalt, cognitive load, visual hierarchy). You analyze images to predict where users will look, how attention flows, and provide actionable design recommendations.
+
+You combine saliency map data (from a computational model) with your visual analysis expertise to produce structured, precise reports.
+
+Always respond with valid JSON matching the exact schema provided. All coordinate values must be percentages (0-100) relative to the image dimensions. Respond in the SAME LANGUAGE as any text visible in the image (Spanish if Spanish content, English if English, etc.).`;
+
 /**
  * View for Attention Prediction — upload stimuli and view AI-generated analysis.
  * After upload, automatically triggers AI analysis via backend (Gemini/GPT-4o Vision).
@@ -54,6 +61,35 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
     const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
+
+    // Prompt editor state
+    const [isPromptOpen, setIsPromptOpen] = useState(false);
+    const [promptDraft, setPromptDraft] = useState('');
+    const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+
+    const savedPrompt = useMemo(() => {
+        const settings = research.settings as Record<string, unknown> | undefined;
+        return (typeof settings?.attentionPrompt === 'string' ? settings.attentionPrompt : '') as string;
+    }, [research.settings]);
+
+    useEffect(() => {
+        setPromptDraft(savedPrompt || DEFAULT_ATTENTION_PROMPT);
+    }, [savedPrompt]);
+
+    const handleSavePrompt = useCallback(async () => {
+        setIsSavingPrompt(true);
+        try {
+            const value = promptDraft.trim() === DEFAULT_ATTENTION_PROMPT.trim() ? '' : promptDraft.trim();
+            await researchService.update(research.id, {
+                settings: { ...(research.settings as Record<string, unknown> || {}), attentionPrompt: value },
+            });
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } finally {
+            setIsSavingPrompt(false);
+        }
+    }, [promptDraft, research.id, research.settings, queryClient]);
+
+    const isPromptModified = promptDraft.trim() !== (savedPrompt || DEFAULT_ATTENTION_PROMPT).trim();
 
     // Analysis profile — stored in research settings for persistence
     const [analysisProfile, setAnalysisProfile] = useState<AnalysisProfile>(() => {
@@ -144,7 +180,60 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         <div className="flex h-full overflow-hidden">
             {/* Left: main content area (scrollable) */}
             <div className="flex-1 min-w-0 p-6 space-y-4 overflow-y-auto">
-                {/* Analysis — main content when a stimulus is selected */}
+                {/* Prompt button */}
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={() => setIsPromptOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
+                        title="Edit analysis prompt"
+                    >
+                        <Settings2 className="w-3.5 h-3.5" />
+                        Prompt
+                        {savedPrompt && (
+                            <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Custom</span>
+                        )}
+                    </button>
+                </div>
+
+                {/* Analysis Prompt Drawer */}
+                <Drawer
+                    isOpen={isPromptOpen}
+                    onClose={() => setIsPromptOpen(false)}
+                    title="Analysis Prompt"
+                    width="lg"
+                >
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-500">
+                            Customize the system prompt sent to the AI for image analysis. Changes apply to future analyses only.
+                        </p>
+                        <textarea
+                            value={promptDraft}
+                            onChange={e => setPromptDraft(e.target.value)}
+                            rows={20}
+                            className="w-full text-sm text-gray-700 border rounded-md p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+                        />
+                        <div className="flex items-center justify-between pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setPromptDraft(DEFAULT_ATTENTION_PROMPT)}
+                                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                                <RotateCw className="w-3.5 h-3.5" />
+                                Reset to default
+                            </button>
+                            <button
+                                type="button"
+                                disabled={!isPromptModified || isSavingPrompt}
+                                onClick={() => { void handleSavePrompt(); setIsPromptOpen(false); }}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isSavingPrompt ? 'Saving...' : 'Save prompt'}
+                            </button>
+                        </div>
+                    </div>
+                </Drawer>
+
                 {/* Analysis Profile — configurable target demographic */}
                 <AnalysisProfilePanel
                     profile={analysisProfile}
