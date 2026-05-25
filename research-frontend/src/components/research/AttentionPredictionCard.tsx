@@ -500,6 +500,41 @@ export const AttentionPredictionCard = ({
     const aoiContainerRef = useRef<HTMLDivElement>(null);
     const tabContentRef = useRef<HTMLDivElement>(null);
 
+    // Global mouse handlers for AOI drawing — works even when mouse leaves the container
+    useEffect(() => {
+        if (!drawingAoi || !aoiStart) return;
+        const container = aoiContainerRef.current;
+        if (!container) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const pos = getMousePercent(e, container);
+            setAoiCurrent({
+                x: Math.min(aoiStart.x, pos.x),
+                y: Math.min(aoiStart.y, pos.y),
+                w: Math.abs(pos.x - aoiStart.x),
+                h: Math.abs(pos.y - aoiStart.y),
+            });
+        };
+
+        const handleMouseUp = () => {
+            setAoiCurrent(prev => {
+                if (prev && prev.w > 1 && prev.h > 1) {
+                    addAoi(prev);
+                }
+                return null;
+            });
+            setAoiStart(null);
+            setDrawingAoi(false);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [drawingAoi, aoiStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
     // Load persisted AOIs from research settings
     useEffect(() => {
@@ -548,11 +583,11 @@ export const AttentionPredictionCard = ({
         }
     }, [researchId, stimulusMediaId]);
 
-    const getMousePercent = (e: React.MouseEvent, el: HTMLElement) => {
+    const getMousePercent = (e: React.MouseEvent | MouseEvent, el: HTMLElement) => {
         const rect = el.getBoundingClientRect();
         return {
-            x: ((e.clientX - rect.left) / rect.width) * 100,
-            y: ((e.clientY - rect.top) / rect.height) * 100,
+            x: Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)),
+            y: Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100)),
         };
     };
 
@@ -1021,29 +1056,13 @@ export const AttentionPredictionCard = ({
                                         drawingAoi && 'cursor-crosshair'
                                     )}
                                     onMouseDown={drawingAoi ? (e) => {
+                                        e.preventDefault();
                                         const container = aoiContainerRef.current;
                                         if (!container) return;
                                         const pos = getMousePercent(e, container);
                                         setAoiStart(pos);
                                         setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
                                     } : undefined}
-                                    onMouseMove={drawingAoi && aoiStart ? (e) => {
-                                        const container = aoiContainerRef.current;
-                                        if (!container) return;
-                                        const pos = getMousePercent(e, container);
-                                        setAoiCurrent({
-                                            x: Math.min(aoiStart.x, pos.x),
-                                            y: Math.min(aoiStart.y, pos.y),
-                                            w: Math.abs(pos.x - aoiStart.x),
-                                            h: Math.abs(pos.y - aoiStart.y),
-                                        });
-                                    } : undefined}
-                                    onMouseUp={drawingAoi && aoiCurrent && aoiCurrent.w > 1 && aoiCurrent.h > 1 ? () => {
-                                        addAoi(aoiCurrent);
-                                        setAoiStart(null);
-                                        setAoiCurrent(null);
-                                        setDrawingAoi(false);
-                                    } : () => { setAoiStart(null); setAoiCurrent(null); }}
                                 >
                                     <img src={imageUrl} alt={title} className="w-full block" />
                                     {/* AOI rectangles — CSS positioned to avoid viewBox distortion */}
