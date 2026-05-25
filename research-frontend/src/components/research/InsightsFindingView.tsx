@@ -535,8 +535,11 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                 {/* Keywords tab */}
                                 {activeTab === 'keywords' && (() => {
                                     const kwList = analysis?.keywords || [];
+                                    const normalize = (s: string) =>
+                                        s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                                    const needle = selectedKeyword ? normalize(selectedKeyword) : '';
                                     const matchingEntries = selectedKeyword
-                                        ? entries.filter(e => e.text.toLowerCase().includes(selectedKeyword.toLowerCase()))
+                                        ? entries.filter(e => normalize(e.text).includes(needle))
                                         : [];
                                     return (
                                         <div className="space-y-3">
