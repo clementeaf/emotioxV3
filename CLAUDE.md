@@ -1,27 +1,27 @@
 # CLAUDE.md
 
-## Al iniciar conversación
+## Al iniciar conversacion
 - Leer `BITACORA.md` y `CHANGELOG.md` para entender el estado actual y cambios recientes
-- Comunicarse en español
+- Comunicarse en espanol
 
 ## Project Overview
-EmotioX V3 — plataforma SaaS de investigación UX. Permite a investigadores crear estudios con stages: SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), Screener, Implicit Association (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking. Configurar demografía, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas vía URL/QR.
+EmotioX V3 — plataforma SaaS de investigacion UX. Permite a investigadores crear estudios con stages: SmartVOC (NPS, CSAT, CES, CV, NEV, VOC), Cognitive Tasks (Ranking, Single/Multiple Choice, Short/Long Text, Linear Scale, Navigation Flow, Preference Test), Screener, Implicit Association (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking. Configurar demografia, cuotas, y analizar resultados en tiempo real. Los participantes responden encuestas via URL/QR.
 
-### Técnica "Biometric, Cognitive and Predictive"
-Default stages: Screener → Welcome Screen → Research Configuration → Implicit Association → Cognitive Tasks → Eye Tracking → Thank You Screen.
+### Tecnica "Biometric, Cognitive and Predictive"
+Default stages: Screener -> Welcome Screen -> Research Configuration -> Implicit Association -> Cognitive Tasks -> Eye Tracking -> Thank You Screen.
 - **Screener** (`single_module`): pregunta de filtrado con choices Qualify/Disqualify.
 - **Implicit Association** (`module_collection`): 3 paradigmas:
-  - **Attribute Testing** (Implicit Priming Test, 2 pasos): 2-5 targets + hasta 5 criteria con `targetId`. Step 1 = práctica de targets. Step 2 = criteria como estímulo, respuesta correcta = target asignado. Hide criteria toggle, test-title interno.
+  - **Attribute Testing** (Implicit Priming Test, 2 pasos): 2-5 targets + hasta 5 criteria con `targetId`. Step 1 = practica de targets. Step 2 = criteria como estimulo, respuesta correcta = target asignado. Hide criteria toggle, test-title interno.
   - **Comparing Attribute** (Reaction Time Test, 1 paso): 1-5 objects + 2 dimensions + hasta 15 criteria. Botones = dimension labels. Solo RT.
-  - **Objects Comparing** (IAT clásico, 3 pasos): 2-7 targets + criteria-1/criteria-2 + hasta 15 criteria items. Clasificación en 3 pasos.
-  - Features: targets dinámicos, preview modal, flowchart reactivo, multi-lang instrucciones (EN/ES JSON).
-- **Eye Tracking** (`single_module`): stimuli (imágenes/video), modalidades Stand Alone y Shelf. Incluye Emotion Recognition y predicción de atención.
-- **Rendering genérico**: `ResearchBuilderPage` usa `module_collection` generalizada — todo lo que no sea Smart VOC usa `CognitiveTaskModuleCard`.
-- **Attention Prediction**: research type sin stages. TranSalNet ONNX genera heatmap, GPT-4o Vision genera análisis cualitativo. Predict síncrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). Inline controls (presets + sliders blur/opacity/threshold) + Settings modal para preview/download. `AttentionVideoPlayer` scanpath animado. AOIs manuales + auto-detectadas por IA (importables). `AiAnalysisPanel` con secciones colapsables: contexto, attention score (gauge SVG), confianza, AOIs auto, flujo de atención, gaze path predictivo, neuro-insights Gestalt, metodología. `GazePathOverlay` SVG con fijaciones numeradas. Resultados cacheados en `stimulus.aiAnalysis`. Upload siempre visible. Error state con retry.
-- **Insights Finding**: research type sin stages. Documentos (.csv, .txt, .xlsx, .docx, .pdf) → parseo client-side → GPT-4o analysis (sentiment/themes/keywords). Fire-and-forget + polling.
+  - **Objects Comparing** (IAT clasico, 3 pasos): 2-7 targets + criteria-1/criteria-2 + hasta 15 criteria items. Clasificacion en 3 pasos.
+  - Features: targets dinamicos, preview modal, flowchart reactivo, multi-lang instrucciones (EN/ES JSON).
+- **Eye Tracking** (`single_module`): stimuli (imagenes/video), modalidades Stand Alone y Shelf. Incluye Emotion Recognition y prediccion de atencion.
+- **Rendering generico**: `ResearchBuilderPage` usa `module_collection` generalizada — todo lo que no sea Smart VOC usa `CognitiveTaskModuleCard`.
+- **Attention Prediction**: research type sin stages. TranSalNet ONNX genera heatmap, GPT-4o Vision genera analisis cualitativo. Predict sincrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). AOIs manuales + auto-detectadas por IA (importables). `AiAnalysisPanel` con secciones colapsables. Resultados cacheados en `stimulus.aiAnalysis`. Upload siempre visible. Error state con retry.
+- **Insights Finding**: research type sin stages. Documentos (.csv, .txt, .xlsx, .docx, .pdf) -> parseo client-side -> GPT-4o analysis (sentiment/themes/keywords). Fire-and-forget + polling.
 - **`isFileBasedResearch`**: unifica Attention Prediction e Insights Finding (`skip_default_modules: true`).
-- **Custom Screening Questions**: preguntas de selección única con descalificación dentro de Demographics. Keys `customQuestion_<id>`, `questionLabel` editable.
-- **Condicionalidad**: 3 tipos — demográfica (`DemographicConditionality`), pregunta del estudio (`ModuleConditionality`), link con módulo (`LinkedModuleConditionality`). Evaluación recursiva con protección anti-loop.
+- **Custom Screening Questions**: preguntas de seleccion unica con descalificacion dentro de Demographics. Keys `customQuestion_<id>`, `questionLabel` editable.
+- **Condicionalidad**: 3 tipos — demografica (`DemographicConditionality`), pregunta del estudio (`ModuleConditionality`), link con modulo (`LinkedModuleConditionality`). Evaluacion recursiva con proteccion anti-loop.
 - **Duplicate research**: `POST /research/:id/duplicate` clona estudio completo como draft. Remap conditionality y media.
 
 ## Tech Stack
@@ -51,13 +51,13 @@ emotioxV3/
 - **Auth:** JWT en Zustand store con axios interceptor, Google OAuth
 - **Media:** Presigned S3 URLs (dev) o filesystem local (cPanel)
 - **Real-time:** SSE para SmartVOC analytics (`/monitor/events/:researchId`)
-- **Data:** JSONB para configs flexibles de módulos
+- **Data:** JSONB para configs flexibles de modulos
 
 ## Development
 ```bash
-cd backend && npm install && npm run dev          # tsx watch → localhost:3000
-cd research-frontend && npm install && npm run dev # Vite → localhost:5173
-cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
+cd backend && npm install && npm run dev          # tsx watch -> localhost:3000
+cd research-frontend && npm install && npm run dev # Vite -> localhost:5173
+cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 ```
 - **No hay backend local** — ambos frontends apuntan a `https://emotio.cx/api` incluso en dev
 - Backend usa `backend/.env` (symlink en root)
@@ -69,116 +69,49 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 - **No definir componentes React inline** dentro de switch/case o renders — extraer como componentes standalone
 - **URLs de media del backend son relativas** (`/api/media/...`) — frontends usan `resolveMediaUrl()` para absolutas
 - **ComponentType union** en `moduleBuilder.types.ts` debe incluir todos los tipos del seed/BD
-- El save de módulos usa el **toggle Hide explícito** del investigador, NO auto-calcula hidden
-- **Condicionalidad de módulos**: union `ConditionalityConfig`, type guards `isDemographicCondition()` / `isModuleCondition()` en `moduleRequired.ts`
-- **Cuotas demográficas**: siempre porcentaje (%), aplicación inmediata. Techo = `ceil(% × participantLimit / 100)`. `validateDemographics` → `tryIncrementQuota`. `saveParticipantResponses` no incrementa cuotas.
+- El save de modulos usa el **toggle Hide explicito** del investigador, NO auto-calcula hidden
+- **Condicionalidad de modulos**: union `ConditionalityConfig`, type guards `isDemographicCondition()` / `isModuleCondition()` en `moduleRequired.ts`
+- **Cuotas demograficas**: siempre porcentaje (%), aplicacion inmediata. Techo = `ceil(% x participantLimit / 100)`. `validateDemographics` -> `tryIncrementQuota`. `saveParticipantResponses` no incrementa cuotas.
 - **Bloqueo de participantes** 3 capas: (1) `checkQuotaPreAvailability` al cargar, (2) `validateDemographics` al enviar, (3) `saveParticipantResponses` al guardar (410). Frontend: `MobileRestrictionScreen`.
 - TypeScript strict en los 3 subproyectos. 0 errors, 0 warnings (enforced por pre-commit).
-- `Record<string, any>` solo donde genuinamente dinámico, marcado con eslint-disable
-- Commits en inglés, código en inglés, comentarios mixto. Branching: main (producción).
+- `Record<string, any>` solo donde genuinamente dinamico, marcado con eslint-disable
+- Commits en ingles, codigo en ingles, comentarios mixto. Branching: main (produccion).
 - **Backlink redirects**: reemplazan `@id` con participant ID, agregan `https://` si falta.
-- **CES scale**: participant lee `comp.value` primero, fallback `selectRange.predefined`. Pregunta "¿Qué tan fácil fue?" — score alto = fácil = positivo (verde), score bajo = difícil = negativo (rojo). Zones: escala 1-5 → positive [4,5], neutral [3,3], negative [1,2]. Solo CES, no CV ni Linear Scale.
-- **NEV emociones**: 20 canónicas. "Descontento" = negativa. Fila 1 = positivas (7), Fila 2 = atención (5), Fila 3 = negativas (8).
-- **CES analytics dinámico**: backend envía `scaleConfigs`, frontend usa `getCESZones(scaleMax)`.
-- **View Progress**: `getVisibleModuleIdsForProgress` con INNER JOIN stages. `panelStatus = 'responded'` → 100%. Sin completar → cap 99%. Filtro de progreso mínimo (slider 0-100%). Share: botón "Send Link" → Drawer con emails + "Copy link" → `/progress/:id` público read-only.
-- **Response saving**: `saveParticipantResponses` usa batch INSERT (1 query para N responses). Sin SELECTs post-INSERT. Sentiment se computa antes de abrir transacción.
+- **CES scale**: participant lee `comp.value` primero, fallback `selectRange.predefined`. Pregunta "Que tan facil fue?" — score alto = facil = positivo (verde), score bajo = dificil = negativo (rojo). Zones: escala 1-5 -> positive [4,5], neutral [3,3], negative [1,2]. Solo CES, no CV ni Linear Scale.
+- **NEV emociones**: 20 canonicas. "Descontento" = negativa. Fila 1 = positivas (7), Fila 2 = atencion (5), Fila 3 = negativas (8).
+- **CES analytics dinamico**: backend envia `scaleConfigs`, frontend usa `getCESZones(scaleMax)`.
+- **View Progress**: `getVisibleModuleIdsForProgress` con INNER JOIN stages. `panelStatus = 'responded'` -> 100%. Sin completar -> cap 99%. Filtro de progreso minimo (slider 0-100%).
+- **Response saving**: `saveParticipantResponses` usa batch INSERT (1 query para N responses). Sin SELECTs post-INSERT. Sentiment se computa antes de abrir transaccion.
 - **Analytics caching**: `getResearchConfiguration` (60s), `getParticipantCount` (10s), `getMediaUrlByS3Key` (5min client-side). Results wrappers usan `useResearch()` (React Query dedup).
-- **DB pool**: `connectionLimit: 20`. MySQL `max_user_connections = 50` (límite de hosting). Índice compuesto `idx_responses_research_module_component`.
-- **`/cognitive-tasks` payload**: módulos con endpoint propio (Nav Flow, Preference, Choice, Scale, Ranking) retornan solo COUNT — no responses completas. Short/Long Text sí traen `value` + sentiment.
+- **DB pool**: `connectionLimit: 20`. MySQL `max_user_connections = 50` (limite de hosting). Indice compuesto `idx_responses_research_module_component`.
+- **`/cognitive-tasks` payload**: modulos con endpoint propio (Nav Flow, Preference, Choice, Scale, Ranking) retornan solo COUNT — no responses completas. Short/Long Text si traen `value` + sentiment.
 - **Study Logo**: `config.studyLogo: { enabled, s3Key? }`. Client logo o EmotioCX default.
 - **Loading states**: skeleton (`animate-pulse`), nunca spinners.
 - **Design system**: spec en `docs/design-system/emotiox-palette.md`. Light-only: surface-app `#F1F5F9`, accent `#006AFF`, heading slate-900, body slate-500. Font: Plus Jakarta Sans (research), Inter (participant).
-- **Screener ordering**: special step. Orden fijo: `welcome → screener → demographics → resto → thank-you`.
+- **Screener ordering**: special step. Orden fijo: `welcome -> screener -> demographics -> resto -> thank-you`.
 - **Draft persistence**: `useModuleDraftStore` (Zustand, session-scoped). `PendingDraftsDropdown` en header.
-- **Eye Tracking híbrido**: BlazeGaze + One-Euro filter + IDW + I-DT fixation detection. 9-point calibración, validación RMSE. Mobile: tap proxy. IDs canónicos: 10 componentes en template (migración 020).
-- **Eye Tracking AOI**: Stand Alone: `AOIDrawer` dibuja rectángulos sobre stimulus. Shelf: AOIs auto-generadas (1 por columna, 100% altura). Backend lee `aois` para intersecciones.
-- **Eye Tracking Shelf mode**: Auto-detectado cuando >1 imagen subida. Column-based grid: cada imagen = 1 columna repetida en todas las filas. `ShelfGrid` componente reutilizable (participant). `display-mode` se sincroniza automáticamente. `randomize-stimuli` baraja orden de columnas por participante. Shelf config (count/items) visible solo en shelf mode. Coordenadas de fijación relativas al contenedor compuesto.
-- **Ciudades en Country & City**: `demographics.country.cities` + `demographics.city`. Cuotas por ciudad (countryCity) o por país (countryOnly), nunca ambos.
-- **NavigationFlow**: `<img>` directo (no LazyImage). Hitzones px → %. Triple handler con dedupe 150ms. Completion overlay con "Tap to continue". `key={module.id}` fuerza re-mount.
+- **Eye Tracking hibrido**: BlazeGaze + One-Euro filter + IDW + I-DT fixation detection. 9-point calibracion, validacion RMSE. Mobile: tap proxy. IDs canonicos: 10 componentes en template (migracion 020).
+- **Eye Tracking AOI**: Stand Alone: `AOIDrawer` dibuja rectangulos sobre stimulus. Shelf: AOIs auto-generadas (1 por columna, 100% altura). Backend lee `aois` para intersecciones.
+- **Eye Tracking Shelf mode**: Auto-detectado cuando >1 imagen subida. Column-based grid. `ShelfGrid` componente reutilizable (participant). `display-mode` se sincroniza automaticamente. `randomize-stimuli` baraja orden de columnas por participante.
+- **Ciudades en Country & City**: `demographics.country.cities` + `demographics.city`. Cuotas por ciudad (countryCity) o por pais (countryOnly), nunca ambos.
+- **NavigationFlow**: `<img>` directo (no LazyImage). Hitzones px -> %. Triple handler con dedupe 150ms. Completion overlay con "Tap to continue". `key={module.id}` fuerza re-mount.
 - **Configurable language switcher**: `linkConfig.allowLanguageSwitch` (default false).
 - **Research collaborators**: `research_collaborators` table. `buildOwnershipClause` includes collaborator access. Endpoints: `GET/POST/DELETE /research/:id/collaborators`. `ShareResearchDrawer` in builder sidebar.
-- **Completion filter**: "Min. completion %" slider in all results Filters sidebars. `useResultsFilter` hook fetches participant progress and combines with demographic filters. Applied across SmartVOC, Cognitive Tasks, Screener, IAT, Eye Tracking. Value persists in `localStorage` per research (`completionMin-{researchId}`). All 5 result tabs use `useResultsFilter` (no duplicated logic). Filter also applied to Executive Summary, Export XLSX, and Report PDF via `filteredParticipantIds`.
-- **Sentiment filter**: Checkboxes (Positive/Negative/Neutral/Indeterminate) in Filters sidebar. Applied to SmartVOC VOC comments and Cognitive Short/Long Text. State in `useResultsFilter` (`sentimentFilter` + `filterBySentiment`).
-- **Text analysis (LLM)**: `POST/GET /analytics/research/:id/text-analysis/:moduleId`. GPT-4o themes/keywords/sentiment for VOC and Cognitive text. Cached in `config.textAnalysis.<moduleId>`. `VOCComments` loads cache on mount, "Analyze with AI" button triggers, "Refresh analysis" re-runs with filtered participants. POST accepts optional `participantIds` or `selectedTexts` array in body. `moduleId="voc"` for SmartVOC VOC. Themes include `supportingQuotes` (exact verbatims). Comment checkboxes select which texts to analyze.
-- **Theme verbatim drawer**: Clicking a theme opens a slide-in drawer showing `supportingQuotes` — exact participant quotes backing the theme. Requires analysis regeneration for existing cached results.
-- **Funnel Comparison (v0.71.0)**: "Comparison" sub-tab in Funnels. Table ranked by conversion rate: visitors, conversion bars, avg drop-off, best/worst step. Requires ≥2 custom funnels. `useQueries` for parallel dropoff fetch.
-- **Executive Summary (v0.71.0)**: Prompt in Spanish. Gathers all module types (SmartVOC, Screener, Cognitive, Ranking, IAT, verbatims). Demographics as context only. `POST /executive-summary` accepts `participantIds` for completion filtering. Cached in `config.executiveSummary`. Rendered in slide-in Drawer (520px), triggered by "Summary" button in top bar. PDF download via `html2pdf.js`.
-- **Results studio layout (v0.71.1)**: `ResearchResultsPage` uses `flex flex-col h-full overflow-hidden`. Top bar (tabs + export buttons) fixed. Content fills remaining height with internal scroll. No page-level scroll.
-- **AlertsBar popover (v0.71.1)**: Bell icon with severity dot in top bar. Click opens dropdown with alerts. Replaces full-width cards.
-- **PPTX export (v0.71.1)**: `pptx-export.service.ts` generates Google Slides-compatible `.pptx` from SmartVOC + Cognitive data + Executive Summary + text analysis themes. Uses `pptxgenjs` (lazy import). "Slides" button in top bar.
-- **Cognitive module selector (v0.71.1)**: Checkbox dropdown in `CognitiveTaskResults` to show/hide module cards. `selectedModuleIds` state, null = all visible.
-- **Navigation Prediction trigger (v0.71.1)**: "Run Attention Prediction" button in `NavigationTestCard` Prediction tab when `predictionHeatmap` is empty. Calls `POST /attention-prediction/.../predict` with `imageIndex`.
-- **Video prediction**: `AttentionPredictionView` accepts video (mp4/webm/mov). Client-side frame extraction (`extractVideoFrames.ts`), sequential upload + TranSalNet per frame. Stored in `stimulus.frames[]`. `VideoFrameScrubber` in AttentionPredictionCard shows side-by-side original/heatmap with frame scrubber.
-- **ET heatmap settings**: `HeatmapSettingsModal` (shared) with presets Smooth/Balanced/Detailed + blur/opacity/threshold sliders. Used in `StimulusCard` (ET results) and `AttentionPredictionCard`.
-- **IAT validation bypass**: IAT modules skip generic required-field validation in participant flow — structure components are researcher config, not participant input. `validation.ts` returns `isValid: true` for IAT modules.
-- **IAT response keys**: Configurable via `response-keys` component (`"letters"` or `"arrows"`, default `"letters"`). Builder shows segmented control in IAT module header. Participant labels adapt (`A/L` vs `←/→`). Keyboard handler always accepts both A/ArrowLeft and L/ArrowRight.
-- **IAT Attribute Testing no-bias (v0.71.2)**: Criteria editor hides "Target" column for Attribute Testing — attributes iterate all targets without pre-assignment. `IATCriteriaEditor` accepts `hideTargetSelector` prop. Comparing Attribute and Objects Comparing retain target selectors.
-- **IAT association strength (v0.71.2)**: Results charts show per-item badges: Fuerte (≥70%), Media (40-69%), Baja (15-39%), Sin asociación (<15%). `classifyAssociation()` + `AssociationBadge` in `ImplicitAssociationResults`.
-- **IAT Preview images (v0.71.2)**: `IATPreviewModal` trial phase renders `stimulusImage` via `resolveMediaUrl` when targets have images (Objects Comparing).
-- **IAT RT distribution (v0.72.0)**: `computeRTDistribution` box-plot stats per target (whiskers 1.5×IQR). `RTDistributionCard` SVG in `ImplicitAssociationResults`. Applies to all 3 paradigms.
-- **IAT raw trial export (v0.72.0)**: `GET /analytics/research/:id/implicit-association/raw-trials`. "IAT Raw Trials" sheet in XLSX. "Export XLSX" button in IAT results header.
-- **IAT Attribute Testing inverted semantics (v0.72.0)**: Trial data has `criterionId` = target chosen, `targetId` = criterion shown. `computeIATScores` uses inverted lookup `rtMap[target.id][attr.id]` for attribute_testing. `computeRTDistribution` groups by `criterionId` for attribute_testing. `computeIATParticipantData` includes `block-*` phases.
-- **IAT PPTX slides (v0.72.0)**: `addIATSlide` in `pptx-export.service.ts` — overview (metric cards + scores table) + D-score detail (individual table). `ExportContext.iat` wired in `ResearchResultsPage`.
-- **Research page filters (v0.72.0)**: `ResearchPage` and `DashboardPage` both have filter bar: search (name/author/enterprise), technique dropdown, enterprise dropdown, date range, archived toggle, clear button.
-- **IAT error analysis readable (v0.72.1)**: `computeIATErrorAnalysis` resolves criterion UUIDs to names, uses `PHASE_LABELS` (Practice/Test A/Test B), aggregates combos by resolved name, filters 0-error rows, caps at top 10. Frontend columns: Stimulus/Response/Error %/Errors Total.
-- **IAT completion advance**: `onComplete` stored in ref (`onCompleteRef`) to avoid unstable callback reference cancelling the 800ms advance timer via effect cleanup. Never put `onComplete` in the dependency array of the save/advance effect.
-- **Insights Finding upload in view**: `InsightsFindingView` has "Add files" + "Prompt" buttons. Uses `documentParser.ts` (client-side) + `mediaService.uploadFile()`. Auto-triggers LLM on upload.
-- **CSV column selector (v0.73.4)**: Multi-column CSV/Excel → `detectCsvColumns` detects headers + preview. `CsvColumnSelector` shows interactive table. `parseDocument(file, columnIndex)` passes selection. Column count = max row width (sparse XLSX safe). Single-column files skip selector.
-- **Mojibake repair (v0.73.4)**: `repairMojibake()` in `documentParser.ts` re-encodes Latin-1→UTF-8 at parse time. Fixes diseÃ±o→diseño. Keyword matching also normalizes diacritics + repairs mojibake for legacy data.
-- **Insights Finding custom prompt (v0.73.4)**: "Prompt" button opens Drawer with editable textarea. Default = neuromarketing/FMCG specialist. Saved to `config.insightsPrompt`. Backend `analyzeInsights(entries, fileName, customPrompt?)`. "Custom" badge when modified.
-- **Themes tab (v0.73.4)**: Percentage bar + count per theme. Click expands `supportingQuotes` verbatims (smooth grid-rows accordion). `InsightsAnalysis` type includes `supportingQuotes`.
-- **Keywords tab (v0.73.4)**: Click keyword chip → filtered comments table below. Accent-insensitive + mojibake-aware matching.
-- **Drawer transition (v0.73.4)**: Drawer component has 300ms slide + overlay fade. Mount/visible state separation for exit animation. Global.
-- **Attention Prediction custom prompt (v0.73.4)**: "Prompt" button in `AttentionPredictionView` opens Drawer. Saved to `config.attentionPrompt`. Backend `analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile, customPrompt?)`.
-- **AOI drawing fixes (v0.73.4)**: `getMousePercent` clamps coordinates 0-100%. Document-level mouseMove/mouseUp handlers prevent stuck drawing on mouse escape. `preventDefault` on mouseDown avoids image drag. `overflow-hidden` removed from AOI container to prevent image clipping.
-- **Benchmark research editor**: `ClientsBenchmarkView` has "Edit selection" panel — checkboxes for all ET researches. Saves to `config.stimuli[].researchId`. Live refresh.
-- **Benchmark CSV export**: "Export CSV" button on comparative table.
-- **LLM model configurable**: `OPENAI_MODEL` env var (default `gpt-4o`). Used by `insights.service.ts`.
-- **Website Tracking coordinates (v0.70.0)**: Snippet stores **raw pixels** (`pageX`, `pageY`). Backend normalizes at query time: `x / viewport_width * 100`. Frontend renders: `(pct/100) * renderWidth`. Never normalize in the client snippet.
-- **Website Tracking snippet v3.3**: Visibility-aware (pauses on tab hidden, resumes on focus). Sync XHR on unload (no sendBeacon — 64KB limit drops rrweb snapshots). Active duration tracking (`activeMs`). Mousemove throttle 500ms. rrweb 5-min cap uses active time. Session retry on failure.
-- **Visit grouping (v0.73.3)**: `getVisitorJourneys` groups sessions by visit (30-min gap = new visit), not by visitor. Same visitor on different days = separate entries.
-- **Duration priority**: `rrweb_duration_ms` > `active_duration_ms` > wall-clock. Table duration matches replay modal. `rrweb_duration_ms` computed in `appendRrwebEvents` from first/last event timestamps.
-- **URL normalization**: `createSession` strips `www.` prefix so all URL variants share the same `tracking_pages` entry and screenshots.
-- **Font proxy**: `proxy-page` rewrites font URLs to `/tracking/:id/proxy-asset?url=`. Binary responses via `isBase64Encoded` in both `server-cpanel.js` and `server-cpanel.ts`.
-- **Scroll depth query**: `MAX(scroll_depth_pct)` per session before bucketing. Cumulative reach = sessions whose max depth >= X%.
-- **Tracking pages upsert**: `INSERT IGNORE` + UNIQUE index `(research_id, page_url)`. No SELECT→INSERT race.
-- **Website Tracking results layout (v0.70.0)**: Heatmap renders inline (no modal). `Tip` component (portal-based, viewport-clamped) for all tooltips. Sessions tab = Visitor accordion only (no "All Sessions" table).
-- **Website Tracking PDF report (v0.70.1)**: `WebTrackingReportButton` with section picker (grouped by tab/subtab). AI Analysis option calls `POST /tracking/:id/report` with `{ sections }` — prompt contextual, only analyzes selected data. Cached in `config.trackingReport`.
-- **Configurable funnels**: `config.trackingConfig.funnels` — array of `{id, name, steps: [{url, label}]}`. `computeFunnelDropoff` checks sequential visitor reach. Endpoint: `GET /tracking/:id/funnels/:funnelId`.
-- **Session replay modal**: `SessionReplayPlayer` renders as fixed overlay, not inline. Uses DOM snapshot (iframe) for background, not screenshots.
-- **Status modal contextual**: `StatusModal` adapts descriptions per `researchTypeName` — Website Tracking, Attention Prediction, Insights Finding have specific texts.
-- **Live tab SSE**: `GET /tracking/:id/live/stream?token=xxx` — SSE endpoint in `server-cpanel.js` (Passenger entry point). Frontend uses `EventSource`, no polling. Route registered with both `/api/` and `/` prefixes for Passenger compatibility.
-- **Passenger dual entry points**: `server-cpanel.js` (JS, Passenger entry) and `src/server-cpanel.ts` (TS, compiled to `dist/`). New Express routes must be added to **both** files — Passenger executes the JS wrapper, not the compiled TS.
-- **CORS: open for tracking (v0.70.10)**: `server-cpanel.js` CORS accepts any origin. Domain validation is in `createSession` (`allowedDomains`), not at CORS level. Required for snippet to work on external sites (Joomla, WordPress, etc.).
-- **Apache timeout (v0.70.3)**: `~/public_html/api/.htaccess` has `TimeOut 120` + `RequestReadTimeout body=120`. Required for GPT-4o endpoints that take 30-60s. Default 30s causes connection drops reported as `ERR_NETWORK_CHANGED`.
-- **Session replay unified timeline**: `SessionReplayPlayer` loads ALL sessions of the same visitor via `visitorId`, merges events into one sorted timeline. DOM snapshot changes dynamically per active page. Clicks rendered as simpleheat heatmap overlay (no cursor dot).
-- **Attention Prediction tabs**: `AttentionPredictionCard` has 4 tabs over the image: Original, Heatmap, Gaze Paths (dark alpha overlay), AOI Editor (colored rects, 7 rotating colors). Right panel (`AiAnalysisPanel`) remains.
-- **Prediction pipeline v2 (v0.68.0)**: `predictAttention` runs 3 augmentations (original, h-flip, crop 90%), averages directly (no logit fusion). Post-process: mild center bias (σ=0.5, floor 60%), blur, stochastic jitter (0.15), normalize. Returns `{ points, autoPresets, griddedAOIs }`. `autoPresets` recommends blur/opacity/threshold from map distribution. `griddedAOIs` detects AOIs via 4×4 grid + flood-fill clustering.
-- **Hybrid saliency fusion (v0.68.0)**: `POST /attention-prediction/research/:id/module/:mediaId/hybrid-predict`. Pipeline: 3× TranSalNet averaged → Gemini semantic grid (10×8, 3 iterations) → weighted fusion (α=0.65 + β=0.35) → focal equalization (peripheral boost × semantic boost × center attenuation) → stochastic jitter (0.12). Produces eye-tracking-like distribution. Uses Gemini primary, GPT-4o fallback.
-- **3 gaze path routes (v0.67.1)**: AI analysis returns `gazePathRoutes` — 3 viewing strategies (Typical Scan, Group Scan, Novelty Search). Frontend renders each with unique color (blue/green/amber), toggleable. `GazePathOverlay` accepts `routeColor` + `markerId` for multi-route rendering.
-- **Configurable saliency model (v0.67.2)**: `SALIENCY_MODEL` env var (default `transalnet_res.onnx`). `SALIENCY_WIDTH`/`SALIENCY_HEIGHT` for different architectures. Conversion scripts: `scripts/convert-transalnet-to-onnx.py` (Dense/Res), `scripts/convert-sum-to-onnx.py` (SUM, WACV 2025). To swap: convert → upload `.onnx` to `backend/models/` → set env var → restart.
+- **Passenger dual entry points**: `server-cpanel.js` (JS, Passenger entry) and `src/server-cpanel.ts` (TS, compiled to `dist/`). New Express routes must be added to **both** files.
 
-- **Analysis profiles (v0.69.1)**: `AnalysisProfile` type in `ai-analysis.service.ts`. Context-aware β: shelf/packaging=0.50, ad=0.45, web=0.40, general=0.35. Profile injected into **both** semantic grid prompt (heatmap) **and** AI analysis prompt (textual analysis). ViT bottom-up ensemble (70% semantic + 30% feature-integration). `AnalysisProfilePanel` in `AttentionPredictionView`, persisted in `research.settings.analysisProfile`. Controller reads profile from `settings.analysisProfile` for `/analyze/:mediaId`.
-- **Brand attention (v0.69.0)**: AI analysis prompt auto-detects logos → `brandAttention` in `AiAnalysisResult` (logos[], brandAttentionScore, recommendation). `Brand Attention` section in `AiAnalysisPanel`.
-- **FACS Action Units (v0.69.0)**: `extractActionUnitsFrom68()` in `facsClassifier.ts` — 9 AUs from face-api 68 landmarks. `face_landmark_68` model in `public/models/`. `ActionUnitsPanel` + `MicroExpressionsPanel` in `EmotionPanel`.
-- **Standalone modules (v0.69.0)**: `Emotion Analysis` (webcam only, no ET), `EEG Recording` (Web Bluetooth), `Biometric Wearable` (BLE HR 0x180D). DynamicStep dispatches by module name. Module templates in migrations 028-029.
-- **Cerulean Ledger (v0.69.0)**: `backend/src/modules/cerulean/` — client + integration service + controller. Routes under `/cerulean/`. `CERULEAN_ENABLED=true` to activate. Auto-triggers on study close (integrity hash + credential + audit). `BlockchainCertification` component in results.
-- **Dashboard (v0.69.0)**: `GET /research/dashboard-summary` returns stats, trends, top researches. `useDashboardSummary` hook. Search + archive toggle + activity chart + metrics trends in `DashboardPage`.
-- **Automation (v0.69.0)**: Auto-trigger LLM on close + every 10 participants. Executive summary (`/analytics/research/:id/executive-summary`). Alerts (`/analytics/research/:id/alerts`). PDF report via `ReportGeneratorButton`.
-- **Research tags (v0.69.0)**: `research_tags` table (migration 027). `GET /research/tags`, `POST/DELETE /research/:id/tags/:tag`. `archived_at` column, `POST /research/:id/archive|unarchive`.
-- **Attention heatmap**: `GET /tracking/:id/attention` — scroll-based dwell time per page band (viewport visibility × time). Flushes tail of each session using `ended_at`.
+> **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 
 ## Key Files
 ### Backend
 - `backend/src/router.ts` — routing central, CORS, path normalization
-- `backend/server-cpanel.js` — entry point producción (Passenger)
+- `backend/server-cpanel.js` — entry point produccion (Passenger)
 - `backend/src/modules/enterprises/enterprises.controller.ts` — CRUD enterprises
 - `backend/src/modules/participants/participants.service.ts` — CRUD participantes panel, CSV import
 - `backend/src/modules/email/email.service.ts` — Nodemailer + invitation template
-- `backend/src/modules/research-techniques/research-techniques.service.ts` — CRUD técnicas con `default_stages`
-- `backend/src/modules/quotas/quota.service.ts` — cuotas demográficas atómicas (`tryIncrementQuota`)
-- `backend/src/modules/public/public.service.ts` — endpoints públicos, validación, save responses
-- `backend/src/modules/analytics/analytics.service.ts` — métricas SmartVOC, NEV, Eye Tracking (FACS, AOI, sequence), IAT (D-score, errors)
+- `backend/src/modules/research-techniques/research-techniques.service.ts` — CRUD tecnicas con `default_stages`
+- `backend/src/modules/quotas/quota.service.ts` — cuotas demograficas atomicas (`tryIncrementQuota`)
+- `backend/src/modules/public/public.service.ts` — endpoints publicos, validacion, save responses
+- `backend/src/modules/analytics/analytics.service.ts` — metricas SmartVOC, NEV, Eye Tracking (FACS, AOI, sequence), IAT (D-score, errors)
 - `backend/src/modules/attention-prediction/attention-prediction.controller.ts` — TranSalNet prediction (research stimuli + module stimuli)
 - `backend/src/modules/tracking/tracking.controller.ts` — Website Tracking public + auth endpoints
 - `backend/src/modules/tracking/tracking.service.ts` — sessions, events batch insert, heatmap aggregation
@@ -188,34 +121,34 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 ### Research Frontend
 - `research-frontend/src/pages/research/ResearchBuilderPage.tsx` — builder principal, module_collection generalizada
 - `research-frontend/src/components/layout/ResearchBuilderSidebar.tsx` — sidebar con status modal, stage management
-- `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografía, study logo, screening questions
+- `research-frontend/src/components/research/ResearchConfigurationModule.tsx` — config, QR, URL, demografia, study logo, screening questions
 - `research-frontend/src/stores/useModuleDraftStore.ts` — draft store session-scoped
 - `research-frontend/src/components/research/PendingDraftsDropdown.tsx` — save individual/all drafts
-- `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografía + LocationGranularity
-- `research-frontend/src/utils/moduleRequired.ts` — flags módulo, ConditionalityConfig, type guards
-- `research-frontend/src/components/research/ConditionalityModal.tsx` — modal condicionalidad (demográfica + study question)
-- `research-frontend/src/components/research/AOIDrawer.tsx` — AOI drawing sobre imágenes
+- `research-frontend/src/utils/demographicsMapper.ts` — mapeo demografia + LocationGranularity
+- `research-frontend/src/utils/moduleRequired.ts` — flags modulo, ConditionalityConfig, type guards
+- `research-frontend/src/components/research/ConditionalityModal.tsx` — modal condicionalidad (demografica + study question)
+- `research-frontend/src/components/research/AOIDrawer.tsx` — AOI drawing sobre imagenes
 - `research-frontend/src/components/results/smart-voc/SmartVOCResults.tsx` — panel SmartVOC completo
-- `research-frontend/src/components/research/AttentionPredictionCard.tsx` — análisis por stimulus (heatmap, video, AOI)
+- `research-frontend/src/components/research/AttentionPredictionCard.tsx` — analisis por stimulus (heatmap, video, AOI)
 - `research-frontend/src/components/research/WebsiteTrackingConfig.tsx` — tracking config panel (snippet, domains, toggles)
 - `research-frontend/src/components/results/website-tracking/WebsiteTrackingResults.tsx` — click heatmap + overview
 - `research-frontend/src/services/tracking.service.ts` — API client for tracking endpoints
-- `research-frontend/src/hooks/useResearchForm.ts` — form creación con prioridad default_stages
+- `research-frontend/src/hooks/useResearchForm.ts` — form creacion con prioridad default_stages
 
 ### Participant Frontend
 - `participant-frontend/src/pages/ResearchPage.tsx` — flujo encuesta (kiosk reset, screener blocking, demographics validation)
-- `participant-frontend/src/utils/researchPageHelpers.ts` — utilidades extraídas de ResearchPage
+- `participant-frontend/src/utils/researchPageHelpers.ts` — utilidades extraidas de ResearchPage
 - `participant-frontend/src/hooks/usePreviewMode.ts` — preview vs participant vs kiosk
-- `participant-frontend/src/hooks/useNavigation.ts` — navegación, condiciones, filtro steps
+- `participant-frontend/src/hooks/useNavigation.ts` — navegacion, condiciones, filtro steps
 - `participant-frontend/src/hooks/useBlazeGaze.ts` — BlazeGaze CNN + One-Euro filter
-- `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demográfico (3 formatos + custom screening)
+- `participant-frontend/src/components/steps/DemographicsStep.tsx` — paso demografico (3 formatos + custom screening)
 - `participant-frontend/src/components/ui/NavigationFlow.tsx` — flujo fullscreen hitzones
 - `participant-frontend/src/components/ui/CustomSelect.tsx` — selector custom, position:fixed, auto-flip
 - `participant-frontend/src/components/renderers/ImplicitAssociationRenderer.tsx` — IAT 3 paradigmas
 - `participant-frontend/src/components/renderers/EyeTrackingRenderer.tsx` — BlazeGaze desktop, click proxy mobile, face-api.js emotion recognition, video stimulus
 - `participant-frontend/src/hooks/useFaceApiEmotions.ts` — face-api.js TinyFaceDetector + FaceExpressionNet for 7 Ekman emotions
 - `participant-frontend/src/lib/eyeTracking/facsClassifier.ts` — EmotionSample types + aggregation utilities
-- `participant-frontend/src/components/ErrorBoundary.tsx` — error boundary para producción
+- `participant-frontend/src/components/ErrorBoundary.tsx` — error boundary para produccion
 
 ## Deploy
 - **Referencia completa:** [Deploy Skill](skills/deploy.md) + [cPanel Runbook](docs/cpanel-runbook.md)
@@ -224,9 +157,9 @@ cd participant-frontend && npm install && npm run dev # Vite → localhost:5174
 
 ### Deploy manual (scripts locales)
 ```bash
-./scripts/deploy-backend-cpanel.sh              # rsync src → remoto, npm install + build en remoto
-./scripts/deploy-research-frontend-cpanel.sh    # build local, rsync dist/ → ~/public_html/research/
-./scripts/deploy-participant-frontend-cpanel.sh # build local, rsync dist/ → ~/public_html/participant/
+./scripts/deploy-backend-cpanel.sh              # rsync src -> remoto, npm install + build en remoto
+./scripts/deploy-research-frontend-cpanel.sh    # build local, rsync dist/ -> ~/public_html/research/
+./scripts/deploy-participant-frontend-cpanel.sh # build local, rsync dist/ -> ~/public_html/participant/
 ```
 Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/restart.txt"`
 - **ONNX model:** `backend/models/transalnet_res.onnx` (290MB) is gitignored. Deploy script auto-syncs it if missing on server. CI/CD excludes `models/` from rsync `--delete`.
@@ -239,73 +172,45 @@ Post-deploy backend: `ssh cpanel-emotio "cd ~/emotioxv3/backend && touch tmp/res
 
 ### Rutas remotas
 ```
-~/emotioxv3/backend/          → Backend (src + dist + .env + server-cpanel.js)
-~/public_html/research/       → Research Frontend (Vite dist + runtime-config.json + .htaccess)
-~/public_html/participant/    → Participant Frontend (Vite dist + runtime-config.json + .htaccess)
+~/emotioxv3/backend/          -> Backend (src + dist + .env + server-cpanel.js)
+~/public_html/research/       -> Research Frontend (Vite dist + runtime-config.json + .htaccess)
+~/public_html/participant/    -> Participant Frontend (Vite dist + runtime-config.json + .htaccess)
 ```
 
 ## Participation Modes (Kiosko vs Panel)
-- **Kiosko**: SmartVOC, ID `kiosk-N`, reset automático. **Panel**: Cognitive Tasks, ID externo/individual.
+- **Kiosko**: SmartVOC, ID `kiosk-N`, reset automatico. **Panel**: Cognitive Tasks, ID externo/individual.
 - `researches.config.participationMode`: `'kiosk' | 'panel'` (default: `'panel'`)
-- Endpoints públicos: `GET /public/research/:id/mode`, `POST /public/research/:id/kiosk/session`
+- Endpoints publicos: `GET /public/research/:id/mode`, `POST /public/research/:id/kiosk/session`
 - Endpoints panel: `GET/DELETE /participants/:researchId`, `POST .../import`, email bulk/individual
 - `usePreviewMode` distingue preview (`?preview=true`), panel (`?participantId=xxx`), kiosk (sin params)
 
 ## Website Tracking (v0.73.0)
 - **Research type:** "Website Tracking" (`skip_default_modules: true`, file-based). No stages, no participant-frontend.
-- **Injectable script v3.2:** `GET /public/tracking/:id/script.js` — loads rrweb from CDN for DOM recording + captures clicks/scroll/mousemove for heatmaps. Buffer cap 50 events, flush every 2s. `localStorage` visitor ID. Domain validation client + server (strips protocol/path/port from `allowedDomains`). Event flush uses XHR (primary) with `sendBeacon` only on page unload.
-- **DOM recording (rrweb):** `rrweb.record()` captures full DOM snapshot + incremental mutations + CSS inlining + fonts + inline images. Events stored in `tracking_sessions.rrweb_events` (LONGTEXT). Flushed every 5s via XHR (not sendBeacon — 64KB limit). Migration 031.
-- **Coordinates:** Raw pixels (`pageX`, `pageY`). Backend normalizes at query time.
-- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. New session only when pathname changes (ignores hash/query). 1s debounce prevents framework spam.
-- **Friction detection:** dead-click, rage-click (3+ in 1s), speed-browsing (<2s), mouse-out. Stored in `metadata.friction`.
-- **Mousemove throttle:** 500ms (2/s max). No viewport heartbeat (removed — was generating fake events).
-- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired`, `samplingRate`, `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`, `verified`, `funnels[]`. `saveTrackingConfig` sanitizes domains on save.
-- **Builder:** `WebsiteTrackingConfig` — checklist (Activate/Snippet/Verify/View Results). Verify = single request (no polling). Cache-busting per minute.
-- **Results tabs:** Funnels (SVG trapezoids + Page Flow diagram + Comparison) → Heatmaps (Click/Scroll/Attention) → Sessions (visitors with friendly names) → Live (SSE).
-- **Page Flow diagram:** `PageFlowDiagram` SVG flowchart — nodes as colored boxes (intensity = traffic), Bézier arrows (thickness = transitions). Exit nodes: red dashed boxes below pages where visitors left ("N left / NN% exit"). Top-down layout, internal scroll.
-- **Session replay (rrweb):** `SessionReplayPlayer` lazy-loads rrweb `Replayer` (~51KB gzip). DOM-based replay with mouse trail, play/pause/seek, speed controls. `skipInactive: false` — replay duration matches session duration (use speed controls for idle periods). `hasRrweb` flag distinguishes legacy sessions (grayed replay button).
-- **Friendly visitor names:** `friendlyVisitorName()` — deterministic "Color Animal" names from visitor ID hash. Applied to Sessions, Live, Replay.
-- **Session duration:** Capped at 30 min in backend (`MAX_SESSION_MS`). `avgSessionDuration` capped at 1800s in SQL.
-- **Live sessions:** SSE stream with `flushHeaders()` + `flush()` (required for LiteSpeed). 8s client timeout fallback. Active = last event within 5 minutes.
+- **Injectable script v3.2:** `GET /public/tracking/:id/script.js` — rrweb DOM recording + clicks/scroll/mousemove heatmaps. Buffer cap 50 events, flush every 2s. Domain validation client + server.
+- **DOM recording (rrweb):** Full DOM snapshot + incremental mutations + CSS/fonts/images. Events in `tracking_sessions.rrweb_events` (LONGTEXT).
+- **SPA support:** Intercepts `pushState`/`replaceState`/`popstate`. 1s debounce.
+- **Friction detection:** dead-click, rage-click (3+ in 1s), speed-browsing (<2s), mouse-out.
+- **Config:** `captureClicks`, `captureScroll`, `captureMousemove`, `consentRequired`, `samplingRate`, `excludedIPs`, `targetPages`/`excludePages`, `dataRetentionDays`, `allowedDomains`, `verified`, `funnels[]`.
+- **Results tabs:** Funnels (SVG + Page Flow + Comparison) -> Heatmaps (Click/Scroll/Attention) -> Sessions (friendly names) -> Live (SSE).
+- **Session replay (rrweb):** `SessionReplayPlayer` lazy-loads rrweb `Replayer`. DOM-based replay with mouse trail, play/pause/seek, speed controls.
 - **Detection:** `isWebsiteTracking` in `isFileBasedResearch`. Sidebar shows config + results.
-- **Endpoints (rrweb):** `POST /public/tracking/:id/rrweb-events` (public). `GET /tracking/:id/sessions/:sid/rrweb` (auth).
-- **Exit tracking:** `getPageFunnels` returns `exits` per page (last page in visitor path).
+
+> **Detailed Website Tracking conventions**: see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md#website-tracking-inline-conventions)
 
 ## Eye Tracking (v0.58.0)
-- **Motor:** BlazeGaze CNN (670KB, `webeyetrack`) — imagen de ojos + head pose
-- **Pipeline:** WebEyeTrack con MediaPipe interno, sin duplicación
-- **Calibración:** 9 puntos sobre stimulus + validación RMSE + IDW correction field
-- **Smoothing:** One-Euro filter (cutoff 0.8, beta 0.005), blink filtering
-- **Video stimulus:** `EyeTrackingRenderer` detecta mp4/webm, renderiza `<video>` con gaze tracking sincronizado a `videoTime`
-- **Emotion Recognition:** face-api.js (vladmandic fork) — TinyFaceDetector + FaceExpressionNet. 7 Ekman emotions via trained neural model. `useFaceApiEmotions` hook, parallel to BlazeGaze. Models in `public/models/` (~511KB). Client-side, GDPR compliant.
-- **Builder toggles:** `attention-measurement` y `emotion-recognition` controlan qué datos se recolectan
-- **Results tabs:** Heat map, Scan Path, First Look, Transparency, Emotions, Prediction (TranSalNet), Video Gaze, Sequence
-- **AOI metrics:** dwell %, fixation count, avg duration, TTFF, notice rate, dominant emotion. Soft Gaussian intersection (not binary point-in-rect).
-- **Micro-recalibration:** Every 45s during viewing, invisible dot probes gaze drift and updates IDW correction field. Constants in `hybridCalibrationField.ts` (`MICRO_RECALIB_*`).
-- **Quality gate:** Participants classified `good`/`fair`/`low` by calibration RMSE, integrity score, fixation count. Low excluded from aggregates. `qualitySummary` in ET response.
-- **Calibration click isolation:** WebEyeTrack registers a global `click` listener that feeds mouse coords as calibration. `CalibrationPhase` and `ValidationPhase` use `onClickCapture` + `stopImmediatePropagation()` so only our explicit `blaze.calibrate()` feeds the model. Validation RMSE threshold: 150px (`HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX`).
-- **Attention Prediction:** `POST /attention-prediction/research/:id/module/:moduleId/predict` — TranSalNet sobre stimulus, soporta `imageIndex` para multi-imagen (Nav Flow).
-- **AI Analysis (v0.70.4):** `POST /attention-prediction/research/:id/analyze/:mediaId` — fire-and-forget (202). GPT-4o runs in background, saves to `stimulus.aiAnalysisStatus`. `GET .../status` returns result. Frontend polls 3× at 15s intervals. Cacheado en `stimulus.aiAnalysis`.
-- **Assessment:** [docs/eye-tracking-assessment.md](docs/eye-tracking-assessment.md)
-- **Lab:** `/labs/eye-tracking` en research-frontend
+Summary: BlazeGaze CNN + One-Euro filter + IDW calibration. 9-point calibration, RMSE validation. face-api.js emotion recognition. Stand Alone + Shelf modes. Results: Heatmap, Scan Path, First Look, Transparency, Emotions, Prediction, Video Gaze, Sequence. AOI metrics with soft Gaussian intersection. Quality gate (good/fair/low). Micro-recalibration every 45s.
+
+> **Detailed Eye Tracking conventions**: see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md#eye-tracking)
 
 ## Implicit Association Analytics (v0.65.1)
-- **Greenwald D-score:** `computeGreenwaldDScore()` — filter >10s, pooled SD, D = (mean_incompat - mean_compat) / pooled_SD
-- **Per-participant D-scores:** Individual D + effect classification (none/slight/moderate/strong)
-- **Aggregate D-score:** Mean + 95% CI (t-distribution)
-- **Error analysis:** Per-phase (practice/test) y per-combination (target×attribute) error rates
-- **Effect size visualization:** D-score distribution histogram (7 buckets)
-- **Advanced filters:** Demographic sidebar en todos los result tabs (Screener, SmartVOC, Cognitive, IAT, Eye Tracking)
-- **Module filter:** Analytics query filters by module name (`Attribute`/`Comparing`/`Objects`), excluding non-IAT modules (e.g. Linear Scale) that may share the stage.
-- **Trial phases:** `computeIATScores` includes `block-1`/`block-2`/`block-3` trials (not just `phase === 'test'`).
-- **Compound targetId:** Comparing Attribute trials use `"object-N__criterion-UUID"` — base ID extracted for RT grouping.
-- **Objects Comparing scores:** Always uses `criteria-1`/`criteria-2` as chart dimensions. Per-target association derived from block-2 vs block-3 RT differences.
-- **Eye Tracking Shelf grid:** `ShelfGrid` uses `shelfItems` as column count (not `Math.max(shelfItems, urls.length)`).
+Summary: Greenwald D-score, per-participant + aggregate (95% CI). Error analysis per-phase and per-combination. Effect size histogram. Demographic filters. Module filter by paradigm name. Trial phases include `block-1/2/3`.
+
+> **Detailed IAT conventions**: see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md#iat-implicit-association)
 
 ## References
 - [CHANGELOG](CHANGELOG.md) — historial completo de versiones (533+ commits)
 - [BITACORA](BITACORA.md) — notas de sesiones de desarrollo
-- [Patterns](patterns/) — patrones de construcción repetibles
+- [Patterns](patterns/) — patrones de construccion repetibles
 - [Issues & Fixes](docs/ISSUES_&_FIXES.md)
-- [Plan Modos de Participación](docs/PLAN_PARTICIPATION_MODES.md)
-- [.agent/](/.agent/) — 6 docs de referencia (API, flujos, decisiones técnicas, glossary, quick ref, module rules)
+- [Plan Modos de Participacion](docs/PLAN_PARTICIPATION_MODES.md)
+- [.agent/](/.agent/) — 7 docs de referencia (API, flujos, decisiones tecnicas, glossary, quick ref, module rules, feature conventions)
