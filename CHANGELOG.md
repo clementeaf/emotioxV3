@@ -1,3 +1,18 @@
+## v0.74.1 — Website Tracking: snapshot backdrop, CSS proxy, idle session filter, toolbar layout (2026-05-27)
+
+### backend
+- **Snapshot-html endpoint.** `GET /tracking/:id/snapshot-html?page=URL` serves the DOM snapshot captured by the tracking snippet as raw HTML. Preserves JS-rendered styles, shadows, parallax, and dynamic layouts that the proxy-page approach strips.
+- **Proxy CSS stylesheets.** `proxy-page` now rewrites `<link rel="stylesheet">` URLs through `/proxy-asset`, fixing CORS and Referer-blocked CSS on sites like CBCL.
+- **Proxy-asset text vs binary.** CSS and other text assets served as plain text instead of base64-encoded. Fonts and images remain base64.
+- **Filter idle sessions.** `getVisitorJourneys` excludes visits where all sessions have zero events. `getOverviewMetrics` uses `INNER JOIN` on events so idle sessions don't inflate visitor/session counts.
+
+### research-frontend
+- **Snapshot-first heatmap backdrop.** `MultiLayerHeatmap` prefers `snapshot-html` (real DOM captured with styles) over `proxy-page` (live HTML without scripts). Falls back to proxy when no snapshot exists.
+- **Heatmap toolbar two-row layout.** Separated controls into row 1 (page selector + layer toggles) and row 2 (intensity/opacity sliders with values + device filter). Sliders widened to `w-24` with numeric readout. Prevents cramped layout on narrow viewports.
+- **CSS layout timeout.** Iframe layout measurement increased from 500ms to 2000ms, giving proxied CSS more time to load before capturing dimensions.
+
+---
+
 ## v0.74.0 — Insights Finding PDF report, Sentiment Score, multi-column CSV, Research filters (2026-05-27)
 
 ### backend

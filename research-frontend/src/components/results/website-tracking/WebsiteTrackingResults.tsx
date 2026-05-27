@@ -212,8 +212,9 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
             {activeTab === 'heatmaps' && (
                 <div className="space-y-3">
                     {/* Toolbar: page selector + layer toggles + controls */}
+                    <div className="space-y-2">
                     <div className="flex items-center gap-3 flex-wrap">
-                        <div className="w-72">
+                        <div className="w-72 flex-shrink-0">
                             <CustomSelect
                                 label="Page"
                                 labelPosition="inline"
@@ -256,18 +257,22 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                 </Tip>
                             ))}
                         </div>
+                    </div>
 
-                        {/* Intensity & Opacity */}
+                    {/* Row 2: Intensity, Opacity, Device filter */}
+                    <div className="flex items-center gap-4">
                         <Tip tip="Heatmap point radius — higher values spread heat wider">
-                            <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-default">
+                            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-default">
                                 Intensity
-                                <input type="range" min={10} max={100} value={heatmapIntensity} onChange={(e) => setHeatmapIntensity(Number(e.target.value))} className="w-16 h-1 accent-blue-600" />
+                                <input type="range" min={10} max={100} value={heatmapIntensity} onChange={(e) => setHeatmapIntensity(Number(e.target.value))} className="w-24 h-1 accent-blue-600" />
+                                <span className="text-[10px] text-slate-400 w-6 text-right">{heatmapIntensity}</span>
                             </label>
                         </Tip>
                         <Tip tip="Dark overlay transparency behind the heatmap">
-                            <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-default">
+                            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-default">
                                 Opacity
-                                <input type="range" min={0} max={80} value={heatmapOpacity} onChange={(e) => setHeatmapOpacity(Number(e.target.value))} className="w-16 h-1 accent-blue-600" />
+                                <input type="range" min={0} max={80} value={heatmapOpacity} onChange={(e) => setHeatmapOpacity(Number(e.target.value))} className="w-24 h-1 accent-blue-600" />
+                                <span className="text-[10px] text-slate-400 w-6 text-right">{heatmapOpacity}</span>
                             </label>
                         </Tip>
 
@@ -298,6 +303,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                             })}
                         </div>
                     </div>
+                    </div>
 
                     {/* Heatmap inline */}
                     {selectedPageUrl ? (
@@ -308,6 +314,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                     pageUrl={selectedPageUrl}
                                     device={deviceFilter}
                                     screenshotUrl={selectedScreenshotUrl}
+                                    hasSnapshot={selectedPage?.hasSnapshot}
                                     layers={heatmapLayers}
                                     intensity={heatmapIntensity}
                                     opacity={heatmapOpacity}

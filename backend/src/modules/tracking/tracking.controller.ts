@@ -347,9 +347,19 @@ export const handleTrackingRoutes = async (
                 html = html.replace(
                     /url\(\s*['"]?([^'")]+\.(?:woff2?|ttf|eot|otf)(?:\?[^'")]*)?)\s*['"]?\)/gi,
                     (match, fontUrl: string) => {
-                        // Resolve relative URLs against the page origin
                         const resolved = fontUrl.startsWith('http') ? fontUrl : urlObj.origin + (fontUrl.startsWith('/') ? '' : '/') + fontUrl;
                         return `url('${assetProxyBase}${encodeURIComponent(resolved)}')`;
+                    }
+                );
+
+                // Rewrite <link rel="stylesheet"> href to proxy through our backend (avoids CORS/Referer blocks)
+                html = html.replace(
+                    /<link\s([^>]*?)href\s*=\s*['"]([^'"]+)['"]([^>]*?)>/gi,
+                    (match, before: string, href: string, after: string) => {
+                        const combined = before + after;
+                        if (!combined.includes('stylesheet') && !combined.includes('text/css')) return match;
+                        const resolved = href.startsWith('http') ? href : urlObj.origin + (href.startsWith('/') ? '' : '/') + href;
+                        return `<link ${before}href="${assetProxyBase}${encodeURIComponent(resolved)}"${after}>`;
                     }
                 );
 
@@ -387,10 +397,25 @@ export const handleTrackingRoutes = async (
                     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EmotioCX/1.0)' },
                     redirect: 'follow',
                 });
-                const arrayBuf = await response.arrayBuffer();
                 const contentType = response.headers.get('content-type') || 'application/octet-stream';
+                const isText = contentType.includes('text/') || contentType.includes('css') || contentType.includes('javascript') || contentType.includes('json');
 
-                // Return base64 for Lambda compat; server-cpanel decodes Buffer
+                if (isText) {
+                    // Text assets (CSS, etc.) — return as plain text
+                    const text = await response.text();
+                    return {
+                        statusCode: 200,
+                        headers: {
+                            'Content-Type': contentType,
+                            'Access-Control-Allow-Origin': origin || '*',
+                            'Cache-Control': 'public, max-age=86400',
+                        },
+                        body: text,
+                    };
+                }
+
+                // Binary assets (fonts, images) — return base64 for Lambda compat
+                const arrayBuf = await response.arrayBuffer();
                 return {
                     statusCode: 200,
                     headers: {
@@ -516,7 +541,7 @@ export const handleTrackingRoutes = async (
             return success(data, 200, undefined, origin);
         }
 
-        // GET /tracking/:researchId/snapshot?page=URL — get page DOM snapshot HTML
+        // GET /tracking/:researchId/snapshot?page=URL — get page DOM snapshot HTML (JSON)
         const snapshotGetMatch = path.match(/^\/tracking\/([^/]+)\/snapshot$/);
         if (snapshotGetMatch && httpMethod === 'GET') {
             const researchId = snapshotGetMatch[1];
@@ -526,6 +551,41 @@ export const handleTrackingRoutes = async (
             if (!pageUrl) return error('Missing page parameter', 400, undefined, origin);
             const html = await getPageSnapshotHtml(researchId, pageUrl);
             return success({ html }, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/snapshot-html?page=URL — serve snapshot as raw HTML (for iframe backdrop)
+        const snapshotHtmlMatch = path.match(/^\/tracking\/([^/]+)\/snapshot-html$/);
+        if (snapshotHtmlMatch && httpMethod === 'GET') {
+            const researchId = snapshotHtmlMatch[1];
+            const pageUrl = event.queryStringParameters?.page
+                ? decodeURIComponent(event.queryStringParameters.page)
+                : undefined;
+            if (!pageUrl) return error('Missing page parameter', 400, undefined, origin);
+            const html = await getPageSnapshotHtml(researchId, pageUrl);
+            if (!html) return error('No snapshot available', 404, undefined, origin);
+
+            // Inject styles to disable interactions + base tag for relative resources
+            const urlObj = new URL(pageUrl);
+            const baseHref = urlObj.origin + '/';
+            const disableStyle = `<style>* { pointer-events: none !important; user-select: none !important; } body { overflow: visible !important; }</style>`;
+            let result = html;
+            if (result.includes('<head>')) {
+                result = result.replace('<head>', `<head><base href="${baseHref}">${disableStyle}`);
+            } else if (result.includes('<HEAD>')) {
+                result = result.replace('<HEAD>', `<HEAD><base href="${baseHref}">${disableStyle}`);
+            } else {
+                result = `<base href="${baseHref}">${disableStyle}` + result;
+            }
+
+            return {
+                statusCode: 200,
+                headers: {
+                    'Content-Type': 'text/html; charset=utf-8',
+                    'Access-Control-Allow-Origin': origin || '*',
+                    'Cache-Control': 'public, max-age=300',
+                },
+                body: result,
+            };
         }
 
         // GET /tracking/:researchId/attention?page=URL — attention (dwell time) heatmap

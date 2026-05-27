@@ -104,6 +104,9 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Insights Finding PDF (v0.74.0)**: `window.open` + `window.print()` — no `html2pdf.js` (causes blank pages). Includes Sentiment Score metric.
 - **CustomSelect disabled options (v0.74.0)**: `SelectOption.disabled` renders gray, `cursor-not-allowed`, non-clickable.
 - **Research page filters (v0.74.0)**: Two `CustomSelect` dropdowns — techniques + research types. Both fetch all from system; options without researches disabled.
+- **Heatmap backdrop priority (v0.74.1)**: snapshot-html (DOM captured by snippet with JS-rendered styles) > proxy-page (live HTML, scripts stripped) > screenshot (static image). `hasSnapshot` prop controls selection.
+- **Proxy CSS (v0.74.1)**: `proxy-page` rewrites `<link rel="stylesheet">` through `/proxy-asset`. Text assets served as plain text, binary as base64.
+- **Idle session filter (v0.74.1)**: `getVisitorJourneys` excludes visits with 0 events. `getOverviewMetrics` uses `INNER JOIN` on events.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

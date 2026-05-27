@@ -17,6 +17,7 @@ interface MultiLayerHeatmapProps {
     pageUrl: string;
     device?: 'mobile' | 'tablet' | 'desktop';
     screenshotUrl?: string | null;
+    hasSnapshot?: boolean;
     layers: { click: boolean; scroll: boolean; attention: boolean; density: boolean };
     intensity: number;
     opacity: number;
@@ -47,6 +48,7 @@ export const MultiLayerHeatmap = ({
     pageUrl,
     device,
     screenshotUrl,
+    hasSnapshot,
     layers,
     intensity,
     opacity,
@@ -62,12 +64,15 @@ export const MultiLayerHeatmap = ({
     const [proxyFailed, setProxyFailed] = useState(false);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-    // Proxy URL — loads page through our backend (same-origin, scripts stripped, <base> injected)
+    // Iframe URL — prefer DOM snapshot (preserves JS-rendered styles) over live proxy
     const token = useAuthStore((s) => s.token);
     const proxyUrl = useMemo(() => {
         const base = configService.getBaseUrl();
+        if (hasSnapshot) {
+            return `${base}/tracking/${researchId}/snapshot-html?page=${encodeURIComponent(pageUrl)}&token=${encodeURIComponent(token || '')}`;
+        }
         return `${base}/tracking/${researchId}/proxy-page?url=${encodeURIComponent(pageUrl)}&token=${encodeURIComponent(token || '')}`;
-    }, [researchId, pageUrl, token]);
+    }, [researchId, pageUrl, token, hasSnapshot]);
 
     // Screenshot first (reliable), proxy fallback only if no screenshot
     const useScreenshot = !!screenshotUrl;
@@ -110,7 +115,7 @@ export const MultiLayerHeatmap = ({
         try {
             const doc = iframe.contentDocument || iframe.contentWindow?.document;
             if (doc) {
-                // Wait a tick for CSS to apply and layout to settle
+                // Wait for CSS to load and layout to settle
                 setTimeout(() => {
                     const w = Math.max(doc.body?.scrollWidth || 0, doc.documentElement?.scrollWidth || 0);
                     const h = Math.max(doc.body?.scrollHeight || 0, doc.documentElement?.scrollHeight || 0);
@@ -118,7 +123,7 @@ export const MultiLayerHeatmap = ({
                         setDimensions({ width: w, height: h });
                         setReady(true);
                     }
-                }, 500);
+                }, 2000);
                 return;
             }
         } catch {

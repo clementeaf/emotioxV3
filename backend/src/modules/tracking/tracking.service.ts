@@ -451,6 +451,7 @@ export const getRecentSessionCount = async (
 
 export const getOverviewMetrics = async (researchId: string, from?: string, to?: string) => {
     const dateFilter = getDateFilter(from, to);
+    // Only count sessions that have at least 1 event (exclude idle/empty sessions)
     const result = await pool.query(
         `SELECT
             COUNT(DISTINCT ts.id) as totalSessions,
@@ -459,7 +460,7 @@ export const getOverviewMetrics = async (researchId: string, from?: string, to?:
             COUNT(te.id) as totalEvents,
             AVG(COALESCE(ts.active_duration_ms / 1000, LEAST(TIMESTAMPDIFF(SECOND, ts.started_at, ts.ended_at), 1800))) as avgSessionDuration
          FROM tracking_sessions ts
-         LEFT JOIN tracking_events te ON te.session_id = ts.id
+         INNER JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?${dateFilter.clause}`,
         [researchId, ...dateFilter.params]
     );
@@ -854,11 +855,16 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
         prevEndedAt = endedAt || startedAt;
     }
 
-    // Sort by most recent visit first, then paginate
-    visits.sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
-    const paginated = visits.slice(offset, offset + limit);
+    // Exclude visits with zero activity (no events across all sessions)
+    const activeVisits = visits.filter(v =>
+        v.pages.some(p => p.eventCount > 0)
+    );
 
-    return { visitors: paginated, totalVisitors: visits.length };
+    // Sort by most recent visit first, then paginate
+    activeVisits.sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime());
+    const paginated = activeVisits.slice(offset, offset + limit);
+
+    return { visitors: paginated, totalVisitors: activeVisits.length };
 };
 
 // ─── Live Sessions ──────────────────────────────────────────────────
