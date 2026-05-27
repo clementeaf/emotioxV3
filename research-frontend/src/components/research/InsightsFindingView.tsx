@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Upload, RotateCw, Settings2, ChevronDown, MessageSquareQuote } from 'lucide-react';
+import { Upload, RotateCw, Settings2, ChevronDown, MessageSquareQuote, Download } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { type Research, researchService } from '../../services/research.service';
 import { researchKeys } from '../../hooks/useResearchQuery';
@@ -39,6 +39,14 @@ const MOOD_COLORS: Record<string, string> = {
 
 type TabId = 'sentiment' | 'themes' | 'keywords';
 
+function computeSentimentScore(entries: Array<{ mood: string }>): number {
+    const pos = entries.filter(e => e.mood === 'positive').length;
+    const neg = entries.filter(e => e.mood === 'negative').length;
+    const polarized = pos + neg;
+    if (polarized === 0) return 0;
+    return Math.round(((pos - neg) / polarized) * 100);
+}
+
 const DEFAULT_INSIGHTS_PROMPT = `Eres Emotio, Neuroeconomista especializado en Consumer Neuroscience y Neuromarketing aplicado a Branding y Packaging para categorías FMCG en Hispanoamérica (especialmente bebidas, alimentos y cuidado personal).
 
 Tu rol es analizar comentarios cualitativos de consumidores sobre conceptos de packaging o rediseños de marca. Debes combinar una lectura profunda de las respuestas con lentes de neuromarketing: Eye-Tracking (saliencia y jerarquía visual), respuestas emocionales implícitas, asociaciones automáticas, congruencia con la categoría y potencial de impacto comercial en punto de venta.
@@ -73,6 +81,138 @@ Reglas de análisis:
 - Da más peso a lo que NO se menciona que a lo que se menciona (ausencias son muy importantes).
 - Siempre vincula los hallazgos a posible comportamiento en anaquel (prueba, elección impulsiva y lealtad).
 - Usa lenguaje profesional pero claro, orientado a negocio.`;
+
+function generateInsightsReport(researchName: string, fileName: string, analysis: InsightsAnalysis, entries: Array<{ text: string; mood: string }>) {
+    const moodCounts = entries.reduce((acc, e) => {
+        acc[e.mood] = (acc[e.mood] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+    const total = entries.length;
+    const pct = (key: string) => total > 0 ? Math.round(((moodCounts[key] || 0) / total) * 100) : 0;
+    const pPos = pct('positive');
+    const pNeg = pct('negative');
+    const pNeu = pct('neutral');
+    const pInd = pct('indeterminate');
+
+    const themes = analysis.themes || [];
+    const keywords = analysis.keywords || [];
+    const totalMentions = themes.reduce((s, t) => s + t.count, 0);
+    const sentScore = computeSentimentScore(entries);
+    const sentScoreColor = sentScore > 20 ? '#16a34a' : sentScore < -20 ? '#dc2626' : '#d97706';
+
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const html = `<!DOCTYPE html>
+<html><head>
+<title>${esc(researchName)} — Insights Report</title>
+<style>
+  @media print { @page { margin: 1.5cm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; line-height: 1.6; padding: 2rem; max-width: 800px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.25rem; }
+  h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: #475569; }
+  .subtitle { color: #64748b; font-size: 0.85rem; margin-bottom: 1.5rem; }
+  .metrics { display: flex; gap: 1rem; margin: 1rem 0; flex-wrap: wrap; }
+  .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; text-align: center; min-width: 90px; }
+  .metric-value { font-size: 1.4rem; font-weight: 700; color: #0f172a; }
+  .metric-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
+  .overview { font-size: 0.9rem; color: #475569; margin: 0.75rem 0; }
+  .sentiment-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
+  .sentiment-bar > div { display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: white; min-width: 30px; }
+  .theme-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; page-break-inside: avoid; }
+  .theme-name { font-weight: 600; font-size: 0.9rem; color: #1e293b; }
+  .theme-bar { height: 6px; background: #e2e8f0; border-radius: 3px; margin: 0.4rem 0; }
+  .theme-bar-fill { height: 100%; background: #3b82f6; border-radius: 3px; }
+  .theme-desc { font-size: 0.8rem; color: #64748b; }
+  .theme-quote { font-size: 0.78rem; color: #64748b; font-style: italic; border-left: 2px solid #93c5fd; padding-left: 0.5rem; margin: 0.3rem 0; }
+  .kw-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+  .kw { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
+  .kw-pos { background: #dcfce7; color: #166534; }
+  .kw-neg { background: #fee2e2; color: #991b1b; }
+  .kw-neu { background: #f1f5f9; color: #475569; }
+  .actionable { display: flex; gap: 0.5rem; margin: 0.4rem 0; align-items: flex-start; }
+  .actionable-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; margin-top: 8px; }
+  .actionable-text { font-size: 0.85rem; color: #475569; }
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 0.7rem; display: flex; justify-content: space-between; }
+  .print-btn { position: fixed; top: 1rem; right: 1rem; padding: 0.5rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+  @media print { .print-btn { display: none; } }
+</style>
+</head><body>
+<button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+
+<h1>${esc(researchName)}</h1>
+<p class="subtitle">Insights Finding Report — ${esc(fileName)} — ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+
+<div class="metrics">
+  <div class="metric"><div class="metric-value">${total}</div><div class="metric-label">Entries</div></div>
+  <div class="metric"><div class="metric-value">${themes.length}</div><div class="metric-label">Themes</div></div>
+  <div class="metric"><div class="metric-value">${keywords.length}</div><div class="metric-label">Keywords</div></div>
+  <div class="metric" style="border-color:${sentScoreColor}"><div class="metric-value" style="color:${sentScoreColor}">${sentScore > 0 ? '+' : ''}${sentScore}</div><div class="metric-label">Sentiment Score</div></div>
+</div>
+
+<h2>Sentiment Distribution</h2>
+<div class="sentiment-bar">
+  ${pPos > 0 ? `<div style="width:${pPos}%; background:#22c55e">${pPos}%</div>` : ''}
+  ${pNeu > 0 ? `<div style="width:${pNeu}%; background:#94a3b8">${pNeu}%</div>` : ''}
+  ${pInd > 0 ? `<div style="width:${pInd}%; background:#cbd5e1">${pInd}%</div>` : ''}
+  ${pNeg > 0 ? `<div style="width:${pNeg}%; background:#ef4444">${pNeg}%</div>` : ''}
+</div>
+<p style="font-size:0.78rem; color:#64748b">Positive ${pPos}% · Neutral ${pNeu}% · Indeterminate ${pInd}% · Negative ${pNeg}%</p>
+
+${analysis.sentiment ? `
+<h2>Executive Synthesis</h2>
+<p class="overview">${esc(analysis.sentiment.summary)}</p>
+<p class="overview">${esc(analysis.sentiment.description)}</p>
+
+${analysis.sentiment.actionables.length > 0 ? `
+<h3>Actionable Recommendations</h3>
+${analysis.sentiment.actionables.map(a => `<div class="actionable"><div class="actionable-dot"></div><div class="actionable-text">${esc(a)}</div></div>`).join('')}
+` : ''}
+` : ''}
+
+${themes.length > 0 ? `
+<h2>Themes</h2>
+${themes.map(t => {
+    const pctTheme = totalMentions > 0 ? Math.round((t.count / totalMentions) * 100) : 0;
+    const quotes = (t.supportingQuotes || []).slice(0, 3);
+    return `<div class="theme-card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <span class="theme-name">${esc(t.name)}</span>
+    <span style="font-size:0.75rem; color:#3b82f6; font-weight:600;">${pctTheme}% · ${t.count} mentions</span>
+  </div>
+  <div class="theme-bar"><div class="theme-bar-fill" style="width:${pctTheme}%"></div></div>
+  <p class="theme-desc">${esc(t.description)}</p>
+  ${quotes.map(q => `<p class="theme-quote">"${esc(q)}"</p>`).join('')}
+</div>`;
+}).join('')}
+` : ''}
+
+${keywords.length > 0 ? `
+<h2>Keywords</h2>
+<div class="kw-list">
+  ${keywords.map(k => {
+    const cls = k.sentiment === 'positive' ? 'kw-pos' : k.sentiment === 'negative' ? 'kw-neg' : 'kw-neu';
+    return `<span class="kw ${cls}">${esc(k.word)} (${k.count})</span>`;
+  }).join('')}
+</div>
+` : ''}
+
+<div class="footer">
+  <span>EmotioCX — Insights Finding Report</span>
+  <span>${new Date().toISOString().split('T')[0]}</span>
+</div>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        // Auto-trigger print after content loads
+        win.onload = () => win.print();
+    }
+}
 
 /**
  * View for Insights Finding — shows text entries with LLM-powered analysis.
@@ -220,14 +360,39 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
         }
     }, [files, research.id, research.settings, queryClient, uploadSingleFile]);
 
-    const handleCsvColumnSelected = useCallback(async (columnIndex: number) => {
+    const handleCsvColumnsSelected = useCallback(async (columnIndices: number[]) => {
         if (!pendingCsvFile) return;
+        const { file, columnInfo } = pendingCsvFile;
         setIsUploading(true);
         setPendingCsvFile(null);
         try {
-            const newFile = await uploadSingleFile(pendingCsvFile.file, columnIndex);
+            // Upload file once, reuse mediaId as base
+            const { mediaId: baseMediaId } = await mediaService.uploadFile(research.id, file);
+            const MAX_ENTRIES = 200;
+            const MAX_TEXT_LENGTH = 500;
+
+            const newFiles: FileItem[] = [];
+            for (const colIdx of columnIndices) {
+                const colName = columnInfo.headers[colIdx] || `Column ${colIdx + 1}`;
+                const texts = await parseDocument(file, colIdx);
+                const totalCount = texts.length;
+                const capped = texts.slice(0, MAX_ENTRIES);
+                const entries = capped.map(text => ({
+                    text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) : text,
+                    mood: 'indeterminate',
+                }));
+                // Unique mediaId per column: base + column index suffix
+                const mediaId = columnIndices.length === 1 ? baseMediaId : `${baseMediaId}__col${colIdx}`;
+                newFiles.push({
+                    mediaId,
+                    name: `${file.name} — ${colName}`,
+                    entries,
+                    totalCount,
+                    processedAt: new Date().toISOString(),
+                } as FileItem);
+            }
             const existingIds = new Set(files.map(f => f.mediaId));
-            const merged = existingIds.has(newFile.mediaId) ? files : [...files, newFile];
+            const merged = [...files, ...newFiles.filter(f => !existingIds.has(f.mediaId))];
             await researchService.update(research.id, {
                 settings: { ...(research.settings as Record<string, unknown> || {}), stimuli: merged },
             });
@@ -270,6 +435,17 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
             <div className="flex items-start justify-between">
                 <h3 className="text-base font-semibold text-gray-900">Insights finding research</h3>
                 <div className="flex items-center gap-2">
+                    {hasAnalysis && (
+                        <button
+                            type="button"
+                            onClick={() => generateInsightsReport(research.name, activeFile.name, analysis!, entries)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
+                            title="Download PDF report"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                            PDF
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => setIsPromptOpen(true)}
@@ -355,7 +531,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                     <CsvColumnSelector
                         fileName={pendingCsvFile.file.name}
                         columnInfo={pendingCsvFile.columnInfo}
-                        onSelect={(colIndex) => void handleCsvColumnSelected(colIndex)}
+                        onSelect={(colIndices) => void handleCsvColumnsSelected(colIndices)}
                         onCancel={() => {
                             setPendingCsvFile(null);
                             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -427,9 +603,21 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                 )}
 
                                 {/* Sentiment tab */}
-                                {activeTab === 'sentiment' && (
+                                {activeTab === 'sentiment' && (() => {
+                                    const score = computeSentimentScore(entries);
+                                    const scoreColor = score > 20 ? 'text-green-600' : score < -20 ? 'text-red-600' : 'text-amber-600';
+                                    const scoreBg = score > 20 ? 'bg-green-50 border-green-200' : score < -20 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
+                                    return (
                                     <div className="space-y-4">
-                                        <h5 className="font-semibold text-sm text-gray-900">Sentiment analysis</h5>
+                                        <div className="flex items-center justify-between">
+                                            <h5 className="font-semibold text-sm text-gray-900">Sentiment analysis</h5>
+                                            <div className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border', scoreBg)}>
+                                                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Sentiment Score</span>
+                                                <span className={cn('text-lg font-bold', scoreColor)}>
+                                                    {score > 0 ? '+' : ''}{score}
+                                                </span>
+                                            </div>
+                                        </div>
                                         {analysis?.sentiment ? (
                                             <>
                                                 <p className="text-sm text-gray-700 leading-relaxed">{analysis.sentiment.summary}</p>
@@ -449,7 +637,8 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                             <p className="text-sm text-gray-400">No analysis available yet.</p>
                                         ) : null}
                                     </div>
-                                )}
+                                    );
+                                })()}
 
                                 {/* Themes tab */}
                                 {activeTab === 'themes' && (() => {
@@ -555,6 +744,8 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                                     <div className="flex flex-wrap gap-2">
                                                         {kwList.map((kw, i) => {
                                                             const isActive = selectedKeyword === kw.word;
+                                                            const realCount = entries.filter(e => normalize(e.text).includes(normalize(kw.word))).length;
+                                                            const pctKw = entries.length > 0 ? Math.round((realCount / entries.length) * 100) : 0;
                                                             return (
                                                                 <button
                                                                     key={i}
@@ -571,7 +762,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                                                     )}
                                                                 >
                                                                     {kw.word}
-                                                                    <span className="text-[10px] opacity-60">({kw.count})</span>
+                                                                    <span className="text-[10px] opacity-60">({realCount} · {pctKw}%)</span>
                                                                 </button>
                                                             );
                                                         })}

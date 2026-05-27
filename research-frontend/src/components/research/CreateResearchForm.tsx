@@ -610,9 +610,9 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                         <CsvColumnSelector
                             fileName={pendingCsvFile.file.name}
                             columnInfo={pendingCsvFile.columnInfo}
-                            onSelect={(colIndex) => {
+                            onSelect={(colIndices) => {
                                 const file = pendingCsvFile.file;
-                                setCsvColumnSelections(prev => ({ ...prev, [file.name]: colIndex }));
+                                setCsvColumnSelections(prev => ({ ...prev, [file.name]: colIndices[0] }));
                                 handleFieldChange('stimulusFiles', [...formData.stimulusFiles, file]);
                                 setPendingCsvFile(null);
                             }}

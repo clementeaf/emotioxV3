@@ -99,6 +99,12 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Research collaborators**: `research_collaborators` table. `buildOwnershipClause` includes collaborator access. Endpoints: `GET/POST/DELETE /research/:id/collaborators`. `ShareResearchDrawer` in builder sidebar.
 - **Passenger dual entry points**: `server-cpanel.js` (JS, Passenger entry) and `src/server-cpanel.ts` (TS, compiled to `dist/`). New Express routes must be added to **both** files.
 
+- **Sentiment Score (v0.74.0)**: `((positive - negative) / (positive + negative)) * 100`. Range -100 to +100. Neutrals/indeterminate excluded from denominator.
+- **Multi-column CSV (v0.74.0)**: `CsvColumnSelector` supports multi-select checkboxes. Each column creates a `FileItem` with `mediaId__colN` suffix. Sidebar shows each as separate tab.
+- **Insights Finding PDF (v0.74.0)**: `window.open` + `window.print()` — no `html2pdf.js` (causes blank pages). Includes Sentiment Score metric.
+- **CustomSelect disabled options (v0.74.0)**: `SelectOption.disabled` renders gray, `cursor-not-allowed`, non-clickable.
+- **Research page filters (v0.74.0)**: Two `CustomSelect` dropdowns — techniques + research types. Both fetch all from system; options without researches disabled.
+
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 
 ## Key Files

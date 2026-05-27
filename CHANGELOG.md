@@ -1,3 +1,19 @@
+## v0.74.0 — Insights Finding PDF report, Sentiment Score, multi-column CSV, Research filters (2026-05-27)
+
+### backend
+- **Insights analysis: all quotes + longer descriptions.** LLM prompt now requests ALL matching verbatim quotes per theme (not 2-5) and 2-sentence minimum descriptions. `max_tokens` raised from 3000 to 8000.
+
+### research-frontend
+- **Insights Finding PDF report.** "PDF" button generates a printable report (new tab + `window.print()`). Includes metrics, sentiment distribution, Sentiment Score, executive synthesis, actionable recommendations, themes with verbatim quotes, and keyword pills.
+- **Sentiment Score.** `((positive - negative) / (positive + negative)) * 100`, range -100 to +100. Shown in Sentiment tab (colored badge) and PDF report (metric card). Green >+20, amber -20 to +20, red <-20.
+- **Keywords: real count + percentage.** Pill badges now show client-side matched count and percentage (`amarillo (4 · 3%)`) instead of LLM-approximated count. Eliminates mismatch between pill number and expanded results.
+- **Multi-column CSV selection.** `CsvColumnSelector` supports checkboxes for multiple columns. Each selected column creates a separate analysis (unique `mediaId__colN`), appears as its own tab in the sidebar.
+- **Research page: type filter dropdown.** New `CustomSelect` dropdown for research types (Attention Prediction, Insights Finding, Website Tracking, etc.) alongside existing technique filter. Both fetch all options from the system; options without researches are disabled.
+- **Research page: technique filter uses CustomSelect.** Replaced native `<select>` with portal-based `CustomSelect` for consistent UX.
+- **CustomSelect: disabled options.** `SelectOption` interface accepts optional `disabled` flag. Disabled options render gray with `cursor-not-allowed`.
+
+---
+
 ## v0.73.4 — Insights Finding overhaul, editable prompts, AOI fixes (2026-05-25)
 
 ### backend

@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 interface SelectOption {
     value: string;
     label: string;
+    disabled?: boolean;
 }
 
 interface CustomSelectProps {
@@ -181,12 +182,16 @@ export const CustomSelect = ({
                                 <button
                                     key={option.value}
                                     type="button"
-                                    onClick={() => handleSelect(option.value)}
+                                    onClick={() => !option.disabled && handleSelect(option.value)}
+                                    disabled={option.disabled}
                                     className={cn(
-                                        'w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50 transition-colors',
-                                        selectedValue === option.value && 'bg-blue-50 text-blue-600'
+                                        'w-full px-3 py-2 text-left text-sm transition-colors',
+                                        option.disabled
+                                            ? 'text-gray-300 cursor-not-allowed'
+                                            : 'text-gray-800 hover:bg-gray-50',
+                                        selectedValue === option.value && !option.disabled && 'bg-blue-50 text-blue-600'
                                     )}
-                                    style={{ backgroundColor: selectedValue === option.value ? '#eff6ff' : 'white' }}
+                                    style={{ backgroundColor: selectedValue === option.value && !option.disabled ? '#eff6ff' : 'white' }}
                                 >
                                     {option.label}
                                 </button>

@@ -9,11 +9,16 @@ import { useIsViewer } from '../../hooks/useIsViewer';
 import { Button } from '../../components/ui/Button';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Drawer } from '../../components/ui/Drawer';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 import { ResearchCardSkeleton } from '../../components/ui/Skeleton';
 import { ArrowRight, Calendar, Clock, Folder, Plus, Trash2, FlaskConical, Building2, Copy, List, LayoutGrid, ExternalLink, User, UserPlus, Loader2, X, Search, Archive } from 'lucide-react';
 import { researchService } from '../../services/research.service';
+import { researchTechniquesService } from '../../services/researchTechniques.service';
+import { researchTypesService } from '../../services/researchTypes.service';
 import apiClient from '../../services/api/client';
 import type { Research } from '../../services/research.service';
+import type { ResearchTechnique } from '../../services/researchTechniques.service';
+import type { ResearchType } from '../../services/researchTypes.service';
 
 /**
  * Componente memoizado para tarjeta de investigación
@@ -299,6 +304,7 @@ export const ResearchPage = () => {
     const [viewersLoading, setViewersLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [techniqueFilter, setTechniqueFilter] = useState<string>('all');
+    const [typeFilter, setTypeFilter] = useState<string>('all');
     const [enterpriseFilter, setEnterpriseFilter] = useState<string>('all');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -339,12 +345,53 @@ export const ResearchPage = () => {
     // Type assertion para TypeScript
     const typedResearches = researches as Research[];
 
-    // Unique values for filter dropdowns
-    const techniques = useMemo(() => {
+    // Fetch all techniques and types from the system
+    const [allTechniques, setAllTechniques] = useState<ResearchTechnique[]>([]);
+    const [allTypes, setAllTypes] = useState<ResearchType[]>([]);
+    useEffect(() => {
+        researchTechniquesService.list()
+            .then(res => setAllTechniques(res.researchTechniques || []))
+            .catch(() => setAllTechniques([]));
+        researchTypesService.list()
+            .then(res => setAllTypes(res.researchTypes || []))
+            .catch(() => setAllTypes([]));
+    }, []);
+
+    // Techniques that have at least 1 research
+    const techniquesWithResearches = useMemo(() => {
         const set = new Set<string>();
         for (const r of typedResearches) if (r.research_technique_name) set.add(r.research_technique_name);
-        return Array.from(set).sort();
+        return set;
     }, [typedResearches]);
+
+    const techniqueOptions = useMemo(() => {
+        return [
+            { value: 'all', label: 'All techniques' },
+            ...allTechniques.map(t => ({
+                value: t.name,
+                label: t.name,
+                disabled: !techniquesWithResearches.has(t.name),
+            })),
+        ];
+    }, [allTechniques, techniquesWithResearches]);
+
+    // Research types that have at least 1 research
+    const typesWithResearches = useMemo(() => {
+        const set = new Set<string>();
+        for (const r of typedResearches) if (r.research_type_name) set.add(r.research_type_name);
+        return set;
+    }, [typedResearches]);
+
+    const typeOptions = useMemo(() => {
+        return [
+            { value: 'all', label: 'All types' },
+            ...allTypes.map(t => ({
+                value: t.name,
+                label: t.name,
+                disabled: !typesWithResearches.has(t.name),
+            })),
+        ];
+    }, [allTypes, typesWithResearches]);
 
     const enterpriseNames = useMemo(() => {
         const set = new Set<string>();
@@ -352,11 +399,12 @@ export const ResearchPage = () => {
         return Array.from(set).sort();
     }, [typedResearches]);
 
-    const hasActiveFilters = techniqueFilter !== 'all' || enterpriseFilter !== 'all' || dateFrom || dateTo || searchQuery.trim();
+    const hasActiveFilters = techniqueFilter !== 'all' || typeFilter !== 'all' || enterpriseFilter !== 'all' || dateFrom || dateTo || searchQuery.trim();
 
     const clearAllFilters = useCallback(() => {
         setSearchQuery('');
         setTechniqueFilter('all');
+        setTypeFilter('all');
         setEnterpriseFilter('all');
         setDateFrom('');
         setDateTo('');
@@ -368,6 +416,7 @@ export const ResearchPage = () => {
         if (!showArchived) result = result.filter(r => !r.archived_at);
 
         if (techniqueFilter !== 'all') result = result.filter(r => r.research_technique_name === techniqueFilter);
+        if (typeFilter !== 'all') result = result.filter(r => r.research_type_name === typeFilter);
         if (enterpriseFilter !== 'all') result = result.filter(r => r.enterprise_name === enterpriseFilter);
 
         if (dateFrom) result = result.filter(r => r.created_at >= dateFrom);
@@ -387,7 +436,7 @@ export const ResearchPage = () => {
         }
 
         return result;
-    }, [typedResearches, searchQuery, techniqueFilter, enterpriseFilter, dateFrom, dateTo, showArchived]);
+    }, [typedResearches, searchQuery, techniqueFilter, typeFilter, enterpriseFilter, dateFrom, dateTo, showArchived]);
 
     const handleResearchClick = useCallback((researchId: string) => {
         navigate(`/research/${researchId}/builder`);
@@ -588,17 +637,32 @@ export const ResearchPage = () => {
                     />
                 </div>
 
-                {techniques.length > 1 && (
-                    <select
-                        value={techniqueFilter}
-                        onChange={(e) => setTechniqueFilter(e.target.value)}
-                        className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                            techniqueFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
-                        }`}
-                    >
-                        <option value="all">All techniques</option>
-                        {techniques.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                {allTechniques.length > 0 && (
+                    <div className="w-44">
+                        <CustomSelect
+                            options={techniqueOptions}
+                            value={techniqueFilter}
+                            onChange={(v) => setTechniqueFilter(v)}
+                            placeholder="All techniques"
+                            className={`!h-[30px] !text-xs !py-0 ${
+                                techniqueFilter !== 'all' ? '!border-blue-300 !bg-blue-50 !text-blue-700' : '!border-gray-200 !text-gray-600'
+                            }`}
+                        />
+                    </div>
+                )}
+
+                {allTypes.length > 0 && (
+                    <div className="w-44">
+                        <CustomSelect
+                            options={typeOptions}
+                            value={typeFilter}
+                            onChange={(v) => setTypeFilter(v)}
+                            placeholder="All types"
+                            className={`!h-[30px] !text-xs !py-0 ${
+                                typeFilter !== 'all' ? '!border-blue-300 !bg-blue-50 !text-blue-700' : '!border-gray-200 !text-gray-600'
+                            }`}
+                        />
+                    </div>
                 )}
 
                 {enterpriseNames.length > 1 && (
