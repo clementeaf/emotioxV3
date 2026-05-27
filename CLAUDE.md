@@ -107,6 +107,9 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Heatmap backdrop priority (v0.74.1)**: snapshot-html (DOM captured by snippet with JS-rendered styles) > proxy-page (live HTML, scripts stripped) > screenshot (static image). `hasSnapshot` prop controls selection.
 - **Proxy CSS (v0.74.1)**: `proxy-page` rewrites `<link rel="stylesheet">` through `/proxy-asset`. Text assets served as plain text, binary as base64.
 - **Idle session filter (v0.74.1)**: `getVisitorJourneys` excludes visits with 0 events. `getOverviewMetrics` uses `INNER JOIN` on events.
+- **Insights themes client-side (v0.74.2)**: Expanded themes show ALL matching entries via client-side word matching (not LLM `supportingQuotes`). Count/percentage from real data. Scrollable `max-h-240px`.
+- **Sentiment Score tooltip (v0.74.2)**: `SentimentScoreBadge` component with `createPortal` tooltip. Instant on hover, shows formula + breakdown.
+- **Re-analyze (v0.74.2)**: Button in Insights Finding header re-triggers LLM analysis without re-uploading.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

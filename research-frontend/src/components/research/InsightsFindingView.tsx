@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Upload, RotateCw, Settings2, ChevronDown, MessageSquareQuote, Download } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
@@ -38,6 +39,53 @@ const MOOD_COLORS: Record<string, string> = {
 };
 
 type TabId = 'sentiment' | 'themes' | 'keywords';
+
+const SentimentScoreBadge = ({ score, entries, scoreColor, scoreBg }: { score: number; entries: Array<{ mood: string }>; scoreColor: string; scoreBg: string }) => {
+    const tipRef = useRef<HTMLDivElement>(null);
+    const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(null);
+    const showTip = () => {
+        if (!tipRef.current) return;
+        const rect = tipRef.current.getBoundingClientRect();
+        setTipPos({ top: rect.bottom + 6, left: Math.max(8, rect.right - 288) });
+    };
+    const hideTip = () => setTipPos(null);
+    const posCount = entries.filter(e => e.mood === 'positive').length;
+    const negCount = entries.filter(e => e.mood === 'negative').length;
+    const neutCount = entries.length - posCount - negCount;
+    return (
+        <>
+            <div
+                ref={tipRef}
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-help', scoreBg)}
+                onMouseEnter={showTip}
+                onMouseLeave={hideTip}
+            >
+                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Sentiment Score</span>
+                <span className={cn('text-lg font-bold', scoreColor)}>
+                    {score > 0 ? '+' : ''}{score}
+                </span>
+            </div>
+            {tipPos && createPortal(
+                <div
+                    className="fixed w-72 p-3 bg-gray-900 text-white text-[11px] leading-relaxed rounded-lg shadow-lg z-[9999] pointer-events-none"
+                    style={{ top: tipPos.top, left: tipPos.left }}
+                >
+                    <p className="font-semibold mb-1">Formula</p>
+                    <p className="font-mono text-[10px] mb-2">((positive - negative) / (positive + negative)) x 100</p>
+                    <p className="mb-1">
+                        <span className="text-green-400">Positive: {posCount}</span>
+                        {' · '}
+                        <span className="text-red-400">Negative: {negCount}</span>
+                        {' · '}
+                        <span className="text-gray-400">Neutral/Indet: {neutCount}</span>
+                    </p>
+                    <p className="text-gray-400">Range: -100 (all negative) to +100 (all positive). Neutral and indeterminate excluded.</p>
+                </div>,
+                document.body
+            )}
+        </>
+    );
+};
 
 function computeSentimentScore(entries: Array<{ mood: string }>): number {
     const pos = entries.filter(e => e.mood === 'positive').length;
@@ -436,15 +484,27 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                 <h3 className="text-base font-semibold text-gray-900">Insights finding research</h3>
                 <div className="flex items-center gap-2">
                     {hasAnalysis && (
-                        <button
-                            type="button"
-                            onClick={() => generateInsightsReport(research.name, activeFile.name, analysis!, entries)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
-                            title="Download PDF report"
-                        >
-                            <Download className="w-3.5 h-3.5" />
-                            PDF
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => generateInsightsReport(research.name, activeFile.name, analysis!, entries)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
+                                title="Download PDF report"
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                                PDF
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isAnalyzing}
+                                onClick={() => void triggerAnalysis(activeFile.mediaId)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Re-analyze with current prompt"
+                            >
+                                <RotateCw className={cn('w-3.5 h-3.5', isAnalyzing && 'animate-spin')} />
+                                {isAnalyzing ? 'Analyzing...' : 'Re-analyze'}
+                            </button>
+                        </>
                     )}
                     <button
                         type="button"
@@ -611,12 +671,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
                                             <h5 className="font-semibold text-sm text-gray-900">Sentiment analysis</h5>
-                                            <div className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border', scoreBg)}>
-                                                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Sentiment Score</span>
-                                                <span className={cn('text-lg font-bold', scoreColor)}>
-                                                    {score > 0 ? '+' : ''}{score}
-                                                </span>
-                                            </div>
+                                            <SentimentScoreBadge score={score} entries={entries} scoreColor={scoreColor} scoreBg={scoreBg} />
                                         </div>
                                         {analysis?.sentiment ? (
                                             <>
@@ -643,74 +698,92 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                 {/* Themes tab */}
                                 {activeTab === 'themes' && (() => {
                                     const themes = analysis?.themes || [];
-                                    const totalMentions = themes.reduce((sum, t) => sum + t.count, 0);
+                                    const normalizeTheme = (s: string) => {
+                                        const repaired = s
+                                            .replace(/Ã¡/g, 'á').replace(/Ã©/g, 'é').replace(/Ã­/g, 'í')
+                                            .replace(/Ã³/g, 'ó').replace(/Ãº/g, 'ú').replace(/Ã±/g, 'ñ')
+                                            .replace(/Ã¼/g, 'ü').replace(/Ã'/g, 'Ñ');
+                                        return repaired.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                                    };
                                     return (
                                         <div className="space-y-3">
                                             <h5 className="font-semibold text-sm text-gray-900">Themes</h5>
                                             {themes.length > 0 ? (
                                                 themes.map((theme, i) => {
-                                                    const pct = totalMentions > 0 ? Math.round((theme.count / totalMentions) * 100) : 0;
-                                                    const hasQuotes = theme.supportingQuotes && theme.supportingQuotes.length > 0;
+                                                    // Client-side matching: find all entries that relate to this theme
+                                                    const themeWords = normalizeTheme(theme.name).split(/\s+/).filter(w => w.length > 2);
+                                                    const matchingEntries = entries.filter(e => {
+                                                        const normalized = normalizeTheme(e.text);
+                                                        return themeWords.some(w => normalized.includes(w));
+                                                    });
+                                                    const realCount = matchingEntries.length;
                                                     const isExpanded = expandedThemes.has(i);
                                                     return (
                                                         <div key={i} className="bg-gray-50 rounded-lg overflow-hidden">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => hasQuotes && setExpandedThemes(prev => {
+                                                                onClick={() => setExpandedThemes(prev => {
                                                                     const next = new Set(prev);
                                                                     if (next.has(i)) next.delete(i); else next.add(i);
                                                                     return next;
                                                                 })}
-                                                                className={cn(
-                                                                    'w-full text-left p-3',
-                                                                    hasQuotes && 'cursor-pointer hover:bg-gray-100 transition-colors'
-                                                                )}
+                                                                className="w-full text-left p-3 cursor-pointer hover:bg-gray-100 transition-colors"
                                                             >
                                                                 <div className="flex items-center justify-between mb-1">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-sm font-medium text-gray-900">{theme.name}</span>
-                                                                        {hasQuotes && (
-                                                                            <ChevronDown className={cn(
-                                                                                'w-3.5 h-3.5 text-gray-400 transition-transform',
-                                                                                isExpanded && 'rotate-180'
-                                                                            )} />
-                                                                        )}
+                                                                        <ChevronDown className={cn(
+                                                                            'w-3.5 h-3.5 text-gray-400 transition-transform',
+                                                                            isExpanded && 'rotate-180'
+                                                                        )} />
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-semibold text-blue-600">{pct}%</span>
-                                                                        <span className="text-xs text-gray-500">{theme.count} mentions</span>
+                                                                        <span className="text-xs font-semibold text-blue-600">{entries.length > 0 ? Math.round((realCount / entries.length) * 100) : 0}%</span>
+                                                                        <span className="text-xs text-gray-500">{realCount} mentions</span>
                                                                     </div>
                                                                 </div>
                                                                 {/* Percentage bar */}
                                                                 <div className="w-full h-1.5 bg-gray-200 rounded-full mb-2">
                                                                     <div
                                                                         className="h-full bg-blue-500 rounded-full transition-all"
-                                                                        style={{ width: `${pct}%` }}
+                                                                        style={{ width: `${entries.length > 0 ? Math.round((realCount / entries.length) * 100) : 0}%` }}
                                                                     />
                                                                 </div>
                                                                 <p className="text-xs text-gray-600">{theme.description}</p>
                                                             </button>
-                                                            {/* Verbatims — smooth accordion via grid-rows */}
-                                                            {hasQuotes && (
-                                                                <div
-                                                                    className="grid transition-[grid-template-rows] duration-300 ease-in-out"
-                                                                    style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
-                                                                >
-                                                                    <div className="overflow-hidden">
-                                                                        <div className="px-3 pb-3 space-y-1.5 border-t border-gray-200 pt-2">
-                                                                            <div className="flex items-center gap-1.5 mb-1">
+                                                            {/* Matching entries — smooth accordion via grid-rows */}
+                                                            <div
+                                                                className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+                                                                style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
+                                                            >
+                                                                <div className="overflow-hidden">
+                                                                    <div className="px-3 pb-3 border-t border-gray-200 pt-2">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <div className="flex items-center gap-1.5">
                                                                                 <MessageSquareQuote className="w-3 h-3 text-gray-400" />
-                                                                                <span className="text-[11px] font-medium text-gray-500">Supporting quotes</span>
+                                                                                <span className="text-[11px] font-medium text-gray-500">Matching entries</span>
                                                                             </div>
-                                                                            {theme.supportingQuotes!.map((quote, qi) => (
-                                                                                <p key={qi} className="text-xs text-gray-600 italic pl-3 border-l-2 border-blue-200">
-                                                                                    "{quote}"
-                                                                                </p>
+                                                                            <span className="text-[10px] text-gray-400">{realCount} results</span>
+                                                                        </div>
+                                                                        <div className="max-h-[240px] overflow-y-auto space-y-1">
+                                                                            {matchingEntries.map((entry, qi) => (
+                                                                                <div key={qi} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-white transition-colors">
+                                                                                    <p className="text-xs text-gray-600 italic flex-1 min-w-0 mr-3">"{entry.text}"</p>
+                                                                                    <span className={cn(
+                                                                                        'text-[10px] font-medium px-1.5 py-0.5 rounded-full capitalize flex-shrink-0',
+                                                                                        MOOD_COLORS[entry.mood] || MOOD_COLORS.indeterminate
+                                                                                    )}>
+                                                                                        {entry.mood}
+                                                                                    </span>
+                                                                                </div>
                                                                             ))}
+                                                                            {realCount === 0 && (
+                                                                                <p className="text-xs text-gray-400 italic">No matching entries found</p>
+                                                                            )}
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                            )}
+                                                            </div>
                                                         </div>
                                                     );
                                                 })

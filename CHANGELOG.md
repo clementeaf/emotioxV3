@@ -1,3 +1,16 @@
+## v0.74.2 — Insights Finding: Re-analyze, client-side theme matching, Sentiment Score tooltip (2026-05-27)
+
+### backend
+- **Insights prompt: all verbatim quotes.** LLM prompt now demands every matching entry per theme (`supportingQuotes.length MUST equal count`). `max_tokens` already at 8000.
+
+### research-frontend
+- **Re-analyze button.** "Re-analyze" in Insights Finding header re-triggers LLM analysis with current prompt. Spinner while processing, auto-refresh on completion.
+- **Client-side theme matching.** Expanded themes list ALL entries matching the theme name (accent/mojibake-insensitive), not just LLM `supportingQuotes`. Scrollable container (`max-h-240px`) with mood badges. Always expandable.
+- **Theme count from real data.** Percentage and mention count derived from client-side matching, not LLM approximation. Zero discrepancy between pill and expanded list.
+- **Sentiment Score tooltip.** Portal-based tooltip (instant on hover, no browser delay) explains formula, shows positive/negative/neutral breakdown. `SentimentScoreBadge` component with `createPortal`.
+
+---
+
 ## v0.74.1 — Website Tracking: snapshot backdrop, CSS proxy, idle session filter, toolbar layout (2026-05-27)
 
 ### backend
