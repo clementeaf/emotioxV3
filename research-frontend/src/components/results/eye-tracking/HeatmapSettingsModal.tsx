@@ -14,6 +14,7 @@ export interface HeatmapSettings {
   preset: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- constant co-located with component
 export const DEFAULT_HEATMAP_SETTINGS: HeatmapSettings = {
   blur: 12,
   opacity: 72,

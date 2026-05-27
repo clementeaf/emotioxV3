@@ -91,7 +91,6 @@ export const VideoGazePlayer = ({
       video.removeEventListener('seeked', onSeeked);
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- updateGaze is stable within this effect
   }, []);
 
   return (

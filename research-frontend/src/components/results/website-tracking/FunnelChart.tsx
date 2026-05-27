@@ -3,7 +3,7 @@
  * Auto-generated page flow + configurable custom funnels with drop-off visualization.
  */
 
-import { useState, useCallback, useId } from 'react';
+import { useState, useCallback, useId, useMemo } from 'react';
 import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { TrendingDown, Plus, Trash2, GripVertical, Pencil, ChevronDown, Trophy, ArrowDown } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
@@ -30,7 +30,7 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
         staleTime: 30_000,
     });
 
-    const savedFunnels = trackingConfig?.funnels || [];
+    const savedFunnels = useMemo(() => trackingConfig?.funnels || [], [trackingConfig?.funnels]);
 
     const handleSaveFunnel = useCallback(async (funnel: FunnelDefinition) => {
         const existing = [...savedFunnels];

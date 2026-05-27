@@ -287,10 +287,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
+        const videoEl = isVideo ? stimulusVideoRef.current : null;
         return () => {
             cancelAnimationFrame(raf);
             if (hasEmotionRecognition) faceEmotions.stop();
-            if (isVideo && stimulusVideoRef.current) stimulusVideoRef.current.pause();
+            if (videoEl) videoEl.pause();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live blaze.* reads via ref
     }, [phase, isDesktop, hasEmotionRecognition, isVideo]);
@@ -386,6 +387,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             clearInterval(interval);
             clearTimeout(timeout);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
     }, [phase, viewingDuration, isDesktop]);
 
     // Start camera early in setup phase so participant can verify position
@@ -550,7 +552,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 onComplete?.();
             }, 1200);
         }
-    }, [phase, module.id, saveResponse, onComplete, isDesktop, blaze, stopCamera, deviceType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement/fixations.length read refs; additional props are stable at phase=complete
+    }, [phase, module.id, saveResponse, onComplete, isDesktop, blaze, stopCamera, deviceType, displayMode, faceEmotions, hasEmotionRecognition, isShelf, isVideo, resolvedShelfUrls.length, shelfCount, shelfItems]);
 
     const handleImageLoad = useCallback(() => {
         if (imgRef.current) {
@@ -689,6 +692,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         } else {
             setCalibrationIndex(idx + 1);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
     }, [phase, calibrationIndex, isDesktop, blaze, viewingDuration, isPreviewMode]);
 
     // Toggle a setup checkbox
@@ -731,6 +735,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         setTimeLeft(Math.ceil(viewingDuration / 1000));
         setValidationRmse(null);
         setTimeout(() => setPhase('viewing'), 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
     }, [phase, blaze, viewingDuration]);
 
     /** Re-calibrate: reset residuals and go back to calibration phase.

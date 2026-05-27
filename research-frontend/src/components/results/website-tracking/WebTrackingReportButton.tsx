@@ -208,7 +208,7 @@ export const WebTrackingReportButton = ({ researchId }: { researchId: string }) 
             setProgress(0);
             setProgressLabel('');
         }
-    }, [researchId, research?.name, sections]);
+    }, [researchId, research?.name, sections, lang]);
 
     return (
         <div className="relative" ref={pickerRef}>

@@ -69,12 +69,10 @@ export function EyeTrackingHybridPage() {
     // blaze returns both state (isLoaded, gazeState) and refs (gazePosRef).
     // Lint react-hooks/refs flags the whole object as ref access in render.
     // isLoaded is useState, safe to read in render.
-    // eslint-disable-next-line react-hooks/refs
     const blazeIsLoaded = blaze.isLoaded;
 
     useEffect(() => {
         blazeRef.current = blaze;
-    // eslint-disable-next-line react-hooks/refs -- blaze object contains both state and refs; storing in ref is intentional
     }, [blaze]);
 
     // Heatmap state (soft mass per zone, sum ≈ weighted sample count)
@@ -195,6 +193,7 @@ export function EyeTrackingHybridPage() {
             setActiveZone(null);
             setFixatedZone(null);
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gazePosRef is a stable ref, read inside RAF loop
     }, [phase, isDesktop]);
 
     // --- Touch/tap collection (tablet/mobile) ---
@@ -325,6 +324,7 @@ export function EyeTrackingHybridPage() {
         } else {
             setCalibrationIndex(calibrationIndex + 1);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gazePosRef is a stable ref
     }, [phase, calibrationIndex, blaze]);
 
     // Normalize heatmap to 0-1
@@ -362,17 +362,14 @@ export function EyeTrackingHybridPage() {
                                 ? 'Verás una instrucción, luego cuatro puntos de calibración (uno por cuadrante). El resultado es un mapa en 4 zonas con probabilidades aproximadas, no un punto exacto de mirada.'
                                 : 'Verás una instrucción y después una imagen. Toca las zonas que te llamen la atención. Los resultados son aproximados por cuadrante.'}
                         </p>
-                        {/* eslint-disable-next-line react-hooks/refs -- blazeIsLoaded is useState, not a ref */}
                         {isDesktop && !blazeIsLoaded && (
                             <p className="text-amber-600 text-xs mb-4">Cargando modelo de mirada...</p>
                         )}
                         <button
                             onClick={handleStart}
-                            // eslint-disable-next-line react-hooks/refs -- blazeIsLoaded is useState
                             disabled={isDesktop && !blazeIsLoaded}
                             className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition"
                         >
-                            {/* eslint-disable-next-line react-hooks/refs -- blazeIsLoaded is useState */}
                             {isDesktop && !blazeIsLoaded ? 'Cargando...' : 'Empezar'}
                         </button>
                     </div>

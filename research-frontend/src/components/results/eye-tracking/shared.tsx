@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- shared constants + small components co-located */
 import { Crosshair, Users } from 'lucide-react';
 import type { EyeTrackingAOI, EkmanEmotion } from '../../../services/analytics.service';
 import { resolveMediaUrl } from '../../../services/media.service';

@@ -94,7 +94,7 @@ export const WearableRenderer: React.FC<WearableRendererProps> = ({ module, onCo
         }, 1000);
 
         return () => { clearInterval(timer); deviceRef.current?.stop(); };
-    }, [phase, baselineDuration]);
+    }, [phase, baselineDuration, recordingDuration]);
 
     // Viewing
     useEffect(() => {

@@ -106,6 +106,7 @@ export const MultiLangInput = ({
  * Resolves the correct language string from a multi-lang JSON value.
  * Used in participant-frontend to pick the right language.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- utility function co-located with component
 export function resolveMultiLang(raw: string | undefined, lang: string): string {
     if (!raw) return '';
     try {

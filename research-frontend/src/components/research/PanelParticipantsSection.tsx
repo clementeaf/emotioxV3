@@ -78,14 +78,14 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl, rese
     }
   };
 
-  const handleDeleteOne = async (participant: Participant) => {
+  const handleDeleteOne = useCallback(async (participant: Participant) => {
     try {
       await participantsService.deleteOne(researchId, participant.id);
       setParticipants(prev => prev.filter(p => p.id !== participant.id));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Delete failed');
     }
-  };
+  }, [researchId, toast]);
 
   const handleSendAll = async () => {
     setConfirmSendAll(false);
@@ -107,7 +107,7 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl, rese
     }
   };
 
-  const handleSendOne = async (participant: Participant) => {
+  const handleSendOne = useCallback(async (participant: Participant) => {
     setSendingId(participant.id);
     try {
       const result = await participantsService.sendEmail(researchId, participant.id, participantShareUrl, researchName);
@@ -122,20 +122,20 @@ export const PanelParticipantsSection = ({ researchId, participantShareUrl, rese
     } finally {
       setSendingId(null);
     }
-  };
+  }, [researchId, participantShareUrl, researchName, toast, loadParticipants]);
 
-  const getParticipantUrl = (participant: Participant): string => {
+  const getParticipantUrl = useCallback((participant: Participant): string => {
     return `${participantShareUrl}?participantId=${encodeURIComponent(participant.participant_id)}`;
-  };
+  }, [participantShareUrl]);
 
-  const handleCopyLink = async (participant: Participant) => {
+  const handleCopyLink = useCallback(async (participant: Participant) => {
     try {
       await navigator.clipboard.writeText(getParticipantUrl(participant));
       toast.success('Link copied');
     } catch {
       toast.error('Failed to copy link');
     }
-  };
+  }, [getParticipantUrl, toast]);
 
   const handleCopyAllLinks = async () => {
     if (participants.length === 0) return;

@@ -403,7 +403,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
-    }, [pendingCsvFile, files, research.id, research.settings, queryClient, uploadSingleFile]);
+    }, [pendingCsvFile, files, research.id, research.settings, queryClient]);
 
     if (!activeFile) {
         return (

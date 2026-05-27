@@ -101,7 +101,7 @@ export const EEGRenderer: React.FC<EEGRendererProps> = ({ module, onComplete }) 
         }, 1000);
 
         return () => { clearInterval(timer); deviceRef.current?.stop(); };
-    }, [phase, baselineDuration]);
+    }, [phase, baselineDuration, recordingDuration]);
 
     // Viewing phase
     useEffect(() => {

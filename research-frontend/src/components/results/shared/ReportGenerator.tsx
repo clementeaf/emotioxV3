@@ -174,7 +174,7 @@ export const ReportGeneratorButton = ({ researchId, filteredParticipantIds }: { 
         } finally {
             setGenerating(false);
         }
-    }, [summary, research, researchId]);
+    }, [summary, research, researchId, filteredParticipantIds]);
 
     return (
         <button
