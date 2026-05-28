@@ -1,3 +1,24 @@
+## v0.75.0 — Prompt presets, bulk analysis, AOI heatmap backdrop, multi-column CSV, gaze path tabs (2026-05-28)
+
+### backend
+- **Insights prompt: drop supportingQuotes.** LLM no longer returns verbatim quotes (handled client-side). `max_tokens` reduced to 4000 for faster responses.
+- **Tracking snippet v3.4: DOM snapshot capture.** Captures `document.documentElement.outerHTML` 3s after session start and sends to `/public/tracking/:id/snapshot`. Enables snapshot-html backdrop for heatmaps with JS-rendered styles.
+- **Proxy-page navbar fix.** Injected CSS forces `min-width: 1280px` on body and `position: relative` on nav/header elements to prevent responsive collapse and fixed-position issues in iframe.
+
+### research-frontend
+- **Prompt presets (Attention Prediction).** Save/load named prompts in Analysis Prompt drawer. Stored in `localStorage`, available across all studies. Delete individual presets.
+- **Heatmap settings presets.** "My presets" section in HeatmapSettingsModal — save custom blur/opacity/threshold configurations with names. Persistent via `localStorage`.
+- **Analysis Profile removed.** Dropdown had no visible impact. Replaced by prompt presets.
+- **Multi-column CSV in creation form.** `CreateResearchForm` now creates one FileItem per selected column (with column name in title). Previously only used the first column.
+- **Column tabs in InsightsFindingView.** When multiple columns exist, numbered tabs appear above "Sentiment Analysis from text" to switch between columns without sidebar navigation.
+- **Analyzing timer.** Both Insights Finding and Attention Prediction show elapsed seconds during analysis (`Analyzing... 12s`).
+- **Bulk analysis on mount.** Attention Prediction auto-queues all stimuli without analysis on page load. Shows progress `(2/4)` in the button.
+- **AOI Editor: heatmap backdrop.** Shows heatmap at 50% opacity behind AOI drawing zones. Auto-detected AOIs from AI visible as dashed rectangles (red=high, amber=medium, gray=low).
+- **Gaze Paths: Routes/Scanpath sub-tabs.** Static gaze path routes and animated scanpath video separated into sub-tabs. Image height capped at 60vh to prevent scroll blocking.
+- **File-based research status labels.** Sidebar shows "Prediction" (purple), "Analysis" (indigo), "Tracking" (cyan) instead of "Draft" for file-based research types. Non-clickable.
+
+---
+
 ## v0.74.2 — Insights Finding: Re-analyze, client-side theme matching, Sentiment Score tooltip (2026-05-27)
 
 ### backend

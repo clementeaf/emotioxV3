@@ -217,6 +217,17 @@ function createSession(){
         if(buf.length>0)flush();
         startRrwebRecording();
         if(rrwebBuf.length>0)flushRrweb();
+        // Capture DOM snapshot after JS has rendered (for heatmap backdrop)
+        setTimeout(function(){
+            try{
+                var html=document.documentElement.outerHTML;
+                if(html.length>2000000)return; // skip if >2MB
+                var sx=new XMLHttpRequest();
+                sx.open("POST",C.api+"/public/tracking/"+C.rid+"/snapshot",true);
+                sx.setRequestHeader("Content-Type","application/json");
+                sx.send(JSON.stringify({pageUrl:location.href,html:html}));
+            }catch(e){}
+        },3000);
     }
 
     var xhr=new XMLHttpRequest();

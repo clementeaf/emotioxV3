@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { toPng } from 'html-to-image';
+import { Save, Trash2 } from 'lucide-react';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import { cn } from '../../../lib/utils';
 
@@ -30,6 +31,19 @@ const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' |
   Detailed: { blur: 6,  threshold: 25, opacity: 85 },
 };
 
+const HEATMAP_PRESETS_KEY = 'emotiox-heatmap-presets';
+
+interface SavedPreset {
+  name: string;
+  blur: number;
+  opacity: number;
+  threshold: number;
+}
+
+function loadPresets(): SavedPreset[] {
+  try { return JSON.parse(localStorage.getItem(HEATMAP_PRESETS_KEY) || '[]'); } catch { return []; }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -54,6 +68,26 @@ export const HeatmapSettingsModal = ({
   const [local, setLocal] = useState<HeatmapSettings>({ ...settings });
   const [tab, setTab] = useState<'heatmap' | 'original'>('heatmap');
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // Custom presets
+  const [savedPresets, setSavedPresets] = useState<SavedPreset[]>(loadPresets);
+  const [showSaveInput, setShowSaveInput] = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const savePreset = useCallback((name: string) => {
+    const preset: SavedPreset = { name, blur: local.blur, opacity: local.opacity, threshold: local.threshold };
+    const updated = [...savedPresets.filter(p => p.name !== name), preset];
+    setSavedPresets(updated);
+    localStorage.setItem(HEATMAP_PRESETS_KEY, JSON.stringify(updated));
+    setNewName('');
+    setShowSaveInput(false);
+  }, [local, savedPresets]);
+
+  const deletePreset = useCallback((name: string) => {
+    const updated = savedPresets.filter(p => p.name !== name);
+    setSavedPresets(updated);
+    localStorage.setItem(HEATMAP_PRESETS_KEY, JSON.stringify(updated));
+  }, [savedPresets]);
 
   const handleDownload = useCallback(async () => {
     const el = previewRef.current;
@@ -152,6 +186,73 @@ export const HeatmapSettingsModal = ({
                 ))}
               </div>
               <p className="text-xs text-gray-400 mt-1">Adjusts blur, threshold, and opacity together</p>
+            </div>
+
+            {/* Custom presets */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">My presets</label>
+              {savedPresets.length > 0 ? (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {savedPresets.map(p => (
+                    <div key={p.name} className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setLocal(prev => ({ ...prev, preset: p.name, blur: p.blur, opacity: p.opacity, threshold: p.threshold }))}
+                        className={cn(
+                          'px-2 py-1 text-[11px] font-medium rounded transition-colors',
+                          local.preset === p.name
+                            ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
+                        )}
+                      >
+                        {p.name}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deletePreset(p.name)}
+                        className="p-0.5 text-gray-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mb-2">No saved presets yet</p>
+              )}
+              {showSaveInput ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    placeholder="Preset name..."
+                    className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter' && newName.trim()) savePreset(newName.trim()); if (e.key === 'Escape') setShowSaveInput(false); }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!newName.trim()}
+                    onClick={() => savePreset(newName.trim())}
+                    className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-40 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button type="button" onClick={() => setShowSaveInput(false)} className="px-1.5 py-1 text-xs text-gray-400 hover:text-gray-600">
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowSaveInput(true)}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <Save className="w-3 h-3" />
+                  Save current as preset
+                </button>
+              )}
             </div>
 
             {/* Blur */}

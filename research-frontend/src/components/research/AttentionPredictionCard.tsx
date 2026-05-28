@@ -102,6 +102,10 @@ interface AttentionPredictionCardProps {
     griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
     /** Whether AI analysis is in progress */
     isAnalyzing?: boolean;
+    /** Elapsed seconds during current analysis */
+    analyzeElapsed?: number;
+    /** Bulk analysis progress */
+    bulkProgress?: { current: number; total: number } | null;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -457,6 +461,8 @@ export const AttentionPredictionCard = ({
     autoPresets,
     griddedAOIs,
     isAnalyzing = false,
+    analyzeElapsed = 0,
+    bulkProgress,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
 
@@ -492,6 +498,7 @@ export const AttentionPredictionCard = ({
         }
     }, [autoPresets]);
     const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set(['typical-scan', 'group-scan', 'novelty-search']));
+    const [gazeMode, setGazeMode] = useState<'static' | 'animated'>('static');
     const [aoiList, setAoiList] = useState<AOI[]>([]);
     const [drawingAoi, setDrawingAoi] = useState(false);
     const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
@@ -776,7 +783,9 @@ export const AttentionPredictionCard = ({
                                         : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                                     }
                                 </svg>
-                                {isAnalyzing ? 'Analyzing...' : aiAnalysis ? 'Re-analyze' : 'AI Analysis'}
+                                {isAnalyzing
+                                    ? `Analyzing... ${analyzeElapsed}s${bulkProgress ? ` (${bulkProgress.current}/${bulkProgress.total})` : ''}`
+                                    : aiAnalysis ? 'Re-analyze' : 'AI Analysis'}
                             </button>
                         )}
                     </div>
@@ -942,63 +951,85 @@ export const AttentionPredictionCard = ({
                                 });
                             };
 
+                            const hasVideo = effectiveHeatmapData.length > 0 && !isVideo;
                             return (
                             <div>
-                                {/* Route toggles */}
-                                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider mr-1">Routes:</span>
-                                    {routes.map(route => {
-                                        const color = ROUTE_COLORS[route.id] || '#8B5CF6';
-                                        const active = visibleRoutes.has(route.id);
-                                        return (
-                                            <button
-                                                key={route.id}
-                                                onClick={() => toggleRoute(route.id)}
-                                                className={cn(
-                                                    'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all',
-                                                    active ? 'text-white' : 'bg-white text-gray-500 border-gray-200 opacity-50'
-                                                )}
-                                                style={active ? { backgroundColor: color, borderColor: color } : undefined}
-                                                title={route.description}
-                                            >
-                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? '#fff' : color }} />
-                                                {route.name}
-                                            </button>
-                                        );
-                                    })}
+                                {/* Sub-tabs: Static routes vs Animated scanpath */}
+                                <div className="flex items-center gap-2 mb-3">
+                                    {hasVideo && (
+                                        <div className="flex items-center gap-1 mr-3">
+                                            {(['static', 'animated'] as const).map(m => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => setGazeMode(m)}
+                                                    className={cn(
+                                                        'px-2.5 py-1 text-xs font-medium rounded transition-colors capitalize',
+                                                        gazeMode === m
+                                                            ? 'bg-gray-900 text-white'
+                                                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                                                    )}
+                                                >
+                                                    {m === 'static' ? 'Routes' : 'Scanpath'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {gazeMode === 'static' && (
+                                        <>
+                                            <span className="text-[10px] text-gray-400 uppercase tracking-wider mr-1">Routes:</span>
+                                            {routes.map(route => {
+                                                const color = ROUTE_COLORS[route.id] || '#8B5CF6';
+                                                const active = visibleRoutes.has(route.id);
+                                                return (
+                                                    <button
+                                                        key={route.id}
+                                                        onClick={() => toggleRoute(route.id)}
+                                                        className={cn(
+                                                            'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all',
+                                                            active ? 'text-white' : 'bg-white text-gray-500 border-gray-200 opacity-50'
+                                                        )}
+                                                        style={active ? { backgroundColor: color, borderColor: color } : undefined}
+                                                        title={route.description}
+                                                    >
+                                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? '#fff' : color }} />
+                                                        {route.name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </>
+                                    )}
                                 </div>
 
-                                <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                    <div className="rounded-lg border bg-gray-900 overflow-hidden relative">
-                                        <ZoomControls />
-                                        <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                            <div className="relative">
-                                                <img src={imageUrl} alt={title} className="w-full block" />
-                                                <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-                                                {routes.map(route => (
-                                                    <GazePathOverlay
-                                                        key={route.id}
-                                                        gazePath={route.fixations}
-                                                        visible={visibleRoutes.has(route.id)}
-                                                        routeColor={ROUTE_COLORS[route.id] || '#8B5CF6'}
-                                                        markerId={route.id}
-                                                    />
-                                                ))}
-                                            </div>
-                                        </TransformComponent>
-                                    </div>
-                                </TransformWrapper>
-                                {/* Attention Video — scanpath animation */}
-                                {effectiveHeatmapData.length > 0 && !isVideo && (
-                                    <div className="mt-4">
-                                        <h4 className="text-xs font-medium text-gray-500 mb-2">Scanpath Animation</h4>
-                                        <div className="w-fit mx-auto">
-                                            <AttentionVideoPlayer
-                                                imageUrl={imageUrl}
-                                                data={effectiveHeatmapData}
-                                                duration={5}
-                                            />
+                                {gazeMode === 'static' && (
+                                    <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                        <div className="rounded-lg border bg-gray-900 overflow-hidden relative" style={{ maxHeight: '60vh' }}>
+                                            <ZoomControls />
+                                            <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
+                                                <div className="relative">
+                                                    <img src={imageUrl} alt={title} className="w-full block" />
+                                                    <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+                                                    {routes.map(route => (
+                                                        <GazePathOverlay
+                                                            key={route.id}
+                                                            gazePath={route.fixations}
+                                                            visible={visibleRoutes.has(route.id)}
+                                                            routeColor={ROUTE_COLORS[route.id] || '#8B5CF6'}
+                                                            markerId={route.id}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </TransformComponent>
                                         </div>
+                                    </TransformWrapper>
+                                )}
+
+                                {gazeMode === 'animated' && hasVideo && (
+                                    <div className="rounded-lg border overflow-hidden" style={{ maxHeight: '60vh' }}>
+                                        <AttentionVideoPlayer
+                                            imageUrl={imageUrl}
+                                            data={effectiveHeatmapData}
+                                            duration={5}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -1064,8 +1095,47 @@ export const AttentionPredictionCard = ({
                                         setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
                                     } : undefined}
                                 >
-                                    <img src={imageUrl} alt={title} className="w-full block" />
-                                    {/* AOI rectangles — CSS positioned to avoid viewBox distortion */}
+                                    {/* Heatmap as background so user sees where to draw */}
+                                    {effectiveHeatmapData.length > 0 ? (
+                                        <HeatmapRenderer
+                                            imageUrl={imageUrl}
+                                            data={effectiveHeatmapData}
+                                            blur={settings.blur}
+                                            opacity={Math.round(settings.opacity * 0.5)}
+                                            threshold={settings.threshold}
+                                            className="w-full block"
+                                        />
+                                    ) : (
+                                        <img src={imageUrl} alt={title} className="w-full block" />
+                                    )}
+
+                                    {/* Auto-detected AOIs from AI (dashed, preview) */}
+                                    {aiAnalysis?.autoAois?.map((aoi, i) => {
+                                        const levelColors: Record<string, string> = { high: '#EF4444', medium: '#F59E0B', low: '#94A3B8' };
+                                        const color = levelColors[aoi.attentionLevel] || '#94A3B8';
+                                        const isImported = computedAois.some(c => Math.abs(c.x - aoi.x) < 2 && Math.abs(c.y - aoi.y) < 2);
+                                        if (isImported) return null;
+                                        return (
+                                            <div
+                                                key={`auto-${i}`}
+                                                className="absolute pointer-events-none border border-dashed"
+                                                style={{
+                                                    left: `${aoi.x}%`,
+                                                    top: `${aoi.y}%`,
+                                                    width: `${aoi.width}%`,
+                                                    height: `${aoi.height}%`,
+                                                    borderColor: color,
+                                                    backgroundColor: `${color}08`,
+                                                }}
+                                            >
+                                                <span className="absolute -top-4 left-0 text-[9px] font-medium px-1 rounded" style={{ color, backgroundColor: `${color}15` }}>
+                                                    {aoi.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Manual AOI rectangles — CSS positioned to avoid viewBox distortion */}
                                     {computedAois.map((aoi, i) => {
                                         const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
                                         const color = colors[i % colors.length];

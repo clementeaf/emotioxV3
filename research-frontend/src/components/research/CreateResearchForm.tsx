@@ -63,7 +63,8 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
     const isFileBasedResearch = isAttentionPrediction || isInsightsFinding || isClientsBenchmark || isWebsiteTracking;
 
     // CSV column selection: when a CSV has multiple columns, user picks which one
-    const [csvColumnSelections, setCsvColumnSelections] = useState<Record<string, number>>({});
+    const [csvColumnSelections, setCsvColumnSelections] = useState<Record<string, number[]>>({});
+    const [csvColumnHeaders, setCsvColumnHeaders] = useState<Record<string, string[]>>({});
     const [pendingCsvFile, setPendingCsvFile] = useState<{ file: File; columnInfo: CsvColumnInfo } | null>(null);
 
     // Client's Benchmark: state for research selection
@@ -241,23 +242,48 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                 const MAX_ENTRIES = 200;
                 const MAX_TEXT_LENGTH = 300;
                 try {
-                    const parsedFiles = await Promise.all(filesToUpload.map(async (file) => {
-                        const colIndex = csvColumnSelections[file.name];
-                        const texts = await parseDocument(file, colIndex);
-                        const totalCount = texts.length;
-                        const capped = texts.slice(0, MAX_ENTRIES);
-                        const entries = capped.map(text => ({
-                            text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) + '...' : text,
-                            mood: analyzeSentimentLocal(text),
-                        }));
-                        return {
-                            mediaId: crypto.randomUUID(),
-                            name: file.name,
-                            entries,
-                            totalCount,
-                            processedAt: new Date().toISOString(),
-                        };
-                    }));
+                    const parsedFiles: Array<{ mediaId: string; name: string; entries: Array<{ text: string; mood: string }>; totalCount: number; processedAt: string }> = [];
+                    for (const file of filesToUpload) {
+                        const colIndices = csvColumnSelections[file.name];
+                        const headers = csvColumnHeaders[file.name];
+                        if (colIndices && colIndices.length > 1) {
+                            // Multi-column: one FileItem per selected column
+                            for (const colIdx of colIndices) {
+                                const colName = headers?.[colIdx] || `Column ${colIdx + 1}`;
+                                const texts = await parseDocument(file, colIdx);
+                                const totalCount = texts.length;
+                                const capped = texts.slice(0, MAX_ENTRIES);
+                                const entries = capped.map(text => ({
+                                    text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) + '...' : text,
+                                    mood: analyzeSentimentLocal(text),
+                                }));
+                                parsedFiles.push({
+                                    mediaId: crypto.randomUUID(),
+                                    name: `${file.name} — ${colName}`,
+                                    entries,
+                                    totalCount,
+                                    processedAt: new Date().toISOString(),
+                                });
+                            }
+                        } else {
+                            // Single column or no selection
+                            const colIndex = colIndices?.[0];
+                            const texts = await parseDocument(file, colIndex);
+                            const totalCount = texts.length;
+                            const capped = texts.slice(0, MAX_ENTRIES);
+                            const entries = capped.map(text => ({
+                                text: text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) + '...' : text,
+                                mood: analyzeSentimentLocal(text),
+                            }));
+                            parsedFiles.push({
+                                mediaId: crypto.randomUUID(),
+                                name: file.name,
+                                entries,
+                                totalCount,
+                                processedAt: new Date().toISOString(),
+                            });
+                        }
+                    }
                     if (parsedFiles.length > 0) {
                         await researchService.update(researchId, { settings: { stimuli: parsedFiles } });
                     }
@@ -612,7 +638,8 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                             columnInfo={pendingCsvFile.columnInfo}
                             onSelect={(colIndices) => {
                                 const file = pendingCsvFile.file;
-                                setCsvColumnSelections(prev => ({ ...prev, [file.name]: colIndices[0] }));
+                                setCsvColumnSelections(prev => ({ ...prev, [file.name]: colIndices }));
+                                setCsvColumnHeaders(prev => ({ ...prev, [file.name]: pendingCsvFile.columnInfo.headers }));
                                 handleFieldChange('stimulusFiles', [...formData.stimulusFiles, file]);
                                 setPendingCsvFile(null);
                             }}
@@ -638,9 +665,9 @@ export const CreateResearchForm = ({ onSuccess }: CreateResearchFormProps = {}) 
                                                 <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
                                                 <p className="text-xs text-gray-500">
                                                     {(file.size / 1024 / 1024).toFixed(2)} MB
-                                                    {csvColumnSelections[file.name] !== undefined && (
+                                                    {csvColumnSelections[file.name] && (
                                                         <span className="ml-1.5 text-blue-600">
-                                                            · Column {csvColumnSelections[file.name] + 1}
+                                                            · {csvColumnSelections[file.name].length} column{csvColumnSelections[file.name].length > 1 ? 's' : ''} selected
                                                         </span>
                                                     )}
                                                 </p>

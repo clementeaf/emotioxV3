@@ -453,20 +453,40 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             Status
                         </h3>
                     )}
-                    <button
-                        type="button"
-                        onClick={() => setShowStatusModal(true)}
-                        title={isCollapsed ? `Status: ${activeResearch.status}` : undefined}
-                        className={cn(
-                            'inline-flex items-center rounded-full text-xs font-medium capitalize hover:opacity-80 transition-colors cursor-pointer',
-                            isCollapsed ? 'px-1.5 py-1' : 'px-2.5 py-0.5',
-                            activeResearch.status === 'active' ? 'bg-blue-100 text-blue-800' :
-                            activeResearch.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                        )}
-                    >
-                        {isCollapsed ? activeResearch.status.charAt(0).toUpperCase() : activeResearch.status}
-                    </button>
+                    {isFileBasedResearch ? (
+                        <span
+                            title={isCollapsed ? activeResearch.research_type_name || 'Analysis' : undefined}
+                            className={cn(
+                                'inline-flex items-center rounded-full text-xs font-medium',
+                                isCollapsed ? 'px-1.5 py-1' : 'px-2.5 py-0.5',
+                                isAttentionPrediction ? 'bg-purple-100 text-purple-800' :
+                                isInsightsFinding ? 'bg-indigo-100 text-indigo-800' :
+                                isWebsiteTracking ? 'bg-cyan-100 text-cyan-800' :
+                                'bg-amber-100 text-amber-800'
+                            )}
+                        >
+                            {isCollapsed ? (isAttentionPrediction ? 'P' : isInsightsFinding ? 'I' : isWebsiteTracking ? 'T' : 'A')
+                                : isAttentionPrediction ? 'Prediction'
+                                : isInsightsFinding ? 'Analysis'
+                                : isWebsiteTracking ? 'Tracking'
+                                : 'Active'}
+                        </span>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setShowStatusModal(true)}
+                            title={isCollapsed ? `Status: ${activeResearch.status}` : undefined}
+                            className={cn(
+                                'inline-flex items-center rounded-full text-xs font-medium capitalize hover:opacity-80 transition-colors cursor-pointer',
+                                isCollapsed ? 'px-1.5 py-1' : 'px-2.5 py-0.5',
+                                activeResearch.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                                activeResearch.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'
+                            )}
+                        >
+                            {isCollapsed ? activeResearch.status.charAt(0).toUpperCase() : activeResearch.status}
+                        </button>
+                    )}
                 </div>
 
                 {/* Stages Section or Stimuli Section for Attention Prediction */}

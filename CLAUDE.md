@@ -110,6 +110,12 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Insights themes client-side (v0.74.2)**: Expanded themes show ALL matching entries via client-side word matching (not LLM `supportingQuotes`). Count/percentage from real data. Scrollable `max-h-240px`.
 - **Sentiment Score tooltip (v0.74.2)**: `SentimentScoreBadge` component with `createPortal` tooltip. Instant on hover, shows formula + breakdown.
 - **Re-analyze (v0.74.2)**: Button in Insights Finding header re-triggers LLM analysis without re-uploading.
+- **Prompt presets (v0.75.0)**: `localStorage` key `emotiox-prompt-presets` (analysis) and `emotiox-heatmap-presets` (heatmap settings). Named presets shared across all studies.
+- **Bulk analysis (v0.75.0)**: Attention Prediction auto-queues stimuli without `aiAnalysis` on mount. Sequential, with timer + progress `(N/M)`.
+- **AOI Editor backdrop (v0.75.0)**: Shows `HeatmapRenderer` at 50% opacity + auto-detected AOIs as dashed rects (not imported yet).
+- **Gaze Paths sub-tabs (v0.75.0)**: `gazeMode` state toggles "Routes" (static) vs "Scanpath" (animated). `max-height: 60vh`.
+- **File-based status labels (v0.75.0)**: Sidebar shows Prediction/Analysis/Tracking instead of Draft. Non-clickable `<span>` vs `<button>`.
+- **Snippet v3.4 DOM snapshot (v0.75.0)**: Captures `outerHTML` 3s after session, sends to `/public/tracking/:id/snapshot`. Enables snapshot-html heatmap backdrop.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { PanelRightOpen, PanelRightClose, Sparkles, Settings2, RotateCw } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
@@ -6,7 +6,7 @@ import { type Research, researchService } from '../../services/research.service'
 import { researchKeys } from '../../hooks/useResearchQuery';
 import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced';
 import { AttentionPredictionCard } from './AttentionPredictionCard';
-import { AnalysisProfilePanel, type AnalysisProfile } from './AnalysisProfilePanel';
+import { Save, Trash2 } from 'lucide-react';
 import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService } from '../../services/media.service';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
@@ -57,6 +57,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [analyzeElapsed, setAnalyzeElapsed] = useState(0);
+    const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
+    const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
@@ -91,18 +94,27 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     const isPromptModified = promptDraft.trim() !== (savedPrompt || DEFAULT_ATTENTION_PROMPT).trim();
 
-    // Analysis profile — stored in research settings for persistence
-    const [analysisProfile, setAnalysisProfile] = useState<AnalysisProfile>(() => {
-        const settings = research.settings as Record<string, unknown> || {};
-        return (settings.analysisProfile as AnalysisProfile) || {};
+    // Prompt presets — stored in localStorage, shared across all studies
+    const PRESETS_KEY = 'emotiox-prompt-presets';
+    const [presets, setPresets] = useState<Array<{ name: string; prompt: string }>>(() => {
+        try { return JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]'); } catch { return []; }
     });
+    const [newPresetName, setNewPresetName] = useState('');
+    const [showSavePreset, setShowSavePreset] = useState(false);
 
-    const handleProfileChange = useCallback(async (profile: AnalysisProfile) => {
-        setAnalysisProfile(profile);
-        await researchService.update(research.id, {
-            settings: { ...(research.settings as Record<string, unknown> || {}), analysisProfile: profile },
-        });
-    }, [research.id, research.settings]);
+    const savePreset = useCallback((name: string, prompt: string) => {
+        const updated = [...presets.filter(p => p.name !== name), { name, prompt }];
+        setPresets(updated);
+        localStorage.setItem(PRESETS_KEY, JSON.stringify(updated));
+        setNewPresetName('');
+        setShowSavePreset(false);
+    }, [presets]);
+
+    const deletePreset = useCallback((name: string) => {
+        const updated = presets.filter(p => p.name !== name);
+        setPresets(updated);
+        localStorage.setItem(PRESETS_KEY, JSON.stringify(updated));
+    }, [presets]);
 
     const stimuli = useMemo(() => {
         const settings = (research.settings as { stimuli?: StimulusItem[] }) || {};
@@ -125,17 +137,55 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
     }, [research.id, research.settings, queryClient]);
 
+    const startTimer = useCallback(() => {
+        setAnalyzeElapsed(0);
+        if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = setInterval(() => setAnalyzeElapsed(prev => prev + 1), 1000);
+    }, []);
+
+    const stopTimer = useCallback(() => {
+        if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+    }, []);
+
     const runAnalysis = useCallback(async (mediaId: string) => {
         setIsProcessing(true);
+        startTimer();
         try {
             await mediaService.analyzeAttention(research.id, mediaId);
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch {
             // Silent fail — user can retry via the button in the card header
         } finally {
+            stopTimer();
             setIsProcessing(false);
         }
-    }, [research.id, queryClient]);
+    }, [research.id, queryClient, startTimer, stopTimer]);
+
+    // Bulk analysis: on mount, queue all stimuli without AI analysis
+    const bulkTriggeredRef = useRef(false);
+    useEffect(() => {
+        if (bulkTriggeredRef.current) return;
+        const pending = stimuli.filter(s => !s.aiAnalysis);
+        if (pending.length === 0) return;
+        bulkTriggeredRef.current = true;
+
+        const runBulk = async () => {
+            setBulkProgress({ current: 0, total: pending.length });
+            for (let i = 0; i < pending.length; i++) {
+                setBulkProgress({ current: i + 1, total: pending.length });
+                setIsProcessing(true);
+                startTimer();
+                try {
+                    await mediaService.analyzeAttention(research.id, pending[i].mediaId);
+                } catch { /* continue with next */ }
+                stopTimer();
+                setIsProcessing(false);
+            }
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+            setBulkProgress(null);
+        };
+        void runBulk();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
 
 
 
@@ -207,6 +257,39 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         <p className="text-sm text-gray-500">
                             Customize the system prompt sent to the AI for image analysis. Changes apply to future analyses only.
                         </p>
+
+                        {/* Presets */}
+                        {presets.length > 0 && (
+                            <div>
+                                <p className="text-xs font-medium text-gray-500 mb-1.5">Presets</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {presets.map(p => (
+                                        <div key={p.name} className="flex items-center gap-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPromptDraft(p.prompt)}
+                                                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                                                    promptDraft === p.prompt
+                                                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+                                                }`}
+                                            >
+                                                {p.name}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => deletePreset(p.name)}
+                                                className="p-0.5 text-gray-300 hover:text-red-500 transition-colors"
+                                                title="Delete preset"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <textarea
                             value={promptDraft}
                             onChange={e => setPromptDraft(e.target.value)}
@@ -214,32 +297,64 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             className="w-full text-sm text-gray-700 border rounded-md p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                         />
                         <div className="flex items-center justify-between pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setPromptDraft(DEFAULT_ATTENTION_PROMPT)}
-                                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                                <RotateCw className="w-3.5 h-3.5" />
-                                Reset to default
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPromptDraft(DEFAULT_ATTENTION_PROMPT)}
+                                    className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                                >
+                                    <RotateCw className="w-3.5 h-3.5" />
+                                    Default
+                                </button>
+                                {showSavePreset ? (
+                                    <div className="flex items-center gap-1.5">
+                                        <input
+                                            type="text"
+                                            value={newPresetName}
+                                            onChange={e => setNewPresetName(e.target.value)}
+                                            placeholder="Preset name..."
+                                            className="px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-36"
+                                            autoFocus
+                                            onKeyDown={e => { if (e.key === 'Enter' && newPresetName.trim()) savePreset(newPresetName.trim(), promptDraft); if (e.key === 'Escape') setShowSavePreset(false); }}
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={!newPresetName.trim()}
+                                            onClick={() => savePreset(newPresetName.trim(), promptDraft)}
+                                            className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-40 transition-colors"
+                                        >
+                                            Save
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSavePreset(false)}
+                                            className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSavePreset(true)}
+                                        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                                    >
+                                        <Save className="w-3.5 h-3.5" />
+                                        Save as preset
+                                    </button>
+                                )}
+                            </div>
                             <button
                                 type="button"
                                 disabled={!isPromptModified || isSavingPrompt}
                                 onClick={() => { void handleSavePrompt(); setIsPromptOpen(false); }}
                                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
-                                {isSavingPrompt ? 'Saving...' : 'Save prompt'}
+                                {isSavingPrompt ? 'Saving...' : 'Apply to study'}
                             </button>
                         </div>
                     </div>
                 </Drawer>
-
-                {/* Analysis Profile — configurable target demographic */}
-                <AnalysisProfilePanel
-                    profile={analysisProfile}
-                    onChange={handleProfileChange}
-                    detectedContext={aiAnalysis?.context?.type}
-                />
 
                 {activeStimulus && (
                     <>
@@ -261,6 +376,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             autoPresets={activeStimulus.autoPresets as { blur: number; opacity: number; threshold: number } | undefined}
                             griddedAOIs={activeStimulus.griddedAOIs}
                             isAnalyzing={isProcessing}
+                            analyzeElapsed={analyzeElapsed}
+                            bulkProgress={bulkProgress}
                         />
 
                     </>

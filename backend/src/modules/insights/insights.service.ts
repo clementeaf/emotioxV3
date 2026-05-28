@@ -107,7 +107,7 @@ In addition to the analysis above, return a JSON object with exactly this struct
     "actionables": ["prioritized actionable 1", "prioritized actionable 2", "prioritized actionable 3"]
   },
   "themes": [
-    { "name": "theme name", "count": 30, "description": "Two sentences minimum: first explain the theme and its behavioral/neurological significance, then link it to concrete business impact at the shelf/purchase level", "magnitude": 0.89, "sentimentScore": 0.75, "supportingQuotes": ["EVERY single entry text that matches this theme — if count is 30, this array MUST have 30 strings"] }
+    { "name": "theme name", "count": 30, "description": "Two sentences minimum: first explain the theme and its behavioral/neurological significance, then link it to concrete business impact at the shelf/purchase level", "magnitude": 0.89, "sentimentScore": 0.75 }
   ],
   "keywords": [
     { "word": "keyword", "count": approximate_count, "sentiment": "positive|negative|neutral" }
@@ -115,7 +115,7 @@ In addition to the analysis above, return a JSON object with exactly this struct
 }
 
 Rules:
-- 3-5 themes, sorted by relevance. magnitude is 0-1 (importance). sentimentScore is -1 to +1 (negative to positive). description: 2 sentences minimum — explain the theme significance then link to business impact. CRITICAL — supportingQuotes: you MUST include EVERY entry that belongs to this theme. If count=30, the supportingQuotes array MUST contain exactly 30 strings. Copy-paste the full text of each matching entry verbatim. Do NOT summarize, paraphrase, or limit to a sample. The length of supportingQuotes MUST equal count.
+- 3-5 themes, sorted by relevance. magnitude is 0-1 (importance). sentimentScore is -1 to +1 (negative to positive). description: 2 sentences minimum — explain the theme significance then link to business impact. Do NOT include supportingQuotes (handled client-side).
 - 8-12 keywords, sorted by frequency
 - 3-5 actionables, specific, prioritized, and linked to business impact
 - Be critical and honest. Do not soften negative results.
@@ -127,7 +127,7 @@ Rules:
 
         const response = await client.chat.completions.create({
             model: LLM_MODEL,
-            max_tokens: 8000,
+            max_tokens: 4000,
             response_format: { type: 'json_object' },
             messages: [
                 { role: 'system', content: systemPrompt + '\n\nAlways respond with valid JSON.' },

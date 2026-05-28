@@ -56,12 +56,12 @@ const SentimentScoreBadge = ({ score, entries, scoreColor, scoreBg }: { score: n
         <>
             <div
                 ref={tipRef}
-                className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-help', scoreBg)}
+                className={cn('flex items-center gap-1 px-2 py-0.5 rounded border cursor-help', scoreBg)}
                 onMouseEnter={showTip}
                 onMouseLeave={hideTip}
             >
-                <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Sentiment Score</span>
-                <span className={cn('text-lg font-bold', scoreColor)}>
+                <span className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Score</span>
+                <span className={cn('text-sm font-bold', scoreColor)}>
                     {score > 0 ? '+' : ''}{score}
                 </span>
             </div>
@@ -313,7 +313,10 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
         const settings = (research.settings as { stimuli?: FileItem[] }) || {};
         return settings.stimuli || [];
     }, [research.settings]);
-    const activeFile = files.find(f => f.mediaId === fileId) || files[0];
+    const [activeFileId, setActiveFileId] = useState(fileId);
+    // Sync with sidebar selection
+    useEffect(() => { setActiveFileId(fileId); }, [fileId]);
+    const activeFile = files.find(f => f.mediaId === activeFileId) || files.find(f => f.mediaId === fileId) || files[0];
     const hasEntries = activeFile?.entries && activeFile.entries.length > 0;
     const hasAnalysis = !!activeFile?.analysis;
 
@@ -326,8 +329,13 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
         return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
     }, [activeFile?.mediaId, hasEntries, hasAnalysis]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const [analyzeElapsed, setAnalyzeElapsed] = useState(0);
+    const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
     const triggerAnalysis = useCallback(async (mediaId: string) => {
         setIsAnalyzing(true);
+        setAnalyzeElapsed(0);
+        elapsedRef.current = setInterval(() => setAnalyzeElapsed(prev => prev + 1), 1000);
         try {
             await mediaService.analyzeInsights(research.id, mediaId);
             // Poll for completion
@@ -337,6 +345,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                     if (status.status === 'complete') {
                         if (pollingRef.current) clearInterval(pollingRef.current);
                         pollingRef.current = null;
+                        if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
                         setIsAnalyzing(false);
                         queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
                     }
@@ -344,6 +353,7 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
             }, 3000);
         } catch (err) {
             console.error('[InsightsFinding] Analysis trigger failed:', err);
+            if (elapsedRef.current) { clearInterval(elapsedRef.current); elapsedRef.current = null; }
             setIsAnalyzing(false);
         }
     }, [research.id, queryClient]);
@@ -602,9 +612,33 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
 
             {hasEntries ? (
                 <div className="border rounded-lg bg-white overflow-hidden">
-                    {/* Section title */}
-                    <div className="px-4 py-3 border-b">
-                        <h4 className="text-sm font-semibold text-gray-900">1.0.- Sentiment Analysis from text</h4>
+                    {/* Section title + column tabs */}
+                    <div className="px-4 py-3 border-b flex items-center gap-3">
+                        <h4 className="text-sm font-semibold text-gray-900 flex-shrink-0">Sentiment Analysis from text</h4>
+                        {files.length > 1 && (
+                            <div className="flex items-center gap-1">
+                                {files.map((f, i) => {
+                                    const isActive = f.mediaId === activeFile.mediaId;
+                                    const label = f.name.includes(' — ') ? f.name.split(' — ')[1] : `${i + 1}`;
+                                    return (
+                                        <button
+                                            key={f.mediaId}
+                                            type="button"
+                                            onClick={() => setActiveFileId(f.mediaId)}
+                                            className={cn(
+                                                'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                                                isActive
+                                                    ? 'bg-blue-100 text-blue-700'
+                                                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                                            )}
+                                            title={f.name}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex divide-x min-h-[400px]">
@@ -652,16 +686,6 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                             </div>
 
                             <div className="p-4 overflow-y-auto max-h-[500px]">
-                                {isAnalyzing && (
-                                    <div className="flex items-center gap-2 mb-4 p-3 bg-blue-50 rounded-lg">
-                                        <svg className="animate-spin h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        <span className="text-xs text-blue-700">Analyzing with AI...</span>
-                                    </div>
-                                )}
-
                                 {/* Sentiment tab */}
                                 {activeTab === 'sentiment' && (() => {
                                     const score = computeSentimentScore(entries);
@@ -669,9 +693,20 @@ export const InsightsFindingView = ({ research, fileId }: InsightsFindingViewPro
                                     const scoreBg = score > 20 ? 'bg-green-50 border-green-200' : score < -20 ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
                                     return (
                                     <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
                                             <h5 className="font-semibold text-sm text-gray-900">Sentiment analysis</h5>
-                                            <SentimentScoreBadge score={score} entries={entries} scoreColor={scoreColor} scoreBg={scoreBg} />
+                                            {isAnalyzing && (
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 rounded">
+                                                    <svg className="animate-spin h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                    </svg>
+                                                    <span className="text-[10px] text-blue-700">Analyzing... {analyzeElapsed}s</span>
+                                                </div>
+                                            )}
+                                            <div className="ml-auto">
+                                                <SentimentScoreBadge score={score} entries={entries} scoreColor={scoreColor} scoreBg={scoreBg} />
+                                            </div>
                                         </div>
                                         {analysis?.sentiment ? (
                                             <>

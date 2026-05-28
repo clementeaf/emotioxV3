@@ -363,10 +363,15 @@ export const handleTrackingRoutes = async (
                     }
                 );
 
-                // Inject styles to disable interactions
+                // Inject styles to disable interactions + fix navbar rendering in iframe
                 const disableStyle = `<style>
                     * { pointer-events: none !important; user-select: none !important; }
-                    body { overflow: visible !important; }
+                    body { overflow: visible !important; min-width: 1280px !important; }
+                    [style*="position: fixed"], [style*="position:fixed"],
+                    nav, header, .navbar, .nav-bar, .header, .site-header,
+                    [class*="navbar"], [class*="nav-bar"], [class*="header"] {
+                        position: relative !important;
+                    }
                 </style>`;
                 html = html.replace('</head>', disableStyle + '</head>');
 
@@ -567,7 +572,7 @@ export const handleTrackingRoutes = async (
             // Inject styles to disable interactions + base tag for relative resources
             const urlObj = new URL(pageUrl);
             const baseHref = urlObj.origin + '/';
-            const disableStyle = `<style>* { pointer-events: none !important; user-select: none !important; } body { overflow: visible !important; }</style>`;
+            const disableStyle = `<style>* { pointer-events: none !important; user-select: none !important; } body { overflow: visible !important; min-width: 1280px !important; } [style*="position: fixed"], [style*="position:fixed"], nav, header, .navbar, .nav-bar, .header, .site-header, [class*="navbar"], [class*="nav-bar"], [class*="header"] { position: relative !important; }</style>`;
             let result = html;
             if (result.includes('<head>')) {
                 result = result.replace('<head>', `<head><base href="${baseHref}">${disableStyle}`);
