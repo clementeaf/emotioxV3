@@ -219,12 +219,15 @@ export const saveEvents = async (sessionId: string, events: TrackingEvent[], act
         values
     );
 
-    // Update session ended_at and active duration
+    // Update session ended_at and active duration (capped to wall time)
     const lastTs = Math.max(...capped.map((e) => e.timestampMs));
     if (activeDurationMs !== undefined) {
+        // Cap active time: cannot exceed wall time (started_at to now)
+        const wallMs = lastTs - new Date(sessionId ? (await pool.query('SELECT started_at FROM tracking_sessions WHERE id = ?', [sessionId])).rows[0]?.started_at : 0).getTime();
+        const cappedActive = Math.min(activeDurationMs, Math.max(wallMs, 0));
         await pool.query(
             'UPDATE tracking_sessions SET ended_at = FROM_UNIXTIME(? / 1000), active_duration_ms = ? WHERE id = ?',
-            [lastTs, activeDurationMs, sessionId]
+            [lastTs, cappedActive, sessionId]
         );
     } else {
         await pool.query(
@@ -870,6 +873,10 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
 // ─── Live Sessions ──────────────────────────────────────────────────
 
 export const getLiveSessions = async (researchId: string) => {
+    // A session is "live" if its last activity was recent.
+    // ended_at is updated on every event flush (every 2s while active).
+    // When user switches tabs, snippet pauses — so we use a 5-minute window
+    // to keep sessions visible even when the user is looking at results.
     const result = await pool.query(
         `SELECT ts.id, ts.visitor_id, ts.page_url, ts.page_title,
                 ts.viewport_width, ts.user_agent,
@@ -878,10 +885,10 @@ export const getLiveSessions = async (researchId: string) => {
          FROM tracking_sessions ts
          LEFT JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?
+           AND ts.ended_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
          GROUP BY ts.id
-         HAVING MAX(te.timestamp_ms) >= (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
-            OR ts.started_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-         ORDER BY ts.started_at DESC`,
+         ORDER BY ts.ended_at DESC
+         LIMIT 50`,
         [researchId]
     );
 

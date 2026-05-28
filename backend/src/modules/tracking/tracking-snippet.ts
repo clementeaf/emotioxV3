@@ -374,10 +374,12 @@ function startCapture(){
     }
 
     // Visibility-aware capture: pause when tab hidden, resume when visible
+    var hiddenAt=0;
     document.addEventListener("visibilitychange",function(){
         if(document.visibilityState==="hidden"){
             // Tab lost focus — pause all capture
             paused=true;
+            hiddenAt=Date.now();
             if(activeStart>0)activeMs+=Date.now()-activeStart;
             activeStart=0;
             // Accumulate rrweb active time and stop recording
@@ -389,11 +391,17 @@ function startCapture(){
             flush(true);
             flushRrweb(true);
         }else{
-            // Tab regained focus — resume capture
-            paused=false;
-            activeStart=Date.now();
-            // Restart rrweb recording (takes a fresh full snapshot)
-            startRrwebRecording();
+            // Tab regained focus
+            var away=Date.now()-hiddenAt;
+            if(away>30000){
+                // Away >30s — start fresh session (old one already flushed)
+                createSession();
+            }else{
+                // Brief switch — resume existing session
+                paused=false;
+                activeStart=Date.now();
+                startRrwebRecording();
+            }
         }
     });
 

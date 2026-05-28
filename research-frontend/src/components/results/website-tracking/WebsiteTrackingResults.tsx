@@ -12,8 +12,6 @@ import {
     Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
-import { configService } from '../../../services/api/config.service';
-import { useAuthStore } from '../../../stores/auth.store';
 import { EmptyState } from '../../ui/EmptyState';
 import { CustomSelect } from '../../ui/CustomSelect';
 import { MultiLayerHeatmap } from './MultiLayerHeatmap';
@@ -49,6 +47,14 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
     const [dateTo, setDateTo] = useState('');
     const [exporting, setExporting] = useState(false);
     const [replaySessionId, setReplaySessionId] = useState<string | null>(null);
+
+    // Live sessions — real-time via React Query (5s refresh)
+    const { data: liveData } = useQuery({
+        queryKey: ['tracking', researchId, 'live'],
+        queryFn: () => trackingService.getLiveSessions(researchId),
+        refetchInterval: 5000,
+    });
+    const liveCount = liveData?.sessions?.length || 0;
 
     const handleExport = useCallback(async () => {
         setExporting(true);
@@ -161,6 +167,12 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                             >
                                 {tab.icon}
                                 {tab.label}
+                                {tab.id === 'live' && liveCount > 0 && (
+                                    <span className="relative flex h-2 w-2 ml-0.5">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                                    </span>
+                                )}
                             </button>
                         </Tip>
                     ))}
@@ -335,7 +347,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
             )}
 
             {activeTab === 'live' && (
-                <LiveSessionsTab researchId={researchId} onReplay={setReplaySessionId} />
+                <LiveSessionsTab sessions={liveData?.sessions || []} onReplay={setReplaySessionId} />
             )}
 
             {activeTab === 'funnels' && (
@@ -623,12 +635,32 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                 <span className="w-10 text-right">Events</span>
                                 <span className="w-8" />
                             </div>
-                            {active.pages.map((page) => {
+                            {active.pages.map((page, pageIdx) => {
                                 const maxDur = Math.max(...active.pages.map(p => p.durationMs), 1);
                                 const barPct = (page.durationMs / maxDur) * 100;
+
+                                // Gap between this page and the previous one
+                                const prevPage = pageIdx > 0 ? active.pages[pageIdx - 1] : null;
+                                const prevEnd = prevPage?.startedAt ? new Date(prevPage.startedAt as string).getTime() + prevPage.durationMs : 0;
+                                const thisStart = page.startedAt ? new Date(page.startedAt as string).getTime() : 0;
+                                const gapMs = prevPage ? thisStart - prevEnd : 0;
+                                const showGap = gapMs > 10000; // show if >10s gap
+
                                 return (
+                                    <div key={`${page.sessionId}-${page.index}`}>
+                                    {showGap && (
+                                        <div className="px-5 py-1.5 flex items-center gap-2 bg-amber-50/50 border-b border-amber-100">
+                                            <div className="flex-1 border-t border-dashed border-amber-300" />
+                                            <span className="text-[9px] font-medium text-amber-600 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                                                </svg>
+                                                Left page · {formatMs(gapMs)} away
+                                            </span>
+                                            <div className="flex-1 border-t border-dashed border-amber-300" />
+                                        </div>
+                                    )}
                                     <div
-                                        key={`${page.sessionId}-${page.index}`}
                                         className="px-5 py-2.5 flex items-center gap-4 border-b border-gray-50 text-xs hover:bg-gray-50 transition-colors"
                                     >
                                         <span className="text-gray-400 font-mono w-6">#{page.index}</span>
@@ -662,6 +694,7 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
                                             </span>
                                         )}
                                     </div>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -681,42 +714,9 @@ const VisitorJourneysTab = ({ researchId, onReplay }: { researchId: string; onRe
 
 // ─── Live Sessions Tab ──────────────────────────────────────────────
 
-const LiveSessionsTab = ({ researchId, onReplay }: { researchId: string; onReplay: (id: string) => void }) => {
-    const [sessions, setSessions] = useState<trackingService.LiveVisitor[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [dataUpdatedAt, setDataUpdatedAt] = useState(0);
-
-    useEffect(() => {
-        const token = useAuthStore.getState().token;
-        if (!token) { setIsLoading(false); return; }
-
-        const apiBase = configService.getBaseUrl();
-        const url = `${apiBase}/tracking/${researchId}/live/stream?token=${encodeURIComponent(token)}`;
-
-        const es = new EventSource(url);
-
-        // Fallback: if no message arrives within 8s, stop loading skeleton
-        const timeout = setTimeout(() => setIsLoading(false), 8000);
-
-        es.onmessage = (event) => {
-            clearTimeout(timeout);
-            try {
-                const data = JSON.parse(event.data);
-                setSessions(data.sessions || []);
-                setDataUpdatedAt(Date.now());
-                setIsLoading(false);
-            } catch { /* malformed message */ }
-        };
-
-        es.onerror = () => {
-            clearTimeout(timeout);
-            setIsLoading(false);
-        };
-
-        return () => { es.close(); clearTimeout(timeout); };
-    }, [researchId]);
-
-    if (isLoading) return <div className="h-64 bg-gray-100 rounded-xl animate-pulse" />;
+const LiveSessionsTab = ({ sessions, onReplay }: { sessions: trackingService.LiveVisitor[]; onReplay: (id: string) => void }) => {
+    const [dataUpdatedAt, setDataUpdatedAt] = useState(() => Date.now());
+    useEffect(() => { setDataUpdatedAt(Date.now()); }, [sessions]);
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

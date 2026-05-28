@@ -115,7 +115,8 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **AOI Editor backdrop (v0.75.0)**: Shows `HeatmapRenderer` at 50% opacity + auto-detected AOIs as dashed rects (not imported yet).
 - **Gaze Paths sub-tabs (v0.75.0)**: `gazeMode` state toggles "Routes" (static) vs "Scanpath" (animated). `max-height: 60vh`.
 - **File-based status labels (v0.75.0)**: Sidebar shows Prediction/Analysis/Tracking instead of Draft. Non-clickable `<span>` vs `<button>`.
-- **Snippet v3.4 DOM snapshot (v0.75.0)**: Captures `outerHTML` 3s after session, sends to `/public/tracking/:id/snapshot`. Enables snapshot-html heatmap backdrop.
+- **Snippet v3.5 DOM snapshot (v0.75.1)**: Captures `outerHTML` 3s after session, sends to `/public/tracking/:id/snapshot`. 30s hidden → fresh session. Enables snapshot-html heatmap backdrop.
+- **Proxy CSS pipeline (v0.75.1)**: proxy-asset rewrites `url()`/`@import` inside CSS. Proxy URLs must be absolute (not relative `/api/...`) because `<base>` tag points to tracked site. Protocol-relative `//` handled. `media="none"` → `media="all"` for lazy-loaded stylesheets.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

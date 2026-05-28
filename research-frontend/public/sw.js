@@ -22,22 +22,22 @@ self.addEventListener('fetch', (e) => {
     const url = new URL(e.request.url);
     if (!['http:', 'https:'].includes(url.protocol)) return;
 
-    // Nunca cachear APIs externas
+    // Never cache API calls or SSE streams
     if (url.pathname.startsWith('/api/') ||
+        url.pathname.includes('/live/stream') ||
         url.hostname.includes('execute-api') ||
         url.hostname.includes('server.emotiox.org')) {
-        return e.respondWith(fetch(e.request));
+        return;
     }
 
     // CRITICAL FIX: Verificar que el origen del cliente coincida con el origen del request
     // Si el request es a portal.emotiox.org pero el cliente está en localhost, NO interceptar
     const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-    const isProductionDomain = url.hostname.includes('emotiox.org') || url.hostname.includes('useremotion.com');
+    const isProductionDomain = url.hostname.includes('emotiox.org') || url.hostname.includes('useremotion.com') || url.hostname.includes('emotio.cx');
 
-    // Si el request es a producción, NO interceptar (dejar que el navegador maneje la petición)
-    // Esto previene que un SW activo desde producción intercepte peticiones de localhost
+    // Si el request es a producción, NO interceptar
     if (isProductionDomain) {
-        return e.respondWith(fetch(e.request));
+        return;
     }
 
     // Si el request es a localhost, verificar que el cliente también esté en localhost
@@ -81,7 +81,7 @@ self.addEventListener('fetch', (e) => {
     }
 
     // Para cualquier otro caso, no interceptar
-    return e.respondWith(fetch(e.request));
+    return;
 });
 
 function handleRequest(e, url) {

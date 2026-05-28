@@ -105,7 +105,7 @@ export const handlePublicTrackingRoutes = async (
                     statusCode: 200,
                     headers: {
                         'Content-Type': 'application/javascript; charset=utf-8',
-                        'Cache-Control': 'public, max-age=300',
+                        'Cache-Control': 'no-cache',
                         'Access-Control-Allow-Origin': '*',
                     },
                     body: js,
@@ -343,11 +343,15 @@ export const handleTrackingRoutes = async (
                 }
 
                 // Rewrite font URLs to go through our proxy (avoids CORS on external fonts)
-                const assetProxyBase = `/api/tracking/${proxyPageMatch[1]}/proxy-asset?url=`;
+                // MUST be absolute — <base> tag points to the tracked site's origin
+                const apiBase = process.env.API_BASE_URL || 'https://emotio.cx/api';
+                const assetProxyBase = `${apiBase}/tracking/${proxyPageMatch[1]}/proxy-asset?url=`;
                 html = html.replace(
                     /url\(\s*['"]?([^'")]+\.(?:woff2?|ttf|eot|otf)(?:\?[^'")]*)?)\s*['"]?\)/gi,
                     (match, fontUrl: string) => {
-                        const resolved = fontUrl.startsWith('http') ? fontUrl : urlObj.origin + (fontUrl.startsWith('/') ? '' : '/') + fontUrl;
+                        const resolved = fontUrl.startsWith('http') ? fontUrl
+                            : fontUrl.startsWith('//') ? 'https:' + fontUrl
+                            : urlObj.origin + (fontUrl.startsWith('/') ? '' : '/') + fontUrl;
                         return `url('${assetProxyBase}${encodeURIComponent(resolved)}')`;
                     }
                 );
@@ -358,20 +362,20 @@ export const handleTrackingRoutes = async (
                     (match, before: string, href: string, after: string) => {
                         const combined = before + after;
                         if (!combined.includes('stylesheet') && !combined.includes('text/css')) return match;
-                        const resolved = href.startsWith('http') ? href : urlObj.origin + (href.startsWith('/') ? '' : '/') + href;
+                        const resolved = href.startsWith('http') ? href
+                            : href.startsWith('//') ? 'https:' + href
+                            : urlObj.origin + (href.startsWith('/') ? '' : '/') + href;
                         return `<link ${before}href="${assetProxyBase}${encodeURIComponent(resolved)}"${after}>`;
                     }
                 );
 
-                // Inject styles to disable interactions + fix navbar rendering in iframe
+                // Fix media="none" links whose onload was stripped (e.g. Google Fonts lazy-load pattern)
+                html = html.replace(/media\s*=\s*["']none["']/gi, 'media="all"');
+
+                // Inject styles to disable interactions
                 const disableStyle = `<style>
                     * { pointer-events: none !important; user-select: none !important; }
-                    body { overflow: visible !important; min-width: 1280px !important; }
-                    [style*="position: fixed"], [style*="position:fixed"],
-                    nav, header, .navbar, .nav-bar, .header, .site-header,
-                    [class*="navbar"], [class*="nav-bar"], [class*="header"] {
-                        position: relative !important;
-                    }
+                    body { overflow: visible !important; }
                 </style>`;
                 html = html.replace('</head>', disableStyle + '</head>');
 
@@ -380,7 +384,7 @@ export const handleTrackingRoutes = async (
                     headers: {
                         'Content-Type': 'text/html; charset=utf-8',
                         'Access-Control-Allow-Origin': origin || '*',
-                        'Cache-Control': 'public, max-age=300',
+                        'Cache-Control': 'no-cache',
                     },
                     body: html,
                 };
@@ -406,8 +410,43 @@ export const handleTrackingRoutes = async (
                 const isText = contentType.includes('text/') || contentType.includes('css') || contentType.includes('javascript') || contentType.includes('json');
 
                 if (isText) {
-                    // Text assets (CSS, etc.) — return as plain text
-                    const text = await response.text();
+                    let text = await response.text();
+
+                    // CSS: rewrite url() and @import so nested references also proxy through us
+                    if (contentType.includes('css')) {
+                        const proxyBase = `/api/tracking/${proxyAssetMatch[1]}/proxy-asset?url=`;
+                        const cssUrlObj = new URL(assetUrl);
+                        const cssOrigin = cssUrlObj.origin;
+                        const cssDir = assetUrl.substring(0, assetUrl.lastIndexOf('/') + 1);
+
+                        const resolveRef = (ref: string): string => {
+                            if (ref.startsWith('data:') || ref.startsWith('#')) return ref;
+                            if (ref.startsWith('http')) return ref;
+                            if (ref.startsWith('//')) return 'https:' + ref;
+                            if (ref.startsWith('/')) return cssOrigin + ref;
+                            return cssDir + ref;
+                        };
+
+                        // Rewrite url() — skip data: URIs
+                        text = text.replace(
+                            /url\(\s*['"]?(?!['"]?data:)([^'")]+)\s*['"]?\)/gi,
+                            (_m: string, ref: string) => {
+                                const resolved = resolveRef(ref.trim());
+                                if (resolved === ref.trim()) return _m;
+                                return `url('${proxyBase}${encodeURIComponent(resolved)}')`;
+                            }
+                        );
+
+                        // Rewrite @import "..." (non-url form)
+                        text = text.replace(
+                            /@import\s+['"](?!data:)([^'"]+)['"]/gi,
+                            (_m: string, ref: string) => {
+                                const resolved = resolveRef(ref.trim());
+                                return `@import url('${proxyBase}${encodeURIComponent(resolved)}')`;
+                            }
+                        );
+                    }
+
                     return {
                         statusCode: 200,
                         headers: {
@@ -569,11 +608,42 @@ export const handleTrackingRoutes = async (
             const html = await getPageSnapshotHtml(researchId, pageUrl);
             if (!html) return error('No snapshot available', 404, undefined, origin);
 
-            // Inject styles to disable interactions + base tag for relative resources
+            // Inject base tag, proxy CSS/fonts, disable interactions
             const urlObj = new URL(pageUrl);
             const baseHref = urlObj.origin + '/';
-            const disableStyle = `<style>* { pointer-events: none !important; user-select: none !important; } body { overflow: visible !important; min-width: 1280px !important; } [style*="position: fixed"], [style*="position:fixed"], nav, header, .navbar, .nav-bar, .header, .site-header, [class*="navbar"], [class*="nav-bar"], [class*="header"] { position: relative !important; }</style>`;
+            // MUST be absolute — <base> tag points to the tracked site's origin
+            const apiBase = process.env.API_BASE_URL || 'https://emotio.cx/api';
+            const assetProxyBase = `${apiBase}/tracking/${snapshotHtmlMatch[1]}/proxy-asset?url=`;
             let result = html;
+
+            // Proxy CSS stylesheets to avoid CORS/Referer blocks
+            result = result.replace(
+                /<link\s([^>]*?)href\s*=\s*['"]([^'"]+)['"]([^>]*?)>/gi,
+                (match: string, before: string, href: string, after: string) => {
+                    const combined = before + after;
+                    if (!combined.includes('stylesheet') && !combined.includes('text/css')) return match;
+                    const resolved = href.startsWith('http') ? href
+                        : href.startsWith('//') ? 'https:' + href
+                        : urlObj.origin + (href.startsWith('/') ? '' : '/') + href;
+                    return `<link ${before}href="${assetProxyBase}${encodeURIComponent(resolved)}"${after}>`;
+                }
+            );
+
+            // Proxy font URLs
+            result = result.replace(
+                /url\(\s*['"]?([^'")]+\.(?:woff2?|ttf|eot|otf)(?:\?[^'")]*)?)\s*['"]?\)/gi,
+                (_match: string, fontUrl: string) => {
+                    const resolved = fontUrl.startsWith('http') ? fontUrl
+                        : fontUrl.startsWith('//') ? 'https:' + fontUrl
+                        : urlObj.origin + (fontUrl.startsWith('/') ? '' : '/') + fontUrl;
+                    return `url('${assetProxyBase}${encodeURIComponent(resolved)}')`;
+                }
+            );
+
+            // Fix media="none" links whose onload was stripped (e.g. Google Fonts lazy-load pattern)
+            result = result.replace(/media\s*=\s*["']none["']/gi, 'media="all"');
+
+            const disableStyle = `<style>* { pointer-events: none !important; user-select: none !important; } body { overflow: visible !important; }</style>`;
             if (result.includes('<head>')) {
                 result = result.replace('<head>', `<head><base href="${baseHref}">${disableStyle}`);
             } else if (result.includes('<HEAD>')) {
@@ -587,7 +657,7 @@ export const handleTrackingRoutes = async (
                 headers: {
                     'Content-Type': 'text/html; charset=utf-8',
                     'Access-Control-Allow-Origin': origin || '*',
-                    'Cache-Control': 'public, max-age=300',
+                    'Cache-Control': 'no-cache',
                 },
                 body: result,
             };

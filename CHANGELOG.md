@@ -1,3 +1,20 @@
+## v0.75.1 — Website Tracking CSS proxy fixes, snippet session management, live tab refactor (2026-05-28)
+
+### backend
+- **Proxy URLs absolute.** `proxy-page` and `snapshot-html` now emit absolute proxy URLs (`https://emotio.cx/api/...`). Previously, the `<base>` tag caused relative `/api/...` proxy URLs to resolve against the tracked site's domain, breaking all CSS loading.
+- **Protocol-relative URL support.** `<link>` stylesheet and font URL rewriting now handles `//cdn.example.com/...` URLs correctly instead of treating them as relative paths.
+- **CSS internal URL rewriting.** `proxy-asset` rewrites `url()` and `@import` references inside proxied CSS files so nested resources (fonts, images, imported stylesheets) also load through the proxy.
+- **`media="none"` fix.** Proxy-page and snapshot-html replace `media="none"` with `media="all"` to restore lazy-loaded stylesheets (e.g., Google Fonts) whose `onload` handlers were stripped.
+- **Snippet v3.5: 30s session reset.** If tab is hidden for >30s, a fresh session is created on return instead of resuming the stale one.
+- **Active duration cap.** `saveEvents` caps `active_duration_ms` to wall-clock time to prevent inflated values from race conditions.
+- **Live sessions: indexed query.** `getLiveSessions` filters by `ended_at >= NOW() - 5 MIN` instead of scanning all events with `HAVING MAX(timestamp_ms)`.
+
+### research-frontend
+- **Live tab: polling refactor.** `LiveSessionsTab` receives sessions as props (parent polls every 10s) instead of managing its own SSE connection. Simpler lifecycle, no stale EventSource.
+- **Visitor journey gap indicators.** Page timeline shows "Left page · Xs away" dividers when >10s gap between consecutive page views within a visit.
+
+---
+
 ## v0.75.0 — Prompt presets, bulk analysis, AOI heatmap backdrop, multi-column CSV, gaze path tabs (2026-05-28)
 
 ### backend
