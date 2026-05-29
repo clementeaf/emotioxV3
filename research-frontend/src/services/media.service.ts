@@ -324,9 +324,13 @@ class MediaService {
         researchId: string,
         jobId: string,
     ): EventSource {
-        const token = useAuthStore.getState().token;
+        // Read token from store, fallback to storage (sessionStorage then localStorage)
+        const token = useAuthStore.getState().token
+            || sessionStorage.getItem('auth_token')
+            || localStorage.getItem('auth_token')
+            || '';
         const baseUrl = configService.getBaseUrl(); // e.g. https://emotio.cx/api
-        const url = `${baseUrl}/attention-prediction/research/${researchId}/video-predict/stream?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(token || '')}`;
+        const url = `${baseUrl}/attention-prediction/research/${researchId}/video-predict/stream?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(token)}`;
         return new EventSource(url);
     }
 
