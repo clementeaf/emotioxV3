@@ -11,7 +11,10 @@ import { getRequestOrigin } from '../../utils/request';
 import { predictAttentionRaw, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
+import { predictVideoFrames } from './video-prediction.service';
+import { registerJob, broadcastProgress, removeJob } from './video-prediction-jobs';
 import pool from '../../config/database';
+import crypto from 'crypto';
 
 /**
  * Runs the unified hybrid prediction pipeline:
@@ -517,6 +520,165 @@ export const handleAttentionPredictionRoutes = async (
                 const msg = predErr instanceof Error ? predErr.message : 'Prediction failed';
                 return error(msg, 500, undefined, origin);
             }
+        }
+
+        // POST /attention-prediction/research/:researchId/video-predict
+        // Start video frame-by-frame prediction (fire-and-forget, SSE progress)
+        const videoPredictMatch = path.match(
+            /^\/attention-prediction\/research\/([^/]+)\/video-predict$/
+        );
+        if (videoPredictMatch && httpMethod === 'POST') {
+            const researchId = videoPredictMatch[1];
+            const body = event.body ? JSON.parse(event.body) : {};
+
+            const videoMediaId = body.videoMediaId as string;
+            const inputFrames = body.frames as Array<{ mediaId: string; timestamp: number }> | undefined;
+            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const profile = body.profile || undefined;
+
+            if (!videoMediaId || !Array.isArray(inputFrames) || inputFrames.length === 0) {
+                return error('videoMediaId and frames[] are required', 400, undefined, origin);
+            }
+            if (inputFrames.length > 120) {
+                return error(`Too many frames: ${inputFrames.length} (max 120)`, 400, undefined, origin);
+            }
+
+            // Lookup s3_keys for all frame mediaIds
+            const mediaIds = inputFrames.map(f => f.mediaId);
+            const placeholders = mediaIds.map(() => '?').join(',');
+            const mediaResult = await pool.query(
+                `SELECT id, s3_key FROM media WHERE id IN (${placeholders}) AND research_id = ?`,
+                [...mediaIds, researchId]
+            );
+
+            const s3KeyMap = new Map<string, string>();
+            for (const row of mediaResult.rows) {
+                s3KeyMap.set(row.id as string, row.s3_key as string);
+            }
+
+            // Validate all frames have media entries
+            const missingIds = mediaIds.filter(id => !s3KeyMap.has(id));
+            if (missingIds.length > 0) {
+                return error(`Media not found for frame(s): ${missingIds.slice(0, 5).join(', ')}`, 404, undefined, origin);
+            }
+
+            const framesWithKeys = inputFrames.map(f => ({
+                mediaId: f.mediaId,
+                timestamp: f.timestamp,
+                s3Key: s3KeyMap.get(f.mediaId)!,
+            }));
+
+            const jobId = crypto.randomUUID();
+            registerJob(jobId, researchId, inputFrames.length);
+
+            // Fire-and-forget: run prediction in background
+            (async () => {
+                try {
+                    const result = await predictVideoFrames(
+                        framesWithKeys,
+                        threshold,
+                        profile,
+                        (event) => broadcastProgress(jobId, event),
+                    );
+
+                    // Save results to research.config.stimuli[]
+                    const researchResult = await pool.query(
+                        'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                        [researchId]
+                    );
+                    if (researchResult.rows.length > 0) {
+                        let config: Record<string, unknown> = {};
+                        try {
+                            const raw = researchResult.rows[0].config;
+                            config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+                        } catch { config = {}; }
+
+                        const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+                        config.stimuli = stimuli.map((s) => {
+                            if (s.mediaId === videoMediaId) {
+                                return {
+                                    ...s,
+                                    isVideo: true,
+                                    heatmapData: result.accumulatedHeatmapData,
+                                    autoPresets: result.autoPresets,
+                                    griddedAOIs: result.griddedAOIs,
+                                    frames: result.frames,
+                                    temporalGrid: result.temporalGrid,
+                                    processedAt: new Date().toISOString(),
+                                    videoPredictionMeta: {
+                                        totalFrames: result.totalFrames,
+                                        failedFrames: result.failedFrames,
+                                        processingTimeMs: result.processingTimeMs,
+                                        fps: 1,
+                                    },
+                                    predictionError: undefined,
+                                    predictionErrorAt: undefined,
+                                };
+                            }
+                            return s;
+                        });
+
+                        await pool.query(
+                            'UPDATE researches SET config = ? WHERE id = ?',
+                            [JSON.stringify(config), researchId]
+                        );
+                    }
+                } catch (err) {
+                    console.error('[VideoPrediction] Background error:', err);
+                    // Save error state
+                    try {
+                        const errResult = await pool.query(
+                            'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                            [researchId]
+                        );
+                        if (errResult.rows.length > 0) {
+                            let config: Record<string, unknown> = {};
+                            try {
+                                const raw = errResult.rows[0].config;
+                                config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+                            } catch { config = {}; }
+
+                            const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+                            config.stimuli = stimuli.map((s) => {
+                                if (s.mediaId === videoMediaId) {
+                                    return {
+                                        ...s,
+                                        isVideo: true,
+                                        predictionError: err instanceof Error ? err.message : 'Video prediction failed',
+                                        predictionErrorAt: new Date().toISOString(),
+                                    };
+                                }
+                                return s;
+                            });
+                            await pool.query(
+                                'UPDATE researches SET config = ? WHERE id = ?',
+                                [JSON.stringify(config), researchId]
+                            );
+                        }
+                    } catch { /* best-effort */ }
+
+                    broadcastProgress(jobId, {
+                        type: 'error',
+                        totalFrames: inputFrames.length,
+                        error: err instanceof Error ? err.message : 'Video prediction failed',
+                    });
+                }
+
+                // Delayed cleanup so SSE connections can drain
+                setTimeout(() => removeJob(jobId), 60_000);
+            })();
+
+            return success(
+                {
+                    status: 'processing',
+                    jobId,
+                    totalFrames: inputFrames.length,
+                    estimatedSeconds: inputFrames.length * 5,
+                },
+                202,
+                undefined,
+                origin
+            );
         }
 
         return error('Route not found', 404, undefined, origin);

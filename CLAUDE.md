@@ -17,7 +17,7 @@ Default stages: Screener -> Welcome Screen -> Research Configuration -> Implicit
   - Features: targets dinamicos, preview modal, flowchart reactivo, multi-lang instrucciones (EN/ES JSON).
 - **Eye Tracking** (`single_module`): stimuli (imagenes/video), modalidades Stand Alone y Shelf. Incluye Emotion Recognition y prediccion de atencion.
 - **Rendering generico**: `ResearchBuilderPage` usa `module_collection` generalizada — todo lo que no sea Smart VOC usa `CognitiveTaskModuleCard`.
-- **Attention Prediction**: research type sin stages. TranSalNet ONNX genera heatmap, GPT-4o Vision genera analisis cualitativo. Predict sincrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). AOIs manuales + auto-detectadas por IA (importables). `AiAnalysisPanel` con secciones colapsables. Resultados cacheados en `stimulus.aiAnalysis`. Upload siempre visible. Error state con retry.
+- **Attention Prediction**: research type sin stages. TranSalNet ONNX genera heatmap, GPT-4o Vision genera analisis cualitativo. Predict sincrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). AOIs manuales + auto-detectadas por IA (importables). `AiAnalysisPanel` con secciones colapsables. Resultados cacheados en `stimulus.aiAnalysis`. Upload siempre visible. Error state con retry. **Video**: client-side frame extraction (1fps, Canvas API) → upload PNGs → `POST /video-predict` (fire-and-forget, SSE progress) → TranSalNet per frame → accumulated heatmap + temporal grid 4x4.
 - **Insights Finding**: research type sin stages. Documentos (.csv, .txt, .xlsx, .docx, .pdf) -> parseo client-side -> GPT-4o analysis (sentiment/themes/keywords). Fire-and-forget + polling.
 - **`isFileBasedResearch`**: unifica Attention Prediction e Insights Finding (`skip_default_modules: true`).
 - **Custom Screening Questions**: preguntas de seleccion unica con descalificacion dentro de Demographics. Keys `customQuestion_<id>`, `questionLabel` editable.
@@ -117,6 +117,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **File-based status labels (v0.75.0)**: Sidebar shows Prediction/Analysis/Tracking instead of Draft. Non-clickable `<span>` vs `<button>`.
 - **Snippet v3.5 DOM snapshot (v0.75.1)**: Captures `outerHTML` 3s after session, sends to `/public/tracking/:id/snapshot`. 30s hidden → fresh session. Enables snapshot-html heatmap backdrop.
 - **Proxy CSS pipeline (v0.75.1)**: proxy-asset rewrites `url()`/`@import` inside CSS. Proxy URLs must be absolute (not relative `/api/...`) because `<base>` tag points to tracked site. Protocol-relative `//` handled. `media="none"` → `media="all"` for lazy-loaded stylesheets.
+- **Video Attention Prediction (v0.76.0)**: Client extracts frames at 1fps (Canvas API, `extractVideoFrames.ts`, max 120). Each frame uploaded as PNG media. `POST /video-predict` runs TranSalNet per frame, accumulates via running average, hybrid saliency on accumulated map. SSE progress (`video-prediction-jobs.ts`). Results: `stimulus.heatmapData` (accumulated), `stimulus.frames[]` (per-frame), `stimulus.temporalGrid[]` (4x4 cells, attention time series). `VideoFrameScrubber` shows original|prediction side-by-side.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 
@@ -131,7 +132,9 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - `backend/src/modules/quotas/quota.service.ts` — cuotas demograficas atomicas (`tryIncrementQuota`)
 - `backend/src/modules/public/public.service.ts` — endpoints publicos, validacion, save responses
 - `backend/src/modules/analytics/analytics.service.ts` — metricas SmartVOC, NEV, Eye Tracking (FACS, AOI, sequence), IAT (D-score, errors)
-- `backend/src/modules/attention-prediction/attention-prediction.controller.ts` — TranSalNet prediction (research stimuli + module stimuli)
+- `backend/src/modules/attention-prediction/attention-prediction.controller.ts` — TranSalNet prediction (research stimuli + module stimuli + video)
+- `backend/src/modules/attention-prediction/video-prediction.service.ts` — Video frame-by-frame prediction, accumulation, temporal grid
+- `backend/src/modules/attention-prediction/video-prediction-jobs.ts` — SSE job registry for video prediction progress
 - `backend/src/modules/tracking/tracking.controller.ts` — Website Tracking public + auth endpoints
 - `backend/src/modules/tracking/tracking.service.ts` — sessions, events batch insert, heatmap aggregation
 - `backend/src/modules/tracking/tracking-snippet.ts` — injectable JS generator

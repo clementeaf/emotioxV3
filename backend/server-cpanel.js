@@ -15,6 +15,7 @@ const { route } = require('./dist/router');
 const cache = require('./dist/config/cache').default;
 const { monitorSSEService } = require('./dist/modules/monitor/monitor-sse.service');
 const { verifyToken } = require('./dist/utils/auth.local');
+const { attachSSE, detachSSE, getJob } = require('./dist/modules/attention-prediction/video-prediction-jobs');
 
 const app = express();
 
@@ -343,6 +344,62 @@ app.get('/api/monitor/events/:researchId', async (req, res) => {
         console.error('SSE connection error:', error);
         const errorMessage = error instanceof Error ? error.message : 'Connection failed';
         res.status(500).json({ error: errorMessage });
+    }
+});
+
+// SSE endpoint for video prediction progress
+// GET /api/attention-prediction/research/:researchId/video-predict/stream?jobId=xxx&token=xxx
+app.get([
+    '/api/attention-prediction/research/:researchId/video-predict/stream',
+    '/attention-prediction/research/:researchId/video-predict/stream'
+], async (req, res) => {
+    try {
+        const { token, jobId } = req.query;
+
+        if (!token || typeof token !== 'string') {
+            return res.status(401).json({ error: 'Authentication token is required' });
+        }
+        if (!jobId || typeof jobId !== 'string') {
+            return res.status(400).json({ error: 'jobId query parameter is required' });
+        }
+
+        try {
+            await verifyToken(token);
+        } catch {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        // SSE headers
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.flushHeaders();
+
+        if (!attachSSE(jobId, res)) {
+            // Job not found — check if it already completed
+            const job = getJob(jobId);
+            const msg = job ? `Job already ${job.status}` : 'Job not found';
+            res.write(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`);
+            res.end();
+            return;
+        }
+
+        // Keep-alive ping every 30s
+        const pingInterval = setInterval(() => {
+            try { res.write(': ping\n\n'); if (typeof res.flush === 'function') res.flush(); } catch { /* dead */ }
+        }, 30000);
+
+        // Cleanup on disconnect
+        res.on('close', () => {
+            clearInterval(pingInterval);
+            detachSSE(jobId, res);
+        });
+
+    } catch (err) {
+        console.error('[VideoPrediction SSE] Error:', err);
+        res.status(500).json({ error: 'SSE connection failed' });
     }
 });
 

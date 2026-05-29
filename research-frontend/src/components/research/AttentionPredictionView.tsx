@@ -8,7 +8,8 @@ import { FileUploadAdvanced, type UploadedFile } from '../ui/FileUploadAdvanced'
 import { AttentionPredictionCard } from './AttentionPredictionCard';
 import { Save, Trash2 } from 'lucide-react';
 import { AiAnalysisPanel } from './AiAnalysisPanel';
-import { mediaService } from '../../services/media.service';
+import { mediaService, resolveMediaUrl } from '../../services/media.service';
+import { extractVideoFrames } from '../../utils/extractVideoFrames';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
 interface VideoFrame {
@@ -36,6 +37,10 @@ interface StimulusItem {
     autoPresets?: { blur: number; opacity: number; threshold: number };
     /** Gridded AOIs detected from saliency map */
     griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
+    /** Temporal grid — per-cell attention time series for video */
+    temporalGrid?: Array<{ label: string; row: number; col: number; timeSeries: number[] }>;
+    /** Video prediction metadata */
+    videoPredictionMeta?: { totalFrames: number; failedFrames: number; processingTimeMs: number; fps: number };
 }
 
 interface AttentionPredictionViewProps {
@@ -64,6 +69,20 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
     const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
+
+    // Video prediction state
+    const [videoProgress, setVideoProgress] = useState<{
+        phase: 'extracting' | 'uploading' | 'predicting' | 'accumulating' | 'hybrid' | 'complete' | 'error';
+        current: number;
+        total: number;
+        message: string;
+    } | null>(null);
+    const videoSSERef = useRef<EventSource | null>(null);
+
+    // Cleanup SSE on unmount
+    useEffect(() => {
+        return () => { videoSSERef.current?.close(); };
+    }, []);
 
     // Prompt editor state
     const [isPromptOpen, setIsPromptOpen] = useState(false);
@@ -189,6 +208,102 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
 
 
+    const processVideoStimulus = useCallback(async (videoStimulus: StimulusItem, videoUrl: string) => {
+        try {
+            // Phase 1: Extract frames at 1fps (client-side Canvas API)
+            setVideoProgress({ phase: 'extracting', current: 0, total: 0, message: 'Extracting video frames...' });
+            const extracted = await extractVideoFrames(
+                videoUrl,
+                1,   // 1fps
+                120, // max 120 frames (2 min)
+                (progress) => setVideoProgress(prev => prev ? { ...prev, current: Math.round(progress * 100), total: 100 } : null),
+            );
+
+            if (extracted.length === 0) {
+                setVideoProgress({ phase: 'error', current: 0, total: 0, message: 'No frames extracted from video' });
+                return;
+            }
+
+            // Phase 2: Upload each frame as individual media
+            setVideoProgress({ phase: 'uploading', current: 0, total: extracted.length, message: `Uploading frames (0/${extracted.length})...` });
+            const uploadedFrames: Array<{ mediaId: string; timestamp: number }> = [];
+
+            for (let i = 0; i < extracted.length; i++) {
+                const frame = extracted[i];
+                const file = new File([frame.blob], `frame-${i}-${frame.timestamp.toFixed(1)}s.png`, { type: 'image/png' });
+                const { mediaId } = await mediaService.uploadFile(research.id, file);
+                uploadedFrames.push({ mediaId, timestamp: frame.timestamp });
+                setVideoProgress({ phase: 'uploading', current: i + 1, total: extracted.length, message: `Uploading frames (${i + 1}/${extracted.length})...` });
+            }
+
+            // Phase 3: Start backend video prediction
+            setVideoProgress({ phase: 'predicting', current: 0, total: extracted.length, message: 'Starting prediction...' });
+            const { jobId } = await mediaService.startVideoPrediction(
+                research.id,
+                videoStimulus.mediaId,
+                uploadedFrames,
+            );
+
+            // Phase 4: Listen to SSE for progress
+            const sse = mediaService.connectVideoSSE(research.id, jobId);
+            videoSSERef.current = sse;
+
+            sse.addEventListener('frame-complete', (e: MessageEvent) => {
+                const data = JSON.parse(e.data);
+                setVideoProgress({
+                    phase: 'predicting',
+                    current: (data.frameIndex ?? 0) + 1,
+                    total: data.totalFrames,
+                    message: `Predicting frame ${(data.frameIndex ?? 0) + 1}/${data.totalFrames}...`,
+                });
+            });
+            sse.addEventListener('frame-error', (e: MessageEvent) => {
+                const data = JSON.parse(e.data);
+                setVideoProgress(prev => prev ? {
+                    ...prev,
+                    current: (data.frameIndex ?? 0) + 1,
+                    message: `Frame ${(data.frameIndex ?? 0) + 1} failed, continuing...`,
+                } : null);
+            });
+            sse.addEventListener('accumulating', () => {
+                setVideoProgress(prev => prev ? { ...prev, phase: 'accumulating', message: 'Computing accumulated heatmap...' } : null);
+            });
+            sse.addEventListener('hybrid', () => {
+                setVideoProgress(prev => prev ? { ...prev, phase: 'hybrid', message: 'Running semantic saliency fusion...' } : null);
+            });
+            sse.addEventListener('complete', (e: MessageEvent) => {
+                const data = JSON.parse(e.data);
+                setVideoProgress({
+                    phase: 'complete',
+                    current: data.totalFrames,
+                    total: data.totalFrames,
+                    message: `Complete — ${data.totalFrames} frames in ${Math.round((data.processingTimeMs || 0) / 1000)}s`,
+                });
+                sse.close();
+                videoSSERef.current = null;
+                queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                // Auto-clear progress after 5s
+                setTimeout(() => setVideoProgress(null), 5000);
+            });
+            sse.addEventListener('error', (e: Event) => {
+                // SSE error event — could be connection loss or backend error
+                const msgEvent = e as MessageEvent;
+                let errorMsg = 'Video prediction failed';
+                try { errorMsg = JSON.parse(msgEvent.data).error || errorMsg; } catch { /* use default */ }
+                setVideoProgress({ phase: 'error', current: 0, total: 0, message: errorMsg });
+                sse.close();
+                videoSSERef.current = null;
+            });
+        } catch (err) {
+            setVideoProgress({
+                phase: 'error',
+                current: 0,
+                total: 0,
+                message: err instanceof Error ? err.message : 'Video processing failed',
+            });
+        }
+    }, [research.id, queryClient]);
+
     const handleFilesChange = useCallback(async (files: UploadedFile[]) => {
         const newStimuli: StimulusItem[] = files
             .filter(f => f.status === 'uploaded' && f.mediaId)
@@ -196,6 +311,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 url: f.url || '',
                 mediaId: f.mediaId!,
                 name: f.name,
+                isVideo: f.type?.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(f.name),
             }));
 
         if (newStimuli.length === 0) return;
@@ -208,11 +324,18 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
         await persistStimuli(merged);
 
-        // Run AI analysis on each new stimulus (Gemini/GPT-4o Vision)
+        // Process each new stimulus
         for (const stimulus of newStimuli) {
-            await runAnalysis(stimulus.mediaId);
+            if (stimulus.isVideo) {
+                // Video: extract frames → upload → predict via SSE
+                const videoUrl = stimulus.url.startsWith('http') ? stimulus.url : resolveMediaUrl(stimulus.url);
+                await processVideoStimulus(stimulus, videoUrl);
+            } else {
+                // Image: existing flow — run AI analysis
+                await runAnalysis(stimulus.mediaId);
+            }
         }
-    }, [stimuli, persistStimuli, runAnalysis]);
+    }, [stimuli, persistStimuli, runAnalysis, processVideoStimulus]);
 
     const handleDelete = useCallback(async (mediaId: string) => {
         setIsDeletingId(mediaId);
@@ -338,6 +461,46 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         )}
                     </div>
                 </Drawer>
+
+                {/* Video prediction progress */}
+                {videoProgress && (
+                    <div className={`rounded-lg border p-4 ${
+                        videoProgress.phase === 'error' ? 'bg-red-50 border-red-200' :
+                        videoProgress.phase === 'complete' ? 'bg-green-50 border-green-200' :
+                        'bg-blue-50 border-blue-200'
+                    }`}>
+                        <div className="flex items-center gap-3">
+                            {videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' && (
+                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-medium ${
+                                    videoProgress.phase === 'error' ? 'text-red-700' :
+                                    videoProgress.phase === 'complete' ? 'text-green-700' :
+                                    'text-blue-700'
+                                }`}>
+                                    {videoProgress.message}
+                                </p>
+                                {videoProgress.total > 0 && videoProgress.phase !== 'complete' && videoProgress.phase !== 'error' && (
+                                    <div className="mt-2 h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                                        <div
+                                            className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                            style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            {videoProgress.phase === 'error' && (
+                                <button
+                                    onClick={() => setVideoProgress(null)}
+                                    className="text-red-500 hover:text-red-700 text-xs font-medium"
+                                >
+                                    Dismiss
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {activeStimulus && (
                     <>

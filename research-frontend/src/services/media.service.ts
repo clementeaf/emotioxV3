@@ -2,6 +2,7 @@ import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
 import { configService } from './api/config.service';
 import type { AiAnalysisResult } from '../types/aiAnalysis.types';
+import { useAuthStore } from '../stores/auth.store';
 
 /**
  * Resolves a relative media URL against the backend origin.
@@ -288,6 +289,45 @@ class MediaService {
         });
 
         return { mediaId: media.id, s3Key: s3_key };
+    }
+
+    /**
+     * Starts video frame-by-frame prediction (fire-and-forget, returns 202).
+     * Use connectVideoSSE() to listen for progress events.
+     */
+    async startVideoPrediction(
+        researchId: string,
+        videoMediaId: string,
+        frames: Array<{ mediaId: string; timestamp: number }>,
+        options?: { threshold?: number; profile?: Record<string, unknown> },
+    ): Promise<{ status: string; jobId: string; totalFrames: number; estimatedSeconds: number }> {
+        try {
+            return await apiClient.post(
+                `/attention-prediction/research/${researchId}/video-predict`,
+                {
+                    videoMediaId,
+                    frames,
+                    threshold: options?.threshold,
+                    profile: options?.profile,
+                },
+            );
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to start video prediction');
+        }
+    }
+
+    /**
+     * Opens an SSE connection for video prediction progress.
+     * Returns an EventSource — caller must close it when done.
+     */
+    connectVideoSSE(
+        researchId: string,
+        jobId: string,
+    ): EventSource {
+        const token = useAuthStore.getState().token;
+        const baseUrl = configService.getBaseUrl(); // e.g. https://emotio.cx/api
+        const url = `${baseUrl}/attention-prediction/research/${researchId}/video-predict/stream?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(token || '')}`;
+        return new EventSource(url);
     }
 
     private handleError(error: unknown, defaultMessage: string): Error {

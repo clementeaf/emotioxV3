@@ -1,3 +1,18 @@
+## v0.76.0 — Video Attention Prediction pipeline (2026-05-29)
+
+### backend
+- **Video prediction endpoint.** `POST /attention-prediction/research/:researchId/video-predict` accepts pre-extracted frame mediaIds, runs TranSalNet per frame sequentially, accumulates saliency via running average, applies hybrid Gemini fusion on the accumulated map, computes autoPresets + griddedAOIs + temporal grid (4x4, 16 cells). Returns 202 with `jobId` for SSE progress.
+- **SSE progress stream.** `GET .../video-predict/stream?jobId=&token=` streams `frame-complete`, `frame-error`, `accumulating`, `hybrid`, `complete`, `error` events. In-memory job registry with 60s cleanup after completion.
+- **Memory-efficient processing.** Running sum accumulator (~442KB) + 1 active frame. Temporal grid computed inline per frame. Peak ~1.3MB regardless of frame count. Max 120 frames.
+- **Per-frame step=4, accumulated step=3.** Coarser extraction for individual frames reduces JSON size ~40%. Full resolution for the accumulated heatmap.
+
+### research-frontend
+- **Video upload flow.** When a video is uploaded (mp4/webm/mov), frames are extracted client-side at 1fps via `extractVideoFrames()` (Canvas API, max 120 frames). Each frame is uploaded as individual PNG, then `POST /video-predict` is called.
+- **SSE progress UI.** Blue progress bar with phase labels (extracting, uploading, predicting, accumulating, hybrid, complete). Error state with dismiss button.
+- **Video data types.** `StimulusItem` extended with `temporalGrid` and `videoPredictionMeta`. `VideoFrameScrubber` (already existed) now receives real per-frame heatmap data.
+
+---
+
 ## v0.75.2 — Heatmap presets, AOI visibility, Prompt in card, dashboard cleanup (2026-05-28)
 
 ### research-frontend
