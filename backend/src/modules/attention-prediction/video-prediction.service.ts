@@ -7,7 +7,7 @@
  * Peak memory: ~1.3MB regardless of frame count.
  */
 
-import { predictAttentionRaw, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
+import { predictAttentionFast, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
 import { generateHybridSaliency, type AnalysisProfile } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import type { VideoJobEvent } from './video-prediction-jobs';
@@ -157,7 +157,7 @@ export async function predictVideoFrames(
         const imagePath = getMediaPath(frame.s3Key);
 
         try {
-            const { map, width, height } = await predictAttentionRaw(imagePath);
+            const { map, width, height } = await predictAttentionFast(imagePath);
 
             // Initialize accumulator on first success
             if (!runningSum) {

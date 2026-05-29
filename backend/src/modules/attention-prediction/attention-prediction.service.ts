@@ -629,6 +629,26 @@ export const predictAttentionRaw = async (
 };
 
 /**
+ * Fast single-pass saliency prediction — no augmentations.
+ * ~3x faster than predictAttentionRaw. Designed for video frames where
+ * temporal averaging across many frames replaces spatial augmentation.
+ */
+export const predictAttentionFast = async (
+    imagePath: string
+): Promise<{ map: Float32Array; width: number; height: number }> => {
+    if (!fs.existsSync(imagePath)) {
+        throw new Error(`Image not found: ${imagePath}`);
+    }
+
+    const sess = await getSession();
+    const map = await inferSaliencyRaw(sess, sharp(imagePath));
+    const blurred = applyBlur(map, MODEL_WIDTH, MODEL_HEIGHT, 4);
+    const normalized = normalizeMap(blurred);
+
+    return { map: normalized, width: MODEL_WIDTH, height: MODEL_HEIGHT };
+};
+
+/**
  * Converts a raw saliency Float32Array to heatmap data points.
  */
 /**
