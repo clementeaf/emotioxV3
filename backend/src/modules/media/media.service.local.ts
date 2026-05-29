@@ -98,10 +98,10 @@ export const saveMetadata = async (
         questionId,
         validatedPath, // Usar como s3_key para compatibilidad
         'local', // s3_bucket = 'local' para indicar almacenamiento local
-        metadata.fileName as string || path.basename(validatedPath),
-        metadata.fileType as string || 'application/octet-stream',
+        (metadata?.fileName as string) || path.basename(validatedPath),
+        (metadata?.fileType as string) || 'application/octet-stream',
         stats.size,
-        JSON.stringify(metadata),
+        JSON.stringify(metadata || {}),
     ]);
     
     // Fetch created record (MySQL doesn't support RETURNING)
