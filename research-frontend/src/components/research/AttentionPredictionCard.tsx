@@ -1000,8 +1000,8 @@ export const AttentionPredictionCard = ({
                         {/* Original Tab */}
                         {activeTab === 'original' && (
                             isVideo ? (
-                                <div className="rounded-lg border bg-gray-100 overflow-hidden">
-                                    <video src={imageUrl} controls muted className="w-full block" />
+                                <div className="rounded-lg border bg-gray-100">
+                                    <video src={imageUrl} controls muted className="w-full h-auto block" style={{ maxHeight: '70vh' }} />
                                 </div>
                             ) : (
                                 <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
