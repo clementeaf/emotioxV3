@@ -1000,8 +1000,8 @@ export const AttentionPredictionCard = ({
                         {/* Original Tab */}
                         {activeTab === 'original' && (
                             isVideo ? (
-                                <div className="rounded-lg border bg-gray-100">
-                                    <video src={imageUrl} controls muted className="w-full h-auto block" style={{ maxHeight: '70vh' }} />
+                                <div className="rounded-lg border bg-gray-100 flex items-center justify-center" style={{ maxHeight: '60vh' }}>
+                                    <video src={imageUrl} controls muted className="w-full h-full object-contain block" />
                                 </div>
                             ) : (
                                 <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
@@ -1038,8 +1038,8 @@ export const AttentionPredictionCard = ({
                                         />
                                     </div>
                                 ) : (
-                                    <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
-                                        <video src={imageUrl} muted className="w-full block" />
+                                    <div className="rounded-lg border bg-gray-100 relative flex items-center justify-center" style={{ maxHeight: '60vh' }}>
+                                        <video src={imageUrl} muted className="w-full h-full object-contain block" />
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                                             {onProcessVideo ? (
                                                 <button
@@ -1261,6 +1261,8 @@ export const AttentionPredictionCard = ({
                                             threshold={Math.min(settings.threshold, 20)}
                                             className="w-full block"
                                         />
+                                    ) : isVideo ? (
+                                        <video src={imageUrl} muted className="w-full h-full object-contain block" />
                                     ) : (
                                         <img src={imageUrl} alt={title} className="w-full block" />
                                     )}
