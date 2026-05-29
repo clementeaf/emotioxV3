@@ -110,6 +110,10 @@ interface AttentionPredictionCardProps {
     headerExtra?: React.ReactNode;
     /** Callback to trigger video prediction pipeline */
     onProcessVideo?: () => void;
+    /** Video prediction progress (shown inline in header) */
+    videoProgress?: { phase: string; current: number; total: number; message: string } | null;
+    /** Dismiss video progress */
+    onDismissVideoProgress?: () => void;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -572,6 +576,8 @@ export const AttentionPredictionCard = ({
     bulkProgress,
     headerExtra,
     onProcessVideo,
+    videoProgress,
+    onDismissVideoProgress,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
 
@@ -847,7 +853,23 @@ export const AttentionPredictionCard = ({
                             Prediction of visual attention
                         </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                        {/* Video progress inline */}
+                        {videoProgress && (
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium ${
+                                videoProgress.phase === 'error' ? 'bg-red-50 text-red-700' :
+                                videoProgress.phase === 'complete' ? 'bg-green-50 text-green-700' :
+                                'bg-blue-50 text-blue-700'
+                            }`}>
+                                {videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' && (
+                                    <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                                )}
+                                <span className="truncate max-w-[200px]">{videoProgress.message}</span>
+                                {videoProgress.phase === 'error' && onDismissVideoProgress && (
+                                    <button onClick={onDismissVideoProgress} className="text-red-500 hover:text-red-700 ml-1">&times;</button>
+                                )}
+                            </div>
+                        )}
                         {onAddMore && (
                             <button
                                 type="button"

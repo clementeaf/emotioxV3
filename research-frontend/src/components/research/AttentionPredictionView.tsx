@@ -467,46 +467,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                     </div>
                 </Drawer>
 
-                {/* Video prediction progress */}
-                {videoProgress && (
-                    <div className={`rounded-lg border p-4 ${
-                        videoProgress.phase === 'error' ? 'bg-red-50 border-red-200' :
-                        videoProgress.phase === 'complete' ? 'bg-green-50 border-green-200' :
-                        'bg-blue-50 border-blue-200'
-                    }`}>
-                        <div className="flex items-center gap-3">
-                            {videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' && (
-                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-medium ${
-                                    videoProgress.phase === 'error' ? 'text-red-700' :
-                                    videoProgress.phase === 'complete' ? 'text-green-700' :
-                                    'text-blue-700'
-                                }`}>
-                                    {videoProgress.message}
-                                </p>
-                                {videoProgress.total > 0 && videoProgress.phase !== 'complete' && videoProgress.phase !== 'error' && (
-                                    <div className="mt-2 h-1.5 bg-blue-100 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                            style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                            {videoProgress.phase === 'error' && (
-                                <button
-                                    onClick={() => setVideoProgress(null)}
-                                    className="text-red-500 hover:text-red-700 text-xs font-medium"
-                                >
-                                    Dismiss
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                )}
-
                 {activeStimulus && (
                     <>
                         <AttentionPredictionCard
@@ -533,6 +493,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
                                 void processVideoStimulus(activeStimulus, videoUrl);
                             } : undefined}
+                            videoProgress={videoProgress}
+                            onDismissVideoProgress={() => setVideoProgress(null)}
                             headerExtra={
                                 <button
                                     type="button"
