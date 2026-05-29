@@ -11,22 +11,35 @@ export interface ExtractedFrame {
 
 /**
  * Extracts frames from a video URL at a given interval.
+ * Downloads the video as a local blob first to avoid CORS canvas tainting.
  * @param videoUrl - URL of the video (blob URL or server URL)
  * @param intervalSeconds - Time between frames (default 2s)
  * @param maxFrames - Maximum number of frames (default 15)
  * @param onProgress - Optional progress callback (0-1)
  */
-export const extractVideoFrames = (
+export const extractVideoFrames = async (
   videoUrl: string,
   intervalSeconds = 2,
   maxFrames = 15,
   onProgress?: (progress: number) => void,
 ): Promise<ExtractedFrame[]> => {
+  // Download video as blob to avoid CORS tainting when drawing to canvas
+  let localUrl = videoUrl;
+  if (!videoUrl.startsWith('blob:')) {
+    const response = await fetch(videoUrl);
+    if (!response.ok) throw new Error(`Failed to fetch video: ${response.status}`);
+    const blob = await response.blob();
+    localUrl = URL.createObjectURL(blob);
+  }
+
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
     video.muted = true;
     video.preload = 'auto';
+
+    const revokeUrl = () => {
+      if (localUrl !== videoUrl) URL.revokeObjectURL(localUrl);
+    };
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -44,6 +57,7 @@ export const extractVideoFrames = (
       video.removeEventListener('seeked', onSeeked);
       video.removeEventListener('error', onError);
       video.src = '';
+      revokeUrl();
     };
 
     const onError = () => {
@@ -108,6 +122,6 @@ export const extractVideoFrames = (
     video.addEventListener('loadedmetadata', onMetadata);
     video.addEventListener('seeked', onSeeked);
     video.addEventListener('error', onError);
-    video.src = videoUrl;
+    video.src = localUrl;
   });
 };

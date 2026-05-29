@@ -1000,7 +1000,11 @@ export const AttentionPredictionCard = ({
                                 <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
                                     <ZoomControls />
                                     <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                        <img src={imageUrl} alt={title} className="w-full block" />
+                                        {isVideo ? (
+                                            <video src={imageUrl} controls muted className="w-full block" />
+                                        ) : (
+                                            <img src={imageUrl} alt={title} className="w-full block" />
+                                        )}
                                     </TransformComponent>
                                 </div>
                             </TransformWrapper>

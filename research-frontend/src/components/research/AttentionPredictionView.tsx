@@ -184,7 +184,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const bulkTriggeredRef = useRef(false);
     useEffect(() => {
         if (bulkTriggeredRef.current) return;
-        const pending = stimuli.filter(s => !s.aiAnalysis);
+        const pending = stimuli.filter(s => !s.aiAnalysis && !s.isVideo);
         if (pending.length === 0) return;
         bulkTriggeredRef.current = true;
 
