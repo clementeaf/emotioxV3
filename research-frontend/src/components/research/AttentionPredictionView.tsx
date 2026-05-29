@@ -219,8 +219,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             setVideoProgress({ phase: 'extracting', current: 0, total: 0, message: 'Extracting video frames...' });
             const extracted = await extractVideoFrames(
                 videoUrl,
-                1,   // 1fps
-                120, // max 120 frames (2 min)
+                2,   // 1 frame every 2s
+                60,  // max 60 frames (2 min)
                 (progress) => setVideoProgress(prev => prev ? { ...prev, current: Math.round(progress * 100), total: 100 } : null),
             );
 
