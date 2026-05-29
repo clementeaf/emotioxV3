@@ -2,7 +2,6 @@ import apiClient from './api/client';
 import type { ApiErrorResponse } from './api/types';
 import { configService } from './api/config.service';
 import type { AiAnalysisResult } from '../types/aiAnalysis.types';
-import { useAuthStore } from '../stores/auth.store';
 
 /**
  * Resolves a relative media URL against the backend origin.
@@ -323,12 +322,8 @@ class MediaService {
     connectVideoSSE(
         researchId: string,
         jobId: string,
+        token: string,
     ): EventSource {
-        // Read token from store, fallback to storage (sessionStorage then localStorage)
-        const token = useAuthStore.getState().token
-            || sessionStorage.getItem('auth_token')
-            || localStorage.getItem('auth_token')
-            || '';
         const baseUrl = configService.getBaseUrl(); // e.g. https://emotio.cx/api
         const url = `${baseUrl}/attention-prediction/research/${researchId}/video-predict/stream?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(token)}`;
         return new EventSource(url);

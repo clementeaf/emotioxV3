@@ -10,6 +10,7 @@ import { Save, Trash2 } from 'lucide-react';
 import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService, resolveMediaUrl } from '../../services/media.service';
 import { extractVideoFrames } from '../../utils/extractVideoFrames';
+import { useAuthStore } from '../../stores/auth.store';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
 interface VideoFrame {
@@ -69,6 +70,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
     const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
+
+    const authToken = useAuthStore(state => state.token);
 
     // Video prediction state
     const [videoProgress, setVideoProgress] = useState<{
@@ -250,7 +253,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             );
 
             // Phase 4: Listen to SSE for progress
-            const sse = mediaService.connectVideoSSE(research.id, jobId);
+            const sse = mediaService.connectVideoSSE(research.id, jobId, authToken || '');
             videoSSERef.current = sse;
 
             sse.addEventListener('frame-complete', (e: MessageEvent) => {
@@ -307,7 +310,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 message: err instanceof Error ? err.message : 'Video processing failed',
             });
         }
-    }, [research.id, queryClient]);
+    }, [research.id, queryClient, authToken]);
 
     const handleFilesChange = useCallback(async (files: UploadedFile[]) => {
         const newStimuli: StimulusItem[] = files
