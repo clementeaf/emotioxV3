@@ -996,12 +996,12 @@ export const AttentionPredictionCard = ({
                 )}
 
                 {/* Content */}
-                <div className="p-4 flex-1 min-h-0 overflow-auto flex flex-col" ref={tabContentRef}>
+                <div className={cn('p-4 flex-1 min-h-0 flex flex-col', !isVideo && 'overflow-auto')} ref={tabContentRef}>
                         {/* Original Tab */}
                         {activeTab === 'original' && (
                             isVideo ? (
-                                <div className="rounded-lg border bg-gray-100 flex items-center justify-center" style={{ maxHeight: '60vh' }}>
-                                    <video src={imageUrl} controls muted className="w-full h-full object-contain block" />
+                                <div className="rounded-lg border bg-black flex-1 min-h-0 flex items-center justify-center">
+                                    <video src={imageUrl} controls muted className="max-w-full max-h-full block" />
                                 </div>
                             ) : (
                                 <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
@@ -1038,8 +1038,8 @@ export const AttentionPredictionCard = ({
                                         />
                                     </div>
                                 ) : (
-                                    <div className="rounded-lg border bg-gray-100 relative flex items-center justify-center" style={{ maxHeight: '60vh' }}>
-                                        <video src={imageUrl} muted className="w-full h-full object-contain block" />
+                                    <div className="rounded-lg border bg-black relative flex-1 min-h-0 flex items-center justify-center">
+                                        <video src={imageUrl} muted className="max-w-full max-h-full block" />
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                                             {onProcessVideo ? (
                                                 <button
@@ -1262,7 +1262,7 @@ export const AttentionPredictionCard = ({
                                             className="w-full block"
                                         />
                                     ) : isVideo ? (
-                                        <video src={imageUrl} muted className="w-full h-full object-contain block" />
+                                        <video src={imageUrl} muted className="max-w-full max-h-full block mx-auto" />
                                     ) : (
                                         <img src={imageUrl} alt={title} className="w-full block" />
                                     )}
