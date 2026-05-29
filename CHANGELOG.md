@@ -1,3 +1,19 @@
+## v0.75.2 — Heatmap presets, AOI visibility, Prompt in card, dashboard cleanup (2026-05-28)
+
+### research-frontend
+- **Heatmap settings presets.** Save/load named blur/opacity/threshold presets in Heatmap Settings modal. Stored in `localStorage`, shared across all studies.
+- **AOI Editor: visible AI-detected zones.** Auto-detected AOIs now render as 2px dashed rectangles with solid-color labels (red=high, amber=medium, gray=low). Previously nearly invisible.
+- **AOI Editor: heatmap backdrop enforced.** Minimum blur=10, opacity=40, threshold=20 ensures the saliency overlay is visible as a drawing guide.
+- **Prompt presets below actions.** Presets section moved below the textarea and Default/Save/Apply buttons. Removed "My Presets" label.
+- **Prompt button inside card.** Moved "Prompt Custom" button from standalone row into the AttentionPredictionCard header via `headerExtra` prop. Eliminates extra vertical space.
+- **HeatmapRenderer: no forced scroll.** Canvas uses `w-full h-auto` instead of `max-h-[60vh] w-auto` — scales proportionally without causing vertical scroll.
+- **Sidebar: collapsible Stimuli/Stages.** Section header is clickable with chevron. Smooth `max-height` + `opacity` transition (200ms).
+- **Dashboard: removed sidebar charts.** Removed Research Activity, Participants Over Time, and Top by Participants panels.
+- **Dashboard: removed "Dashboard" label.** Sidebar logo area no longer shows redundant text.
+- **Dashboard: filter pills on second row.** Type pills (All, Attention's Prediction, etc.) render on their own line below the search/filter row.
+
+---
+
 ## v0.75.1 — Website Tracking CSS proxy fixes, snippet session management, live tab refactor (2026-05-28)
 
 ### backend

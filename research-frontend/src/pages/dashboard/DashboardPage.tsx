@@ -28,31 +28,6 @@ SummaryCard.displayName = 'SummaryCard';
 
 /* ─── Activity Chart (simple bar) ───────────────────────────────── */
 
-const ActivityChart = memo(({ data }: { data: Array<{ month: string; count: number }> }) => {
-    if (!data.length) return null;
-    const maxCount = Math.max(...data.map(d => d.count), 1);
-
-    return (
-        <div className="bg-white rounded-lg border border-gray-100 p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Research Activity</h3>
-            <div className="flex items-end gap-1 h-24">
-                {data.map(d => (
-                    <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-                        <div
-                            className="w-full bg-blue-500 rounded-t"
-                            style={{ height: `${Math.max((d.count / maxCount) * 100, 4)}%` }}
-                            title={`${d.month}: ${d.count} researches`}
-                        />
-                        <span className="text-[9px] text-gray-400 truncate w-full text-center">
-                            {d.month.slice(5)}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-});
-ActivityChart.displayName = 'ActivityChart';
 
 /* ─── Status Badge ──────────────────────────────────────────────── */
 
@@ -327,7 +302,8 @@ export const DashboardPage = () => {
                 {/* Left: Research Table */}
                 <div className="flex-1 rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
                     {/* Search + filters */}
-                    <div className="flex flex-wrap items-center gap-2 p-3 border-b border-gray-100 flex-shrink-0">
+                    <div className="p-3 border-b border-gray-100 flex-shrink-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         {/* Search — searches name, creator, technique, enterprise */}
                         <div className="relative flex-shrink-0">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -413,9 +389,10 @@ export const DashboardPage = () => {
                             </button>
                         )}
 
-                        <div className="w-px h-5 bg-gray-200 flex-shrink-0" />
+                    </div>
 
-                        {/* Type pills */}
+                    {/* Type pills — second row */}
+                    <div className="flex items-center gap-1.5">
                         <button
                             onClick={() => setActiveFilter('all')}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
@@ -435,6 +412,7 @@ export const DashboardPage = () => {
                                 {type.name}
                             </button>
                         ))}
+                    </div>
                     </div>
 
                     <div className={`flex-1 min-h-0 ${filteredResearches.length > 0 || isLoading ? 'overflow-auto' : 'overflow-hidden'}`}>
@@ -487,11 +465,6 @@ export const DashboardPage = () => {
 
                 {/* Right Sidebar: Activity + Status breakdown */}
                 <div className="w-full xl:w-72 flex-shrink-0 flex flex-col gap-3">
-                    {/* Activity chart */}
-                    {summary?.researchesOverTime && summary.researchesOverTime.length > 0 && (
-                        <ActivityChart data={summary.researchesOverTime} />
-                    )}
-
                     {/* Status breakdown */}
                     {summary && (
                         <div className="bg-white rounded-lg border border-gray-100 p-4">
@@ -513,27 +486,6 @@ export const DashboardPage = () => {
                         </div>
                     )}
 
-                    {/* Participants over time */}
-                    {summary?.participantsOverTime && summary.participantsOverTime.length > 0 && (
-                        <div className="bg-white rounded-lg border border-gray-100 p-4">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Participants Over Time</h3>
-                            <div className="flex items-end gap-1 h-20">
-                                {summary.participantsOverTime.map(d => {
-                                    const maxP = Math.max(...summary.participantsOverTime.map(x => x.count), 1);
-                                    return (
-                                        <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-                                            <div
-                                                className="w-full bg-purple-500 rounded-t"
-                                                style={{ height: `${Math.max((d.count / maxP) * 100, 4)}%` }}
-                                                title={`${d.month}: ${d.count} participants`}
-                                            />
-                                            <span className="text-[9px] text-gray-400 truncate w-full text-center">{d.month.slice(5)}</span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
 
                     {/* SmartVOC Metrics Trends */}
                     {summary?.metricsTrends && summary.metricsTrends.some(m => m.avgNps !== null || m.avgCsat !== null || m.avgCes !== null) && (
@@ -569,28 +521,6 @@ export const DashboardPage = () => {
                         </div>
                     )}
 
-                    {/* Top researches by participants */}
-                    {summary?.topResearches && summary.topResearches.length > 0 && (
-                        <div className="bg-white rounded-lg border border-gray-100 p-4">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Top by Participants</h3>
-                            <div className="space-y-2">
-                                {summary.topResearches
-                                    .filter(r => r.participantCount > 0)
-                                    .sort((a, b) => b.participantCount - a.participantCount)
-                                    .slice(0, 5)
-                                    .map(r => (
-                                        <button
-                                            key={r.id}
-                                            onClick={() => navigate(`/research/${r.id}/builder`)}
-                                            className="w-full flex items-center justify-between text-left hover:bg-gray-50 rounded px-2 py-1 -mx-2 transition-colors"
-                                        >
-                                            <span className="text-sm text-gray-700 truncate mr-2">{r.name}</span>
-                                            <span className="text-xs font-medium text-gray-500 flex-shrink-0">{r.participantCount}</span>
-                                        </button>
-                                    ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 

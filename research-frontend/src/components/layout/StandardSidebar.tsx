@@ -81,9 +81,6 @@ export const StandardSidebar = () => {
                             isCollapsed ? "h-8 w-8" : "h-8"
                         )}
                     />
-                    {!isCollapsed && (
-                        <span className="text-sm font-semibold text-slate-500">- Dashboard</span>
-                    )}
                 </div>
             </div>
 

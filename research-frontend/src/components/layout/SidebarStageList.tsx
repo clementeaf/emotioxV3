@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
     Trash2,
     BarChart3,
+    ChevronDown,
     Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -52,15 +54,24 @@ export const SidebarStageList = ({
     const { hasDraft } = useModuleDraftStore();
     const activeModuleId = moduleId;
 
+    const [collapsed, setCollapsed] = useState(false);
+
     // Website Tracking has no sidebar stages/stimuli — config is in the main panel
     if (isWebsiteTracking) return null;
+
+    const sectionLabel = isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages';
 
     return (
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block">
-                    {isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages'}
-                </h3>
+                <button
+                    type="button"
+                    onClick={() => setCollapsed(prev => !prev)}
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors"
+                >
+                    <ChevronDown className={cn('w-3 h-3 transition-transform', collapsed && '-rotate-90')} />
+                    {sectionLabel}
+                </button>
                 {!isFileBasedResearch && !isViewer && (
                     <button
                         onClick={onAddStageClick}
@@ -73,7 +84,10 @@ export const SidebarStageList = ({
                     <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded">Read-only</span>
                 )}
             </div>
-            <div className="space-y-2 mt-2">
+            <div
+                className="space-y-2 mt-2 overflow-hidden transition-all duration-200 ease-in-out"
+                style={{ maxHeight: collapsed ? 0 : 1000, opacity: collapsed ? 0 : 1, marginTop: collapsed ? 0 : 8 }}
+            >
                 {isFileBasedResearch ? (
                     stimuli.length > 0 ? (
                         stimuli.map((stimulus, index) => (

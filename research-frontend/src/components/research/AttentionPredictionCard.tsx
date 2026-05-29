@@ -106,6 +106,8 @@ interface AttentionPredictionCardProps {
     analyzeElapsed?: number;
     /** Bulk analysis progress */
     bulkProgress?: { current: number; total: number } | null;
+    /** Extra content rendered in the header row (e.g. Prompt button) */
+    headerExtra?: React.ReactNode;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -125,6 +127,16 @@ const TAB_ICONS: Record<string, React.ReactNode> = {
 };
 
 const DETAIL_PRESETS = ['Smooth', 'Balanced', 'Detailed'];
+
+// User-saved heatmap presets — shared across all studies via localStorage
+const HEATMAP_PRESETS_KEY = 'emotiox-heatmap-presets';
+interface SavedHeatmapPreset { name: string; blur: number; opacity: number; threshold: number }
+const loadHeatmapPresets = (): SavedHeatmapPreset[] => {
+    try { return JSON.parse(localStorage.getItem(HEATMAP_PRESETS_KEY) || '[]'); } catch { return []; }
+};
+const persistHeatmapPresets = (presets: SavedHeatmapPreset[]) => {
+    localStorage.setItem(HEATMAP_PRESETS_KEY, JSON.stringify(presets));
+};
 
 /** Each preset adjusts blur, threshold, and opacity for a different detail level. */
 const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
@@ -151,6 +163,11 @@ const SettingsModal = ({
     const debouncedLocal = useDebouncedValue(local, 150);
     const [settingsTab, setSettingsTab] = useState<'heatmap' | 'original'>('heatmap');
     const previewRef = useRef<HTMLDivElement>(null);
+
+    // User-saved presets
+    const [savedPresets, setSavedPresets] = useState<SavedHeatmapPreset[]>(loadHeatmapPresets);
+    const [showSavePreset, setShowSavePreset] = useState(false);
+    const [presetName, setPresetName] = useState('');
 
     const handleDownload = useCallback(async () => {
         const el = previewRef.current;
@@ -339,6 +356,94 @@ const SettingsModal = ({
                         >
                             Apply Settings
                         </button>
+
+                        {/* Save / load user presets */}
+                        <div className="pt-3 border-t border-gray-100 space-y-2">
+                            {showSavePreset ? (
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="text"
+                                        value={presetName}
+                                        onChange={e => setPresetName(e.target.value)}
+                                        placeholder="Preset name..."
+                                        className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        autoFocus
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && presetName.trim()) {
+                                                const updated = [...savedPresets.filter(p => p.name !== presetName.trim()), { name: presetName.trim(), blur: local.blur, opacity: local.opacity, threshold: local.threshold }];
+                                                setSavedPresets(updated);
+                                                persistHeatmapPresets(updated);
+                                                setPresetName('');
+                                                setShowSavePreset(false);
+                                            }
+                                            if (e.key === 'Escape') setShowSavePreset(false);
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        disabled={!presetName.trim()}
+                                        onClick={() => {
+                                            const updated = [...savedPresets.filter(p => p.name !== presetName.trim()), { name: presetName.trim(), blur: local.blur, opacity: local.opacity, threshold: local.threshold }];
+                                            setSavedPresets(updated);
+                                            persistHeatmapPresets(updated);
+                                            setPresetName('');
+                                            setShowSavePreset(false);
+                                        }}
+                                        className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-40 transition-colors"
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSavePreset(false)}
+                                        className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSavePreset(true)}
+                                    className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                                >
+                                    Save as preset
+                                </button>
+                            )}
+
+                            {savedPresets.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {savedPresets.map(p => (
+                                        <div key={p.name} className="flex items-center gap-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLocal(prev => ({ ...prev, blur: p.blur, opacity: p.opacity, threshold: p.threshold, preset: p.name }))}
+                                                className={cn(
+                                                    'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+                                                    local.preset === p.name
+                                                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+                                                )}
+                                            >
+                                                {p.name}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = savedPresets.filter(sp => sp.name !== p.name);
+                                                    setSavedPresets(updated);
+                                                    persistHeatmapPresets(updated);
+                                                }}
+                                                className="p-0.5 text-gray-300 hover:text-red-500 transition-colors"
+                                                title="Delete preset"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -463,6 +568,7 @@ export const AttentionPredictionCard = ({
     isAnalyzing = false,
     analyzeElapsed = 0,
     bulkProgress,
+    headerExtra,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
 
@@ -763,6 +869,7 @@ export const AttentionPredictionCard = ({
                             </svg>
                         </button>
                     )}
+                        {headerExtra}
                         {onRunAnalysis && (
                             <button
                                 type="button"
@@ -1100,9 +1207,9 @@ export const AttentionPredictionCard = ({
                                         <HeatmapRenderer
                                             imageUrl={imageUrl}
                                             data={effectiveHeatmapData}
-                                            blur={settings.blur}
-                                            opacity={Math.round(settings.opacity * 0.5)}
-                                            threshold={settings.threshold}
+                                            blur={Math.max(settings.blur, 10)}
+                                            opacity={Math.max(settings.opacity, 40)}
+                                            threshold={Math.min(settings.threshold, 20)}
                                             className="w-full block"
                                         />
                                     ) : (
@@ -1118,17 +1225,20 @@ export const AttentionPredictionCard = ({
                                         return (
                                             <div
                                                 key={`auto-${i}`}
-                                                className="absolute pointer-events-none border border-dashed"
+                                                className="absolute pointer-events-none"
                                                 style={{
                                                     left: `${aoi.x}%`,
                                                     top: `${aoi.y}%`,
                                                     width: `${aoi.width}%`,
                                                     height: `${aoi.height}%`,
-                                                    borderColor: color,
-                                                    backgroundColor: `${color}08`,
+                                                    border: `2px dashed ${color}`,
+                                                    backgroundColor: `${color}18`,
                                                 }}
                                             >
-                                                <span className="absolute -top-4 left-0 text-[9px] font-medium px-1 rounded" style={{ color, backgroundColor: `${color}15` }}>
+                                                <span
+                                                    className="absolute -top-5 left-0 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap"
+                                                    style={{ color: '#fff', backgroundColor: color }}
+                                                >
                                                     {aoi.label}
                                                 </span>
                                             </div>

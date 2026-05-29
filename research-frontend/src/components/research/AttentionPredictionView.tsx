@@ -230,22 +230,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         <div className="flex h-full overflow-hidden">
             {/* Left: main content area (scrollable) */}
             <div className="flex-1 min-w-0 p-6 space-y-4 overflow-y-auto">
-                {/* Prompt button */}
-                <div className="flex justify-end">
-                    <button
-                        type="button"
-                        onClick={() => setIsPromptOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
-                        title="Edit analysis prompt"
-                    >
-                        <Settings2 className="w-3.5 h-3.5" />
-                        Prompt
-                        {savedPrompt && (
-                            <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Custom</span>
-                        )}
-                    </button>
-                </div>
-
                 {/* Analysis Prompt Drawer */}
                 <Drawer
                     isOpen={isPromptOpen}
@@ -257,38 +241,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         <p className="text-sm text-gray-500">
                             Customize the system prompt sent to the AI for image analysis. Changes apply to future analyses only.
                         </p>
-
-                        {/* Presets */}
-                        {presets.length > 0 && (
-                            <div>
-                                <p className="text-xs font-medium text-gray-500 mb-1.5">Presets</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {presets.map(p => (
-                                        <div key={p.name} className="flex items-center gap-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => setPromptDraft(p.prompt)}
-                                                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                                                    promptDraft === p.prompt
-                                                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
-                                                }`}
-                                            >
-                                                {p.name}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => deletePreset(p.name)}
-                                                className="p-0.5 text-gray-300 hover:text-red-500 transition-colors"
-                                                title="Delete preset"
-                                            >
-                                                <Trash2 className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
                         <textarea
                             value={promptDraft}
@@ -353,6 +305,37 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 {isSavingPrompt ? 'Saving...' : 'Apply to study'}
                             </button>
                         </div>
+
+                        {/* Presets — below actions */}
+                        {presets.length > 0 && (
+                            <div className="pt-2 border-t border-gray-100">
+                                <div className="flex flex-wrap gap-1.5">
+                                    {presets.map(p => (
+                                        <div key={p.name} className="flex items-center gap-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPromptDraft(p.prompt)}
+                                                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                                                    promptDraft === p.prompt
+                                                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+                                                }`}
+                                            >
+                                                {p.name}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => deletePreset(p.name)}
+                                                className="p-0.5 text-gray-300 hover:text-red-500 transition-colors"
+                                                title="Delete preset"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Drawer>
 
@@ -378,6 +361,20 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             isAnalyzing={isProcessing}
                             analyzeElapsed={analyzeElapsed}
                             bulkProgress={bulkProgress}
+                            headerExtra={
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPromptOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
+                                    title="Edit analysis prompt"
+                                >
+                                    <Settings2 className="w-3.5 h-3.5" />
+                                    Prompt
+                                    {savedPrompt && (
+                                        <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Custom</span>
+                                    )}
+                                </button>
+                            }
                         />
 
                     </>

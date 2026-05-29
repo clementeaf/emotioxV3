@@ -112,7 +112,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Re-analyze (v0.74.2)**: Button in Insights Finding header re-triggers LLM analysis without re-uploading.
 - **Prompt presets (v0.75.0)**: `localStorage` key `emotiox-prompt-presets` (analysis) and `emotiox-heatmap-presets` (heatmap settings). Named presets shared across all studies.
 - **Bulk analysis (v0.75.0)**: Attention Prediction auto-queues stimuli without `aiAnalysis` on mount. Sequential, with timer + progress `(N/M)`.
-- **AOI Editor backdrop (v0.75.0)**: Shows `HeatmapRenderer` at 50% opacity + auto-detected AOIs as dashed rects (not imported yet).
+- **AOI Editor backdrop (v0.75.2)**: Shows `HeatmapRenderer` with enforced minimum visibility (blur≥10, opacity≥40, threshold≤20). Auto-detected AOIs as 2px dashed rects with solid-color labels.
 - **Gaze Paths sub-tabs (v0.75.0)**: `gazeMode` state toggles "Routes" (static) vs "Scanpath" (animated). `max-height: 60vh`.
 - **File-based status labels (v0.75.0)**: Sidebar shows Prediction/Analysis/Tracking instead of Draft. Non-clickable `<span>` vs `<button>`.
 - **Snippet v3.5 DOM snapshot (v0.75.1)**: Captures `outerHTML` 3s after session, sends to `/public/tracking/:id/snapshot`. 30s hidden → fresh session. Enables snapshot-html heatmap backdrop.
