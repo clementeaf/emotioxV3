@@ -11,6 +11,14 @@ import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService, resolveMediaUrl } from '../../services/media.service';
 import { extractVideoFrames } from '../../utils/extractVideoFrames';
 import { useAuthStore } from '../../stores/auth.store';
+
+/** Read auth token from any available source */
+const getAuthToken = (): string => {
+    return useAuthStore.getState().token
+        || sessionStorage.getItem('auth_token')
+        || localStorage.getItem('auth_token')
+        || '';
+};
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
 interface VideoFrame {
@@ -70,8 +78,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
     const [pendingImportAois, setPendingImportAois] = useState<AiAnalysisResult['autoAois'] | undefined>(undefined);
-
-    const authToken = useAuthStore(state => state.token);
 
     // Video prediction state
     const [videoProgress, setVideoProgress] = useState<{
@@ -253,7 +259,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             );
 
             // Phase 4: Listen to SSE for progress
-            const sse = mediaService.connectVideoSSE(research.id, jobId, authToken || '');
+            const token = getAuthToken();
+            console.log('[VideoPrediction] SSE token length:', token.length, 'source:', useAuthStore.getState().token ? 'store' : sessionStorage.getItem('auth_token') ? 'session' : localStorage.getItem('auth_token') ? 'local' : 'NONE');
+            const sse = mediaService.connectVideoSSE(research.id, jobId, token);
             videoSSERef.current = sse;
 
             sse.addEventListener('frame-complete', (e: MessageEvent) => {
@@ -310,7 +318,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 message: err instanceof Error ? err.message : 'Video processing failed',
             });
         }
-    }, [research.id, queryClient, authToken]);
+    }, [research.id, queryClient]);
 
     const handleFilesChange = useCallback(async (files: UploadedFile[]) => {
         const newStimuli: StimulusItem[] = files
