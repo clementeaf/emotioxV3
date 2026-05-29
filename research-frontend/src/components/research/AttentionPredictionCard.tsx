@@ -579,9 +579,10 @@ export const AttentionPredictionCard = ({
     const tabs = useMemo(() => {
         return BASE_TABS.filter(tab => {
             if (tab.id === 'gaze-paths') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
+            if (tab.id === 'aoi-editor') return !isVideo;
             return true;
         });
-    }, [aiAnalysis]);
+    }, [aiAnalysis, isVideo]);
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState<HeatmapSettings>(() => {
         if (autoPresets) {
@@ -1044,45 +1045,49 @@ export const AttentionPredictionCard = ({
                             </div>
                         )}
 
-                        {/* ─── Image layout: per-tab rendering (existing behavior) ─── */}
-                        {!isVideo && activeTab === 'original' && (
-                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
-                                    <ZoomControls />
-                                    <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                        <img src={imageUrl} alt={title} className="w-full block" />
-                                    </TransformComponent>
-                                </div>
-                            </TransformWrapper>
-                        )}
-
-                        {!isVideo && activeTab === 'heatmap' && (
-                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
-                                    <ZoomControls />
-                                    <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                        {effectiveHeatmapData.length > 0 ? (
-                                            <HeatmapRenderer
-                                                imageUrl={imageUrl}
-                                                data={effectiveHeatmapData}
-                                                blur={settings.blur}
-                                                opacity={settings.opacity}
-                                                threshold={settings.threshold}
-                                                className="w-full"
-                                            />
-                                        ) : (
-                                            <div className="relative">
+                        {/* ─── Image layout: hidden/shown via display, never unmounted ─── */}
+                        {!isVideo && (
+                            <>
+                                <div style={{ display: activeTab === 'original' ? 'block' : 'none' }}>
+                                    <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                        <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
+                                            <ZoomControls />
+                                            <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
                                                 <img src={imageUrl} alt={title} className="w-full block" />
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                                    <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
-                                                        Run prediction to generate heatmap
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </TransformComponent>
+                                            </TransformComponent>
+                                        </div>
+                                    </TransformWrapper>
                                 </div>
-                            </TransformWrapper>
+
+                                <div style={{ display: activeTab === 'heatmap' ? 'block' : 'none' }}>
+                                    <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                        <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
+                                            <ZoomControls />
+                                            <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
+                                                {effectiveHeatmapData.length > 0 ? (
+                                                    <HeatmapRenderer
+                                                        imageUrl={imageUrl}
+                                                        data={effectiveHeatmapData}
+                                                        blur={settings.blur}
+                                                        opacity={settings.opacity}
+                                                        threshold={settings.threshold}
+                                                        className="w-full"
+                                                    />
+                                                ) : (
+                                                    <div className="relative">
+                                                        <img src={imageUrl} alt={title} className="w-full block" />
+                                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                                            <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
+                                                                Run prediction to generate heatmap
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </TransformComponent>
+                                        </div>
+                                    </TransformWrapper>
+                                </div>
+                            </>
                         )}
 
                         {/* Gaze Paths Tab — dark alpha background, toggleable routes */}
