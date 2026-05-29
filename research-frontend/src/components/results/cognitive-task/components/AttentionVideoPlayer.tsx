@@ -166,19 +166,27 @@ export const AttentionVideoPlayer = ({
             const fadeFactor = Math.min(1, (1 - pointProgress) * 2 + 0.5);
             const alpha = Math.round(val * val * 140 * fadeFactor);
 
-            const x0 = Math.max(0, Math.floor(px - cellW / 2));
-            const y0 = Math.max(0, Math.floor(py - cellH / 2));
-            const x1 = Math.min(w, x0 + cellW);
-            const y1 = Math.min(h, y0 + cellH);
+            const radius = Math.max(cellW, cellH) * 0.6;
+            const rSq = radius * radius;
+            const x0 = Math.max(0, Math.floor(px - radius));
+            const y0 = Math.max(0, Math.floor(py - radius));
+            const x1 = Math.min(w, Math.ceil(px + radius));
+            const y1 = Math.min(h, Math.ceil(py + radius));
 
             for (let cy = y0; cy < y1; cy++) {
                 for (let cx = x0; cx < x1; cx++) {
+                    const dx = cx - px;
+                    const dy = cy - py;
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq > rSq) continue;
+                    const falloff = 1 - Math.sqrt(distSq) / radius;
+                    const a = Math.round(alpha * falloff);
                     const idx = (cy * w + cx) * 4;
-                    if (pixels[idx + 3] < alpha) {
+                    if (pixels[idx + 3] < a) {
                         pixels[idx] = r;
                         pixels[idx + 1] = g;
                         pixels[idx + 2] = b;
-                        pixels[idx + 3] = alpha;
+                        pixels[idx + 3] = a;
                     }
                 }
             }
@@ -257,6 +265,43 @@ export const AttentionVideoPlayer = ({
         renderFrame(0);
     }, [renderFrame]);
 
+    // Download scanpath as video (WebM via MediaRecorder)
+    const downloadVideo = useCallback(async () => {
+        const canvas = canvasRef.current;
+        if (!canvas || !imageLoaded) return;
+
+        // Render at full resolution
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+        const done = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
+        recorder.start();
+
+        // Animate from 0 to 1
+        const fps = 30;
+        const totalFrames = fps * duration;
+        for (let frame = 0; frame <= totalFrames; frame++) {
+            renderFrame(frame / totalFrames);
+            await new Promise(r => setTimeout(r, 1000 / fps));
+        }
+
+        recorder.stop();
+        await done;
+
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'scanpath.webm';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        // Restore current progress
+        renderFrame(progress);
+    }, [imageLoaded, duration, renderFrame, progress]);
+
     // Cleanup
     useEffect(() => {
         return () => cancelAnimationFrame(animRef.current);
@@ -302,9 +347,23 @@ export const AttentionVideoPlayer = ({
                     type="button"
                     onClick={reset}
                     className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors flex-shrink-0"
+                    title="Reset"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
+
+                {/* Download */}
+                <button
+                    type="button"
+                    onClick={() => void downloadVideo()}
+                    disabled={playing}
+                    className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 disabled:opacity-40 transition-colors flex-shrink-0"
+                    title="Download video"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
                 </button>
 
