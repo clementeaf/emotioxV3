@@ -1,15 +1,21 @@
 ## v0.76.0 — Video Attention Prediction pipeline (2026-05-29)
 
 ### backend
-- **Video prediction endpoint.** `POST /attention-prediction/research/:researchId/video-predict` accepts pre-extracted frame mediaIds, runs TranSalNet per frame sequentially, accumulates saliency via running average, applies hybrid Gemini fusion on the accumulated map, computes autoPresets + griddedAOIs + temporal grid (4x4, 16 cells). Returns 202 with `jobId` for SSE progress.
-- **SSE progress stream.** `GET .../video-predict/stream?jobId=&token=` streams `frame-complete`, `frame-error`, `accumulating`, `hybrid`, `complete`, `error` events. In-memory job registry with 60s cleanup after completion.
-- **Memory-efficient processing.** Running sum accumulator (~442KB) + 1 active frame. Temporal grid computed inline per frame. Peak ~1.3MB regardless of frame count. Max 120 frames.
-- **Per-frame step=4, accumulated step=3.** Coarser extraction for individual frames reduces JSON size ~40%. Full resolution for the accumulated heatmap.
+- **Video prediction endpoint.** `POST /video-predict` accepts frame mediaIds, runs `predictAttentionFast` (single-pass TranSalNet, ~3x faster) per frame, accumulates via running average, applies hybrid Gemini fusion on accumulated map. Returns 202 + `jobId`.
+- **SSE progress stream.** `GET .../video-predict/stream?jobId=` streams frame-by-frame progress. Auth via unguessable UUID jobId. In-memory registry with 60s cleanup.
+- **Memory-efficient.** Running sum ~442KB + 1 active frame. Temporal grid 4x4 computed inline. Max 60 frames.
+- **`predictAttentionFast`.** Single inference pass (no augmentations). Video frames don't need TTA — temporal averaging replaces spatial augmentation.
+- **Metadata guard.** `saveMetadata` handles undefined metadata (frame uploads without explicit metadata).
 
 ### research-frontend
-- **Video upload flow.** When a video is uploaded (mp4/webm/mov), frames are extracted client-side at 1fps via `extractVideoFrames()` (Canvas API, max 120 frames). Each frame is uploaded as individual PNG, then `POST /video-predict` is called.
-- **SSE progress UI.** Blue progress bar with phase labels (extracting, uploading, predicting, accumulating, hybrid, complete). Error state with dismiss button.
-- **Video data types.** `StimulusItem` extended with `temporalGrid` and `videoPredictionMeta`. `VideoFrameScrubber` (already existed) now receives real per-frame heatmap data.
+- **Video upload flow.** Video detected by MIME or filename extension. Frames extracted client-side at 1 frame/2s via `extractVideoFrames()` (Canvas API, CORS-safe blob download). Each frame uploaded as PNG, then `POST /video-predict` called.
+- **SSE progress UI.** Progress bar with phase labels (extracting → uploading → predicting → accumulating → hybrid → complete). Error dismiss.
+- **Process Video button.** Heatmap tab shows "Process Video" button for stimuli uploaded before v0.76.0 (backwards compat via filename detection).
+- **Persistent video element.** Single `<video>` always mounted — no reload on tab switch. Controls shown only on Original tab. Overlays per tab.
+- **Video container.** Fixed height `calc(100vh-250px)`, `max-w/h-full` centered — vertical videos fit without clipping or scroll.
+- **AOI Editor hidden for video.** Static AOIs not applicable to moving content.
+- **Image tabs: no reload.** Original and Heatmap use `display:none/block` instead of unmount — instant tab switch.
+- **Bulk analysis skips video.** Auto-queue on mount excludes `isVideo` stimuli.
 
 ---
 
