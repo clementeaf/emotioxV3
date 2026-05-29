@@ -997,70 +997,66 @@ export const AttentionPredictionCard = ({
 
                 {/* Content */}
                 <div className={cn('p-4 flex-1 min-h-0 flex flex-col', !isVideo && 'overflow-auto')} ref={tabContentRef}>
-                        {/* Original Tab */}
-                        {activeTab === 'original' && (
-                            isVideo ? (
-                                <div className="rounded-lg border bg-black flex-1 min-h-0 flex items-center justify-center">
-                                    <video src={imageUrl} controls muted className="max-w-full max-h-full block" />
-                                </div>
-                            ) : (
-                                <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
-                                    <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
-                                        <ZoomControls />
-                                        <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                            <img src={imageUrl} alt={title} className="w-full block" />
-                                        </TransformComponent>
+
+                        {/* ─── Video layout: single <video> always mounted, overlays per tab ─── */}
+                        {isVideo && (
+                            <div className="rounded-lg border bg-black relative flex items-center justify-center overflow-hidden" style={{ height: 'calc(100vh - 250px)' }}>
+                                {/* Persistent video — never unmounts across tabs */}
+                                <video
+                                    src={imageUrl}
+                                    controls={activeTab === 'original'}
+                                    muted
+                                    className="max-w-full max-h-full block"
+                                />
+
+                                {/* Heatmap overlay */}
+                                {activeTab === 'heatmap' && (
+                                    videoFrames.length > 0 ? (
+                                        <div className="absolute inset-0">
+                                            <VideoFrameScrubber
+                                                videoUrl={imageUrl}
+                                                frames={videoFrames}
+                                                settings={settings}
+                                            />
+                                        </div>
+                                    ) : !effectiveHeatmapData.length && onProcessVideo ? (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                            <button
+                                                onClick={onProcessVideo}
+                                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Process Video
+                                            </button>
+                                        </div>
+                                    ) : null
+                                )}
+
+                                {/* AOI overlay */}
+                                {activeTab === 'aoi-editor' && (
+                                    <div className="absolute inset-0 pointer-events-none">
+                                        {/* AOI rectangles rendered here via the AOI editor section below */}
                                     </div>
-                                </TransformWrapper>
-                            )
+                                )}
+                            </div>
                         )}
 
-                        {/* Heatmap Tab */}
-                        {activeTab === 'heatmap' && (
-                            isVideo ? (
-                                videoFrames.length > 0 ? (
-                                    <div className="rounded-lg border bg-gray-100 overflow-hidden">
-                                        <VideoFrameScrubber
-                                            videoUrl={imageUrl}
-                                            frames={videoFrames}
-                                            settings={settings}
-                                        />
-                                    </div>
-                                ) : effectiveHeatmapData.length > 0 ? (
-                                    <div className="rounded-lg border bg-gray-100 overflow-hidden">
-                                        <HeatmapRenderer
-                                            imageUrl={imageUrl}
-                                            data={effectiveHeatmapData}
-                                            blur={settings.blur}
-                                            opacity={settings.opacity}
-                                            threshold={settings.threshold}
-                                            className="w-full"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="rounded-lg border bg-black relative flex-1 min-h-0 flex items-center justify-center">
-                                        <video src={imageUrl} muted className="max-w-full max-h-full block" />
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                            {onProcessVideo ? (
-                                                <button
-                                                    onClick={onProcessVideo}
-                                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    Process Video
-                                                </button>
-                                            ) : (
-                                                <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
-                                                    Video prediction not yet processed
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                            ) : (
+                        {/* ─── Image layout: per-tab rendering (existing behavior) ─── */}
+                        {!isVideo && activeTab === 'original' && (
+                            <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
+                                <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
+                                    <ZoomControls />
+                                    <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
+                                        <img src={imageUrl} alt={title} className="w-full block" />
+                                    </TransformComponent>
+                                </div>
+                            </TransformWrapper>
+                        )}
+
+                        {!isVideo && activeTab === 'heatmap' && (
                             <TransformWrapper minScale={1} maxScale={5} wheel={{ step: 0.15 }}>
                                 <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
                                     <ZoomControls />
@@ -1087,7 +1083,7 @@ export const AttentionPredictionCard = ({
                                     </TransformComponent>
                                 </div>
                             </TransformWrapper>
-                        ))}
+                        )}
 
                         {/* Gaze Paths Tab — dark alpha background, toggleable routes */}
                         {activeTab === 'gaze-paths' && aiAnalysis?.gazePath && (() => {
@@ -1192,7 +1188,7 @@ export const AttentionPredictionCard = ({
                         );})()}
 
                         {/* AOI Editor Tab */}
-                        {activeTab === 'aoi-editor' && (
+                        {!isVideo && activeTab === 'aoi-editor' && (
                             <>
                                 {/* AOI toolbar */}
                                 <div className="flex items-center gap-3 mb-3">
