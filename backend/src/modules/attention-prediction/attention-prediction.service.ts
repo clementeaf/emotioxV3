@@ -641,7 +641,12 @@ export const predictAttentionFast = async (
     }
 
     const sess = await getSession();
-    const map = await inferSaliencyRaw(sess, sharp(imagePath));
+    const inputTensor = await preprocessImage(imagePath);
+    const inputName = sess.inputNames[0];
+    const results = await sess.run({ [inputName]: inputTensor });
+    const outputName = sess.outputNames[0];
+    const map = results[outputName].data as Float32Array;
+
     const blurred = applyBlur(map, MODEL_WIDTH, MODEL_HEIGHT, 4);
     const normalized = normalizeMap(blurred);
 
