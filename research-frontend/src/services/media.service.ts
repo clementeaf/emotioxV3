@@ -322,10 +322,9 @@ class MediaService {
     connectVideoSSE(
         researchId: string,
         jobId: string,
-        token: string,
     ): EventSource {
-        const baseUrl = configService.getBaseUrl(); // e.g. https://emotio.cx/api
-        const url = `${baseUrl}/attention-prediction/research/${researchId}/video-predict/stream?jobId=${encodeURIComponent(jobId)}&token=${encodeURIComponent(token)}`;
+        const baseUrl = configService.getBaseUrl();
+        const url = `${baseUrl}/attention-prediction/research/${researchId}/video-predict/stream?jobId=${encodeURIComponent(jobId)}`;
         return new EventSource(url);
     }
 

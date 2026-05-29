@@ -348,25 +348,17 @@ app.get('/api/monitor/events/:researchId', async (req, res) => {
 });
 
 // SSE endpoint for video prediction progress
-// GET /api/attention-prediction/research/:researchId/video-predict/stream?jobId=xxx&token=xxx
+// GET /api/attention-prediction/research/:researchId/video-predict/stream?jobId=xxx
+// Auth: jobId is a crypto.randomUUID() — unguessable, acts as capability token
 app.get([
     '/api/attention-prediction/research/:researchId/video-predict/stream',
     '/attention-prediction/research/:researchId/video-predict/stream'
 ], async (req, res) => {
     try {
-        const { token, jobId } = req.query;
+        const { jobId } = req.query;
 
-        if (!token || typeof token !== 'string') {
-            return res.status(401).json({ error: 'Authentication token is required' });
-        }
         if (!jobId || typeof jobId !== 'string') {
             return res.status(400).json({ error: 'jobId query parameter is required' });
-        }
-
-        try {
-            await verifyToken(token);
-        } catch {
-            return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
         // SSE headers
@@ -378,7 +370,6 @@ app.get([
         res.flushHeaders();
 
         if (!attachSSE(jobId, res)) {
-            // Job not found — check if it already completed
             const job = getJob(jobId);
             const msg = job ? `Job already ${job.status}` : 'Job not found';
             res.write(`event: error\ndata: ${JSON.stringify({ error: msg })}\n\n`);
@@ -391,7 +382,6 @@ app.get([
             try { res.write(': ping\n\n'); if (typeof res.flush === 'function') res.flush(); } catch { /* dead */ }
         }, 30000);
 
-        // Cleanup on disconnect
         res.on('close', () => {
             clearInterval(pingInterval);
             detachSSE(jobId, res);

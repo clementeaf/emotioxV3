@@ -10,22 +10,6 @@ import { Save, Trash2 } from 'lucide-react';
 import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService, resolveMediaUrl } from '../../services/media.service';
 import { extractVideoFrames } from '../../utils/extractVideoFrames';
-import { useAuthStore } from '../../stores/auth.store';
-
-/** Read auth token from every possible source */
-const getAuthToken = (): string => {
-    // Try all sources — the token MUST be somewhere if the user is logged in
-    const sources = [
-        useAuthStore.getState().token,
-        sessionStorage.getItem('auth_token'),
-        localStorage.getItem('auth_token'),
-    ];
-    const token = sources.find(t => t && t.length > 0) || '';
-    if (!token) {
-        console.error('[getAuthToken] NO TOKEN FOUND. Store:', !!useAuthStore.getState().token, 'Session:', !!sessionStorage.getItem('auth_token'), 'Local:', !!localStorage.getItem('auth_token'));
-    }
-    return token;
-};
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
 interface VideoFrame {
@@ -266,9 +250,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             );
 
             // Phase 4: Listen to SSE for progress
-            const token = getAuthToken();
-            console.log('[VideoPrediction] SSE token length:', token.length, 'source:', useAuthStore.getState().token ? 'store' : sessionStorage.getItem('auth_token') ? 'session' : localStorage.getItem('auth_token') ? 'local' : 'NONE');
-            const sse = mediaService.connectVideoSSE(research.id, jobId, token);
+            const sse = mediaService.connectVideoSSE(research.id, jobId);
             videoSSERef.current = sse;
 
             sse.addEventListener('frame-complete', (e: MessageEvent) => {
