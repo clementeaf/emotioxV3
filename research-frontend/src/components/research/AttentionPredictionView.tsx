@@ -12,12 +12,19 @@ import { mediaService, resolveMediaUrl } from '../../services/media.service';
 import { extractVideoFrames } from '../../utils/extractVideoFrames';
 import { useAuthStore } from '../../stores/auth.store';
 
-/** Read auth token from any available source */
+/** Read auth token from every possible source */
 const getAuthToken = (): string => {
-    return useAuthStore.getState().token
-        || sessionStorage.getItem('auth_token')
-        || localStorage.getItem('auth_token')
-        || '';
+    // Try all sources — the token MUST be somewhere if the user is logged in
+    const sources = [
+        useAuthStore.getState().token,
+        sessionStorage.getItem('auth_token'),
+        localStorage.getItem('auth_token'),
+    ];
+    const token = sources.find(t => t && t.length > 0) || '';
+    if (!token) {
+        console.error('[getAuthToken] NO TOKEN FOUND. Store:', !!useAuthStore.getState().token, 'Session:', !!sessionStorage.getItem('auth_token'), 'Local:', !!localStorage.getItem('auth_token'));
+    }
+    return token;
 };
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 
