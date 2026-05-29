@@ -108,6 +108,8 @@ interface AttentionPredictionCardProps {
     bulkProgress?: { current: number; total: number } | null;
     /** Extra content rendered in the header row (e.g. Prompt button) */
     headerExtra?: React.ReactNode;
+    /** Callback to trigger video prediction pipeline */
+    onProcessVideo?: () => void;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -569,6 +571,7 @@ export const AttentionPredictionCard = ({
     analyzeElapsed = 0,
     bulkProgress,
     headerExtra,
+    onProcessVideo,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>('original');
 
@@ -1033,9 +1036,28 @@ export const AttentionPredictionCard = ({
                                             />
                                         ) : (
                                             <div className="relative">
-                                                <img src={imageUrl} alt={title} className="w-full block" />
+                                                {isVideo ? (
+                                                    <video src={imageUrl} muted className="w-full block" />
+                                                ) : (
+                                                    <img src={imageUrl} alt={title} className="w-full block" />
+                                                )}
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                                    <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">Run prediction to generate heatmap</p>
+                                                    {isVideo && onProcessVideo ? (
+                                                        <button
+                                                            onClick={onProcessVideo}
+                                                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                            Process Video
+                                                        </button>
+                                                    ) : (
+                                                        <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
+                                                            Run prediction to generate heatmap
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}

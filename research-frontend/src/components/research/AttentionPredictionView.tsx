@@ -140,7 +140,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         return settings.stimuli || [];
     }, [research.settings]);
 
-    const activeStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
+    const rawActiveStimulus = stimuli.find(s => s.mediaId === stimulusId) || stimuli[0];
+    // Derive isVideo from name if not explicitly set (backwards compat for stimuli saved before v0.76.0)
+    const activeStimulus = rawActiveStimulus ? {
+        ...rawActiveStimulus,
+        isVideo: rawActiveStimulus.isVideo ?? /\.(mp4|webm|mov|quicktime)$/i.test(rawActiveStimulus.name),
+    } : undefined;
     const aiAnalysis = activeStimulus?.aiAnalysis as AiAnalysisResult | undefined;
     const hasAnalysis = Boolean(aiAnalysis);
 
@@ -524,6 +529,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             isAnalyzing={isProcessing}
                             analyzeElapsed={analyzeElapsed}
                             bulkProgress={bulkProgress}
+                            onProcessVideo={activeStimulus.isVideo ? () => {
+                                const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
+                                void processVideoStimulus(activeStimulus, videoUrl);
+                            } : undefined}
                             headerExtra={
                                 <button
                                     type="button"
