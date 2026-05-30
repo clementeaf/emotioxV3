@@ -9,10 +9,10 @@
 
 ### research-frontend
 - **Video upload flow.** Video detected by MIME or filename extension. Frames extracted client-side at 1 frame/2s via `extractVideoFrames()` (Canvas API, CORS-safe blob download). Each frame uploaded as PNG, then `POST /video-predict` called.
-- **SSE progress UI.** Progress bar with phase labels (extracting → uploading → predicting → accumulating → hybrid → complete). Error dismiss.
-- **Process Video button.** Heatmap tab shows "Process Video" button for stimuli uploaded before v0.76.0 (backwards compat via filename detection).
-- **Persistent video element.** Single `<video>` always mounted — no reload on tab switch. Controls shown only on Original tab. Overlays per tab.
-- **Video container.** Fixed height `calc(100vh-250px)`, `max-w/h-full` centered — vertical videos fit without clipping or scroll.
+- **Heatmap split overlay.** Single video with heatmap alpha on right side. Draggable divider (10-90%). Configurable grid (2×2, 3×3, 4×4, 5×5) with Q-labels and attention percentages. Play/pause + seek bar.
+- **Process Video button.** Heatmap tab shows "Process Video" button that transforms into progress indicator during prediction. Error state with retry/dismiss.
+- **Persistent video element.** Single `<video>` always mounted — no reload on tab switch. Controls shown only on Original tab.
+- **Video container.** Fixed height `calc(100vh-250px)`, centered — vertical videos fit without clipping.
 - **AOI Editor hidden for video.** Static AOIs not applicable to moving content.
 - **Image tabs: no reload.** Original and Heatmap use `display:none/block` instead of unmount — instant tab switch.
 - **Bulk analysis skips video.** Auto-queue on mount excludes `isVideo` stimuli.
