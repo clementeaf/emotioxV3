@@ -457,7 +457,22 @@ const SettingsModal = ({
     );
 };
 
-/* ─── Video Frame Scrubber ─── */
+/* ─── Compute 3×3 grid attention percentages from heatmap points ─── */
+const computeGridPercentages = (data: HeatmapPoint[]): number[] => {
+    const cells = new Array(9).fill(0);
+    let total = 0;
+    for (const p of data) {
+        const col = Math.min(Math.floor((p.x / 100) * 3), 2);
+        const row = Math.min(Math.floor((p.y / 100) * 3), 2);
+        const val = p.value ?? 1;
+        cells[row * 3 + col] += val;
+        total += val;
+    }
+    if (total === 0) return cells;
+    return cells.map(v => Math.round((v / total) * 1000) / 10);
+};
+
+/* ─── Video Heatmap Player — single video with split heatmap overlay + 3×3 grid ─── */
 const VideoFrameScrubber = ({
     videoUrl,
     frames,
@@ -468,83 +483,180 @@ const VideoFrameScrubber = ({
     settings: HeatmapSettings;
 }) => {
     const [frameIdx, setFrameIdx] = useState(0);
-    const [frameImageUrl, setFrameImageUrl] = useState<string | null>(null);
+    const [playing, setPlaying] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const heatCanvasRef = useRef<HTMLCanvasElement>(null);
+    const animRef = useRef<number | null>(null);
+    const lastIdxRef = useRef(0);
     const activeFrame = frames[frameIdx] || frames[0];
-    const frameData = activeFrame?.heatmapData || [];
+    const frameData = useMemo(() => activeFrame?.heatmapData || [], [activeFrame]);
+    const gridPcts = useMemo(() => computeGridPercentages(frameData), [frameData]);
 
-    // Capture the current video frame as a data URL for HeatmapRenderer
-    const captureFrame = useCallback(() => {
-        const video = videoRef.current;
-        if (!video || video.readyState < 2) return;
-        if (!canvasRef.current) canvasRef.current = document.createElement('canvas');
-        const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+    // Find closest frame index for a given time
+    const findFrameIdx = useCallback((time: number) => {
+        let best = 0;
+        let bestDist = Math.abs(frames[0]?.timestamp - time);
+        for (let i = 1; i < frames.length; i++) {
+            const dist = Math.abs(frames[i].timestamp - time);
+            if (dist < bestDist) { best = i; bestDist = dist; }
+        }
+        return best;
+    }, [frames]);
+
+    // Draw heatmap on canvas using simpleheat-style gradient
+    const drawHeatmap = useCallback((data: HeatmapPoint[], canvasW: number, canvasH: number) => {
+        const canvas = heatCanvasRef.current;
+        if (!canvas) return;
+        canvas.width = canvasW;
+        canvas.height = canvasH;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.drawImage(video, 0, 0);
-        setFrameImageUrl(canvas.toDataURL('image/png'));
+
+        ctx.clearRect(0, 0, canvasW, canvasH);
+        if (data.length === 0) return;
+
+        // Draw each point as radial gradient
+        const radius = Math.max(canvasW, canvasH) * (settings.blur / 100) * 0.8;
+        for (const p of data) {
+            const x = (p.x / 100) * canvasW;
+            const y = (p.y / 100) * canvasH;
+            const val = p.value ?? 0.5;
+            if (val < settings.threshold / 100) continue;
+
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            grad.addColorStop(0, `rgba(255, 0, 0, ${val * 0.4})`);
+            grad.addColorStop(0.4, `rgba(255, 165, 0, ${val * 0.25})`);
+            grad.addColorStop(0.7, `rgba(255, 255, 0, ${val * 0.12})`);
+            grad.addColorStop(1, 'rgba(0, 0, 255, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvasW, canvasH);
+        }
+    }, [settings.blur, settings.threshold]);
+
+    // Sync loop — use ref to avoid circular dependency
+    const syncLoopRef = useRef<() => void>(() => {});
+    useEffect(() => {
+        syncLoopRef.current = () => {
+            const video = videoRef.current;
+            if (!video || video.paused) return;
+            const idx = findFrameIdx(video.currentTime);
+            if (idx !== lastIdxRef.current) {
+                lastIdxRef.current = idx;
+                setFrameIdx(idx);
+                const fd = frames[idx]?.heatmapData || [];
+                drawHeatmap(fd, video.videoWidth, video.videoHeight);
+            }
+            animRef.current = requestAnimationFrame(() => syncLoopRef.current());
+        };
+    }, [findFrameIdx, frames, drawHeatmap]);
+
+    const togglePlay = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.paused) {
+            video.play();
+            setPlaying(true);
+            animRef.current = requestAnimationFrame(() => syncLoopRef.current());
+        } else {
+            video.pause();
+            setPlaying(false);
+            if (animRef.current) cancelAnimationFrame(animRef.current);
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
     }, []);
 
     const handleSeek = (idx: number) => {
         setFrameIdx(idx);
-        if (videoRef.current && frames[idx]) {
-            videoRef.current.currentTime = frames[idx].timestamp;
-        }
+        lastIdxRef.current = idx;
+        const t = frames[idx]?.timestamp ?? 0;
+        if (videoRef.current) videoRef.current.currentTime = t;
+        const fd = frames[idx]?.heatmapData || [];
+        if (videoRef.current) drawHeatmap(fd, videoRef.current.videoWidth, videoRef.current.videoHeight);
+    };
+
+    // Draw initial heatmap when video loads
+    const handleLoaded = () => {
+        const video = videoRef.current;
+        if (!video) return;
+        const fd = frames[0]?.heatmapData || [];
+        drawHeatmap(fd, video.videoWidth, video.videoHeight);
     };
 
     return (
-        <div className="space-y-3">
-            {/* Video + heatmap overlay side by side */}
-            <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg overflow-hidden border bg-gray-100">
-                    <video
-                        ref={videoRef}
-                        src={videoUrl}
-                        className="w-full block"
-                        muted
-                        onLoadedData={captureFrame}
-                        onSeeked={captureFrame}
-                    />
-                    <p className="text-xs text-gray-400 text-center py-1">Original</p>
-                </div>
-                <div>
-                    {frameData.length > 0 && frameImageUrl ? (
-                        <HeatmapRenderer
-                            imageUrl={frameImageUrl}
-                            data={frameData}
-                            blur={settings.blur}
-                            opacity={settings.opacity}
-                            threshold={settings.threshold}
-                            className="w-full"
-                        />
-                    ) : (
-                        <div className="rounded-lg border bg-gray-50 h-full flex items-center justify-center">
-                            <p className="text-sm text-gray-400">
-                                {frameData.length === 0 ? 'No prediction for this frame' : 'Loading frame...'}
-                            </p>
+        <div className="flex flex-col h-full">
+            {/* Video with heatmap overlay clipped to right half */}
+            <div className="flex-1 min-h-0 relative bg-black flex items-center justify-center">
+                <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    className="max-w-full max-h-full block"
+                    muted
+                    playsInline
+                    onLoadedData={handleLoaded}
+                    onEnded={() => setPlaying(false)}
+                />
+
+                {/* Heatmap overlay — clipped to right 50% */}
+                <canvas
+                    ref={heatCanvasRef}
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                    style={{
+                        clipPath: 'inset(0 0 0 50%)',
+                        opacity: settings.opacity / 100,
+                        mixBlendMode: 'screen',
+                    }}
+                />
+
+                {/* 3×3 Grid — only right half */}
+                <div
+                    className="absolute top-0 right-0 bottom-0 w-1/2 grid grid-cols-3 grid-rows-3 pointer-events-none"
+                >
+                    {gridPcts.map((pct, i) => (
+                        <div key={i} className="border border-white/30 flex items-end justify-center pb-1">
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                                style={{
+                                    color: '#00ff00',
+                                    textShadow: '0 0 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7)',
+                                }}
+                            >
+                                Q{i + 1}: {pct}%
+                            </span>
                         </div>
-                    )}
-                    <p className="text-xs text-gray-400 text-center py-1">Prediction</p>
+                    ))}
                 </div>
+
+                {/* Center divider line */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/50 pointer-events-none" />
             </div>
 
-            {/* Frame scrubber */}
-            <div className="flex items-center gap-3 px-2">
-                <span className="text-xs text-gray-500 font-mono w-20">
-                    Frame {frameIdx + 1}/{frames.length}
-                </span>
+            {/* Controls bar */}
+            <div className="flex items-center gap-3 px-3 py-2 bg-gray-900 rounded-b-lg">
+                <button
+                    onClick={togglePlay}
+                    className="text-white hover:text-blue-400 transition-colors flex-shrink-0"
+                    title={playing ? 'Pause' : 'Play'}
+                >
+                    {playing ? (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
+                    ) : (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                    )}
+                </button>
                 <input
                     type="range"
                     min={0}
                     max={frames.length - 1}
                     value={frameIdx}
                     onChange={e => handleSeek(Number(e.target.value))}
-                    className="flex-1 accent-blue-600"
+                    className="flex-1 accent-blue-500 h-1"
                 />
-                <span className="text-xs text-gray-500 font-mono w-12 text-right">
+                <span className="text-xs text-gray-400 font-mono w-20 text-right flex-shrink-0">
+                    Frame {frameIdx + 1}/{frames.length}
+                </span>
+                <span className="text-xs text-gray-400 font-mono w-12 text-right flex-shrink-0">
                     {activeFrame ? `${activeFrame.timestamp.toFixed(1)}s` : '—'}
                 </span>
             </div>
@@ -853,23 +965,7 @@ export const AttentionPredictionCard = ({
                             Prediction of visual attention
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                        {/* Video progress inline */}
-                        {videoProgress && (
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium ${
-                                videoProgress.phase === 'error' ? 'bg-red-50 text-red-700' :
-                                videoProgress.phase === 'complete' ? 'bg-green-50 text-green-700' :
-                                'bg-blue-50 text-blue-700'
-                            }`}>
-                                {videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' && (
-                                    <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                                )}
-                                <span className="truncate max-w-[200px]">{videoProgress.message}</span>
-                                {videoProgress.phase === 'error' && onDismissVideoProgress && (
-                                    <button onClick={onDismissVideoProgress} className="text-red-500 hover:text-red-700 ml-1">&times;</button>
-                                )}
-                            </div>
-                        )}
+                    <div className="flex items-center gap-1">
                         {onAddMore && (
                             <button
                                 type="button"
@@ -1024,36 +1120,60 @@ export const AttentionPredictionCard = ({
                         {/* ─── Video layout: single <video> always mounted, overlays per tab ─── */}
                         {isVideo && (
                             <div className="rounded-lg border bg-black relative flex items-center justify-center overflow-hidden" style={{ height: 'calc(100vh - 250px)' }}>
-                                {/* Persistent video — never unmounts across tabs */}
+                                {/* Persistent video — hidden when VideoFrameScrubber is active (it has its own video) */}
                                 <video
                                     src={imageUrl}
                                     controls={activeTab === 'original'}
                                     muted
                                     className="max-w-full max-h-full block"
+                                    style={{ display: (activeTab === 'heatmap' && videoFrames.length > 0) ? 'none' : 'block' }}
                                 />
 
                                 {/* Heatmap overlay */}
                                 {activeTab === 'heatmap' && (
                                     videoFrames.length > 0 ? (
-                                        <div className="absolute inset-0">
-                                            <VideoFrameScrubber
-                                                videoUrl={imageUrl}
-                                                frames={videoFrames}
-                                                settings={settings}
-                                            />
-                                        </div>
-                                    ) : !effectiveHeatmapData.length && onProcessVideo ? (
+                                        <VideoFrameScrubber
+                                            videoUrl={imageUrl}
+                                            frames={videoFrames}
+                                            settings={settings}
+                                        />
+                                    ) : !effectiveHeatmapData.length ? (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                            <button
-                                                onClick={onProcessVideo}
-                                                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                Process Video
-                                            </button>
+                                            {videoProgress && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' ? (
+                                                <div className="flex flex-col items-center gap-3 px-6 py-4 bg-black/60 rounded-xl">
+                                                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                    <p className="text-white text-sm font-medium">{videoProgress.message}</p>
+                                                    {videoProgress.total > 0 && (
+                                                        <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-white rounded-full transition-all duration-300"
+                                                                style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : videoProgress?.phase === 'error' ? (
+                                                <div className="flex flex-col items-center gap-2 px-6 py-4 bg-red-900/70 rounded-xl">
+                                                    <p className="text-red-200 text-sm font-medium">{videoProgress.message}</p>
+                                                    {onProcessVideo && (
+                                                        <button onClick={onProcessVideo} className="text-xs text-white underline">Retry</button>
+                                                    )}
+                                                    {onDismissVideoProgress && (
+                                                        <button onClick={onDismissVideoProgress} className="text-xs text-red-300">Dismiss</button>
+                                                    )}
+                                                </div>
+                                            ) : onProcessVideo ? (
+                                                <button
+                                                    onClick={onProcessVideo}
+                                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                    Process Video
+                                                </button>
+                                            ) : null}
                                         </div>
                                     ) : null
                                 )}
