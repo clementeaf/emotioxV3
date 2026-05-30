@@ -457,20 +457,27 @@ const SettingsModal = ({
     );
 };
 
-/* ─── Compute 3×3 grid attention percentages from heatmap points ─── */
-const computeGridPercentages = (data: HeatmapPoint[]): number[] => {
-    const cells = new Array(9).fill(0);
+/* ─── Compute NxM grid attention percentages from heatmap points ─── */
+const computeGridPercentages = (data: HeatmapPoint[], cols: number, rows: number): number[] => {
+    const cells = new Array(cols * rows).fill(0);
     let total = 0;
     for (const p of data) {
-        const col = Math.min(Math.floor((p.x / 100) * 3), 2);
-        const row = Math.min(Math.floor((p.y / 100) * 3), 2);
+        const col = Math.min(Math.floor((p.x / 100) * cols), cols - 1);
+        const row = Math.min(Math.floor((p.y / 100) * rows), rows - 1);
         const val = p.value ?? 1;
-        cells[row * 3 + col] += val;
+        cells[row * cols + col] += val;
         total += val;
     }
     if (total === 0) return cells;
     return cells.map(v => Math.round((v / total) * 1000) / 10);
 };
+
+const GRID_OPTIONS = [
+    { label: '2×2', cols: 2, rows: 2 },
+    { label: '3×3', cols: 3, rows: 3 },
+    { label: '4×4', cols: 4, rows: 4 },
+    { label: '5×5', cols: 5, rows: 5 },
+];
 
 /* ─── Video Heatmap Player — single video with split heatmap overlay + 3×3 grid ─── */
 const VideoFrameScrubber = ({
@@ -484,13 +491,39 @@ const VideoFrameScrubber = ({
 }) => {
     const [frameIdx, setFrameIdx] = useState(0);
     const [playing, setPlaying] = useState(false);
+    const [splitPct, setSplitPct] = useState(50); // divider position 0-100
+    const [gridSize, setGridSize] = useState(1); // index into GRID_OPTIONS (default 3×3)
+    const [dragging, setDragging] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const heatCanvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const animRef = useRef<number | null>(null);
     const lastIdxRef = useRef(0);
     const activeFrame = frames[frameIdx] || frames[0];
     const frameData = useMemo(() => activeFrame?.heatmapData || [], [activeFrame]);
-    const gridPcts = useMemo(() => computeGridPercentages(frameData), [frameData]);
+    const { cols, rows } = GRID_OPTIONS[gridSize];
+    const gridPcts = useMemo(() => computeGridPercentages(frameData, cols, rows), [frameData, cols, rows]);
+
+    // Divider drag
+    const handleDividerDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setDragging(true);
+    }, []);
+
+    useEffect(() => {
+        if (!dragging) return;
+        const onMove = (e: MouseEvent) => {
+            const container = containerRef.current;
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const pct = Math.max(10, Math.min(90, ((e.clientX - rect.left) / rect.width) * 100));
+            setSplitPct(pct);
+        };
+        const onUp = () => setDragging(false);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    }, [dragging]);
 
     // Find closest frame index for a given time
     const findFrameIdx = useCallback((time: number) => {
@@ -587,8 +620,8 @@ const VideoFrameScrubber = ({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Video with heatmap overlay clipped to right half */}
-            <div className="flex-1 min-h-0 relative bg-black flex items-center justify-center">
+            {/* Video with heatmap overlay clipped by draggable divider */}
+            <div ref={containerRef} className="flex-1 min-h-0 relative bg-black flex items-center justify-center select-none">
                 <video
                     ref={videoRef}
                     src={videoUrl}
@@ -599,20 +632,27 @@ const VideoFrameScrubber = ({
                     onEnded={() => setPlaying(false)}
                 />
 
-                {/* Heatmap overlay — clipped to right 50% */}
+                {/* Heatmap overlay — clipped from divider to right edge */}
                 <canvas
                     ref={heatCanvasRef}
                     className="absolute top-0 left-0 w-full h-full pointer-events-none"
                     style={{
-                        clipPath: 'inset(0 0 0 50%)',
+                        clipPath: `inset(0 0 0 ${splitPct}%)`,
                         opacity: settings.opacity / 100,
                         mixBlendMode: 'screen',
                     }}
                 />
 
-                {/* 3×3 Grid — only right half */}
+                {/* Dynamic grid — covers right side from divider */}
                 <div
-                    className="absolute top-0 right-0 bottom-0 w-1/2 grid grid-cols-3 grid-rows-3 pointer-events-none"
+                    className="absolute top-0 bottom-0 pointer-events-none"
+                    style={{
+                        left: `${splitPct}%`,
+                        right: 0,
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+                        gridTemplateRows: `repeat(${rows}, 1fr)`,
+                    }}
                 >
                     {gridPcts.map((pct, i) => (
                         <div key={i} className="border border-white/30 flex items-end justify-center pb-1">
@@ -628,8 +668,25 @@ const VideoFrameScrubber = ({
                     ))}
                 </div>
 
-                {/* Center divider line */}
-                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/50 pointer-events-none" />
+                {/* Draggable divider */}
+                <div
+                    className="absolute top-0 bottom-0 z-10 flex items-center"
+                    style={{ left: `${splitPct}%`, transform: 'translateX(-50%)' }}
+                >
+                    <div
+                        className="w-5 h-full cursor-col-resize flex items-center justify-center group"
+                        onMouseDown={handleDividerDown}
+                    >
+                        <div className="w-0.5 h-full bg-white/70 group-hover:bg-white transition-colors" />
+                        {/* Handle grip */}
+                        <div className="absolute w-6 h-10 rounded-full bg-white/80 border-2 border-gray-400 flex items-center justify-center shadow-lg cursor-col-resize">
+                            <svg className="w-3 h-3 text-gray-500" viewBox="0 0 6 10" fill="currentColor">
+                                <circle cx="1" cy="2" r="0.8" /><circle cx="1" cy="5" r="0.8" /><circle cx="1" cy="8" r="0.8" />
+                                <circle cx="5" cy="2" r="0.8" /><circle cx="5" cy="5" r="0.8" /><circle cx="5" cy="8" r="0.8" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Controls bar */}
@@ -653,9 +710,20 @@ const VideoFrameScrubber = ({
                     onChange={e => handleSeek(Number(e.target.value))}
                     className="flex-1 accent-blue-500 h-1"
                 />
-                <span className="text-xs text-gray-400 font-mono w-20 text-right flex-shrink-0">
-                    Frame {frameIdx + 1}/{frames.length}
-                </span>
+                {/* Grid size selector */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    {GRID_OPTIONS.map((opt, i) => (
+                        <button
+                            key={opt.label}
+                            onClick={() => setGridSize(i)}
+                            className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
+                                i === gridSize ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
                 <span className="text-xs text-gray-400 font-mono w-12 text-right flex-shrink-0">
                     {activeFrame ? `${activeFrame.timestamp.toFixed(1)}s` : '—'}
                 </span>
