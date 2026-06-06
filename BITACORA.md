@@ -5,9 +5,15 @@
 
 ---
 
-## Última actualización: 2026-04-15 (sesión 44)
+## Última actualización: 2026-06-06 (sesión 45)
 
 ---
+
+## Sesión 45: 6 de junio de 2026 — Fix AOIs stale en panel IA (Attention Prediction)
+
+- **Bug:** Analizar desde el panel lateral enviaba `activeStimulus.aois` (cache) en lugar de las zonas dibujadas en el card.
+- **Fix:** `onAoiListChange` en `AttentionPredictionCard` + estado `liveAois` en `AttentionPredictionView`. Panel y header comparten la misma lista al llamar `runAnalysis`.
+- **Contexto v0.77:** Flujo AOI-first desplegado en sesión anterior (predict TranSalNet, sin auto-analyze, criterio manual). Este fix cierra el último gap del flujo de analyze.
 
 ## Sesión 44: 15 de abril de 2026 — Research detail drawer + fix JOIN
 

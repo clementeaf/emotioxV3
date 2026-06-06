@@ -112,6 +112,8 @@ interface AttentionPredictionCardProps {
     aoiSkipped?: boolean;
     /** Persist aoiSkipped flag */
     onAoiSkippedChange?: (skipped: boolean) => void;
+    /** Notifies parent when the in-memory AOI list changes (for analyze without stale cache) */
+    onAoiListChange?: (aois: ManualAOI[]) => void;
     /** Auto-presets from prediction (blur, opacity, threshold computed from map distribution) */
     autoPresets?: { blur: number; opacity: number; threshold: number };
     /** Gridded AOIs detected from saliency map */
@@ -771,6 +773,7 @@ export const AttentionPredictionCard = ({
     onOpenCriteria,
     aoiSkipped = false,
     onAoiSkippedChange,
+    onAoiListChange,
     autoPresets,
     griddedAOIs,
     isAnalyzing = false,
@@ -886,6 +889,10 @@ export const AttentionPredictionCard = ({
             setAoiList(savedAois);
         }).catch(() => { /* ignore load errors */ });
     }, [researchId, stimulusMediaId]);
+
+    useEffect(() => {
+        onAoiListChange?.(aoiList);
+    }, [aoiList, onAoiListChange]);
 
     // Persist AOIs to research settings (debounced to prevent race conditions)
     const pendingAoisRef = useRef<ManualAOI[] | null>(null);

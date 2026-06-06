@@ -119,6 +119,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Proxy CSS pipeline (v0.75.1)**: proxy-asset rewrites `url()`/`@import` inside CSS. Proxy URLs must be absolute (not relative `/api/...`) because `<base>` tag points to tracked site. Protocol-relative `//` handled. `media="none"` → `media="all"` for lazy-loaded stylesheets.
 - **Video Attention Prediction (v0.76.0)**: Client extracts frames every 2s (Canvas API, `extractVideoFrames.ts`, max 60, CORS-safe blob download). `POST /video-predict` runs `predictAttentionFast` (single-pass, no TTA) per frame, SSE progress via UUID jobId (no token auth). Results: `stimulus.heatmapData` (accumulated), `stimulus.frames[]` (per-frame), `stimulus.temporalGrid[]`. Heatmap split overlay: draggable divider + configurable grid (2×2 to 5×5) with Q-labels. Single persistent `<video>` across tabs. AOI Editor hidden for video. Image tabs use `display:none` instead of unmount.
 - **Attention Prediction AOI-first (v0.77.0)**: No auto-analyze on upload/mount. `AoiRectEditor` + criterio drawer. `predictAttention()` wired for images. Backend analyze receives manual AOIs. Heatmap from TranSalNet only; AI zones as optional dashed overlay.
+- **Attention Prediction live AOIs (v0.77.1)**: `onAoiListChange` + `liveAois` en View — panel IA y header del card comparten la misma lista en memoria al analizar.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

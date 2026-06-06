@@ -167,6 +167,13 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     } : undefined;
     const aiAnalysis = activeStimulus?.aiAnalysis as AiAnalysisResult | undefined;
     const hasAnalysis = Boolean(aiAnalysis);
+    const [liveAois, setLiveAois] = useState<ManualAOI[]>([]);
+
+    useEffect(() => {
+        setLiveAois(activeStimulus?.aois ?? []);
+        // Reset live AOIs only when switching stimulus; card keeps parent in sync via onAoiListChange
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid overwriting in-memory edits on research refetch
+    }, [activeStimulus?.mediaId]);
 
     const persistStimuli = useCallback(async (updated: StimulusItem[]) => {
         await researchService.update(research.id, {
@@ -554,6 +561,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onOpenCriteria={() => setIsPromptOpen(true)}
                             aoiSkipped={Boolean(activeStimulus.aoiSkipped)}
                             onAoiSkippedChange={(skipped) => void handleAoiSkippedChange(skipped, activeStimulus.mediaId)}
+                            onAoiListChange={setLiveAois}
                             autoPresets={activeStimulus.autoPresets as { blur: number; opacity: number; threshold: number } | undefined}
                             griddedAOIs={activeStimulus.griddedAOIs}
                             isAnalyzing={isProcessing}
@@ -667,10 +675,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             <AiAnalysisPanel
                                 analysis={aiAnalysis ?? null}
                                 isAnalyzing={isProcessing}
-                                onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId, activeStimulus.aois)}
+                                onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId, liveAois)}
                                 onImportAois={(aois) => setPendingImportAois(aois)}
                                 hasHeatmap={Boolean(activeStimulus?.heatmapData?.length)}
-                                hasAois={Boolean(activeStimulus?.aois?.length || activeStimulus?.aoiSkipped)}
+                                hasAois={Boolean(liveAois.length || activeStimulus?.aoiSkipped)}
                             />
                         </div>
                     )}

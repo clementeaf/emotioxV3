@@ -1,3 +1,10 @@
+## v0.77.1 — Attention Prediction: AOIs en panel IA (2026-06-06)
+
+### research-frontend
+- **Fix panel analyze.** El botón analizar del panel lateral usa AOIs en memoria (`liveAois`), sincronizadas con el card vía `onAoiListChange`, en lugar del cache del research.
+
+---
+
 ## v0.77.0 — Attention Prediction: flujo AOI-first (2026-06-06)
 
 ### research-frontend
