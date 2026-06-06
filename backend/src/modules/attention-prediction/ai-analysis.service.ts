@@ -14,6 +14,14 @@ import sharp from 'sharp';
 import fs from 'fs';
 import type { AiAnalysisResult } from './ai-analysis.types';
 
+export interface ManualAoiInput {
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
 // ─── Config ─────────────────────────────────────────────────────────
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -36,12 +44,14 @@ let activeSystemPrompt = DEFAULT_ATTENTION_PROMPT;
 const buildUserPrompt = (
     heatmapSummary: string,
     fileName: string,
-    profile?: AnalysisProfile
+    profile?: AnalysisProfile,
+    manualAois?: ManualAoiInput[],
 ): string => {
     const profileContext = profile ? buildProfileContext(profile) : '';
+    const manualAoiBlock = manualAois?.length ? formatManualAoisForPrompt(manualAois) : '';
     return `Analyze this image for visual attention patterns. The image is from a UX research study file "${fileName}".
 ${profileContext}
-
+${manualAoiBlock}
 A computational saliency model (TranSalNet) has already generated attention data. Here are the top attention hotspots (coordinates as percentage of image width/height, value 0-1 = attention intensity):
 
 ${heatmapSummary}
@@ -150,6 +160,25 @@ const summarizeHeatmap = (
     return top.map(
         (p, i) => `  ${i + 1}. x=${p.x.toFixed(1)}%, y=${p.y.toFixed(1)}%, intensity=${p.value.toFixed(3)}`
     ).join('\n');
+};
+
+/**
+ * Formats user-defined AOIs for inclusion in the LLM user prompt.
+ * @param aois - Manual AOI regions from the researcher
+ * @returns Prompt block or empty string
+ */
+export const formatManualAoisForPrompt = (aois: ManualAoiInput[]): string => {
+    if (aois.length === 0) return '';
+    const lines = aois.map(
+        (a, i) =>
+            `  ${i + 1}. "${a.label}" — x=${a.x.toFixed(1)}%, y=${a.y.toFixed(1)}%, ` +
+            `width=${a.width.toFixed(1)}%, height=${a.height.toFixed(1)}%`,
+    );
+    return `
+USER-DEFINED AOIs (authoritative — align autoAois to these regions when possible; use the same labels when they match):
+${lines.join('\n')}
+When manual AOIs are provided, prefer their labels and bounding boxes for autoAois unless the image clearly contradicts them — then explain the discrepancy in the AOI description.
+`;
 };
 
 const imageToBase64 = async (imagePath: string): Promise<{ base64: string; mimeType: string }> => {
@@ -542,7 +571,8 @@ export const analyzeAttentionWithAI = async (
     heatmapData: Array<{ x: number; y: number; value: number }>,
     fileName: string,
     profile?: AnalysisProfile,
-    customPrompt?: string
+    customPrompt?: string,
+    manualAois?: ManualAoiInput[],
 ): Promise<AiAnalysisResult> => {
     if (!hasGemini() && !hasOpenAI()) {
         throw new Error('No AI API key configured (GEMINI_API_KEY or OPENAI_API_KEY)');
@@ -557,7 +587,7 @@ export const analyzeAttentionWithAI = async (
 
     const { base64, mimeType } = await imageToBase64(imagePath);
     const heatmapSummary = summarizeHeatmap(heatmapData);
-    const userPrompt = buildUserPrompt(heatmapSummary, fileName, profile);
+    const userPrompt = buildUserPrompt(heatmapSummary, fileName, profile, manualAois);
 
     let result: AiAnalysisResult;
 

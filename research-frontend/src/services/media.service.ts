@@ -215,19 +215,28 @@ class MediaService {
 
     /**
      * Runs GPT-4o Vision analysis on a stimulus that already has TranSalNet heatmap data.
-     * Fire-and-forget: POST launches background job, then polls GET /status every 3s.
+     * Fire-and-forget: POST launches background job, then polls GET /status.
+     * @param manualAois - Optional user-defined AOIs sent as analysis context
      */
-    async analyzeAttention(researchId: string, mediaId: string): Promise<{ analysis: AiAnalysisResult; status: string }> {
+    async analyzeAttention(
+        researchId: string,
+        mediaId: string,
+        manualAois?: Array<{ label: string; x: number; y: number; width: number; height: number }>,
+    ): Promise<{ analysis: AiAnalysisResult; status: string }> {
         try {
-            // Launch analysis — responds immediately (202)
+            const body = manualAois && manualAois.length > 0
+                ? { aois: manualAois }
+                : undefined;
+
             await apiClient.post<{ status: string }>(
-                `/attention-prediction/research/${researchId}/analyze/${mediaId}`
+                `/attention-prediction/research/${researchId}/analyze/${mediaId}`,
+                body,
             );
 
-            // Poll for result (max 3 attempts, 15s apart = 45s window)
-            const maxAttempts = 3;
+            const maxAttempts = 6;
+            const pollIntervalMs = 10_000;
             for (let i = 0; i < maxAttempts; i++) {
-                await new Promise(resolve => setTimeout(resolve, 15000));
+                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
                 const result = await apiClient.get<{ status: string; analysis?: AiAnalysisResult; error?: string }>(
                     `/attention-prediction/research/${researchId}/analyze/${mediaId}/status`
                 );

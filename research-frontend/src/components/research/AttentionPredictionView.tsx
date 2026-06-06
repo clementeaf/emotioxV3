@@ -11,6 +11,15 @@ import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService, resolveMediaUrl } from '../../services/media.service';
 import { extractVideoFrames } from '../../utils/extractVideoFrames';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
+import type { ManualAOI } from '../../types/attentionPrediction.types';
+import { isNewAttentionStimulus } from '../../utils/attentionPrediction.utils';
+import {
+    CRITERIA_PRESETS_KEY,
+    DEFAULT_ATTENTION_CRITERIA,
+    DEFAULT_CRITERIA_PRESETS,
+    LEGACY_PROMPT_PRESETS_KEY,
+    RECOMMENDED_CRITERIA_TEMPLATE,
+} from '../../constants/attentionPredictionCriteria';
 
 interface VideoFrame {
     mediaId: string;
@@ -41,6 +50,9 @@ interface StimulusItem {
     temporalGrid?: Array<{ label: string; row: number; col: number; timeSeries: number[] }>;
     /** Video prediction metadata */
     videoPredictionMeta?: { totalFrames: number; failedFrames: number; processingTimeMs: number; fps: number };
+    /** Manual AOIs drawn by researcher */
+    aois?: ManualAOI[];
+    aoiSkipped?: boolean;
 }
 
 interface AttentionPredictionViewProps {
@@ -48,23 +60,20 @@ interface AttentionPredictionViewProps {
     stimulusId: string;
 }
 
-const DEFAULT_ATTENTION_PROMPT = `You are an expert in visual attention analysis, UX design, and neuro-design principles (Gestalt, cognitive load, visual hierarchy). You analyze images to predict where users will look, how attention flows, and provide actionable design recommendations.
-
-You combine saliency map data (from a computational model) with your visual analysis expertise to produce structured, precise reports.
-
-Always respond with valid JSON matching the exact schema provided. All coordinate values must be percentages (0-100) relative to the image dimensions. Respond in the SAME LANGUAGE as any text visible in the image (Spanish if Spanish content, English if English, etc.).`;
+const DEFAULT_ATTENTION_PROMPT = DEFAULT_ATTENTION_CRITERIA;
 
 /**
- * View for Attention Prediction — upload stimuli and view AI-generated analysis.
- * After upload, automatically triggers AI analysis via backend (Gemini/GPT-4o Vision).
+ * View for Attention Prediction — upload stimuli, define AOIs, predict heatmap, optional AI analysis.
  */
 export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredictionViewProps) => {
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isPredicting, setIsPredicting] = useState(false);
     const [analyzeElapsed, setAnalyzeElapsed] = useState(0);
-    const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
-    const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [predictElapsed, setPredictElapsed] = useState(0);
+    const analyzeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const predictTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [aiPanelOpen, setAiPanelOpen] = useState(true);
@@ -114,9 +123,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const isPromptModified = promptDraft.trim() !== (savedPrompt || DEFAULT_ATTENTION_PROMPT).trim();
 
     // Prompt presets — stored in localStorage, shared across all studies
-    const PRESETS_KEY = 'emotiox-prompt-presets';
     const [presets, setPresets] = useState<Array<{ name: string; prompt: string }>>(() => {
-        try { return JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]'); } catch { return []; }
+        try {
+            const stored = JSON.parse(localStorage.getItem(CRITERIA_PRESETS_KEY) || '[]') as Array<{ name: string; prompt: string }>;
+            if (stored.length > 0) return stored;
+            const legacy = JSON.parse(localStorage.getItem(LEGACY_PROMPT_PRESETS_KEY) || '[]') as Array<{ name: string; prompt: string }>;
+            if (legacy.length > 0) {
+                localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(legacy));
+                return legacy;
+            }
+            return DEFAULT_CRITERIA_PRESETS;
+        } catch {
+            return DEFAULT_CRITERIA_PRESETS;
+        }
     });
     const [newPresetName, setNewPresetName] = useState('');
     const [showSavePreset, setShowSavePreset] = useState(false);
@@ -124,7 +143,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const savePreset = useCallback((name: string, prompt: string) => {
         const updated = [...presets.filter(p => p.name !== name), { name, prompt }];
         setPresets(updated);
-        localStorage.setItem(PRESETS_KEY, JSON.stringify(updated));
+        localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(updated));
         setNewPresetName('');
         setShowSavePreset(false);
     }, [presets]);
@@ -132,7 +151,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const deletePreset = useCallback((name: string) => {
         const updated = presets.filter(p => p.name !== name);
         setPresets(updated);
-        localStorage.setItem(PRESETS_KEY, JSON.stringify(updated));
+        localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(updated));
     }, [presets]);
 
     const stimuli = useMemo(() => {
@@ -161,58 +180,73 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
     }, [research.id, research.settings, queryClient]);
 
-    const startTimer = useCallback(() => {
+    const startAnalyzeTimer = useCallback(() => {
         setAnalyzeElapsed(0);
-        if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
-        elapsedTimerRef.current = setInterval(() => setAnalyzeElapsed(prev => prev + 1), 1000);
+        if (analyzeTimerRef.current) clearInterval(analyzeTimerRef.current);
+        analyzeTimerRef.current = setInterval(() => setAnalyzeElapsed(prev => prev + 1), 1000);
     }, []);
 
-    const stopTimer = useCallback(() => {
-        if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+    const stopAnalyzeTimer = useCallback(() => {
+        if (analyzeTimerRef.current) {
+            clearInterval(analyzeTimerRef.current);
+            analyzeTimerRef.current = null;
+        }
     }, []);
 
-    const runAnalysis = useCallback(async (mediaId: string) => {
-        setIsProcessing(true);
-        startTimer();
+    const startPredictTimer = useCallback(() => {
+        setPredictElapsed(0);
+        if (predictTimerRef.current) clearInterval(predictTimerRef.current);
+        predictTimerRef.current = setInterval(() => setPredictElapsed(prev => prev + 1), 1000);
+    }, []);
+
+    const stopPredictTimer = useCallback(() => {
+        if (predictTimerRef.current) {
+            clearInterval(predictTimerRef.current);
+            predictTimerRef.current = null;
+        }
+    }, []);
+
+    const runPrediction = useCallback(async (mediaId: string) => {
+        setIsPredicting(true);
+        startPredictTimer();
         try {
-            await mediaService.analyzeAttention(research.id, mediaId);
+            await mediaService.predictAttention(research.id, mediaId);
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch {
-            // Silent fail — user can retry via the button in the card header
+            // Error persisted on stimulus by backend; user can retry
         } finally {
-            stopTimer();
+            stopPredictTimer();
+            setIsPredicting(false);
+        }
+    }, [research.id, queryClient, startPredictTimer, stopPredictTimer]);
+
+    const runAnalysis = useCallback(async (mediaId: string, manualAois?: ManualAOI[]) => {
+        setIsProcessing(true);
+        startAnalyzeTimer();
+        try {
+            const aoiPayload = manualAois?.map(a => ({
+                label: a.label,
+                x: a.x,
+                y: a.y,
+                width: a.width,
+                height: a.height,
+            }));
+            await mediaService.analyzeAttention(research.id, mediaId, aoiPayload);
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } catch {
+            // User can retry via header button
+        } finally {
+            stopAnalyzeTimer();
             setIsProcessing(false);
         }
-    }, [research.id, queryClient, startTimer, stopTimer]);
+    }, [research.id, queryClient, startAnalyzeTimer, stopAnalyzeTimer]);
 
-    // Bulk analysis: on mount, queue all stimuli without AI analysis
-    const bulkTriggeredRef = useRef(false);
-    useEffect(() => {
-        if (bulkTriggeredRef.current) return;
-        const pending = stimuli.filter(s => !s.aiAnalysis && !s.isVideo);
-        if (pending.length === 0) return;
-        bulkTriggeredRef.current = true;
-
-        const runBulk = async () => {
-            setBulkProgress({ current: 0, total: pending.length });
-            for (let i = 0; i < pending.length; i++) {
-                setBulkProgress({ current: i + 1, total: pending.length });
-                setIsProcessing(true);
-                startTimer();
-                try {
-                    await mediaService.analyzeAttention(research.id, pending[i].mediaId);
-                } catch { /* continue with next */ }
-                stopTimer();
-                setIsProcessing(false);
-            }
-            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-            setBulkProgress(null);
-        };
-        void runBulk();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
-
-
-
+    const handleAoiSkippedChange = useCallback(async (skipped: boolean, mediaId: string) => {
+        const updated = stimuli.map(s =>
+            s.mediaId === mediaId ? { ...s, aoiSkipped: skipped } : s,
+        );
+        await persistStimuli(updated);
+    }, [stimuli, persistStimuli]);
     const processVideoStimulus = useCallback(async (videoStimulus: StimulusItem, videoUrl: string) => {
         try {
             // Phase 1: Extract frames at 1fps (client-side Canvas API)
@@ -332,15 +366,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         // Process each new stimulus
         for (const stimulus of newStimuli) {
             if (stimulus.isVideo) {
-                // Video: extract frames → upload → predict via SSE
                 const videoUrl = stimulus.url.startsWith('http') ? stimulus.url : resolveMediaUrl(stimulus.url);
                 await processVideoStimulus(stimulus, videoUrl);
-            } else {
-                // Image: existing flow — run AI analysis
-                await runAnalysis(stimulus.mediaId);
             }
         }
-    }, [stimuli, persistStimuli, runAnalysis, processVideoStimulus]);
+    }, [stimuli, persistStimuli, processVideoStimulus]);
 
     const handleDelete = useCallback(async (mediaId: string) => {
         setIsDeletingId(mediaId);
@@ -352,7 +382,13 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         }
     }, [stimuli, persistStimuli]);
 
-    const showAiPanel = Boolean(activeStimulus && hasAnalysis);
+    const showAiPanel = Boolean(activeStimulus);
+    const isNewStimulus = activeStimulus
+        ? isNewAttentionStimulus(activeStimulus.processedAt, hasAnalysis)
+        : false;
+    const needsHeatmapRegeneration = Boolean(
+        activeStimulus && hasAnalysis && !(activeStimulus.heatmapData?.length),
+    );
 
     return (
         <div className="flex h-full overflow-hidden">
@@ -362,13 +398,26 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 <Drawer
                     isOpen={isPromptOpen}
                     onClose={() => setIsPromptOpen(false)}
-                    title="Analysis Prompt"
+                    title="Criterio de análisis"
                     width="lg"
                 >
                     <div className="space-y-4">
                         <p className="text-sm text-gray-500">
-                            Customize the system prompt sent to the AI for image analysis. Changes apply to future analyses only.
+                            Personaliza el criterio enviado a la IA. Los cambios aplican solo a análisis futuros.
                         </p>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (promptDraft.trim() && promptDraft.trim() !== RECOMMENDED_CRITERIA_TEMPLATE.trim()) {
+                                    if (!window.confirm('¿Reemplazar el criterio actual con la plantilla recomendada?')) return;
+                                }
+                                setPromptDraft(RECOMMENDED_CRITERIA_TEMPLATE);
+                            }}
+                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                            Insertar plantilla recomendada
+                        </button>
 
                         <textarea
                             value={promptDraft}
@@ -430,7 +479,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 onClick={() => { void handleSavePrompt(); setIsPromptOpen(false); }}
                                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
-                                {isSavingPrompt ? 'Saving...' : 'Apply to study'}
+                                {isSavingPrompt ? 'Guardando...' : 'Aplicar al estudio'}
                             </button>
                         </div>
 
@@ -469,6 +518,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
                 {activeStimulus && (
                     <>
+                        {needsHeatmapRegeneration && (
+                            <div className="mb-4 px-4 py-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3">
+                                <span>Este estímulo tiene análisis IA pero no heatmap TranSalNet. Genera el heatmap para ver la predicción real.</span>
+                                <button
+                                    type="button"
+                                    onClick={() => void runPrediction(activeStimulus.mediaId)}
+                                    disabled={isPredicting}
+                                    className="shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                                >
+                                    Regenerar heatmap
+                                </button>
+                            </div>
+                        )}
                         <AttentionPredictionCard
                             imageUrl={activeStimulus.url}
                             title={activeStimulus.name}
@@ -483,12 +545,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             pendingImportAois={pendingImportAois}
                             onImportAoisDone={() => setPendingImportAois(undefined)}
                             onAddMore={() => setShowUploadModal(true)}
-                            onRunAnalysis={() => runAnalysis(activeStimulus.mediaId)}
+                            onRunAnalysis={(aois) => void runAnalysis(activeStimulus.mediaId, aois)}
+                            onRunPrediction={() => void runPrediction(activeStimulus.mediaId)}
+                            isPredicting={isPredicting}
+                            predictElapsed={predictElapsed}
+                            predictionError={activeStimulus.predictionError}
+                            initialTab={isNewStimulus ? 'aoi-editor' : undefined}
+                            onOpenCriteria={() => setIsPromptOpen(true)}
+                            aoiSkipped={Boolean(activeStimulus.aoiSkipped)}
+                            onAoiSkippedChange={(skipped) => void handleAoiSkippedChange(skipped, activeStimulus.mediaId)}
                             autoPresets={activeStimulus.autoPresets as { blur: number; opacity: number; threshold: number } | undefined}
                             griddedAOIs={activeStimulus.griddedAOIs}
                             isAnalyzing={isProcessing}
                             analyzeElapsed={analyzeElapsed}
-                            bulkProgress={bulkProgress}
                             onProcessVideo={activeStimulus.isVideo ? () => {
                                 const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
                                 void processVideoStimulus(activeStimulus, videoUrl);
@@ -500,12 +569,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                     type="button"
                                     onClick={() => setIsPromptOpen(true)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
-                                    title="Edit analysis prompt"
+                                    title="Editar criterio de análisis"
                                 >
                                     <Settings2 className="w-3.5 h-3.5" />
-                                    Prompt
+                                    Criterio
                                     {savedPrompt && (
-                                        <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Custom</span>
+                                        <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Personalizado</span>
                                     )}
                                 </button>
                             }
@@ -598,9 +667,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             <AiAnalysisPanel
                                 analysis={aiAnalysis ?? null}
                                 isAnalyzing={isProcessing}
-                                onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId)}
+                                onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId, activeStimulus.aois)}
                                 onImportAois={(aois) => setPendingImportAois(aois)}
-                                hasHeatmap={true}
+                                hasHeatmap={Boolean(activeStimulus?.heatmapData?.length)}
+                                hasAois={Boolean(activeStimulus?.aois?.length || activeStimulus?.aoiSkipped)}
                             />
                         </div>
                     )}

@@ -17,7 +17,7 @@ Default stages: Screener -> Welcome Screen -> Research Configuration -> Implicit
   - Features: targets dinamicos, preview modal, flowchart reactivo, multi-lang instrucciones (EN/ES JSON).
 - **Eye Tracking** (`single_module`): stimuli (imagenes/video), modalidades Stand Alone y Shelf. Incluye Emotion Recognition y prediccion de atencion.
 - **Rendering generico**: `ResearchBuilderPage` usa `module_collection` generalizada — todo lo que no sea Smart VOC usa `CognitiveTaskModuleCard`.
-- **Attention Prediction**: research type sin stages. TranSalNet ONNX genera heatmap, GPT-4o Vision genera analisis cualitativo. Predict sincrono (await, no polling). `HeatmapRenderer` dual (saliencia LUT + clicks simpleheat). AOIs manuales + auto-detectadas por IA (importables). `AiAnalysisPanel` con secciones colapsables. Resultados cacheados en `stimulus.aiAnalysis`. Upload siempre visible. Error state con retry. **Video**: client-side frame extraction (1fps, Canvas API) → upload PNGs → `POST /video-predict` (fire-and-forget, SSE progress) → TranSalNet per frame → accumulated heatmap + temporal grid 4x4.
+- **Attention Prediction**: research type sin stages. Flujo AOI-first: upload → AOI Editor (zonas manuales) → criterio (`settings.attentionPrompt`) → predict TranSalNet (`POST /predict`, sincrono) → analyze IA (manual, fire-and-forget + polling). Heatmap visual = `stimulus.heatmapData` (no sintetizado desde autoAois). AOIs editables (nombre, move, resize) en `stimulus.aois[]`. Gate D-07: ≥1 AOI o `aoiSkipped`. **Video**: frames client-side → `POST /video-predict` + SSE → heatmap acumulado. Ver `docs/prediccion-plan.md`.
 - **Insights Finding**: research type sin stages. Documentos (.csv, .txt, .xlsx, .docx, .pdf) -> parseo client-side -> GPT-4o analysis (sentiment/themes/keywords). Fire-and-forget + polling.
 - **`isFileBasedResearch`**: unifica Attention Prediction e Insights Finding (`skip_default_modules: true`).
 - **Custom Screening Questions**: preguntas de seleccion unica con descalificacion dentro de Demographics. Keys `customQuestion_<id>`, `questionLabel` editable.
@@ -110,14 +110,15 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Insights themes client-side (v0.74.2)**: Expanded themes show ALL matching entries via client-side word matching (not LLM `supportingQuotes`). Count/percentage from real data. Scrollable `max-h-240px`.
 - **Sentiment Score tooltip (v0.74.2)**: `SentimentScoreBadge` component with `createPortal` tooltip. Instant on hover, shows formula + breakdown.
 - **Re-analyze (v0.74.2)**: Button in Insights Finding header re-triggers LLM analysis without re-uploading.
-- **Prompt presets (v0.75.0)**: `localStorage` key `emotiox-prompt-presets` (analysis) and `emotiox-heatmap-presets` (heatmap settings). Named presets shared across all studies.
-- **Bulk analysis (v0.75.0)**: Attention Prediction auto-queues stimuli without `aiAnalysis` on mount. Sequential, with timer + progress `(N/M)`.
+- **Prompt presets (v0.75.0)**: `localStorage` key `emotiox-prompt-presets` (analysis) and `emotiox-heatmap-presets` (heatmap settings). Named presets shared across all studies. *(v0.77: criterio usa `emotiox-criteria-presets`.)*
+- **Bulk analysis (v0.75.0, removed v0.77)**: ~~Auto-queue on mount~~ — reemplazado por flujo manual AOI-first.
 - **AOI Editor backdrop (v0.75.2)**: Shows `HeatmapRenderer` with enforced minimum visibility (blur≥10, opacity≥40, threshold≤20). Auto-detected AOIs as 2px dashed rects with solid-color labels.
 - **Gaze Paths sub-tabs (v0.75.0)**: `gazeMode` state toggles "Routes" (static) vs "Scanpath" (animated). `max-height: 60vh`.
 - **File-based status labels (v0.75.0)**: Sidebar shows Prediction/Analysis/Tracking instead of Draft. Non-clickable `<span>` vs `<button>`.
 - **Snippet v3.5 DOM snapshot (v0.75.1)**: Captures `outerHTML` 3s after session, sends to `/public/tracking/:id/snapshot`. 30s hidden → fresh session. Enables snapshot-html heatmap backdrop.
 - **Proxy CSS pipeline (v0.75.1)**: proxy-asset rewrites `url()`/`@import` inside CSS. Proxy URLs must be absolute (not relative `/api/...`) because `<base>` tag points to tracked site. Protocol-relative `//` handled. `media="none"` → `media="all"` for lazy-loaded stylesheets.
 - **Video Attention Prediction (v0.76.0)**: Client extracts frames every 2s (Canvas API, `extractVideoFrames.ts`, max 60, CORS-safe blob download). `POST /video-predict` runs `predictAttentionFast` (single-pass, no TTA) per frame, SSE progress via UUID jobId (no token auth). Results: `stimulus.heatmapData` (accumulated), `stimulus.frames[]` (per-frame), `stimulus.temporalGrid[]`. Heatmap split overlay: draggable divider + configurable grid (2×2 to 5×5) with Q-labels. Single persistent `<video>` across tabs. AOI Editor hidden for video. Image tabs use `display:none` instead of unmount.
+- **Attention Prediction AOI-first (v0.77.0)**: No auto-analyze on upload/mount. `AoiRectEditor` + criterio drawer. `predictAttention()` wired for images. Backend analyze receives manual AOIs. Heatmap from TranSalNet only; AI zones as optional dashed overlay.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

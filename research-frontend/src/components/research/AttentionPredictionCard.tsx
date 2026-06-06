@@ -7,7 +7,16 @@ import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRen
 import { AttentionVideoPlayer } from '../results/cognitive-task/components/AttentionVideoPlayer';
 import { researchService } from '../../services/research.service';
 import { GazePathOverlay } from './GazePathOverlay';
+import { AiAoiOverlay } from './AiAoiOverlay';
+import { AoiRectEditor } from './AoiRectEditor';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
+import type { ManualAOI } from '../../types/attentionPrediction.types';
+import {
+    canRunAnalysisGate,
+    canRunPredictionGate,
+    clampAoiBounds,
+    normalizeManualAois,
+} from '../../utils/attentionPrediction.utils';
 
 const ZoomControls = () => {
     const { zoomIn, zoomOut, resetTransform } = useControls();
@@ -36,16 +45,7 @@ interface HeatmapPoint {
     value?: number;
 }
 
-interface AOI {
-    id: string;
-    label: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
-
-interface AOIWithStats extends AOI {
+interface AOIWithStats extends ManualAOI {
     percentage: number;
 }
 
@@ -95,7 +95,23 @@ interface AttentionPredictionCardProps {
     /** Callback to add more stimuli */
     onAddMore?: () => void;
     /** Callback to run/re-run AI analysis */
-    onRunAnalysis?: () => void;
+    onRunAnalysis?: (manualAois: ManualAOI[]) => void;
+    /** Callback to run TranSalNet heatmap prediction */
+    onRunPrediction?: () => void;
+    /** Whether heatmap prediction is in progress */
+    isPredicting?: boolean;
+    /** Elapsed seconds during current prediction */
+    predictElapsed?: number;
+    /** Prediction error message from backend */
+    predictionError?: string;
+    /** Initial tab for new stimuli (AOI-first flow) */
+    initialTab?: TabId;
+    /** Open analysis criteria drawer */
+    onOpenCriteria?: () => void;
+    /** Whether user skipped AOI definition */
+    aoiSkipped?: boolean;
+    /** Persist aoiSkipped flag */
+    onAoiSkippedChange?: (skipped: boolean) => void;
     /** Auto-presets from prediction (blur, opacity, threshold computed from map distribution) */
     autoPresets?: { blur: number; opacity: number; threshold: number };
     /** Gridded AOIs detected from saliency map */
@@ -104,9 +120,7 @@ interface AttentionPredictionCardProps {
     isAnalyzing?: boolean;
     /** Elapsed seconds during current analysis */
     analyzeElapsed?: number;
-    /** Bulk analysis progress */
-    bulkProgress?: { current: number; total: number } | null;
-    /** Extra content rendered in the header row (e.g. Prompt button) */
+    /** Extra content rendered in the header row (e.g. Criteria button) */
     headerExtra?: React.ReactNode;
     /** Callback to trigger video prediction pipeline */
     onProcessVideo?: () => void;
@@ -749,17 +763,37 @@ export const AttentionPredictionCard = ({
     onImportAoisDone,
     onAddMore,
     onRunAnalysis,
+    onRunPrediction,
+    isPredicting = false,
+    predictElapsed = 0,
+    predictionError,
+    initialTab,
+    onOpenCriteria,
+    aoiSkipped = false,
+    onAoiSkippedChange,
     autoPresets,
     griddedAOIs,
     isAnalyzing = false,
     analyzeElapsed = 0,
-    bulkProgress,
     headerExtra,
     onProcessVideo,
     videoProgress,
     onDismissVideoProgress,
 }: AttentionPredictionCardProps) => {
-    const [activeTab, setActiveTab] = useState<TabId>('original');
+    const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'original');
+    const [showAiAoiOverlay, setShowAiAoiOverlay] = useState(false);
+    const [showSkipConfirm, setShowSkipConfirm] = useState(false);
+    const [skipConfirmAction, setSkipConfirmAction] = useState<'gate-only' | 'predict'>('gate-only');
+    const [showNameModal, setShowNameModal] = useState(false);
+    const [pendingRect, setPendingRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const [pendingLabel, setPendingLabel] = useState('');
+    const [selectedAoiId, setSelectedAoiId] = useState<string | null>(null);
+    const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+    const [editingLabelValue, setEditingLabelValue] = useState('');
+
+    useEffect(() => {
+        if (initialTab) setActiveTab(initialTab);
+    }, [initialTab]);
 
     // Filter tabs: show Gaze Paths only when AI analysis has gaze data
     const tabs = useMemo(() => {
@@ -795,7 +829,7 @@ export const AttentionPredictionCard = ({
     }, [autoPresets]);
     const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set(['typical-scan', 'group-scan', 'novelty-search']));
     const [gazeMode, setGazeMode] = useState<'static' | 'animated'>('static');
-    const [aoiList, setAoiList] = useState<AOI[]>([]);
+    const [aoiList, setAoiList] = useState<ManualAOI[]>([]);
     const [drawingAoi, setDrawingAoi] = useState(false);
     const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
     const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -822,7 +856,9 @@ export const AttentionPredictionCard = ({
         const handleMouseUp = () => {
             setAoiCurrent(prev => {
                 if (prev && prev.w > 1 && prev.h > 1) {
-                    addAoi(prev);
+                    setPendingRect(prev);
+                    setPendingLabel(`Zona ${aoiList.length + 1}`);
+                    setShowNameModal(true);
                 }
                 return null;
             });
@@ -846,16 +882,16 @@ export const AttentionPredictionCard = ({
             const s = (res.research.settings as Record<string, unknown>) || {};
             const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
             const stimulus = stimuli.find(st => st.mediaId === stimulusMediaId);
-            const savedAois = (stimulus?.aois as AOI[]) || [];
+            const savedAois = normalizeManualAois(stimulus?.aois);
             setAoiList(savedAois);
         }).catch(() => { /* ignore load errors */ });
     }, [researchId, stimulusMediaId]);
 
     // Persist AOIs to research settings (debounced to prevent race conditions)
-    const pendingAoisRef = useRef<AOI[] | null>(null);
+    const pendingAoisRef = useRef<ManualAOI[] | null>(null);
     const saveInFlightRef = useRef(false);
 
-    const persistAois = useCallback(async (aois: AOI[]) => {
+    const persistAois = useCallback(async (aois: ManualAOI[]) => {
         if (!researchId || !stimulusMediaId) return;
         pendingAoisRef.current = aois;
         if (saveInFlightRef.current) return; // will be picked up after current save
@@ -894,25 +930,86 @@ export const AttentionPredictionCard = ({
         };
     };
 
-    const addAoi = (rect: { x: number; y: number; w: number; h: number }) => {
-        const aoi: AOI = {
+    const confirmPendingAoi = useCallback(() => {
+        if (!pendingRect) return;
+        const label = pendingLabel.trim() || `Zona ${aoiList.length + 1}`;
+        const aoi: ManualAOI = clampAoiBounds({
             id: `aoi_${crypto.randomUUID()}`,
-            label: `AOI #${aoiList.length + 1}`,
-            x: rect.x,
-            y: rect.y,
-            width: rect.w,
-            height: rect.h,
-        };
+            label,
+            x: pendingRect.x,
+            y: pendingRect.y,
+            width: pendingRect.w,
+            height: pendingRect.h,
+            source: 'manual',
+        });
         const updated = [...aoiList, aoi];
         setAoiList(updated);
         void persistAois(updated);
-    };
+        setShowNameModal(false);
+        setPendingRect(null);
+        setPendingLabel('');
+        setSelectedAoiId(aoi.id);
+    }, [aoiList, pendingLabel, pendingRect, persistAois]);
+
+    const updateAoi = useCallback((updated: ManualAOI) => {
+        setAoiList(prev => {
+            const next = prev.map(a => (a.id === updated.id ? updated : a));
+            void persistAois(next);
+            return next;
+        });
+    }, [persistAois]);
+
+    const updateAoiLabel = useCallback((aoiId: string, label: string) => {
+        const trimmed = label.trim() || 'Zona sin nombre';
+        setAoiList(prev => {
+            const next = prev.map(a => (a.id === aoiId ? { ...a, label: trimmed } : a));
+            void persistAois(next);
+            return next;
+        });
+        setEditingLabelId(null);
+    }, [persistAois]);
 
     const removeAoi = (aoiId: string) => {
         const updated = aoiList.filter(a => a.id !== aoiId);
         setAoiList(updated);
+        if (selectedAoiId === aoiId) setSelectedAoiId(null);
         void persistAois(updated);
     };
+
+    useEffect(() => {
+        if (!selectedAoiId) return;
+        const onKeyDown = (e: KeyboardEvent): void => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                removeAoi(selectedAoiId);
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [selectedAoiId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const predictionGateOpen = canRunPredictionGate(aoiList.length, aoiSkipped);
+    const analysisGateOpen = canRunAnalysisGate(heatmapData.length, aoiList.length, aoiSkipped);
+    const hasHeatmap = heatmapData.length > 0;
+
+    const handlePredictClick = (): void => {
+        if (!onRunPrediction) return;
+        if (!predictionGateOpen) {
+            setSkipConfirmAction('predict');
+            setShowSkipConfirm(true);
+            return;
+        }
+        onRunPrediction();
+    };
+
+    const handleAnalysisClick = (): void => {
+        if (!onRunAnalysis || !analysisGateOpen) return;
+        onRunAnalysis(aoiList);
+    };
+
+    const importedAiLabels = useMemo(
+        () => new Set(aoiList.filter(a => a.source === 'imported-ai').map(a => a.label)),
+        [aoiList],
+    );
 
     // Process pending AOI imports from the external AI panel
     useEffect(() => {
@@ -921,52 +1018,10 @@ export const AttentionPredictionCard = ({
         onImportAoisDone?.();
     }, [pendingImportAois]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // When AI analysis is available, generate heatmap points from its semantic data
-    // (autoAois centers + gazePath fixations) instead of using raw TranSalNet saliency.
-    const effectiveHeatmapData: HeatmapPoint[] = useMemo(() => {
-        if (!aiAnalysis) return heatmapData;
-
-        const points: HeatmapPoint[] = [];
-        const intensityMap: Record<string, number> = { high: 1.0, medium: 0.6, low: 0.3 };
-        const durationMap: Record<string, number> = { long: 1.0, moderate: 0.7, brief: 0.4 };
-
-        if (aiAnalysis.autoAois) {
-            for (const aoi of aiAnalysis.autoAois) {
-                const intensity = intensityMap[aoi.attentionLevel] ?? 0.5;
-                const cx = aoi.x + aoi.width / 2;
-                const cy = aoi.y + aoi.height / 2;
-                points.push({ x: cx, y: cy, value: intensity });
-                const stepsX = Math.max(2, Math.round(aoi.width / 5));
-                const stepsY = Math.max(2, Math.round(aoi.height / 5));
-                for (let sx = 0; sx <= stepsX; sx++) {
-                    for (let sy = 0; sy <= stepsY; sy++) {
-                        const px = aoi.x + (aoi.width * sx) / stepsX;
-                        const py = aoi.y + (aoi.height * sy) / stepsY;
-                        const distFromCenter = Math.sqrt(
-                            ((px - cx) / (aoi.width / 2)) ** 2 +
-                            ((py - cy) / (aoi.height / 2)) ** 2
-                        );
-                        const falloff = Math.max(0.1, 1 - distFromCenter * 0.5);
-                        points.push({ x: px, y: py, value: intensity * falloff });
-                    }
-                }
-            }
-        }
-
-        if (aiAnalysis.gazePath) {
-            for (const fix of aiAnalysis.gazePath) {
-                const intensity = durationMap[fix.duration] ?? 0.5;
-                points.push({ x: fix.x, y: fix.y, value: intensity });
-            }
-        }
-
-        return points.length > 0 ? points : heatmapData;
-    }, [aiAnalysis, heatmapData]);
-
     const computedAois: AOIWithStats[] = useMemo(() => {
-        const total = effectiveHeatmapData.length;
+        const total = heatmapData.length;
         return aoiList.map(aoi => {
-            const inside = effectiveHeatmapData.filter(p => {
+            const inside = heatmapData.filter(p => {
                 const px = p.x > 1 ? p.x : p.x * 100;
                 const py = p.y > 1 ? p.y : p.y * 100;
                 return px >= aoi.x && px <= aoi.x + aoi.width &&
@@ -977,11 +1032,11 @@ export const AttentionPredictionCard = ({
                 percentage: total > 0 ? Math.round((inside / total) * 100) : 0,
             };
         });
-    }, [aoiList, effectiveHeatmapData]);
+    }, [aoiList, heatmapData]);
 
     const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
         const existingLabels = new Set(aoiList.map(a => a.label));
-        const newAois: AOI[] = aiAois
+        const newAois: ManualAOI[] = aiAois
             .filter(a => !existingLabels.has(a.label))
             .map(a => ({
                 id: `aoi_${crypto.randomUUID()}`,
@@ -990,6 +1045,7 @@ export const AttentionPredictionCard = ({
                 y: a.y,
                 width: a.width,
                 height: a.height,
+                source: 'imported-ai' as const,
             }));
         if (newAois.length > 0) {
             const updated = [...aoiList, ...newAois];
@@ -1060,19 +1116,54 @@ export const AttentionPredictionCard = ({
                         </button>
                     )}
                         {headerExtra}
+                        {onRunPrediction && !isVideo && (
+                            <button
+                                type="button"
+                                onClick={handlePredictClick}
+                                disabled={isPredicting}
+                                className={cn(
+                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                                    hasHeatmap
+                                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                                        : 'text-white bg-indigo-600 hover:bg-indigo-700',
+                                    isPredicting && 'opacity-50 cursor-not-allowed',
+                                )}
+                                title={
+                                    !predictionGateOpen
+                                        ? 'Define al menos una zona o continúa sin zonas'
+                                        : hasHeatmap
+                                            ? 'Regenerar heatmap TranSalNet'
+                                            : 'Generar heatmap TranSalNet'
+                                }
+                            >
+                                {isPredicting
+                                    ? `Generando heatmap... ${predictElapsed}s`
+                                    : hasHeatmap
+                                        ? 'Regenerar heatmap'
+                                        : 'Generar heatmap'}
+                            </button>
+                        )}
                         {onRunAnalysis && (
                             <button
                                 type="button"
-                                onClick={onRunAnalysis}
-                                disabled={isAnalyzing}
+                                onClick={handleAnalysisClick}
+                                disabled={isAnalyzing || !analysisGateOpen}
                                 className={cn(
                                     'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
                                     aiAnalysis
                                         ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
                                         : 'text-white bg-blue-600 hover:bg-blue-700',
-                                    isAnalyzing && 'opacity-50 cursor-not-allowed'
+                                    (isAnalyzing || !analysisGateOpen) && 'opacity-50 cursor-not-allowed'
                                 )}
-                                title={aiAnalysis ? 'Re-run AI Analysis' : 'Run AI Analysis'}
+                                title={
+                                    !analysisGateOpen
+                                        ? !hasHeatmap
+                                            ? 'Genera el heatmap antes del análisis IA'
+                                            : 'Define al menos una zona o continúa sin zonas'
+                                        : aiAnalysis
+                                            ? 'Re-ejecutar análisis IA'
+                                            : 'Ejecutar análisis IA'
+                                }
                             >
                                 <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                     {isAnalyzing
@@ -1081,12 +1172,27 @@ export const AttentionPredictionCard = ({
                                     }
                                 </svg>
                                 {isAnalyzing
-                                    ? `Analyzing... ${analyzeElapsed}s${bulkProgress ? ` (${bulkProgress.current}/${bulkProgress.total})` : ''}`
-                                    : aiAnalysis ? 'Re-analyze' : 'AI Analysis'}
+                                    ? `Analizando... ${analyzeElapsed}s`
+                                    : aiAnalysis ? 'Re-analizar' : 'Análisis IA'}
                             </button>
                         )}
                     </div>
                 </div>
+
+                {predictionError && (
+                    <div className="mx-4 mt-3 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md flex items-center justify-between gap-2">
+                        <span>Error al generar heatmap: {predictionError}</span>
+                        {onRunPrediction && (
+                            <button
+                                type="button"
+                                onClick={handlePredictClick}
+                                className="text-red-800 underline font-medium shrink-0"
+                            >
+                                Reintentar
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Tabs + Settings */}
                 <div className="border-b bg-white">
@@ -1130,7 +1236,7 @@ export const AttentionPredictionCard = ({
                 </div>
 
                 {/* Inline heatmap controls — visible on Prediction tab */}
-                {activeTab === 'heatmap' && effectiveHeatmapData.length > 0 && (
+                {activeTab === 'heatmap' && heatmapData.length > 0 && (
                     <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
                         <div className="flex gap-1">
                             {DETAIL_PRESETS.map(p => (
@@ -1179,6 +1285,17 @@ export const AttentionPredictionCard = ({
                             />
                             <span className="text-xs text-gray-500 w-6 text-right">{settings.threshold}</span>
                         </div>
+                        {aiAnalysis?.autoAois?.length ? (
+                            <label className="flex items-center gap-2 text-xs text-gray-600 ml-auto cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={showAiAoiOverlay}
+                                    onChange={(e) => setShowAiAoiOverlay(e.target.checked)}
+                                    className="rounded border-gray-300"
+                                />
+                                Mostrar zonas IA
+                            </label>
+                        ) : null}
                     </div>
                 )}
 
@@ -1205,7 +1322,7 @@ export const AttentionPredictionCard = ({
                                             frames={videoFrames}
                                             settings={settings}
                                         />
-                                    ) : !effectiveHeatmapData.length ? (
+                                    ) : !heatmapData.length ? (
                                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                                             {videoProgress && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' ? (
                                                 <div className="flex flex-col items-center gap-3 px-6 py-4 bg-black/60 rounded-xl">
@@ -1274,21 +1391,29 @@ export const AttentionPredictionCard = ({
                                         <div className="rounded-lg border bg-gray-100 overflow-hidden relative">
                                             <ZoomControls />
                                             <TransformComponent wrapperStyle={{ width: '100%' }} contentStyle={{ width: '100%' }}>
-                                                {effectiveHeatmapData.length > 0 ? (
-                                                    <HeatmapRenderer
-                                                        imageUrl={imageUrl}
-                                                        data={effectiveHeatmapData}
-                                                        blur={settings.blur}
-                                                        opacity={settings.opacity}
-                                                        threshold={settings.threshold}
-                                                        className="w-full"
-                                                    />
+                                                {heatmapData.length > 0 ? (
+                                                    <div className="relative">
+                                                        <HeatmapRenderer
+                                                            imageUrl={imageUrl}
+                                                            data={heatmapData}
+                                                            blur={settings.blur}
+                                                            opacity={settings.opacity}
+                                                            threshold={settings.threshold}
+                                                            className="w-full"
+                                                        />
+                                                        {showAiAoiOverlay && aiAnalysis?.autoAois && (
+                                                            <AiAoiOverlay
+                                                                autoAois={aiAnalysis.autoAois}
+                                                                importedLabels={importedAiLabels}
+                                                            />
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <div className="relative">
                                                         <img src={imageUrl} alt={title} className="w-full block" />
                                                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                                                             <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
-                                                                Run prediction to generate heatmap
+                                                                Genera el heatmap para ver la predicción TranSalNet
                                                             </p>
                                                         </div>
                                                     </div>
@@ -1318,7 +1443,7 @@ export const AttentionPredictionCard = ({
                                 });
                             };
 
-                            const hasVideo = effectiveHeatmapData.length > 0 && !isVideo;
+                            const hasVideo = heatmapData.length > 0 && !isVideo;
                             return (
                             <div>
                                 {/* Sub-tabs: Static routes vs Animated scanpath */}
@@ -1394,7 +1519,7 @@ export const AttentionPredictionCard = ({
                                     <div className="rounded-lg border overflow-hidden" style={{ maxHeight: '60vh' }}>
                                         <AttentionVideoPlayer
                                             imageUrl={imageUrl}
-                                            data={effectiveHeatmapData}
+                                            data={heatmapData}
                                             duration={5}
                                         />
                                     </div>
@@ -1405,8 +1530,28 @@ export const AttentionPredictionCard = ({
                         {/* AOI Editor Tab */}
                         {!isVideo && activeTab === 'aoi-editor' && (
                             <>
+                                <div className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                        <span className={cn('px-2 py-1 rounded font-medium', aoiList.length > 0 || aoiSkipped ? 'bg-green-100 text-green-800' : 'bg-white text-gray-600 border')}>
+                                            1. Definir zonas
+                                        </span>
+                                        <span className="text-gray-400">→</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => onOpenCriteria?.()}
+                                            className="px-2 py-1 rounded font-medium bg-white text-gray-600 border hover:bg-gray-50"
+                                        >
+                                            2. Criterio de análisis
+                                        </button>
+                                        <span className="text-gray-400">→</span>
+                                        <span className={cn('px-2 py-1 rounded font-medium', hasHeatmap ? 'bg-green-100 text-green-800' : 'bg-white text-gray-600 border')}>
+                                            3. Generar heatmap
+                                        </span>
+                                    </div>
+                                </div>
+
                                 {/* AOI toolbar */}
-                                <div className="flex items-center gap-3 mb-3">
+                                <div className="flex items-center gap-3 mb-3 flex-wrap">
                                     <button
                                         type="button"
                                         onClick={() => setDrawingAoi(prev => !prev)}
@@ -1417,32 +1562,50 @@ export const AttentionPredictionCard = ({
                                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         )}
                                     >
-                                        {drawingAoi ? 'Drawing AOI...' : '+ Create Manual Zone'}
+                                        {drawingAoi ? 'Dibujando zona...' : '+ Crear zona manual'}
                                     </button>
+                                    {!aoiSkipped && aoiList.length === 0 && onAoiSkippedChange && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSkipConfirmAction('gate-only');
+                                                setShowSkipConfirm(true);
+                                            }}
+                                            className="px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded transition-colors"
+                                        >
+                                            Continuar sin zonas
+                                        </button>
+                                    )}
+                                    {aoiSkipped && (
+                                        <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                                            Sin zonas definidas
+                                        </span>
+                                    )}
                                     {griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const imported: AOI[] = griddedAOIs.map((g, i) => ({
+                                                const imported: ManualAOI[] = griddedAOIs.map((g, i) => ({
                                                     id: `grid-${Date.now()}-${i}`,
                                                     label: g.label,
                                                     x: g.x,
                                                     y: g.y,
                                                     width: g.width,
                                                     height: g.height,
+                                                    source: 'imported-grid' as const,
                                                 }));
                                                 setAoiList(imported);
-                                                persistAois(imported);
+                                                void persistAois(imported);
                                             }}
                                             className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded transition-colors"
                                         >
-                                            Import detected zones ({griddedAOIs.length})
+                                            Importar zonas detectadas ({griddedAOIs.length})
                                         </button>
                                     )}
                                     {computedAois.length > 0 && (
                                         <span className="text-xs text-gray-500">
-                                            {computedAois.length} zones defined
-                                            {isSavingAois && ' — saving...'}
+                                            {computedAois.length} zonas definidas
+                                            {isSavingAois && ' — guardando...'}
                                         </span>
                                     )}
                                 </div>
@@ -1463,10 +1626,10 @@ export const AttentionPredictionCard = ({
                                     } : undefined}
                                 >
                                     {/* Heatmap as background so user sees where to draw */}
-                                    {effectiveHeatmapData.length > 0 ? (
+                                    {heatmapData.length > 0 ? (
                                         <HeatmapRenderer
                                             imageUrl={imageUrl}
-                                            data={effectiveHeatmapData}
+                                            data={heatmapData}
                                             blur={Math.max(settings.blur, 10)}
                                             opacity={Math.max(settings.opacity, 40)}
                                             threshold={Math.min(settings.threshold, 20)}
@@ -1478,59 +1641,27 @@ export const AttentionPredictionCard = ({
                                         <img src={imageUrl} alt={title} className="w-full block" />
                                     )}
 
-                                    {/* Auto-detected AOIs from AI (dashed, preview) */}
-                                    {aiAnalysis?.autoAois?.map((aoi, i) => {
-                                        const levelColors: Record<string, string> = { high: '#EF4444', medium: '#F59E0B', low: '#94A3B8' };
-                                        const color = levelColors[aoi.attentionLevel] || '#94A3B8';
-                                        const isImported = computedAois.some(c => Math.abs(c.x - aoi.x) < 2 && Math.abs(c.y - aoi.y) < 2);
-                                        if (isImported) return null;
-                                        return (
-                                            <div
-                                                key={`auto-${i}`}
-                                                className="absolute pointer-events-none"
-                                                style={{
-                                                    left: `${aoi.x}%`,
-                                                    top: `${aoi.y}%`,
-                                                    width: `${aoi.width}%`,
-                                                    height: `${aoi.height}%`,
-                                                    border: `2px dashed ${color}`,
-                                                    backgroundColor: `${color}18`,
-                                                }}
-                                            >
-                                                <span
-                                                    className="absolute -top-5 left-0 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap"
-                                                    style={{ color: '#fff', backgroundColor: color }}
-                                                >
-                                                    {aoi.label}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
+                                    {aiAnalysis?.autoAois && (
+                                        <AiAoiOverlay
+                                            autoAois={aiAnalysis.autoAois}
+                                            importedLabels={importedAiLabels}
+                                        />
+                                    )}
 
-                                    {/* Manual AOI rectangles — CSS positioned to avoid viewBox distortion */}
                                     {computedAois.map((aoi, i) => {
                                         const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
                                         const color = colors[i % colors.length];
                                         return (
-                                            <div
+                                            <AoiRectEditor
                                                 key={aoi.id}
-                                                className="absolute pointer-events-none border-2"
-                                                style={{
-                                                    left: `${aoi.x}%`,
-                                                    top: `${aoi.y}%`,
-                                                    width: `${aoi.width}%`,
-                                                    height: `${aoi.height}%`,
-                                                    backgroundColor: `${color}20`,
-                                                    borderColor: color,
-                                                }}
-                                            >
-                                                <span
-                                                    className="absolute top-1 left-1 text-[10px] font-bold px-1 rounded"
-                                                    style={{ color, backgroundColor: `${color}15` }}
-                                                >
-                                                    {aoi.label} — {aoi.percentage}%
-                                                </span>
-                                            </div>
+                                                aoi={aoi}
+                                                color={color}
+                                                percentage={aoi.percentage}
+                                                selected={selectedAoiId === aoi.id}
+                                                onSelect={() => setSelectedAoiId(aoi.id)}
+                                                onChange={updateAoi}
+                                                containerRef={aoiContainerRef}
+                                            />
                                         );
                                     })}
                                     {aoiCurrent && aoiCurrent.w > 0 && (
@@ -1553,17 +1684,46 @@ export const AttentionPredictionCard = ({
                                         {computedAois.map((aoi, i) => {
                                             const colors = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
                                             const color = colors[i % colors.length];
+                                            const isEditing = editingLabelId === aoi.id;
                                             return (
                                                 <div
                                                     key={aoi.id}
-                                                    className="flex items-center gap-2 px-2.5 py-1.5 bg-white border rounded-lg text-xs"
+                                                    className={cn(
+                                                        'flex items-center gap-2 px-2.5 py-1.5 bg-white border rounded-lg text-xs',
+                                                        selectedAoiId === aoi.id && 'ring-2 ring-blue-400',
+                                                    )}
+                                                    onClick={() => setSelectedAoiId(aoi.id)}
                                                 >
                                                     <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-                                                    <span className="font-medium text-gray-700">{aoi.label}</span>
+                                                    {isEditing ? (
+                                                        <input
+                                                            value={editingLabelValue}
+                                                            onChange={(e) => setEditingLabelValue(e.target.value)}
+                                                            onBlur={() => updateAoiLabel(aoi.id, editingLabelValue)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') updateAoiLabel(aoi.id, editingLabelValue);
+                                                                if (e.key === 'Escape') setEditingLabelId(null);
+                                                            }}
+                                                            className="w-24 px-1 py-0.5 border rounded text-xs"
+                                                            autoFocus
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        />
+                                                    ) : (
+                                                        <span
+                                                            className="font-medium text-gray-700 cursor-text"
+                                                            onDoubleClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEditingLabelId(aoi.id);
+                                                                setEditingLabelValue(aoi.label);
+                                                            }}
+                                                        >
+                                                            {aoi.label}
+                                                        </span>
+                                                    )}
                                                     <span className="font-semibold" style={{ color }}>{aoi.percentage}%</span>
                                                     <button
                                                         type="button"
-                                                        onClick={() => removeAoi(aoi.id)}
+                                                        onClick={(e) => { e.stopPropagation(); removeAoi(aoi.id); }}
                                                         className="text-gray-400 hover:text-red-500 ml-0.5"
                                                     >
                                                         ×
@@ -1578,11 +1738,83 @@ export const AttentionPredictionCard = ({
                 </div>
             </div>
 
+            {showNameModal && createPortal(
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Nombre de la zona</h3>
+                        <input
+                            value={pendingLabel}
+                            onChange={(e) => setPendingLabel(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') confirmPendingAoi();
+                                if (e.key === 'Escape') {
+                                    setShowNameModal(false);
+                                    setPendingRect(null);
+                                }
+                            }}
+                        />
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button
+                                type="button"
+                                onClick={() => { setShowNameModal(false); setPendingRect(null); }}
+                                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmPendingAoi}
+                                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                            >
+                                Guardar zona
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body,
+            )}
+
+            {showSkipConfirm && createPortal(
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-2">Continuar sin zonas</h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            No has definido AOIs. Puedes generar el heatmap igualmente, pero el análisis IA tendrá menos contexto espacial.
+                        </p>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowSkipConfirm(false)}
+                                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSkipConfirm(false);
+                                    onAoiSkippedChange?.(true);
+                                    if (skipConfirmAction === 'predict') {
+                                        onRunPrediction?.();
+                                    }
+                                }}
+                                className="px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md"
+                            >
+                                Continuar sin zonas
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body,
+            )}
+
             {/* Settings Modal — portal to body to avoid ancestor transform/overflow breaking fixed positioning */}
             {showSettings && createPortal(
                 <SettingsModal
                     imageUrl={imageUrl}
-                    heatmapData={effectiveHeatmapData}
+                    heatmapData={heatmapData}
                     settings={settings}
                     onApply={setSettings}
                     onClose={() => setShowSettings(false)}

@@ -1,3 +1,21 @@
+## v0.77.0 — Attention Prediction: flujo AOI-first (2026-06-06)
+
+### research-frontend
+- **Flujo manual.** Upload ya no dispara análisis IA. Secuencia: definir AOIs → criterio → generar heatmap → analizar.
+- **Predict conectado.** Botón "Generar heatmap" llama `POST /predict` (TranSalNet). Análisis IA requiere heatmap previo.
+- **Heatmap real.** Eliminada síntesis visual desde `autoAois`; el overlay usa solo `heatmapData` del backend. Toggle opcional "Mostrar zonas IA".
+- **AOI Editor.** Tab inicial en estímulos nuevos. Crear, nombrar, mover, redimensionar y eliminar zonas. Gate: ≥1 AOI o "Continuar sin zonas".
+- **Criterio de análisis.** UI renombrada desde "Prompt". Plantilla recomendada y presets por contexto (`emotiox-criteria-presets`).
+- **Panel IA.** Visible antes del análisis con checklist de prerequisitos. Banner de migración si hay análisis sin heatmap.
+
+### backend
+- **AOIs en analyze.** `POST /analyze` acepta AOIs manuales (body o `stimulus.aois`) y las incluye como contexto autoritativo en el prompt LLM.
+
+### docs
+- **`docs/prediccion-plan.md`.** Decisiones de producto LOCKED (D-01…D-07) y especificación del flujo AOI-first.
+
+---
+
 ## v0.76.0 — Video Attention Prediction pipeline (2026-05-29)
 
 ### backend

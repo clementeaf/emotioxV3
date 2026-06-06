@@ -390,6 +390,21 @@ export const handleAttentionPredictionRoutes = async (
                 ? config.analysisProfile as import('./ai-analysis.service').AnalysisProfile
                 : undefined;
 
+            const requestBody = event.body ? JSON.parse(event.body) : {};
+            const bodyAois = Array.isArray(requestBody.aois) ? requestBody.aois : undefined;
+            const storedAois = Array.isArray(stimulus?.aois) ? stimulus.aois : undefined;
+            const rawManualAois = bodyAois ?? storedAois ?? [];
+            const manualAois = rawManualAois
+                .filter((a: unknown): a is Record<string, unknown> => typeof a === 'object' && a !== null)
+                .map((a: Record<string, unknown>) => ({
+                    label: String(a.label ?? 'Zone'),
+                    x: Number(a.x) || 0,
+                    y: Number(a.y) || 0,
+                    width: Number(a.width) || 2,
+                    height: Number(a.height) || 2,
+                }))
+                .slice(0, 20);
+
             // Mark as processing
             const processingStimuli = stimuli.map((s) => {
                 if (s.mediaId === mediaId) {
@@ -404,7 +419,14 @@ export const handleAttentionPredictionRoutes = async (
             (async () => {
                 try {
                     const customPrompt = typeof config.attentionPrompt === 'string' ? config.attentionPrompt : undefined;
-                    const analysis = await analyzeAttentionWithAI(imagePath, heatmapData, fileName, profile, customPrompt);
+                    const analysis = await analyzeAttentionWithAI(
+                        imagePath,
+                        heatmapData,
+                        fileName,
+                        profile,
+                        customPrompt,
+                        manualAois.length > 0 ? manualAois : undefined,
+                    );
 
                     // Save result
                     const freshResult = await pool.query(

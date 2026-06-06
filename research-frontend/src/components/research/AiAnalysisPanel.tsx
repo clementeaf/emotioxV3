@@ -27,6 +27,7 @@ interface AiAnalysisPanelProps {
     onAnalyze: () => void;
     onImportAois: (aois: AiAnalysisResult['autoAois']) => void;
     hasHeatmap: boolean;
+    hasAois?: boolean;
 }
 
 // ─── Attention Score Gauge ──────────────────────────────────────────
@@ -148,6 +149,7 @@ export const AiAnalysisPanel = ({
     onAnalyze,
     onImportAois,
     hasHeatmap,
+    hasAois = false,
 }: AiAnalysisPanelProps) => {
     const [importedLabels, setImportedLabels] = useState<Set<string>>(new Set());
 
@@ -176,10 +178,18 @@ export const AiAnalysisPanel = ({
                 <div className="p-3 bg-blue-100 rounded-xl mb-3">
                     <Sparkles className="h-6 w-6 text-blue-600" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">AI Analysis</h3>
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">Análisis IA</h3>
                 <p className="text-xs text-slate-500 mb-4 max-w-[280px]">
-                    Analyzes visual attention patterns, gaze flow, and design effectiveness
+                    Analiza patrones de atención, flujo de mirada y efectividad del diseño
                 </p>
+                <ul className="text-xs text-left text-slate-600 mb-4 space-y-1.5 max-w-[280px]">
+                    <li className={hasHeatmap ? 'text-green-700' : 'text-amber-700'}>
+                        {hasHeatmap ? '✓' : '○'} Heatmap TranSalNet generado
+                    </li>
+                    <li className={hasAois ? 'text-green-700' : 'text-slate-500'}>
+                        {hasAois ? '✓' : '○'} Zonas definidas u omitidas
+                    </li>
+                </ul>
                 <button
                     onClick={onAnalyze}
                     disabled={!hasHeatmap || isAnalyzing}
@@ -188,17 +198,17 @@ export const AiAnalysisPanel = ({
                         {isAnalyzing ? (
                             <>
                                 <RefreshCw className="h-4 w-4 animate-spin" />
-                                Analyzing...
+                                Analizando...
                             </>
                         ) : (
                             <>
                                 <Sparkles className="h-4 w-4" />
-                                Analyze with AI
+                                Analizar con IA
                             </>
                         )}
                     </button>
                 {!hasHeatmap && (
-                    <p className="mt-3 text-xs text-amber-600">Run prediction first to enable AI analysis.</p>
+                    <p className="mt-3 text-xs text-amber-600">Genera el heatmap antes de ejecutar el análisis IA.</p>
                 )}
             </div>
         );
