@@ -97,7 +97,7 @@ interface AttentionPredictionCardProps {
     /** Callback to run/re-run AI analysis */
     onRunAnalysis?: (manualAois: ManualAOI[]) => void;
     /** Callback to run TranSalNet heatmap prediction */
-    onRunPrediction?: () => void;
+    onRunPrediction?: (manualAois: ManualAOI[]) => void;
     /** Whether heatmap prediction is in progress */
     isPredicting?: boolean;
     /** Elapsed seconds during current prediction */
@@ -1005,7 +1005,7 @@ export const AttentionPredictionCard = ({
             setShowSkipConfirm(true);
             return;
         }
-        onRunPrediction();
+        onRunPrediction(aoiList);
     };
 
     const handleAnalysisClick = (): void => {
@@ -1804,7 +1804,7 @@ export const AttentionPredictionCard = ({
                                     setShowSkipConfirm(false);
                                     onAoiSkippedChange?.(true);
                                     if (skipConfirmAction === 'predict') {
-                                        onRunPrediction?.();
+                                        onRunPrediction?.(aoiList);
                                     }
                                 }}
                                 className="px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md"

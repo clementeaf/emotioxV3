@@ -459,6 +459,98 @@ export const normalizePercentile = (
     return result;
 };
 
+/** Manual AOI rectangle in percentage coordinates (0-100). */
+export interface ManualAoiRect {
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/**
+ * Boosts semantic grid cells that overlap researcher-defined AOIs.
+ * @param grid - Semantic attention grid (rows × cols)
+ * @param rows - Grid row count
+ * @param cols - Grid column count
+ * @param aois - Manual AOI regions in percentage coordinates
+ * @param boost - Amount added to cell weight (capped at 1)
+ * @returns Grid with boosted cells inside manual AOIs
+ */
+export const boostSemanticGridForManualAois = (
+    grid: number[][],
+    rows: number,
+    cols: number,
+    aois: ManualAoiRect[],
+    boost = 0.25,
+): number[][] => {
+    if (aois.length === 0) return grid;
+
+    const result = grid.map((row) => [...row]);
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const cellX = ((c + 0.5) / cols) * 100;
+            const cellY = ((r + 0.5) / rows) * 100;
+            for (const aoi of aois) {
+                const inside =
+                    cellX >= aoi.x &&
+                    cellX <= aoi.x + aoi.width &&
+                    cellY >= aoi.y &&
+                    cellY <= aoi.y + aoi.height;
+                if (inside) {
+                    result[r][c] = Math.min(1, result[r][c] + boost);
+                }
+            }
+        }
+    }
+    return result;
+};
+
+/**
+ * Boosts saliency values inside manual AOI rectangles with soft edge falloff.
+ * @param map - Saliency map (mapWidth × mapHeight)
+ * @param width - Map width in pixels
+ * @param height - Map height in pixels
+ * @param aois - Manual AOI regions in percentage coordinates
+ * @param boostStrength - Max multiplicative boost at AOI center (0.35 = +35%)
+ * @returns Map with elevated attention inside manual AOIs
+ */
+export const applyManualAoiBoost = (
+    map: Float32Array,
+    width: number,
+    height: number,
+    aois: ManualAoiRect[],
+    boostStrength = 0.35,
+): Float32Array => {
+    if (aois.length === 0) return map;
+
+    const result = new Float32Array(map);
+    for (const aoi of aois) {
+        const x0 = (aoi.x / 100) * width;
+        const y0 = (aoi.y / 100) * height;
+        const x1 = ((aoi.x + aoi.width) / 100) * width;
+        const y1 = ((aoi.y + aoi.height) / 100) * height;
+        const cx = (x0 + x1) / 2;
+        const cy = (y0 + y1) / 2;
+        const halfW = Math.max((x1 - x0) / 2, 1);
+        const halfH = Math.max((y1 - y0) / 2, 1);
+
+        for (let row = 0; row < height; row++) {
+            for (let col = 0; col < width; col++) {
+                const dx = Math.abs(col - cx) / halfW;
+                const dy = Math.abs(row - cy) / halfH;
+                const dist = Math.max(dx, dy);
+                if (dist <= 1) {
+                    const soft = 1 - dist * dist;
+                    const idx = row * width + col;
+                    result[idx] = result[idx] * (1 + boostStrength * soft);
+                }
+            }
+        }
+    }
+    return result;
+};
+
 /**
  * Un-flips a horizontally flipped saliency map back to original orientation.
  */

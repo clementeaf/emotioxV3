@@ -5,9 +5,15 @@
 
 ---
 
-## Última actualización: 2026-06-06 (sesión 45)
+## Última actualización: 2026-06-06 (sesión 46)
 
 ---
+
+## Sesión 46: 6 de junio de 2026 — Fase 7: AOIs en hybrid predict (v0.78)
+
+- **Predict con AOIs manuales.** `POST /predict` recibe zonas del investigador; pipeline híbrido aplica boost semántico + espacial.
+- **Frontend.** `predictAttention()` y botón "Generar heatmap" envían `liveAois` (mismo patrón que analyze).
+- **D-04 completo.** AOIs alimentan predict y analyze.
 
 ## Sesión 45: 6 de junio de 2026 — Fix AOIs stale en panel IA (Attention Prediction)
 

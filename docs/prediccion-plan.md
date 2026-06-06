@@ -32,7 +32,7 @@ El heatmap mostrado siempre proviene de `heatmapData` del backend (TranSalNet + 
 | **D-01** | ¿Predict obligatorio antes de analyze? | **Sí.** `AI Analysis` deshabilitado hasta que exista `heatmapData` en el stimulus. | LOCKED |
 | **D-02** | ¿Auto-analyze al upload o al montar la vista? | **No.** Eliminar bulk on mount y analyze en upload. Solo manual o botón explícito. | LOCKED |
 | **D-03** | ¿Heatmap visual post-analyze? | **Siempre TranSalNet** (`settings.stimuli[].heatmapData`). Eliminar síntesis desde `autoAois`. Overlay dashed de zonas IA opcional (toggle). | LOCKED |
-| **D-04** | ¿AOIs manuales alimentan predict/analyze? | **Fase analyze (v0.77):** AOIs manuales se envían al LLM como contexto autoritativo. **Fase predict (v0.78+, opcional):** boost semántico en hybrid grid. | LOCKED |
+| **D-04** | ¿AOIs manuales alimentan predict/analyze? | **Analyze (v0.77):** AOIs manuales al LLM. **Predict (v0.78):** boost semántico + espacial en hybrid grid. | LOCKED |
 | **D-05** | Renombrar "Prompt" en UI | **Sí.** ES: "Criterio de análisis". EN: "Analysis criteria". Campo backend sigue siendo `attentionPrompt`. | LOCKED |
 | **D-06** | Tab inicial tras upload de imagen | **`aoi-editor`** para estímulos nuevos (sin `processedAt` ni `aiAnalysis`). Estudios existentes respetan último tab o default según tengan datos. | LOCKED |
 | **D-07** | Gate mínimo antes de predict/analyze | **≥ 1 AOI manual** O confirmación explícita **"Continuar sin zonas"** (persistir `stimulus.aoiSkipped: true`). | LOCKED |
@@ -59,9 +59,11 @@ El heatmap mostrado siempre proviene de `heatmapData` del backend (TranSalNet + 
 - Fase 8: Panel IA con estados vacíos y prereqs
 - Fase 9: Banner migración estudios sin heatmap
 
-### v0.78.0 — Opcional
+### v0.78.0 — Manual AOI boost en predict (Fase 7)
 
-- Fase 7: AOIs manuales boost en hybrid predict (D-04 segunda parte)
+- AOIs manuales en `POST /predict` (body o `stimulus.aois`)
+- Semantic grid prompt + `boostSemanticGridForManualAois` + `applyManualAoiBoost`
+- Frontend envía `liveAois` al generar heatmap
 
 ---
 
@@ -102,6 +104,7 @@ El heatmap mostrado siempre proviene de `heatmapData` del backend (TranSalNet + 
 
 - Botón "Generar heatmap" → `POST /attention-prediction/research/:id/predict/:mediaId`.
 - Requiere gate D-07 cumplido.
+- Envía `stimulus.aois[]` al backend si existen (boost híbrido en zonas manuales).
 - Resultado en `stimulus.heatmapData`, `autoPresets`, `griddedAOIs`, `processedAt`.
 - Tab Heatmap habilitado con datos reales TranSalNet.
 

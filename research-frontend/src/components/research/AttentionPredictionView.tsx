@@ -213,11 +213,18 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         }
     }, []);
 
-    const runPrediction = useCallback(async (mediaId: string) => {
+    const runPrediction = useCallback(async (mediaId: string, manualAois?: ManualAOI[]) => {
         setIsPredicting(true);
         startPredictTimer();
         try {
-            await mediaService.predictAttention(research.id, mediaId);
+            const aoiPayload = manualAois?.map(a => ({
+                label: a.label,
+                x: a.x,
+                y: a.y,
+                width: a.width,
+                height: a.height,
+            }));
+            await mediaService.predictAttention(research.id, mediaId, undefined, undefined, aoiPayload);
             queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch {
             // Error persisted on stimulus by backend; user can retry
@@ -530,7 +537,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 <span>Este estímulo tiene análisis IA pero no heatmap TranSalNet. Genera el heatmap para ver la predicción real.</span>
                                 <button
                                     type="button"
-                                    onClick={() => void runPrediction(activeStimulus.mediaId)}
+                                    onClick={() => void runPrediction(activeStimulus.mediaId, liveAois)}
                                     disabled={isPredicting}
                                     className="shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                                 >
@@ -553,7 +560,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onImportAoisDone={() => setPendingImportAois(undefined)}
                             onAddMore={() => setShowUploadModal(true)}
                             onRunAnalysis={(aois) => void runAnalysis(activeStimulus.mediaId, aois)}
-                            onRunPrediction={() => void runPrediction(activeStimulus.mediaId)}
+                            onRunPrediction={(aois) => void runPrediction(activeStimulus.mediaId, aois)}
                             isPredicting={isPredicting}
                             predictElapsed={predictElapsed}
                             predictionError={activeStimulus.predictionError}

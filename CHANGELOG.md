@@ -1,3 +1,14 @@
+## v0.78.0 — Attention Prediction: AOIs condicionan hybrid predict (2026-06-06)
+
+### backend
+- **Manual AOI boost en predict.** `POST /predict` acepta `aois` (body o `stimulus.aois`). Pipeline híbrido: prompt semántico + boost en grid + boost espacial con falloff suave + re-normalización.
+- **`parseManualAois`.** Helper compartido entre predict y analyze.
+
+### research-frontend
+- **Predict con AOIs en memoria.** `predictAttention()` envía `liveAois` al generar heatmap (mismo patrón que analyze).
+
+---
+
 ## v0.77.1 — Attention Prediction: AOIs en panel IA (2026-06-06)
 
 ### research-frontend

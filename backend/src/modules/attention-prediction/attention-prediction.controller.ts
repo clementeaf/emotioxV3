@@ -9,7 +9,7 @@ import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth.local';
 import { getRequestOrigin } from '../../utils/request';
 import { predictAttentionRaw, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
-import { analyzeAttentionWithAI, generateHybridSaliency } from './ai-analysis.service';
+import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import { predictVideoFrames } from './video-prediction.service';
 import { registerJob, broadcastProgress, removeJob } from './video-prediction-jobs';
@@ -30,6 +30,7 @@ const runPredictionAsync = async (
     imagePath: string,
     threshold: number,
     profile?: import('./ai-analysis.service').AnalysisProfile,
+    manualAois?: ManualAoiInput[],
 ): Promise<void> => {
     try {
         // Step 1: TranSalNet 3× averaged
@@ -38,7 +39,14 @@ const runPredictionAsync = async (
         // Step 2: Hybrid fusion with Gemini semantic saliency + focal equalization + jitter
         let finalMap: Float32Array;
         try {
-            finalMap = await generateHybridSaliency(imagePath, transalnetMap, width, height, profile);
+            finalMap = await generateHybridSaliency(
+                imagePath,
+                transalnetMap,
+                width,
+                height,
+                profile,
+                manualAois,
+            );
         } catch (hybridErr) {
             // Fallback to TranSalNet-only if Gemini fails
             console.warn('[Predict] Hybrid fusion failed, using TranSalNet only:', hybridErr);
@@ -243,13 +251,41 @@ export const handleAttentionPredictionRoutes = async (
             const s3Key = mediaResult.rows[0].s3_key as string;
             const imagePath = getMediaPath(s3Key);
 
+            const researchResult = await pool.query(
+                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                [researchId]
+            );
+            if (researchResult.rows.length === 0) {
+                return error('Research not found', 404, undefined, origin);
+            }
+
+            let config: Record<string, unknown> = {};
+            try {
+                const rawConfig = researchResult.rows[0].config;
+                config = typeof rawConfig === 'string' ? JSON.parse(rawConfig) : (rawConfig || {});
+            } catch {
+                config = {};
+            }
+
+            const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+            const stimulus = stimuli.find((s) => s.mediaId === mediaId);
+
             const body = event.body ? JSON.parse(event.body) : {};
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
             const profile = body.profile || undefined;
+            const manualAois = parseManualAois(body.aois ?? stimulus?.aois ?? []);
+            const manualAoisForPredict = manualAois.length > 0 ? manualAois : undefined;
 
             // Synchronous — await result and return directly
             try {
-                await runPredictionAsync(researchId, mediaId, imagePath, threshold, profile);
+                await runPredictionAsync(
+                    researchId,
+                    mediaId,
+                    imagePath,
+                    threshold,
+                    profile,
+                    manualAoisForPredict,
+                );
                 return success(
                     { status: 'complete', mediaId },
                     200,
@@ -391,19 +427,7 @@ export const handleAttentionPredictionRoutes = async (
                 : undefined;
 
             const requestBody = event.body ? JSON.parse(event.body) : {};
-            const bodyAois = Array.isArray(requestBody.aois) ? requestBody.aois : undefined;
-            const storedAois = Array.isArray(stimulus?.aois) ? stimulus.aois : undefined;
-            const rawManualAois = bodyAois ?? storedAois ?? [];
-            const manualAois = rawManualAois
-                .filter((a: unknown): a is Record<string, unknown> => typeof a === 'object' && a !== null)
-                .map((a: Record<string, unknown>) => ({
-                    label: String(a.label ?? 'Zone'),
-                    x: Number(a.x) || 0,
-                    y: Number(a.y) || 0,
-                    width: Number(a.width) || 2,
-                    height: Number(a.height) || 2,
-                }))
-                .slice(0, 20);
+            const manualAois = parseManualAois(requestBody.aois ?? stimulus?.aois ?? []);
 
             // Mark as processing
             const processingStimuli = stimuli.map((s) => {

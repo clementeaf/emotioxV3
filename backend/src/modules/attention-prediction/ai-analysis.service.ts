@@ -8,7 +8,7 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { applyFocalEqualization, applyStochasticJitter, applyScanPattern, normalizePercentile } from './attention-prediction.service';
+import { applyFocalEqualization, applyStochasticJitter, applyScanPattern, normalizePercentile, applyManualAoiBoost, boostSemanticGridForManualAois } from './attention-prediction.service';
 import OpenAI from 'openai';
 import sharp from 'sharp';
 import fs from 'fs';
@@ -181,6 +181,25 @@ When manual AOIs are provided, prefer their labels and bounding boxes for autoAo
 `;
 };
 
+/**
+ * Parses and validates manual AOI input from request body or stored stimulus.
+ * @param raw - Raw AOI array from JSON
+ * @returns Normalized manual AOIs (max 20)
+ */
+export const parseManualAois = (raw: unknown): ManualAoiInput[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .filter((a): a is Record<string, unknown> => typeof a === 'object' && a !== null)
+        .map((a) => ({
+            label: String(a.label ?? 'Zone'),
+            x: Number(a.x) || 0,
+            y: Number(a.y) || 0,
+            width: Number(a.width) || 2,
+            height: Number(a.height) || 2,
+        }))
+        .slice(0, 20);
+};
+
 const imageToBase64 = async (imagePath: string): Promise<{ base64: string; mimeType: string }> => {
     const buffer = await sharp(imagePath)
         .resize(1024, undefined, { fit: 'inside', withoutEnlargement: true })
@@ -270,11 +289,22 @@ export interface AnalysisProfile {
     description?: string; // e.g. "Mujer, 30 años, Lima, buscando yogurt light"
 }
 
-const buildSemanticGridPrompt = (profile?: AnalysisProfile): string => {
+const buildSemanticGridPrompt = (profile?: AnalysisProfile, manualAois?: ManualAoiInput[]): string => {
     const profileContext = profile ? buildProfileContext(profile) : '';
+    const manualBlock = manualAois?.length
+        ? `
+RESEARCHER-DEFINED PRIORITY ZONES — assign grid weights >= 0.7 to every cell overlapping these regions:
+${manualAois.map(
+    (a, i) =>
+        `  ${i + 1}. "${a.label}" — x=${a.x.toFixed(1)}%, y=${a.y.toFixed(1)}%, ` +
+        `width=${a.width.toFixed(1)}%, height=${a.height.toFixed(1)}%`,
+).join('\n')}
+These zones were marked by the researcher and must receive higher semantic attention than surrounding areas.
+`
+        : '';
 
     return `Analyze this image and predict human visual attention based on SEMANTIC content.
-${profileContext}
+${profileContext}${manualBlock}
 Return a JSON object with a "grid" property containing a 10x8 2D array (10 columns × 8 rows) of attention weights (0.0 to 1.0).
 Each cell represents a region of the image. 1.0 = highest semantic attention, 0.0 = no semantic interest.
 
@@ -356,13 +386,11 @@ function getSemanticBeta(profile?: AnalysisProfile): number {
     return betas[profile.context] ?? 0.35;
 }
 
-// Legacy constant for backward compat (used when no profile is provided)
-const SEMANTIC_GRID_PROMPT = buildSemanticGridPrompt();
-
 const getSemanticGridFromGemini = async (
     base64: string,
     mimeType: string,
     profile?: AnalysisProfile,
+    manualAois?: ManualAoiInput[],
 ): Promise<number[][]> => {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || '';
     const client = new GoogleGenerativeAI(apiKey);
@@ -370,7 +398,7 @@ const getSemanticGridFromGemini = async (
         model: GEMINI_MODEL,
         generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1500 },
     });
-    const prompt = profile ? buildSemanticGridPrompt(profile) : SEMANTIC_GRID_PROMPT;
+    const prompt = buildSemanticGridPrompt(profile, manualAois);
     const result = await model.generateContent([
         { inlineData: { data: base64, mimeType } },
         { text: prompt },
@@ -383,10 +411,11 @@ const getSemanticGridFromOpenAI = async (
     base64: string,
     mimeType: string,
     profile?: AnalysisProfile,
+    manualAois?: ManualAoiInput[],
 ): Promise<number[][]> => {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
     const dataUri = `data:${mimeType};base64,${base64}`;
-    const prompt = profile ? buildSemanticGridPrompt(profile) : SEMANTIC_GRID_PROMPT;
+    const prompt = buildSemanticGridPrompt(profile, manualAois);
     const response = await client.chat.completions.create({
         model: OPENAI_MODEL,
         max_tokens: 1500,
@@ -415,6 +444,7 @@ const generateSemanticGrid = async (
     mimeType: string,
     iterations = 3,
     profile?: AnalysisProfile,
+    manualAois?: ManualAoiInput[],
 ): Promise<{ grid: number[][]; rows: number; cols: number }> => {
     const GRID_ROWS = 8;
     const GRID_COLS = 10;
@@ -422,8 +452,8 @@ const generateSemanticGrid = async (
     const grids: number[][][] = [];
 
     const getGrid = hasGemini()
-        ? () => getSemanticGridFromGemini(base64, mimeType, profile)
-        : () => getSemanticGridFromOpenAI(base64, mimeType, profile);
+        ? () => getSemanticGridFromGemini(base64, mimeType, profile, manualAois)
+        : () => getSemanticGridFromOpenAI(base64, mimeType, profile, manualAois);
 
     for (let i = 0; i < iterations; i++) {
         try {
@@ -513,14 +543,16 @@ export const generateHybridSaliency = async (
     mapWidth: number,
     mapHeight: number,
     profile?: AnalysisProfile,
+    manualAois?: ManualAoiInput[],
 ): Promise<Float32Array> => {
     const beta = getSemanticBeta(profile);
     const alpha = 1.0 - beta;
 
     const { base64, mimeType } = await imageToBase64(imagePath);
 
-    console.log(`[Hybrid Saliency] Running semantic grid (3 iterations, profile: ${profile?.context || 'general'}, β=${beta})...`);
-    const { grid: semanticGrid, rows, cols } = await generateSemanticGrid(base64, mimeType, 3, profile);
+    const aoiCount = manualAois?.length ?? 0;
+    console.log(`[Hybrid Saliency] Running semantic grid (3 iterations, profile: ${profile?.context || 'general'}, β=${beta}, manual AOIs=${aoiCount})...`);
+    const { grid: semanticGrid, rows, cols } = await generateSemanticGrid(base64, mimeType, 3, profile, manualAois);
 
     // ViT-inspired bottom-up attention grid (Dahou 2023: "ViTs are inherent saliency learners")
     // Use 1 iteration with a feature-integration-theory prompt as lightweight ensemble
@@ -537,6 +569,11 @@ export const generateHybridSaliency = async (
         console.log('[Hybrid Saliency] ViT-inspired ensemble applied (70% semantic + 30% bottom-up)');
     } catch {
         grid = semanticGrid;
+    }
+
+    if (manualAois && manualAois.length > 0) {
+        grid = boostSemanticGridForManualAois(grid, rows, cols, manualAois);
+        console.log(`[Hybrid Saliency] Manual AOI grid boost applied (${manualAois.length} zones)`);
     }
 
     // Interpolate semantic grid to match TranSalNet resolution
@@ -560,8 +597,16 @@ export const generateHybridSaliency = async (
     // Step 7: Stochastic jitter — break mechanical symmetry for realistic appearance
     const jittered = applyStochasticJitter(normalized, mapWidth, mapHeight, 0.12);
 
-    console.log(`[Hybrid Saliency] Pipeline complete: fusion → equalization → scan(${profile?.context || 'none'}) → percentile norm → jitter (α=${alpha}, β=${beta})`);
-    return jittered;
+    // Step 8: Manual AOI spatial boost + re-normalize
+    const boosted = manualAois && manualAois.length > 0
+        ? applyManualAoiBoost(jittered, mapWidth, mapHeight, manualAois)
+        : jittered;
+    const finalMap = manualAois && manualAois.length > 0
+        ? normalizePercentile(boosted, 95)
+        : boosted;
+
+    console.log(`[Hybrid Saliency] Pipeline complete: fusion → equalization → scan(${profile?.context || 'none'}) → percentile norm → jitter → manual AOI boost (α=${alpha}, β=${beta})`);
+    return finalMap;
 };
 
 // ─── Public API ─────────────────────────────────────────────────────
