@@ -122,6 +122,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Attention Prediction live AOIs (v0.77.1)**: `onAoiListChange` + `liveAois` en View — panel IA y header del card comparten la misma lista en memoria al analizar.
 - **Attention Prediction manual AOI predict (v0.78.0)**: `POST /predict` recibe AOIs; hybrid saliency aplica boost semántico + espacial en zonas del investigador.
 - **Attention Prediction Precise + visor unificado (v0.79.0)**: Extracción granular NMS en backend. Visor único con capas (tabs = presets). Viewport flex + `ResizeObserver` — sin scroll por alturas `100vh` apiladas. `HeatmapRenderer` precise/smooth. `reconcileAutoAoisWithManual`. `stimulusImageCache.ts`.
+- **Attention Prediction heatmap modes (v0.80.0)**: `Classic | Spotlight | Cold` en Heatmap tab. Lab preset default. `SpotlightRenderer`, `ColdMapRenderer`, `VideoAccumulatedHeatmapOverlay`. NMS 72 pts. Spec: `docs/attention-prediction-heatmap-viz-spec.md`.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

@@ -8,7 +8,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth.local';
 import { getRequestOrigin } from '../../utils/request';
-import { predictAttentionFast, predictAttentionRaw, computeAutoPresets, computeGriddedAOIs, extractHeatmapPoints } from './attention-prediction.service';
+import { predictAttentionFast, predictAttentionRaw, computeAutoPresets, computeGriddedAOIs, extractHeatmapPoints, DEFAULT_EXTRACT_HEATMAP_OPTIONS } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import { predictVideoFrames } from './video-prediction.service';
@@ -57,6 +57,7 @@ const runPredictionAsync = async (
         const autoPresets = computeAutoPresets(finalMap);
         const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
         const heatmapData = extractHeatmapPoints(finalMap, width, height, {
+            ...DEFAULT_EXTRACT_HEATMAP_OPTIONS,
             minAbsolute: Math.max(0.4, threshold),
         });
 
@@ -163,6 +164,7 @@ const runModulePredictionAsync = async (
         const autoPresets = computeAutoPresets(finalMap);
         const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
         const heatmapData = extractHeatmapPoints(finalMap, width, height, {
+            ...DEFAULT_EXTRACT_HEATMAP_OPTIONS,
             minAbsolute: Math.max(0.4, threshold),
         });
 

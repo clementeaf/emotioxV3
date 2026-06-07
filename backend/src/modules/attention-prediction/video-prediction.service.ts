@@ -63,11 +63,12 @@ const GRID_ROWS = 4;
 function buildExtractOptions(
     threshold: number,
     maxPoints: number,
-): { minAbsolute: number; maxPoints: number; gridCols: number } {
+): { minAbsolute: number; maxPoints: number; gridCols: number; minRelative: number } {
     return {
         minAbsolute: Math.max(0.4, threshold),
         maxPoints,
         gridCols: maxPoints > 60 ? 28 : 24,
+        minRelative: 0.58,
     };
 }
 
@@ -275,7 +276,7 @@ export async function predictVideoFrames(
         finalMap,
         mapWidth,
         mapHeight,
-        buildExtractOptions(threshold, 80),
+        buildExtractOptions(threshold, 72),
     );
 
     // Build temporal grid result

@@ -31,6 +31,188 @@ export const STIMULUS_HEATMAP_MEDIA_FIT_CLASS =
 export const STIMULUS_AOI_MEDIA_FIT_CLASS =
     'block max-w-full max-h-[calc(100vh-420px)] w-auto h-auto object-contain';
 
+export type HeatmapMapMode = 'classic' | 'spotlight' | 'cold';
+
+export interface SpotlightSettings {
+    blur: number;
+    reveal: number;
+    dim: number;
+}
+
+/** Default spotlight tuning for Attention Prediction */
+export const DEFAULT_SPOTLIGHT_SETTINGS: SpotlightSettings = {
+    blur: 16,
+    reveal: 35,
+    dim: 45,
+};
+
+export interface ColdMapSettings {
+    intensity: number;
+    blur: number;
+    threshold: number;
+}
+
+/** Default cold-map tuning for Attention Prediction */
+export const DEFAULT_COLD_MAP_SETTINGS: ColdMapSettings = {
+    intensity: 55,
+    blur: 14,
+    threshold: 28,
+};
+
+/** Map modes available in the heatmap layer */
+export const ACTIVE_HEATMAP_MAP_MODES: HeatmapMapMode[] = ['classic', 'spotlight', 'cold'];
+
+/**
+ * Returns true when map mode renders a full-frame canvas overlay (video/image).
+ * @param mode - Map visualization mode
+ * @returns Whether the mode replaces the base media with a composite canvas
+ */
+export function isFullFrameMapMode(mode: HeatmapMapMode): boolean {
+    return mode === 'spotlight' || mode === 'cold';
+}
+
+/**
+ * Returns the display label for a heatmap map mode.
+ * @param mode - Map visualization mode
+ * @returns Human-readable label
+ */
+export function getHeatmapMapModeLabel(mode: HeatmapMapMode): string {
+    switch (mode) {
+        case 'classic': return 'Classic';
+        case 'spotlight': return 'Spotlight';
+        case 'cold': return 'Cold';
+    }
+}
+
+export type HeatmapVisualProfile = 'lab' | 'precise' | 'balanced' | 'smooth';
+
+/** Point count above which heatmapData is treated as pre-v0.79 dense export */
+export const LEGACY_HEATMAP_POINT_THRESHOLD = 120;
+
+/**
+ * Returns true when heatmap points likely came from legacy dense extraction.
+ * @param pointCount - Number of heatmap data points
+ * @returns Whether regeneration is recommended for fine hotspots
+ */
+export function isLegacyDenseHeatmap(pointCount: number): boolean {
+    return pointCount > LEGACY_HEATMAP_POINT_THRESHOLD;
+}
+
+/**
+ * Maps UI preset name to render profile for HeatmapRenderer.
+ * @param preset - Active detail preset label
+ * @returns Visual profile used for canvas tuning
+ */
+export function resolveHeatmapVisualProfile(preset: string): HeatmapVisualProfile {
+    if (preset === 'Lab') return 'lab';
+    if (preset === 'Smooth') return 'smooth';
+    if (preset === 'Balanced') return 'balanced';
+    return 'precise';
+}
+
+/**
+ * Returns true when preset uses precise spot rendering (Lab or Precise).
+ * @param profile - Heatmap visual profile
+ * @returns Whether precise granularity applies
+ */
+export function isPreciseHeatmapProfile(profile: HeatmapVisualProfile): boolean {
+    return profile === 'lab' || profile === 'precise';
+}
+
+/** Acceptance criterion: single hotspot footprint must not exceed 15% of frame area */
+export const MAX_HOTSPOT_FRAME_COVERAGE = 0.15;
+
+/**
+ * Returns the max simpleheat radius (px) so one spot stays within frame coverage limit.
+ * @param width - Frame width in pixels
+ * @param height - Frame height in pixels
+ * @returns Maximum hotspot radius in pixels
+ */
+export function maxHotspotRadiusPx(width: number, height: number): number {
+    const maxArea = MAX_HOTSPOT_FRAME_COVERAGE * width * height;
+    return Math.floor(Math.sqrt(maxArea / Math.PI));
+}
+
+export interface HeatmapRadiusParams {
+    width: number;
+    height: number;
+    visualProfile: HeatmapVisualProfile;
+    granularity: 'precise' | 'smooth';
+    isDense: boolean;
+    isLegacyDense: boolean;
+    radiusOverride?: number;
+}
+
+/**
+ * Resolves simpleheat spot radius for Classic mode presets.
+ * @param params - Frame size, profile, and density flags
+ * @returns Hotspot radius in pixels (capped for Lab/Precise)
+ */
+export function resolveHeatmapRadiusPx(params: HeatmapRadiusParams): number {
+    const {
+        width,
+        height,
+        visualProfile,
+        isDense,
+        isLegacyDense,
+        radiusOverride,
+    } = params;
+
+    if (radiusOverride != null) {
+        return radiusOverride;
+    }
+
+    const isRefined = isPreciseHeatmapProfile(visualProfile);
+    const minDim = Math.min(width, height);
+
+    const radiusScale = visualProfile === 'lab'
+        ? (isLegacyDense ? 0.038 : 0.032)
+        : isRefined
+            ? (isDense ? 0.05 : 0.042)
+            : isDense ? 0.12 : 0.035;
+    const radiusMin = visualProfile === 'lab' ? 10 : isRefined ? 14 : isDense ? 40 : 12;
+    let radius = Math.max(radiusMin, Math.round(minDim * radiusScale));
+
+    if (isRefined) {
+        radius = Math.min(radius, maxHotspotRadiusPx(width, height));
+    }
+
+    return radius;
+}
+
+/**
+ * Returns nominal radius scale for preset ordering QA (Smooth > Balanced > Lab).
+ * @param preset - Detail preset label
+ * @returns Relative radius scale factor
+ */
+export function getPresetRadiusScale(preset: string): number {
+    const profile = resolveHeatmapVisualProfile(preset);
+    if (profile === 'smooth') {
+        return 0.12;
+    }
+    if (profile === 'balanced') {
+        return 0.035;
+    }
+    if (profile === 'lab') {
+        return 0.032;
+    }
+    return 0.042;
+}
+
+/**
+ * Counts saliency points eligible for Spotlight reveal at a given threshold.
+ * @param points - Heatmap data points
+ * @param threshold - Saliency threshold on 0-100 scale
+ * @returns Number of reveal zones
+ */
+export function countSpotlightRevealZones(
+    points: Array<{ value?: number }>,
+    threshold: number,
+): number {
+    const minVal = threshold / 100;
+    return points.filter((point) => (point.value ?? 1) >= minVal).length;
+}
+
 export type StimulusMediaTab = 'original' | 'heatmap' | 'gaze-paths' | 'aoi-editor';
 
 /** Viewport chrome subtracted from 100vh per tab (px) */

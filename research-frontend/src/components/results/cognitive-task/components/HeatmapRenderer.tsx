@@ -3,6 +3,9 @@ import simpleheat from 'simpleheat';
 import { loadCachedStimulusImage } from '../../../../utils/stimulusImageCache';
 import {
     computeStimulusDisplaySize,
+    isPreciseHeatmapProfile,
+    resolveHeatmapRadiusPx,
+    type HeatmapVisualProfile,
     type StimulusDisplaySize,
 } from '../../../../utils/attentionPrediction.utils';
 
@@ -28,6 +31,8 @@ interface HeatmapRendererProps {
     threshold?: number;
     /** precise = discrete hotspots; smooth = legacy diffuse blobs */
     granularity?: HeatmapGranularity;
+    /** Fine-tuned render tuning (Lab / Precise / Balanced / Smooth) */
+    visualProfile?: HeatmapVisualProfile;
     /** Coordinate system of data points. When set, skips auto-detection.
      *  - 'pixel': absolute image pixel coords (e.g. 0-1920)
      *  - 'percent': percentage coords (0-100)
@@ -36,6 +41,32 @@ interface HeatmapRendererProps {
     coordSystem?: 'pixel' | 'percent' | 'normalized';
     /** When set with borderless, sizes canvas to fit container without upscaling */
     fitMaxHeightPx?: number;
+}
+
+/**
+ * Returns global dim overlay strength for a visual profile.
+ * @param profile - Heatmap visual profile
+ * @returns Multiplier applied to opacity prop for base dim layer
+ */
+function getOverlayDimFactor(profile: HeatmapVisualProfile): number {
+    switch (profile) {
+        case 'lab': return 0.08;
+        case 'precise': return 0.15;
+        case 'balanced': return 0.28;
+        case 'smooth': return 0.35;
+    }
+}
+
+/**
+ * Returns simpleheat color stops for refined (non-green) rendering.
+ * @param profile - Lab or precise profile
+ * @returns Gradient stop map for simpleheat
+ */
+function getRefinedGradient(profile: HeatmapVisualProfile): Record<number, string> {
+    if (profile === 'lab') {
+        return { 0.55: '#ff0', 0.75: '#f80', 0.9: '#f00', 1.0: '#c00' };
+    }
+    return { 0.52: '#ff0', 0.72: '#f80', 0.88: '#f00', 1.0: '#f00' };
 }
 
 export const HeatmapRenderer = ({
@@ -49,6 +80,7 @@ export const HeatmapRenderer = ({
     opacity: opacityProp,
     threshold: thresholdProp,
     granularity = 'precise',
+    visualProfile = 'precise',
     coordSystem,
     fitMaxHeightPx,
 }: HeatmapRendererProps) => {
@@ -96,7 +128,8 @@ export const HeatmapRenderer = ({
 
         ctx.drawImage(img, 0, 0);
 
-        const overlayOpacity = opacityProp != null ? (opacityProp / 100) * 0.35 : 0.15;
+        const dimFactor = getOverlayDimFactor(visualProfile);
+        const overlayOpacity = opacityProp != null ? (opacityProp / 100) * dimFactor : dimFactor * 0.5;
         ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
         ctx.fillRect(0, 0, w, h);
 
@@ -111,31 +144,39 @@ export const HeatmapRenderer = ({
 
         const heat = simpleheat(heatCanvas);
         const isPrecise = granularity === 'precise';
+        const isRefinedProfile = isPreciseHeatmapProfile(visualProfile);
         const isDenseSaliency = data.length > 100 && data.some(p => p.value != null && p.value < 1);
+        const isLegacyDense = data.length > 120;
 
-        const minDim = Math.min(w, h);
-        const r = radiusProp ?? (isPrecise
-            ? Math.max(14, Math.round(minDim * (isDenseSaliency ? 0.05 : 0.042)))
-            : isDenseSaliency
-                ? Math.max(40, Math.round(minDim * 0.12))
-                : Math.max(12, Math.round(minDim * 0.035)));
+        const r = radiusProp ?? resolveHeatmapRadiusPx({
+            width: w,
+            height: h,
+            visualProfile,
+            granularity,
+            isDense: isDenseSaliency,
+            isLegacyDense,
+        });
 
         const blurFraction = blurProp != null
             ? (isPrecise
                 ? Math.min(0.45, Math.max(0.2, blurProp / 24))
                 : Math.max(isDenseSaliency ? 0.5 : 0.3, blurProp / 20))
-            : (isPrecise ? 0.35 : (isDenseSaliency ? 1.2 : 0.8));
+            : (isPrecise ? (visualProfile === 'lab' ? 0.28 : 0.35) : (isDenseSaliency ? 1.2 : 0.8));
         const b = Math.round(r * blurFraction);
         heat.radius(r, b);
 
-        heat.gradient({
-            0.15: '#0f0',
-            0.35: '#8f0',
-            0.5: '#ff0',
-            0.7: '#f80',
-            0.85: '#f00',
-            1.0: '#f00',
-        });
+        if (isRefinedProfile) {
+            heat.gradient(getRefinedGradient(visualProfile));
+        } else {
+            heat.gradient({
+                0.15: '#0f0',
+                0.35: '#8f0',
+                0.5: '#ff0',
+                0.7: '#f80',
+                0.85: '#f00',
+                1.0: '#f00',
+            });
+        }
 
         const toPixel = (point: HeatmapPoint): [number, number, number] => {
             let x = point.x;
@@ -173,8 +214,10 @@ export const HeatmapRenderer = ({
                 }
             }
 
-            const cellThreshold = isPrecise
-                ? (thresholdProp != null ? thresholdProp / 100 : 0.52)
+            const cellThreshold = isRefinedProfile
+                ? (thresholdProp != null
+                    ? Math.max(thresholdProp / 100, isLegacyDense ? 0.58 : 0.52)
+                    : (isLegacyDense ? 0.58 : 0.52))
                 : (thresholdProp != null ? thresholdProp / 100 : 0.4);
             points = [];
             for (const cell of grid.values()) {
@@ -187,21 +230,27 @@ export const HeatmapRenderer = ({
 
         heat.data(points);
         heat.max(isPrecise
-            ? Math.max(2, Math.ceil(points.length * 0.08))
+            ? Math.max(2, Math.ceil(points.length * (visualProfile === 'lab' ? 0.06 : 0.08)))
             : isDenseSaliency
                 ? Math.max(1, points.length * 0.04)
                 : Math.max(3, Math.ceil(points.length * 0.05)));
-        const minOpacity = isPrecise
-            ? (thresholdProp != null ? thresholdProp / 100 : 0.12)
+        const minOpacity = isRefinedProfile
+            ? (thresholdProp != null
+                ? Math.max(thresholdProp / 100, visualProfile === 'lab' ? 0.22 : 0.12)
+                : (visualProfile === 'lab' ? 0.22 : 0.12))
             : isDenseSaliency ? 0.03 : (thresholdProp != null ? thresholdProp / 100 : 0.05);
         heat.draw(minOpacity);
 
-        const heatAlpha = opacityProp != null ? 0.45 + (opacityProp / 100) * 0.45 : 0.65;
+        const heatAlphaBase = visualProfile === 'lab' ? 0.32 : isRefinedProfile ? 0.38 : 0.45;
+        const heatAlphaSpan = visualProfile === 'lab' ? 0.38 : isRefinedProfile ? 0.42 : 0.45;
+        const heatAlpha = opacityProp != null
+            ? heatAlphaBase + (opacityProp / 100) * heatAlphaSpan
+            : heatAlphaBase + heatAlphaSpan * 0.5;
         ctx.globalAlpha = heatAlpha;
         ctx.drawImage(heatCanvas, 0, 0);
         ctx.globalAlpha = 1;
 
-    }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp, coordSystem, granularity]);
+    }, [imageLoaded, naturalSize, data, imageUrl, radiusProp, blurProp, opacityProp, thresholdProp, coordSystem, granularity, visualProfile]);
 
     useEffect(() => {
         if (!borderless || !fitMaxHeightPx || naturalSize.width <= 0) {

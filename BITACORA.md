@@ -5,9 +5,15 @@
 
 ---
 
-## Última actualización: 2026-06-07 (sesión 47)
+## Última actualización: 2026-06-07 (sesión 48)
 
 ---
+
+## Sesión 48: 7 de junio de 2026 — Modos Classic / Spotlight / Cold (v0.80)
+
+- **Backend.** NMS más estricto (72 puntos máx.) en predict imagen y video.
+- **Frontend.** Tres modos de mapa conmutables; preset Lab default en Classic. Fix del selector (estado + capa Heatmap).
+- **Deploy.** research-frontend + backend en cPanel.
 
 ## Sesión 47: 7 de junio de 2026 — Precise heatmaps + visor sin scroll (v0.79)
 

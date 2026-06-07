@@ -678,6 +678,7 @@ export const predictAttention = async (
 
     // Convert to heatmap data points
     const points = extractHeatmapPoints(final_, MODEL_WIDTH, MODEL_HEIGHT, {
+        ...DEFAULT_EXTRACT_HEATMAP_OPTIONS,
         minAbsolute: Math.max(0.4, threshold),
     });
     return { points, autoPresets, griddedAOIs };
@@ -800,17 +801,29 @@ export const computeAutoPresets = (data: Float32Array): {
 };
 
 export interface ExtractHeatmapPointsOptions {
-    /** Minimum saliency relative to map peak (0-1). Default 0.55 */
+    /** Minimum saliency relative to map peak (0-1). Default 0.58 */
     minRelative?: number;
     /** Absolute floor on normalized map (0-1). Default 0.42 */
     minAbsolute?: number;
     /** Grid columns for peak clustering. Default 24 */
     gridCols?: number;
-    /** Max hotspot centroids to export. Default 80 */
+    /** Max hotspot centroids to export. Default 72 */
     maxPoints?: number;
     /** NMS distance in grid cells. Default 2 */
     nmsCells?: number;
 }
+
+/** Default extraction tuning for granular hotspot export (v0.79.1+) */
+export const DEFAULT_EXTRACT_HEATMAP_OPTIONS: Required<Pick<
+    ExtractHeatmapPointsOptions,
+    'minRelative' | 'minAbsolute' | 'maxPoints' | 'nmsCells' | 'gridCols'
+>> = {
+    minRelative: 0.58,
+    minAbsolute: 0.42,
+    maxPoints: 72,
+    nmsCells: 2,
+    gridCols: 24,
+};
 
 /**
  * Exports saliency map as discrete hotspot centroids for granular heatmap rendering.
@@ -827,11 +840,11 @@ export const extractHeatmapPoints = (
     h: number,
     options: ExtractHeatmapPointsOptions = {},
 ): Array<{ x: number; y: number; value: number }> => {
-    const minRelative = options.minRelative ?? 0.55;
-    const minAbsolute = options.minAbsolute ?? 0.42;
-    const gridCols = options.gridCols ?? 24;
-    const maxPoints = options.maxPoints ?? 80;
-    const nmsCells = options.nmsCells ?? 2;
+    const minRelative = options.minRelative ?? DEFAULT_EXTRACT_HEATMAP_OPTIONS.minRelative;
+    const minAbsolute = options.minAbsolute ?? DEFAULT_EXTRACT_HEATMAP_OPTIONS.minAbsolute;
+    const gridCols = options.gridCols ?? DEFAULT_EXTRACT_HEATMAP_OPTIONS.gridCols;
+    const maxPoints = options.maxPoints ?? DEFAULT_EXTRACT_HEATMAP_OPTIONS.maxPoints;
+    const nmsCells = options.nmsCells ?? DEFAULT_EXTRACT_HEATMAP_OPTIONS.nmsCells;
 
     let peak = 0;
     for (let i = 0; i < map.length; i++) {

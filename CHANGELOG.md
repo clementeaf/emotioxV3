@@ -1,3 +1,26 @@
+## v0.80.0 — Attention Prediction: Classic, Spotlight y Cold (2026-06-07)
+
+### backend
+- **NMS más estricto.** `minRelative` 0.58, `maxPoints` 72 — hotspots más finos en imagen, video por frame y acumulado.
+
+### research-frontend
+- **Modos de mapa.** Selector `Classic | Spotlight | Cold` en pestaña Heatmap (imagen y video). Classic = overlay térmico; Spotlight = frame difuminado con revelado nítido en zonas de atención; Cold = peso invertido, paleta fría.
+- **Preset Lab.** Default en Classic (junto a Precise/Balanced/Smooth). Gradiente sin verde en valores bajos; radio máx. 15% del frame.
+- **Renderers.** `SpotlightRenderer`, `ColdMapRenderer`, `VideoAccumulatedHeatmapOverlay` para video sin frames individuales.
+- **HeatmapRenderer.** Perfil visual `lab | precise | balanced | smooth`; overlay más suave.
+- **Legacy banner.** Aviso + regenerar si `heatmapData.length > 120`.
+- **Fix selector.** Estado activo usa `mapMode`; capa Heatmap se activa al cambiar modo; Spotlight/Cold deshabilitados en AOI Editor.
+
+### docs
+- **`docs/attention-prediction-heatmap-viz-spec.md`.** Spec LOCKED (modos, video, presets).
+- **`docs/attention-prediction-heatmap-viz-QA.md`.** Checklist QA.
+- **Referencias visuales.** `docs/image.png`–`image4.png`.
+
+### tests
+- **`attentionPrediction.heatmapQa.test.ts`.** Radio cap, presets, modos full-frame.
+
+---
+
 ## v0.79.0 — Attention Prediction: heatmaps Precise + visor unificado (2026-06-07)
 
 ### backend
