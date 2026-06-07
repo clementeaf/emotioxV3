@@ -5,9 +5,15 @@
 
 ---
 
-## Última actualización: 2026-06-06 (sesión 46)
+## Última actualización: 2026-06-07 (sesión 47)
 
 ---
+
+## Sesión 47: 7 de junio de 2026 — Precise heatmaps + visor sin scroll (v0.79)
+
+- **Backend.** Extracción de puntos granular (NMS), preset Precise, hybrid saliency más selectivo. Video alineado.
+- **Frontend.** Visor unificado con capas; layout flex mide viewport real (sin scroll por `100vh` + chrome). Canvas con sizing explícito vía `computeStimulusDisplaySize`.
+- **Deploy.** research-frontend + backend en cPanel (`index-Dyb9qEAK.js`).
 
 ## Sesión 46: 6 de junio de 2026 — Fase 7: AOIs en hybrid predict (v0.78)
 

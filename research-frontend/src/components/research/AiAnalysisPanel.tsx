@@ -5,7 +5,7 @@
  * neuro-insights, and methodology.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
     Sparkles,
     ChevronDown,
@@ -20,6 +20,8 @@ import {
     BookOpen,
 } from 'lucide-react';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
+import type { ManualAOI } from '../../types/attentionPrediction.types';
+import { reconcileAutoAoisWithManual } from '../../utils/attentionPrediction.utils';
 
 interface AiAnalysisPanelProps {
     analysis: AiAnalysisResult | null;
@@ -28,6 +30,7 @@ interface AiAnalysisPanelProps {
     onImportAois: (aois: AiAnalysisResult['autoAois']) => void;
     hasHeatmap: boolean;
     hasAois?: boolean;
+    manualAois?: ManualAOI[];
 }
 
 // ─── Attention Score Gauge ──────────────────────────────────────────
@@ -150,17 +153,25 @@ export const AiAnalysisPanel = ({
     onImportAois,
     hasHeatmap,
     hasAois = false,
+    manualAois = [],
 }: AiAnalysisPanelProps) => {
     const [importedLabels, setImportedLabels] = useState<Set<string>>(new Set());
 
+    const displayAutoAois = useMemo(
+        () => reconcileAutoAoisWithManual(manualAois, analysis?.autoAois ?? []),
+        [manualAois, analysis?.autoAois],
+    );
+
+    const hiddenAutoAoiCount = (analysis?.autoAois.length ?? 0) - displayAutoAois.length;
+
     const handleImportAll = useCallback(() => {
         if (!analysis) return;
-        const newAois = analysis.autoAois.filter((a) => !importedLabels.has(a.label));
+        const newAois = displayAutoAois.filter((a) => !importedLabels.has(a.label));
         if (newAois.length > 0) {
             onImportAois(newAois);
-            setImportedLabels(new Set(analysis.autoAois.map((a) => a.label)));
+            setImportedLabels(new Set(displayAutoAois.map((a) => a.label)));
         }
-    }, [analysis, importedLabels, onImportAois]);
+    }, [analysis, displayAutoAois, importedLabels, onImportAois]);
 
     const handleImportOne = useCallback(
         (aoi: AiAnalysisResult['autoAois'][0]) => {
@@ -264,9 +275,16 @@ export const AiAnalysisPanel = ({
                 </div>
 
                 {/* Auto-detected AOIs */}
-                <Section title={`Areas of Interest (${analysis.autoAois.length})`} icon={<Eye className="h-4 w-4" />}>
+                <Section title={`Areas of Interest (${displayAutoAois.length})`} icon={<Eye className="h-4 w-4" />}>
+                    {hiddenAutoAoiCount > 0 && (
+                        <p className="mt-2 text-xs text-slate-500">
+                            {hiddenAutoAoiCount}{' '}
+                            {hiddenAutoAoiCount === 1 ? 'zona IA oculta' : 'zonas IA ocultas'} por conflicto
+                            con tus zonas manuales.
+                        </p>
+                    )}
                     <div className="mt-3 space-y-2">
-                        {analysis.autoAois.map((aoi, i) => (
+                        {displayAutoAois.map((aoi, i) => (
                             <div key={i} className="flex items-center gap-3 py-2 px-3 bg-slate-50 rounded-lg">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
@@ -285,7 +303,7 @@ export const AiAnalysisPanel = ({
                             </div>
                         ))}
                     </div>
-                    {analysis.autoAois.length > 0 && (
+                    {displayAutoAois.length > 0 && (
                         <button
                             onClick={handleImportAll}
                             className="mt-3 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"

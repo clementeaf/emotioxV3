@@ -13,6 +13,7 @@ import { extractVideoFrames } from '../../utils/extractVideoFrames';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 import type { ManualAOI } from '../../types/attentionPrediction.types';
 import { isNewAttentionStimulus } from '../../utils/attentionPrediction.utils';
+import { cn } from '../../lib/utils';
 import {
     CRITERIA_PRESETS_KEY,
     DEFAULT_ATTENTION_CRITERIA,
@@ -407,7 +408,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     return (
         <div className="flex h-full overflow-hidden">
             {/* Left: main content area (scrollable) */}
-            <div className="flex-1 min-w-0 p-6 space-y-4 overflow-y-auto">
+            <div className={cn(
+                'flex h-full min-h-0 flex-1 flex-col p-6',
+                activeStimulus ? 'overflow-hidden' : 'overflow-y-auto',
+            )}>
                 {/* Analysis Prompt Drawer */}
                 <Drawer
                     isOpen={isPromptOpen}
@@ -530,22 +534,23 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                     </div>
                 </Drawer>
 
-                {activeStimulus && (
-                    <>
+                {activeStimulus ? (
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         {needsHeatmapRegeneration && (
-                            <div className="mb-4 px-4 py-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3">
+                            <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                 <span>Este estímulo tiene análisis IA pero no heatmap TranSalNet. Genera el heatmap para ver la predicción real.</span>
                                 <button
                                     type="button"
                                     onClick={() => void runPrediction(activeStimulus.mediaId, liveAois)}
                                     disabled={isPredicting}
-                                    className="shrink-0 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                                    className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                                 >
                                     Regenerar heatmap
                                 </button>
                             </div>
                         )}
                         <AttentionPredictionCard
+                            className="min-h-0 flex-1"
                             imageUrl={activeStimulus.url}
                             title={activeStimulus.name}
                             heatmapData={activeStimulus.heatmapData}
@@ -595,11 +600,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             }
                         />
 
-                    </>
-                )}
-
-                {/* Upload — inline only when no stimulus exists */}
-                {!activeStimulus && (
+                    </div>
+                ) : (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-1">Stimulus Images</h2>
                         <p className="text-sm text-gray-500 mb-4">
@@ -686,6 +688,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 onImportAois={(aois) => setPendingImportAois(aois)}
                                 hasHeatmap={Boolean(activeStimulus?.heatmapData?.length)}
                                 hasAois={Boolean(liveAois.length || activeStimulus?.aoiSkipped)}
+                                manualAois={liveAois}
                             />
                         </div>
                     )}

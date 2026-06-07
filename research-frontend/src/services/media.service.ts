@@ -160,8 +160,8 @@ class MediaService {
     }
 
     /**
-     * Runs attention prediction on a stimulus image (synchronous — awaits result).
-     * Backend runs TranSalNet + hybrid fusion and saves heatmapData to research config.
+     * Runs attention prediction on a stimulus image (fire-and-forget + polling).
+     * Backend runs TranSalNet + hybrid fusion in background to avoid proxy timeout.
      * @param manualAois - Optional researcher-defined AOIs to boost hybrid saliency
      */
     async predictAttention(
@@ -176,10 +176,30 @@ class MediaService {
             if (threshold != null) body.threshold = threshold;
             if (profile) body.profile = profile;
             if (manualAois && manualAois.length > 0) body.aois = manualAois;
-            return await apiClient.post<{ status: string; mediaId: string }>(
+
+            await apiClient.post<{ status: string; mediaId: string }>(
                 `/attention-prediction/research/${researchId}/predict/${mediaId}`,
                 Object.keys(body).length > 0 ? body : undefined,
             );
+
+            const maxAttempts = 15;
+            const pollIntervalMs = 10_000;
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+                const result = await apiClient.get<{
+                    status: string;
+                    processedAt?: string | null;
+                    error?: string;
+                }>(`/attention-prediction/research/${researchId}/predict/${mediaId}/status`);
+
+                if (result.status === 'complete') {
+                    return { status: 'complete', mediaId };
+                }
+                if (result.status === 'error') {
+                    throw new Error(typeof result.error === 'string' ? result.error : 'Prediction failed');
+                }
+            }
+            throw new Error('Prediction timed out');
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to run attention prediction');
         }

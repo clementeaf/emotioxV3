@@ -64,18 +64,25 @@ const getSession = async (): Promise<ort.InferenceSession> => {
 
 /**
  * Preprocesses a sharp instance for the model.
- * Resizes to 384x288, normalizes with ImageNet mean/std, converts to CHW float32.
+ * Flattens the pipeline via buffer to guarantee exact MODEL_WIDTH x MODEL_HEIGHT output.
  */
 const preprocessSharp = async (img: sharp.Sharp): Promise<ort.Tensor> => {
-    const { data, info } = await img
+    const flattened = await img.toBuffer();
+    const { data, info } = await sharp(flattened)
         .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
 
     const { width, height, channels } = info;
-    const pixelCount = width * height;
+    if (width !== MODEL_WIDTH || height !== MODEL_HEIGHT || channels !== 3) {
+        throw new Error(
+            `Preprocess size mismatch: got ${width}x${height}x${channels}, ` +
+            `expected ${MODEL_WIDTH}x${MODEL_HEIGHT}x3`,
+        );
+    }
 
+    const pixelCount = MODEL_WIDTH * MODEL_HEIGHT;
     const float32Data = new Float32Array(channels * pixelCount);
     for (let i = 0; i < pixelCount; i++) {
         for (let c = 0; c < channels; c++) {
@@ -96,19 +103,13 @@ const preprocessImage = async (imagePath: string): Promise<ort.Tensor> => {
 
 /**
  * Generates 3 augmented versions of an image for averaging.
- * Returns sharp instances: [original, h-flip, center crop 90%]
+ * Returns sharp instances: [original, h-flip, brightness boost]
  */
 const generateAugmentations = (imagePath: string): sharp.Sharp[] => {
-    const cropMargin = Math.round(MODEL_WIDTH * 0.05);
-    const cropW = MODEL_WIDTH - cropMargin * 2;
-    const cropH = MODEL_HEIGHT - Math.round(MODEL_HEIGHT * 0.05) * 2;
-
     return [
-        sharp(imagePath),                                          // original
-        sharp(imagePath).flop(),                                   // horizontal flip
-        sharp(imagePath)                                           // center crop 90%
-            .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
-            .extract({ left: cropMargin, top: Math.round(MODEL_HEIGHT * 0.05), width: cropW, height: cropH }),
+        sharp(imagePath),
+        sharp(imagePath).flop(),
+        sharp(imagePath).modulate({ brightness: 1.08 }),
     ];
 };
 
@@ -676,7 +677,9 @@ export const predictAttention = async (
     const griddedAOIs = computeGriddedAOIs(final_, MODEL_WIDTH, MODEL_HEIGHT);
 
     // Convert to heatmap data points
-    const points = saliencyMapToPoints(final_, threshold);
+    const points = extractHeatmapPoints(final_, MODEL_WIDTH, MODEL_HEIGHT, {
+        minAbsolute: Math.max(0.4, threshold),
+    });
     return { points, autoPresets, griddedAOIs };
 };
 
@@ -756,13 +759,15 @@ export const computeAutoPresets = (data: Float32Array): {
     blur: number;
     opacity: number;
     threshold: number;
-    concentration: number;  // 0-1 how concentrated the attention is
-    coverage: number;       // 0-1 what fraction of the image has attention
+    concentration: number;
+    coverage: number;
+    mode: 'precise' | 'smooth';
 } => {
     const len = data.length;
-    if (len === 0) return { blur: 15, opacity: 72, threshold: 40, concentration: 0.5, coverage: 0.5 };
+    if (len === 0) {
+        return { blur: 8, opacity: 55, threshold: 58, concentration: 0.5, coverage: 0.5, mode: 'precise' };
+    }
 
-    // Compute statistics
     let sum = 0, sumSq = 0;
     let above30 = 0, above60 = 0;
     for (let i = 0; i < len; i++) {
@@ -776,28 +781,131 @@ export const computeAutoPresets = (data: Float32Array): {
     const variance = sumSq / len - mean * mean;
     const std = Math.sqrt(Math.max(0, variance));
 
-    // Coverage: fraction of pixels with meaningful saliency (>0.3)
     const coverage = above30 / len;
-
-    // Concentration: ratio of high saliency to medium saliency (peaky vs diffuse)
     const concentration = above30 > 0 ? above60 / above30 : 0;
 
-    // Auto-presets based on distribution:
-    // - High concentration (peaky) → more blur, lower threshold (spread it out)
-    // - Low concentration (diffuse) → less blur, higher threshold (sharpen)
-    // - High coverage → higher opacity to see the page beneath
-    // - Low coverage → lower opacity for stronger overlay
-    const blur = Math.round(10 + concentration * 15 + std * 10);     // 10-35
-    const opacity = Math.round(55 + coverage * 30);                   // 55-85
-    const threshold = Math.round(25 + (1 - concentration) * 25);     // 25-50
+    // Precise presets: smaller blur, higher UI threshold — separate hotspots, cold zones stay cold
+    const blur = Math.round(5 + coverage * 6 + std * 4);
+    const opacity = Math.round(52 + coverage * 18);
+    const threshold = Math.round(52 + (1 - concentration) * 12 + coverage * 8);
 
     return {
-        blur: Math.max(5, Math.min(40, blur)),
-        opacity: Math.max(40, Math.min(90, opacity)),
-        threshold: Math.max(15, Math.min(60, threshold)),
+        blur: Math.max(4, Math.min(14, blur)),
+        opacity: Math.max(48, Math.min(72, opacity)),
+        threshold: Math.max(50, Math.min(68, threshold)),
         concentration,
         coverage,
+        mode: 'precise',
     };
+};
+
+export interface ExtractHeatmapPointsOptions {
+    /** Minimum saliency relative to map peak (0-1). Default 0.55 */
+    minRelative?: number;
+    /** Absolute floor on normalized map (0-1). Default 0.42 */
+    minAbsolute?: number;
+    /** Grid columns for peak clustering. Default 24 */
+    gridCols?: number;
+    /** Max hotspot centroids to export. Default 80 */
+    maxPoints?: number;
+    /** NMS distance in grid cells. Default 2 */
+    nmsCells?: number;
+}
+
+/**
+ * Exports saliency map as discrete hotspot centroids for granular heatmap rendering.
+ * Uses grid peak detection + NMS instead of dense threshold subsampling.
+ * @param map - Normalized saliency map (w × h)
+ * @param w - Map width
+ * @param h - Map height
+ * @param options - Extraction tuning
+ * @returns Percentage-coordinate heatmap points with saliency values
+ */
+export const extractHeatmapPoints = (
+    map: Float32Array,
+    w: number,
+    h: number,
+    options: ExtractHeatmapPointsOptions = {},
+): Array<{ x: number; y: number; value: number }> => {
+    const minRelative = options.minRelative ?? 0.55;
+    const minAbsolute = options.minAbsolute ?? 0.42;
+    const gridCols = options.gridCols ?? 24;
+    const maxPoints = options.maxPoints ?? 80;
+    const nmsCells = options.nmsCells ?? 2;
+
+    let peak = 0;
+    for (let i = 0; i < map.length; i++) {
+        if (map[i] > peak) peak = map[i];
+    }
+    if (peak <= 0) return [];
+
+    const cutAbsolute = Math.max(minAbsolute, peak * minRelative);
+    const gridRows = Math.max(1, Math.round(gridCols * (h / w)));
+    const cellW = w / gridCols;
+    const cellH = h / gridRows;
+
+    interface PeakCell {
+        col: number;
+        row: number;
+        cx: number;
+        cy: number;
+        maxVal: number;
+    }
+
+    const cells: PeakCell[] = [];
+
+    for (let gr = 0; gr < gridRows; gr++) {
+        for (let gc = 0; gc < gridCols; gc++) {
+            const startCol = Math.floor(gc * cellW);
+            const endCol = Math.min(w, Math.floor((gc + 1) * cellW));
+            const startRow = Math.floor(gr * cellH);
+            const endRow = Math.min(h, Math.floor((gr + 1) * cellH));
+
+            let maxVal = 0;
+            let sumX = 0;
+            let sumY = 0;
+            let sumV = 0;
+
+            for (let row = startRow; row < endRow; row++) {
+                for (let col = startCol; col < endCol; col++) {
+                    const v = map[row * w + col];
+                    if (v > maxVal) maxVal = v;
+                    if (v >= cutAbsolute * 0.92) {
+                        sumX += col * v;
+                        sumY += row * v;
+                        sumV += v;
+                    }
+                }
+            }
+
+            if (maxVal >= cutAbsolute && sumV > 0) {
+                cells.push({
+                    col: gc,
+                    row: gr,
+                    cx: (sumX / sumV / w) * 100,
+                    cy: (sumY / sumV / h) * 100,
+                    maxVal,
+                });
+            }
+        }
+    }
+
+    cells.sort((a, b) => b.maxVal - a.maxVal);
+
+    const selected: PeakCell[] = [];
+    for (const cell of cells) {
+        if (selected.length >= maxPoints) break;
+        const tooClose = selected.some(s =>
+            Math.abs(s.col - cell.col) <= nmsCells && Math.abs(s.row - cell.row) <= nmsCells,
+        );
+        if (!tooClose) selected.push(cell);
+    }
+
+    return selected.map(c => ({
+        x: c.cx,
+        y: c.cy,
+        value: c.maxVal,
+    }));
 };
 
 /**
@@ -905,31 +1013,6 @@ export const computeGriddedAOIs = (
     aois.forEach((aoi, i) => { aoi.rank = i + 1; });
 
     return aois;
-};
-
-const saliencyMapToPoints = (
-    data: Float32Array,
-    threshold: number
-): Array<{ x: number; y: number; value: number }> => {
-    const points: Array<{ x: number; y: number; value: number }> = [];
-    const h = MODEL_HEIGHT;
-    const w = MODEL_WIDTH;
-
-    const step = 3;
-    for (let row = 0; row < h; row += step) {
-        for (let col = 0; col < w; col += step) {
-            const value = data[row * w + col];
-            if (value >= threshold) {
-                points.push({
-                    x: (col / w) * 100,
-                    y: (row / h) * 100,
-                    value,
-                });
-            }
-        }
-    }
-
-    return points;
 };
 
 /**

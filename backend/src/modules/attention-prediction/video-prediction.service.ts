@@ -7,7 +7,7 @@
  * Peak memory: ~1.3MB regardless of frame count.
  */
 
-import { predictAttentionFast, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
+import { predictAttentionFast, computeAutoPresets, computeGriddedAOIs, extractHeatmapPoints } from './attention-prediction.service';
 import { generateHybridSaliency, type AnalysisProfile } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import type { VideoJobEvent } from './video-prediction-jobs';
@@ -49,37 +49,26 @@ export type ProgressCallback = (event: VideoJobEvent) => void;
 // ─── Constants ───────────────────────────────────────────────────────
 
 const MAX_FRAMES = 120;
-const FRAME_STEP = 4;       // coarser step for per-frame heatmaps (reduce JSON size)
-const ACCUMULATED_STEP = 3;  // finer step for accumulated heatmap (max quality)
 const GRID_COLS = 4;
 const GRID_ROWS = 4;
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 /**
- * Extract heatmap points from a saliency map with configurable step size.
+ * Resolves peak extraction options from API threshold (legacy 0-1 float).
+ * @param threshold - Minimum saliency on normalized map
+ * @param maxPoints - Cap on exported hotspots
+ * @returns Options for extractHeatmapPoints
  */
-function extractPoints(
-    map: Float32Array,
-    w: number,
-    h: number,
-    step: number,
+function buildExtractOptions(
     threshold: number,
-): Array<{ x: number; y: number; value: number }> {
-    const points: Array<{ x: number; y: number; value: number }> = [];
-    for (let row = 0; row < h; row += step) {
-        for (let col = 0; col < w; col += step) {
-            const value = map[row * w + col];
-            if (value >= threshold) {
-                points.push({
-                    x: (col / w) * 100,
-                    y: (row / h) * 100,
-                    value,
-                });
-            }
-        }
-    }
-    return points;
+    maxPoints: number,
+): { minAbsolute: number; maxPoints: number; gridCols: number } {
+    return {
+        minAbsolute: Math.max(0.4, threshold),
+        maxPoints,
+        gridCols: maxPoints > 60 ? 28 : 24,
+    };
 }
 
 /**
@@ -172,7 +161,12 @@ export async function predictVideoFrames(
             }
 
             // Extract per-frame heatmap points (coarser step)
-            const heatmapData = extractPoints(map, width, height, FRAME_STEP, threshold);
+            const heatmapData = extractHeatmapPoints(
+                map,
+                width,
+                height,
+                buildExtractOptions(threshold, 48),
+            );
             frameResults.push({
                 mediaId: frame.mediaId,
                 timestamp: frame.timestamp,
@@ -277,7 +271,12 @@ export async function predictVideoFrames(
 
     const autoPresets = computeAutoPresets(finalMap);
     const griddedAOIs = computeGriddedAOIs(finalMap, mapWidth, mapHeight);
-    const accumulatedHeatmapData = extractPoints(finalMap, mapWidth, mapHeight, ACCUMULATED_STEP, threshold);
+    const accumulatedHeatmapData = extractHeatmapPoints(
+        finalMap,
+        mapWidth,
+        mapHeight,
+        buildExtractOptions(threshold, 80),
+    );
 
     // Build temporal grid result
     const temporalGrid: TemporalGridCell[] = [];

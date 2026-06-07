@@ -1,3 +1,19 @@
+## v0.79.0 — Attention Prediction: heatmaps Precise + visor unificado (2026-06-07)
+
+### backend
+- **Extracción granular.** Picos locales + NMS (~80 puntos) reemplazan exportación densa. Preset Precise por defecto (blur/threshold ajustados).
+- **Hybrid saliency.** Percentil 88, jitter 0.08. Misma lógica en video (frames + acumulado).
+- **Predict async.** Polling de estado cuando el endpoint responde 202.
+
+### research-frontend
+- **Visor unificado.** Un solo viewport con capas conmutables (Heatmap, Zonas IA, Zonas manuales, Rutas). Tabs = presets de capas.
+- **Preset Precise/Balanced/Smooth.** `HeatmapRenderer` con modo `precise` | `smooth`; radios más pequeños en precise.
+- **Layout sin scroll.** Viewport flex + `ResizeObserver`; imagen/canvas escalan al espacio disponible (`computeStimulusDisplaySize`), sin `calc(100vh)` acumulado.
+- **AutoAois vs manuales.** `reconcileAutoAoisWithManual` oculta/corrige zonas IA conflictivas.
+- **Caché de imagen.** `stimulusImageCache.ts` compartido entre tabs y heatmap.
+
+---
+
 ## v0.78.0 — Attention Prediction: AOIs condicionan hybrid predict (2026-06-06)
 
 ### backend

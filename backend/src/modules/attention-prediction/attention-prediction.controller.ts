@@ -8,7 +8,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth.local';
 import { getRequestOrigin } from '../../utils/request';
-import { predictAttentionRaw, computeAutoPresets, computeGriddedAOIs } from './attention-prediction.service';
+import { predictAttentionFast, predictAttentionRaw, computeAutoPresets, computeGriddedAOIs, extractHeatmapPoints } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import { predictVideoFrames } from './video-prediction.service';
@@ -33,8 +33,8 @@ const runPredictionAsync = async (
     manualAois?: ManualAoiInput[],
 ): Promise<void> => {
     try {
-        // Step 1: TranSalNet 3× averaged
-        const { map: transalnetMap, width, height } = await predictAttentionRaw(imagePath);
+        // Step 1: TranSalNet single-pass (TTA too slow for shared hosting timeouts)
+        const { map: transalnetMap, width, height } = await predictAttentionFast(imagePath);
 
         // Step 2: Hybrid fusion with Gemini semantic saliency + focal equalization + jitter
         let finalMap: Float32Array;
@@ -56,16 +56,9 @@ const runPredictionAsync = async (
         // Step 3: Extract points + auto-presets + gridded AOIs
         const autoPresets = computeAutoPresets(finalMap);
         const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
-        const heatmapData: Array<{ x: number; y: number; value: number }> = [];
-        const step = 3;
-        for (let row = 0; row < height; row += step) {
-            for (let col = 0; col < width; col += step) {
-                const value = finalMap[row * width + col];
-                if (value >= threshold) {
-                    heatmapData.push({ x: (col / width) * 100, y: (row / height) * 100, value });
-                }
-            }
-        }
+        const heatmapData = extractHeatmapPoints(finalMap, width, height, {
+            minAbsolute: Math.max(0.4, threshold),
+        });
 
         // Read current config
         const researchResult = await pool.query(
@@ -93,6 +86,7 @@ const runPredictionAsync = async (
                     griddedAOIs,
                     analysisProfile: profile || undefined,
                     processedAt: new Date().toISOString(),
+                    predictionStatus: 'complete',
                     predictionError: undefined,
                     predictionErrorAt: undefined,
                 };
@@ -125,6 +119,7 @@ const runPredictionAsync = async (
                     if (s.mediaId === mediaId) {
                         return {
                             ...s,
+                            predictionStatus: 'error',
                             predictionError: err instanceof Error ? err.message : 'Unknown prediction error',
                             predictionErrorAt: new Date().toISOString(),
                         };
@@ -167,16 +162,9 @@ const runModulePredictionAsync = async (
 
         const autoPresets = computeAutoPresets(finalMap);
         const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
-        const heatmapData: Array<{ x: number; y: number; value: number }> = [];
-        const step = 3;
-        for (let row = 0; row < height; row += step) {
-            for (let col = 0; col < width; col += step) {
-                const value = finalMap[row * width + col];
-                if (value >= threshold) {
-                    heatmapData.push({ x: (col / width) * 100, y: (row / height) * 100, value });
-                }
-            }
-        }
+        const heatmapData = extractHeatmapPoints(finalMap, width, height, {
+            minAbsolute: Math.max(0.4, threshold),
+        });
 
         const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
         if (moduleResult.rows.length === 0) return;
@@ -231,7 +219,7 @@ export const handleAttentionPredictionRoutes = async (
         await requireAuth(event);
 
         // POST /attention-prediction/research/:researchId/predict/:mediaId
-        // Synchronous — awaits prediction and returns result
+        // Fire-and-forget — avoids cPanel/proxy timeout (~60s) on TranSalNet + hybrid fusion
         const predictMatch = path.match(
             /^\/attention-prediction\/research\/([^/]+)\/predict\/([^/]+)$/
         );
@@ -271,31 +259,82 @@ export const handleAttentionPredictionRoutes = async (
             const stimulus = stimuli.find((s) => s.mediaId === mediaId);
 
             const body = event.body ? JSON.parse(event.body) : {};
-            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.48;
             const profile = body.profile || undefined;
             const manualAois = parseManualAois(body.aois ?? stimulus?.aois ?? []);
             const manualAoisForPredict = manualAois.length > 0 ? manualAois : undefined;
 
-            // Synchronous — await result and return directly
-            try {
-                await runPredictionAsync(
-                    researchId,
-                    mediaId,
-                    imagePath,
-                    threshold,
-                    profile,
-                    manualAoisForPredict,
-                );
-                return success(
-                    { status: 'complete', mediaId },
-                    200,
-                    undefined,
-                    origin
-                );
-            } catch (predErr) {
-                const msg = predErr instanceof Error ? predErr.message : 'Prediction failed';
-                return error(msg, 500, undefined, origin);
+            // Mark as processing
+            config.stimuli = stimuli.map((s) => {
+                if (s.mediaId === mediaId) {
+                    return {
+                        ...s,
+                        predictionStatus: 'processing',
+                        predictionError: undefined,
+                        predictionErrorAt: undefined,
+                    };
+                }
+                return s;
+            });
+            await pool.query(
+                'UPDATE researches SET config = ? WHERE id = ?',
+                [JSON.stringify(config), researchId],
+            );
+
+            // Fire-and-forget background job
+            void runPredictionAsync(
+                researchId,
+                mediaId,
+                imagePath,
+                threshold,
+                profile,
+                manualAoisForPredict,
+            ).catch((predErr) => {
+                console.error('[Predict] Background error:', predErr);
+            });
+
+            return success({ status: 'processing', mediaId }, 202, undefined, origin);
+        }
+
+        // GET /attention-prediction/research/:researchId/predict/:mediaId/status
+        const predictStatusMatch = path.match(
+            /^\/attention-prediction\/research\/([^/]+)\/predict\/([^/]+)\/status$/,
+        );
+        if (predictStatusMatch && httpMethod === 'GET') {
+            const researchId = predictStatusMatch[1];
+            const mediaId = predictStatusMatch[2];
+
+            const researchResult = await pool.query(
+                'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+                [researchId],
+            );
+            if (researchResult.rows.length === 0) {
+                return error('Research not found', 404, undefined, origin);
             }
+
+            let config: Record<string, unknown> = {};
+            try {
+                const raw = researchResult.rows[0].config;
+                config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+            } catch {
+                config = {};
+            }
+
+            const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+            const stimulus = stimuli.find((s) => s.mediaId === mediaId);
+            if (!stimulus) {
+                return error('Stimulus not found', 404, undefined, origin);
+            }
+
+            const hasHeatmap = Array.isArray(stimulus.heatmapData) && (stimulus.heatmapData as unknown[]).length > 0;
+            const status = (stimulus.predictionStatus as string)
+                || (hasHeatmap ? 'complete' : stimulus.predictionError ? 'error' : 'idle');
+
+            return success({
+                status,
+                processedAt: stimulus.processedAt ?? null,
+                error: status === 'error' ? stimulus.predictionError : undefined,
+            }, 200, undefined, origin);
         }
 
         // POST /attention-prediction/research/:researchId/module/:moduleId/predict
@@ -349,7 +388,7 @@ export const handleAttentionPredictionRoutes = async (
             }
 
             const body = event.body ? JSON.parse(event.body) : {};
-            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.48;
             const imageIndex = typeof body.imageIndex === 'number' ? body.imageIndex : undefined;
 
             // Synchronous prediction — await result and return directly
@@ -545,7 +584,7 @@ export const handleAttentionPredictionRoutes = async (
             const researchId = hybridMatch[1];
             const mediaId = hybridMatch[2];
             const body = event.body ? JSON.parse(event.body) : {};
-            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.48;
             const profile = body.profile || undefined;
 
             const mediaResult = await pool.query(
@@ -579,7 +618,7 @@ export const handleAttentionPredictionRoutes = async (
 
             const videoMediaId = body.videoMediaId as string;
             const inputFrames = body.frames as Array<{ mediaId: string; timestamp: number }> | undefined;
-            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.3;
+            const threshold = typeof body.threshold === 'number' ? body.threshold : 0.48;
             const profile = body.profile || undefined;
 
             if (!videoMediaId || !Array.isArray(inputFrames) || inputFrames.length === 0) {

@@ -78,7 +78,7 @@ export const AttentionVideoPlayer = ({
     const sortedData = useRef<HeatmapPoint[]>([]);
     useEffect(() => {
         sortedData.current = [...data]
-            .filter(p => (p.value ?? 0) > 0.25)
+            .filter(p => (p.value ?? 0) > 0.45)
             .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
     }, [data]);
 
@@ -113,7 +113,7 @@ export const AttentionVideoPlayer = ({
         ctx.drawImage(img, 0, 0);
 
         // 2. Dark overlay
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.fillRect(0, 0, w, h);
 
         // 3. Draw heatmap up to current progress
@@ -164,9 +164,9 @@ export const AttentionVideoPlayer = ({
             // Fade in: points that just appeared are more transparent
             const pointProgress = i / visibleCount;
             const fadeFactor = Math.min(1, (1 - pointProgress) * 2 + 0.5);
-            const alpha = Math.round(val * val * 140 * fadeFactor);
+            const alpha = Math.round(val * val * 120 * fadeFactor);
 
-            const radius = Math.max(cellW, cellH) * 0.6;
+            const radius = Math.max(cellW, cellH) * 0.38;
             const rSq = radius * radius;
             const x0 = Math.max(0, Math.floor(px - radius));
             const y0 = Math.max(0, Math.floor(py - radius));

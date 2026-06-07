@@ -591,19 +591,19 @@ export const generateHybridSaliency = async (
     // Step 5: Context-aware scan pattern — applies reading/scanning behavior
     const scanned = applyScanPattern(equalized, mapWidth, mapHeight, profile?.context);
 
-    // Step 6: Percentile normalization — prevents over-saturation (single hot blob)
-    const normalized = normalizePercentile(scanned, 95);
+    // Step 6: Percentile normalization — sharper cold/hot separation for granular heatmaps
+    const normalized = normalizePercentile(scanned, 88);
 
     // Step 7: Stochastic jitter — break mechanical symmetry for realistic appearance
-    const jittered = applyStochasticJitter(normalized, mapWidth, mapHeight, 0.12);
+    const jittered = applyStochasticJitter(normalized, mapWidth, mapHeight, 0.08);
 
     // Step 8: Manual AOI spatial boost + re-normalize
     const boosted = manualAois && manualAois.length > 0
         ? applyManualAoiBoost(jittered, mapWidth, mapHeight, manualAois)
         : jittered;
     const finalMap = manualAois && manualAois.length > 0
-        ? normalizePercentile(boosted, 95)
-        : boosted;
+        ? normalizePercentile(boosted, 88)
+        : jittered;
 
     console.log(`[Hybrid Saliency] Pipeline complete: fusion → equalization → scan(${profile?.context || 'none'}) → percentile norm → jitter → manual AOI boost (α=${alpha}, β=${beta})`);
     return finalMap;
