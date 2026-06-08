@@ -19,6 +19,7 @@ export interface AiAnalysisResult {
         height: number;
         attentionLevel: string;
         description: string;
+        lowConfidence?: boolean;
     }>;
     attentionFlow: {
         entryPoint: string;

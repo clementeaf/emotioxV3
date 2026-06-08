@@ -201,8 +201,8 @@ export const applyFocalEqualization = (
             const idx = row * w + col;
             const dist = Math.sqrt((col - cx) ** 2 + (row - cy) ** 2) / maxDist;
 
-            // Peripheral boost: 1.0 at center → up to 1.5 at edges
-            const peripheralBoost = 1.0 + dist * 0.5;
+            // Mild peripheral boost — avoids inflating whitespace gutters at frame edges
+            const peripheralBoost = 1.0 + dist * 0.2;
 
             // Semantic boost: if semantic map says this area is important, boost more
             const semanticWeight = semanticMap ? semanticMap[idx] : 0.5;
@@ -818,11 +818,132 @@ export const DEFAULT_EXTRACT_HEATMAP_OPTIONS: Required<Pick<
     ExtractHeatmapPointsOptions,
     'minRelative' | 'minAbsolute' | 'maxPoints' | 'nmsCells' | 'gridCols'
 >> = {
-    minRelative: 0.58,
-    minAbsolute: 0.42,
-    maxPoints: 72,
+    minRelative: 0.62,
+    minAbsolute: 0.44,
+    maxPoints: 84,
     nmsCells: 2,
-    gridCols: 24,
+    gridCols: 28,
+};
+
+/**
+ * Builds a texture mask that attenuates uniform bright regions (whitespace gutters).
+ * @param gray - Grayscale luminance buffer normalized 0-1
+ * @param w - Map width
+ * @param h - Map height
+ * @param windowRadius - Local variance window radius in pixels
+ * @returns Per-pixel suppression factor in 0.15-1.0
+ */
+export const buildLowTextureMask = (
+    gray: Float32Array,
+    w: number,
+    h: number,
+    windowRadius = 2,
+): Float32Array => {
+    const mask = new Float32Array(w * h);
+
+    for (let row = 0; row < h; row++) {
+        for (let col = 0; col < w; col++) {
+            let sum = 0;
+            let sumSq = 0;
+            let count = 0;
+
+            for (let dr = -windowRadius; dr <= windowRadius; dr++) {
+                for (let dc = -windowRadius; dc <= windowRadius; dc++) {
+                    const r = row + dr;
+                    const c = col + dc;
+                    if (r < 0 || r >= h || c < 0 || c >= w) continue;
+                    const v = gray[r * w + c];
+                    sum += v;
+                    sumSq += v * v;
+                    count += 1;
+                }
+            }
+
+            const mean = sum / count;
+            const variance = sumSq / count - mean * mean;
+            const std = Math.sqrt(Math.max(0, variance));
+            const luminance = gray[row * w + col];
+
+            const isBrightUniform = luminance > 0.82 && std < 0.06;
+            const isLowTextureBright = luminance > 0.7 && std < 0.04;
+
+            let factor = 1.0;
+            if (isBrightUniform) {
+                factor = 0.15;
+            } else if (isLowTextureBright) {
+                factor = 0.3;
+            } else if (std < 0.035) {
+                factor = 0.5;
+            } else {
+                factor = Math.min(1, 0.5 + std * 7);
+            }
+
+            mask[row * w + col] = factor;
+        }
+    }
+
+    return mask;
+};
+
+/**
+ * Loads a grayscale luminance map resized to saliency dimensions.
+ * @param imagePath - Absolute path to stimulus image
+ * @param w - Target width
+ * @param h - Target height
+ * @returns Normalized luminance buffer
+ */
+export const loadGrayscaleMap = async (
+    imagePath: string,
+    w: number,
+    h: number,
+): Promise<Float32Array> => {
+    const { data } = await sharp(imagePath)
+        .resize(w, h, { fit: 'fill' })
+        .grayscale()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+    const gray = new Float32Array(w * h);
+    for (let i = 0; i < gray.length; i++) {
+        gray[i] = data[i] / 255;
+    }
+    return gray;
+};
+
+/**
+ * Applies low-texture suppression to a saliency map using image luminance.
+ * @param map - Saliency map
+ * @param mask - Texture suppression mask
+ * @returns Attenuated and re-normalized map
+ */
+export const applyLowTextureSuppression = (
+    map: Float32Array,
+    mask: Float32Array,
+): Float32Array => {
+    const result = new Float32Array(map.length);
+    for (let i = 0; i < map.length; i++) {
+        result[i] = map[i] * mask[i];
+    }
+    return normalizePercentile(result, 88);
+};
+
+/**
+ * Suppresses saliency in uniform bright whitespace gutters between content blocks.
+ * @param map - Saliency map
+ * @param imagePath - Stimulus image path
+ * @param w - Map width
+ * @param h - Map height
+ * @returns Map with whitespace gutters attenuated
+ */
+export const suppressWhitespaceSaliency = async (
+    map: Float32Array,
+    imagePath: string,
+    w: number,
+    h: number,
+): Promise<Float32Array> => {
+    const gray = await loadGrayscaleMap(imagePath, w, h);
+    const mask = buildLowTextureMask(gray, w, h);
+    return applyLowTextureSuppression(map, mask);
 };
 
 /**

@@ -140,8 +140,8 @@ Rules:
 - attentionScoreLabel: "Low" (<30), "Medium" (30-59), "High" (60-79), "Very High" (80-100)
 - autoAois: 3-8 key areas of interest. x,y = top-left corner, width,height = dimensions, ALL in percentage (0-100)
 - attentionLevel: "high" (strong saliency), "medium", "low" (weak but notable)
-- gazePath: 5-12 predicted fixation points in chronological viewing order. duration: "brief" (<200ms), "moderate" (200-500ms), "long" (>500ms)
-- gazePathRoutes: EXACTLY 3 distinct viewing strategies. Each with 5-10 fixation points. The 3 routes must represent different cognitive strategies for viewing this specific image.
+- gazePath: 5-12 predicted fixation points in chronological viewing order. duration: "brief" (<200ms), "moderate" (200-500ms), "long" (>500ms). Each x,y MUST align with a real visual element or heatmap hotspot (within 8%). Do NOT use generic Z/F-pattern template coordinates.
+- gazePathRoutes: EXACTLY 3 distinct viewing strategies. Each with 5-10 fixation points. Routes must visit DIFFERENT regions of this image (not mirror-symmetric paths). Avoid evenly-spaced grid-like coordinates.
 - neuroInsights: 3-6 insights based on Gestalt principles, cognitive load, visual hierarchy, contrast, color theory, etc.
 - brandAttention: detect ALL brand logos/marks visible in the image. For each, provide bounding box (x,y,width,height in %), saliency score (0-1 = how much attention it gets), brand name. brandAttentionScore (0-100) = overall brand visibility effectiveness. If no logos detected, set logos to empty array and brandAttentionScore to 0.
 - leakAreas: areas where attention dissipates or exits the design unintentionally
@@ -609,6 +609,162 @@ export const generateHybridSaliency = async (
     return finalMap;
 };
 
+const MIN_AUTO_AOI_PCT = 2;
+
+/**
+ * Clamps LLM auto-AOI coordinates to valid percentage bounds.
+ * @param aoi - Raw auto-AOI from model output
+ * @returns Sanitized AOI with lowConfidence when bbox is unreliable
+ */
+const sanitizeAutoAoi = (
+    aoi: AiAnalysisResult['autoAois'][number],
+): AiAnalysisResult['autoAois'][number] => {
+    const clamp = (n: number): number => {
+        if (!Number.isFinite(n)) return 0;
+        return Math.max(0, Math.min(100, n));
+    };
+    const width = Math.max(MIN_AUTO_AOI_PCT, Math.min(100, clamp(Number(aoi.width))));
+    const height = Math.max(MIN_AUTO_AOI_PCT, Math.min(100, clamp(Number(aoi.height))));
+    const x = Math.max(0, Math.min(100 - width, clamp(Number(aoi.x))));
+    const y = Math.max(0, Math.min(100 - height, clamp(Number(aoi.y))));
+    const area = width * height;
+    const lowConfidence = area < 36 || width < 3 || height < 3;
+
+    return {
+        ...aoi,
+        label: String(aoi.label || 'Zona sin nombre').slice(0, 80),
+        x,
+        y,
+        width,
+        height,
+        lowConfidence,
+    };
+};
+
+/**
+ * Sanitizes all auto-AOIs on an AI analysis result before persistence.
+ * @param result - Parsed LLM analysis
+ * @returns Result with clamped auto-AOI bounds
+ */
+const GAZE_SNAP_RADIUS_PCT = 14;
+const GAZE_SNAP_BLEND = 0.72;
+const GOLDEN_RATIO_CONJUGATE = 0.618033988749895;
+
+type GazeFixation = AiAnalysisResult['gazePath'][number];
+
+/**
+ * Clamps a percentage coordinate to valid range.
+ * @param value - Raw coordinate
+ * @returns Clamped percentage
+ */
+const clampGazePercent = (value: number): number => {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(100, value));
+};
+
+/**
+ * Returns deterministic jitter to break symmetric LLM gaze coordinates.
+ * @param order - Fixation order
+ * @returns X/Y offset in percentage points
+ */
+const deterministicGazeJitter = (order: number): { dx: number; dy: number } => {
+    const seed = order * GOLDEN_RATIO_CONJUGATE;
+    return {
+        dx: Math.sin(seed * 11.3) * 2.2,
+        dy: Math.cos(seed * 7.7) * 2.2,
+    };
+};
+
+/**
+ * Finds nearest salient heatmap point within snap radius.
+ * @param x - Fixation X percent
+ * @param y - Fixation Y percent
+ * @param heatmapData - Heatmap points
+ * @returns Nearest hotspot or null
+ */
+const findNearestHeatmapHotspot = (
+    x: number,
+    y: number,
+    heatmapData: Array<{ x: number; y: number; value: number }>,
+): { x: number; y: number; value: number } | null => {
+    let best: { x: number; y: number; value: number } | null = null;
+    let bestScore = -Infinity;
+
+    for (const point of heatmapData) {
+        const dist = Math.hypot(point.x - x, point.y - y);
+        if (dist > GAZE_SNAP_RADIUS_PCT) continue;
+        const proximity = 1 - dist / GAZE_SNAP_RADIUS_PCT;
+        const score = point.value * 0.7 + proximity * 0.3;
+        if (score > bestScore) {
+            bestScore = score;
+            best = point;
+        }
+    }
+
+    return best;
+};
+
+/**
+ * Snaps gaze fixations to heatmap hotspots with light jitter.
+ * @param fixations - LLM gaze path
+ * @param heatmapData - TranSalNet heatmap
+ * @returns Anchored fixations
+ */
+const anchorGazePathToHeatmap = (
+    fixations: GazeFixation[],
+    heatmapData: Array<{ x: number; y: number; value: number }>,
+): GazeFixation[] => {
+    if (!fixations.length) return fixations;
+
+    return fixations.map((fix) => {
+        const hotspot = heatmapData.length > 0
+            ? findNearestHeatmapHotspot(fix.x, fix.y, heatmapData)
+            : null;
+
+        if (hotspot) {
+            const jitter = deterministicGazeJitter(fix.order);
+            return {
+                ...fix,
+                x: clampGazePercent(
+                    hotspot.x * GAZE_SNAP_BLEND + fix.x * (1 - GAZE_SNAP_BLEND) + jitter.dx * 0.35,
+                ),
+                y: clampGazePercent(
+                    hotspot.y * GAZE_SNAP_BLEND + fix.y * (1 - GAZE_SNAP_BLEND) + jitter.dy * 0.35,
+                ),
+            };
+        }
+
+        const jitter = deterministicGazeJitter(fix.order);
+        return {
+            ...fix,
+            x: clampGazePercent(fix.x + jitter.dx),
+            y: clampGazePercent(fix.y + jitter.dy),
+        };
+    });
+};
+
+const sanitizeAiAnalysisResult = (
+    result: AiAnalysisResult,
+    heatmapData: Array<{ x: number; y: number; value: number }> = [],
+): AiAnalysisResult => {
+    const autoAois = Array.isArray(result.autoAois)
+        ? result.autoAois.map(sanitizeAutoAoi)
+        : [];
+
+    const gazePath = Array.isArray(result.gazePath)
+        ? anchorGazePathToHeatmap(result.gazePath, heatmapData)
+        : [];
+
+    const gazePathRoutes = Array.isArray(result.gazePathRoutes)
+        ? result.gazePathRoutes.map((route) => ({
+            ...route,
+            fixations: anchorGazePathToHeatmap(route.fixations ?? [], heatmapData),
+        }))
+        : result.gazePathRoutes;
+
+    return { ...result, autoAois, gazePath, gazePathRoutes };
+};
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 export const analyzeAttentionWithAI = async (
@@ -649,12 +805,13 @@ export const analyzeAttentionWithAI = async (
         result = await analyzeWithOpenAI(base64, mimeType, userPrompt, fileName);
     }
 
-    result.analyzedAt = new Date().toISOString();
+    const sanitized = sanitizeAiAnalysisResult(result, heatmapData);
+    sanitized.analyzedAt = new Date().toISOString();
 
     console.log(
-        `[AI Analysis] Complete: score=${result.attentionScore}, ` +
-        `aois=${result.autoAois?.length || 0}, gazePath=${result.gazePath?.length || 0}`
+        `[AI Analysis] Complete: score=${sanitized.attentionScore}, ` +
+        `aois=${sanitized.autoAois?.length || 0}, gazePath=${sanitized.gazePath?.length || 0}`
     );
 
-    return result;
+    return sanitized;
 };

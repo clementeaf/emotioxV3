@@ -72,35 +72,48 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Specific libraries first (before generic 'react' match)
-            if (id.includes('@tanstack/react-query')) {
-              return 'query-vendor';
-            }
-            if (id.includes('react-router-dom') || id.includes('react-router')) {
-              return 'vendor';
-            }
-            if (id.includes('react-i18next') || id.includes('i18next')) {
-              return 'vendor';
-            }
-            if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
-              return 'ui-vendor';
-            }
-            if (id.includes('react-window') || id.includes('@marsidev/react-turnstile')) {
-              return 'vendor';
-            }
-            // Core React + scheduler (must stay together)
-            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
-              return 'react-vendor';
-            }
-            if (id.includes('zustand')) {
-              return 'state-vendor';
-            }
-            return 'vendor';
+          if (!id.includes('node_modules')) {
+            return undefined;
           }
+          if (id.includes('@vladmandic/face-api')) {
+            return 'face-api-vendor';
+          }
+          if (id.includes('@mediapipe/tasks-vision')) {
+            return 'mediapipe-vendor';
+          }
+          if (id.includes('webeyetrack')) {
+            return 'webeyetrack-vendor';
+          }
+          if (id.includes('@tanstack/react-query')) {
+            return 'query-vendor';
+          }
+          if (id.includes('react-router-dom') || id.includes('react-router')) {
+            return 'router-vendor';
+          }
+          if (id.includes('react-i18next') || id.includes('i18next')) {
+            return 'i18n-vendor';
+          }
+          if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
+            return 'ui-vendor';
+          }
+          if (id.includes('react-window') || id.includes('@marsidev/react-turnstile')) {
+            return 'misc-vendor';
+          }
+          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+            return 'react-vendor';
+          }
+          if (id.includes('zustand')) {
+            return 'state-vendor';
+          }
+          if (id.includes('axios') || id.includes('date-fns')) {
+            return 'misc-vendor';
+          }
+          return undefined;
         },
       },
     },
+    // webeyetrack + face-api ML models exceed 1MB — isolated vendor chunks
+    chunkSizeWarningLimit: 3000,
   },
   esbuild: {
     sourcemap: false,

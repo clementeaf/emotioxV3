@@ -7,7 +7,7 @@ import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRen
 import { SpotlightRenderer } from '../results/cognitive-task/components/SpotlightRenderer';
 import { ColdMapRenderer } from '../results/cognitive-task/components/ColdMapRenderer';
 import { loadCachedStimulusImage } from '../../utils/stimulusImageCache';
-import { AttentionVideoPlayer } from '../results/cognitive-task/components/AttentionVideoPlayer';
+import { GazeScanpathPlayer } from './GazeScanpathPlayer';
 import { VideoAccumulatedHeatmapOverlay } from './VideoAccumulatedHeatmapOverlay';
 import { researchService } from '../../services/research.service';
 import { GazePathOverlay } from './GazePathOverlay';
@@ -22,12 +22,20 @@ import {
     clampAoiBounds,
     DEFAULT_COLD_MAP_SETTINGS,
     DEFAULT_SPOTLIGHT_SETTINGS,
+    formatHeatmapViewSummary,
     getHeatmapMapModeLabel,
     isFullFrameMapMode,
     isLegacyDenseHeatmap,
     normalizeManualAois,
     reconcileAutoAoisWithManual,
+    computeAoiAttentionShare,
+    anchorGazePathToHeatmap,
+    anchorGazeRoutesToHeatmap,
+    buildAttentionLayerPreset,
+    shouldBlockAoiKeyboardDelete,
     resolveHeatmapVisualProfile,
+    type AttentionLayerContext,
+    type AttentionPredictionTabId,
     STIMULUS_MEDIA_FIT_CLASS,
     STIMULUS_MEDIA_FIT_FLEX_CLASS,
     STIMULUS_VIEWPORT_MAX_HEIGHT_CLASS,
@@ -69,7 +77,7 @@ const StimulusOverlayFrame = ({
         >
             {children}
             {dimOverlay && (
-                <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+                <div className="absolute inset-0 bg-black/25 pointer-events-none" />
             )}
         </div>
     </div>
@@ -126,7 +134,7 @@ const DEFAULT_SETTINGS: HeatmapSettings = {
     preset: 'Lab',
 };
 
-type TabId = 'original' | 'heatmap' | 'gaze-paths' | 'aoi-editor';
+type TabId = AttentionPredictionTabId;
 
 interface StimulusLayers {
     heatmap: boolean;
@@ -135,18 +143,17 @@ interface StimulusLayers {
     gaze: boolean;
 }
 
-const TAB_LAYER_PRESETS: Record<TabId, StimulusLayers> = {
-    original: { heatmap: false, aiAois: false, manualAois: false, gaze: false },
-    heatmap: { heatmap: true, aiAois: false, manualAois: false, gaze: false },
-    'gaze-paths': { heatmap: false, aiAois: false, manualAois: false, gaze: true },
-    'aoi-editor': { heatmap: true, aiAois: true, manualAois: true, gaze: false },
-};
-
 const ROUTE_COLORS: Record<string, string> = {
     'typical-scan': '#3B82F6',
     'group-scan': '#10B981',
     'novelty-search': '#F59E0B',
 };
+
+const GAZE_ROUTE_LEGEND: Array<{ id: string; color: string; label: string }> = [
+    { id: 'typical-scan', color: ROUTE_COLORS['typical-scan'], label: 'Typical Scan (Vertical Flow)' },
+    { id: 'group-scan', color: ROUTE_COLORS['group-scan'], label: 'Group/Area Scan' },
+    { id: 'novelty-search', color: ROUTE_COLORS['novelty-search'], label: 'Novelty/Differentiation Search' },
+];
 
 const AOI_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
 
@@ -191,8 +198,14 @@ interface AttentionPredictionCardProps {
     predictionError?: string;
     /** Initial tab for new stimuli (AOI-first flow) */
     initialTab?: TabId;
+    /** Parent-requested tab focus (e.g. wizard "Ir al editor") */
+    workflowFocusTab?: TabId;
+    /** Called after workflowFocusTab is applied */
+    onWorkflowFocusTabHandled?: () => void;
     /** Open analysis criteria drawer */
     onOpenCriteria?: () => void;
+    /** Criteria drawer open in parent — suppresses AOI keyboard delete */
+    isCriteriaDrawerOpen?: boolean;
     /** Whether user skipped AOI definition */
     aoiSkipped?: boolean;
     /** Persist aoiSkipped flag */
@@ -249,7 +262,7 @@ const persistHeatmapPresets = (presets: SavedHeatmapPreset[]) => {
 const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
     'Lab':      { blur: 5,  threshold: 68, opacity: 45 },
     'Precise':  { blur: 8,  threshold: 58, opacity: 55 },
-    'Balanced': { blur: 12, threshold: 42, opacity: 50 },
+    'Balanced': { blur: 8,  threshold: 54, opacity: 48 },
     'Smooth':   { blur: 20, threshold: 50, opacity: 40 },
 };
 
@@ -268,8 +281,9 @@ const SettingsModal = ({
     mapMode,
     spotlightSettings,
     coldSettings,
-    onApply,
-    onClose,
+    onLiveChange,
+    onConfirm,
+    onCancel,
 }: {
     imageUrl: string;
     heatmapData: HeatmapPoint[];
@@ -277,19 +291,45 @@ const SettingsModal = ({
     mapMode: HeatmapMapMode;
     spotlightSettings: SpotlightSettings;
     coldSettings: ColdMapSettings;
-    onApply: (view: HeatmapViewSettings) => void;
-    onClose: () => void;
+    onLiveChange: (view: HeatmapViewSettings) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
 }) => {
     const [local, setLocal] = useState<HeatmapSettings>({ ...settings });
     const [localMapMode, setLocalMapMode] = useState<HeatmapMapMode>(mapMode);
     const [localSpotlight, setLocalSpotlight] = useState<SpotlightSettings>({ ...spotlightSettings });
     const [localCold, setLocalCold] = useState<ColdMapSettings>({ ...coldSettings });
-    const debouncedLocal = useDebouncedValue(local, 150);
-    const debouncedSpotlight = useDebouncedValue(localSpotlight, 150);
-    const debouncedCold = useDebouncedValue(localCold, 150);
+    const debouncedLocal = useDebouncedValue(local, 120);
+    const debouncedSpotlight = useDebouncedValue(localSpotlight, 120);
+    const debouncedCold = useDebouncedValue(localCold, 120);
     const debouncedMapMode = useDebouncedValue(localMapMode, 0);
     const [settingsTab, setSettingsTab] = useState<'heatmap' | 'original'>('heatmap');
     const previewRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setLocal({ ...settings });
+    }, [settings]);
+
+    useEffect(() => {
+        setLocalMapMode(mapMode);
+    }, [mapMode]);
+
+    useEffect(() => {
+        setLocalSpotlight({ ...spotlightSettings });
+    }, [spotlightSettings]);
+
+    useEffect(() => {
+        setLocalCold({ ...coldSettings });
+    }, [coldSettings]);
+
+    useEffect(() => {
+        onLiveChange({
+            settings: debouncedLocal,
+            mapMode: debouncedMapMode,
+            spotlight: debouncedSpotlight,
+            cold: debouncedCold,
+        });
+    }, [debouncedLocal, debouncedMapMode, debouncedSpotlight, debouncedCold, onLiveChange]);
 
     // User-saved presets
     const [savedPresets, setSavedPresets] = useState<SavedHeatmapPreset[]>(loadHeatmapPresets);
@@ -313,12 +353,29 @@ const SettingsModal = ({
     }, []);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4"
+            onClick={onCancel}
+            role="presentation"
+        >
+            <div
+                className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="heatmap-settings-title"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b">
-                    <h3 className="text-base font-semibold text-gray-900">Heatmap Settings</h3>
-                    <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                    <div>
+                        <h3 id="heatmap-settings-title" className="text-base font-semibold text-gray-900">
+                            Heatmap Settings
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            Vista ampliada y ajuste fino. Los cambios se aplican en vivo al visor principal.
+                        </p>
+                    </div>
+                    <button type="button" onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -632,22 +689,22 @@ const SettingsModal = ({
                             </>
                         )}
 
-                        {/* Apply button */}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                onApply({
-                                    settings: local,
-                                    mapMode: localMapMode,
-                                    spotlight: localSpotlight,
-                                    cold: localCold,
-                                });
-                                onClose();
-                            }}
-                            className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-                        >
-                            Apply Settings
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={onCancel}
+                                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onConfirm}
+                                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+                            >
+                                Listo
+                            </button>
+                        </div>
 
                         {/* Save / load user presets */}
                         <div className="pt-3 border-t border-gray-100 space-y-2">
@@ -1148,7 +1205,9 @@ export const AttentionPredictionCard = ({
     predictElapsed = 0,
     predictionError,
     initialTab,
-    onOpenCriteria,
+    workflowFocusTab,
+    onWorkflowFocusTabHandled,
+    isCriteriaDrawerOpen = false,
     aoiSkipped = false,
     onAoiSkippedChange,
     onAoiListChange,
@@ -1162,9 +1221,20 @@ export const AttentionPredictionCard = ({
     onDismissVideoProgress,
 }: AttentionPredictionCardProps) => {
     const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'original');
-    const [layers, setLayers] = useState<StimulusLayers>(
-        () => TAB_LAYER_PRESETS[initialTab ?? 'original'],
-    );
+    const [layers, setLayers] = useState<StimulusLayers>({
+        heatmap: false,
+        aiAois: false,
+        manualAois: false,
+        gaze: false,
+    });
+    const layerContextRef = useRef<AttentionLayerContext>({
+        hasHeatmap: false,
+        hasGazeRoutes: false,
+        hasManualAois: false,
+        hasAutoAois: false,
+    });
+    const overlayAvailabilityRef = useRef({ heatmap: false, gaze: false });
+    const loadedAoiCountRef = useRef(0);
     const [showSkipConfirm, setShowSkipConfirm] = useState(false);
     const [skipConfirmAction, setSkipConfirmAction] = useState<'gate-only' | 'predict'>('gate-only');
     const [showNameModal, setShowNameModal] = useState(false);
@@ -1174,21 +1244,37 @@ export const AttentionPredictionCard = ({
     const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
     const [editingLabelValue, setEditingLabelValue] = useState('');
 
+    const applyTabLayers = useCallback((tabId: TabId, context: AttentionLayerContext): void => {
+        setLayers(buildAttentionLayerPreset(tabId, context));
+    }, []);
+
     useEffect(() => {
         if (initialTab) {
             setActiveTab(initialTab);
-            setLayers(TAB_LAYER_PRESETS[initialTab]);
+            applyTabLayers(initialTab, layerContextRef.current);
         }
-    }, [initialTab]);
+    }, [initialTab, applyTabLayers]);
 
     const handleTabChange = useCallback((tabId: TabId): void => {
         setActiveTab(tabId);
-        setLayers(TAB_LAYER_PRESETS[tabId]);
-    }, []);
+        applyTabLayers(tabId, layerContextRef.current);
+    }, [applyTabLayers]);
+
+    useEffect(() => {
+        if (!workflowFocusTab) {
+            return;
+        }
+        handleTabChange(workflowFocusTab);
+        onWorkflowFocusTabHandled?.();
+    }, [workflowFocusTab, handleTabChange, onWorkflowFocusTabHandled]);
 
     const toggleLayer = useCallback((key: keyof StimulusLayers): void => {
         setLayers(prev => ({ ...prev, [key]: !prev[key] }));
     }, []);
+
+    const applyCompositeLayers = useCallback((): void => {
+        applyTabLayers(activeTab, layerContextRef.current);
+    }, [activeTab, applyTabLayers]);
 
     useEffect(() => {
         if (!imageUrl || isVideo) return;
@@ -1204,13 +1290,14 @@ export const AttentionPredictionCard = ({
         });
     }, [aiAnalysis, isVideo]);
     const [showSettings, setShowSettings] = useState(false);
+    const heatmapViewSnapshotRef = useRef<HeatmapViewSettings | null>(null);
     const [settings, setSettings] = useState<HeatmapSettings>(() => {
         if (autoPresets) {
             return {
                 blur: autoPresets.blur,
                 opacity: autoPresets.opacity,
                 threshold: autoPresets.threshold,
-                preset: 'Auto',
+                preset: 'Precise',
             };
         }
         return { ...DEFAULT_SETTINGS };
@@ -1226,7 +1313,7 @@ export const AttentionPredictionCard = ({
                 blur: autoPresets.blur,
                 opacity: autoPresets.opacity,
                 threshold: autoPresets.threshold,
-                preset: 'Auto',
+                preset: 'Precise',
             });
         }
     }, [autoPresets]);
@@ -1263,6 +1350,7 @@ export const AttentionPredictionCard = ({
                 if (prev && prev.w > 1 && prev.h > 1) {
                     setPendingRect(prev);
                     setPendingLabel(`Zona ${aoiList.length + 1}`);
+                    setSelectedAoiId(null);
                     setShowNameModal(true);
                 }
                 return null;
@@ -1378,23 +1466,42 @@ export const AttentionPredictionCard = ({
         setEditingLabelId(null);
     }, [persistAois]);
 
-    const removeAoi = (aoiId: string) => {
-        const updated = aoiList.filter(a => a.id !== aoiId);
-        setAoiList(updated);
-        if (selectedAoiId === aoiId) setSelectedAoiId(null);
-        void persistAois(updated);
-    };
+    const removeAoi = useCallback((aoiId: string): void => {
+        setAoiList((prev) => {
+            const updated = prev.filter(a => a.id !== aoiId);
+            void persistAois(updated);
+            return updated;
+        });
+        setSelectedAoiId((prev) => (prev === aoiId ? null : prev));
+    }, [persistAois]);
 
     useEffect(() => {
-        if (!selectedAoiId) return;
+        if (!selectedAoiId) {
+            return;
+        }
         const onKeyDown = (e: KeyboardEvent): void => {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                removeAoi(selectedAoiId);
+            if (e.key !== 'Delete' && e.key !== 'Backspace') {
+                return;
             }
+            if (shouldBlockAoiKeyboardDelete({
+                showNameModal,
+                editingLabelId,
+                criteriaDrawerOpen: isCriteriaDrawerOpen,
+                target: e.target,
+            })) {
+                return;
+            }
+            removeAoi(selectedAoiId);
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
-    }, [selectedAoiId]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [selectedAoiId, showNameModal, editingLabelId, isCriteriaDrawerOpen, removeAoi]);
+
+    useEffect(() => {
+        if (isCriteriaDrawerOpen) {
+            setSelectedAoiId(null);
+        }
+    }, [isCriteriaDrawerOpen]);
 
     const predictionGateOpen = canRunPredictionGate(aoiList.length, aoiSkipped);
     const analysisGateOpen = canRunAnalysisGate(heatmapData.length, aoiList.length, aoiSkipped);
@@ -1428,19 +1535,15 @@ export const AttentionPredictionCard = ({
     }, [pendingImportAois]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const computedAois: AOIWithStats[] = useMemo(() => {
-        const total = heatmapData.length;
-        return aoiList.map(aoi => {
-            const inside = heatmapData.filter(p => {
-                const px = p.x > 1 ? p.x : p.x * 100;
-                const py = p.y > 1 ? p.y : p.y * 100;
-                return px >= aoi.x && px <= aoi.x + aoi.width &&
-                       py >= aoi.y && py <= aoi.y + aoi.height;
-            }).length;
-            return {
-                ...aoi,
-                percentage: total > 0 ? Math.round((inside / total) * 100) : 0,
-            };
-        });
+        const saliencyPoints = heatmapData.map(p => ({
+            x: p.x,
+            y: p.y,
+            value: p.value ?? 0,
+        }));
+        return aoiList.map(aoi => ({
+            ...aoi,
+            percentage: computeAoiAttentionShare(aoi, saliencyPoints),
+        }));
     }, [aoiList, heatmapData]);
 
     const displayAutoAois = useMemo(
@@ -1448,17 +1551,109 @@ export const AttentionPredictionCard = ({
         [aoiList, aiAnalysis?.autoAois],
     );
 
+    const anchoredHeatmapData = useMemo(
+        () => heatmapData.map((point) => ({ x: point.x, y: point.y, value: point.value ?? 0 })),
+        [heatmapData],
+    );
+
     const gazeRoutes = useMemo(() => {
         if (!aiAnalysis?.gazePath?.length) return [];
-        return aiAnalysis.gazePathRoutes ?? [
+
+        const anchorFixations = (fixations: AiAnalysisResult['gazePath']): AiAnalysisResult['gazePath'] => (
+            anchoredHeatmapData.length > 0
+                ? anchorGazePathToHeatmap(fixations, anchoredHeatmapData)
+                : fixations
+        );
+
+        if (aiAnalysis.gazePathRoutes?.length) {
+            const routes = anchoredHeatmapData.length > 0
+                ? anchorGazeRoutesToHeatmap(aiAnalysis.gazePathRoutes, anchoredHeatmapData)
+                : aiAnalysis.gazePathRoutes;
+            return routes;
+        }
+
+        return [
             {
                 id: 'typical-scan',
                 name: 'Typical Scan',
                 description: 'Default predicted path',
-                fixations: aiAnalysis.gazePath,
+                fixations: anchorFixations(aiAnalysis.gazePath),
             },
         ];
-    }, [aiAnalysis]);
+    }, [aiAnalysis, anchoredHeatmapData]);
+
+    const layerContext = useMemo<AttentionLayerContext>(() => ({
+        hasHeatmap,
+        hasGazeRoutes: gazeRoutes.length > 0,
+        hasManualAois: computedAois.length > 0,
+        hasAutoAois: displayAutoAois.length > 0,
+    }), [hasHeatmap, gazeRoutes.length, computedAois.length, displayAutoAois.length]);
+
+    layerContextRef.current = layerContext;
+
+    useEffect(() => {
+        if (!stimulusMediaId) {
+            return;
+        }
+        overlayAvailabilityRef.current = { heatmap: false, gaze: false };
+        loadedAoiCountRef.current = 0;
+        const tab = initialTab ?? 'original';
+        const context: AttentionLayerContext = {
+            hasHeatmap: heatmapData.length > 0,
+            hasGazeRoutes: Boolean(aiAnalysis?.gazePath?.length),
+            hasManualAois: false,
+            hasAutoAois: (aiAnalysis?.autoAois?.length ?? 0) > 0,
+        };
+        setActiveTab(tab);
+        applyTabLayers(tab, context);
+        setGazeMode('static');
+        setVisibleRoutes(new Set(['typical-scan', 'group-scan', 'novelty-search']));
+    }, [stimulusMediaId, initialTab, applyTabLayers]);
+
+    useEffect(() => {
+        const hasHeatmapNow = layerContext.hasHeatmap;
+        const hasGazeNow = layerContext.hasGazeRoutes;
+        const prev = overlayAvailabilityRef.current;
+        const gainedOverlay = (
+            (!prev.heatmap && hasHeatmapNow)
+            || (!prev.gaze && hasGazeNow)
+        );
+        overlayAvailabilityRef.current = {
+            heatmap: hasHeatmapNow,
+            gaze: hasGazeNow,
+        };
+        if (!gainedOverlay) {
+            return;
+        }
+        if (activeTab === 'original' || activeTab === 'gaze-paths' || activeTab === 'heatmap') {
+            applyTabLayers(activeTab, layerContext);
+        }
+    }, [layerContext, activeTab, applyTabLayers]);
+
+    useEffect(() => {
+        if (aoiList.length === 0) {
+            loadedAoiCountRef.current = 0;
+            return;
+        }
+        if (loadedAoiCountRef.current > 0) {
+            loadedAoiCountRef.current = aoiList.length;
+            return;
+        }
+        loadedAoiCountRef.current = aoiList.length;
+        if (activeTab === 'original' || activeTab === 'gaze-paths') {
+            applyTabLayers(activeTab, layerContextRef.current);
+        }
+    }, [aoiList.length, activeTab, applyTabLayers]);
+
+    const primaryGazeRoute = useMemo(
+        () => gazeRoutes.find((route) => visibleRoutes.has(route.id)) ?? gazeRoutes[0],
+        [gazeRoutes, visibleRoutes],
+    );
+
+    const animatedGazePath = useMemo(
+        () => primaryGazeRoute?.fixations ?? [],
+        [primaryGazeRoute],
+    );
 
     const toggleGazeRoute = useCallback((id: string): void => {
         setVisibleRoutes(prev => {
@@ -1480,6 +1675,47 @@ export const AttentionPredictionCard = ({
     const heatmapVisualProfile = resolveHeatmapVisualProfile(settings.preset);
     const effectiveMapMode: HeatmapMapMode = isAoiEditMode ? 'classic' : mapMode;
     const showLegacyHeatmapBanner = hasHeatmap && isLegacyDenseHeatmap(heatmapData.length);
+
+    const applyHeatmapViewSettings = useCallback((view: HeatmapViewSettings): void => {
+        setSettings(view.settings);
+        setMapMode(view.mapMode);
+        setSpotlightSettings(view.spotlight);
+        setColdSettings(view.cold);
+    }, []);
+
+    const openHeatmapSettings = useCallback((): void => {
+        heatmapViewSnapshotRef.current = {
+            settings: { ...settings },
+            mapMode,
+            spotlight: { ...spotlightSettings },
+            cold: { ...coldSettings },
+        };
+        setShowSettings(true);
+    }, [settings, mapMode, spotlightSettings, coldSettings]);
+
+    const cancelHeatmapSettings = useCallback((): void => {
+        const snapshot = heatmapViewSnapshotRef.current;
+        if (snapshot) {
+            applyHeatmapViewSettings(snapshot);
+        }
+        heatmapViewSnapshotRef.current = null;
+        setShowSettings(false);
+    }, [applyHeatmapViewSettings]);
+
+    const confirmHeatmapSettings = useCallback((): void => {
+        heatmapViewSnapshotRef.current = null;
+        setShowSettings(false);
+    }, []);
+
+    const heatmapViewSummary = useMemo(
+        () => formatHeatmapViewSummary({
+            mapMode,
+            settings,
+            spotlight: spotlightSettings,
+            cold: coldSettings,
+        }),
+        [mapMode, settings, spotlightSettings, coldSettings],
+    );
 
     const handleMapModeChange = useCallback((mode: HeatmapMapMode): void => {
         if (isAoiEditMode && mode !== 'classic') {
@@ -1521,9 +1757,7 @@ export const AttentionPredictionCard = ({
         layers.heatmap,
         layers.gaze,
         hasHeatmap,
-        gazeRoutes.length,
         isAoiEditMode,
-        computedAois.length,
     ]);
 
     const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
@@ -1724,8 +1958,14 @@ export const AttentionPredictionCard = ({
                         </button>
                         {/* Settings — opens modal */}
                         <button
-                            onClick={() => setShowSettings(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-900 transition-colors"
+                            type="button"
+                            onClick={openHeatmapSettings}
+                            className={cn(
+                                'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                                showSettings
+                                    ? 'border-blue-600 text-blue-600'
+                                    : 'border-transparent text-gray-600 hover:text-gray-900',
+                            )}
                         >
                             {TAB_ICONS.settings}
                             Settings
@@ -1782,6 +2022,15 @@ export const AttentionPredictionCard = ({
                                 Rutas de mirada
                             </label>
                         )}
+                        {(hasHeatmap || gazeRoutes.length > 0) && (
+                            <button
+                                type="button"
+                                onClick={applyCompositeLayers}
+                                className="ml-1 px-2 py-0.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                            >
+                                Vista completa
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -1812,126 +2061,46 @@ export const AttentionPredictionCard = ({
                             })}
                         </div>
                         {mapMode === 'classic' && (
-                        <>
-                        <div className="flex gap-1">
-                            {DETAIL_PRESETS.map(p => (
-                                <button
-                                    key={p}
-                                    type="button"
-                                    onClick={() => {
-                                        const vals = PRESET_VALUES[p];
-                                        setSettings(prev => ({ ...prev, preset: p, ...vals }));
-                                    }}
-                                    className={cn(
-                                        'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                                        settings.preset === p
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-                                    )}
-                                >
-                                    {p}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-gray-500 w-10">Blur</label>
-                            <input
-                                type="range" min={0} max={50} value={settings.blur}
-                                onChange={e => setSettings(prev => ({ ...prev, blur: Number(e.target.value), preset: 'Custom' }))}
-                                className="w-20 accent-blue-600"
-                            />
-                            <span className="text-xs text-gray-500 w-6 text-right">{settings.blur}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-gray-500 w-14">Opacity</label>
-                            <input
-                                type="range" min={0} max={100} value={settings.opacity}
-                                onChange={e => setSettings(prev => ({ ...prev, opacity: Number(e.target.value), preset: 'Custom' }))}
-                                className="w-20 accent-blue-600"
-                            />
-                            <span className="text-xs text-gray-500 w-6 text-right">{settings.opacity}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-gray-500 w-16">Threshold</label>
-                            <input
-                                type="range" min={0} max={100} value={settings.threshold}
-                                onChange={e => setSettings(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
-                                className="w-20 accent-blue-600"
-                            />
-                            <span className="text-xs text-gray-500 w-6 text-right">{settings.threshold}</span>
-                        </div>
-                        </>
+                            <div className="flex gap-1">
+                                {DETAIL_PRESETS.map(p => (
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => {
+                                            const vals = PRESET_VALUES[p];
+                                            setSettings(prev => ({ ...prev, preset: p, ...vals }));
+                                        }}
+                                        className={cn(
+                                            'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                                            settings.preset === p
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                        )}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
                         )}
-                        {mapMode === 'spotlight' && (
-                            <>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-10">Blur</label>
-                                    <input
-                                        type="range" min={5} max={50} value={spotlightSettings.blur}
-                                        onChange={(e) => setSpotlightSettings((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-8 text-right">{spotlightSettings.blur}px</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-12">Reveal</label>
-                                    <input
-                                        type="range" min={10} max={100} value={spotlightSettings.reveal}
-                                        onChange={(e) => setSpotlightSettings((prev) => ({ ...prev, reveal: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-8 text-right">{spotlightSettings.reveal}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-8">Dim</label>
-                                    <input
-                                        type="range" min={20} max={70} value={spotlightSettings.dim}
-                                        onChange={(e) => setSpotlightSettings((prev) => ({ ...prev, dim: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-8 text-right">{spotlightSettings.dim}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-16">Threshold</label>
-                                    <input
-                                        type="range" min={0} max={100} value={settings.threshold}
-                                        onChange={e => setSettings(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-6 text-right">{settings.threshold}</span>
-                                </div>
-                            </>
-                        )}
-                        {mapMode === 'cold' && (
-                            <>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-14">Intensity</label>
-                                    <input
-                                        type="range" min={20} max={100} value={coldSettings.intensity}
-                                        onChange={(e) => setColdSettings((prev) => ({ ...prev, intensity: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-8 text-right">{coldSettings.intensity}%</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-10">Blur</label>
-                                    <input
-                                        type="range" min={4} max={40} value={coldSettings.blur}
-                                        onChange={(e) => setColdSettings((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-8 text-right">{coldSettings.blur}px</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500 w-16">Threshold</label>
-                                    <input
-                                        type="range" min={0} max={80} value={coldSettings.threshold}
-                                        onChange={(e) => setColdSettings((prev) => ({ ...prev, threshold: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                    <span className="text-xs text-gray-500 w-6 text-right">{coldSettings.threshold}</span>
-                                </div>
-                            </>
+                        <button
+                            type="button"
+                            onClick={openHeatmapSettings}
+                            className="max-w-md truncate rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                            title={heatmapViewSummary}
+                        >
+                            {heatmapViewSummary}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openHeatmapSettings}
+                            className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                        >
+                            Ajuste fino
+                        </button>
+                        {mapMode === 'classic' && (settings.preset === 'Smooth' || settings.threshold < 48) && (
+                            <span className="text-[11px] text-amber-700">
+                                Usa Lab o Precise para mayor granularidad
+                            </span>
                         )}
                     </div>
                 )}
@@ -1978,46 +2147,21 @@ export const AttentionPredictionCard = ({
                                 ))}
                             </div>
                         )}
-                        {mapMode === 'spotlight' && (
-                            <>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500">Blur</label>
-                                    <input
-                                        type="range" min={5} max={50} value={spotlightSettings.blur}
-                                        onChange={(e) => setSpotlightSettings((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500">Reveal</label>
-                                    <input
-                                        type="range" min={10} max={100} value={spotlightSettings.reveal}
-                                        onChange={(e) => setSpotlightSettings((prev) => ({ ...prev, reveal: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                </div>
-                            </>
-                        )}
-                        {mapMode === 'cold' && (
-                            <>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500">Intensity</label>
-                                    <input
-                                        type="range" min={20} max={100} value={coldSettings.intensity}
-                                        onChange={(e) => setColdSettings((prev) => ({ ...prev, intensity: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <label className="text-xs text-gray-500">Blur</label>
-                                    <input
-                                        type="range" min={4} max={40} value={coldSettings.blur}
-                                        onChange={(e) => setColdSettings((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                                        className="w-20 accent-blue-600"
-                                    />
-                                </div>
-                            </>
-                        )}
+                        <button
+                            type="button"
+                            onClick={openHeatmapSettings}
+                            className="max-w-md truncate rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                            title={heatmapViewSummary}
+                        >
+                            {heatmapViewSummary}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={openHeatmapSettings}
+                            className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                        >
+                            Ajuste fino
+                        </button>
                     </div>
                 )}
 
@@ -2071,31 +2215,30 @@ export const AttentionPredictionCard = ({
                                 })}
                             </>
                         )}
+                        {gazeMode === 'static' && (
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full sm:w-auto">
+                                {GAZE_ROUTE_LEGEND.filter((item) => (
+                                    gazeRoutes.some((route) => route.id === item.id)
+                                )).map((item) => (
+                                    <span
+                                        key={item.id}
+                                        className="flex items-center gap-1.5 text-[11px] text-gray-600"
+                                    >
+                                        <span
+                                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                                            style={{ backgroundColor: item.color }}
+                                        />
+                                        {item.label}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {/* AOI Editor workflow — tools only, image lives in shared viewport below */}
                 {!isVideo && isAoiEditMode && (
                     <div className="px-4 py-3 border-b bg-slate-50 space-y-3">
-                        <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                            <div className="flex flex-wrap items-center gap-2 text-xs">
-                                <span className={cn('px-2 py-1 rounded font-medium', aoiList.length > 0 || aoiSkipped ? 'bg-green-100 text-green-800' : 'bg-white text-gray-600 border')}>
-                                    1. Definir zonas
-                                </span>
-                                <span className="text-gray-400">→</span>
-                                <button
-                                    type="button"
-                                    onClick={() => onOpenCriteria?.()}
-                                    className="px-2 py-1 rounded font-medium bg-white text-gray-600 border hover:bg-gray-50"
-                                >
-                                    2. Criterio de análisis
-                                </button>
-                                <span className="text-gray-400">→</span>
-                                <span className={cn('px-2 py-1 rounded font-medium', hasHeatmap ? 'bg-green-100 text-green-800' : 'bg-white text-gray-600 border')}>
-                                    3. Generar heatmap
-                                </span>
-                            </div>
-                        </div>
                         <div className="flex items-center gap-3 flex-wrap">
                             <button
                                 type="button"
@@ -2247,12 +2390,13 @@ export const AttentionPredictionCard = ({
 
                         {/* ─── Unified image viewport — one image, toggleable layers ─── */}
                         {!isVideo && (
-                            layers.gaze && gazeMode === 'animated' && hasHeatmap ? (
+                            layers.gaze && gazeMode === 'animated' && animatedGazePath.length > 0 ? (
                                 <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border">
-                                    <AttentionVideoPlayer
+                                    <GazeScanpathPlayer
                                         imageUrl={imageUrl}
-                                        data={heatmapData}
+                                        gazePath={animatedGazePath}
                                         duration={5}
+                                        routeColor={ROUTE_COLORS[primaryGazeRoute?.id ?? 'typical-scan']}
                                         className="max-h-full max-w-full"
                                     />
                                 </div>
@@ -2422,6 +2566,11 @@ export const AttentionPredictionCard = ({
                         )}
                         </div>
 
+                        {isAoiEditMode && isPredicting && (
+                            <p className="mt-2 shrink-0 text-xs text-indigo-600">
+                                Regenerando heatmap ({predictElapsed}s). Los % se actualizan al mover zonas; el mapa se refrescará al terminar.
+                            </p>
+                        )}
                         {isAoiEditMode && computedAois.length > 0 && (
                             <div className="mt-2 flex shrink-0 flex-wrap gap-2">
                                 {computedAois.map((aoi, i) => {
@@ -2445,6 +2594,9 @@ export const AttentionPredictionCard = ({
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter') updateAoiLabel(aoi.id, editingLabelValue);
                                                         if (e.key === 'Escape') setEditingLabelId(null);
+                                                        if (e.key === 'Backspace' || e.key === 'Delete') {
+                                                            e.stopPropagation();
+                                                        }
                                                     }}
                                                     className="w-24 px-1 py-0.5 border rounded text-xs"
                                                     autoFocus
@@ -2492,6 +2644,9 @@ export const AttentionPredictionCard = ({
                                 if (e.key === 'Escape') {
                                     setShowNameModal(false);
                                     setPendingRect(null);
+                                }
+                                if (e.key === 'Backspace' || e.key === 'Delete') {
+                                    e.stopPropagation();
                                 }
                             }}
                         />
@@ -2559,13 +2714,9 @@ export const AttentionPredictionCard = ({
                     mapMode={mapMode}
                     spotlightSettings={spotlightSettings}
                     coldSettings={coldSettings}
-                    onApply={(view) => {
-                        setSettings(view.settings);
-                        setMapMode(view.mapMode);
-                        setSpotlightSettings(view.spotlight);
-                        setColdSettings(view.cold);
-                    }}
-                    onClose={() => setShowSettings(false)}
+                    onLiveChange={applyHeatmapViewSettings}
+                    onConfirm={confirmHeatmapSettings}
+                    onCancel={cancelHeatmapSettings}
                 />,
                 document.body
             )}

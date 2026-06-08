@@ -12,14 +12,27 @@ import { mediaService, resolveMediaUrl } from '../../services/media.service';
 import { extractVideoFrames } from '../../utils/extractVideoFrames';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 import type { ManualAOI } from '../../types/attentionPrediction.types';
-import { isNewAttentionStimulus } from '../../utils/attentionPrediction.utils';
+import {
+    canRunPredictionGate,
+    isLegacyAttentionStimulus,
+    isNewAttentionStimulus,
+    type AttentionPredictionTabId,
+} from '../../utils/attentionPrediction.utils';
 import { cn } from '../../lib/utils';
 import {
     CRITERIA_PRESETS_KEY,
+    CUSTOM_CRITERIA_LABEL,
     DEFAULT_ATTENTION_CRITERIA,
+    isAttentionCriteriaConfigured,
+    DEFAULT_CRITERIA_LABEL,
     DEFAULT_CRITERIA_PRESETS,
     LEGACY_PROMPT_PRESETS_KEY,
+    matchCriteriaPresetName,
+    mergeDefaultCriteriaPresets,
     RECOMMENDED_CRITERIA_TEMPLATE,
+    resolveAttentionCriteriaLabel,
+    resolveCriteriaNameForSave,
+    type CriteriaPreset,
 } from '../../constants/attentionPredictionCriteria';
 
 interface VideoFrame {
@@ -97,41 +110,18 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     // Prompt editor state
     const [isPromptOpen, setIsPromptOpen] = useState(false);
     const [promptDraft, setPromptDraft] = useState('');
+    const [draftCriteriaName, setDraftCriteriaName] = useState(DEFAULT_CRITERIA_LABEL);
     const [isSavingPrompt, setIsSavingPrompt] = useState(false);
 
-    const savedPrompt = useMemo(() => {
-        const settings = research.settings as Record<string, unknown> | undefined;
-        return (typeof settings?.attentionPrompt === 'string' ? settings.attentionPrompt : '') as string;
-    }, [research.settings]);
-
-    useEffect(() => {
-        setPromptDraft(savedPrompt || DEFAULT_ATTENTION_PROMPT);
-    }, [savedPrompt]);
-
-    const handleSavePrompt = useCallback(async () => {
-        setIsSavingPrompt(true);
+    const [presets, setPresets] = useState<CriteriaPreset[]>(() => {
         try {
-            const value = promptDraft.trim() === DEFAULT_ATTENTION_PROMPT.trim() ? '' : promptDraft.trim();
-            await researchService.update(research.id, {
-                settings: { ...(research.settings as Record<string, unknown> || {}), attentionPrompt: value },
-            });
-            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-        } finally {
-            setIsSavingPrompt(false);
-        }
-    }, [promptDraft, research.id, research.settings, queryClient]);
-
-    const isPromptModified = promptDraft.trim() !== (savedPrompt || DEFAULT_ATTENTION_PROMPT).trim();
-
-    // Prompt presets — stored in localStorage, shared across all studies
-    const [presets, setPresets] = useState<Array<{ name: string; prompt: string }>>(() => {
-        try {
-            const stored = JSON.parse(localStorage.getItem(CRITERIA_PRESETS_KEY) || '[]') as Array<{ name: string; prompt: string }>;
-            if (stored.length > 0) return stored;
-            const legacy = JSON.parse(localStorage.getItem(LEGACY_PROMPT_PRESETS_KEY) || '[]') as Array<{ name: string; prompt: string }>;
+            const stored = JSON.parse(localStorage.getItem(CRITERIA_PRESETS_KEY) || '[]') as CriteriaPreset[];
+            if (stored.length > 0) return mergeDefaultCriteriaPresets(stored);
+            const legacy = JSON.parse(localStorage.getItem(LEGACY_PROMPT_PRESETS_KEY) || '[]') as CriteriaPreset[];
             if (legacy.length > 0) {
-                localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(legacy));
-                return legacy;
+                const mergedLegacy = mergeDefaultCriteriaPresets(legacy);
+                localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(mergedLegacy));
+                return mergedLegacy;
             }
             return DEFAULT_CRITERIA_PRESETS;
         } catch {
@@ -145,6 +135,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         const updated = [...presets.filter(p => p.name !== name), { name, prompt }];
         setPresets(updated);
         localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(updated));
+        setDraftCriteriaName(name);
         setNewPresetName('');
         setShowSavePreset(false);
     }, [presets]);
@@ -154,6 +145,69 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         setPresets(updated);
         localStorage.setItem(CRITERIA_PRESETS_KEY, JSON.stringify(updated));
     }, [presets]);
+
+    const savedPrompt = useMemo(() => {
+        const settings = research.settings as Record<string, unknown> | undefined;
+        return (typeof settings?.attentionPrompt === 'string' ? settings.attentionPrompt : '') as string;
+    }, [research.settings]);
+
+    const savedCriteriaName = useMemo(() => {
+        const settings = research.settings as Record<string, unknown> | undefined;
+        return (typeof settings?.attentionCriteriaName === 'string' ? settings.attentionCriteriaName : '') as string;
+    }, [research.settings]);
+
+    useEffect(() => {
+        const nextPrompt = savedPrompt || DEFAULT_ATTENTION_PROMPT;
+        setPromptDraft(nextPrompt);
+        setDraftCriteriaName(
+            resolveAttentionCriteriaLabel(savedCriteriaName, savedPrompt, presets),
+        );
+    }, [savedPrompt, savedCriteriaName, presets]);
+
+    const activeCriteriaLabel = useMemo(
+        () => resolveAttentionCriteriaLabel(savedCriteriaName, savedPrompt, presets),
+        [savedCriteriaName, savedPrompt, presets],
+    );
+
+    const hasCriteriaConfigured = useMemo(
+        () => isAttentionCriteriaConfigured(savedCriteriaName, savedPrompt),
+        [savedCriteriaName, savedPrompt],
+    );
+
+    const [workflowFocusTab, setWorkflowFocusTab] = useState<AttentionPredictionTabId | undefined>();
+
+    const handlePromptDraftChange = useCallback((value: string): void => {
+        setPromptDraft(value);
+        const matchedPreset = matchCriteriaPresetName(value, presets);
+        if (!value.trim() || value.trim() === DEFAULT_ATTENTION_PROMPT.trim()) {
+            setDraftCriteriaName(DEFAULT_CRITERIA_LABEL);
+            return;
+        }
+        setDraftCriteriaName(matchedPreset ?? CUSTOM_CRITERIA_LABEL);
+    }, [presets]);
+
+    const handleSavePrompt = useCallback(async () => {
+        setIsSavingPrompt(true);
+        try {
+            const freshRes = await researchService.getById(research.id);
+            const freshSettings = (freshRes.research.settings as Record<string, unknown>) || {};
+            const value = promptDraft.trim() === DEFAULT_ATTENTION_PROMPT.trim() ? '' : promptDraft.trim();
+            const criteriaName = resolveCriteriaNameForSave(promptDraft, draftCriteriaName, presets);
+            await researchService.update(research.id, {
+                settings: {
+                    ...freshSettings,
+                    attentionPrompt: value,
+                    attentionCriteriaName: criteriaName,
+                },
+            });
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+        } finally {
+            setIsSavingPrompt(false);
+        }
+    }, [promptDraft, draftCriteriaName, presets, research.id, queryClient]);
+
+    const isPromptModified = promptDraft.trim() !== (savedPrompt || DEFAULT_ATTENTION_PROMPT).trim()
+        || draftCriteriaName !== activeCriteriaLabel;
 
     const stimuli = useMemo(() => {
         const settings = (research.settings as { stimuli?: StimulusItem[] }) || {};
@@ -176,17 +230,24 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid overwriting in-memory edits on research refetch
     }, [activeStimulus?.mediaId]);
 
+    const canRunPrediction = canRunPredictionGate(
+        liveAois.length,
+        Boolean(activeStimulus?.aoiSkipped),
+    );
+
     const persistStimuli = useCallback(async (updated: StimulusItem[]) => {
+        const freshRes = await researchService.getById(research.id);
+        const freshSettings = (freshRes.research.settings as Record<string, unknown>) || {};
         await researchService.update(research.id, {
             settings: {
-                ...(research.settings as Record<string, unknown> || {}),
+                ...freshSettings,
                 stimuli: updated,
                 stimulusUrl: updated[0]?.url,
                 stimulusMediaId: updated[0]?.mediaId,
             },
         });
         queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-    }, [research.id, research.settings, queryClient]);
+    }, [research.id, queryClient]);
 
     const startAnalyzeTimer = useCallback(() => {
         setAnalyzeElapsed(0);
@@ -378,7 +439,8 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
         await persistStimuli(merged);
 
-        // Process each new stimulus
+        // P1-01: image uploads must NOT auto-trigger predict or AI analyze (AOI-first manual flow).
+        // Only video stimuli run the frame-extraction + video-predict pipeline below.
         for (const stimulus of newStimuli) {
             if (stimulus.isVideo) {
                 const videoUrl = stimulus.url.startsWith('http') ? stimulus.url : resolveMediaUrl(stimulus.url);
@@ -401,9 +463,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
     const isNewStimulus = activeStimulus
         ? isNewAttentionStimulus(activeStimulus.processedAt, hasAnalysis)
         : false;
+    const heatmapPointCount = activeStimulus?.heatmapData?.length ?? 0;
     const needsHeatmapRegeneration = Boolean(
-        activeStimulus && hasAnalysis && !(activeStimulus.heatmapData?.length),
+        activeStimulus && hasAnalysis && heatmapPointCount === 0,
     );
+    const isLegacyStimulus = activeStimulus
+        ? isLegacyAttentionStimulus(
+            activeStimulus.processedAt,
+            heatmapPointCount,
+            hasAnalysis,
+            liveAois.length,
+            Boolean(activeStimulus.aoiSkipped),
+        )
+        : false;
 
     return (
         <div className="flex h-full overflow-hidden">
@@ -420,8 +492,19 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                     width="lg"
                 >
                     <div className="space-y-4">
+                        <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
+                                Criterio activo
+                            </p>
+                            <p className="text-sm font-semibold text-blue-900 mt-0.5">
+                                {draftCriteriaName}
+                            </p>
+                            <p className="text-xs text-blue-700 mt-1">
+                                Este nombre se muestra en el encabezado del estímulo tras aplicar al estudio.
+                            </p>
+                        </div>
                         <p className="text-sm text-gray-500">
-                            Personaliza el criterio enviado a la IA. Los cambios aplican solo a análisis futuros.
+                            Personaliza el criterio enviado a la IA para el heatmap y el análisis. Los cambios aplican solo a corridas futuras.
                         </p>
 
                         <button
@@ -430,7 +513,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 if (promptDraft.trim() && promptDraft.trim() !== RECOMMENDED_CRITERIA_TEMPLATE.trim()) {
                                     if (!window.confirm('¿Reemplazar el criterio actual con la plantilla recomendada?')) return;
                                 }
-                                setPromptDraft(RECOMMENDED_CRITERIA_TEMPLATE);
+                                handlePromptDraftChange(RECOMMENDED_CRITERIA_TEMPLATE);
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                         >
@@ -439,15 +522,21 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
                         <textarea
                             value={promptDraft}
-                            onChange={e => setPromptDraft(e.target.value)}
+                            onChange={(e) => handlePromptDraftChange(e.target.value)}
                             rows={20}
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Backspace' || e.key === 'Delete') {
+                                    e.stopPropagation();
+                                }
+                            }}
                             className="w-full text-sm text-gray-700 border rounded-md p-3 resize-y focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
                         />
                         <div className="flex items-center justify-between pt-2">
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => setPromptDraft(DEFAULT_ATTENTION_PROMPT)}
+                                    onClick={() => handlePromptDraftChange(DEFAULT_ATTENTION_PROMPT)}
                                     className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
                                 >
                                     <RotateCw className="w-3.5 h-3.5" />
@@ -462,7 +551,17 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                             placeholder="Preset name..."
                                             className="px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-400 w-36"
                                             autoFocus
-                                            onKeyDown={e => { if (e.key === 'Enter' && newPresetName.trim()) savePreset(newPresetName.trim(), promptDraft); if (e.key === 'Escape') setShowSavePreset(false); }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newPresetName.trim()) {
+                                                    savePreset(newPresetName.trim(), promptDraft);
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    setShowSavePreset(false);
+                                                }
+                                                if (e.key === 'Backspace' || e.key === 'Delete') {
+                                                    e.stopPropagation();
+                                                }
+                                            }}
                                         />
                                         <button
                                             type="button"
@@ -509,9 +608,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                         <div key={p.name} className="flex items-center gap-0.5">
                                             <button
                                                 type="button"
-                                                onClick={() => setPromptDraft(p.prompt)}
+                                                onClick={() => {
+                                                    setPromptDraft(p.prompt);
+                                                    setDraftCriteriaName(p.name);
+                                                }}
                                                 className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                                                    promptDraft === p.prompt
+                                                    draftCriteriaName === p.name
                                                         ? 'bg-blue-100 text-blue-700 border border-blue-200'
                                                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
                                                 }`}
@@ -536,17 +638,28 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
                 {activeStimulus ? (
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        {needsHeatmapRegeneration && (
-                            <div className="mb-4 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                <span>Este estímulo tiene análisis IA pero no heatmap TranSalNet. Genera el heatmap para ver la predicción real.</span>
-                                <button
-                                    type="button"
-                                    onClick={() => void runPrediction(activeStimulus.mediaId, liveAois)}
-                                    disabled={isPredicting}
-                                    className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                                >
-                                    Regenerar heatmap
-                                </button>
+                        {(needsHeatmapRegeneration || isLegacyStimulus) && (
+                            <div className="mb-4 flex shrink-0 flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                {needsHeatmapRegeneration && (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span>Este estímulo tiene análisis IA pero no heatmap TranSalNet. Genera el heatmap para ver la predicción real.</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => void runPrediction(activeStimulus.mediaId, liveAois)}
+                                            disabled={isPredicting}
+                                            className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                                        >
+                                            Regenerar heatmap
+                                        </button>
+                                    </div>
+                                )}
+                                {isLegacyStimulus && (
+                                    <p>
+                                        Resultados del flujo anterior (auto-análisis). Sigue el paso a paso:
+                                        definir zonas → criterio → generar heatmap → analizar con IA.
+                                        Los resultados actuales no se muestran hasta completar el flujo.
+                                    </p>
+                                )}
                             </div>
                         )}
                         <AttentionPredictionCard
@@ -570,7 +683,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             predictElapsed={predictElapsed}
                             predictionError={activeStimulus.predictionError}
                             initialTab={isNewStimulus ? 'aoi-editor' : undefined}
-                            onOpenCriteria={() => setIsPromptOpen(true)}
+                            workflowFocusTab={workflowFocusTab}
+                            onWorkflowFocusTabHandled={() => setWorkflowFocusTab(undefined)}
+                            isCriteriaDrawerOpen={isPromptOpen}
                             aoiSkipped={Boolean(activeStimulus.aoiSkipped)}
                             onAoiSkippedChange={(skipped) => void handleAoiSkippedChange(skipped, activeStimulus.mediaId)}
                             onAoiListChange={setLiveAois}
@@ -588,14 +703,14 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 <button
                                     type="button"
                                     onClick={() => setIsPromptOpen(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100"
+                                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
                                     title="Editar criterio de análisis"
                                 >
-                                    <Settings2 className="w-3.5 h-3.5" />
-                                    Criterio
-                                    {savedPrompt && (
-                                        <span className="text-[10px] px-1 py-0.5 bg-blue-50 text-blue-600 rounded font-medium leading-none">Personalizado</span>
-                                    )}
+                                    <Settings2 className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="text-gray-500">Criterio</span>
+                                    <span className="max-w-[180px] truncate rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                        {activeCriteriaLabel}
+                                    </span>
                                 </button>
                             }
                         />
@@ -682,13 +797,24 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                     {aiPanelOpen && (
                         <div className="w-[420px] border-l border-gray-200 bg-white overflow-y-auto">
                             <AiAnalysisPanel
-                                analysis={aiAnalysis ?? null}
+                                analysis={isLegacyStimulus ? null : (aiAnalysis ?? null)}
                                 isAnalyzing={isProcessing}
                                 onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId, liveAois)}
                                 onImportAois={(aois) => setPendingImportAois(aois)}
-                                hasHeatmap={Boolean(activeStimulus?.heatmapData?.length)}
+                                hasHeatmap={heatmapPointCount > 0}
                                 hasAois={Boolean(liveAois.length || activeStimulus?.aoiSkipped)}
                                 manualAois={liveAois}
+                                isLegacyFlow={isLegacyStimulus}
+                                criteriaLabel={activeCriteriaLabel}
+                                hasCriteria={hasCriteriaConfigured}
+                                onOpenCriteria={() => setIsPromptOpen(true)}
+                                onFocusAoiEditor={() => setWorkflowFocusTab('aoi-editor')}
+                                onRunPrediction={() => activeStimulus && void runPrediction(activeStimulus.mediaId, liveAois)}
+                                isPredicting={isPredicting}
+                                predictElapsed={predictElapsed}
+                                canRunPrediction={canRunPrediction}
+                                analyzeElapsed={analyzeElapsed}
+                                aoiSkipped={Boolean(activeStimulus?.aoiSkipped)}
                             />
                         </div>
                     )}

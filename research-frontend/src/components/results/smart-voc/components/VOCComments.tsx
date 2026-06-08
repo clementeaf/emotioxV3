@@ -3,7 +3,13 @@ import { User, ClipboardList, Hash, Sparkles, Loader2, RefreshCw, X, Quote } fro
 import { Card } from '../../../ui/Card';
 import { Badge } from '../../../ui/Badge';
 import { cn } from '../../../../lib/utils';
-import type { TextAnalysis } from '../../../../services/analytics.service';
+import {
+    getTextAnalysis,
+    triggerTextAnalysis,
+    type TextAnalysis,
+} from '../../../../services/analytics.service';
+import { participantsService, type Participant } from '../../../../services/participants.service';
+import { smartVOCService, type SmartVOCResponse } from '../../../../services/smartVOC.service';
 
 interface Comment {
   text: string;
@@ -64,7 +70,6 @@ export const VOCComments = ({
     (async () => {
       setLoadingAnalysis(true);
       try {
-        const { getTextAnalysis } = await import('../../../../services/analytics.service');
         const cached = await getTextAnalysis(researchId, moduleId);
         if (!cancelled && cached && (cached.themes.length > 0 || cached.keywords.length > 0)) {
           setAnalysis(cached);
@@ -83,7 +88,6 @@ export const VOCComments = ({
     if (!researchId || !moduleId || analyzing) return;
     setAnalyzing(true);
     try {
-      const { triggerTextAnalysis, getTextAnalysis } = await import('../../../../services/analytics.service');
       const hasSelection = selectedComments.length > 0 && selectedComments.length < comments.length;
       const selectedTexts = hasSelection
         ? selectedComments.map(i => comments[i]).filter(Boolean).map(c => ({ text: c.text, mood: c.mood || '' }))
@@ -154,29 +158,24 @@ export const VOCComments = ({
 
   const downloadSmartVOCComments = async (rid: string): Promise<void> => {
     try {
-      const [{ participantsService }, { smartVOCService }] = await Promise.all([
-        import('../../../../services/participants.service'),
-        import('../../../../services/smartVOC.service')
-      ]);
-
-      let participants: import('../../../../services/participants.service').Participant[] = [];
+      let participants: Participant[] = [];
       try {
         participants = await participantsService.list(rid);
       } catch (err) {
         console.error('Error fetching participants:', err);
       }
 
-      let responses: import('../../../../services/smartVOC.service').SmartVOCResponse[] = [];
+      let responses: SmartVOCResponse[] = [];
       try {
         responses = await smartVOCService.getResponses(rid);
       } catch (err) {
         console.error('Error fetching SmartVOC responses:', err);
       }
 
-      const participantMap: Record<string, import('../../../../services/participants.service').Participant> = {};
+      const participantMap: Record<string, Participant> = {};
       participants.forEach(p => { participantMap[p.participant_id] = p; });
 
-      const responsesMap: Record<string, import('../../../../services/smartVOC.service').SmartVOCResponse[]> = {};
+      const responsesMap: Record<string, SmartVOCResponse[]> = {};
       responses.forEach(r => {
         if (!responsesMap[r.participant_id]) responsesMap[r.participant_id] = [];
         responsesMap[r.participant_id].push(r);

@@ -1,5 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { WebEyeTrack } from 'webeyetrack';
+
+type WebEyeTrackInstance = {
+    loaded: boolean;
+    latestMouseClick: unknown;
+    initialize(): Promise<void>;
+    step(imageData: ImageData, timestamp: number): Promise<{
+        gazeState: 'open' | 'closed';
+        normPog?: number[];
+    }>;
+    handleClick(normX: number, normY: number): void;
+};
 
 /**
  * BlazeGaze gaze prediction — single pipeline, no duplicate MediaPipe.
@@ -11,7 +21,7 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
     const [gazePos, setGazePos] = useState<{ x: number; y: number } | null>(null);
     const [gazeState, setGazeState] = useState<'open' | 'closed'>('closed');
 
-    const trackerRef = useRef<WebEyeTrack | null>(null);
+    const trackerRef = useRef<WebEyeTrackInstance | null>(null);
     const rafRef = useRef(0);
     const canvasRef = useRef<OffscreenCanvas | null>(null);
     const runningRef = useRef(false);
@@ -22,7 +32,8 @@ export function useBlazeGaze(videoRef: React.RefObject<HTMLVideoElement | null>)
         let cancelled = false;
 
         async function init() {
-            const tracker = new WebEyeTrack(20, 300);
+            const { WebEyeTrack } = await import('webeyetrack');
+            const tracker = new WebEyeTrack(20, 300) as unknown as WebEyeTrackInstance;
             await tracker.initialize();
             if (cancelled) return;
             trackerRef.current = tracker;

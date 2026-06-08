@@ -8,6 +8,7 @@ import { HeatmapRenderer } from './HeatmapRenderer';
 import { QuantityMapperTab } from './QuantityMapperTab';
 import { ScanPathTab } from './ScanPathTab';
 import { NavigationTab } from './NavigationTab';
+import apiClient from '../../../../services/api/client';
 import type { AOI, AOIWithStats, NavigationTestCardProps } from './navigationTestCard.types';
 
 export type { NavigationStep, NavigationTestCardProps } from './navigationTestCard.types';
@@ -497,7 +498,6 @@ export const NavigationTestCard = ({
                                     const stepFileId = steps.length > 1 ? String(step.stepNumber) : undefined;
                                     setPredicting(String(step.stepNumber));
                                     try {
-                                      const { default: apiClient } = await import('../../../../services/api/client');
                                       const body: Record<string, unknown> = {};
                                       if (stepFileId) body.imageIndex = step.stepNumber - 1;
                                       await apiClient.post(

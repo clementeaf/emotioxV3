@@ -7,7 +7,13 @@
  * Peak memory: ~1.3MB regardless of frame count.
  */
 
-import { predictAttentionFast, computeAutoPresets, computeGriddedAOIs, extractHeatmapPoints } from './attention-prediction.service';
+import {
+    predictAttentionFast,
+    computeAutoPresets,
+    computeGriddedAOIs,
+    extractHeatmapPoints,
+    suppressWhitespaceSaliency,
+} from './attention-prediction.service';
 import { generateHybridSaliency, type AnalysisProfile } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import type { VideoJobEvent } from './video-prediction-jobs';
@@ -266,6 +272,12 @@ export async function predictVideoFrames(
     } catch (hybridErr) {
         console.warn('[VideoPrediction] Hybrid fusion failed, using averaged TranSalNet:', hybridErr);
         finalMap = accumulated;
+    }
+
+    try {
+        finalMap = await suppressWhitespaceSaliency(finalMap, hybridImagePath, mapWidth, mapHeight);
+    } catch (suppressErr) {
+        console.warn('[VideoPrediction] Whitespace suppression skipped:', suppressErr);
     }
 
     // ─── Phase 4: Compute final outputs ──────────────────────────────

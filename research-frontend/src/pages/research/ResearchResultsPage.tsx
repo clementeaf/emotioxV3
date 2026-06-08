@@ -9,7 +9,13 @@ import { EyeTrackingResults } from '../../components/results/eye-tracking/EyeTra
 import { WebsiteTrackingResults } from '../../components/results/website-tracking/WebsiteTrackingResults';
 import { EmotionAnalysisResults } from '../../components/results/emotion-analysis/EmotionAnalysisResults';
 import { useResearch } from '../../hooks/useResearchQuery';
+import {
+    getCognitiveTaskResults,
+    getImplicitAssociationResults,
+} from '../../services/analytics.service';
 import { downloadResearchExport } from '../../services/export.service';
+import { generateResultsPptx } from '../../services/pptx-export.service';
+import { smartVOCService } from '../../services/smartVOC.service';
 import { ExecutiveSummaryPanel } from '../../components/results/shared/ExecutiveSummaryPanel';
 import { AlertsBar } from '../../components/results/shared/AlertsBar';
 import { ReportGeneratorButton } from '../../components/results/shared/ReportGenerator';
@@ -119,10 +125,6 @@ export const ResearchResultsPage = () => {
         if (!id || exportingPptx) return;
         setExportingPptx(true);
         try {
-            const { generateResultsPptx } = await import('../../services/pptx-export.service');
-            const { smartVOCService } = await import('../../services/smartVOC.service');
-            const { getCognitiveTaskResults, getImplicitAssociationResults } = await import('../../services/analytics.service');
-
             const [smartvoc, cognitive, summaryRes, iat] = await Promise.all([
                 smartVOCService.getAnalytics(id).catch(() => null),
                 getCognitiveTaskResults(id).catch(() => null),

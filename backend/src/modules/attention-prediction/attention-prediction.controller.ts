@@ -8,7 +8,15 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { success, error } from '../../utils/response';
 import { requireAuth } from '../../utils/auth.local';
 import { getRequestOrigin } from '../../utils/request';
-import { predictAttentionFast, predictAttentionRaw, computeAutoPresets, computeGriddedAOIs, extractHeatmapPoints, DEFAULT_EXTRACT_HEATMAP_OPTIONS } from './attention-prediction.service';
+import {
+    predictAttentionFast,
+    predictAttentionRaw,
+    computeAutoPresets,
+    computeGriddedAOIs,
+    extractHeatmapPoints,
+    DEFAULT_EXTRACT_HEATMAP_OPTIONS,
+    suppressWhitespaceSaliency,
+} from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import { predictVideoFrames } from './video-prediction.service';
@@ -51,6 +59,12 @@ const runPredictionAsync = async (
             // Fallback to TranSalNet-only if Gemini fails
             console.warn('[Predict] Hybrid fusion failed, using TranSalNet only:', hybridErr);
             finalMap = transalnetMap;
+        }
+
+        try {
+            finalMap = await suppressWhitespaceSaliency(finalMap, imagePath, width, height);
+        } catch (suppressErr) {
+            console.warn('[Predict] Whitespace suppression skipped:', suppressErr);
         }
 
         // Step 3: Extract points + auto-presets + gridded AOIs
@@ -159,6 +173,12 @@ const runModulePredictionAsync = async (
             finalMap = await generateHybridSaliency(imagePath, transalnetMap, width, height);
         } catch {
             finalMap = transalnetMap;
+        }
+
+        try {
+            finalMap = await suppressWhitespaceSaliency(finalMap, imagePath, width, height);
+        } catch (suppressErr) {
+            console.warn('[ModulePredict] Whitespace suppression skipped:', suppressErr);
         }
 
         const autoPresets = computeAutoPresets(finalMap);

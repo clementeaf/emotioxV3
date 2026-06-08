@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Module } from '../services/public.service';
+import { publicService } from '../services/public.service';
+import { resolveScreenerChoiceOptions } from '../utils/screenerParticipant';
 import { useSessionStore } from '../stores/useSessionStore';
 import { useParticipantStore } from '../stores/useParticipantStore';
 import { responseService } from '../services/response.service';
@@ -83,7 +85,6 @@ export const useHandleNext = ({
       }
       if (choiceValue) {
         const components = currentModule.structure?.components ?? [];
-        const { resolveScreenerChoiceOptions } = await import('../utils/screenerParticipant');
         const choices = resolveScreenerChoiceOptions(components);
         const selected = choices.find(c => c.id === choiceValue);
         if (selected?.eligibility === 'Disqualify') {
@@ -134,7 +135,6 @@ export const useHandleNext = ({
             ?? useParticipantStore.getState().participantId
             ?? `anon-${Date.now()}`;
 
-          const { publicService } = await import('../services/public.service');
           const result = await publicService.validateDemographics(rid, demoAnswers, effectivePid);
           if (!result.valid) {
             console.warn('[Demographics] Validation failed:', {

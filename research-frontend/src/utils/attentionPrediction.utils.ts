@@ -59,6 +59,33 @@ export const DEFAULT_COLD_MAP_SETTINGS: ColdMapSettings = {
     threshold: 28,
 };
 
+export interface HeatmapViewSummaryInput {
+    mapMode: HeatmapMapMode;
+    settings: {
+        blur: number;
+        opacity: number;
+        threshold: number;
+        preset: string;
+    };
+    spotlight: SpotlightSettings;
+    cold: ColdMapSettings;
+}
+
+/**
+ * Formats a compact heatmap settings summary for the toolbar.
+ * @param input - Active map mode and tuning values
+ * @returns Human-readable one-line summary
+ */
+export function formatHeatmapViewSummary(input: HeatmapViewSummaryInput): string {
+    if (input.mapMode === 'spotlight') {
+        return `Spotlight · blur ${input.spotlight.blur} · reveal ${input.spotlight.reveal}% · umbral ${input.settings.threshold}`;
+    }
+    if (input.mapMode === 'cold') {
+        return `Cold · intensidad ${input.cold.intensity}% · blur ${input.cold.blur} · umbral ${input.cold.threshold}`;
+    }
+    return `${input.settings.preset} · blur ${input.settings.blur} · opacidad ${input.settings.opacity}% · umbral ${input.settings.threshold}`;
+}
+
 /** Map modes available in the heatmap layer */
 export const ACTIVE_HEATMAP_MAP_MODES: HeatmapMapMode[] = ['classic', 'spotlight', 'cold'];
 
@@ -116,7 +143,7 @@ export function resolveHeatmapVisualProfile(preset: string): HeatmapVisualProfil
  * @returns Whether precise granularity applies
  */
 export function isPreciseHeatmapProfile(profile: HeatmapVisualProfile): boolean {
-    return profile === 'lab' || profile === 'precise';
+    return profile === 'lab' || profile === 'precise' || profile === 'balanced';
 }
 
 /** Acceptance criterion: single hotspot footprint must not exceed 15% of frame area */
@@ -167,10 +194,20 @@ export function resolveHeatmapRadiusPx(params: HeatmapRadiusParams): number {
 
     const radiusScale = visualProfile === 'lab'
         ? (isLegacyDense ? 0.038 : 0.032)
-        : isRefined
-            ? (isDense ? 0.05 : 0.042)
-            : isDense ? 0.12 : 0.035;
-    const radiusMin = visualProfile === 'lab' ? 10 : isRefined ? 14 : isDense ? 40 : 12;
+        : visualProfile === 'balanced'
+            ? (isDense ? 0.044 : 0.038)
+            : isRefined
+                ? (isDense ? 0.05 : 0.042)
+                : isDense ? 0.12 : 0.035;
+    const radiusMin = visualProfile === 'lab'
+        ? 10
+        : visualProfile === 'balanced'
+            ? 12
+            : isRefined
+                ? 14
+                : isDense
+                    ? 40
+                    : 12;
     let radius = Math.max(radiusMin, Math.round(minDim * radiusScale));
 
     if (isRefined) {
@@ -191,7 +228,7 @@ export function getPresetRadiusScale(preset: string): number {
         return 0.12;
     }
     if (profile === 'balanced') {
-        return 0.035;
+        return 0.04;
     }
     if (profile === 'lab') {
         return 0.032;
@@ -333,6 +370,248 @@ export function isNewAttentionStimulus(
     hasAiAnalysis: boolean,
 ): boolean {
     return !processedAt && !hasAiAnalysis;
+}
+
+/**
+ * Detects stimuli analyzed under the pre-AOI-first pipeline (bulk auto-analyze).
+ * @param processedAt - TranSalNet predict timestamp
+ * @param heatmapPointCount - Points in heatmapData
+ * @param hasAiAnalysis - Whether LLM analysis exists
+ * @param manualAoiCount - Researcher-defined AOI count
+ * @param aoiSkipped - User opted out of AOI definition
+ * @returns True when results should be treated as legacy until re-run
+ */
+export function isLegacyAttentionStimulus(
+    processedAt: string | undefined,
+    heatmapPointCount: number,
+    hasAiAnalysis: boolean,
+    manualAoiCount: number,
+    aoiSkipped: boolean,
+): boolean {
+    if (!hasAiAnalysis) {
+        return false;
+    }
+    if (heatmapPointCount === 0 || !processedAt) {
+        return true;
+    }
+    return manualAoiCount === 0 && !aoiSkipped;
+}
+
+export type AttentionPredictionTabId = 'original' | 'heatmap' | 'gaze-paths' | 'aoi-editor';
+
+export interface AttentionLayerState {
+    heatmap: boolean;
+    aiAois: boolean;
+    manualAois: boolean;
+    gaze: boolean;
+}
+
+export interface AttentionLayerContext {
+    hasHeatmap: boolean;
+    hasGazeRoutes: boolean;
+    hasManualAois: boolean;
+    hasAutoAois: boolean;
+}
+
+/**
+ * Returns true when the DOM node accepts keyboard text editing.
+ * @param target - Event target from a keyboard event
+ * @returns Whether Delete/Backspace should edit text instead of deleting an AOI
+ */
+export function isEditableDomTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) {
+        return false;
+    }
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return true;
+    }
+    return target.isContentEditable === true;
+}
+
+export interface AoiKeyboardDeleteGuardContext {
+    showNameModal: boolean;
+    editingLabelId: string | null;
+    criteriaDrawerOpen: boolean;
+    target: EventTarget | null;
+}
+
+/**
+ * Returns true when Delete/Backspace must not remove the selected AOI.
+ * @param context - Modal state, inline label edit, criteria drawer, and event target
+ * @returns Whether AOI keyboard delete should be suppressed
+ */
+export function shouldBlockAoiKeyboardDelete(context: AoiKeyboardDeleteGuardContext): boolean {
+    if (context.criteriaDrawerOpen) {
+        return true;
+    }
+    if (context.showNameModal) {
+        return true;
+    }
+    if (context.editingLabelId) {
+        return true;
+    }
+    return isEditableDomTarget(context.target);
+}
+
+/**
+ * Builds composable layer visibility for an Attention Prediction tab.
+ * Original and Gaze Paths enable every available overlay (composite view).
+ * @param tabId - Active stimulus tab
+ * @param context - Which overlays have data to show
+ * @returns Layer toggle state for the tab
+ */
+export function buildAttentionLayerPreset(
+    tabId: AttentionPredictionTabId,
+    context: AttentionLayerContext,
+): AttentionLayerState {
+    switch (tabId) {
+        case 'heatmap':
+            return {
+                heatmap: context.hasHeatmap,
+                aiAois: false,
+                manualAois: false,
+                gaze: false,
+            };
+        case 'aoi-editor':
+            return {
+                heatmap: context.hasHeatmap,
+                aiAois: false,
+                manualAois: context.hasManualAois,
+                gaze: false,
+            };
+        case 'gaze-paths':
+        case 'original':
+        default:
+            return {
+                heatmap: context.hasHeatmap,
+                aiAois: context.hasAutoAois,
+                manualAois: context.hasManualAois,
+                gaze: context.hasGazeRoutes,
+            };
+    }
+}
+
+export interface HeatmapPoint {
+    x: number;
+    y: number;
+    value: number;
+}
+
+/**
+ * Normalizes heatmap point coordinates to percentage space (0-100).
+ * @param point - Heatmap data point
+ * @returns x/y in percent
+ */
+export function heatmapPointToPercent(point: HeatmapPoint): { px: number; py: number } {
+    return {
+        px: point.x > 1 ? point.x : point.x * 100,
+        py: point.y > 1 ? point.y : point.y * 100,
+    };
+}
+
+/**
+ * Returns true when a percent point lies inside an AOI bounding box.
+ * @param px - X in percent
+ * @param py - Y in percent
+ * @param aoi - AOI bounds in percent
+ * @returns Whether the point is inside the AOI
+ */
+export function pointInsidePercentAoi(
+    px: number,
+    py: number,
+    aoi: PercentAoi,
+): boolean {
+    return px >= aoi.x && px <= aoi.x + aoi.width
+        && py >= aoi.y && py <= aoi.y + aoi.height;
+}
+
+/**
+ * Computes attention share for an AOI as weighted saliency inside bbox vs global sum.
+ * @param aoi - AOI bounds in percent
+ * @param heatmapData - TranSalNet heatmap points
+ * @returns Attention share 0-100
+ */
+export function computeAoiAttentionShare(
+    aoi: PercentAoi,
+    heatmapData: HeatmapPoint[],
+): number {
+    if (heatmapData.length === 0) {
+        return 0;
+    }
+
+    let inBboxSum = 0;
+    let totalSum = 0;
+
+    for (const point of heatmapData) {
+        const { px, py } = heatmapPointToPercent(point);
+        const val = Number(point.value) || 0;
+        totalSum += val;
+        if (pointInsidePercentAoi(px, py, aoi)) {
+            inBboxSum += val;
+        }
+    }
+
+    if (totalSum <= 0) {
+        return 0;
+    }
+    if (inBboxSum > 0) {
+        return Math.round((inBboxSum / totalSum) * 100);
+    }
+
+    const cx = aoi.x + aoi.width / 2;
+    const cy = aoi.y + aoi.height / 2;
+    let nearestVal = 0;
+    let nearestDist = Infinity;
+
+    for (const point of heatmapData) {
+        const { px, py } = heatmapPointToPercent(point);
+        const dist = Math.hypot(px - cx, py - cy);
+        if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestVal = Number(point.value) || 0;
+        }
+    }
+
+    const reach = Math.max(aoi.width, aoi.height) * 0.6;
+    if (nearestDist <= reach) {
+        return Math.round((nearestVal / totalSum) * 100);
+    }
+
+    return 0;
+}
+
+/**
+ * Clamps AI-detected AOI bounds to valid percentage coordinates.
+ * @param aoi - Raw auto-AOI from LLM output
+ * @returns Sanitized AOI with optional lowConfidence flag
+ */
+export function sanitizeAutoAoiBounds<T extends {
+    label: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    attentionLevel: string;
+    description: string;
+    lowConfidence?: boolean;
+}>(aoi: T): T & { lowConfidence: boolean } {
+    const width = Math.max(MIN_AOI_SIZE, Math.min(100, Number(aoi.width) || MIN_AOI_SIZE));
+    const height = Math.max(MIN_AOI_SIZE, Math.min(100, Number(aoi.height) || MIN_AOI_SIZE));
+    const x = Math.max(0, Math.min(100 - width, Number(aoi.x) || 0));
+    const y = Math.max(0, Math.min(100 - height, Number(aoi.y) || 0));
+    const area = width * height;
+    const lowConfidence = Boolean(aoi.lowConfidence) || area < 36 || width < 3 || height < 3;
+
+    return {
+        ...aoi,
+        label: String(aoi.label || 'Zona sin nombre').slice(0, 80),
+        x,
+        y,
+        width,
+        height,
+        lowConfidence,
+    };
 }
 
 /**
@@ -494,9 +773,122 @@ export function reconcileAutoAoisWithManual<T extends AutoAoi>(
         }
 
         if (include) {
-            reconciled.push(corrected ?? auto);
+            reconciled.push(sanitizeAutoAoiBounds(corrected ?? auto));
         }
     }
 
     return reconciled;
+}
+
+type GazeFixation = AiAnalysisResult['gazePath'][number];
+
+const GAZE_SNAP_RADIUS_PCT = 14;
+const GAZE_SNAP_BLEND = 0.72;
+const GOLDEN_RATIO_CONJUGATE = 0.618033988749895;
+
+/**
+ * Clamps a percentage coordinate to the 0–100 range.
+ * @param value - Raw coordinate
+ * @returns Clamped percentage
+ */
+function clampPercent(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(100, value));
+}
+
+/**
+ * Returns a small deterministic offset to break symmetric LLM coordinates.
+ * @param order - Fixation order in path
+ * @returns X/Y jitter in percentage points
+ */
+function deterministicGazeJitter(order: number): { dx: number; dy: number } {
+    const seed = order * GOLDEN_RATIO_CONJUGATE;
+    const dx = (Math.sin(seed * 11.3) * 2.2);
+    const dy = (Math.cos(seed * 7.7) * 2.2);
+    return { dx, dy };
+}
+
+/**
+ * Finds the nearest salient heatmap point within a radius.
+ * @param x - Fixation X in percent
+ * @param y - Fixation Y in percent
+ * @param heatmapData - TranSalNet heatmap points
+ * @param maxRadiusPct - Maximum snap distance in percent
+ * @returns Nearest hotspot or null when none within radius
+ */
+function findNearestHeatmapHotspot(
+    x: number,
+    y: number,
+    heatmapData: HeatmapPoint[],
+    maxRadiusPct: number,
+): HeatmapPoint | null {
+    let best: HeatmapPoint | null = null;
+    let bestScore = -Infinity;
+
+    for (const point of heatmapData) {
+        const dx = point.x - x;
+        const dy = point.y - y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxRadiusPct) continue;
+
+        const proximity = 1 - dist / maxRadiusPct;
+        const score = (point.value ?? 0) * 0.7 + proximity * 0.3;
+        if (score > bestScore) {
+            bestScore = score;
+            best = point;
+        }
+    }
+
+    return best;
+}
+
+/**
+ * Snaps gaze fixations to heatmap hotspots and adds light jitter to reduce template symmetry.
+ * @param fixations - LLM-predicted gaze path
+ * @param heatmapData - TranSalNet heatmap points
+ * @returns Anchored fixations with same order and labels
+ */
+export function anchorGazePathToHeatmap(
+    fixations: GazeFixation[],
+    heatmapData: HeatmapPoint[],
+): GazeFixation[] {
+    if (!fixations.length) return fixations;
+
+    return fixations.map((fix) => {
+        const hotspot = heatmapData.length > 0
+            ? findNearestHeatmapHotspot(fix.x, fix.y, heatmapData, GAZE_SNAP_RADIUS_PCT)
+            : null;
+
+        if (hotspot) {
+            const jitter = deterministicGazeJitter(fix.order);
+            return {
+                ...fix,
+                x: clampPercent(hotspot.x * GAZE_SNAP_BLEND + fix.x * (1 - GAZE_SNAP_BLEND) + jitter.dx * 0.35),
+                y: clampPercent(hotspot.y * GAZE_SNAP_BLEND + fix.y * (1 - GAZE_SNAP_BLEND) + jitter.dy * 0.35),
+            };
+        }
+
+        const jitter = deterministicGazeJitter(fix.order);
+        return {
+            ...fix,
+            x: clampPercent(fix.x + jitter.dx),
+            y: clampPercent(fix.y + jitter.dy),
+        };
+    });
+}
+
+/**
+ * Anchors all gaze path routes to heatmap hotspots.
+ * @param routes - LLM gaze path routes
+ * @param heatmapData - TranSalNet heatmap points
+ * @returns Routes with anchored fixations
+ */
+export function anchorGazeRoutesToHeatmap(
+    routes: NonNullable<AiAnalysisResult['gazePathRoutes']>,
+    heatmapData: HeatmapPoint[],
+): NonNullable<AiAnalysisResult['gazePathRoutes']> {
+    return routes.map((route) => ({
+        ...route,
+        fixations: anchorGazePathToHeatmap(route.fixations, heatmapData),
+    }));
 }

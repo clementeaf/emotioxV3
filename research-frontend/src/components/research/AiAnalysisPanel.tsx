@@ -31,7 +31,162 @@ interface AiAnalysisPanelProps {
     hasHeatmap: boolean;
     hasAois?: boolean;
     manualAois?: ManualAOI[];
+    /** Hides legacy auto-analyze results until AOI-first flow is completed */
+    isLegacyFlow?: boolean;
+    /** Active analysis criteria label shown in the panel header */
+    criteriaLabel?: string;
+    /** Whether a custom criteria is saved on the study */
+    hasCriteria?: boolean;
+    /** Opens the criteria drawer */
+    onOpenCriteria?: () => void;
+    /** Switches the card to AOI Editor */
+    onFocusAoiEditor?: () => void;
+    /** Runs TranSalNet heatmap prediction */
+    onRunPrediction?: () => void;
+    /** Whether heatmap prediction is running */
+    isPredicting?: boolean;
+    /** Elapsed seconds during heatmap prediction */
+    predictElapsed?: number;
+    /** Whether prediction gate is open (AOIs or skip) */
+    canRunPrediction?: boolean;
+    /** Elapsed seconds during AI analysis */
+    analyzeElapsed?: number;
+    /** User skipped AOI definition */
+    aoiSkipped?: boolean;
 }
+
+interface WorkflowStepProps {
+    step: number;
+    title: string;
+    isComplete: boolean;
+    isLoading?: boolean;
+    loadingLabel?: string;
+    actionLabel?: string;
+    onAction?: () => void;
+    actionDisabled?: boolean;
+    detail?: string;
+}
+
+/**
+ * Renders a single step in the Attention Prediction right-panel wizard.
+ * @param props - Step metadata and optional action button
+ * @returns Workflow step row
+ */
+const WorkflowStep = ({
+    step,
+    title,
+    isComplete,
+    isLoading = false,
+    loadingLabel,
+    actionLabel,
+    onAction,
+    actionDisabled = false,
+    detail,
+}: WorkflowStepProps) => (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="flex items-start gap-2">
+            <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    isComplete ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'
+                }`}
+            >
+                {isComplete ? '✓' : step}
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className={`text-sm font-medium ${isComplete ? 'text-green-800' : 'text-slate-800'}`}>
+                    {title}
+                </p>
+                {detail && (
+                    <p className="mt-0.5 truncate text-xs text-slate-500" title={detail}>
+                        {detail}
+                    </p>
+                )}
+                {isLoading && loadingLabel && (
+                    <p className="mt-1 text-xs text-indigo-600">{loadingLabel}</p>
+                )}
+            </div>
+        </div>
+        {actionLabel && onAction && (
+            <button
+                type="button"
+                onClick={onAction}
+                disabled={actionDisabled || isLoading}
+                className="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+            >
+                {actionLabel}
+            </button>
+        )}
+    </div>
+);
+
+interface AttentionWorkflowPanelProps {
+    hasAois: boolean;
+    aoiSkipped: boolean;
+    hasCriteria: boolean;
+    criteriaLabel?: string;
+    hasHeatmap: boolean;
+    isPredicting: boolean;
+    predictElapsed: number;
+    canRunPrediction: boolean;
+    onFocusAoiEditor?: () => void;
+    onOpenCriteria?: () => void;
+    onRunPrediction?: () => void;
+}
+
+/**
+ * Renders the AOI-first workflow wizard in the right sidebar.
+ * @param props - Workflow state and step actions
+ * @returns Wizard checklist with per-step buttons
+ */
+const AttentionWorkflowPanel = ({
+    hasAois,
+    aoiSkipped,
+    hasCriteria,
+    criteriaLabel,
+    hasHeatmap,
+    isPredicting,
+    predictElapsed,
+    canRunPrediction,
+    onFocusAoiEditor,
+    onOpenCriteria,
+    onRunPrediction,
+}: AttentionWorkflowPanelProps) => {
+    const zonesComplete = hasAois || aoiSkipped;
+    const heatmapComplete = hasHeatmap && !isPredicting;
+
+    return (
+        <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Paso a paso
+            </p>
+            <WorkflowStep
+                step={1}
+                title="Definir zonas"
+                isComplete={zonesComplete}
+                actionLabel="Ir al editor de zonas"
+                onAction={onFocusAoiEditor}
+            />
+            <WorkflowStep
+                step={2}
+                title="Criterio de análisis"
+                isComplete={hasCriteria}
+                detail={criteriaLabel}
+                actionLabel="Editar criterio"
+                onAction={onOpenCriteria}
+            />
+            <WorkflowStep
+                step={3}
+                title="Generar heatmap"
+                isComplete={heatmapComplete}
+                isLoading={isPredicting}
+                loadingLabel={`Regenerando heatmap… ${predictElapsed}s`}
+                actionLabel={hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
+                onAction={onRunPrediction}
+                actionDisabled={!canRunPrediction}
+            />
+        </div>
+    );
+};
 
 // ─── Attention Score Gauge ──────────────────────────────────────────
 
@@ -154,6 +309,17 @@ export const AiAnalysisPanel = ({
     hasHeatmap,
     hasAois = false,
     manualAois = [],
+    isLegacyFlow = false,
+    criteriaLabel,
+    hasCriteria = false,
+    onOpenCriteria,
+    onFocusAoiEditor,
+    onRunPrediction,
+    isPredicting = false,
+    predictElapsed = 0,
+    canRunPrediction = false,
+    analyzeElapsed = 0,
+    aoiSkipped = false,
 }: AiAnalysisPanelProps) => {
     const [importedLabels, setImportedLabels] = useState<Set<string>>(new Set());
 
@@ -182,34 +348,61 @@ export const AiAnalysisPanel = ({
         [importedLabels, onImportAois]
     );
 
-    // No analysis yet — show trigger button
+    const workflowProps: AttentionWorkflowPanelProps = {
+        hasAois,
+        aoiSkipped,
+        hasCriteria,
+        criteriaLabel,
+        hasHeatmap,
+        isPredicting,
+        predictElapsed,
+        canRunPrediction,
+        onFocusAoiEditor,
+        onOpenCriteria,
+        onRunPrediction,
+    };
+
+    const canAnalyze = hasHeatmap && !isPredicting && (hasAois || aoiSkipped);
+
+    // No analysis yet — show wizard + trigger button
     if (!analysis) {
         return (
-            <div className="bg-gradient-to-b from-slate-50 to-blue-50 p-5 h-full flex flex-col items-center justify-center text-center">
-                <div className="p-3 bg-blue-100 rounded-xl mb-3">
-                    <Sparkles className="h-6 w-6 text-blue-600" />
+            <div className="bg-gradient-to-b from-slate-50 to-blue-50 p-4 h-full flex flex-col overflow-y-auto">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                        <Sparkles className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm font-semibold text-slate-900">Análisis IA</h3>
+                        <p className="text-xs text-slate-500">
+                            Completa cada paso y ejecuta el análisis
+                        </p>
+                    </div>
                 </div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">Análisis IA</h3>
-                <p className="text-xs text-slate-500 mb-4 max-w-[280px]">
-                    Analiza patrones de atención, flujo de mirada y efectividad del diseño
-                </p>
-                <ul className="text-xs text-left text-slate-600 mb-4 space-y-1.5 max-w-[280px]">
-                    <li className={hasHeatmap ? 'text-green-700' : 'text-amber-700'}>
-                        {hasHeatmap ? '✓' : '○'} Heatmap TranSalNet generado
-                    </li>
-                    <li className={hasAois ? 'text-green-700' : 'text-slate-500'}>
-                        {hasAois ? '✓' : '○'} Zonas definidas u omitidas
-                    </li>
-                </ul>
-                <button
-                    onClick={onAnalyze}
-                    disabled={!hasHeatmap || isAnalyzing}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
+                {isLegacyFlow && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3">
+                        Este estímulo tiene resultados del flujo anterior. Completa el paso a paso antes de re-analizar.
+                    </p>
+                )}
+                <AttentionWorkflowPanel {...workflowProps} />
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                    <WorkflowStep
+                        step={4}
+                        title="Analizar con IA"
+                        isComplete={false}
+                        isLoading={isAnalyzing}
+                        loadingLabel={analyzeElapsed > 0 ? `Analizando… ${analyzeElapsed}s` : 'Analizando…'}
+                    />
+                    <button
+                        type="button"
+                        onClick={onAnalyze}
+                        disabled={!canAnalyze || isAnalyzing}
+                        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                    >
                         {isAnalyzing ? (
                             <>
                                 <RefreshCw className="h-4 w-4 animate-spin" />
-                                Analizando...
+                                Analizando…
                             </>
                         ) : (
                             <>
@@ -218,9 +411,17 @@ export const AiAnalysisPanel = ({
                             </>
                         )}
                     </button>
-                {!hasHeatmap && (
-                    <p className="mt-3 text-xs text-amber-600">Genera el heatmap antes de ejecutar el análisis IA.</p>
-                )}
+                    {!canAnalyze && !isPredicting && (
+                        <p className="mt-2 text-xs text-amber-600">
+                            Completa zonas, criterio y heatmap antes del análisis IA.
+                        </p>
+                    )}
+                    {isPredicting && (
+                        <p className="mt-2 text-xs text-indigo-600">
+                            Los % de las zonas se actualizarán cuando termine el heatmap.
+                        </p>
+                    )}
+                </div>
             </div>
         );
     }
@@ -237,6 +438,7 @@ export const AiAnalysisPanel = ({
                     <div>
                         <h3 className="text-sm font-semibold text-slate-900">AI Analysis</h3>
                         <p className="text-xs text-slate-500">
+                            {criteriaLabel ? `Criterio: ${criteriaLabel} · ` : ''}
                             Confidence: {analysis.confidence}%
                         </p>
                     </div>
@@ -252,6 +454,12 @@ export const AiAnalysisPanel = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AttentionWorkflowPanel {...workflowProps} />
+                {isPredicting && (
+                    <p className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-md px-3 py-2">
+                        Regenerando heatmap ({predictElapsed}s). Los % de las zonas se actualizarán al finalizar.
+                    </p>
+                )}
                 {/* Context & Scores */}
                 <div className="flex items-start gap-4">
                     <div className="flex-1 min-w-0">
@@ -290,6 +498,11 @@ export const AiAnalysisPanel = ({
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-slate-800 truncate">{aoi.label}</span>
                                         <AttentionBadge level={aoi.attentionLevel} />
+                                        {aoi.lowConfidence && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                                                aprox.
+                                            </span>
+                                        )}
                                     </div>
                                     <p className="text-xs text-slate-500 mt-0.5 truncate">{aoi.description}</p>
                                 </div>
@@ -298,7 +511,7 @@ export const AiAnalysisPanel = ({
                                     disabled={importedLabels.has(aoi.label)}
                                     className="text-xs px-2.5 py-1 text-blue-600 hover:bg-blue-50 rounded disabled:text-slate-400 disabled:hover:bg-transparent transition-colors whitespace-nowrap"
                                 >
-                                    {importedLabels.has(aoi.label) ? 'Imported' : 'Import'}
+                                    {importedLabels.has(aoi.label) ? 'Editable' : 'Convertir a zona editable'}
                                 </button>
                             </div>
                         ))}
@@ -309,7 +522,7 @@ export const AiAnalysisPanel = ({
                             className="mt-3 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
                         >
                             <Download className="h-3.5 w-3.5" />
-                            Import all AOIs
+                            Convertir todas a zonas editables
                         </button>
                     )}
                 </Section>

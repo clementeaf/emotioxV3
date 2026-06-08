@@ -46,16 +46,42 @@ export default defineConfig(({ mode }) => ({
     minify: 'esbuild',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query-vendor': ['@tanstack/react-query'],
-          'ui-vendor': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
-          'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
-          'chart-vendor': ['recharts'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined;
+          }
+          if (id.includes('html2pdf')) return 'html2pdf-vendor';
+          if (id.includes('pptxgenjs')) return 'pptx-vendor';
+          if (id.includes('pdfjs-dist')) return 'pdfjs-vendor';
+          if (id.includes('mammoth')) return 'mammoth-vendor';
+          if (id.includes('/xlsx/') || id.includes('node_modules/xlsx')) return 'xlsx-vendor';
+          if (id.includes('rrweb')) return 'rrweb-vendor';
+          if (id.includes('@mediapipe/tasks-vision')) return 'mediapipe-vendor';
+          if (id.includes('webeyetrack')) return 'webeyetrack-vendor';
+          if (id.includes('framer-motion')) return 'motion-vendor';
+          if (id.includes('recharts')) return 'chart-vendor';
+          if (id.includes('@tanstack/react-query')) return 'query-vendor';
+          if (id.includes('@dnd-kit')) return 'ui-vendor';
+          if (
+            id.includes('react-hook-form')
+            || id.includes('@hookform/resolvers')
+            || id.includes('/zod/')
+          ) {
+            return 'form-vendor';
+          }
+          if (
+            id.includes('react-router')
+            || id.includes('/react-dom/')
+            || id.includes('/react/')
+          ) {
+            return 'react-vendor';
+          }
+          return undefined;
         },
       },
     },
-    chunkSizeWarningLimit: 1000,
+    // webeyetrack ships a ~2.7MB CNN model as a single chunk — cannot split further
+    chunkSizeWarningLimit: 3000,
   },
   esbuild: {
     sourcemap: false,

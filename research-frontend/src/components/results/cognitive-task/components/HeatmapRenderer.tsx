@@ -52,7 +52,7 @@ function getOverlayDimFactor(profile: HeatmapVisualProfile): number {
     switch (profile) {
         case 'lab': return 0.08;
         case 'precise': return 0.15;
-        case 'balanced': return 0.28;
+        case 'balanced': return 0.16;
         case 'smooth': return 0.35;
     }
 }
@@ -65,6 +65,9 @@ function getOverlayDimFactor(profile: HeatmapVisualProfile): number {
 function getRefinedGradient(profile: HeatmapVisualProfile): Record<number, string> {
     if (profile === 'lab') {
         return { 0.55: '#ff0', 0.75: '#f80', 0.9: '#f00', 1.0: '#c00' };
+    }
+    if (profile === 'balanced') {
+        return { 0.58: '#ff0', 0.76: '#f80', 0.9: '#f00', 1.0: '#e00' };
     }
     return { 0.52: '#ff0', 0.72: '#f80', 0.88: '#f00', 1.0: '#f00' };
 }

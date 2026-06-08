@@ -5,9 +5,26 @@
 
 ---
 
-## Última actualización: 2026-06-07 (sesión 48)
+## Última actualización: 2026-06-08 (sesión 49)
 
 ---
+
+## Sesión 49: 8 de junio de 2026 — Feedback emotiox Attention Prediction (v0.81)
+
+**Origen:** `docs/emotiox.pdf` — 9 bloques de feedback (estudios TikTok/IG, AOI-first).
+
+| Área | Qué se hizo |
+|------|-------------|
+| P1 Legacy | Banner, panel IA bloqueado, zonas IA off, convertir AOIs, `%` desde heatmap |
+| P2 Gaze | `GazeScanpathPlayer`, overlay visible, rutas ancladas (FE+BE) |
+| P3–P4 Heatmap | Whitespace mask, NMS fino, modal Settings live, toolbar resumida |
+| P5 Criterio | `attentionCriteriaName` en header y panel |
+| P6 Compuesta | Capas auto en Original, «Vista completa», leyenda rutas |
+| P7–P8 AOIs | Guards teclado (modal, label, drawer criterio) |
+| P9 Wizard | Paso a paso en panel derecho; criterio ✓ si guardado |
+| Persistencia | `persistStimuli` + `handleSavePrompt` con `getById` fresco |
+
+**Tests:** 44 FE + 3 BE. **Pendiente UAT:** regenerar heatmaps viejos para P3; tiempos predict (~backend).
 
 ## Sesión 48: 7 de junio de 2026 — Modos Classic / Spotlight / Cold (v0.80)
 

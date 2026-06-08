@@ -20,6 +20,8 @@ export interface AiAnalysisResult {
         height: number;
         attentionLevel: string;
         description: string;
+        /** True when LLM bbox is too small or out of range after sanitization */
+        lowConfidence?: boolean;
     }>;
     attentionFlow: {
         entryPoint: string;

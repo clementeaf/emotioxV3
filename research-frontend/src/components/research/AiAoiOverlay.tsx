@@ -25,6 +25,7 @@ export function AiAoiOverlay({ autoAois, importedLabels }: AiAoiOverlayProps): R
             {autoAois.map((aoi, i) => {
                 if (importedLabels?.has(aoi.label)) return null;
                 const color = levelColors[aoi.attentionLevel] ?? '#94A3B8';
+                const borderStyle = aoi.lowConfidence ? 'dotted' : 'dashed';
                 return (
                     <div
                         key={`auto-${i}`}
@@ -34,7 +35,7 @@ export function AiAoiOverlay({ autoAois, importedLabels }: AiAoiOverlayProps): R
                             top: `${aoi.y}%`,
                             width: `${aoi.width}%`,
                             height: `${aoi.height}%`,
-                            border: `2px dashed ${color}`,
+                            border: `2px ${borderStyle} ${color}`,
                             backgroundColor: `${color}18`,
                         }}
                     >
@@ -43,6 +44,7 @@ export function AiAoiOverlay({ autoAois, importedLabels }: AiAoiOverlayProps): R
                             style={{ color: '#fff', backgroundColor: color }}
                         >
                             {aoi.label}
+                            {aoi.lowConfidence ? ' (aprox.)' : ''}
                         </span>
                     </div>
                 );

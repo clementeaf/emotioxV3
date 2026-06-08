@@ -7,8 +7,6 @@ import { ProfilePage } from '../pages/profile/ProfilePage';
 import { ErrorPage } from '../pages/ErrorPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ResearchPage } from '../pages/research/ResearchPage';
-import { ResearchBuilderPage } from '../pages/research/ResearchBuilderPage';
-import { ResearchResultsPage } from '../pages/research/ResearchResultsPage';
 import { ResearchHistoryPage } from '../pages/research/ResearchHistoryPage';
 import { ResearchTrackingPage } from '../pages/research/ResearchTrackingPage';
 import { ClientsPage } from '../pages/clients/ClientsPage';
@@ -23,8 +21,31 @@ import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/Resea
 import { UserManagementPage } from '../pages/admin/UserManagementPage';
 import { PublicProgressPage } from '../pages/public/PublicProgressPage';
 
+const withPageSuspense = (element: ReactNode): ReactNode => (
+    <Suspense
+        fallback={(
+            <div className="flex min-h-[50vh] items-center justify-center">
+                <div
+                    className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600"
+                    aria-hidden
+                />
+            </div>
+        )}
+    >
+        {element}
+    </Suspense>
+);
+
 const EyeTrackingLabPage = lazy(() =>
     import('../pages/labs/EyeTrackingLabPage').then(m => ({ default: m.EyeTrackingLabPage })),
+);
+
+const ResearchBuilderPage = lazy(() =>
+    import('../pages/research/ResearchBuilderPage').then(m => ({ default: m.ResearchBuilderPage })),
+);
+
+const ResearchResultsPage = lazy(() =>
+    import('../pages/research/ResearchResultsPage').then(m => ({ default: m.ResearchResultsPage })),
 );
 
 export interface RouteConfig {
@@ -111,35 +132,35 @@ export const routesConfig: RouteConfig[] = [
     },
     {
         path: '/research/:id/builder',
-        element: <ResearchBuilderPage />,
+        element: withPageSuspense(<ResearchBuilderPage />),
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Builder' },
     },
     {
         path: '/research/:id/builder/settings',
-        element: <ResearchBuilderPage />,
+        element: withPageSuspense(<ResearchBuilderPage />),
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Settings' },
     },
     {
         path: '/research/:id/builder/module/:moduleId',
-        element: <ResearchBuilderPage />,
+        element: withPageSuspense(<ResearchBuilderPage />),
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Module Builder' },
     },
     {
         path: '/research/:id/builder/stage/:stageId',
-        element: <ResearchBuilderPage />,
+        element: withPageSuspense(<ResearchBuilderPage />),
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Stage Builder' },
     },
     {
         path: '/research/:id/builder/stimulus/:stimulusId',
-        element: <ResearchBuilderPage />,
+        element: withPageSuspense(<ResearchBuilderPage />),
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Stimulus Analysis' },
@@ -153,7 +174,7 @@ export const routesConfig: RouteConfig[] = [
     },
     {
         path: '/research/:id/builder/results',
-        element: <ResearchResultsPage />,
+        element: withPageSuspense(<ResearchResultsPage />),
         layout: 'dashboard',
         isProtected: true,
         errorBoundary: { context: 'dashboard', pageName: 'Research Results' },

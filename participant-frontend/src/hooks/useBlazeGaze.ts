@@ -1,7 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { RefObject } from 'react';
-import { WebEyeTrack } from 'webeyetrack';
-import type { GazeResult } from 'webeyetrack';
+interface GazeResult {
+    gazeState: 'open' | 'closed';
+    normPog?: number[];
+}
+
+type WebEyeTrackInstance = {
+    loaded: boolean;
+    latestMouseClick: unknown;
+    initialize(): Promise<void>;
+    step(imageData: ImageData, timestamp: number): Promise<GazeResult>;
+    handleClick(normX: number, normY: number): void;
+};
 import { OneEuroFilter1D } from '../lib/eyeTracking';
 
 /**
@@ -81,7 +91,7 @@ export function useBlazeGaze(
     const lastStateUpdateRef = useRef(0);
     const GAZE_STATE_THROTTLE_MS = 250;
 
-    const trackerRef = useRef<WebEyeTrack | null>(null);
+    const trackerRef = useRef<WebEyeTrackInstance | null>(null);
     const rafRef = useRef(0);
     const canvasRef = useRef<OffscreenCanvas | null>(null);
     const runningRef = useRef(false);
@@ -108,7 +118,8 @@ export function useBlazeGaze(
     useEffect(() => {
         let cancelled = false;
         async function init() {
-            const tracker = new WebEyeTrack(MAX_POINTS, CLICK_TTL);
+            const { WebEyeTrack } = await import('webeyetrack');
+            const tracker = new WebEyeTrack(MAX_POINTS, CLICK_TTL) as unknown as WebEyeTrackInstance;
             await tracker.initialize();
             if (cancelled) return;
             trackerRef.current = tracker;

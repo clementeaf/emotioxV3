@@ -1,3 +1,28 @@
+## v0.81.0 — Attention Prediction: feedback emotiox (P1–P9) (2026-06-08)
+
+### backend
+- **Whitespace en heatmap.** `suppressWhitespaceSaliency` reduce saliencia en zonas de bajo texto; NMS más fino (84 pts máx.).
+- **Gaze paths.** Prompt y post-proceso con 3 rutas ancladas a hotspots del heatmap.
+
+### research-frontend
+- **Flujo legacy (P1).** Banner + panel bloqueado; zonas IA off en AOI Editor; AOIs sistema convertibles a editables; `%` desde saliencia real.
+- **Scanpath (P2).** `GazeScanpathPlayer`, overlay más visible, rutas ancladas al heatmap.
+- **Heatmap (P3–P4).** Preset Precise default; modal Settings sincronizado con visor; toolbar resumida.
+- **Criterio (P5).** Nombre persistido (`attentionCriteriaName`) en header y panel.
+- **Vista compuesta (P6).** Capas auto en Original/Gaze Paths; botón «Vista completa»; leyenda de rutas.
+- **AOIs y teclado (P7–P8).** Backspace en inputs/modal/criterio no elimina zonas.
+- **Wizard (P9).** Paso a paso en panel derecho; criterio marca ✓ al guardar.
+- **Persistencia.** `persistStimuli` y `handleSavePrompt` usan `getById` fresco antes de guardar.
+
+### chore
+- **Bundles.** Lazy routes y `manualChunks` en research/participant frontends.
+- **Docs.** Feedback en `docs/emotiox.pdf`, `docs/emotiox.docx`, capturas en `docs/_emotiox_extract/`.
+
+### tests
+- **44 tests** FE (`attentionPrediction.p1`–`p8`, `criteria.p5`/`p9`) + **3** BE (`lowTextureMask`).
+
+---
+
 ## v0.80.0 — Attention Prediction: Classic, Spotlight y Cold (2026-06-07)
 
 ### backend

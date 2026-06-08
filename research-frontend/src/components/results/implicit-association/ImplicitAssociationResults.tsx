@@ -11,6 +11,7 @@ import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import * as analyticsService from '../../../services/analytics.service';
 import type { IATModuleResult, IATParticipantData } from '../../../services/analytics.service';
+import { downloadResearchExport } from '../../../services/export.service';
 
 // Recharts Label `content` callback uses internal Props with RenderableText (includes `false`).
 // A custom interface can't satisfy the overload without importing private types — eslint-disable is the pragmatic fix.
@@ -850,7 +851,6 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
                     if (exportingXlsx) return;
                     setExportingXlsx(true);
                     try {
-                      const { downloadResearchExport } = await import('../../../services/export.service');
                       await downloadResearchExport(researchId, 'IAT_Export', filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined);
                     } catch (e) {
                       console.error('IAT export failed:', e);
