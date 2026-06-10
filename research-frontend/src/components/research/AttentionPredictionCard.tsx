@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef, useCallback, useEffect, type MouseEventHandler, type ReactNode, type Ref } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
-import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { cn } from '../../lib/utils';
 import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRenderer';
 import { SpotlightRenderer } from '../results/cognitive-task/components/SpotlightRenderer';
@@ -16,15 +16,12 @@ import { AoiRectEditor } from './AoiRectEditor';
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 import type { ManualAOI } from '../../types/attentionPrediction.types';
 import {
-    ACTIVE_HEATMAP_MAP_MODES,
     canRunAnalysisGate,
     canRunPredictionGate,
     clampAoiBounds,
     DEFAULT_COLD_MAP_SETTINGS,
     DEFAULT_SPOTLIGHT_SETTINGS,
     formatHeatmapViewSummary,
-    getHeatmapMapModeLabel,
-    isFullFrameMapMode,
     isLegacyDenseHeatmap,
     normalizeManualAois,
     reconcileAutoAoisWithManual,
@@ -36,112 +33,18 @@ import {
     resolveHeatmapVisualProfile,
     type AttentionLayerContext,
     type AttentionPredictionTabId,
-    STIMULUS_MEDIA_FIT_CLASS,
     STIMULUS_MEDIA_FIT_FLEX_CLASS,
-    STIMULUS_VIEWPORT_MAX_HEIGHT_CLASS,
     type ColdMapSettings,
     type HeatmapMapMode,
     type SpotlightSettings,
 } from '../../utils/attentionPrediction.utils';
-import { renderColdMapComposite } from '../../utils/coldMapRender';
-import { renderSpotlightComposite } from '../../utils/spotlightRender';
 
-interface StimulusOverlayFrameProps {
-    children: ReactNode;
-    className?: string;
-    containerRef?: Ref<HTMLDivElement>;
-    onMouseDown?: MouseEventHandler<HTMLDivElement>;
-    dimOverlay?: boolean;
-    maxDisplayHeightPx?: number;
-}
+import { StimulusOverlayFrame, ZoomControls, STIMULUS_TRANSFORM_CONTENT_STYLE } from './StimulusOverlayFrame';
+import { HeatmapSettingsModal, DEFAULT_SETTINGS, type HeatmapPoint, type HeatmapSettings, type HeatmapViewSettings } from './HeatmapSettingsModal';
+import { MapModeControlBar } from './MapModeControlBar';
+import { VideoFrameScrubber, type VideoFrameData } from './VideoFrameScrubber';
 
-/**
- * Centers media and constrains overlay coordinates to the visible image box.
- */
-const StimulusOverlayFrame = ({
-    children,
-    className,
-    containerRef,
-    onMouseDown,
-    dimOverlay = false,
-    maxDisplayHeightPx,
-}: StimulusOverlayFrameProps) => (
-    <div className="flex w-full justify-center">
-        <div
-            ref={containerRef}
-            className={cn('relative w-fit max-w-full', className)}
-            style={maxDisplayHeightPx != null && maxDisplayHeightPx > 0
-                ? { maxHeight: maxDisplayHeightPx }
-                : undefined}
-            onMouseDown={onMouseDown}
-        >
-            {children}
-            {dimOverlay && (
-                <div className="absolute inset-0 bg-black/25 pointer-events-none" />
-            )}
-        </div>
-    </div>
-);
-
-const STIMULUS_TRANSFORM_CONTENT_STYLE = {
-    width: '100%',
-    display: 'flex',
-    justifyContent: 'center',
-} as const;
-
-const ZoomControls = () => {
-    const { zoomIn, zoomOut, resetTransform } = useControls();
-    return (
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-white/90 rounded-lg shadow-sm border px-1.5 py-1">
-            <button onClick={() => zoomOut()} className="px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100 rounded" title="Zoom out">−</button>
-            <button onClick={() => zoomIn()} className="px-1.5 py-0.5 text-xs text-gray-600 hover:bg-gray-100 rounded" title="Zoom in">+</button>
-            <button onClick={() => resetTransform()} className="px-1.5 py-0.5 text-xs text-gray-500 hover:bg-gray-100 rounded" title="Reset zoom">↺</button>
-        </div>
-    );
-};
-
-/** Debounces a value — returns the latest value after `delay` ms of inactivity. */
-const useDebouncedValue = <T,>(value: T, delay: number): T => {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delay);
-        return () => clearTimeout(timer);
-    }, [value, delay]);
-    return debounced;
-};
-
-interface HeatmapPoint {
-    x: number;
-    y: number;
-    value?: number;
-}
-
-interface AOIWithStats extends ManualAOI {
-    percentage: number;
-}
-
-interface HeatmapSettings {
-    blur: number;
-    opacity: number;
-    threshold: number;
-    preset: string;
-}
-
-const DEFAULT_SETTINGS: HeatmapSettings = {
-    blur: 5,
-    opacity: 45,
-    threshold: 68,
-    preset: 'Lab',
-};
-
-type TabId = AttentionPredictionTabId;
-
-interface StimulusLayers {
-    heatmap: boolean;
-    aiAois: boolean;
-    manualAois: boolean;
-    gaze: boolean;
-}
+/* ─── Constants ─── */
 
 const ROUTE_COLORS: Record<string, string> = {
     'typical-scan': '#3B82F6',
@@ -157,77 +60,28 @@ const GAZE_ROUTE_LEGEND: Array<{ id: string; color: string; label: string }> = [
 
 const AOI_COLORS = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4'];
 
-interface VideoFrameData {
-    mediaId: string;
-    timestamp: number;
-    heatmapData?: HeatmapPoint[];
+const TAB_ICONS: Record<string, ReactNode> = {
+    eye: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+    video: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    image: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+    settings: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+    route: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /></svg>,
+    aoi: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2" /><path strokeLinecap="round" d="M3 9h18M9 3v18" /></svg>,
+};
+
+/* ─── Types ─── */
+
+interface AOIWithStats extends ManualAOI {
+    percentage: number;
 }
 
-interface AttentionPredictionCardProps {
-    imageUrl: string;
-    title: string;
-    heatmapData?: HeatmapPoint[];
-    onDelete?: () => void;
-    isDeleting?: boolean;
-    className?: string;
-    /** Research ID — needed for AOI persistence */
-    researchId?: string;
-    /** Stimulus media ID — needed for AOI persistence */
-    stimulusMediaId?: string;
-    /** True when the stimulus is a video */
-    isVideo?: boolean;
-    /** Per-frame predictions for video stimuli */
-    videoFrames?: VideoFrameData[];
-    /** AI analysis result (GPT-4o Vision) — used for Gaze Path tab */
-    aiAnalysis?: AiAnalysisResult;
-    /** AOIs to import from AI (set by parent when user clicks import in panel) */
-    pendingImportAois?: AiAnalysisResult['autoAois'];
-    /** Called after AOIs have been imported */
-    onImportAoisDone?: () => void;
-    /** Callback to add more stimuli */
-    onAddMore?: () => void;
-    /** Callback to run/re-run AI analysis */
-    onRunAnalysis?: (manualAois: ManualAOI[]) => void;
-    /** Callback to run TranSalNet heatmap prediction */
-    onRunPrediction?: (manualAois: ManualAOI[]) => void;
-    /** Whether heatmap prediction is in progress */
-    isPredicting?: boolean;
-    /** Elapsed seconds during current prediction */
-    predictElapsed?: number;
-    /** Prediction error message from backend */
-    predictionError?: string;
-    /** Initial tab for new stimuli (AOI-first flow) */
-    initialTab?: TabId;
-    /** Parent-requested tab focus (e.g. wizard "Ir al editor") */
-    workflowFocusTab?: TabId;
-    /** Called after workflowFocusTab is applied */
-    onWorkflowFocusTabHandled?: () => void;
-    /** Open analysis criteria drawer */
-    onOpenCriteria?: () => void;
-    /** Criteria drawer open in parent — suppresses AOI keyboard delete */
-    isCriteriaDrawerOpen?: boolean;
-    /** Whether user skipped AOI definition */
-    aoiSkipped?: boolean;
-    /** Persist aoiSkipped flag */
-    onAoiSkippedChange?: (skipped: boolean) => void;
-    /** Notifies parent when the in-memory AOI list changes (for analyze without stale cache) */
-    onAoiListChange?: (aois: ManualAOI[]) => void;
-    /** Auto-presets from prediction (blur, opacity, threshold computed from map distribution) */
-    autoPresets?: { blur: number; opacity: number; threshold: number };
-    /** Gridded AOIs detected from saliency map */
-    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
-    /** Whether AI analysis is in progress */
-    isAnalyzing?: boolean;
-    /** Elapsed seconds during current analysis */
-    analyzeElapsed?: number;
-    /** Extra content rendered in the header row (e.g. Criteria button) */
-    headerExtra?: React.ReactNode;
-    /** Callback to trigger video prediction pipeline */
-    onProcessVideo?: () => void;
-    /** Video prediction progress (shown inline in header) */
-    videoProgress?: { phase: string; current: number; total: number; message: string } | null;
-    /** Dismiss video progress */
-    onDismissVideoProgress?: () => void;
+type TabId = AttentionPredictionTabId;
+
+interface StimulusLayers {
+    heatmap: boolean;
+    aiAois: boolean;
+    manualAois: boolean;
+    gaze: boolean;
 }
 
 const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
@@ -237,953 +91,149 @@ const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'aoi-editor', label: 'AOI Editor', icon: 'aoi' },
 ];
 
-const TAB_ICONS: Record<string, React.ReactNode> = {
-    eye: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
-    video: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-    image: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
-    settings: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
-    route: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /></svg>,
-    aoi: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2" /><path strokeLinecap="round" d="M3 9h18M9 3v18" /></svg>,
-};
+/* ─── Video overlay — replaces deep ternary chain ─── */
 
-const DETAIL_PRESETS = ['Lab', 'Precise', 'Balanced', 'Smooth'];
-
-// User-saved heatmap presets — shared across all studies via localStorage
-const HEATMAP_PRESETS_KEY = 'emotiox-heatmap-presets';
-interface SavedHeatmapPreset { name: string; blur: number; opacity: number; threshold: number }
-const loadHeatmapPresets = (): SavedHeatmapPreset[] => {
-    try { return JSON.parse(localStorage.getItem(HEATMAP_PRESETS_KEY) || '[]'); } catch { return []; }
-};
-const persistHeatmapPresets = (presets: SavedHeatmapPreset[]) => {
-    localStorage.setItem(HEATMAP_PRESETS_KEY, JSON.stringify(presets));
-};
-
-/** Each preset adjusts blur, threshold, and opacity for a different detail level. */
-const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
-    'Lab':      { blur: 5,  threshold: 68, opacity: 45 },
-    'Precise':  { blur: 8,  threshold: 58, opacity: 55 },
-    'Balanced': { blur: 8,  threshold: 54, opacity: 48 },
-    'Smooth':   { blur: 20, threshold: 50, opacity: 40 },
-};
-
-interface HeatmapViewSettings {
-    settings: HeatmapSettings;
-    mapMode: HeatmapMapMode;
-    spotlight: SpotlightSettings;
-    cold: ColdMapSettings;
-}
-
-/* ─── Settings Modal ─── */
-const SettingsModal = ({
+const VideoOverlayContent = ({
+    videoFrames,
     imageUrl,
     heatmapData,
     settings,
     mapMode,
     spotlightSettings,
     coldSettings,
-    onLiveChange,
-    onConfirm,
-    onCancel,
+    videoProgress,
+    onProcessVideo,
+    onDismissVideoProgress,
 }: {
+    videoFrames: VideoFrameData[];
     imageUrl: string;
     heatmapData: HeatmapPoint[];
     settings: HeatmapSettings;
     mapMode: HeatmapMapMode;
     spotlightSettings: SpotlightSettings;
     coldSettings: ColdMapSettings;
-    onLiveChange: (view: HeatmapViewSettings) => void;
-    onConfirm: () => void;
-    onCancel: () => void;
+    videoProgress?: { phase: string; current: number; total: number; message: string } | null;
+    onProcessVideo?: () => void;
+    onDismissVideoProgress?: () => void;
 }) => {
-    const [local, setLocal] = useState<HeatmapSettings>({ ...settings });
-    const [localMapMode, setLocalMapMode] = useState<HeatmapMapMode>(mapMode);
-    const [localSpotlight, setLocalSpotlight] = useState<SpotlightSettings>({ ...spotlightSettings });
-    const [localCold, setLocalCold] = useState<ColdMapSettings>({ ...coldSettings });
-    const debouncedLocal = useDebouncedValue(local, 120);
-    const debouncedSpotlight = useDebouncedValue(localSpotlight, 120);
-    const debouncedCold = useDebouncedValue(localCold, 120);
-    const debouncedMapMode = useDebouncedValue(localMapMode, 0);
-    const [settingsTab, setSettingsTab] = useState<'heatmap' | 'original'>('heatmap');
-    const previewRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        setLocal({ ...settings });
-    }, [settings]);
-
-    useEffect(() => {
-        setLocalMapMode(mapMode);
-    }, [mapMode]);
-
-    useEffect(() => {
-        setLocalSpotlight({ ...spotlightSettings });
-    }, [spotlightSettings]);
-
-    useEffect(() => {
-        setLocalCold({ ...coldSettings });
-    }, [coldSettings]);
-
-    useEffect(() => {
-        onLiveChange({
-            settings: debouncedLocal,
-            mapMode: debouncedMapMode,
-            spotlight: debouncedSpotlight,
-            cold: debouncedCold,
-        });
-    }, [debouncedLocal, debouncedMapMode, debouncedSpotlight, debouncedCold, onLiveChange]);
-
-    // User-saved presets
-    const [savedPresets, setSavedPresets] = useState<SavedHeatmapPreset[]>(loadHeatmapPresets);
-    const [showSavePreset, setShowSavePreset] = useState(false);
-    const [presetName, setPresetName] = useState('');
-
-    const handleDownload = useCallback(async () => {
-        const el = previewRef.current;
-        if (!el) return;
-        try {
-            const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2 });
-            const link = document.createElement('a');
-            link.download = 'attention-prediction-settings.png';
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch {
-            // Download failed silently
-        }
-    }, []);
-
-    return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4"
-            onClick={onCancel}
-            role="presentation"
-        >
-            <div
-                className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="heatmap-settings-title"
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b">
-                    <div>
-                        <h3 id="heatmap-settings-title" className="text-base font-semibold text-gray-900">
-                            Heatmap Settings
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                            Vista ampliada y ajuste fino. Los cambios se aplican en vivo al visor principal.
-                        </p>
-                    </div>
-                    <button type="button" onClick={onCancel} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="flex gap-0 overflow-auto">
-                    {/* Left: preview */}
-                    <div className="flex-1 p-4 min-w-0">
-                        {/* Tabs inside modal */}
-                        <div className="flex items-center gap-2 mb-3">
-                            {(['heatmap', 'original'] as const).map(tab => (
-                                <button
-                                    key={tab}
-                                    onClick={() => setSettingsTab(tab)}
-                                    className={cn(
-                                        'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded transition-colors',
-                                        settingsTab === tab
-                                            ? 'bg-blue-50 text-blue-600'
-                                            : 'text-gray-600 hover:text-gray-900'
-                                    )}
-                                >
-                                    {tab === 'heatmap' && TAB_ICONS.eye}
-                                    {tab === 'original' && TAB_ICONS.image}
-                                    {tab === 'heatmap' ? 'Heat map' : 'Original'}
-                                </button>
-                            ))}
-                            <div className="flex-1" />
-                            <button
-                                type="button"
-                                onClick={() => void handleDownload()}
-                                className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-                            >
-                                Download Image
-                            </button>
-                        </div>
-
-                        <div ref={previewRef} className="rounded-lg overflow-hidden border bg-gray-100">
-                            {settingsTab === 'original' ? (
-                                <img src={imageUrl} alt="Original" className={STIMULUS_MEDIA_FIT_CLASS} />
-                            ) : debouncedMapMode === 'spotlight' ? (
-                                <SpotlightRenderer
-                                    imageUrl={imageUrl}
-                                    data={heatmapData}
-                                    blur={debouncedSpotlight.blur}
-                                    reveal={debouncedSpotlight.reveal}
-                                    dim={debouncedSpotlight.dim}
-                                    threshold={debouncedLocal.threshold}
-                                    className={`w-full ${STIMULUS_VIEWPORT_MAX_HEIGHT_CLASS}`}
-                                />
-                            ) : debouncedMapMode === 'cold' ? (
-                                <ColdMapRenderer
-                                    imageUrl={imageUrl}
-                                    data={heatmapData}
-                                    intensity={debouncedCold.intensity}
-                                    blur={debouncedCold.blur}
-                                    threshold={debouncedCold.threshold}
-                                    className={`w-full ${STIMULUS_VIEWPORT_MAX_HEIGHT_CLASS}`}
-                                />
-                            ) : (
-                                <HeatmapRenderer
-                                    imageUrl={imageUrl}
-                                    data={heatmapData}
-                                    blur={debouncedLocal.blur}
-                                    opacity={debouncedLocal.opacity}
-                                    threshold={debouncedLocal.threshold}
-                                    granularity={debouncedLocal.preset === 'Smooth' ? 'smooth' : 'precise'}
-                                    visualProfile={resolveHeatmapVisualProfile(debouncedLocal.preset)}
-                                    className={`w-full ${STIMULUS_VIEWPORT_MAX_HEIGHT_CLASS}`}
-                                />
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Right: controls */}
-                    <div className="w-72 flex-shrink-0 p-5 border-l space-y-5 overflow-y-auto max-h-[75vh]">
-                        {settingsTab === 'heatmap' && (
-                            <div>
-                                <label className="text-sm font-medium text-gray-700 mb-1.5 block">Map mode</label>
-                                <div className="flex gap-1">
-                                    {ACTIVE_HEATMAP_MAP_MODES.map((mode) => (
-                                        <button
-                                            key={mode}
-                                            type="button"
-                                            onClick={() => setLocalMapMode(mode)}
-                                            className={cn(
-                                                'flex-1 px-2 py-1.5 text-xs font-medium rounded transition-colors',
-                                                localMapMode === mode
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-                                            )}
-                                        >
-                                            {getHeatmapMapModeLabel(mode)}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {settingsTab === 'heatmap' && localMapMode === 'classic' && (
-                        <>
-                        {/* Detail preset */}
-                        <div>
-                            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Detail preset</label>
-                            <div className="flex gap-1">
-                                {DETAIL_PRESETS.map(p => (
-                                    <button
-                                        key={p}
-                                        type="button"
-                                        onClick={() => {
-                                            const vals = PRESET_VALUES[p];
-                                            setLocal(prev => ({ ...prev, preset: p, ...vals }));
-                                        }}
-                                        className={cn(
-                                            'flex-1 px-2 py-1.5 text-xs font-medium rounded transition-colors',
-                                            local.preset === p
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        )}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
-                            </div>
-                            <p className="text-xs text-gray-400 mt-1">Adjusts blur, threshold, and opacity together</p>
-                        </div>
-
-                        {/* Blur */}
-                        <div>
-                            <div className="flex items-center justify-between mb-1">
-                                <label className="text-sm font-medium text-gray-700">Blur</label>
-                                <input
-                                    type="number"
-                                    value={local.blur}
-                                    onChange={e => setLocal(prev => ({ ...prev, blur: Number(e.target.value), preset: 'Custom' }))}
-                                    className="w-14 px-2 py-1 text-sm border rounded text-right"
-                                    min={0}
-                                    max={50}
-                                />
-                            </div>
-                            <p className="text-xs text-gray-400 mb-1.5">Blur radius for the heatmap</p>
-                            <input
-                                type="range"
-                                value={local.blur}
-                                onChange={e => setLocal(prev => ({ ...prev, blur: Number(e.target.value), preset: 'Custom' }))}
-                                min={0}
-                                max={50}
-                                className="w-full accent-blue-600"
-                            />
-                        </div>
-
-                        {/* Opacity */}
-                        <div>
-                            <div className="flex items-center justify-between mb-1">
-                                <label className="text-sm font-medium text-gray-700">Opacity</label>
-                                <input
-                                    type="number"
-                                    value={local.opacity}
-                                    onChange={e => setLocal(prev => ({ ...prev, opacity: Number(e.target.value), preset: 'Custom' }))}
-                                    className="w-14 px-2 py-1 text-sm border rounded text-right"
-                                    min={0}
-                                    max={100}
-                                />
-                            </div>
-                            <p className="text-xs text-gray-400 mb-1.5">Heatmap intensity (%)</p>
-                            <input
-                                type="range"
-                                value={local.opacity}
-                                onChange={e => setLocal(prev => ({ ...prev, opacity: Number(e.target.value), preset: 'Custom' }))}
-                                min={0}
-                                max={100}
-                                className="w-full accent-blue-600"
-                            />
-                        </div>
-
-                        {/* Threshold */}
-                        {settingsTab === 'heatmap' && (
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="text-sm font-medium text-gray-700">Threshold</label>
-                                    <input
-                                        type="number"
-                                        value={local.threshold}
-                                        onChange={e => setLocal(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
-                                        className="w-14 px-2 py-1 text-sm border rounded text-right"
-                                        min={0}
-                                        max={100}
-                                    />
-                                </div>
-                                <p className="text-xs text-gray-400 mb-1.5">Minimum saliency value to display</p>
-                                <input
-                                    type="range"
-                                    value={local.threshold}
-                                    onChange={e => setLocal(prev => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
-                                    min={0}
-                                    max={100}
-                                    className="w-full accent-blue-600"
-                                />
-                            </div>
-                        )}
-                        </>
-                        )}
-
-                        {settingsTab === 'heatmap' && localMapMode === 'spotlight' && (
-                            <>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Background blur</label>
-                                        <span className="text-sm text-gray-500">{localSpotlight.blur}px</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={5}
-                                        max={50}
-                                        value={localSpotlight.blur}
-                                        onChange={(e) => setLocalSpotlight((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Reveal radius</label>
-                                        <span className="text-sm text-gray-500">{localSpotlight.reveal}%</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={10}
-                                        max={100}
-                                        value={localSpotlight.reveal}
-                                        onChange={(e) => setLocalSpotlight((prev) => ({ ...prev, reveal: Number(e.target.value) }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Dim overlay</label>
-                                        <span className="text-sm text-gray-500">{localSpotlight.dim}%</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={20}
-                                        max={70}
-                                        value={localSpotlight.dim}
-                                        onChange={(e) => setLocalSpotlight((prev) => ({ ...prev, dim: Number(e.target.value) }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Threshold</label>
-                                        <span className="text-sm text-gray-500">{local.threshold}</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={100}
-                                        value={local.threshold}
-                                        onChange={(e) => setLocal((prev) => ({ ...prev, threshold: Number(e.target.value), preset: 'Custom' }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                </div>
-                            </>
-                        )}
-
-                        {settingsTab === 'heatmap' && localMapMode === 'cold' && (
-                            <>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Cold intensity</label>
-                                        <span className="text-sm text-gray-500">{localCold.intensity}%</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={20}
-                                        max={100}
-                                        value={localCold.intensity}
-                                        onChange={(e) => setLocalCold((prev) => ({ ...prev, intensity: Number(e.target.value) }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Blur</label>
-                                        <span className="text-sm text-gray-500">{localCold.blur}px</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={4}
-                                        max={40}
-                                        value={localCold.blur}
-                                        onChange={(e) => setLocalCold((prev) => ({ ...prev, blur: Number(e.target.value) }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <label className="text-sm font-medium text-gray-700">Threshold</label>
-                                        <span className="text-sm text-gray-500">{localCold.threshold}</span>
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={80}
-                                        value={localCold.threshold}
-                                        onChange={(e) => setLocalCold((prev) => ({ ...prev, threshold: Number(e.target.value) }))}
-                                        className="w-full accent-blue-600"
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1">Minimum ignored-zone weight to display</p>
-                                </div>
-                            </>
-                        )}
-
-                        <div className="flex gap-2">
-                            <button
-                                type="button"
-                                onClick={onCancel}
-                                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onConfirm}
-                                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-                            >
-                                Listo
-                            </button>
-                        </div>
-
-                        {/* Save / load user presets */}
-                        <div className="pt-3 border-t border-gray-100 space-y-2">
-                            {showSavePreset ? (
-                                <div className="flex items-center gap-1.5">
-                                    <input
-                                        type="text"
-                                        value={presetName}
-                                        onChange={e => setPresetName(e.target.value)}
-                                        placeholder="Preset name..."
-                                        className="flex-1 px-2 py-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                        autoFocus
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter' && presetName.trim()) {
-                                                const updated = [...savedPresets.filter(p => p.name !== presetName.trim()), { name: presetName.trim(), blur: local.blur, opacity: local.opacity, threshold: local.threshold }];
-                                                setSavedPresets(updated);
-                                                persistHeatmapPresets(updated);
-                                                setPresetName('');
-                                                setShowSavePreset(false);
-                                            }
-                                            if (e.key === 'Escape') setShowSavePreset(false);
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        disabled={!presetName.trim()}
-                                        onClick={() => {
-                                            const updated = [...savedPresets.filter(p => p.name !== presetName.trim()), { name: presetName.trim(), blur: local.blur, opacity: local.opacity, threshold: local.threshold }];
-                                            setSavedPresets(updated);
-                                            persistHeatmapPresets(updated);
-                                            setPresetName('');
-                                            setShowSavePreset(false);
-                                        }}
-                                        className="px-2 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-40 transition-colors"
-                                    >
-                                        Save
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSavePreset(false)}
-                                        className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowSavePreset(true)}
-                                    className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
-                                >
-                                    Save as preset
-                                </button>
-                            )}
-
-                            {savedPresets.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                    {savedPresets.map(p => (
-                                        <div key={p.name} className="flex items-center gap-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => setLocal(prev => ({ ...prev, blur: p.blur, opacity: p.opacity, threshold: p.threshold, preset: p.name }))}
-                                                className={cn(
-                                                    'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
-                                                    local.preset === p.name
-                                                        ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
-                                                )}
-                                            >
-                                                {p.name}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const updated = savedPresets.filter(sp => sp.name !== p.name);
-                                                    setSavedPresets(updated);
-                                                    persistHeatmapPresets(updated);
-                                                }}
-                                                className="p-0.5 text-gray-300 hover:text-red-500 transition-colors"
-                                                title="Delete preset"
-                                            >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-/* ─── Compute NxM grid attention percentages from heatmap points ─── */
-const computeGridPercentages = (data: HeatmapPoint[], cols: number, rows: number): number[] => {
-    const cells = new Array(cols * rows).fill(0);
-    let total = 0;
-    for (const p of data) {
-        const col = Math.min(Math.floor((p.x / 100) * cols), cols - 1);
-        const row = Math.min(Math.floor((p.y / 100) * rows), rows - 1);
-        const val = p.value ?? 1;
-        cells[row * cols + col] += val;
-        total += val;
+    if (videoFrames.length > 0) {
+        return (
+            <VideoFrameScrubber
+                videoUrl={imageUrl}
+                frames={videoFrames}
+                settings={settings}
+                mapMode={mapMode}
+                spotlightSettings={spotlightSettings}
+                coldSettings={coldSettings}
+            />
+        );
     }
-    if (total === 0) return cells;
-    return cells.map(v => Math.round((v / total) * 1000) / 10);
-};
 
-const GRID_OPTIONS = [
-    { label: '2×2', cols: 2, rows: 2 },
-    { label: '3×3', cols: 3, rows: 3 },
-    { label: '4×4', cols: 4, rows: 4 },
-    { label: '5×5', cols: 5, rows: 5 },
-];
-
-/* ─── Video Heatmap Player — single video with split heatmap overlay + 3×3 grid ─── */
-const VideoFrameScrubber = ({
-    videoUrl,
-    frames,
-    settings,
-    mapMode,
-    spotlightSettings,
-    coldSettings,
-}: {
-    videoUrl: string;
-    frames: VideoFrameData[];
-    settings: HeatmapSettings;
-    mapMode: HeatmapMapMode;
-    spotlightSettings: SpotlightSettings;
-    coldSettings: ColdMapSettings;
-}) => {
-    const [frameIdx, setFrameIdx] = useState(0);
-    const [playing, setPlaying] = useState(false);
-    const [splitPct, setSplitPct] = useState(50); // divider position 0-100
-    const [gridSize, setGridSize] = useState(1); // index into GRID_OPTIONS (default 3×3)
-    const [dragging, setDragging] = useState(false);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const heatCanvasRef = useRef<HTMLCanvasElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const offscreenRef = useRef<HTMLCanvasElement | null>(null);
-    const maskRef = useRef<HTMLCanvasElement | null>(null);
-    const coldHeatCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const cachedMaskKeyRef = useRef('');
-    const animRef = useRef<number | null>(null);
-    const lastIdxRef = useRef(0);
-    const activeFrame = frames[frameIdx] || frames[0];
-    const frameData = useMemo(() => activeFrame?.heatmapData || [], [activeFrame]);
-    const { cols, rows } = GRID_OPTIONS[gridSize];
-    const gridPcts = useMemo(() => computeGridPercentages(frameData, cols, rows), [frameData, cols, rows]);
-
-    // Divider drag
-    const handleDividerDown = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        setDragging(true);
-    }, []);
-
-    useEffect(() => {
-        if (!dragging) return;
-        const onMove = (e: MouseEvent) => {
-            const container = containerRef.current;
-            if (!container) return;
-            const rect = container.getBoundingClientRect();
-            const pct = Math.max(10, Math.min(90, ((e.clientX - rect.left) / rect.width) * 100));
-            setSplitPct(pct);
-        };
-        const onUp = () => setDragging(false);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    }, [dragging]);
-
-    // Find closest frame index for a given time
-    const findFrameIdx = useCallback((time: number) => {
-        let best = 0;
-        let bestDist = Math.abs(frames[0]?.timestamp - time);
-        for (let i = 1; i < frames.length; i++) {
-            const dist = Math.abs(frames[i].timestamp - time);
-            if (dist < bestDist) { best = i; bestDist = dist; }
-        }
-        return best;
-    }, [frames]);
-
-    // Draw heatmap on canvas using simpleheat-style gradient
-    const drawHeatmap = useCallback((data: HeatmapPoint[], canvasW: number, canvasH: number) => {
-        const canvas = heatCanvasRef.current;
-        if (!canvas) return;
-        canvas.width = canvasW;
-        canvas.height = canvasH;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.clearRect(0, 0, canvasW, canvasH);
-        if (data.length === 0) return;
-
-        const isLab = settings.preset === 'Lab';
-        const isPrecise = settings.preset !== 'Smooth';
-        const isRefined = isLab || settings.preset === 'Precise';
-        const minDim = Math.min(canvasW, canvasH);
-        const radius = isLab
-            ? Math.max(10, minDim * 0.032)
-            : isPrecise
-                ? Math.max(14, minDim * 0.042 * Math.max(0.65, settings.blur / 10))
-                : Math.max(minDim * 0.08, minDim * (settings.blur / 100) * 0.8);
-        const minVal = isRefined
-            ? Math.max(settings.threshold / 100, isLab ? 0.58 : 0.45)
-            : settings.threshold / 100;
-
-        for (const p of data) {
-            const x = (p.x / 100) * canvasW;
-            const y = (p.y / 100) * canvasH;
-            const val = p.value ?? 0.5;
-            if (val < minVal) continue;
-
-            const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-            if (isRefined) {
-                grad.addColorStop(0, `rgba(255, 40, 0, ${val * (isLab ? 0.45 : 0.55)})`);
-                grad.addColorStop(0.4, `rgba(255, 120, 0, ${val * 0.25})`);
-                grad.addColorStop(0.7, `rgba(255, 200, 0, ${val * 0.1})`);
-                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            } else {
-                grad.addColorStop(0, `rgba(255, 0, 0, ${val * 0.55})`);
-                grad.addColorStop(0.35, `rgba(255, 140, 0, ${val * 0.3})`);
-                grad.addColorStop(0.65, `rgba(100, 220, 0, ${val * 0.12})`);
-                grad.addColorStop(1, 'rgba(0, 0, 255, 0)');
-            }
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }, [settings.blur, settings.threshold, settings.preset]);
-
-    const drawSpotlight = useCallback((data: HeatmapPoint[], canvasW: number, canvasH: number) => {
-        const canvas = heatCanvasRef.current;
-        const video = videoRef.current;
-        if (!canvas || !video) return;
-        canvas.width = canvasW;
-        canvas.height = canvasH;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        renderSpotlightComposite(
-            ctx,
-            video,
-            canvasW,
-            canvasH,
-            data,
-            {
-                blurPx: spotlightSettings.blur,
-                revealRadius: spotlightSettings.reveal,
-                dimOpacity: spotlightSettings.dim / 100,
-                threshold: settings.threshold,
-            },
-            offscreenRef,
-            maskRef,
-            cachedMaskKeyRef,
+    if (heatmapData.length > 0) {
+        return (
+            <VideoAccumulatedHeatmapOverlay
+                videoUrl={imageUrl}
+                heatmapData={heatmapData}
+                settings={settings}
+                mapMode={mapMode}
+                spotlightSettings={spotlightSettings}
+                coldSettings={coldSettings}
+            />
         );
-    }, [spotlightSettings.blur, spotlightSettings.reveal, spotlightSettings.dim, settings.threshold]);
+    }
 
-    const drawCold = useCallback((data: HeatmapPoint[], canvasW: number, canvasH: number) => {
-        const canvas = heatCanvasRef.current;
-        const video = videoRef.current;
-        if (!canvas || !video) return;
-        canvas.width = canvasW;
-        canvas.height = canvasH;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        renderColdMapComposite(
-            ctx,
-            video,
-            canvasW,
-            canvasH,
-            data,
-            {
-                intensity: coldSettings.intensity,
-                blur: coldSettings.blur,
-                threshold: coldSettings.threshold,
-            },
-            coldHeatCanvasRef,
-        );
-    }, [coldSettings.intensity, coldSettings.blur, coldSettings.threshold]);
-
-    const drawOverlay = useCallback((data: HeatmapPoint[], canvasW: number, canvasH: number) => {
-        if (mapMode === 'spotlight') {
-            drawSpotlight(data, canvasW, canvasH);
-            return;
-        }
-        if (mapMode === 'cold') {
-            drawCold(data, canvasW, canvasH);
-            return;
-        }
-        drawHeatmap(data, canvasW, canvasH);
-    }, [mapMode, drawHeatmap, drawSpotlight, drawCold]);
-
-    // Sync loop — use ref to avoid circular dependency
-    const syncLoopRef = useRef<() => void>(() => {});
-    useEffect(() => {
-        syncLoopRef.current = () => {
-            const video = videoRef.current;
-            if (!video || video.paused) return;
-            const idx = findFrameIdx(video.currentTime);
-            if (idx !== lastIdxRef.current) {
-                lastIdxRef.current = idx;
-                setFrameIdx(idx);
-            }
-            const fd = frames[idx]?.heatmapData || [];
-            drawOverlay(fd, video.videoWidth, video.videoHeight);
-            animRef.current = requestAnimationFrame(() => syncLoopRef.current());
-        };
-    }, [findFrameIdx, frames, drawOverlay]);
-
-    const togglePlay = useCallback(() => {
-        const video = videoRef.current;
-        if (!video) return;
-        if (video.paused) {
-            video.play();
-            setPlaying(true);
-            animRef.current = requestAnimationFrame(() => syncLoopRef.current());
-        } else {
-            video.pause();
-            setPlaying(false);
-            if (animRef.current) cancelAnimationFrame(animRef.current);
-        }
-    }, []);
-
-    useEffect(() => {
-        return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
-    }, []);
-
-    const handleSeek = (idx: number) => {
-        setFrameIdx(idx);
-        lastIdxRef.current = idx;
-        const t = frames[idx]?.timestamp ?? 0;
-        if (videoRef.current) videoRef.current.currentTime = t;
-        const fd = frames[idx]?.heatmapData || [];
-        if (videoRef.current) drawOverlay(fd, videoRef.current.videoWidth, videoRef.current.videoHeight);
-    };
-
-    // Draw initial overlay when video loads
-    const handleLoaded = () => {
-        const video = videoRef.current;
-        if (!video) return;
-        const fd = frames[0]?.heatmapData || [];
-        drawOverlay(fd, video.videoWidth, video.videoHeight);
-    };
-
-    useEffect(() => {
-        const video = videoRef.current;
-        if (!video || !video.videoWidth) return;
-        const fd = frames[frameIdx]?.heatmapData || [];
-        drawOverlay(fd, video.videoWidth, video.videoHeight);
-    }, [mapMode, spotlightSettings, coldSettings, settings, frameIdx, frames, drawOverlay]);
-
-    const isFullFrameOverlay = isFullFrameMapMode(mapMode);
-
-    return (
-        <div className="flex flex-col h-full">
-            {/* Video with heatmap overlay clipped by draggable divider */}
-            <div ref={containerRef} className="flex-1 min-h-0 relative bg-black flex items-center justify-center select-none">
-                <video
-                    ref={videoRef}
-                    src={videoUrl}
-                    className="max-w-full max-h-full block"
-                    muted
-                    playsInline
-                    onLoadedData={handleLoaded}
-                    onEnded={() => setPlaying(false)}
-                    style={{ visibility: isFullFrameOverlay ? 'hidden' : 'visible' }}
-                />
-
-                {/* Overlay canvas — classic split heatmap or full-frame spotlight/cold */}
-                <canvas
-                    ref={heatCanvasRef}
-                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
-                    style={isFullFrameOverlay
-                        ? { opacity: 1 }
-                        : {
-                            clipPath: `inset(0 0 0 ${splitPct}%)`,
-                            opacity: settings.opacity / 100,
-                            mixBlendMode: 'screen',
-                        }}
-                />
-
-                {mapMode === 'classic' && (
-                <>
-                {/* Dynamic grid — covers right side from divider */}
-                <div
-                    className="absolute top-0 bottom-0 pointer-events-none"
-                    style={{
-                        left: `${splitPct}%`,
-                        right: 0,
-                        display: 'grid',
-                        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                        gridTemplateRows: `repeat(${rows}, 1fr)`,
-                    }}
-                >
-                    {gridPcts.map((pct, i) => (
-                        <div key={i} className="border border-white/30 flex items-end justify-center pb-1">
-                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
-                                style={{
-                                    color: '#00ff00',
-                                    textShadow: '0 0 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7)',
-                                }}
-                            >
-                                Q{i + 1}: {pct}%
-                            </span>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Draggable divider */}
-                <div
-                    className="absolute top-0 bottom-0 z-10 flex items-center"
-                    style={{ left: `${splitPct}%`, transform: 'translateX(-50%)' }}
-                >
-                    <div
-                        className="w-5 h-full cursor-col-resize flex items-center justify-center group"
-                        onMouseDown={handleDividerDown}
-                    >
-                        <div className="w-0.5 h-full bg-white/70 group-hover:bg-white transition-colors" />
-                        <div className="absolute w-6 h-10 rounded-full bg-white/80 border-2 border-gray-400 flex items-center justify-center shadow-lg cursor-col-resize">
-                            <svg className="w-3 h-3 text-gray-500" viewBox="0 0 6 10" fill="currentColor">
-                                <circle cx="1" cy="2" r="0.8" /><circle cx="1" cy="5" r="0.8" /><circle cx="1" cy="8" r="0.8" />
-                                <circle cx="5" cy="2" r="0.8" /><circle cx="5" cy="5" r="0.8" /><circle cx="5" cy="8" r="0.8" />
-                            </svg>
-                        </div>
+    // No heatmap yet — show progress, error, or process button
+    if (videoProgress && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete') {
+        return (
+            <div className="flex flex-col items-center gap-3 px-6 py-4 bg-black/60 rounded-xl">
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <p className="text-white text-sm font-medium">{videoProgress.message}</p>
+                {videoProgress.total > 0 && (
+                    <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-white rounded-full transition-all duration-300"
+                            style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
+                        />
                     </div>
-                </div>
-                </>
                 )}
             </div>
+        );
+    }
 
-            {/* Controls bar */}
-            <div className="flex items-center gap-3 px-3 py-2 bg-gray-900 rounded-b-lg">
-                <button
-                    onClick={togglePlay}
-                    className="text-white hover:text-blue-400 transition-colors flex-shrink-0"
-                    title={playing ? 'Pause' : 'Play'}
-                >
-                    {playing ? (
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-                    ) : (
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-                    )}
-                </button>
-                <input
-                    type="range"
-                    min={0}
-                    max={frames.length - 1}
-                    value={frameIdx}
-                    onChange={e => handleSeek(Number(e.target.value))}
-                    className="flex-1 accent-blue-500 h-1"
-                />
-                {/* Grid size selector */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                    {GRID_OPTIONS.map((opt, i) => (
-                        <button
-                            key={opt.label}
-                            onClick={() => setGridSize(i)}
-                            className={`px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors ${
-                                i === gridSize ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                            }`}
-                        >
-                            {opt.label}
-                        </button>
-                    ))}
-                </div>
-                <span className="text-xs text-gray-400 font-mono w-12 text-right flex-shrink-0">
-                    {activeFrame ? `${activeFrame.timestamp.toFixed(1)}s` : '—'}
-                </span>
+    if (videoProgress?.phase === 'error') {
+        return (
+            <div className="flex flex-col items-center gap-2 px-6 py-4 bg-red-900/70 rounded-xl">
+                <p className="text-red-200 text-sm font-medium">{videoProgress.message}</p>
+                {onProcessVideo && (
+                    <button onClick={onProcessVideo} className="text-xs text-white underline">Retry</button>
+                )}
+                {onDismissVideoProgress && (
+                    <button onClick={onDismissVideoProgress} className="text-xs text-red-300">Dismiss</button>
+                )}
             </div>
-        </div>
-    );
+        );
+    }
+
+    if (onProcessVideo) {
+        return (
+            <button
+                onClick={onProcessVideo}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Process Video
+            </button>
+        );
+    }
+
+    return null;
 };
 
+/* ─── Props ─── */
+
+interface AttentionPredictionCardProps {
+    imageUrl: string;
+    title: string;
+    heatmapData?: HeatmapPoint[];
+    onDelete?: () => void;
+    isDeleting?: boolean;
+    className?: string;
+    researchId?: string;
+    stimulusMediaId?: string;
+    isVideo?: boolean;
+    videoFrames?: VideoFrameData[];
+    aiAnalysis?: AiAnalysisResult;
+    pendingImportAois?: AiAnalysisResult['autoAois'];
+    onImportAoisDone?: () => void;
+    onAddMore?: () => void;
+    onRunAnalysis?: (manualAois: ManualAOI[]) => void;
+    onRunPrediction?: (manualAois: ManualAOI[]) => void;
+    isPredicting?: boolean;
+    predictElapsed?: number;
+    predictionError?: string;
+    initialTab?: TabId;
+    workflowFocusTab?: TabId;
+    onWorkflowFocusTabHandled?: () => void;
+    onOpenCriteria?: () => void;
+    isCriteriaDrawerOpen?: boolean;
+    aoiSkipped?: boolean;
+    onAoiSkippedChange?: (skipped: boolean) => void;
+    onAoiListChange?: (aois: ManualAOI[]) => void;
+    autoPresets?: { blur: number; opacity: number; threshold: number };
+    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
+    isAnalyzing?: boolean;
+    analyzeElapsed?: number;
+    headerExtra?: ReactNode;
+    onProcessVideo?: () => void;
+    videoProgress?: { phase: string; current: number; total: number; message: string } | null;
+    onDismissVideoProgress?: () => void;
+}
+
 /* ─── Main Card ─── */
+
 export const AttentionPredictionCard = ({
     imageUrl,
     title,
@@ -1220,21 +270,18 @@ export const AttentionPredictionCard = ({
     videoProgress,
     onDismissVideoProgress,
 }: AttentionPredictionCardProps) => {
+    /* ── Tab & layer state ── */
     const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'original');
     const [layers, setLayers] = useState<StimulusLayers>({
-        heatmap: false,
-        aiAois: false,
-        manualAois: false,
-        gaze: false,
+        heatmap: false, aiAois: false, manualAois: false, gaze: false,
     });
     const layerContextRef = useRef<AttentionLayerContext>({
-        hasHeatmap: false,
-        hasGazeRoutes: false,
-        hasManualAois: false,
-        hasAutoAois: false,
+        hasHeatmap: false, hasGazeRoutes: false, hasManualAois: false, hasAutoAois: false,
     });
     const overlayAvailabilityRef = useRef({ heatmap: false, gaze: false });
     const loadedAoiCountRef = useRef(0);
+
+    /* ── AOI drawing state ── */
     const [showSkipConfirm, setShowSkipConfirm] = useState(false);
     const [skipConfirmAction, setSkipConfirmAction] = useState<'gate-only' | 'predict'>('gate-only');
     const [showNameModal, setShowNameModal] = useState(false);
@@ -1243,6 +290,40 @@ export const AttentionPredictionCard = ({
     const [selectedAoiId, setSelectedAoiId] = useState<string | null>(null);
     const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
     const [editingLabelValue, setEditingLabelValue] = useState('');
+    const [drawingAoi, setDrawingAoi] = useState(false);
+    const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
+    const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+    const [aoiList, setAoiList] = useState<ManualAOI[]>([]);
+    const [isSavingAois, setIsSavingAois] = useState(false);
+    const aoiContainerRef = useRef<HTMLDivElement>(null);
+
+    /* ── Heatmap settings state ── */
+    const [showSettings, setShowSettings] = useState(false);
+    const heatmapViewSnapshotRef = useRef<HeatmapViewSettings | null>(null);
+    const [settings, setSettings] = useState<HeatmapSettings>(() => {
+        if (autoPresets) {
+            return { blur: autoPresets.blur, opacity: autoPresets.opacity, threshold: autoPresets.threshold, preset: 'Precise' };
+        }
+        return { ...DEFAULT_SETTINGS };
+    });
+    const [mapMode, setMapMode] = useState<HeatmapMapMode>('classic');
+    const [spotlightSettings, setSpotlightSettings] = useState<SpotlightSettings>({ ...DEFAULT_SPOTLIGHT_SETTINGS });
+    const [coldSettings, setColdSettings] = useState<ColdMapSettings>({ ...DEFAULT_COLD_MAP_SETTINGS });
+
+    /* ── Gaze state ── */
+    const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set(['typical-scan', 'group-scan', 'novelty-search']));
+    const [gazeMode, setGazeMode] = useState<'static' | 'animated'>('static');
+
+    /* ── Refs ── */
+    const tabContentRef = useRef<HTMLDivElement>(null);
+
+    /** Stable max height — computed once from window, not from dynamic viewport */
+    const stableMaxHeight = useMemo(() => {
+        const FIXED_CHROME = 220;
+        return Math.max(300, window.innerHeight - FIXED_CHROME);
+    }, []);
+
+    /* ── Tab management ── */
 
     const applyTabLayers = useCallback((tabId: TabId, context: AttentionLayerContext): void => {
         setLayers(buildAttentionLayerPreset(tabId, context));
@@ -1261,9 +342,7 @@ export const AttentionPredictionCard = ({
     }, [applyTabLayers]);
 
     useEffect(() => {
-        if (!workflowFocusTab) {
-            return;
-        }
+        if (!workflowFocusTab) return;
         handleTabChange(workflowFocusTab);
         onWorkflowFocusTabHandled?.();
     }, [workflowFocusTab, handleTabChange, onWorkflowFocusTabHandled]);
@@ -1276,12 +355,13 @@ export const AttentionPredictionCard = ({
         applyTabLayers(activeTab, layerContextRef.current);
     }, [activeTab, applyTabLayers]);
 
+    /* ── Stimulus image cache ── */
     useEffect(() => {
         if (!imageUrl || isVideo) return;
         void loadCachedStimulusImage(imageUrl);
     }, [imageUrl, isVideo]);
 
-    // Filter tabs: show Gaze Paths only when AI analysis has gaze data
+    /* ── Tabs filter ── */
     const tabs = useMemo(() => {
         return BASE_TABS.filter(tab => {
             if (tab.id === 'gaze-paths') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
@@ -1289,47 +369,15 @@ export const AttentionPredictionCard = ({
             return true;
         });
     }, [aiAnalysis, isVideo]);
-    const [showSettings, setShowSettings] = useState(false);
-    const heatmapViewSnapshotRef = useRef<HeatmapViewSettings | null>(null);
-    const [settings, setSettings] = useState<HeatmapSettings>(() => {
-        if (autoPresets) {
-            return {
-                blur: autoPresets.blur,
-                opacity: autoPresets.opacity,
-                threshold: autoPresets.threshold,
-                preset: 'Precise',
-            };
-        }
-        return { ...DEFAULT_SETTINGS };
-    });
-    const [mapMode, setMapMode] = useState<HeatmapMapMode>('classic');
-    const [spotlightSettings, setSpotlightSettings] = useState<SpotlightSettings>({ ...DEFAULT_SPOTLIGHT_SETTINGS });
-    const [coldSettings, setColdSettings] = useState<ColdMapSettings>({ ...DEFAULT_COLD_MAP_SETTINGS });
 
-    // Update settings when autoPresets change (new prediction)
+    /* ── Auto-presets sync ── */
     useEffect(() => {
         if (autoPresets) {
-            setSettings({
-                blur: autoPresets.blur,
-                opacity: autoPresets.opacity,
-                threshold: autoPresets.threshold,
-                preset: 'Precise',
-            });
+            setSettings({ blur: autoPresets.blur, opacity: autoPresets.opacity, threshold: autoPresets.threshold, preset: 'Precise' });
         }
     }, [autoPresets]);
-    const [visibleRoutes, setVisibleRoutes] = useState<Set<string>>(new Set(['typical-scan', 'group-scan', 'novelty-search']));
-    const [gazeMode, setGazeMode] = useState<'static' | 'animated'>('static');
-    const [aoiList, setAoiList] = useState<ManualAOI[]>([]);
-    const [drawingAoi, setDrawingAoi] = useState(false);
-    const [aoiStart, setAoiStart] = useState<{ x: number; y: number } | null>(null);
-    const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-    const [isSavingAois, setIsSavingAois] = useState(false);
-    const aoiContainerRef = useRef<HTMLDivElement>(null);
-    const tabContentRef = useRef<HTMLDivElement>(null);
-    const viewportRef = useRef<HTMLDivElement>(null);
-    const [viewportBounds, setViewportBounds] = useState({ width: 0, height: 0 });
 
-    // Global mouse handlers for AOI drawing — works even when mouse leaves the container
+    /* ── AOI: global mouse handlers for drawing ── */
     useEffect(() => {
         if (!drawingAoi || !aoiStart) return;
         const container = aoiContainerRef.current;
@@ -1367,8 +415,7 @@ export const AttentionPredictionCard = ({
         };
     }, [drawingAoi, aoiStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
-
-    // Load persisted AOIs from research settings
+    /* ── AOI: load persisted ── */
     useEffect(() => {
         if (!researchId || !stimulusMediaId) return;
         researchService.getById(researchId).then(res => {
@@ -1384,14 +431,14 @@ export const AttentionPredictionCard = ({
         onAoiListChange?.(aoiList);
     }, [aoiList, onAoiListChange]);
 
-    // Persist AOIs to research settings (debounced to prevent race conditions)
+    /* ── AOI: persist ── */
     const pendingAoisRef = useRef<ManualAOI[] | null>(null);
     const saveInFlightRef = useRef(false);
 
     const persistAois = useCallback(async (aois: ManualAOI[]) => {
         if (!researchId || !stimulusMediaId) return;
         pendingAoisRef.current = aois;
-        if (saveInFlightRef.current) return; // will be picked up after current save
+        if (saveInFlightRef.current) return;
         saveInFlightRef.current = true;
         setIsSavingAois(true);
         try {
@@ -1402,9 +449,7 @@ export const AttentionPredictionCard = ({
                 const s = (res.research.settings as Record<string, unknown>) || {};
                 const stimuli = (s.stimuli as Array<Record<string, unknown>>) || [];
                 const updatedStimuli = stimuli.map(st => {
-                    if (st.mediaId === stimulusMediaId) {
-                        return { ...st, aois: toSave };
-                    }
+                    if (st.mediaId === stimulusMediaId) return { ...st, aois: toSave };
                     return st;
                 });
                 await researchService.update(researchId, {
@@ -1427,16 +472,16 @@ export const AttentionPredictionCard = ({
         };
     };
 
+    /* ── AOI: CRUD ── */
+
     const confirmPendingAoi = useCallback(() => {
         if (!pendingRect) return;
         const label = pendingLabel.trim() || `Zona ${aoiList.length + 1}`;
         const aoi: ManualAOI = clampAoiBounds({
             id: `aoi_${crypto.randomUUID()}`,
             label,
-            x: pendingRect.x,
-            y: pendingRect.y,
-            width: pendingRect.w,
-            height: pendingRect.h,
+            x: pendingRect.x, y: pendingRect.y,
+            width: pendingRect.w, height: pendingRect.h,
             source: 'manual',
         });
         const updated = [...aoiList, aoi];
@@ -1475,22 +520,16 @@ export const AttentionPredictionCard = ({
         setSelectedAoiId((prev) => (prev === aoiId ? null : prev));
     }, [persistAois]);
 
+    /* ── AOI: keyboard delete ── */
     useEffect(() => {
-        if (!selectedAoiId) {
-            return;
-        }
+        if (!selectedAoiId) return;
         const onKeyDown = (e: KeyboardEvent): void => {
-            if (e.key !== 'Delete' && e.key !== 'Backspace') {
-                return;
-            }
+            if (e.key !== 'Delete' && e.key !== 'Backspace') return;
             if (shouldBlockAoiKeyboardDelete({
-                showNameModal,
-                editingLabelId,
+                showNameModal, editingLabelId,
                 criteriaDrawerOpen: isCriteriaDrawerOpen,
                 target: e.target,
-            })) {
-                return;
-            }
+            })) return;
             removeAoi(selectedAoiId);
         };
         document.addEventListener('keydown', onKeyDown);
@@ -1498,11 +537,10 @@ export const AttentionPredictionCard = ({
     }, [selectedAoiId, showNameModal, editingLabelId, isCriteriaDrawerOpen, removeAoi]);
 
     useEffect(() => {
-        if (isCriteriaDrawerOpen) {
-            setSelectedAoiId(null);
-        }
+        if (isCriteriaDrawerOpen) setSelectedAoiId(null);
     }, [isCriteriaDrawerOpen]);
 
+    /* ── Gates ── */
     const predictionGateOpen = canRunPredictionGate(aoiList.length, aoiSkipped);
     const analysisGateOpen = canRunAnalysisGate(heatmapData.length, aoiList.length, aoiSkipped);
     const hasHeatmap = heatmapData.length > 0;
@@ -1522,24 +560,38 @@ export const AttentionPredictionCard = ({
         onRunAnalysis(aoiList);
     };
 
+    /* ── AOI import ── */
     const importedAiLabels = useMemo(
         () => new Set(aoiList.filter(a => a.source === 'imported-ai').map(a => a.label)),
         [aoiList],
     );
 
-    // Process pending AOI imports from the external AI panel
+    const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
+        const existingLabels = new Set(aoiList.map(a => a.label));
+        const newAois: ManualAOI[] = aiAois
+            .filter(a => !existingLabels.has(a.label))
+            .map(a => ({
+                id: `aoi_${crypto.randomUUID()}`,
+                label: a.label,
+                x: a.x, y: a.y, width: a.width, height: a.height,
+                source: 'imported-ai' as const,
+            }));
+        if (newAois.length > 0) {
+            const updated = [...aoiList, ...newAois];
+            setAoiList(updated);
+            void persistAois(updated);
+        }
+    }, [aoiList, persistAois]);
+
     useEffect(() => {
         if (!pendingImportAois || pendingImportAois.length === 0) return;
         handleImportAois(pendingImportAois);
         onImportAoisDone?.();
     }, [pendingImportAois]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    /* ── Computed data ── */
     const computedAois: AOIWithStats[] = useMemo(() => {
-        const saliencyPoints = heatmapData.map(p => ({
-            x: p.x,
-            y: p.y,
-            value: p.value ?? 0,
-        }));
+        const saliencyPoints = heatmapData.map(p => ({ x: p.x, y: p.y, value: p.value ?? 0 }));
         return aoiList.map(aoi => ({
             ...aoi,
             percentage: computeAoiAttentionShare(aoi, saliencyPoints),
@@ -1566,22 +618,20 @@ export const AttentionPredictionCard = ({
         );
 
         if (aiAnalysis.gazePathRoutes?.length) {
-            const routes = anchoredHeatmapData.length > 0
+            return anchoredHeatmapData.length > 0
                 ? anchorGazeRoutesToHeatmap(aiAnalysis.gazePathRoutes, anchoredHeatmapData)
                 : aiAnalysis.gazePathRoutes;
-            return routes;
         }
 
-        return [
-            {
-                id: 'typical-scan',
-                name: 'Typical Scan',
-                description: 'Default predicted path',
-                fixations: anchorFixations(aiAnalysis.gazePath),
-            },
-        ];
+        return [{
+            id: 'typical-scan',
+            name: 'Typical Scan',
+            description: 'Default predicted path',
+            fixations: anchorFixations(aiAnalysis.gazePath),
+        }];
     }, [aiAnalysis, anchoredHeatmapData]);
 
+    /* ── Layer context sync ── */
     const layerContext = useMemo<AttentionLayerContext>(() => ({
         hasHeatmap,
         hasGazeRoutes: gazeRoutes.length > 0,
@@ -1592,9 +642,7 @@ export const AttentionPredictionCard = ({
     layerContextRef.current = layerContext;
 
     useEffect(() => {
-        if (!stimulusMediaId) {
-            return;
-        }
+        if (!stimulusMediaId) return;
         overlayAvailabilityRef.current = { heatmap: false, gaze: false };
         loadedAoiCountRef.current = 0;
         const tab = initialTab ?? 'original';
@@ -1611,34 +659,18 @@ export const AttentionPredictionCard = ({
     }, [stimulusMediaId, initialTab, applyTabLayers]);
 
     useEffect(() => {
-        const hasHeatmapNow = layerContext.hasHeatmap;
-        const hasGazeNow = layerContext.hasGazeRoutes;
         const prev = overlayAvailabilityRef.current;
-        const gainedOverlay = (
-            (!prev.heatmap && hasHeatmapNow)
-            || (!prev.gaze && hasGazeNow)
-        );
-        overlayAvailabilityRef.current = {
-            heatmap: hasHeatmapNow,
-            gaze: hasGazeNow,
-        };
-        if (!gainedOverlay) {
-            return;
-        }
+        const gainedOverlay = (!prev.heatmap && layerContext.hasHeatmap) || (!prev.gaze && layerContext.hasGazeRoutes);
+        overlayAvailabilityRef.current = { heatmap: layerContext.hasHeatmap, gaze: layerContext.hasGazeRoutes };
+        if (!gainedOverlay) return;
         if (activeTab === 'original' || activeTab === 'gaze-paths' || activeTab === 'heatmap') {
             applyTabLayers(activeTab, layerContext);
         }
     }, [layerContext, activeTab, applyTabLayers]);
 
     useEffect(() => {
-        if (aoiList.length === 0) {
-            loadedAoiCountRef.current = 0;
-            return;
-        }
-        if (loadedAoiCountRef.current > 0) {
-            loadedAoiCountRef.current = aoiList.length;
-            return;
-        }
+        if (aoiList.length === 0) { loadedAoiCountRef.current = 0; return; }
+        if (loadedAoiCountRef.current > 0) { loadedAoiCountRef.current = aoiList.length; return; }
         loadedAoiCountRef.current = aoiList.length;
         if (activeTab === 'original' || activeTab === 'gaze-paths') {
             applyTabLayers(activeTab, layerContextRef.current);
@@ -1658,12 +690,12 @@ export const AttentionPredictionCard = ({
     const toggleGazeRoute = useCallback((id: string): void => {
         setVisibleRoutes(prev => {
             const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(id)) next.delete(id); else next.add(id);
             return next;
         });
     }, []);
 
+    /* ── Derived flags ── */
     const showHeatmapLayer = layers.heatmap && hasHeatmap;
     const showBaseImage = !showHeatmapLayer;
     const isAoiEditMode = activeTab === 'aoi-editor';
@@ -1676,6 +708,7 @@ export const AttentionPredictionCard = ({
     const effectiveMapMode: HeatmapMapMode = isAoiEditMode ? 'classic' : mapMode;
     const showLegacyHeatmapBanner = hasHeatmap && isLegacyDenseHeatmap(heatmapData.length);
 
+    /* ── Heatmap settings management ── */
     const applyHeatmapViewSettings = useCallback((view: HeatmapViewSettings): void => {
         setSettings(view.settings);
         setMapMode(view.mapMode);
@@ -1685,19 +718,15 @@ export const AttentionPredictionCard = ({
 
     const openHeatmapSettings = useCallback((): void => {
         heatmapViewSnapshotRef.current = {
-            settings: { ...settings },
-            mapMode,
-            spotlight: { ...spotlightSettings },
-            cold: { ...coldSettings },
+            settings: { ...settings }, mapMode,
+            spotlight: { ...spotlightSettings }, cold: { ...coldSettings },
         };
         setShowSettings(true);
     }, [settings, mapMode, spotlightSettings, coldSettings]);
 
     const cancelHeatmapSettings = useCallback((): void => {
         const snapshot = heatmapViewSnapshotRef.current;
-        if (snapshot) {
-            applyHeatmapViewSettings(snapshot);
-        }
+        if (snapshot) applyHeatmapViewSettings(snapshot);
         heatmapViewSnapshotRef.current = null;
         setShowSettings(false);
     }, [applyHeatmapViewSettings]);
@@ -1708,70 +737,19 @@ export const AttentionPredictionCard = ({
     }, []);
 
     const heatmapViewSummary = useMemo(
-        () => formatHeatmapViewSummary({
-            mapMode,
-            settings,
-            spotlight: spotlightSettings,
-            cold: coldSettings,
-        }),
+        () => formatHeatmapViewSummary({ mapMode, settings, spotlight: spotlightSettings, cold: coldSettings }),
         [mapMode, settings, spotlightSettings, coldSettings],
     );
 
     const handleMapModeChange = useCallback((mode: HeatmapMapMode): void => {
-        if (isAoiEditMode && mode !== 'classic') {
-            return;
-        }
+        if (isAoiEditMode && mode !== 'classic') return;
         setMapMode(mode);
-        if (!layers.heatmap) {
-            setLayers((prev) => ({ ...prev, heatmap: true }));
-        }
+        if (!layers.heatmap) setLayers((prev) => ({ ...prev, heatmap: true }));
     }, [isAoiEditMode, layers.heatmap]);
 
-    useEffect(() => {
-        const viewport = viewportRef.current;
-        if (!viewport) {
-            return;
-        }
-
-        const updateBounds = (): void => {
-            setViewportBounds({
-                width: viewport.clientWidth,
-                height: viewport.clientHeight,
-            });
-        };
-
-        updateBounds();
-        const frame = requestAnimationFrame(updateBounds);
-        const observer = new ResizeObserver(updateBounds);
-        observer.observe(viewport);
-        window.addEventListener('resize', updateBounds);
-
-        return () => {
-            cancelAnimationFrame(frame);
-            observer.disconnect();
-            window.removeEventListener('resize', updateBounds);
-        };
-    }, [activeTab, isVideo]);
-
-    const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
-        const existingLabels = new Set(aoiList.map(a => a.label));
-        const newAois: ManualAOI[] = aiAois
-            .filter(a => !existingLabels.has(a.label))
-            .map(a => ({
-                id: `aoi_${crypto.randomUUID()}`,
-                label: a.label,
-                x: a.x,
-                y: a.y,
-                width: a.width,
-                height: a.height,
-                source: 'imported-ai' as const,
-            }));
-        if (newAois.length > 0) {
-            const updated = [...aoiList, ...newAois];
-            setAoiList(updated);
-            void persistAois(updated);
-        }
-    }, [aoiList, persistAois]);
+    const handlePresetChange = useCallback((preset: string, values: Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>): void => {
+        setSettings(prev => ({ ...prev, preset, ...values }));
+    }, []);
 
     const handleDownloadImage = useCallback(async () => {
         const el = tabContentRef.current;
@@ -1789,6 +767,7 @@ export const AttentionPredictionCard = ({
         }
     }, [activeTab, effectiveMapMode]);
 
+    /* ── Empty state ── */
     if (!imageUrl) {
         return (
             <div className="bg-gray-100 h-64 flex items-center justify-center rounded-lg">
@@ -1797,106 +776,31 @@ export const AttentionPredictionCard = ({
         );
     }
 
+    /* ── Render ── */
     return (
         <>
             <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-white', className)}>
-                {/* Title */}
-                <div className="p-4 border-b flex items-start justify-between">
-                    <div>
-                        <h4 className="font-semibold text-base">{title}</h4>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                            Prediction of visual attention
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        {onAddMore && (
-                            <button
-                                type="button"
-                                onClick={onAddMore}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Add more images or videos"
-                            >
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                </svg>
-                            </button>
-                        )}
-                        {onDelete && (
-                            <button
-                                type="button"
-                                onClick={onDelete}
-                                disabled={isDeleting}
-                                className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                                title="Remove stimulus"
-                        >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    )}
-                        {headerExtra}
-                        {onRunPrediction && !isVideo && (
-                            <button
-                                type="button"
-                                onClick={handlePredictClick}
-                                disabled={isPredicting}
-                                className={cn(
-                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                                    hasHeatmap
-                                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
-                                        : 'text-white bg-indigo-600 hover:bg-indigo-700',
-                                    isPredicting && 'opacity-50 cursor-not-allowed',
-                                )}
-                                title={
-                                    !predictionGateOpen
-                                        ? 'Define al menos una zona o continúa sin zonas'
-                                        : hasHeatmap
-                                            ? 'Regenerar heatmap TranSalNet'
-                                            : 'Generar heatmap TranSalNet'
-                                }
-                            >
-                                {isPredicting
-                                    ? `Generando heatmap... ${predictElapsed}s`
-                                    : hasHeatmap
-                                        ? 'Regenerar heatmap'
-                                        : 'Generar heatmap'}
-                            </button>
-                        )}
-                        {onRunAnalysis && (
-                            <button
-                                type="button"
-                                onClick={handleAnalysisClick}
-                                disabled={isAnalyzing || !analysisGateOpen}
-                                className={cn(
-                                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                                    aiAnalysis
-                                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
-                                        : 'text-white bg-blue-600 hover:bg-blue-700',
-                                    (isAnalyzing || !analysisGateOpen) && 'opacity-50 cursor-not-allowed'
-                                )}
-                                title={
-                                    !analysisGateOpen
-                                        ? !hasHeatmap
-                                            ? 'Genera el heatmap antes del análisis IA'
-                                            : 'Define al menos una zona o continúa sin zonas'
-                                        : aiAnalysis
-                                            ? 'Re-ejecutar análisis IA'
-                                            : 'Ejecutar análisis IA'
-                                }
-                            >
-                                <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                    {isAnalyzing
-                                        ? <><circle className="opacity-25" cx="12" cy="12" r="10" /><path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" stroke="none" /></>
-                                        : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                                    }
-                                </svg>
-                                {isAnalyzing
-                                    ? `Analizando... ${analyzeElapsed}s`
-                                    : aiAnalysis ? 'Re-analizar' : 'Análisis IA'}
-                            </button>
-                        )}
-                    </div>
-                </div>
+                {/* Title + actions */}
+                <CardHeader
+                    title={title}
+                    onAddMore={onAddMore}
+                    onDelete={onDelete}
+                    isDeleting={isDeleting}
+                    headerExtra={headerExtra}
+                    onRunPrediction={onRunPrediction}
+                    isVideo={isVideo}
+                    isPredicting={isPredicting}
+                    predictElapsed={predictElapsed}
+                    hasHeatmap={hasHeatmap}
+                    predictionGateOpen={predictionGateOpen}
+                    onPredictClick={handlePredictClick}
+                    onRunAnalysis={onRunAnalysis}
+                    isAnalyzing={isAnalyzing}
+                    analyzeElapsed={analyzeElapsed}
+                    analysisGateOpen={analysisGateOpen}
+                    aiAnalysis={aiAnalysis}
+                    onAnalysisClick={handleAnalysisClick}
+                />
 
                 {showLegacyHeatmapBanner && (
                     <div className="mx-4 mt-3 px-3 py-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
@@ -1908,11 +812,7 @@ export const AttentionPredictionCard = ({
                     <div className="mx-4 mt-3 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md flex items-center justify-between gap-2">
                         <span>Error al generar heatmap: {predictionError}</span>
                         {onRunPrediction && (
-                            <button
-                                type="button"
-                                onClick={handlePredictClick}
-                                className="text-red-800 underline font-medium shrink-0"
-                            >
+                            <button type="button" onClick={handlePredictClick} className="text-red-800 underline font-medium shrink-0">
                                 Reintentar
                             </button>
                         )}
@@ -1939,7 +839,6 @@ export const AttentionPredictionCard = ({
                                 </button>
                             ))}
                         </div>
-                        {/* Download */}
                         <button
                             type="button"
                             onClick={() => void handleDownloadImage()}
@@ -1949,15 +848,12 @@ export const AttentionPredictionCard = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                         </button>
-                        {/* Settings — opens modal */}
                         <button
                             type="button"
                             onClick={openHeatmapSettings}
                             className={cn(
                                 'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-                                showSettings
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-600 hover:text-gray-900',
+                                showSettings ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900',
                             )}
                         >
                             {TAB_ICONS.settings}
@@ -1966,343 +862,66 @@ export const AttentionPredictionCard = ({
                     </div>
                 </div>
 
-                {/* Layer toggles — single viewport, composable overlays */}
-                {!isVideo && activeTab !== 'aoi-editor' && (
-                    <div className="px-4 py-2 border-b bg-white flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mr-1">
-                            Capas
-                        </span>
-                        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={layers.heatmap}
-                                disabled={!hasHeatmap}
-                                onChange={() => toggleLayer('heatmap')}
-                                className="rounded border-gray-300"
-                            />
-                            Heatmap
-                        </label>
-                        {displayAutoAois.length > 0 && (
-                            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={layers.aiAois}
-                                    onChange={() => toggleLayer('aiAois')}
-                                    className="rounded border-gray-300"
-                                />
-                                Zonas IA
-                            </label>
-                        )}
-                        {computedAois.length > 0 && (
-                            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={layers.manualAois}
-                                    onChange={() => toggleLayer('manualAois')}
-                                    className="rounded border-gray-300"
-                                />
-                                Zonas manuales
-                            </label>
-                        )}
-                        {gazeRoutes.length > 0 && (
-                            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={layers.gaze}
-                                    onChange={() => toggleLayer('gaze')}
-                                    className="rounded border-gray-300"
-                                />
-                                Rutas de mirada
-                            </label>
-                        )}
-                        {(hasHeatmap || gazeRoutes.length > 0) && (
-                            <button
-                                type="button"
-                                onClick={applyCompositeLayers}
-                                className="ml-1 px-2 py-0.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
-                            >
-                                Vista completa
-                            </button>
-                        )}
-                    </div>
+                {/* Layer toggles — only on Heatmap and Gaze Paths tabs */}
+                {!isVideo && (activeTab === 'heatmap' || activeTab === 'gaze-paths') && (
+                    <LayerToggles
+                        layers={layers}
+                        hasHeatmap={hasHeatmap}
+                        displayAutoAois={displayAutoAois}
+                        computedAois={computedAois}
+                        gazeRoutes={gazeRoutes}
+                        onToggleLayer={toggleLayer}
+                        onApplyComposite={applyCompositeLayers}
+                    />
                 )}
 
-                {/* Heatmap controls — when heatmap layer is visible */}
-                {!isVideo && showMapModeControls && activeTab === 'heatmap' && (
-                    <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
-                        <div className="flex gap-1">
-                            {ACTIVE_HEATMAP_MAP_MODES.map((mode) => {
-                                const disabled = isAoiEditMode && mode !== 'classic';
-                                return (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    disabled={disabled}
-                                    onClick={() => handleMapModeChange(mode)}
-                                    title={disabled ? 'Spotlight y Cold no están disponibles en AOI Editor' : undefined}
-                                    className={cn(
-                                        'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                                        mapMode === mode
-                                            ? 'bg-slate-800 text-white'
-                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100',
-                                        disabled && 'opacity-40 cursor-not-allowed hover:bg-white',
-                                    )}
-                                >
-                                    {getHeatmapMapModeLabel(mode)}
-                                </button>
-                                );
-                            })}
-                        </div>
-                        {mapMode === 'classic' && (
-                            <div className="flex gap-1">
-                                {DETAIL_PRESETS.map(p => (
-                                    <button
-                                        key={p}
-                                        type="button"
-                                        onClick={() => {
-                                            const vals = PRESET_VALUES[p];
-                                            setSettings(prev => ({ ...prev, preset: p, ...vals }));
-                                        }}
-                                        className={cn(
-                                            'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                                            settings.preset === p
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
-                                        )}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={openHeatmapSettings}
-                            className="max-w-md truncate rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-blue-300 hover:text-blue-700 transition-colors"
-                            title={heatmapViewSummary}
-                        >
-                            {heatmapViewSummary}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={openHeatmapSettings}
-                            className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
-                        >
-                            Ajuste fino
-                        </button>
-                        {mapMode === 'classic' && (settings.preset === 'Smooth' || settings.threshold < 48) && (
-                            <span className="text-[11px] text-amber-700">
-                                Usa Lab o Precise para mayor granularidad
-                            </span>
-                        )}
-                    </div>
+                {/* Map mode control bar — unified for image and video */}
+                {showMapModeControls && activeTab === 'heatmap' && (
+                    <MapModeControlBar
+                        mapMode={mapMode}
+                        settings={settings}
+                        isAoiEditMode={!isVideo && isAoiEditMode}
+                        heatmapViewSummary={heatmapViewSummary}
+                        onMapModeChange={handleMapModeChange}
+                        onPresetChange={handlePresetChange}
+                        onOpenSettings={openHeatmapSettings}
+                    />
                 )}
 
-                {/* Video map mode + spotlight controls */}
-                {isVideo && activeTab === 'heatmap' && showMapModeControls && (
-                    <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
-                        <div className="flex gap-1">
-                            {ACTIVE_HEATMAP_MAP_MODES.map((mode) => (
-                                <button
-                                    key={mode}
-                                    type="button"
-                                    onClick={() => handleMapModeChange(mode)}
-                                    className={cn(
-                                        'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                                        mapMode === mode
-                                            ? 'bg-slate-800 text-white'
-                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100',
-                                    )}
-                                >
-                                    {getHeatmapMapModeLabel(mode)}
-                                </button>
-                            ))}
-                        </div>
-                        {mapMode === 'classic' && (
-                            <div className="flex gap-1">
-                                {DETAIL_PRESETS.map(p => (
-                                    <button
-                                        key={p}
-                                        type="button"
-                                        onClick={() => {
-                                            const vals = PRESET_VALUES[p];
-                                            setSettings(prev => ({ ...prev, preset: p, ...vals }));
-                                        }}
-                                        className={cn(
-                                            'px-2.5 py-1 text-xs font-medium rounded transition-colors',
-                                            settings.preset === p
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100',
-                                        )}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        <button
-                            type="button"
-                            onClick={openHeatmapSettings}
-                            className="max-w-md truncate rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-blue-300 hover:text-blue-700 transition-colors"
-                            title={heatmapViewSummary}
-                        >
-                            {heatmapViewSummary}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={openHeatmapSettings}
-                            className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
-                        >
-                            Ajuste fino
-                        </button>
-                    </div>
-                )}
-
-                {/* Gaze route toggles — when gaze layer is visible */}
+                {/* Gaze route toggles */}
                 {!isVideo && layers.gaze && gazeRoutes.length > 0 && activeTab === 'gaze-paths' && (
-                    <div className="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 flex-wrap">
-                        {heatmapData.length > 0 && (
-                            <div className="flex items-center gap-1 mr-2">
-                                {(['static', 'animated'] as const).map(m => (
-                                    <button
-                                        key={m}
-                                        type="button"
-                                        onClick={() => setGazeMode(m)}
-                                        className={cn(
-                                            'px-2.5 py-1 text-xs font-medium rounded transition-colors capitalize',
-                                            gazeMode === m
-                                                ? 'bg-gray-900 text-white'
-                                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
-                                        )}
-                                    >
-                                        {m === 'static' ? 'Routes' : 'Scanpath'}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        {gazeMode === 'static' && (
-                            <>
-                                <span className="text-[10px] text-gray-400 uppercase tracking-wider mr-1">Routes:</span>
-                                {gazeRoutes.map(route => {
-                                    const color = ROUTE_COLORS[route.id] ?? '#8B5CF6';
-                                    const active = visibleRoutes.has(route.id);
-                                    return (
-                                        <button
-                                            key={route.id}
-                                            type="button"
-                                            onClick={() => toggleGazeRoute(route.id)}
-                                            className={cn(
-                                                'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all',
-                                                active ? 'text-white' : 'bg-white text-gray-500 border-gray-200 opacity-50',
-                                            )}
-                                            style={active ? { backgroundColor: color, borderColor: color } : undefined}
-                                            title={route.description}
-                                        >
-                                            <span
-                                                className="w-2 h-2 rounded-full"
-                                                style={{ backgroundColor: active ? '#fff' : color }}
-                                            />
-                                            {route.name}
-                                        </button>
-                                    );
-                                })}
-                            </>
-                        )}
-                        {gazeMode === 'static' && (
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full sm:w-auto">
-                                {GAZE_ROUTE_LEGEND.filter((item) => (
-                                    gazeRoutes.some((route) => route.id === item.id)
-                                )).map((item) => (
-                                    <span
-                                        key={item.id}
-                                        className="flex items-center gap-1.5 text-[11px] text-gray-600"
-                                    >
-                                        <span
-                                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                                            style={{ backgroundColor: item.color }}
-                                        />
-                                        {item.label}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <GazeRouteBar
+                        gazeRoutes={gazeRoutes}
+                        gazeMode={gazeMode}
+                        visibleRoutes={visibleRoutes}
+                        hasHeatmap={hasHeatmap}
+                        onGazeModeChange={setGazeMode}
+                        onToggleRoute={toggleGazeRoute}
+                    />
                 )}
 
-                {/* AOI Editor workflow — tools only, image lives in shared viewport below */}
+                {/* AOI Editor toolbar */}
                 {!isVideo && isAoiEditMode && (
-                    <div className="px-4 py-3 border-b bg-slate-50 space-y-3">
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <button
-                                type="button"
-                                onClick={() => setDrawingAoi(prev => !prev)}
-                                className={cn(
-                                    'px-3 py-1.5 text-xs font-medium rounded transition-colors',
-                                    drawingAoi
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
-                                )}
-                            >
-                                {drawingAoi ? 'Dibujando zona...' : '+ Crear zona manual'}
-                            </button>
-                            {!aoiSkipped && aoiList.length === 0 && onAoiSkippedChange && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSkipConfirmAction('gate-only');
-                                        setShowSkipConfirm(true);
-                                    }}
-                                    className="px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded transition-colors"
-                                >
-                                    Continuar sin zonas
-                                </button>
-                            )}
-                            {aoiSkipped && (
-                                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                                    Sin zonas definidas
-                                </span>
-                            )}
-                            {griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const imported: ManualAOI[] = griddedAOIs.map((g, i) => ({
-                                            id: `grid-${Date.now()}-${i}`,
-                                            label: g.label,
-                                            x: g.x,
-                                            y: g.y,
-                                            width: g.width,
-                                            height: g.height,
-                                            source: 'imported-grid' as const,
-                                        }));
-                                        setAoiList(imported);
-                                        void persistAois(imported);
-                                    }}
-                                    className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded transition-colors"
-                                >
-                                    Importar zonas detectadas ({griddedAOIs.length})
-                                </button>
-                            )}
-                            {computedAois.length > 0 && (
-                                <span className="text-xs text-gray-500">
-                                    {computedAois.length} zonas definidas
-                                    {isSavingAois && ' — guardando...'}
-                                </span>
-                            )}
-                        </div>
-                    </div>
+                    <AoiEditorToolbar
+                        drawingAoi={drawingAoi}
+                        onToggleDrawing={() => setDrawingAoi(prev => !prev)}
+                        aoiSkipped={aoiSkipped}
+                        aoiList={aoiList}
+                        onAoiSkippedChange={onAoiSkippedChange}
+                        onShowSkipConfirm={() => { setSkipConfirmAction('gate-only'); setShowSkipConfirm(true); }}
+                        griddedAOIs={griddedAOIs}
+                        computedAois={computedAois}
+                        isSavingAois={isSavingAois}
+                        onImportGridded={(imported) => { setAoiList(imported); void persistAois(imported); }}
+                    />
                 )}
 
-                {/* Content — flex viewport; no scroll, media scales to available height */}
+                {/* Content — flex viewport */}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4" ref={tabContentRef}>
-                        <div
-                            ref={viewportRef}
-                            className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                        >
-                        {/* ─── Video layout: single <video> always mounted, overlays per tab ─── */}
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        {/* Video layout */}
                         {isVideo && (
                             <div className="relative flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-black">
-                                {/* Persistent video — hidden when VideoFrameScrubber is active (it has its own video) */}
                                 <video
                                     src={imageUrl}
                                     controls={activeTab === 'original'}
@@ -2310,396 +929,224 @@ export const AttentionPredictionCard = ({
                                     className="max-w-full max-h-full block"
                                     style={{ display: (activeTab === 'heatmap' && videoFrames.length > 0) ? 'none' : 'block' }}
                                 />
-
-                                {/* Heatmap overlay */}
                                 {activeTab === 'heatmap' && (
-                                    videoFrames.length > 0 ? (
-                                        <VideoFrameScrubber
-                                            videoUrl={imageUrl}
-                                            frames={videoFrames}
-                                            settings={settings}
-                                            mapMode={mapMode}
-                                            spotlightSettings={spotlightSettings}
-                                            coldSettings={coldSettings}
-                                        />
-                                    ) : heatmapData.length > 0 ? (
-                                        <VideoAccumulatedHeatmapOverlay
-                                            videoUrl={imageUrl}
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                        <VideoOverlayContent
+                                            videoFrames={videoFrames}
+                                            imageUrl={imageUrl}
                                             heatmapData={heatmapData}
                                             settings={settings}
                                             mapMode={mapMode}
                                             spotlightSettings={spotlightSettings}
                                             coldSettings={coldSettings}
+                                            videoProgress={videoProgress}
+                                            onProcessVideo={onProcessVideo}
+                                            onDismissVideoProgress={onDismissVideoProgress}
                                         />
-                                    ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                            {videoProgress && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete' ? (
-                                                <div className="flex flex-col items-center gap-3 px-6 py-4 bg-black/60 rounded-xl">
-                                                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                                    <p className="text-white text-sm font-medium">{videoProgress.message}</p>
-                                                    {videoProgress.total > 0 && (
-                                                        <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                                                            <div
-                                                                className="h-full bg-white rounded-full transition-all duration-300"
-                                                                style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : videoProgress?.phase === 'error' ? (
-                                                <div className="flex flex-col items-center gap-2 px-6 py-4 bg-red-900/70 rounded-xl">
-                                                    <p className="text-red-200 text-sm font-medium">{videoProgress.message}</p>
-                                                    {onProcessVideo && (
-                                                        <button onClick={onProcessVideo} className="text-xs text-white underline">Retry</button>
-                                                    )}
-                                                    {onDismissVideoProgress && (
-                                                        <button onClick={onDismissVideoProgress} className="text-xs text-red-300">Dismiss</button>
-                                                    )}
-                                                </div>
-                                            ) : onProcessVideo ? (
-                                                <button
-                                                    onClick={onProcessVideo}
-                                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    Process Video
-                                                </button>
-                                            ) : null}
-                                        </div>
-                                    )
-                                )}
-
-                                {/* AOI overlay */}
-                                {activeTab === 'aoi-editor' && (
-                                    <div className="absolute inset-0 pointer-events-none">
-                                        {/* AOI rectangles rendered here via the AOI editor section below */}
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* ─── Unified image viewport — one image, toggleable layers ─── */}
+                        {/* Image layout — unified viewport */}
                         {!isVideo && (
-                                <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden">
-                                    <TransformWrapper
-                                        minScale={1}
-                                        maxScale={5}
-                                        wheel={{ step: 0.15 }}
-                                        centerOnInit
-                                        limitToBounds
-                                        panning={{ disabled: isAoiEditMode && drawingAoi }}
-                                    >
-                                        <div className={cn(
-                                            'rounded-lg border overflow-hidden relative',
-                                            layers.gaze ? 'bg-gray-900' : 'bg-gray-100',
-                                        )}>
-                                            <ZoomControls />
-                                            <TransformComponent
-                                                wrapperStyle={{ width: '100%' }}
-                                                contentStyle={STIMULUS_TRANSFORM_CONTENT_STYLE}
+                            <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden">
+                                <TransformWrapper
+                                    minScale={1}
+                                    maxScale={5}
+                                    wheel={{ step: 0.15 }}
+                                    centerOnInit
+                                    limitToBounds
+                                    panning={{ disabled: isAoiEditMode && drawingAoi }}
+                                >
+                                    <div className={cn(
+                                        'rounded-lg border overflow-hidden relative',
+                                        layers.gaze ? 'bg-gray-900' : 'bg-gray-100',
+                                    )}>
+                                        <ZoomControls />
+                                        <TransformComponent
+                                            wrapperStyle={{ width: '100%' }}
+                                            contentStyle={STIMULUS_TRANSFORM_CONTENT_STYLE}
+                                        >
+                                            <StimulusOverlayFrame
+                                                containerRef={isAoiEditMode ? aoiContainerRef : undefined}
+                                                maxDisplayHeightPx={stableMaxHeight}
+                                                onMouseDown={isAoiEditMode && drawingAoi ? (e) => {
+                                                    e.preventDefault();
+                                                    const container = aoiContainerRef.current;
+                                                    if (!container) return;
+                                                    const pos = getMousePercent(e, container);
+                                                    setAoiStart(pos);
+                                                    setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
+                                                } : undefined}
+                                                className={isAoiEditMode && drawingAoi ? 'cursor-crosshair' : undefined}
+                                                dimOverlay={layers.gaze && gazeMode === 'static'}
                                             >
-                                                <StimulusOverlayFrame
-                                                    containerRef={isAoiEditMode ? aoiContainerRef : undefined}
-                                                    maxDisplayHeightPx={viewportBounds.height > 0 ? viewportBounds.height : undefined}
-                                                    onMouseDown={isAoiEditMode && drawingAoi ? (e) => {
-                                                        e.preventDefault();
-                                                        const container = aoiContainerRef.current;
-                                                        if (!container) return;
-                                                        const pos = getMousePercent(e, container);
-                                                        setAoiStart(pos);
-                                                        setAoiCurrent({ x: pos.x, y: pos.y, w: 0, h: 0 });
-                                                    } : undefined}
-                                                    className={isAoiEditMode && drawingAoi ? 'cursor-crosshair' : undefined}
-                                                    dimOverlay={layers.gaze && gazeMode === 'static'}
-                                                >
-                                                    {showBaseImage && (
-                                                        <>
-                                                            <img
-                                                                src={imageUrl}
-                                                                alt={title}
-                                                                className={STIMULUS_MEDIA_FIT_FLEX_CLASS}
+                                                {showBaseImage && (
+                                                    <>
+                                                        <img src={imageUrl} alt={title} className={STIMULUS_MEDIA_FIT_FLEX_CLASS} />
+                                                        {layers.heatmap && !hasHeatmap && (
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                                                                <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
+                                                                    Genera el heatmap para ver la predicción TranSalNet
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {hasHeatmap && (
+                                                    <div
+                                                        key={effectiveMapMode}
+                                                        className={showHeatmapLayer ? 'block' : 'hidden'}
+                                                        aria-hidden={!showHeatmapLayer}
+                                                    >
+                                                        {effectiveMapMode === 'spotlight' ? (
+                                                            <SpotlightRenderer
+                                                                imageUrl={imageUrl} data={heatmapData}
+                                                                blur={spotlightSettings.blur} reveal={spotlightSettings.reveal}
+                                                                dim={spotlightSettings.dim} threshold={heatmapThreshold}
+                                                                borderless fitMaxHeightPx={stableMaxHeight}
+                                                                canvasClassName={STIMULUS_MEDIA_FIT_FLEX_CLASS}
                                                             />
-                                                            {layers.heatmap && !hasHeatmap && (
-                                                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                                                                    <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
-                                                                        Genera el heatmap para ver la predicción TranSalNet
-                                                                    </p>
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    )}
+                                                        ) : effectiveMapMode === 'cold' ? (
+                                                            <ColdMapRenderer
+                                                                imageUrl={imageUrl} data={heatmapData}
+                                                                intensity={coldSettings.intensity} blur={coldSettings.blur}
+                                                                threshold={coldSettings.threshold}
+                                                                borderless fitMaxHeightPx={stableMaxHeight}
+                                                                canvasClassName={STIMULUS_MEDIA_FIT_FLEX_CLASS}
+                                                            />
+                                                        ) : (
+                                                            <HeatmapRenderer
+                                                                imageUrl={imageUrl} data={heatmapData}
+                                                                blur={heatmapBlur} opacity={heatmapOpacity}
+                                                                threshold={heatmapThreshold}
+                                                                granularity={heatmapGranularity}
+                                                                visualProfile={heatmapVisualProfile}
+                                                                borderless fitMaxHeightPx={stableMaxHeight}
+                                                                canvasClassName={STIMULUS_MEDIA_FIT_FLEX_CLASS}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                )}
 
-                                                    {hasHeatmap && (
-                                                        <div
-                                                            key={effectiveMapMode}
-                                                            className={showHeatmapLayer ? 'block' : 'hidden'}
-                                                            aria-hidden={!showHeatmapLayer}
-                                                        >
-                                                            {effectiveMapMode === 'spotlight' ? (
-                                                                <SpotlightRenderer
-                                                                    imageUrl={imageUrl}
-                                                                    data={heatmapData}
-                                                                    blur={spotlightSettings.blur}
-                                                                    reveal={spotlightSettings.reveal}
-                                                                    dim={spotlightSettings.dim}
-                                                                    threshold={heatmapThreshold}
-                                                                    borderless
-                                                                    fitMaxHeightPx={viewportBounds.height > 0 ? viewportBounds.height : undefined}
-                                                                    canvasClassName={STIMULUS_MEDIA_FIT_FLEX_CLASS}
-                                                                />
-                                                            ) : effectiveMapMode === 'cold' ? (
-                                                                <ColdMapRenderer
-                                                                    imageUrl={imageUrl}
-                                                                    data={heatmapData}
-                                                                    intensity={coldSettings.intensity}
-                                                                    blur={coldSettings.blur}
-                                                                    threshold={coldSettings.threshold}
-                                                                    borderless
-                                                                    fitMaxHeightPx={viewportBounds.height > 0 ? viewportBounds.height : undefined}
-                                                                    canvasClassName={STIMULUS_MEDIA_FIT_FLEX_CLASS}
-                                                                />
-                                                            ) : (
-                                                                <HeatmapRenderer
-                                                                    imageUrl={imageUrl}
-                                                                    data={heatmapData}
-                                                                    blur={heatmapBlur}
-                                                                    opacity={heatmapOpacity}
-                                                                    threshold={heatmapThreshold}
-                                                                    granularity={heatmapGranularity}
-                                                                    visualProfile={heatmapVisualProfile}
-                                                                    borderless
-                                                                    fitMaxHeightPx={viewportBounds.height > 0 ? viewportBounds.height : undefined}
-                                                                    canvasClassName={STIMULUS_MEDIA_FIT_FLEX_CLASS}
-                                                                />
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                {layers.aiAois && displayAutoAois.length > 0 && (
+                                                    <AiAoiOverlay autoAois={displayAutoAois} importedLabels={importedAiLabels} />
+                                                )}
 
-                                                    {layers.aiAois && displayAutoAois.length > 0 && (
-                                                        <AiAoiOverlay
-                                                            autoAois={displayAutoAois}
-                                                            importedLabels={importedAiLabels}
-                                                        />
-                                                    )}
-
-                                                    {layers.manualAois && computedAois.map((aoi, i) => {
-                                                        const color = AOI_COLORS[i % AOI_COLORS.length];
-                                                        if (isAoiEditMode) {
-                                                            return (
-                                                                <AoiRectEditor
-                                                                    key={aoi.id}
-                                                                    aoi={aoi}
-                                                                    color={color}
-                                                                    percentage={aoi.percentage}
-                                                                    selected={selectedAoiId === aoi.id}
-                                                                    onSelect={() => setSelectedAoiId(aoi.id)}
-                                                                    onChange={updateAoi}
-                                                                    containerRef={aoiContainerRef}
-                                                                />
-                                                            );
-                                                        }
+                                                {layers.manualAois && computedAois.map((aoi, i) => {
+                                                    const color = AOI_COLORS[i % AOI_COLORS.length];
+                                                    if (isAoiEditMode) {
                                                         return (
-                                                            <div
-                                                                key={aoi.id}
-                                                                className="absolute pointer-events-none border-2 rounded-sm"
-                                                                style={{
-                                                                    left: `${aoi.x}%`,
-                                                                    top: `${aoi.y}%`,
-                                                                    width: `${aoi.width}%`,
-                                                                    height: `${aoi.height}%`,
-                                                                    borderColor: color,
-                                                                    backgroundColor: `${color}22`,
-                                                                }}
+                                                            <AoiRectEditor
+                                                                key={aoi.id} aoi={aoi} color={color}
+                                                                percentage={aoi.percentage}
+                                                                selected={selectedAoiId === aoi.id}
+                                                                onSelect={() => setSelectedAoiId(aoi.id)}
+                                                                onChange={updateAoi}
+                                                                containerRef={aoiContainerRef}
                                                             />
                                                         );
-                                                    })}
-
-                                                    {isAoiEditMode && aoiCurrent && aoiCurrent.w > 0 && (
+                                                    }
+                                                    return (
                                                         <div
-                                                            className="absolute pointer-events-none border-2 border-dashed border-blue-500"
+                                                            key={aoi.id}
+                                                            className="absolute pointer-events-none border-2 rounded-sm"
                                                             style={{
-                                                                left: `${aoiCurrent.x}%`,
-                                                                top: `${aoiCurrent.y}%`,
-                                                                width: `${aoiCurrent.w}%`,
-                                                                height: `${aoiCurrent.h}%`,
-                                                                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                                                                left: `${aoi.x}%`, top: `${aoi.y}%`,
+                                                                width: `${aoi.width}%`, height: `${aoi.height}%`,
+                                                                borderColor: color, backgroundColor: `${color}22`,
                                                             }}
                                                         />
-                                                    )}
+                                                    );
+                                                })}
 
-                                                    {layers.gaze && gazeMode === 'static' && gazeRoutes.map(route => (
-                                                        <GazePathOverlay
-                                                            key={route.id}
-                                                            gazePath={route.fixations}
-                                                            visible={visibleRoutes.has(route.id)}
-                                                            routeColor={ROUTE_COLORS[route.id] ?? '#8B5CF6'}
-                                                            markerId={route.id}
-                                                        />
-                                                    ))}
+                                                {isAoiEditMode && aoiCurrent && aoiCurrent.w > 0 && (
+                                                    <div
+                                                        className="absolute pointer-events-none border-2 border-dashed border-blue-500"
+                                                        style={{
+                                                            left: `${aoiCurrent.x}%`, top: `${aoiCurrent.y}%`,
+                                                            width: `${aoiCurrent.w}%`, height: `${aoiCurrent.h}%`,
+                                                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                                                        }}
+                                                    />
+                                                )}
 
-                                                    {layers.gaze && gazeMode === 'animated' && animatedGazePath.length > 0 && (
-                                                        <GazeScanpathPlayer
-                                                            imageUrl={imageUrl}
-                                                            gazePath={animatedGazePath}
-                                                            duration={5}
-                                                            routeColor={ROUTE_COLORS[primaryGazeRoute?.id ?? 'typical-scan']}
-                                                            className="absolute inset-0 w-full h-full"
-                                                            transparent
-                                                        />
-                                                    )}
-                                                </StimulusOverlayFrame>
-                                            </TransformComponent>
-                                        </div>
-                                    </TransformWrapper>
-                                </div>
-                        )}
-                        </div>
+                                                {layers.gaze && gazeMode === 'static' && gazeRoutes.map(route => (
+                                                    <GazePathOverlay
+                                                        key={route.id}
+                                                        gazePath={route.fixations}
+                                                        visible={visibleRoutes.has(route.id)}
+                                                        routeColor={ROUTE_COLORS[route.id] ?? '#8B5CF6'}
+                                                        markerId={route.id}
+                                                    />
+                                                ))}
 
-                        {isAoiEditMode && isPredicting && (
-                            <p className="mt-2 shrink-0 text-xs text-indigo-600">
-                                Regenerando heatmap ({predictElapsed}s). Los % se actualizan al mover zonas; el mapa se refrescará al terminar.
-                            </p>
-                        )}
-                        {isAoiEditMode && computedAois.length > 0 && (
-                            <div className="mt-2 flex shrink-0 flex-wrap gap-2">
-                                {computedAois.map((aoi, i) => {
-                                    const color = AOI_COLORS[i % AOI_COLORS.length];
-                                    const isEditing = editingLabelId === aoi.id;
-                                    return (
-                                        <div
-                                            key={aoi.id}
-                                            className={cn(
-                                                'flex items-center gap-2 px-2.5 py-1.5 bg-white border rounded-lg text-xs',
-                                                selectedAoiId === aoi.id && 'ring-2 ring-blue-400',
-                                            )}
-                                            onClick={() => setSelectedAoiId(aoi.id)}
-                                        >
-                                            <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-                                            {isEditing ? (
-                                                <input
-                                                    value={editingLabelValue}
-                                                    onChange={(e) => setEditingLabelValue(e.target.value)}
-                                                    onBlur={() => updateAoiLabel(aoi.id, editingLabelValue)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') updateAoiLabel(aoi.id, editingLabelValue);
-                                                        if (e.key === 'Escape') setEditingLabelId(null);
-                                                        if (e.key === 'Backspace' || e.key === 'Delete') {
-                                                            e.stopPropagation();
-                                                        }
-                                                    }}
-                                                    className="w-24 px-1 py-0.5 border rounded text-xs"
-                                                    autoFocus
-                                                    onClick={(e) => e.stopPropagation()}
-                                                />
-                                            ) : (
-                                                <span
-                                                    className="font-medium text-gray-700 cursor-text"
-                                                    onDoubleClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingLabelId(aoi.id);
-                                                        setEditingLabelValue(aoi.label);
-                                                    }}
-                                                >
-                                                    {aoi.label}
-                                                </span>
-                                            )}
-                                            <span className="font-semibold" style={{ color }}>{aoi.percentage}%</span>
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); removeAoi(aoi.id); }}
-                                                className="text-gray-400 hover:text-red-500 ml-0.5"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                                {layers.gaze && gazeMode === 'animated' && animatedGazePath.length > 0 && (
+                                                    <GazeScanpathPlayer
+                                                        imageUrl={imageUrl}
+                                                        gazePath={animatedGazePath}
+                                                        duration={5}
+                                                        routeColor={ROUTE_COLORS[primaryGazeRoute?.id ?? 'typical-scan']}
+                                                        className="absolute inset-0 w-full h-full"
+                                                        transparent
+                                                    />
+                                                )}
+                                            </StimulusOverlayFrame>
+                                        </TransformComponent>
+                                    </div>
+                                </TransformWrapper>
                             </div>
                         )}
+                    </div>
+
+                    {isAoiEditMode && isPredicting && (
+                        <p className="mt-2 shrink-0 text-xs text-indigo-600">
+                            Regenerando heatmap ({predictElapsed}s). Los % se actualizan al mover zonas; el mapa se refrescará al terminar.
+                        </p>
+                    )}
+                    {isAoiEditMode && computedAois.length > 0 && (
+                        <AoiChipList
+                            computedAois={computedAois}
+                            selectedAoiId={selectedAoiId}
+                            editingLabelId={editingLabelId}
+                            editingLabelValue={editingLabelValue}
+                            onSelect={setSelectedAoiId}
+                            onStartEdit={(id, label) => { setEditingLabelId(id); setEditingLabelValue(label); }}
+                            onEditChange={setEditingLabelValue}
+                            onCommitEdit={updateAoiLabel}
+                            onCancelEdit={() => setEditingLabelId(null)}
+                            onRemove={removeAoi}
+                        />
+                    )}
                 </div>
             </div>
 
             {showNameModal && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Nombre de la zona</h3>
-                        <input
-                            value={pendingLabel}
-                            onChange={(e) => setPendingLabel(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
-                            autoFocus
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') confirmPendingAoi();
-                                if (e.key === 'Escape') {
-                                    setShowNameModal(false);
-                                    setPendingRect(null);
-                                }
-                                if (e.key === 'Backspace' || e.key === 'Delete') {
-                                    e.stopPropagation();
-                                }
-                            }}
-                        />
-                        <div className="flex justify-end gap-2 mt-4">
-                            <button
-                                type="button"
-                                onClick={() => { setShowNameModal(false); setPendingRect(null); }}
-                                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                onClick={confirmPendingAoi}
-                                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-                            >
-                                Guardar zona
-                            </button>
-                        </div>
-                    </div>
-                </div>,
+                <AoiNameModal
+                    label={pendingLabel}
+                    onLabelChange={setPendingLabel}
+                    onConfirm={confirmPendingAoi}
+                    onCancel={() => { setShowNameModal(false); setPendingRect(null); }}
+                />,
                 document.body,
             )}
 
             {showSkipConfirm && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-2">Continuar sin zonas</h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                            No has definido AOIs. Puedes generar el heatmap igualmente, pero el análisis IA tendrá menos contexto espacial.
-                        </p>
-                        <div className="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowSkipConfirm(false)}
-                                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowSkipConfirm(false);
-                                    onAoiSkippedChange?.(true);
-                                    if (skipConfirmAction === 'predict') {
-                                        onRunPrediction?.(aoiList);
-                                    }
-                                }}
-                                className="px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md"
-                            >
-                                Continuar sin zonas
-                            </button>
-                        </div>
-                    </div>
-                </div>,
+                <SkipAoiConfirmModal
+                    onCancel={() => setShowSkipConfirm(false)}
+                    onConfirm={() => {
+                        setShowSkipConfirm(false);
+                        onAoiSkippedChange?.(true);
+                        if (skipConfirmAction === 'predict') onRunPrediction?.(aoiList);
+                    }}
+                />,
                 document.body,
             )}
 
-            {/* Settings Modal — portal to body to avoid ancestor transform/overflow breaking fixed positioning */}
             {showSettings && createPortal(
-                <SettingsModal
+                <HeatmapSettingsModal
                     imageUrl={imageUrl}
                     heatmapData={heatmapData}
                     settings={settings}
@@ -2710,8 +1157,384 @@ export const AttentionPredictionCard = ({
                     onConfirm={confirmHeatmapSettings}
                     onCancel={cancelHeatmapSettings}
                 />,
-                document.body
+                document.body,
             )}
         </>
     );
 };
+
+/* ═══════════════════════════════════════════════════════════════
+   Private sub-components — extracted to flatten the main render
+   ═══════════════════════════════════════════════════════════════ */
+
+const CardHeader = ({
+    title, onAddMore, onDelete, isDeleting, headerExtra,
+    onRunPrediction, isVideo, isPredicting, predictElapsed, hasHeatmap,
+    predictionGateOpen, onPredictClick,
+    onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,
+}: {
+    title: string;
+    onAddMore?: () => void;
+    onDelete?: () => void;
+    isDeleting: boolean;
+    headerExtra?: ReactNode;
+    onRunPrediction?: (aois: ManualAOI[]) => void;
+    isVideo: boolean;
+    isPredicting: boolean;
+    predictElapsed: number;
+    hasHeatmap: boolean;
+    predictionGateOpen: boolean;
+    onPredictClick: () => void;
+    onRunAnalysis?: (aois: ManualAOI[]) => void;
+    isAnalyzing: boolean;
+    analyzeElapsed: number;
+    analysisGateOpen: boolean;
+    aiAnalysis?: AiAnalysisResult;
+    onAnalysisClick: () => void;
+}) => (
+    <div className="p-4 border-b flex items-start justify-between">
+        <div>
+            <h4 className="font-semibold text-base">{title}</h4>
+            <p className="text-sm text-gray-500 mt-0.5">Prediction of visual attention</p>
+        </div>
+        <div className="flex items-center gap-1">
+            {onAddMore && (
+                <button type="button" onClick={onAddMore} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Add more images or videos">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                </button>
+            )}
+            {onDelete && (
+                <button type="button" onClick={onDelete} disabled={isDeleting} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50" title="Remove stimulus">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            )}
+            {headerExtra}
+            {onRunPrediction && !isVideo && (
+                <button
+                    type="button"
+                    onClick={onPredictClick}
+                    disabled={isPredicting}
+                    className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                        hasHeatmap ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-white bg-indigo-600 hover:bg-indigo-700',
+                        isPredicting && 'opacity-50 cursor-not-allowed',
+                    )}
+                    title={!predictionGateOpen ? 'Define al menos una zona o continúa sin zonas' : hasHeatmap ? 'Regenerar heatmap TranSalNet' : 'Generar heatmap TranSalNet'}
+                >
+                    {isPredicting ? `Generando heatmap... ${predictElapsed}s` : hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
+                </button>
+            )}
+            {onRunAnalysis && (
+                <button
+                    type="button"
+                    onClick={onAnalysisClick}
+                    disabled={isAnalyzing || !analysisGateOpen}
+                    className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                        aiAnalysis ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-white bg-blue-600 hover:bg-blue-700',
+                        (isAnalyzing || !analysisGateOpen) && 'opacity-50 cursor-not-allowed',
+                    )}
+                    title={!analysisGateOpen ? (!hasHeatmap ? 'Genera el heatmap antes del análisis IA' : 'Define al menos una zona o continúa sin zonas') : aiAnalysis ? 'Re-ejecutar análisis IA' : 'Ejecutar análisis IA'}
+                >
+                    <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                        {isAnalyzing
+                            ? <><circle className="opacity-25" cx="12" cy="12" r="10" /><path className="opacity-75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" fill="currentColor" stroke="none" /></>
+                            : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        }
+                    </svg>
+                    {isAnalyzing ? `Analizando... ${analyzeElapsed}s` : aiAnalysis ? 'Re-analizar' : 'Análisis IA'}
+                </button>
+            )}
+        </div>
+    </div>
+);
+
+const LayerToggles = ({
+    layers, hasHeatmap, displayAutoAois, computedAois, gazeRoutes,
+    onToggleLayer, onApplyComposite,
+}: {
+    layers: StimulusLayers;
+    hasHeatmap: boolean;
+    displayAutoAois: unknown[];
+    computedAois: unknown[];
+    gazeRoutes: unknown[];
+    onToggleLayer: (key: keyof StimulusLayers) => void;
+    onApplyComposite: () => void;
+}) => (
+    <div className="px-4 py-2 border-b bg-white flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mr-1">Capas</span>
+        <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={layers.heatmap} disabled={!hasHeatmap} onChange={() => onToggleLayer('heatmap')} className="rounded border-gray-300" />
+            Heatmap
+        </label>
+        {displayAutoAois.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={layers.aiAois} onChange={() => onToggleLayer('aiAois')} className="rounded border-gray-300" />
+                Zonas IA
+            </label>
+        )}
+        {computedAois.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={layers.manualAois} onChange={() => onToggleLayer('manualAois')} className="rounded border-gray-300" />
+                Zonas manuales
+            </label>
+        )}
+        {gazeRoutes.length > 0 && (
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={layers.gaze} onChange={() => onToggleLayer('gaze')} className="rounded border-gray-300" />
+                Rutas de mirada
+            </label>
+        )}
+        {(hasHeatmap || gazeRoutes.length > 0) && (
+            <button type="button" onClick={onApplyComposite} className="ml-1 px-2 py-0.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
+                Vista completa
+            </button>
+        )}
+    </div>
+);
+
+const GazeRouteBar = ({
+    gazeRoutes, gazeMode, visibleRoutes, hasHeatmap,
+    onGazeModeChange, onToggleRoute,
+}: {
+    gazeRoutes: Array<{ id: string; name: string; description: string; fixations: unknown[] }>;
+    gazeMode: 'static' | 'animated';
+    visibleRoutes: Set<string>;
+    hasHeatmap: boolean;
+    onGazeModeChange: (m: 'static' | 'animated') => void;
+    onToggleRoute: (id: string) => void;
+}) => (
+    <div className="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 flex-wrap">
+        {hasHeatmap && (
+            <div className="flex items-center gap-1 mr-2">
+                {(['static', 'animated'] as const).map(m => (
+                    <button
+                        key={m} type="button"
+                        onClick={() => onGazeModeChange(m)}
+                        className={cn(
+                            'px-2.5 py-1 text-xs font-medium rounded transition-colors capitalize',
+                            gazeMode === m ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+                        )}
+                    >
+                        {m === 'static' ? 'Routes' : 'Scanpath'}
+                    </button>
+                ))}
+            </div>
+        )}
+        {gazeMode === 'static' && (
+            <>
+                <span className="text-[10px] text-gray-400 uppercase tracking-wider mr-1">Routes:</span>
+                {gazeRoutes.map(route => {
+                    const color = ROUTE_COLORS[route.id] ?? '#8B5CF6';
+                    const active = visibleRoutes.has(route.id);
+                    return (
+                        <button
+                            key={route.id} type="button"
+                            onClick={() => onToggleRoute(route.id)}
+                            className={cn(
+                                'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all',
+                                active ? 'text-white' : 'bg-white text-gray-500 border-gray-200 opacity-50',
+                            )}
+                            style={active ? { backgroundColor: color, borderColor: color } : undefined}
+                            title={route.description}
+                        >
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? '#fff' : color }} />
+                            {route.name}
+                        </button>
+                    );
+                })}
+            </>
+        )}
+        {gazeMode === 'static' && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 w-full sm:w-auto">
+                {GAZE_ROUTE_LEGEND.filter(item => gazeRoutes.some(r => r.id === item.id)).map(item => (
+                    <span key={item.id} className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                        {item.label}
+                    </span>
+                ))}
+            </div>
+        )}
+    </div>
+);
+
+const AoiEditorToolbar = ({
+    drawingAoi, onToggleDrawing, aoiSkipped, aoiList, onAoiSkippedChange,
+    onShowSkipConfirm, griddedAOIs, computedAois, isSavingAois, onImportGridded,
+}: {
+    drawingAoi: boolean;
+    onToggleDrawing: () => void;
+    aoiSkipped: boolean;
+    aoiList: ManualAOI[];
+    onAoiSkippedChange?: (v: boolean) => void;
+    onShowSkipConfirm: () => void;
+    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
+    computedAois: AOIWithStats[];
+    isSavingAois: boolean;
+    onImportGridded: (imported: ManualAOI[]) => void;
+}) => (
+    <div className="px-4 py-3 border-b bg-slate-50 space-y-3">
+        <div className="flex items-center gap-3 flex-wrap">
+            <button
+                type="button"
+                onClick={onToggleDrawing}
+                className={cn(
+                    'px-3 py-1.5 text-xs font-medium rounded transition-colors',
+                    drawingAoi ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+                )}
+            >
+                {drawingAoi ? 'Dibujando zona...' : '+ Crear zona manual'}
+            </button>
+            {!aoiSkipped && aoiList.length === 0 && onAoiSkippedChange && (
+                <button type="button" onClick={onShowSkipConfirm}
+                    className="px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded transition-colors">
+                    Continuar sin zonas
+                </button>
+            )}
+            {aoiSkipped && (
+                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">Sin zonas definidas</span>
+            )}
+            {griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        const imported: ManualAOI[] = griddedAOIs.map((g, i) => ({
+                            id: `grid-${Date.now()}-${i}`,
+                            label: g.label, x: g.x, y: g.y, width: g.width, height: g.height,
+                            source: 'imported-grid' as const,
+                        }));
+                        onImportGridded(imported);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded transition-colors"
+                >
+                    Importar zonas detectadas ({griddedAOIs.length})
+                </button>
+            )}
+            {computedAois.length > 0 && (
+                <span className="text-xs text-gray-500">
+                    {computedAois.length} zonas definidas
+                    {isSavingAois && ' — guardando...'}
+                </span>
+            )}
+        </div>
+    </div>
+);
+
+const AoiChipList = ({
+    computedAois, selectedAoiId, editingLabelId, editingLabelValue,
+    onSelect, onStartEdit, onEditChange, onCommitEdit, onCancelEdit, onRemove,
+}: {
+    computedAois: AOIWithStats[];
+    selectedAoiId: string | null;
+    editingLabelId: string | null;
+    editingLabelValue: string;
+    onSelect: (id: string) => void;
+    onStartEdit: (id: string, label: string) => void;
+    onEditChange: (v: string) => void;
+    onCommitEdit: (id: string, label: string) => void;
+    onCancelEdit: () => void;
+    onRemove: (id: string) => void;
+}) => (
+    <div className="mt-2 flex shrink-0 flex-wrap gap-2">
+        {computedAois.map((aoi, i) => {
+            const color = AOI_COLORS[i % AOI_COLORS.length];
+            const isEditing = editingLabelId === aoi.id;
+            return (
+                <div
+                    key={aoi.id}
+                    className={cn(
+                        'flex items-center gap-2 px-2.5 py-1.5 bg-white border rounded-lg text-xs',
+                        selectedAoiId === aoi.id && 'ring-2 ring-blue-400',
+                    )}
+                    onClick={() => onSelect(aoi.id)}
+                >
+                    <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                    {isEditing ? (
+                        <input
+                            value={editingLabelValue}
+                            onChange={(e) => onEditChange(e.target.value)}
+                            onBlur={() => onCommitEdit(aoi.id, editingLabelValue)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') onCommitEdit(aoi.id, editingLabelValue);
+                                if (e.key === 'Escape') onCancelEdit();
+                                if (e.key === 'Backspace' || e.key === 'Delete') e.stopPropagation();
+                            }}
+                            className="w-24 px-1 py-0.5 border rounded text-xs"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <span
+                            className="font-medium text-gray-700 cursor-text"
+                            onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(aoi.id, aoi.label); }}
+                        >
+                            {aoi.label}
+                        </span>
+                    )}
+                    <span className="font-semibold" style={{ color }}>{aoi.percentage}%</span>
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onRemove(aoi.id); }}
+                        className="text-gray-400 hover:text-red-500 ml-0.5"
+                    >
+                        ×
+                    </button>
+                </div>
+            );
+        })}
+    </div>
+);
+
+const AoiNameModal = ({
+    label, onLabelChange, onConfirm, onCancel,
+}: {
+    label: string;
+    onLabelChange: (v: string) => void;
+    onConfirm: () => void;
+    onCancel: () => void;
+}) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Nombre de la zona</h3>
+            <input
+                value={label}
+                onChange={(e) => onLabelChange(e.target.value)}
+                className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                autoFocus
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') onConfirm();
+                    if (e.key === 'Escape') onCancel();
+                    if (e.key === 'Backspace' || e.key === 'Delete') e.stopPropagation();
+                }}
+            />
+            <div className="flex justify-end gap-2 mt-4">
+                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancelar</button>
+                <button type="button" onClick={onConfirm} className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">Guardar zona</button>
+            </div>
+        </div>
+    </div>
+);
+
+const SkipAoiConfirmModal = ({
+    onCancel, onConfirm,
+}: {
+    onCancel: () => void;
+    onConfirm: () => void;
+}) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Continuar sin zonas</h3>
+            <p className="text-sm text-gray-600 mb-4">
+                No has definido AOIs. Puedes generar el heatmap igualmente, pero el análisis IA tendrá menos contexto espacial.
+            </p>
+            <div className="flex justify-end gap-2">
+                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancelar</button>
+                <button type="button" onClick={onConfirm} className="px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md">Continuar sin zonas</button>
+            </div>
+        </div>
+    </div>
+);

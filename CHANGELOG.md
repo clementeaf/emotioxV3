@@ -1,3 +1,24 @@
+## v0.81.2 — Attention Prediction: refactor + denser heatmap + test fixes (2026-06-10)
+
+### backend
+- **Heatmap ultra-denso.** NMS params: `minRelative` 0.42, `maxPoints` 500, `gridCols` 100 — cobertura completa.
+- **Prompt forzado a español.** Análisis IA siempre responde en español independiente del contenido visual.
+
+### research-frontend
+- **Refactor AttentionPredictionCard.** Extraídos 4 componentes: `HeatmapSettingsModal`, `VideoFrameScrubber`, `StimulusOverlayFrame`, `MapModeControlBar`. Archivo principal de 2694 → 1542 líneas.
+- **MapModeControlBar unificado.** Eliminada duplicación entre control bars de imagen y video.
+- **VideoOverlayContent.** Ternario de 4 niveles reemplazado por componente con early returns.
+- **Sub-componentes render.** `CardHeader`, `LayerToggles`, `GazeRouteBar`, `AoiEditorToolbar`, `AoiChipList`, modales extraídos del render principal.
+- **Viewport estable.** `ResizeObserver` reemplazado por `stableMaxHeight` (calculado una vez desde `window.innerHeight`).
+- **Panel IA.** "Attention" → "Atención"; nota aclaratoria score IA vs saliencia TranSalNet.
+- **Legacy threshold.** 250 → 600 (coherente con nuevo `maxPoints` 500).
+
+### tests
+- **WebsiteTrackingResults.** Tests actualizados al UI actual: `ToastProvider` wrapper, mock de `researchService`, stats inline, tabs renombrados, visitor journeys con formato correcto. 5/5 verdes.
+- **Heatmap QA.** Threshold actualizado (601/500).
+
+---
+
 ## v0.81.1 — Attention Prediction: heatmap density + scanpath inline + i18n panel (2026-06-10)
 
 ### backend

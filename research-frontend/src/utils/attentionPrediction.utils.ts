@@ -112,7 +112,7 @@ export function getHeatmapMapModeLabel(mode: HeatmapMapMode): string {
 export type HeatmapVisualProfile = 'lab' | 'precise' | 'balanced' | 'smooth';
 
 /** Point count above which heatmapData is treated as pre-v0.79 dense export */
-export const LEGACY_HEATMAP_POINT_THRESHOLD = 250;
+export const LEGACY_HEATMAP_POINT_THRESHOLD = 600;
 
 /**
  * Returns true when heatmap points likely came from legacy dense extraction.

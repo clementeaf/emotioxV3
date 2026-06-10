@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
+import { ToastProvider } from '../../../../contexts/ToastContext';
 import { WebsiteTrackingResults } from '../WebsiteTrackingResults';
 
 // Mock the tracking service
@@ -20,12 +21,24 @@ vi.mock('../../../../services/tracking.service', () => ({
     getFunnels: vi.fn(),
     getExportData: vi.fn(),
     savePageScreenshot: vi.fn(),
+    getLiveSessions: vi.fn().mockResolvedValue([]),
+    getVisitorJourneys: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock media service
 vi.mock('../../../../services/media.service', () => ({
     resolveMediaUrl: (url: string) => url,
     mediaService: { uploadFile: vi.fn() },
+}));
+
+// Mock research service (used by useResearch inside WebTrackingReportButton)
+vi.mock('../../../../services/research.service', () => ({
+    researchService: {
+        getById: vi.fn().mockResolvedValue({
+            research: { id: 'test-r1', name: 'Test Research', settings: {} },
+        }),
+        list: vi.fn().mockResolvedValue({ researches: [] }),
+    },
 }));
 
 import * as trackingService from '../../../../services/tracking.service';
@@ -58,9 +71,11 @@ const renderComponent = () => {
     });
     return render(
         <QueryClientProvider client={queryClient}>
-            <MemoryRouter>
-                <WebsiteTrackingResults researchId="test-r1" />
-            </MemoryRouter>
+            <ToastProvider>
+                <MemoryRouter>
+                    <WebsiteTrackingResults researchId="test-r1" />
+                </MemoryRouter>
+            </ToastProvider>
         </QueryClientProvider>
     );
 };
@@ -71,26 +86,17 @@ describe('WebsiteTrackingResults', () => {
         vi.mocked(trackingService.getTrackedPages).mockResolvedValue(mockPages);
         vi.mocked(trackingService.getClickHeatmap).mockResolvedValue(mockHeatmap);
         vi.mocked(trackingService.getSessions).mockResolvedValue([]);
+        vi.mocked(trackingService.getVisitorJourneys).mockResolvedValue({ visitors: [], totalVisitors: 0 });
     });
 
-    it('renders overview metric cards', async () => {
+    it('renders inline stats', async () => {
         renderComponent();
 
         await waitFor(() => {
-            expect(screen.getByText('25')).toBeInTheDocument();      // totalSessions
-            expect(screen.getByText('15')).toBeInTheDocument();      // uniqueVisitors
-            expect(screen.getByText('3')).toBeInTheDocument();       // pagesTracked
-            expect(screen.getByText('450')).toBeInTheDocument();     // totalEvents
-            expect(screen.getByText('2m 0s')).toBeInTheDocument();   // avgSessionDuration
-        });
-    });
-
-    it('renders page tabs', async () => {
-        renderComponent();
-
-        await waitFor(() => {
-            expect(screen.getByText('Home')).toBeInTheDocument();
-            expect(screen.getByText('Pricing')).toBeInTheDocument();
+            expect(screen.getByText('25')).toBeInTheDocument();   // sessions
+            expect(screen.getByText('15')).toBeInTheDocument();   // visitors
+            expect(screen.getByText('3')).toBeInTheDocument();    // pages
+            expect(screen.getByText('2m 0s')).toBeInTheDocument(); // avg duration
         });
     });
 
@@ -98,10 +104,10 @@ describe('WebsiteTrackingResults', () => {
         renderComponent();
 
         await waitFor(() => {
-            expect(screen.getByText('Click Heatmap')).toBeInTheDocument();
-            expect(screen.getByText('Scroll Depth')).toBeInTheDocument();
-            expect(screen.getByText('Sessions')).toBeInTheDocument();
             expect(screen.getByText('Funnels')).toBeInTheDocument();
+            expect(screen.getByText('Heatmaps')).toBeInTheDocument();
+            expect(screen.getByText('Sessions')).toBeInTheDocument();
+            expect(screen.getByText('Live')).toBeInTheDocument();
         });
     });
 
@@ -117,52 +123,52 @@ describe('WebsiteTrackingResults', () => {
         });
     });
 
-    it('shows upload button when no screenshot', async () => {
+    it('renders CSV export button', async () => {
         renderComponent();
 
         await waitFor(() => {
-            // Heatmap has data but no screenshot → shows upload button
-            expect(screen.getByText(/clicks recorded/)).toBeInTheDocument();
-            expect(screen.getByText('Upload Screenshot')).toBeInTheDocument();
+            expect(screen.getByText('CSV')).toBeInTheDocument();
         });
     });
 
-    it('renders click count from heatmap', async () => {
-        renderComponent();
-
-        await waitFor(() => {
-            expect(screen.getByText(/15 clicks recorded/)).toBeInTheDocument();
-        });
-    });
-
-    it('switches to Sessions tab', async () => {
+    it('switches to Sessions tab and renders visitor journey', async () => {
         const user = userEvent.setup();
-        vi.mocked(trackingService.getSessions).mockResolvedValue([
-            {
-                id: 's1', visitorId: 'v_abc123', pageUrl: 'https://example.com/',
-                pageTitle: 'Home', viewportWidth: 1920, viewportHeight: 1080,
-                userAgent: null, referrer: null,
-                startedAt: '2026-04-26T10:00:00Z', endedAt: '2026-04-26T10:02:00Z',
-                eventCount: 42,
-            },
-        ]);
+        vi.mocked(trackingService.getVisitorJourneys).mockResolvedValue({
+            visitors: [
+                {
+                    visitorId: 'v_abc123',
+                    sessionCount: 1,
+                    firstSeen: '2026-04-26T10:00:00Z',
+                    lastSeen: '2026-04-26T10:02:00Z',
+                    entryPage: 'https://example.com/',
+                    viewportWidth: 1920,
+                    userAgent: null,
+                    totalDurationMs: 120000,
+                    pages: [
+                        {
+                            index: 0,
+                            sessionId: 's1',
+                            pageUrl: 'https://example.com/',
+                            pageTitle: 'Home',
+                            startedAt: '2026-04-26T10:00:00Z',
+                            durationMs: 120000,
+                            eventCount: 42,
+                            clickCount: 10,
+                        },
+                    ],
+                },
+            ],
+            totalVisitors: 1,
+        });
 
         renderComponent();
 
         await waitFor(() => expect(screen.getByText('Sessions')).toBeInTheDocument());
         await user.click(screen.getByText('Sessions'));
 
+        // Visitor rendered with friendly name + "1 total" count
         await waitFor(() => {
-            expect(screen.getByText('v_abc123')).toBeInTheDocument();
-            expect(screen.getByText('42')).toBeInTheDocument();
-        });
-    });
-
-    it('renders Export CSV button', async () => {
-        renderComponent();
-
-        await waitFor(() => {
-            expect(screen.getByText('Export CSV')).toBeInTheDocument();
+            expect(screen.getByText('1 total')).toBeInTheDocument();
         });
     });
 });

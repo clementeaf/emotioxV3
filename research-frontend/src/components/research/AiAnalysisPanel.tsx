@@ -477,7 +477,7 @@ export const AiAnalysisPanel = ({
                     <div className="flex items-center gap-4">
                         <div className="text-center">
                             <ScoreGauge score={analysis.attentionScore} size={72} />
-                            <p className="text-xs text-slate-500 mt-1">Attention</p>
+                            <p className="text-xs text-slate-500 mt-1">Atención</p>
                         </div>
                         <div className="text-center">
                             <ScoreGauge score={analysis.confidence} size={56} />
@@ -637,6 +637,11 @@ export const AiAnalysisPanel = ({
                                     </div>
                                 </div>
                             </div>
+
+                            <p className="mt-1 text-[10px] text-slate-400 leading-relaxed">
+                                El score de visibilidad es una evaluación cualitativa de la IA.
+                                El % de saliencia abajo es la medición real del mapa de calor (TranSalNet).
+                            </p>
 
                             {/* Logos — TranSalNet saliency measurement */}
                             <p className="text-[10px] text-slate-400 uppercase tracking-wider">Saliencia medida por heatmap</p>

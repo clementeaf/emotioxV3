@@ -36,7 +36,7 @@ export const DEFAULT_ATTENTION_PROMPT = `You are an expert in visual attention a
 
 You combine saliency map data (from a computational model) with your visual analysis expertise to produce structured, precise reports.
 
-Always respond with valid JSON matching the exact schema provided. All coordinate values must be percentages (0-100) relative to the image dimensions. Respond in the SAME LANGUAGE as any text visible in the image (Spanish if Spanish content, English if English, etc.).`;
+Always respond with valid JSON matching the exact schema provided. All coordinate values must be percentages (0-100) relative to the image dimensions. ALWAYS respond in Spanish (español): all labels, descriptions, recommendations, summaries, flow paths, leak areas, gaze path labels, neuro-insight findings, brand recommendations, and methodology text MUST be written in Spanish.`;
 
 /** Active system prompt — uses custom if set, default otherwise */
 let activeSystemPrompt = DEFAULT_ATTENTION_PROMPT;
