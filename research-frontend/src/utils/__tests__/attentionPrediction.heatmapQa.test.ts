@@ -63,9 +63,9 @@ describe('attentionPrediction heatmap QA helpers', () => {
         expect(balanced).toBeGreaterThanOrEqual(lab);
     });
 
-    it('flags legacy dense heatmaps above 120 points', () => {
-        expect(isLegacyDenseHeatmap(121)).toBe(true);
-        expect(isLegacyDenseHeatmap(72)).toBe(false);
+    it('flags legacy dense heatmaps above 250 points', () => {
+        expect(isLegacyDenseHeatmap(251)).toBe(true);
+        expect(isLegacyDenseHeatmap(200)).toBe(false);
     });
 
     it('counts spotlight reveal zones from saliency points', () => {

@@ -2,8 +2,6 @@ import type { ManualAOI } from '../types/attentionPrediction.types';
 import type { AiAnalysisResult } from '../types/aiAnalysis.types';
 
 const MIN_AOI_SIZE = 2;
-const IOU_OVERLAP_HIDE = 0.15;
-const IOU_CATEGORY_MATCH = 0.35;
 
 type PercentAoi = Pick<ManualAOI, 'x' | 'y' | 'width' | 'height'>;
 type AutoAoi = AiAnalysisResult['autoAois'][number];
@@ -114,7 +112,7 @@ export function getHeatmapMapModeLabel(mode: HeatmapMapMode): string {
 export type HeatmapVisualProfile = 'lab' | 'precise' | 'balanced' | 'smooth';
 
 /** Point count above which heatmapData is treated as pre-v0.79 dense export */
-export const LEGACY_HEATMAP_POINT_THRESHOLD = 120;
+export const LEGACY_HEATMAP_POINT_THRESHOLD = 250;
 
 /**
  * Returns true when heatmap points likely came from legacy dense extraction.
@@ -636,23 +634,6 @@ export function normalizeManualAois(raw: unknown): ManualAOI[] {
 }
 
 /**
- * Computes intersection-over-union for two percentage bounding boxes.
- * @param a - First AOI
- * @param b - Second AOI
- * @returns IoU value between 0 and 1
- */
-function computeAoiIoU(a: PercentAoi, b: PercentAoi): number {
-    const x1 = Math.max(a.x, b.x);
-    const y1 = Math.max(a.y, b.y);
-    const x2 = Math.min(a.x + a.width, b.x + b.width);
-    const y2 = Math.min(a.y + a.height, b.y + b.height);
-    if (x2 <= x1 || y2 <= y1) return 0;
-    const intersection = (x2 - x1) * (y2 - y1);
-    const union = a.width * a.height + b.width * b.height - intersection;
-    return union > 0 ? intersection / union : 0;
-}
-
-/**
  * Normalizes an AOI label for fuzzy comparison.
  * @param label - Raw label string
  * @returns Lowercase trimmed label
@@ -686,39 +667,11 @@ function aoiLabelsSimilar(a: string, b: string): boolean {
 }
 
 /**
- * Maps an AOI label to a coarse semantic category for conflict detection.
- * @param label - AOI label
- * @returns Category id or null when unknown
- */
-function getAoiSemanticCategory(label: string): string | null {
-    const normalized = normalizeAoiLabel(label);
-    if (/\b(logo|brand|emblem|mark)\b/.test(normalized)) return 'logo';
-    if (/\b(text|copy|headline|title|tagline|label|wording|name|slogan|blend)\b/.test(normalized)) {
-        return 'text';
-    }
-    if (/\b(product|pack|packaging|bottle|box|item)\b/.test(normalized)) return 'product';
-    if (/\b(price|cta|button|call.?to.?action|buy|shop)\b/.test(normalized)) return 'cta';
-    if (/\b(image|photo|picture|illustration|icon)\b/.test(normalized)) return 'visual';
-    return null;
-}
-
-/**
- * Returns true when a point lies inside a percentage bounding box.
- * @param x - X coordinate in percent
- * @param y - Y coordinate in percent
- * @param aoi - Bounding box
- * @returns Whether the point is inside the box
- */
-function pointInsideAoi(x: number, y: number, aoi: PercentAoi): boolean {
-    return x >= aoi.x && x <= aoi.x + aoi.width && y >= aoi.y && y <= aoi.y + aoi.height;
-}
-
-/**
- * Hides or corrects AI-detected AOIs that contradict user-defined manual zones.
- * Manual AOIs win on overlap; matching labels snap to manual bounding boxes.
+ * Reconciles AI-detected AOIs with manual zones.
+ * Matching labels snap to manual bounding boxes. All auto AOIs are kept visible.
  * @param manualAois - User-defined AOIs
  * @param autoAois - AI-detected AOIs from analysis
- * @returns Filtered and corrected auto AOIs safe to display
+ * @returns Corrected auto AOIs
  */
 export function reconcileAutoAoisWithManual<T extends AutoAoi>(
     manualAois: ManualAOI[],
@@ -726,58 +679,21 @@ export function reconcileAutoAoisWithManual<T extends AutoAoi>(
 ): T[] {
     if (!manualAois.length || !autoAois.length) return autoAois;
 
-    const reconciled: T[] = [];
-
-    for (const auto of autoAois) {
-        let include = true;
-        let corrected: T | undefined;
-
-        const centerX = auto.x + auto.width / 2;
-        const centerY = auto.y + auto.height / 2;
-        const autoCategory = getAoiSemanticCategory(auto.label);
-
+    return autoAois.map((auto) => {
+        // If a manual AOI has a similar label, snap auto to manual geometry
         for (const manual of manualAois) {
-            const iou = computeAoiIoU(auto, manual);
-
             if (aoiLabelsSimilar(auto.label, manual.label)) {
-                corrected = {
+                return sanitizeAutoAoiBounds({
                     ...auto,
                     x: manual.x,
                     y: manual.y,
                     width: manual.width,
                     height: manual.height,
-                };
-                include = true;
-                break;
-            }
-
-            if (iou > IOU_OVERLAP_HIDE) {
-                include = false;
-                break;
-            }
-
-            if (pointInsideAoi(centerX, centerY, manual)) {
-                include = false;
-                break;
-            }
-
-            const manualCategory = getAoiSemanticCategory(manual.label);
-            if (
-                autoCategory !== null &&
-                autoCategory === manualCategory &&
-                iou < IOU_CATEGORY_MATCH
-            ) {
-                include = false;
-                break;
+                });
             }
         }
-
-        if (include) {
-            reconciled.push(sanitizeAutoAoiBounds(corrected ?? auto));
-        }
-    }
-
-    return reconciled;
+        return sanitizeAutoAoiBounds(auto);
+    });
 }
 
 type GazeFixation = AiAnalysisResult['gazePath'][number];

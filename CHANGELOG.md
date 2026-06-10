@@ -1,3 +1,23 @@
+## v0.81.1 — Attention Prediction: heatmap density + scanpath inline + i18n panel (2026-06-10)
+
+### backend
+- **Heatmap más denso.** NMS relajado (`minRelative` 0.52, `maxPoints` 200, `gridCols` 64) — cobertura más amplia sin sacrificar hot-spots.
+
+### research-frontend
+- **Scanpath inline.** `GazeScanpathPlayer` se renderiza como capa dentro del visor unificado (`transparent` mode) en vez de reemplazar la imagen completa.
+- **Controles contextuales.** Map-mode selector solo visible en tab Heatmap; gaze route toggles solo en Gaze Paths; layer toggles ocultos en AOI Editor.
+- **Panel IA en español.** Secciones, badges de duración, labels y títulos traducidos al español.
+- **Criterio hint.** Nota aclaratoria bajo el botón «Aplicar al estudio» diferenciando criterio IA de regeneración de heatmap.
+- **Brand Attention.** Etiqueta «evaluación IA» en score holístico; encabezado «Saliencia medida por heatmap» en logos.
+- **Reconcile AOIs simplificado.** Sin ocultamiento por IoU/categoría — todas las zonas IA se muestran; labels similares se alinean a geometría manual.
+- **Legacy threshold.** Umbral de heatmap denso elevado a 250 puntos (era 120).
+- **Bundle fix.** `recharts` en `react-vendor` chunk (evita circular import); `resolve.dedupe` para React.
+
+### tests
+- Test de legacy threshold actualizado (251/200).
+
+---
+
 ## v0.81.0 — Attention Prediction: feedback emotiox (P1–P9) (2026-06-08)
 
 ### backend

@@ -9,6 +9,8 @@ interface GazeScanpathPlayerProps {
     className?: string;
     duration?: number;
     routeColor?: string;
+    /** When true, canvas is transparent — no background image or dim overlay drawn. */
+    transparent?: boolean;
 }
 
 const DURATION_RADIUS: Record<string, number> = {
@@ -60,6 +62,7 @@ export const GazeScanpathPlayer = ({
     className = '',
     duration = 5,
     routeColor,
+    transparent = false,
 }: GazeScanpathPlayerProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animRef = useRef<number>(0);
@@ -103,9 +106,12 @@ export const GazeScanpathPlayer = ({
         canvas.width = w;
         canvas.height = h;
 
-        ctx.drawImage(img, 0, 0);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-        ctx.fillRect(0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
+        if (!transparent) {
+            ctx.drawImage(img, 0, 0);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.fillRect(0, 0, w, h);
+        }
 
         const path = sortedPath.current;
         if (path.length === 0) return;
@@ -161,7 +167,7 @@ export const GazeScanpathPlayer = ({
             ctx.strokeText(String(point.order), px, py);
             ctx.fillText(String(point.order), px, py);
         }
-    }, [naturalSize, routeColor]);
+    }, [naturalSize, routeColor, transparent]);
 
     useEffect(() => {
         if (imageLoaded && !playing) {
@@ -217,14 +223,23 @@ export const GazeScanpathPlayer = ({
     const currentTime = (progress * duration).toFixed(1);
 
     return (
-        <div className={`overflow-hidden rounded-lg border shadow-sm ${className}`}>
+        <div className={transparent
+            ? `pointer-events-none ${className}`
+            : `overflow-hidden rounded-lg border shadow-sm ${className}`
+        }>
             <canvas
                 ref={canvasRef}
-                className="block max-h-[560px] w-full"
-                style={{ maxHeight: '560px' }}
+                className={transparent
+                    ? 'block w-full h-full pointer-events-none'
+                    : 'block max-h-[560px] w-full'
+                }
+                style={transparent ? undefined : { maxHeight: '560px' }}
             />
 
-            <div className="flex items-center gap-3 border-t bg-gray-50 px-4 py-3">
+            <div className={transparent
+                ? 'absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/70 backdrop-blur-sm px-3 py-2 rounded-full z-10 pointer-events-auto'
+                : 'flex items-center gap-3 border-t bg-gray-50 px-4 py-3'
+            }>
                 <button
                     type="button"
                     onClick={playing ? pause : play}
@@ -266,12 +281,15 @@ export const GazeScanpathPlayer = ({
                     className="flex-1 accent-blue-600"
                 />
 
-                <span className="w-16 flex-shrink-0 text-right font-mono text-xs text-gray-500">
+                <span className={transparent
+                    ? 'w-16 flex-shrink-0 text-right font-mono text-xs text-gray-300'
+                    : 'w-16 flex-shrink-0 text-right font-mono text-xs text-gray-500'
+                }>
                     {currentTime}s / {duration}s
                 </span>
             </div>
 
-            {!imageLoaded && (
+            {!imageLoaded && !transparent && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                     <span className="text-gray-400">Loading image...</span>
                 </div>

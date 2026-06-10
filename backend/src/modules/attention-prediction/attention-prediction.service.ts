@@ -818,11 +818,11 @@ export const DEFAULT_EXTRACT_HEATMAP_OPTIONS: Required<Pick<
     ExtractHeatmapPointsOptions,
     'minRelative' | 'minAbsolute' | 'maxPoints' | 'nmsCells' | 'gridCols'
 >> = {
-    minRelative: 0.62,
-    minAbsolute: 0.44,
-    maxPoints: 84,
-    nmsCells: 2,
-    gridCols: 28,
+    minRelative: 0.52,
+    minAbsolute: 0.40,
+    maxPoints: 200,
+    nmsCells: 1,
+    gridCols: 64,
 };
 
 /**

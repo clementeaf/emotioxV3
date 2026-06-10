@@ -1751,14 +1751,7 @@ export const AttentionPredictionCard = ({
             observer.disconnect();
             window.removeEventListener('resize', updateBounds);
         };
-    }, [
-        activeTab,
-        isVideo,
-        layers.heatmap,
-        layers.gaze,
-        hasHeatmap,
-        isAoiEditMode,
-    ]);
+    }, [activeTab, isVideo]);
 
     const handleImportAois = useCallback((aiAois: AiAnalysisResult['autoAois']) => {
         const existingLabels = new Set(aoiList.map(a => a.label));
@@ -1974,7 +1967,7 @@ export const AttentionPredictionCard = ({
                 </div>
 
                 {/* Layer toggles — single viewport, composable overlays */}
-                {!isVideo && (
+                {!isVideo && activeTab !== 'aoi-editor' && (
                     <div className="px-4 py-2 border-b bg-white flex flex-wrap items-center gap-x-4 gap-y-1">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mr-1">
                             Capas
@@ -2035,7 +2028,7 @@ export const AttentionPredictionCard = ({
                 )}
 
                 {/* Heatmap controls — when heatmap layer is visible */}
-                {!isVideo && showMapModeControls && (
+                {!isVideo && showMapModeControls && activeTab === 'heatmap' && (
                     <div className="px-4 py-2.5 border-b bg-slate-50 flex items-center gap-4 flex-wrap">
                         <div className="flex gap-1">
                             {ACTIVE_HEATMAP_MAP_MODES.map((mode) => {
@@ -2166,7 +2159,7 @@ export const AttentionPredictionCard = ({
                 )}
 
                 {/* Gaze route toggles — when gaze layer is visible */}
-                {!isVideo && layers.gaze && gazeRoutes.length > 0 && (
+                {!isVideo && layers.gaze && gazeRoutes.length > 0 && activeTab === 'gaze-paths' && (
                     <div className="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 flex-wrap">
                         {heatmapData.length > 0 && (
                             <div className="flex items-center gap-1 mr-2">
@@ -2390,17 +2383,6 @@ export const AttentionPredictionCard = ({
 
                         {/* ─── Unified image viewport — one image, toggleable layers ─── */}
                         {!isVideo && (
-                            layers.gaze && gazeMode === 'animated' && animatedGazePath.length > 0 ? (
-                                <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border">
-                                    <GazeScanpathPlayer
-                                        imageUrl={imageUrl}
-                                        gazePath={animatedGazePath}
-                                        duration={5}
-                                        routeColor={ROUTE_COLORS[primaryGazeRoute?.id ?? 'typical-scan']}
-                                        className="max-h-full max-w-full"
-                                    />
-                                </div>
-                            ) : (
                                 <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden">
                                     <TransformWrapper
                                         minScale={1}
@@ -2557,12 +2539,22 @@ export const AttentionPredictionCard = ({
                                                             markerId={route.id}
                                                         />
                                                     ))}
+
+                                                    {layers.gaze && gazeMode === 'animated' && animatedGazePath.length > 0 && (
+                                                        <GazeScanpathPlayer
+                                                            imageUrl={imageUrl}
+                                                            gazePath={animatedGazePath}
+                                                            duration={5}
+                                                            routeColor={ROUTE_COLORS[primaryGazeRoute?.id ?? 'typical-scan']}
+                                                            className="absolute inset-0 w-full h-full"
+                                                            transparent
+                                                        />
+                                                    )}
                                                 </StimulusOverlayFrame>
                                             </TransformComponent>
                                         </div>
                                     </TransformWrapper>
                                 </div>
-                            )
                         )}
                         </div>
 

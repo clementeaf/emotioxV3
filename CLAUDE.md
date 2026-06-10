@@ -124,6 +124,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Attention Prediction Precise + visor unificado (v0.79.0)**: Extracción granular NMS en backend. Visor único con capas (tabs = presets). Viewport flex + `ResizeObserver` — sin scroll por alturas `100vh` apiladas. `HeatmapRenderer` precise/smooth. `reconcileAutoAoisWithManual`. `stimulusImageCache.ts`.
 - **Attention Prediction heatmap modes (v0.80.0)**: `Classic | Spotlight | Cold` en Heatmap tab. Lab preset default. `SpotlightRenderer`, `ColdMapRenderer`, `VideoAccumulatedHeatmapOverlay`. NMS 72 pts. Spec: `docs/attention-prediction-heatmap-viz-spec.md`.
 - **Attention Prediction feedback emotiox (v0.81.0)**: P1–P9 del PDF `docs/emotiox.pdf` — AOI-first refinado, scanpath, vista compuesta, criterio nombrado, wizard en panel IA, guards teclado AOIs, `persistStimuli`/`handleSavePrompt` con settings frescos. 44 tests FE.
+- **Attention Prediction refinements (v0.81.1)**: NMS denso (200 pts, `gridCols` 64). Scanpath como capa inline (`GazeScanpathPlayer` `transparent`). Controles contextuales por tab. Panel IA en español. `reconcileAutoAoisWithManual` simplificado (sin ocultamiento IoU). `recharts` en `react-vendor` chunk.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

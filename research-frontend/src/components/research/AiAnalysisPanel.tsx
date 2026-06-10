@@ -286,6 +286,12 @@ const AttentionBadge = ({ level }: { level: string }) => {
 
 // ─── Duration Badge ─────────────────────────────────────────────────
 
+const DURATION_LABELS: Record<string, string> = {
+    brief: 'breve',
+    moderate: 'moderada',
+    long: 'prolongada',
+};
+
 const DurationBadge = ({ duration }: { duration: string }) => {
     const styles: Record<string, string> = {
         brief: 'bg-slate-100 text-slate-600',
@@ -294,7 +300,7 @@ const DurationBadge = ({ duration }: { duration: string }) => {
     };
     return (
         <span className={`text-xs px-2 py-0.5 rounded-full ${styles[duration] || 'bg-gray-100 text-gray-600'}`}>
-            {duration}
+            {DURATION_LABELS[duration] ?? duration}
         </span>
     );
 };
@@ -327,8 +333,6 @@ export const AiAnalysisPanel = ({
         () => reconcileAutoAoisWithManual(manualAois, analysis?.autoAois ?? []),
         [manualAois, analysis?.autoAois],
     );
-
-    const hiddenAutoAoiCount = (analysis?.autoAois.length ?? 0) - displayAutoAois.length;
 
     const handleImportAll = useCallback(() => {
         if (!analysis) return;
@@ -436,10 +440,10 @@ export const AiAnalysisPanel = ({
                         <Sparkles className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold text-slate-900">AI Analysis</h3>
+                        <h3 className="text-sm font-semibold text-slate-900">Análisis IA</h3>
                         <p className="text-xs text-slate-500">
                             {criteriaLabel ? `Criterio: ${criteriaLabel} · ` : ''}
-                            Confidence: {analysis.confidence}%
+                            Confianza: {analysis.confidence}%
                         </p>
                     </div>
                 </div>
@@ -449,7 +453,7 @@ export const AiAnalysisPanel = ({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-gray-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
-                    Re-analyze
+                    Re-analizar
                 </button>
             </div>
 
@@ -477,18 +481,17 @@ export const AiAnalysisPanel = ({
                         </div>
                         <div className="text-center">
                             <ScoreGauge score={analysis.confidence} size={56} />
-                            <p className="text-xs text-slate-500 mt-1">Confidence</p>
+                            <p className="text-xs text-slate-500 mt-1">Confianza</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Auto-detected AOIs */}
-                <Section title={`Areas of Interest (${displayAutoAois.length})`} icon={<Eye className="h-4 w-4" />}>
-                    {hiddenAutoAoiCount > 0 && (
+                <Section title={`Áreas de interés (${displayAutoAois.length})`} icon={<Eye className="h-4 w-4" />}>
+                    {manualAois.length > 0 && displayAutoAois.length > 0 && (
                         <p className="mt-2 text-xs text-slate-500">
-                            {hiddenAutoAoiCount}{' '}
-                            {hiddenAutoAoiCount === 1 ? 'zona IA oculta' : 'zonas IA ocultas'} por conflicto
-                            con tus zonas manuales.
+                            {displayAutoAois.length} zona{displayAutoAois.length !== 1 ? 's' : ''} IA
+                            + {manualAois.length} zona{manualAois.length !== 1 ? 's' : ''} manual{manualAois.length !== 1 ? 'es' : ''}.
                         </p>
                     )}
                     <div className="mt-3 space-y-2">
@@ -528,22 +531,22 @@ export const AiAnalysisPanel = ({
                 </Section>
 
                 {/* Attention Flow */}
-                <Section title="Attention Flow" icon={<ArrowRightLeft className="h-4 w-4" />}>
+                <Section title="Flujo de atención" icon={<ArrowRightLeft className="h-4 w-4" />}>
                     <div className="mt-3 space-y-3">
                         <div className="flex gap-4">
                             <div className="flex-1">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Entry Point</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Punto de entrada</p>
                                 <p className="text-sm text-slate-800">{analysis.attentionFlow.entryPoint}</p>
                             </div>
                             <div className="flex-1">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Exit Point</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Punto de salida</p>
                                 <p className="text-sm text-slate-800">{analysis.attentionFlow.exitPoint}</p>
                             </div>
                         </div>
 
                         {/* Flow path */}
                         <div>
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Visual Path</p>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Recorrido visual</p>
                             <div className="flex items-center gap-1 flex-wrap">
                                 {analysis.attentionFlow.flowPath.map((step, i) => (
                                     <span key={i} className="flex items-center gap-1">
@@ -559,7 +562,7 @@ export const AiAnalysisPanel = ({
                         {/* Leak areas */}
                         {analysis.attentionFlow.leakAreas.length > 0 && (
                             <div>
-                                <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-1">Attention Leak</p>
+                                <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-1">Fuga de atención</p>
                                 <ul className="space-y-1">
                                     {analysis.attentionFlow.leakAreas.map((area, i) => (
                                         <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
@@ -576,7 +579,7 @@ export const AiAnalysisPanel = ({
                 </Section>
 
                 {/* Gaze Path */}
-                <Section title={`Predicted Gaze Path (${analysis.gazePath.length} fixations)`} icon={<Route className="h-4 w-4" />}>
+                <Section title={`Recorrido de mirada (${analysis.gazePath.length} fijaciones)`} icon={<Route className="h-4 w-4" />}>
                     <div className="mt-3">
                         <div className="space-y-1.5">
                             {[...analysis.gazePath]
@@ -595,7 +598,7 @@ export const AiAnalysisPanel = ({
                 </Section>
 
                 {/* Neuro-Insights */}
-                <Section title={`Neuro-Insights & Gestalt (${analysis.neuroInsights.length})`} icon={<Brain className="h-4 w-4" />}>
+                <Section title={`Neuro-Insights y Gestalt (${analysis.neuroInsights.length})`} icon={<Brain className="h-4 w-4" />}>
                     <div className="mt-3 space-y-3">
                         {analysis.neuroInsights.map((insight, i) => (
                             <div key={i} className="bg-slate-50 rounded-lg p-3">
@@ -614,13 +617,16 @@ export const AiAnalysisPanel = ({
 
                 {/* Brand Attention (Hosseini 2024) */}
                 {analysis.brandAttention && analysis.brandAttention.logos.length > 0 && (
-                    <Section title={`Brand Attention (${analysis.brandAttention.logos.length} logos)`} icon={<Eye className="h-4 w-4" />}>
+                    <Section title={`Atención de marca (${analysis.brandAttention.logos.length} logos)`} icon={<Eye className="h-4 w-4" />}>
                         <div className="mt-3 space-y-3">
-                            {/* Score */}
+                            {/* Score — LLM holistic judgment */}
                             <div className="flex items-center gap-3">
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-medium text-slate-700">Brand Visibility Score</span>
+                                        <span className="text-xs font-medium text-slate-700">
+                                            Visibilidad de marca
+                                            <span className="ml-1 text-[10px] text-slate-400 font-normal">(evaluación IA)</span>
+                                        </span>
                                         <span className={`text-sm font-bold ${
                                             analysis.brandAttention.brandAttentionScore >= 70 ? 'text-green-600' :
                                             analysis.brandAttention.brandAttentionScore >= 40 ? 'text-amber-600' : 'text-red-600'
@@ -632,7 +638,8 @@ export const AiAnalysisPanel = ({
                                 </div>
                             </div>
 
-                            {/* Logos */}
+                            {/* Logos — TranSalNet saliency measurement */}
+                            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Saliencia medida por heatmap</p>
                             {analysis.brandAttention.logos.map((logo, i) => (
                                 <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
                                     <div>
@@ -661,7 +668,7 @@ export const AiAnalysisPanel = ({
                 )}
 
                 {/* Methodology */}
-                <Section title="Technical Methodology" icon={<BookOpen className="h-4 w-4" />} defaultOpen={false}>
+                <Section title="Metodología técnica" icon={<BookOpen className="h-4 w-4" />} defaultOpen={false}>
                     <p className="mt-3 text-sm text-slate-600 leading-relaxed">{analysis.methodology}</p>
                 </Section>
             </div>

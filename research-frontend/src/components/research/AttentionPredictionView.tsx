@@ -599,6 +599,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 {isSavingPrompt ? 'Guardando...' : 'Aplicar al estudio'}
                             </button>
                         </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                            El criterio orienta el análisis IA. Para actualizar el mapa de calor, usa «Regenerar heatmap».
+                        </p>
 
                         {/* Presets — below actions */}
                         {presets.length > 0 && (

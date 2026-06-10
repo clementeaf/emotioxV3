@@ -59,7 +59,9 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('@mediapipe/tasks-vision')) return 'mediapipe-vendor';
           if (id.includes('webeyetrack')) return 'webeyetrack-vendor';
           if (id.includes('framer-motion')) return 'motion-vendor';
-          if (id.includes('recharts')) return 'chart-vendor';
+          // recharts must stay with react-vendor — a separate chart-vendor chunk creates a
+          // circular import (react-vendor ↔ chart-vendor) and React is undefined at runtime.
+          if (id.includes('recharts')) return 'react-vendor';
           if (id.includes('@tanstack/react-query')) return 'query-vendor';
           if (id.includes('@dnd-kit')) return 'ui-vendor';
           if (
@@ -86,6 +88,9 @@ export default defineConfig(({ mode }) => ({
   esbuild: {
     sourcemap: false,
     drop: ['console', 'debugger'],
+  },
+  resolve: {
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
