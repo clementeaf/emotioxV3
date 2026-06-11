@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect, type ReactNode } from 'react';
+import { useViewportHeight } from '../../hooks/useViewportHeight';
 import { createPortal } from 'react-dom';
 import { toPng } from 'html-to-image';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -26,6 +27,7 @@ import {
     normalizeManualAois,
     reconcileAutoAoisWithManual,
     computeAoiAttentionShare,
+    estimateExposureTime,
     anchorGazePathToHeatmap,
     anchorGazeRoutesToHeatmap,
     buildAttentionLayerPreset,
@@ -297,6 +299,9 @@ export const AttentionPredictionCard = ({
     const [isSavingAois, setIsSavingAois] = useState(false);
     const aoiContainerRef = useRef<HTMLDivElement>(null);
 
+    /** Track AOI count at last predict to detect staleness */
+    const aoiCountAtPredict = useRef<number | null>(null);
+
     /* ── Heatmap settings state ── */
     const [showSettings, setShowSettings] = useState(false);
     const heatmapViewSnapshotRef = useRef<HeatmapViewSettings | null>(null);
@@ -317,11 +322,8 @@ export const AttentionPredictionCard = ({
     /* ── Refs ── */
     const tabContentRef = useRef<HTMLDivElement>(null);
 
-    /** Stable max height — computed once from window, not from dynamic viewport */
-    const stableMaxHeight = useMemo(() => {
-        const FIXED_CHROME = 220;
-        return Math.max(300, window.innerHeight - FIXED_CHROME);
-    }, []);
+    /** Reactive viewport height — tracks window resize with debounce */
+    const stableMaxHeight = useViewportHeight();
 
     /* ── Tab management ── */
 
@@ -552,6 +554,7 @@ export const AttentionPredictionCard = ({
             setShowSkipConfirm(true);
             return;
         }
+        aoiCountAtPredict.current = aoiList.length;
         onRunPrediction(aoiList);
     };
 
@@ -559,6 +562,14 @@ export const AttentionPredictionCard = ({
         if (!onRunAnalysis || !analysisGateOpen) return;
         onRunAnalysis(aoiList);
     };
+
+    /* ── Auto-switch to heatmap after prediction completes ── */
+    const wasPredicting = useRef(false);
+    useEffect(() => {
+        const justFinished = wasPredicting.current && !isPredicting && hasHeatmap;
+        wasPredicting.current = isPredicting;
+        if (justFinished) handleTabChange('heatmap');
+    }, [isPredicting, hasHeatmap, handleTabChange]);
 
     /* ── AOI import ── */
     const importedAiLabels = useMemo(
@@ -599,8 +610,8 @@ export const AttentionPredictionCard = ({
     }, [aoiList, heatmapData]);
 
     const displayAutoAois = useMemo(
-        () => reconcileAutoAoisWithManual(aoiList, aiAnalysis?.autoAois ?? []),
-        [aoiList, aiAnalysis?.autoAois],
+        () => isPredicting ? [] : reconcileAutoAoisWithManual(aoiList, aiAnalysis?.autoAois ?? []),
+        [aoiList, aiAnalysis?.autoAois, isPredicting],
     );
 
     const anchoredHeatmapData = useMemo(
@@ -794,6 +805,7 @@ export const AttentionPredictionCard = ({
                     hasHeatmap={hasHeatmap}
                     predictionGateOpen={predictionGateOpen}
                     onPredictClick={handlePredictClick}
+                    heatmapStale={hasHeatmap && aoiCountAtPredict.current !== null && aoiList.length !== aoiCountAtPredict.current}
                     onRunAnalysis={onRunAnalysis}
                     isAnalyzing={isAnalyzing}
                     analyzeElapsed={analyzeElapsed}
@@ -985,7 +997,14 @@ export const AttentionPredictionCard = ({
                                                 {showBaseImage && (
                                                     <>
                                                         <img src={imageUrl} alt={title} className={STIMULUS_MEDIA_FIT_FLEX_CLASS} />
-                                                        {layers.heatmap && !hasHeatmap && (
+                                                        {isPredicting && (
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none animate-pulse">
+                                                                <p className="text-white text-sm bg-black/60 px-4 py-2 rounded-lg">
+                                                                    Generando heatmap… {predictElapsed}s
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {!isPredicting && layers.heatmap && !hasHeatmap && (
                                                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                                                                 <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
                                                                     Genera el heatmap para ver la predicción TranSalNet
@@ -1170,7 +1189,7 @@ export const AttentionPredictionCard = ({
 const CardHeader = ({
     title, onAddMore, onDelete, isDeleting, headerExtra,
     onRunPrediction, isVideo, isPredicting, predictElapsed, hasHeatmap,
-    predictionGateOpen, onPredictClick,
+    predictionGateOpen, onPredictClick, heatmapStale,
     onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,
 }: {
     title: string;
@@ -1185,6 +1204,7 @@ const CardHeader = ({
     hasHeatmap: boolean;
     predictionGateOpen: boolean;
     onPredictClick: () => void;
+    heatmapStale: boolean;
     onRunAnalysis?: (aois: ManualAOI[]) => void;
     isAnalyzing: boolean;
     analyzeElapsed: number;
@@ -1220,12 +1240,18 @@ const CardHeader = ({
                     disabled={isPredicting}
                     className={cn(
                         'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                        hasHeatmap ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-white bg-indigo-600 hover:bg-indigo-700',
+                        heatmapStale
+                            ? 'text-white bg-amber-500 hover:bg-amber-600'
+                            : hasHeatmap ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-white bg-indigo-600 hover:bg-indigo-700',
                         isPredicting && 'opacity-50 cursor-not-allowed',
                     )}
                     title={!predictionGateOpen ? 'Define al menos una zona o continúa sin zonas' : hasHeatmap ? 'Regenerar heatmap TranSalNet' : 'Generar heatmap TranSalNet'}
                 >
-                    {isPredicting ? `Generando heatmap... ${predictElapsed}s` : hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
+                    {isPredicting
+                        ? `Generando heatmap... ${predictElapsed}s`
+                        : heatmapStale
+                            ? 'Recalcular con zonas actuales'
+                            : hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
                 </button>
             )}
             {onRunAnalysis && (
@@ -1475,7 +1501,9 @@ const AoiChipList = ({
                             {aoi.label}
                         </span>
                     )}
-                    <span className="font-semibold" style={{ color }}>{aoi.percentage}%</span>
+                    <span className="font-semibold" style={{ color }} title={`~${estimateExposureTime(aoi.percentage)} exposición estimada`}>
+                        {aoi.percentage}%
+                    </span>
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); onRemove(aoi.id); }}

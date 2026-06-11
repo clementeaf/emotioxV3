@@ -282,7 +282,7 @@ export interface AnalysisProfile {
     /** Target viewer interests/context */
     interests?: string; // e.g. "luxury fashion, social events"
     /** Stimulus context type — affects scan pattern and β weight */
-    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'app' | 'social_media' | 'dashboard' | 'print' | 'general';
+    context?: 'shelf' | 'web' | 'advertisement' | 'packaging' | 'product_isolated' | 'app' | 'social_media' | 'dashboard' | 'print' | 'general';
     /** Viewer intention */
     intention?: 'utilitarian' | 'emotional' | 'browsing';
     /** Free-form description for maximum flexibility */
@@ -315,10 +315,14 @@ Focus on TOP-DOWN attention factors:
 - Products/objects of interest (medium-high weight)
 - High contrast areas (medium weight)
 - Novel or unexpected elements (medium-high weight)
-${profile?.context === 'shelf' || profile?.context === 'packaging' ? `- Nutritional claims and certifications (medium-high weight)
+${profile?.context === 'shelf' || profile?.context === 'packaging' || profile?.context === 'product_isolated' ? `- Nutritional claims and certifications (medium-high weight)
 - Premium vs basic packaging cues (medium weight)
 - Price tags and promotional labels (high weight)
 - Brand mascots and characters (high weight)
+` : ''}${profile?.context === 'product_isolated' ? `- Brand logo (very high weight — primary fixation point)
+- Product name and variant (high weight)
+- Uniform/repetitive surfaces like plain metal or solid color (very low weight)
+- Background outside the product silhouette (near zero weight)
 ` : ''}${profile?.context === 'app' ? `- Navigation bars and tab bars (high weight)
 - Floating action buttons (high weight)
 - Modal/bottom sheet content (very high weight)
@@ -357,6 +361,7 @@ function buildProfileContext(profile: AnalysisProfile): string {
         web: 'CONTEXT: Web page or e-commerce. F-pattern scanning: top-left gets most attention, horizontal sweeps decrease down the page.',
         advertisement: 'CONTEXT: Print or digital advertisement. Z-pattern scanning. Hero image and headline dominate first fixation.',
         packaging: 'CONTEXT: Product packaging close-up. Focus on brand logo, product name, key claims, and visual hierarchy.',
+        product_isolated: 'CONTEXT: Isolated product (bottle, can, box) on plain background. Attention concentrates on brand logo first, then product name, claims, and secondary text. Background and uniform surfaces receive very low attention. Intensity must differentiate zones: logo area gets highest weight, secondary elements get medium, repetitive surfaces get low.',
         app: 'CONTEXT: Mobile app screen. Thumb-zone priority: bottom-center most reachable, top corners least. Tab bars, floating action buttons, and modal sheets dominate attention. Vertical scroll bias.',
         social_media: 'CONTEXT: Social media post or feed. Vertical scroll, autoplay bias. Profile picture and name anchor top-left. Image/video dominates center. Engagement buttons (like, comment) at bottom.',
         dashboard: 'CONTEXT: Analytics dashboard or data UI. Users scan for KPI cards first (top row), then charts left-to-right. High data density — color coding and anomalies draw attention.',
@@ -376,6 +381,7 @@ function getSemanticBeta(profile?: AnalysisProfile): number {
     const betas: Record<string, number> = {
         shelf: 0.50,
         packaging: 0.50,
+        product_isolated: 0.55,
         advertisement: 0.45,
         app: 0.45,
         social_media: 0.42,

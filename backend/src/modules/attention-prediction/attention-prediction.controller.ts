@@ -14,8 +14,9 @@ import {
     computeAutoPresets,
     computeGriddedAOIs,
     extractHeatmapPoints,
-    DEFAULT_EXTRACT_HEATMAP_OPTIONS,
+    getExtractOptions,
     suppressWhitespaceSaliency,
+    modulateIntensityByAoiProximity,
 } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
@@ -62,7 +63,7 @@ const runPredictionAsync = async (
         }
 
         try {
-            finalMap = await suppressWhitespaceSaliency(finalMap, imagePath, width, height);
+            finalMap = await suppressWhitespaceSaliency(finalMap, imagePath, width, height, profile?.context);
         } catch (suppressErr) {
             console.warn('[Predict] Whitespace suppression skipped:', suppressErr);
         }
@@ -70,10 +71,15 @@ const runPredictionAsync = async (
         // Step 3: Extract points + auto-presets + gridded AOIs
         const autoPresets = computeAutoPresets(finalMap);
         const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
-        const heatmapData = extractHeatmapPoints(finalMap, width, height, {
-            ...DEFAULT_EXTRACT_HEATMAP_OPTIONS,
-            minAbsolute: Math.max(0.4, threshold),
-        });
+        const rawPoints = extractHeatmapPoints(
+            finalMap, width, height,
+            getExtractOptions(profile?.context, threshold),
+        );
+
+        // Step 4: AOI-proximity intensity modulation (when researcher defined AOIs)
+        const heatmapData = manualAois?.length
+            ? modulateIntensityByAoiProximity(rawPoints, manualAois)
+            : rawPoints;
 
         // Read current config
         const researchResult = await pool.query(
@@ -183,10 +189,10 @@ const runModulePredictionAsync = async (
 
         const autoPresets = computeAutoPresets(finalMap);
         const griddedAOIs = computeGriddedAOIs(finalMap, width, height);
-        const heatmapData = extractHeatmapPoints(finalMap, width, height, {
-            ...DEFAULT_EXTRACT_HEATMAP_OPTIONS,
-            minAbsolute: Math.max(0.4, threshold),
-        });
+        const heatmapData = extractHeatmapPoints(
+            finalMap, width, height,
+            getExtractOptions(undefined, threshold),
+        );
 
         const moduleResult = await pool.query('SELECT config FROM modules WHERE id = ?', [moduleId]);
         if (moduleResult.rows.length === 0) return;

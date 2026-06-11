@@ -1,3 +1,24 @@
+## v0.82.0 — Attention Prediction: product context, AOI intensity modulation, UX fixes (2026-06-11)
+
+### backend
+- **Contexto `product_isolated`.** Nuevo valor en `AnalysisProfile.context` con prompt semántico específico para producto aislado (logo alto, superficies uniformes bajo). β semántico 0.55.
+- **NMS por contexto.** `getExtractOptions()` selecciona parámetros según contexto: producto/packaging usa `maxPoints: 150, gridCols: 64, minRelative: 0.58` para cobertura selectiva.
+- **Whitespace por contexto.** `getTextureThresholds()` baja luminance threshold a 0.65 para producto, suprimiendo zonas uniformes de packaging.
+- **AOI-proximity intensity modulation.** `modulateIntensityByAoiProximity()` post-NMS: Chebyshev + Gaussian falloff. Puntos dentro de AOI retienen intensidad completa; puntos lejanos atenuados (decay 0.6).
+
+### research-frontend
+- **Viewport reactivo.** `useViewportHeight` hook reemplaza `useMemo` estático. Debounce 300ms, ignora delta < 20px — AOIs no se desalinean al redimensionar.
+- **Auto-switch tab post-predict.** Al completar predicción, visor cambia automáticamente a tab Heatmap. Sin doble click.
+- **Guard reconcile durante predict.** `displayAutoAois` retorna vacío mientras `isPredicting` — sin cambios visuales de AOIs durante la espera.
+- **Overlay de progreso.** Overlay pulsante con timer sobre el visor durante predicción.
+- **Badge "Recalcular con zonas actuales".** Botón amber cuando AOIs cambian post-heatmap. Un solo click para regenerar.
+- **Tiempo de exposición estimado.** `estimateExposureTime()` en tooltip de chips AOI (mapea % → tiempo).
+
+### tests
+- **36 tests nuevos.** `useViewportHeight` (5), predict flow F2 (5), product context NMS+texture (10), AOI intensity modulation (8), exposure time (8).
+
+---
+
 ## v0.81.2 — Attention Prediction: refactor + denser heatmap + test fixes (2026-06-10)
 
 ### backend

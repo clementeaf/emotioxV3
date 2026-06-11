@@ -825,12 +825,64 @@ export const DEFAULT_EXTRACT_HEATMAP_OPTIONS: Required<Pick<
     gridCols: 100,
 };
 
+/** Tighter extraction for isolated product/packaging images — fewer, more selective points */
+export const PRODUCT_EXTRACT_HEATMAP_OPTIONS: typeof DEFAULT_EXTRACT_HEATMAP_OPTIONS = {
+    minRelative: 0.58,
+    minAbsolute: 0.45,
+    maxPoints: 150,
+    nmsCells: 2,
+    gridCols: 64,
+};
+
+const PRODUCT_CONTEXTS = new Set(['product_isolated', 'packaging']);
+
+/** Select extraction options based on analysis context */
+export const getExtractOptions = (
+    context?: string,
+    thresholdOverride?: number,
+): Required<Pick<ExtractHeatmapPointsOptions, 'minRelative' | 'minAbsolute' | 'maxPoints' | 'nmsCells' | 'gridCols'>> => {
+    const base = PRODUCT_CONTEXTS.has(context ?? '')
+        ? { ...PRODUCT_EXTRACT_HEATMAP_OPTIONS }
+        : { ...DEFAULT_EXTRACT_HEATMAP_OPTIONS };
+    base.minAbsolute = Math.max(base.minAbsolute, thresholdOverride ?? 0);
+    return base;
+};
+
+export interface LowTextureThresholds {
+    /** Luminance above which + low std = bright uniform zone. Default 0.82, product 0.65 */
+    brightUniformLum: number;
+    /** Std below which bright uniform zone is detected. Default 0.06 */
+    brightUniformStd: number;
+    /** Luminance above which + very low std = low texture bright. Default 0.70, product 0.55 */
+    lowTextureLum: number;
+    /** Std below which low texture bright is detected. Default 0.04 */
+    lowTextureStd: number;
+}
+
+const DEFAULT_TEXTURE_THRESHOLDS: LowTextureThresholds = {
+    brightUniformLum: 0.82,
+    brightUniformStd: 0.06,
+    lowTextureLum: 0.70,
+    lowTextureStd: 0.04,
+};
+
+const PRODUCT_TEXTURE_THRESHOLDS: LowTextureThresholds = {
+    brightUniformLum: 0.65,
+    brightUniformStd: 0.08,
+    lowTextureLum: 0.55,
+    lowTextureStd: 0.06,
+};
+
+export const getTextureThresholds = (context?: string): LowTextureThresholds =>
+    PRODUCT_CONTEXTS.has(context ?? '') ? PRODUCT_TEXTURE_THRESHOLDS : DEFAULT_TEXTURE_THRESHOLDS;
+
 /**
  * Builds a texture mask that attenuates uniform bright regions (whitespace gutters).
  * @param gray - Grayscale luminance buffer normalized 0-1
  * @param w - Map width
  * @param h - Map height
  * @param windowRadius - Local variance window radius in pixels
+ * @param thresholds - Luminance/std thresholds (context-dependent)
  * @returns Per-pixel suppression factor in 0.15-1.0
  */
 export const buildLowTextureMask = (
@@ -838,8 +890,10 @@ export const buildLowTextureMask = (
     w: number,
     h: number,
     windowRadius = 2,
+    thresholds: LowTextureThresholds = DEFAULT_TEXTURE_THRESHOLDS,
 ): Float32Array => {
     const mask = new Float32Array(w * h);
+    const { brightUniformLum, brightUniformStd, lowTextureLum, lowTextureStd } = thresholds;
 
     for (let row = 0; row < h; row++) {
         for (let col = 0; col < w; col++) {
@@ -864,8 +918,8 @@ export const buildLowTextureMask = (
             const std = Math.sqrt(Math.max(0, variance));
             const luminance = gray[row * w + col];
 
-            const isBrightUniform = luminance > 0.82 && std < 0.06;
-            const isLowTextureBright = luminance > 0.7 && std < 0.04;
+            const isBrightUniform = luminance > brightUniformLum && std < brightUniformStd;
+            const isLowTextureBright = luminance > lowTextureLum && std < lowTextureStd;
 
             let factor = 1.0;
             if (isBrightUniform) {
@@ -940,9 +994,10 @@ export const suppressWhitespaceSaliency = async (
     imagePath: string,
     w: number,
     h: number,
+    context?: string,
 ): Promise<Float32Array> => {
     const gray = await loadGrayscaleMap(imagePath, w, h);
-    const mask = buildLowTextureMask(gray, w, h);
+    const mask = buildLowTextureMask(gray, w, h, 2, getTextureThresholds(context));
     return applyLowTextureSuppression(map, mask);
 };
 
@@ -1040,6 +1095,58 @@ export const extractHeatmapPoints = (
         y: c.cy,
         value: c.maxVal,
     }));
+};
+
+export interface AoiRect {
+    x: number;      // 0-100 percent
+    y: number;      // 0-100 percent
+    width: number;  // 0-100 percent
+    height: number; // 0-100 percent
+}
+
+/**
+ * Modulates heatmap point intensities based on proximity to researcher-defined AOIs.
+ * Points inside an AOI retain full intensity; points far from any AOI are attenuated.
+ * Uses Chebyshev distance with Gaussian falloff per nearest AOI group.
+ *
+ * @param points - Raw heatmap points (x/y in 0-100 %)
+ * @param aois - Researcher-defined AOI rectangles (0-100 %)
+ * @param decay - Max attenuation factor for distant points (0-1). Default 0.6.
+ * @param reach - Influence radius as fraction of image diagonal. Default 0.25.
+ * @returns New array with modulated values
+ */
+export const modulateIntensityByAoiProximity = (
+    points: ReadonlyArray<{ x: number; y: number; value: number }>,
+    aois: ReadonlyArray<AoiRect>,
+    decay = 0.6,
+    reach = 0.25,
+): Array<{ x: number; y: number; value: number }> => {
+    const diag = Math.sqrt(100 * 100 + 100 * 100); // ~141.42
+    const maxDist = diag * reach;
+
+    return points.map(pt => {
+        let minDist = Infinity;
+
+        for (const aoi of aois) {
+            const cx = aoi.x + aoi.width / 2;
+            const cy = aoi.y + aoi.height / 2;
+            const halfW = aoi.width / 2;
+            const halfH = aoi.height / 2;
+
+            // Chebyshev: 0 inside AOI, positive outside
+            const dx = Math.max(0, Math.abs(pt.x - cx) - halfW);
+            const dy = Math.max(0, Math.abs(pt.y - cy) - halfH);
+            const dist = Math.max(dx, dy);
+
+            minDist = Math.min(minDist, dist);
+        }
+
+        // Gaussian falloff: 1.0 at dist=0, (1-decay) at dist=maxDist
+        const t = Math.min(1, minDist / maxDist);
+        const factor = 1 - decay * t * t;
+
+        return { x: pt.x, y: pt.y, value: pt.value * factor };
+    });
 };
 
 /**

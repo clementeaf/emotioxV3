@@ -580,6 +580,17 @@ export function computeAoiAttentionShare(
 }
 
 /**
+ * Maps an AOI attention-share percentage (0-100) to an estimated exposure time.
+ * Based on typical 3-5s total viewing window for product/packaging stimuli.
+ * Formula: linear interpolation where 100% share → 3.0s and 0% → 0.1s.
+ */
+export function estimateExposureTime(sharePercent: number, totalViewTimeS = 3.0): string {
+    const clamped = Math.max(0, Math.min(100, sharePercent));
+    const seconds = 0.1 + (clamped / 100) * (totalViewTimeS - 0.1);
+    return seconds < 1 ? `${Math.round(seconds * 1000)}ms` : `${seconds.toFixed(1)}s`;
+}
+
+/**
  * Clamps AI-detected AOI bounds to valid percentage coordinates.
  * @param aoi - Raw auto-AOI from LLM output
  * @returns Sanitized AOI with optional lowConfidence flag
