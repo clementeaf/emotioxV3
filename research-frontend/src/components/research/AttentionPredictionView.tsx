@@ -421,13 +421,42 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 setTimeout(() => setVideoProgress(null), 5000);
             });
             sse.addEventListener('error', (e: Event) => {
-                // SSE error event — could be connection loss or backend error
+                // SSE error event — could be connection loss, proxy timeout, or backend error.
+                // EventSource fires 'error' on ANY disconnect, including normal proxy timeouts.
                 const msgEvent = e as MessageEvent;
-                let errorMsg = 'Video prediction failed';
-                try { errorMsg = JSON.parse(msgEvent.data).error || errorMsg; } catch { /* use default */ }
-                setVideoProgress({ phase: 'error', current: 0, total: 0, message: errorMsg });
+
+                // Check if this is a real backend error (has data with error message)
+                let backendError: string | null = null;
+                try { backendError = JSON.parse(msgEvent.data).error || null; } catch { /* no data = connection loss */ }
+
+                if (backendError) {
+                    // Real error from backend
+                    setVideoProgress({ phase: 'error', current: 0, total: 0, message: backendError });
+                    sse.close();
+                    videoSSERef.current = null;
+                    return;
+                }
+
+                // Connection lost (proxy timeout, network issue) — not necessarily a failure.
+                // The backend may still be processing. Poll the research to check.
                 sse.close();
                 videoSSERef.current = null;
+                setVideoProgress(prev => prev && prev.phase !== 'error' && prev.phase !== 'complete'
+                    ? { ...prev, message: 'Conexión perdida, verificando resultado...' }
+                    : prev);
+
+                // Wait briefly then check if prediction completed
+                setTimeout(() => {
+                    queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                    // After refetch, the UI will show results if backend finished,
+                    // or the user can retry if it truly failed.
+                    setVideoProgress(prev => {
+                        if (prev && prev.phase !== 'complete' && prev.phase !== 'error') {
+                            return { phase: 'error', current: 0, total: 0, message: 'Conexión SSE perdida. Recarga la página para ver si el procesamiento terminó.' };
+                        }
+                        return prev;
+                    });
+                }, 5000);
             });
         } catch (err) {
             setVideoProgress({

@@ -404,10 +404,10 @@ app.get([
             return;
         }
 
-        // Keep-alive ping every 30s
+        // Keep-alive ping every 10s (LiteSpeed proxy may timeout idle connections at ~60s)
         const pingInterval = setInterval(() => {
             try { res.write(': ping\n\n'); if (typeof (res as any).flush === 'function') (res as any).flush(); } catch { /* dead */ }
-        }, 30000);
+        }, 10_000);
 
         res.on('close', () => {
             clearInterval(pingInterval);
