@@ -202,6 +202,10 @@ app.use('/media', express.static(MEDIA_BASE_DIR, {
         if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
             res.setHeader('Cache-Control', 'public, max-age=3600');
         }
+        if (ext === '.mp4' || ext === '.webm') {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.setHeader('Accept-Ranges', 'bytes');
+        }
     },
     dotfiles: 'deny',
     index: false,
@@ -227,6 +231,10 @@ app.use('/api/media', express.static(MEDIA_BASE_DIR, {
         }
         if (ext.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
             res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+        if (ext === '.mp4' || ext === '.webm') {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            res.setHeader('Accept-Ranges', 'bytes');
         }
     },
     dotfiles: 'deny',

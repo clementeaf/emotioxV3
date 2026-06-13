@@ -9,6 +9,14 @@ export interface ColdMapRenderParams {
 
 type HeatPoint = [number, number, number];
 
+/** Green→cyan gradient for cold map (ignored/low-attention zones) */
+export const COLD_MAP_GRADIENT: Record<number, string> = {
+    0.35: '#44cc88',
+    0.55: '#22bbaa',
+    0.75: '#00aacc',
+    1.0: '#0088aa',
+};
+
 /**
  * Builds simpleheat points with inverted saliency (cold = ignored zones).
  * @param points - Hotspot centroids from prediction
@@ -130,12 +138,7 @@ export function renderColdMapComposite(
     const radius = Math.max(12, Math.round(minDim * 0.038));
     const blurFraction = Math.min(0.5, Math.max(0.22, blur / 22));
     heat.radius(radius, Math.round(radius * blurFraction));
-    heat.gradient({
-        0.35: '#0ff',
-        0.55: '#08f',
-        0.75: '#60f',
-        1.0: '#909',
-    });
+    heat.gradient(COLD_MAP_GRADIENT);
     heat.data(heatPoints);
     heat.max(Math.max(2, Math.ceil(heatPoints.length * 0.07)));
     heat.draw(0.08);

@@ -30,6 +30,13 @@ interface VideoAccumulatedHeatmapOverlayProps {
     coldSettings: ColdMapSettings;
 }
 
+/** Blue→violet radial gradient RGBA tuples for video heatmap (center → edge) */
+export const VIDEO_HEATMAP_COLORS = {
+    center: [170, 34, 221] as const,  // violet
+    mid:    [119, 68, 238] as const,  // blue-violet
+    edge:   [85, 153, 255] as const,  // blue
+} as const;
+
 /**
  * Renders accumulated heatmap overlay on a video when per-frame data is unavailable.
  */
@@ -82,17 +89,14 @@ export const VideoAccumulatedHeatmapOverlay = ({
             }
 
             const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-            if (isRefined) {
-                grad.addColorStop(0, `rgba(255, 40, 0, ${val * (isLab ? 0.45 : 0.55)})`);
-                grad.addColorStop(0.4, `rgba(255, 120, 0, ${val * 0.25})`);
-                grad.addColorStop(0.7, `rgba(255, 200, 0, ${val * 0.1})`);
-                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            } else {
-                grad.addColorStop(0, `rgba(255, 0, 0, ${val * 0.55})`);
-                grad.addColorStop(0.35, `rgba(255, 140, 0, ${val * 0.3})`);
-                grad.addColorStop(0.65, `rgba(100, 220, 0, ${val * 0.12})`);
-                grad.addColorStop(1, 'rgba(0, 0, 255, 0)');
-            }
+            const centerAlpha = val * (isRefined ? (isLab ? 0.45 : 0.55) : 0.55);
+            const [cr, cg, cb] = VIDEO_HEATMAP_COLORS.center;
+            const [mr, mg, mb] = VIDEO_HEATMAP_COLORS.mid;
+            const [er, eg, eb] = VIDEO_HEATMAP_COLORS.edge;
+            grad.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${centerAlpha})`);
+            grad.addColorStop(0.4, `rgba(${mr}, ${mg}, ${mb}, ${val * 0.25})`);
+            grad.addColorStop(0.7, `rgba(${er}, ${eg}, ${eb}, ${val * 0.1})`);
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -198,6 +202,7 @@ export const VideoAccumulatedHeatmapOverlay = ({
                 controls
                 muted
                 playsInline
+                preload="metadata"
                 className="max-w-full max-h-full block"
                 style={{ visibility: isFullFrame ? 'hidden' : 'visible' }}
                 onLoadedData={paintOverlay}

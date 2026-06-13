@@ -43,34 +43,21 @@ interface HeatmapRendererProps {
     fitMaxHeightPx?: number;
 }
 
-/**
- * Returns global dim overlay strength for a visual profile.
- * @param profile - Heatmap visual profile
- * @returns Multiplier applied to opacity prop for base dim layer
- */
-function getOverlayDimFactor(profile: HeatmapVisualProfile): number {
-    switch (profile) {
-        case 'lab': return 0.08;
-        case 'precise': return 0.15;
-        case 'balanced': return 0.16;
-        case 'smooth': return 0.35;
-    }
-}
+/** Dim overlay strength per visual profile */
+export const OVERLAY_DIM_FACTORS: Record<HeatmapVisualProfile, number> = {
+    lab: 0.08,
+    precise: 0.15,
+    balanced: 0.16,
+    smooth: 0.35,
+};
 
-/**
- * Returns simpleheat color stops for refined (non-green) rendering.
- * @param profile - Lab or precise profile
- * @returns Gradient stop map for simpleheat
- */
-function getRefinedGradient(profile: HeatmapVisualProfile): Record<number, string> {
-    if (profile === 'lab') {
-        return { 0.55: '#ff0', 0.75: '#f80', 0.9: '#f00', 1.0: '#c00' };
-    }
-    if (profile === 'balanced') {
-        return { 0.58: '#ff0', 0.76: '#f80', 0.9: '#f00', 1.0: '#e00' };
-    }
-    return { 0.52: '#ff0', 0.72: '#f80', 0.88: '#f00', 1.0: '#f00' };
-}
+/** Blue→violet heatmap gradient stops per visual profile (simpleheat format) */
+export const HEATMAP_GRADIENTS: Record<HeatmapVisualProfile, Record<number, string>> = {
+    lab:      { 0.55: '#5599ff', 0.75: '#7744ee', 0.9: '#aa22dd', 1.0: '#cc00aa' },
+    precise:  { 0.52: '#5599ff', 0.72: '#7744ee', 0.88: '#aa22dd', 1.0: '#aa22dd' },
+    balanced: { 0.58: '#5599ff', 0.76: '#7744ee', 0.9: '#aa22dd', 1.0: '#bb00bb' },
+    smooth:   { 0.15: '#3377cc', 0.35: '#5599ff', 0.5: '#7744ee', 0.7: '#9933dd', 0.85: '#bb11cc', 1.0: '#bb11cc' },
+};
 
 export const HeatmapRenderer = ({
     imageUrl,
@@ -131,7 +118,7 @@ export const HeatmapRenderer = ({
 
         ctx.drawImage(img, 0, 0);
 
-        const dimFactor = getOverlayDimFactor(visualProfile);
+        const dimFactor = OVERLAY_DIM_FACTORS[visualProfile];
         const overlayOpacity = opacityProp != null ? (opacityProp / 100) * dimFactor : dimFactor * 0.5;
         ctx.fillStyle = `rgba(0, 0, 0, ${overlayOpacity})`;
         ctx.fillRect(0, 0, w, h);
@@ -168,18 +155,7 @@ export const HeatmapRenderer = ({
         const b = Math.round(r * blurFraction);
         heat.radius(r, b);
 
-        if (isRefinedProfile) {
-            heat.gradient(getRefinedGradient(visualProfile));
-        } else {
-            heat.gradient({
-                0.15: '#0f0',
-                0.35: '#8f0',
-                0.5: '#ff0',
-                0.7: '#f80',
-                0.85: '#f00',
-                1.0: '#f00',
-            });
-        }
+        heat.gradient(HEATMAP_GRADIENTS[visualProfile]);
 
         const toPixel = (point: HeatmapPoint): [number, number, number] => {
             let x = point.x;
