@@ -335,7 +335,13 @@ class MediaService {
         researchId: string,
         videoMediaId: string,
         frames: Array<{ mediaId: string; timestamp: number }>,
-        options?: { threshold?: number; profile?: Record<string, unknown> },
+        options?: {
+            threshold?: number;
+            profile?: Record<string, unknown>;
+            aois?: Array<{ x: number; y: number; width: number; height: number }>;
+            gridConfig?: { cols: number; rows: number };
+            aoiTimeRanges?: Array<{ aoiId: string; startTime: number; endTime: number }>;
+        },
     ): Promise<{ status: string; jobId: string; totalFrames: number; estimatedSeconds: number }> {
         try {
             return await apiClient.post(
@@ -345,6 +351,9 @@ class MediaService {
                     frames,
                     threshold: options?.threshold,
                     profile: options?.profile,
+                    aois: options?.aois,
+                    gridConfig: options?.gridConfig,
+                    aoiTimeRanges: options?.aoiTimeRanges,
                 },
             );
         } catch (error: unknown) {

@@ -1,3 +1,23 @@
+## v0.83.0 — Video Attention Prediction: grid AOIs, timeline ranges, preprocessSharp fix (2026-06-13)
+
+### backend
+- **preprocessSharp fix.** Safari Canvas PNGs con perfiles de color embebidos causaban `Tensor size mismatch`. Ahora usa `flatten()` + intermediario PNG + fallback `toColourspace('srgb')`. Validación de buffer real vs esperado.
+- **Grid configurable.** `predictVideoFrames` acepta `gridConfig: { cols, rows }` (2-10, default 4×4). `POST /video-predict` valida y persiste `gridConfig` en el stimulus.
+- **Filtrado temporal per-AOI.** `aoiTimeRanges[]` en `POST /video-predict` filtra frames por rango temporal de cada AOI. Resultado en `stimulus.aoiAttention`. Funciones puras exportadas: `computeAoiTemporalAttention`, `buildGridLabels`, `computeCellAverage`.
+
+### research-frontend
+- **Tipos.** `GridConfig`, `AoiTimeRange`, `ManualAOI.timeRange` en `attentionPrediction.types.ts`.
+- **`generateGridAois()`.** Función pura que genera `ManualAOI[]` para grids 3×3, 5×5, 10×10. `source: 'imported-grid'`, labels A1..J10, timeRange opcional.
+- **Grid preset selector.** Segmented button `Manual | 3×3 | 5×5 | 10×10` en AOI Editor toolbar (solo video). Reemplaza AOIs existentes al cambiar preset.
+- **`AoiTimelineBar`.** Barras horizontales por AOI con handles draggables start/end (vanilla JS). Snap a frame timestamps, clamp min gap 0.5s, eje de tiempo adaptativo. Integrado debajo del viewport en tabs AOI Editor y Heatmap.
+- **Scrubber.** Grid overlay migrado de CSS Grid a flexbox. Extendido a 10×10. Labels `A1..J10`. Prop `aoiTimeRanges` renderiza barras coloreadas sobre el slider. Prop `initialGridIndex`.
+- **Service.** `startVideoPrediction` acepta `gridConfig` y `aoiTimeRanges`. View extrae grid config de AOIs `imported-grid` y time ranges al enviar.
+
+### tests
+- **44 tests nuevos.** Backend: `computeCellAverage` (3), `buildGridLabels` (4), `computeAoiTemporalAttention` (6). Frontend: `generateGridAois` (10), `AoiTimelineBar` (11), grid preset handler (10).
+
+---
+
 ## v0.82.0 — Attention Prediction: product context, AOI intensity modulation, UX fixes (2026-06-11)
 
 ### backend

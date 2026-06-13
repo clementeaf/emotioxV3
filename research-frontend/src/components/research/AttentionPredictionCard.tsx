@@ -42,9 +42,13 @@ import {
 } from '../../utils/attentionPrediction.utils';
 
 import { StimulusOverlayFrame, ZoomControls, STIMULUS_TRANSFORM_CONTENT_STYLE } from './StimulusOverlayFrame';
+import { generateGridAois } from '../../utils/gridAoiGenerator';
+import { AoiTimelineBar } from './AoiTimelineBar';
 import { HeatmapSettingsModal, DEFAULT_SETTINGS, type HeatmapPoint, type HeatmapSettings, type HeatmapViewSettings } from './HeatmapSettingsModal';
 import { MapModeControlBar } from './MapModeControlBar';
+import { StimulusFullscreenModal } from './StimulusFullscreenModal';
 import { VideoFrameScrubber, type VideoFrameData } from './VideoFrameScrubber';
+import { extractVideoThumbnail } from '../../utils/extractVideoThumbnail';
 
 /* ─── Constants ─── */
 
@@ -297,6 +301,7 @@ export const AttentionPredictionCard = ({
     const [aoiCurrent, setAoiCurrent] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
     const [aoiList, setAoiList] = useState<ManualAOI[]>([]);
     const [isSavingAois, setIsSavingAois] = useState(false);
+    const [activeGridPreset, setActiveGridPreset] = useState('Manual');
     const aoiContainerRef = useRef<HTMLDivElement>(null);
 
     /** Track AOI count at last predict to detect staleness */
@@ -304,6 +309,7 @@ export const AttentionPredictionCard = ({
 
     /* ── Heatmap settings state ── */
     const [showSettings, setShowSettings] = useState(false);
+    const [showFullscreen, setShowFullscreen] = useState(false);
     const heatmapViewSnapshotRef = useRef<HeatmapViewSettings | null>(null);
     const [settings, setSettings] = useState<HeatmapSettings>(() => {
         if (autoPresets) {
@@ -363,14 +369,30 @@ export const AttentionPredictionCard = ({
         void loadCachedStimulusImage(imageUrl);
     }, [imageUrl, isVideo]);
 
+    /* ── Video thumbnail for AOI Editor ── */
+    const [videoThumbnailUrl, setVideoThumbnailUrl] = useState<string | null>(null);
+    useEffect(() => {
+        if (!isVideo || !imageUrl) return;
+        let revoked = false;
+        void extractVideoThumbnail(imageUrl).then((url) => {
+            if (!revoked) setVideoThumbnailUrl(url);
+        });
+        return () => {
+            revoked = true;
+            setVideoThumbnailUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev);
+                return null;
+            });
+        };
+    }, [isVideo, imageUrl]);
+
     /* ── Tabs filter ── */
     const tabs = useMemo(() => {
         return BASE_TABS.filter(tab => {
             if (tab.id === 'gaze-paths') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
-            if (tab.id === 'aoi-editor') return !isVideo;
             return true;
         });
-    }, [aiAnalysis, isVideo]);
+    }, [aiAnalysis]);
 
     /* ── Auto-presets sync ── */
     useEffect(() => {
@@ -494,6 +516,32 @@ export const AttentionPredictionCard = ({
         setPendingLabel('');
         setSelectedAoiId(aoi.id);
     }, [aoiList, pendingLabel, pendingRect, persistAois]);
+
+    const videoDuration = useMemo(() => {
+        if (!isVideo || videoFrames.length === 0) return 0;
+        const lastTs = videoFrames[videoFrames.length - 1]?.timestamp ?? 0;
+        return lastTs + 2; // +2s for the interval after last frame
+    }, [isVideo, videoFrames]);
+
+    const handleAoiTimeRangeChange = useCallback((aoiId: string, timeRange: { startTime: number; endTime: number }) => {
+        const updated = aoiList.map(a => a.id === aoiId ? { ...a, timeRange } : a);
+        setAoiList(updated);
+        void persistAois(updated);
+    }, [aoiList, persistAois]);
+
+    const handleGridPresetChange = useCallback((preset: { label: string; cols: number; rows: number }) => {
+        setActiveGridPreset(preset.label);
+        if (preset.cols === 0) {
+            // "Manual" selected — clear grid AOIs but keep manual ones
+            const manualOnly = aoiList.filter(a => a.source !== 'imported-grid');
+            setAoiList(manualOnly);
+            void persistAois(manualOnly);
+            return;
+        }
+        const gridAois = generateGridAois(preset.cols, preset.rows);
+        setAoiList(gridAois);
+        void persistAois(gridAois);
+    }, [aoiList, persistAois]);
 
     const updateAoi = useCallback((updated: ManualAOI) => {
         setAoiList(prev => {
@@ -710,6 +758,8 @@ export const AttentionPredictionCard = ({
     const showHeatmapLayer = layers.heatmap && hasHeatmap;
     const showBaseImage = !showHeatmapLayer;
     const isAoiEditMode = activeTab === 'aoi-editor';
+    /** Effective image URL for the viewport — video AOI editor uses mid-frame thumbnail */
+    const viewportImageUrl = (isVideo && isAoiEditMode && videoThumbnailUrl) ? videoThumbnailUrl : imageUrl;
     const showMapModeControls = hasHeatmap && (layers.heatmap || activeTab === 'heatmap');
     const heatmapBlur = isAoiEditMode ? Math.max(settings.blur, 10) : settings.blur;
     const heatmapOpacity = isAoiEditMode ? Math.max(settings.opacity, 40) : settings.opacity;
@@ -799,7 +849,6 @@ export const AttentionPredictionCard = ({
                     isDeleting={isDeleting}
                     headerExtra={headerExtra}
                     onRunPrediction={onRunPrediction}
-                    isVideo={isVideo}
                     isPredicting={isPredicting}
                     predictElapsed={predictElapsed}
                     hasHeatmap={hasHeatmap}
@@ -854,12 +903,24 @@ export const AttentionPredictionCard = ({
                         <button
                             type="button"
                             onClick={() => void handleDownloadImage()}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors mr-2"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors mr-1"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                         </button>
+                        {!isVideo && (
+                            <button
+                                type="button"
+                                onClick={() => setShowFullscreen(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors mr-2"
+                                title="Vista completa"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                                </svg>
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={openHeatmapSettings}
@@ -874,8 +935,8 @@ export const AttentionPredictionCard = ({
                     </div>
                 </div>
 
-                {/* Layer toggles — only on Heatmap and Gaze Paths tabs */}
-                {!isVideo && (activeTab === 'heatmap' || activeTab === 'gaze-paths') && (
+                {/* Layer toggles — Heatmap and Gaze Paths tabs */}
+                {(activeTab === 'heatmap' || activeTab === 'gaze-paths') && (
                     <LayerToggles
                         layers={layers}
                         hasHeatmap={hasHeatmap}
@@ -892,7 +953,7 @@ export const AttentionPredictionCard = ({
                     <MapModeControlBar
                         mapMode={mapMode}
                         settings={settings}
-                        isAoiEditMode={!isVideo && isAoiEditMode}
+                        isAoiEditMode={isAoiEditMode}
                         heatmapViewSummary={heatmapViewSummary}
                         onMapModeChange={handleMapModeChange}
                         onPresetChange={handlePresetChange}
@@ -913,7 +974,7 @@ export const AttentionPredictionCard = ({
                 )}
 
                 {/* AOI Editor toolbar */}
-                {!isVideo && isAoiEditMode && (
+                {isAoiEditMode && (
                     <AoiEditorToolbar
                         drawingAoi={drawingAoi}
                         onToggleDrawing={() => setDrawingAoi(prev => !prev)}
@@ -925,19 +986,24 @@ export const AttentionPredictionCard = ({
                         computedAois={computedAois}
                         isSavingAois={isSavingAois}
                         onImportGridded={(imported) => { setAoiList(imported); void persistAois(imported); }}
+                        isVideo={isVideo}
+                        activeGridPreset={activeGridPreset}
+                        onGridPresetChange={handleGridPresetChange}
                     />
                 )}
 
                 {/* Content — flex viewport */}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4" ref={tabContentRef}>
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                        {/* Video layout */}
-                        {isVideo && (
+                        {/* Video layout — original and heatmap tabs */}
+                        {isVideo && activeTab !== 'aoi-editor' && (
                             <div className="relative flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-black">
                                 <video
                                     src={imageUrl}
                                     controls={activeTab === 'original'}
                                     muted
+                                    playsInline
+                                    preload="metadata"
                                     className="max-w-full max-h-full block"
                                     style={{ display: (activeTab === 'heatmap' && videoFrames.length > 0) ? 'none' : 'block' }}
                                 />
@@ -960,8 +1026,8 @@ export const AttentionPredictionCard = ({
                             </div>
                         )}
 
-                        {/* Image layout — unified viewport */}
-                        {!isVideo && (
+                        {/* Image layout — unified viewport (also used for video AOI editor) */}
+                        {(!isVideo || (isVideo && activeTab === 'aoi-editor' && videoThumbnailUrl)) && (
                             <div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden">
                                 <TransformWrapper
                                     minScale={1}
@@ -996,7 +1062,7 @@ export const AttentionPredictionCard = ({
                                             >
                                                 {showBaseImage && (
                                                     <>
-                                                        <img src={imageUrl} alt={title} className={STIMULUS_MEDIA_FIT_FLEX_CLASS} />
+                                                        <img src={viewportImageUrl} alt={title} className={STIMULUS_MEDIA_FIT_FLEX_CLASS} />
                                                         {isPredicting && (
                                                             <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none animate-pulse">
                                                                 <p className="text-white text-sm bg-black/60 px-4 py-2 rounded-lg">
@@ -1022,7 +1088,7 @@ export const AttentionPredictionCard = ({
                                                     >
                                                         {effectiveMapMode === 'spotlight' ? (
                                                             <SpotlightRenderer
-                                                                imageUrl={imageUrl} data={heatmapData}
+                                                                imageUrl={viewportImageUrl} data={heatmapData}
                                                                 blur={spotlightSettings.blur} reveal={spotlightSettings.reveal}
                                                                 dim={spotlightSettings.dim} threshold={heatmapThreshold}
                                                                 borderless fitMaxHeightPx={stableMaxHeight}
@@ -1030,7 +1096,7 @@ export const AttentionPredictionCard = ({
                                                             />
                                                         ) : effectiveMapMode === 'cold' ? (
                                                             <ColdMapRenderer
-                                                                imageUrl={imageUrl} data={heatmapData}
+                                                                imageUrl={viewportImageUrl} data={heatmapData}
                                                                 intensity={coldSettings.intensity} blur={coldSettings.blur}
                                                                 threshold={coldSettings.threshold}
                                                                 borderless fitMaxHeightPx={stableMaxHeight}
@@ -1038,7 +1104,7 @@ export const AttentionPredictionCard = ({
                                                             />
                                                         ) : (
                                                             <HeatmapRenderer
-                                                                imageUrl={imageUrl} data={heatmapData}
+                                                                imageUrl={viewportImageUrl} data={heatmapData}
                                                                 blur={heatmapBlur} opacity={heatmapOpacity}
                                                                 threshold={heatmapThreshold}
                                                                 granularity={heatmapGranularity}
@@ -1139,6 +1205,16 @@ export const AttentionPredictionCard = ({
                             onRemove={removeAoi}
                         />
                     )}
+
+                    {/* Video AOI timeline */}
+                    {isVideo && aoiList.length > 0 && (activeTab === 'aoi-editor' || activeTab === 'heatmap') && videoDuration > 0 && (
+                        <AoiTimelineBar
+                            aois={aoiList}
+                            videoDuration={videoDuration}
+                            onChange={handleAoiTimeRangeChange}
+                            frameTimestamps={videoFrames.map(f => f.timestamp)}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -1178,6 +1254,21 @@ export const AttentionPredictionCard = ({
                 />,
                 document.body,
             )}
+
+            {showFullscreen && !isVideo && createPortal(
+                <StimulusFullscreenModal
+                    imageUrl={imageUrl}
+                    title={title}
+                    heatmapData={heatmapData}
+                    settings={settings}
+                    mapMode={mapMode}
+                    spotlightSettings={spotlightSettings}
+                    coldSettings={coldSettings}
+                    showHeatmap={activeTab === 'heatmap' && layers.heatmap}
+                    onClose={() => setShowFullscreen(false)}
+                />,
+                document.body,
+            )}
         </>
     );
 };
@@ -1188,7 +1279,7 @@ export const AttentionPredictionCard = ({
 
 const CardHeader = ({
     title, onAddMore, onDelete, isDeleting, headerExtra,
-    onRunPrediction, isVideo, isPredicting, predictElapsed, hasHeatmap,
+    onRunPrediction, isPredicting, predictElapsed, hasHeatmap,
     predictionGateOpen, onPredictClick, heatmapStale,
     onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,
 }: {
@@ -1198,7 +1289,6 @@ const CardHeader = ({
     isDeleting: boolean;
     headerExtra?: ReactNode;
     onRunPrediction?: (aois: ManualAOI[]) => void;
-    isVideo: boolean;
     isPredicting: boolean;
     predictElapsed: number;
     hasHeatmap: boolean;
@@ -1233,7 +1323,7 @@ const CardHeader = ({
                 </button>
             )}
             {headerExtra}
-            {onRunPrediction && !isVideo && (
+            {onRunPrediction && (
                 <button
                     type="button"
                     onClick={onPredictClick}
@@ -1388,9 +1478,17 @@ const GazeRouteBar = ({
     </div>
 );
 
+const GRID_PRESETS = [
+    { label: 'Manual', cols: 0, rows: 0 },
+    { label: '3×3', cols: 3, rows: 3 },
+    { label: '5×5', cols: 5, rows: 5 },
+    { label: '10×10', cols: 10, rows: 10 },
+] as const;
+
 const AoiEditorToolbar = ({
     drawingAoi, onToggleDrawing, aoiSkipped, aoiList, onAoiSkippedChange,
     onShowSkipConfirm, griddedAOIs, computedAois, isSavingAois, onImportGridded,
+    isVideo, activeGridPreset, onGridPresetChange,
 }: {
     drawingAoi: boolean;
     onToggleDrawing: () => void;
@@ -1402,9 +1500,31 @@ const AoiEditorToolbar = ({
     computedAois: AOIWithStats[];
     isSavingAois: boolean;
     onImportGridded: (imported: ManualAOI[]) => void;
+    isVideo?: boolean;
+    activeGridPreset?: string;
+    onGridPresetChange?: (preset: { label: string; cols: number; rows: number }) => void;
 }) => (
     <div className="px-4 py-3 border-b bg-slate-50 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
+            {isVideo && onGridPresetChange && (
+                <div className="flex items-center gap-1 border border-gray-200 rounded bg-white p-0.5">
+                    {GRID_PRESETS.map(preset => (
+                        <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => onGridPresetChange(preset)}
+                            className={cn(
+                                'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                                activeGridPreset === preset.label
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-gray-600 hover:bg-gray-100',
+                            )}
+                        >
+                            {preset.label}
+                        </button>
+                    ))}
+                </div>
+            )}
             <button
                 type="button"
                 onClick={onToggleDrawing}
@@ -1424,7 +1544,7 @@ const AoiEditorToolbar = ({
             {aoiSkipped && (
                 <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">Sin zonas definidas</span>
             )}
-            {griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
+            {!isVideo && griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
                 <button
                     type="button"
                     onClick={() => {

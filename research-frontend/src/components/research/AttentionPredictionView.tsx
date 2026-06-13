@@ -353,10 +353,30 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
             // Phase 3: Start backend video prediction
             setVideoProgress({ phase: 'predicting', current: 0, total: extracted.length, message: 'Starting prediction...' });
+            // Detect grid config from AOI sources
+            const gridAois = (videoStimulus.aois || []).filter(a => a.source === 'imported-grid');
+            const gridConfig = gridAois.length > 0
+                ? (() => {
+                    const cols = new Set(gridAois.map(a => Math.round(a.x / (a.width || 1)))).size;
+                    const rows = new Set(gridAois.map(a => Math.round(a.y / (a.height || 1)))).size;
+                    return cols >= 2 && rows >= 2 ? { cols, rows } : undefined;
+                })()
+                : undefined;
+
+            // Extract time ranges from AOIs
+            const aoiTimeRanges = (videoStimulus.aois || [])
+                .filter(a => a.timeRange && a.timeRange.startTime < a.timeRange.endTime)
+                .map(a => ({ aoiId: a.id, startTime: a.timeRange!.startTime, endTime: a.timeRange!.endTime }));
+
             const { jobId } = await mediaService.startVideoPrediction(
                 research.id,
                 videoStimulus.mediaId,
                 uploadedFrames,
+                {
+                    aois: videoStimulus.aois,
+                    gridConfig,
+                    ...(aoiTimeRanges.length > 0 ? { aoiTimeRanges } : {}),
+                },
             );
 
             // Phase 4: Listen to SSE for progress
@@ -439,15 +459,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
         await persistStimuli(merged);
 
-        // P1-01: image uploads must NOT auto-trigger predict or AI analyze (AOI-first manual flow).
-        // Only video stimuli run the frame-extraction + video-predict pipeline below.
-        for (const stimulus of newStimuli) {
-            if (stimulus.isVideo) {
-                const videoUrl = stimulus.url.startsWith('http') ? stimulus.url : resolveMediaUrl(stimulus.url);
-                await processVideoStimulus(stimulus, videoUrl);
-            }
-        }
-    }, [stimuli, persistStimuli, processVideoStimulus]);
+        // AOI-first manual flow: no auto-trigger for images OR video.
+        // Researcher defines AOIs → sets criteria → triggers predict manually.
+    }, [stimuli, persistStimuli]);
 
     const handleDelete = useCallback(async (mediaId: string) => {
         setIsDeletingId(mediaId);
@@ -681,7 +695,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onImportAoisDone={() => setPendingImportAois(undefined)}
                             onAddMore={() => setShowUploadModal(true)}
                             onRunAnalysis={(aois) => void runAnalysis(activeStimulus.mediaId, aois)}
-                            onRunPrediction={(aois) => void runPrediction(activeStimulus.mediaId, aois)}
+                            onRunPrediction={activeStimulus.isVideo
+                                ? () => {
+                                    const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
+                                    void processVideoStimulus(activeStimulus, videoUrl);
+                                }
+                                : (aois) => void runPrediction(activeStimulus.mediaId, aois)}
                             isPredicting={isPredicting}
                             predictElapsed={predictElapsed}
                             predictionError={activeStimulus.predictionError}
@@ -812,7 +831,15 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 hasCriteria={hasCriteriaConfigured}
                                 onOpenCriteria={() => setIsPromptOpen(true)}
                                 onFocusAoiEditor={() => setWorkflowFocusTab('aoi-editor')}
-                                onRunPrediction={() => activeStimulus && void runPrediction(activeStimulus.mediaId, liveAois)}
+                                onRunPrediction={() => {
+                                    if (!activeStimulus) return;
+                                    if (activeStimulus.isVideo) {
+                                        const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
+                                        void processVideoStimulus(activeStimulus, videoUrl);
+                                    } else {
+                                        void runPrediction(activeStimulus.mediaId, liveAois);
+                                    }
+                                }}
                                 isPredicting={isPredicting}
                                 predictElapsed={predictElapsed}
                                 canRunPrediction={canRunPrediction}

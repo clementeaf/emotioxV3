@@ -45,9 +45,21 @@ export interface VideoPredictionResult {
     griddedAOIs: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
     frames: VideoFrameResult[];
     temporalGrid: TemporalGridCell[];
+    aoiAttention?: Record<string, { totalAttention: number; frameCount: number }>;
     totalFrames: number;
     failedFrames: number;
     processingTimeMs: number;
+}
+
+export interface AoiTimeRange {
+    aoiId: string;
+    startTime: number; // seconds
+    endTime: number;   // seconds
+}
+
+export interface VideoGridConfig {
+    cols: number; // 2-10
+    rows: number; // 2-10
 }
 
 export type ProgressCallback = (event: VideoJobEvent) => void;
@@ -55,8 +67,8 @@ export type ProgressCallback = (event: VideoJobEvent) => void;
 // ─── Constants ───────────────────────────────────────────────────────
 
 const MAX_FRAMES = 120;
-const GRID_COLS = 4;
-const GRID_ROWS = 4;
+const DEFAULT_GRID_COLS = 4;
+const DEFAULT_GRID_ROWS = 4;
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -81,7 +93,7 @@ function buildExtractOptions(
 /**
  * Compute average saliency for a single grid cell from a saliency map.
  */
-function computeCellAverage(
+export function computeCellAverage(
     map: Float32Array,
     w: number,
     h: number,
@@ -115,6 +127,8 @@ export async function predictVideoFrames(
     threshold: number,
     profile?: AnalysisProfile,
     onProgress?: ProgressCallback,
+    gridConfig?: VideoGridConfig,
+    aoiTimeRanges?: AoiTimeRange[],
 ): Promise<VideoPredictionResult> {
     if (frames.length > MAX_FRAMES) {
         throw new Error(`Too many frames: ${frames.length} (max ${MAX_FRAMES})`);
@@ -122,6 +136,9 @@ export async function predictVideoFrames(
     if (frames.length === 0) {
         throw new Error('No frames provided');
     }
+
+    const gridCols = Math.max(2, Math.min(10, gridConfig?.cols ?? DEFAULT_GRID_COLS));
+    const gridRows = Math.max(2, Math.min(10, gridConfig?.rows ?? DEFAULT_GRID_ROWS));
 
     const startTime = Date.now();
     const totalFrames = frames.length;
@@ -136,9 +153,9 @@ export async function predictVideoFrames(
     // Per-frame results
     const frameResults: VideoFrameResult[] = [];
 
-    // Temporal grid: 16 cells, each with a time series
+    // Temporal grid: gridCols*gridRows cells, each with a time series
     const gridAttention: number[][] = Array.from(
-        { length: GRID_COLS * GRID_ROWS },
+        { length: gridCols * gridRows },
         () => [],
     );
 
@@ -181,11 +198,11 @@ export async function predictVideoFrames(
             });
 
             // Compute per-cell attention for temporal grid
-            for (let gr = 0; gr < GRID_ROWS; gr++) {
-                for (let gc = 0; gc < GRID_COLS; gc++) {
-                    const cellIdx = gr * GRID_COLS + gc;
+            for (let gr = 0; gr < gridRows; gr++) {
+                for (let gc = 0; gc < gridCols; gc++) {
+                    const cellIdx = gr * gridCols + gc;
                     gridAttention[cellIdx].push(
-                        computeCellAverage(map, width, height, gr, gc, GRID_COLS, GRID_ROWS),
+                        computeCellAverage(map, width, height, gr, gc, gridCols, gridRows),
                     );
                 }
             }
@@ -209,7 +226,7 @@ export async function predictVideoFrames(
             console.error(`[VideoPrediction] Frame ${i} failed (${frame.mediaId}):`, err);
 
             // Push zeros for temporal grid continuity
-            for (let cellIdx = 0; cellIdx < GRID_COLS * GRID_ROWS; cellIdx++) {
+            for (let cellIdx = 0; cellIdx < gridCols * gridRows; cellIdx++) {
                 gridAttention[cellIdx].push(0);
             }
 
@@ -293,16 +310,34 @@ export async function predictVideoFrames(
 
     // Build temporal grid result
     const temporalGrid: TemporalGridCell[] = [];
-    for (let gr = 0; gr < GRID_ROWS; gr++) {
-        for (let gc = 0; gc < GRID_COLS; gc++) {
-            const cellIdx = gr * GRID_COLS + gc;
-            const colLabel = String.fromCharCode(65 + gc); // A, B, C, D
+    for (let gr = 0; gr < gridRows; gr++) {
+        for (let gc = 0; gc < gridCols; gc++) {
+            const cellIdx = gr * gridCols + gc;
+            const colLabel = String.fromCharCode(65 + gc); // A, B, C, ...
             temporalGrid.push({
                 label: `${colLabel}${gr + 1}`,
                 row: gr,
                 col: gc,
                 timeSeries: gridAttention[cellIdx],
             });
+        }
+    }
+
+    // Compute per-AOI attention filtered by time ranges
+    const aoiAttention: Record<string, { totalAttention: number; frameCount: number }> = {};
+    if (aoiTimeRanges && aoiTimeRanges.length > 0 && frameResults.length > 0) {
+        for (const range of aoiTimeRanges) {
+            let totalAtt = 0;
+            let count = 0;
+            for (const fr of frameResults) {
+                if (fr.timestamp >= range.startTime && fr.timestamp <= range.endTime) {
+                    // Sum attention values within this frame's heatmap
+                    const frameAtt = fr.heatmapData.reduce((s, p) => s + p.value, 0);
+                    totalAtt += frameAtt;
+                    count++;
+                }
+            }
+            aoiAttention[range.aoiId] = { totalAttention: totalAtt, frameCount: count };
         }
     }
 
@@ -321,8 +356,48 @@ export async function predictVideoFrames(
         griddedAOIs,
         frames: frameResults,
         temporalGrid,
+        ...(Object.keys(aoiAttention).length > 0 ? { aoiAttention } : {}),
         totalFrames,
         failedFrames,
         processingTimeMs,
     };
+}
+
+// ─── Pure helpers (exported for testing) ─────────────────────────────
+
+/**
+ * Generate temporal grid labels for a given grid size.
+ */
+export function buildGridLabels(cols: number, rows: number): string[] {
+    const labels: string[] = [];
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            labels.push(`${String.fromCharCode(65 + c)}${r + 1}`);
+        }
+    }
+    return labels;
+}
+
+/**
+ * Filter frame results by AOI time range and compute total attention.
+ * Pure function — no side effects.
+ */
+export function computeAoiTemporalAttention(
+    frameResults: Array<{ timestamp: number; heatmapData: Array<{ value: number }> }>,
+    aoiTimeRanges: AoiTimeRange[],
+): Record<string, { totalAttention: number; frameCount: number }> {
+    const result: Record<string, { totalAttention: number; frameCount: number }> = {};
+    for (const range of aoiTimeRanges) {
+        let totalAtt = 0;
+        let count = 0;
+        for (const fr of frameResults) {
+            if (fr.timestamp >= range.startTime && fr.timestamp <= range.endTime) {
+                const frameAtt = fr.heatmapData.reduce((s, p) => s + p.value, 0);
+                totalAtt += frameAtt;
+                count++;
+            }
+        }
+        result[range.aoiId] = { totalAttention: totalAtt, frameCount: count };
+    }
+    return result;
 }

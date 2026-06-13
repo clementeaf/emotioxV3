@@ -65,20 +65,46 @@ const getSession = async (): Promise<ort.InferenceSession> => {
 /**
  * Preprocesses a sharp instance for the model.
  * Flattens the pipeline via buffer to guarantee exact MODEL_WIDTH x MODEL_HEIGHT output.
+ * Uses flatten() + png intermediate to handle Safari Canvas PNGs with embedded
+ * color profiles that cause sharp/libvips buffer size mismatches.
  */
 const preprocessSharp = async (img: sharp.Sharp): Promise<ort.Tensor> => {
-    const flattened = await img.toBuffer();
-    const { data, info } = await sharp(flattened)
+    const expectedBytes = MODEL_WIDTH * MODEL_HEIGHT * 3;
+
+    // Primary pipeline: flatten alpha → resize → raw RGB
+    const pngBuffer = await img
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .png({ colours: 256 })
+        .toBuffer();
+
+    let { data, info } = await sharp(pngBuffer)
         .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
 
+    // Fallback: if buffer size doesn't match (libvips color profile bug),
+    // force sRGB and re-extract
+    if (data.length !== expectedBytes) {
+        console.warn(
+            `[preprocessSharp] Buffer mismatch: expected ${expectedBytes}, got ${data.length}. ` +
+            `Retrying with toColourspace(srgb).`,
+        );
+        const result = await sharp(pngBuffer)
+            .toColourspace('srgb')
+            .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
+            .removeAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        data = result.data;
+        info = result.info;
+    }
+
     const { width, height, channels } = info;
-    if (width !== MODEL_WIDTH || height !== MODEL_HEIGHT || channels !== 3) {
+    if (data.length !== expectedBytes || width !== MODEL_WIDTH || height !== MODEL_HEIGHT || channels !== 3) {
         throw new Error(
-            `Preprocess size mismatch: got ${width}x${height}x${channels}, ` +
-            `expected ${MODEL_WIDTH}x${MODEL_HEIGHT}x3`,
+            `Preprocess size mismatch: got ${width}x${height}x${channels} ` +
+            `(${data.length} bytes), expected ${MODEL_WIDTH}x${MODEL_HEIGHT}x3 (${expectedBytes} bytes)`,
         );
     }
 

@@ -20,6 +20,7 @@ const GRID_OPTIONS = [
     { label: '3×3', cols: 3, rows: 3 },
     { label: '4×4', cols: 4, rows: 4 },
     { label: '5×5', cols: 5, rows: 5 },
+    { label: '10×10', cols: 10, rows: 10 },
 ];
 
 const computeGridPercentages = (data: HeatmapPoint[], cols: number, rows: number): number[] => {
@@ -38,6 +39,13 @@ const computeGridPercentages = (data: HeatmapPoint[], cols: number, rows: number
 
 /* ─── Component ─── */
 
+interface AoiTimeRangeIndicator {
+    aoiId: string;
+    color: string;
+    startTime: number;
+    endTime: number;
+}
+
 interface VideoFrameScrubberProps {
     videoUrl: string;
     frames: VideoFrameData[];
@@ -45,6 +53,8 @@ interface VideoFrameScrubberProps {
     mapMode: HeatmapMapMode;
     spotlightSettings: SpotlightSettings;
     coldSettings: ColdMapSettings;
+    initialGridIndex?: number;
+    aoiTimeRanges?: AoiTimeRangeIndicator[];
 }
 
 export const VideoFrameScrubber = ({
@@ -54,11 +64,13 @@ export const VideoFrameScrubber = ({
     mapMode,
     spotlightSettings,
     coldSettings,
+    initialGridIndex,
+    aoiTimeRanges,
 }: VideoFrameScrubberProps) => {
     const [frameIdx, setFrameIdx] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [splitPct, setSplitPct] = useState(50);
-    const [gridSize, setGridSize] = useState(1);
+    const [gridSize, setGridSize] = useState(initialGridIndex ?? 1);
     const [dragging, setDragging] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const heatCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -282,27 +294,28 @@ export const VideoFrameScrubber = ({
 
                 {mapMode === 'classic' && (
                     <>
-                        {/* Dynamic grid */}
+                        {/* Dynamic grid (flexbox rows) */}
                         <div
-                            className="absolute top-0 bottom-0 pointer-events-none"
-                            style={{
-                                left: `${splitPct}%`,
-                                right: 0,
-                                display: 'grid',
-                                gridTemplateColumns: `repeat(${cols}, 1fr)`,
-                                gridTemplateRows: `repeat(${rows}, 1fr)`,
-                            }}
+                            className="absolute top-0 bottom-0 pointer-events-none flex flex-col"
+                            style={{ left: `${splitPct}%`, right: 0 }}
                         >
-                            {gridPcts.map((pct, i) => (
-                                <div key={i} className="border border-white/30 flex items-end justify-center pb-1">
-                                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
-                                        style={{
-                                            color: '#00ff00',
-                                            textShadow: '0 0 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7)',
-                                        }}
-                                    >
-                                        Q{i + 1}: {pct}%
-                                    </span>
+                            {Array.from({ length: rows }, (_, r) => (
+                                <div key={r} className="flex flex-1 min-h-0">
+                                    {Array.from({ length: cols }, (_, c) => {
+                                        const idx = r * cols + c;
+                                        return (
+                                            <div key={c} className="flex-1 border border-white/30 flex items-end justify-center pb-1">
+                                                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                                                    style={{
+                                                        color: '#00ff00',
+                                                        textShadow: '0 0 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.7)',
+                                                    }}
+                                                >
+                                                    {String.fromCharCode(65 + c)}{r + 1}: {gridPcts[idx]}%
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             ))}
                         </div>
@@ -342,14 +355,33 @@ export const VideoFrameScrubber = ({
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                     )}
                 </button>
-                <input
-                    type="range"
-                    min={0}
-                    max={frames.length - 1}
-                    value={frameIdx}
-                    onChange={e => handleSeek(Number(e.target.value))}
-                    className="flex-1 accent-blue-500 h-1"
-                />
+                <div className="flex-1 relative">
+                    {aoiTimeRanges && aoiTimeRanges.length > 0 && frames.length > 1 && (() => {
+                        const totalDuration = (frames[frames.length - 1]?.timestamp ?? 0) + 2;
+                        return aoiTimeRanges.map((r, i) => (
+                            <div
+                                key={r.aoiId}
+                                className="absolute rounded-sm pointer-events-none"
+                                style={{
+                                    left: `${(r.startTime / totalDuration) * 100}%`,
+                                    width: `${((r.endTime - r.startTime) / totalDuration) * 100}%`,
+                                    top: `${-4 - i * 3}px`,
+                                    height: '2px',
+                                    backgroundColor: r.color,
+                                    opacity: 0.7,
+                                }}
+                            />
+                        ));
+                    })()}
+                    <input
+                        type="range"
+                        min={0}
+                        max={frames.length - 1}
+                        value={frameIdx}
+                        onChange={e => handleSeek(Number(e.target.value))}
+                        className="w-full accent-blue-500 h-1"
+                    />
+                </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {GRID_OPTIONS.map((opt, i) => (
                         <button

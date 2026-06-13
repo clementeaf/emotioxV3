@@ -648,6 +648,20 @@ export const handleAttentionPredictionRoutes = async (
             const inputFrames = body.frames as Array<{ mediaId: string; timestamp: number }> | undefined;
             const threshold = typeof body.threshold === 'number' ? body.threshold : 0.48;
             const profile = body.profile || undefined;
+            const videoAois = parseManualAois(body.aois ?? []);
+
+            // Grid config (2-10 cols/rows, default 4x4)
+            const rawGrid = body.gridConfig as { cols?: number; rows?: number } | undefined;
+            const gridConfig = rawGrid ? {
+                cols: Math.max(2, Math.min(10, Math.round(rawGrid.cols ?? 4))),
+                rows: Math.max(2, Math.min(10, Math.round(rawGrid.rows ?? 4))),
+            } : undefined;
+
+            // AOI time ranges for temporal filtering
+            const rawTimeRanges = body.aoiTimeRanges as Array<{ aoiId: string; startTime: number; endTime: number }> | undefined;
+            const aoiTimeRanges = Array.isArray(rawTimeRanges)
+                ? rawTimeRanges.filter(r => r.aoiId && typeof r.startTime === 'number' && typeof r.endTime === 'number' && r.startTime < r.endTime)
+                : undefined;
 
             if (!videoMediaId || !Array.isArray(inputFrames) || inputFrames.length === 0) {
                 return error('videoMediaId and frames[] are required', 400, undefined, origin);
@@ -692,7 +706,14 @@ export const handleAttentionPredictionRoutes = async (
                         threshold,
                         profile,
                         (event) => broadcastProgress(jobId, event),
+                        gridConfig,
+                        aoiTimeRanges,
                     );
+
+                    // Apply AOI-proximity modulation to accumulated heatmap
+                    const modulatedHeatmapData = videoAois.length > 0
+                        ? modulateIntensityByAoiProximity(result.accumulatedHeatmapData, videoAois)
+                        : result.accumulatedHeatmapData;
 
                     // Save results to research.config.stimuli[]
                     const researchResult = await pool.query(
@@ -712,11 +733,14 @@ export const handleAttentionPredictionRoutes = async (
                                 return {
                                     ...s,
                                     isVideo: true,
-                                    heatmapData: result.accumulatedHeatmapData,
+                                    heatmapData: modulatedHeatmapData,
                                     autoPresets: result.autoPresets,
                                     griddedAOIs: result.griddedAOIs,
                                     frames: result.frames,
                                     temporalGrid: result.temporalGrid,
+                                    ...(result.aoiAttention ? { aoiAttention: result.aoiAttention } : {}),
+                                    ...(gridConfig ? { gridConfig } : {}),
+                                    ...(aoiTimeRanges ? { aoiTimeRanges } : {}),
                                     processedAt: new Date().toISOString(),
                                     videoPredictionMeta: {
                                         totalFrames: result.totalFrames,
