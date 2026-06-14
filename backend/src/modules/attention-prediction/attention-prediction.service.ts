@@ -64,34 +64,32 @@ const getSession = async (): Promise<ort.InferenceSession> => {
 
 /**
  * Preprocesses a sharp instance for the model.
- * Flattens the pipeline via buffer to guarantee exact MODEL_WIDTH x MODEL_HEIGHT output.
- * Uses flatten() + png intermediate to handle Safari Canvas PNGs with embedded
- * color profiles that cause sharp/libvips buffer size mismatches.
+ * Direct pipeline: sRGB → flatten → resize → raw RGB.
+ * No intermediate PNG re-encode — handles large images (5MB+ video frames) efficiently.
  */
 const preprocessSharp = async (img: sharp.Sharp): Promise<ort.Tensor> => {
     const expectedBytes = MODEL_WIDTH * MODEL_HEIGHT * 3;
 
-    // Primary pipeline: flatten alpha → resize → raw RGB
-    const pngBuffer = await img
+    // Single pipeline: force sRGB, flatten alpha, resize to model dims, extract raw RGB
+    let { data, info } = await img
+        .toColourspace('srgb')
         .flatten({ background: { r: 255, g: 255, b: 255 } })
-        .png({ colours: 256 })
-        .toBuffer();
-
-    let { data, info } = await sharp(pngBuffer)
         .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
 
-    // Fallback: if buffer size doesn't match (libvips color profile bug),
-    // force sRGB and re-extract
+    // Fallback: if buffer doesn't match (rare libvips edge case),
+    // materialize to buffer first then re-process
     if (data.length !== expectedBytes) {
-        console.warn(
+        console.error(
             `[preprocessSharp] Buffer mismatch: expected ${expectedBytes}, got ${data.length}. ` +
-            `Retrying with toColourspace(srgb).`,
+            `Retrying via intermediate buffer.`,
         );
-        const result = await sharp(pngBuffer)
+        const intermediate = await img.toBuffer();
+        const result = await sharp(intermediate)
             .toColourspace('srgb')
+            .flatten({ background: { r: 255, g: 255, b: 255 } })
             .resize(MODEL_WIDTH, MODEL_HEIGHT, { fit: 'fill' })
             .removeAlpha()
             .raw()
