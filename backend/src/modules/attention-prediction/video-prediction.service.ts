@@ -318,7 +318,7 @@ export async function predictVideoFrames(
 
     // Dense uniform sampling — stride-based single pass.
     // NMS fails on averaged maps (values too uniform), so we sample every Nth pixel.
-    const DENSE_STEP = 4;
+    const DENSE_STEP = 8; // ~48×36 = ~1700 max points
     const rowStride = mapWidth * DENSE_STEP; // jump DENSE_STEP rows at a time
     const invW = 100 / mapWidth;
     const invH = 100 / mapHeight;
