@@ -69,6 +69,18 @@ export type ProgressCallback = (event: VideoJobEvent) => void;
 const MAX_FRAMES = 120;
 const DEFAULT_GRID_COLS = 4;
 const DEFAULT_GRID_ROWS = 4;
+const FRAME_TIMEOUT_MS = 60_000; // 60s per frame — abort if ONNX hangs
+
+/** Wraps a promise with a timeout. Rejects if not resolved within ms. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`Timeout: ${label} exceeded ${ms}ms`)), ms);
+        promise.then(
+            (v) => { clearTimeout(timer); resolve(v); },
+            (e) => { clearTimeout(timer); reject(e); },
+        );
+    });
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -170,7 +182,12 @@ export async function predictVideoFrames(
         const imagePath = getMediaPath(frame.s3Key);
 
         try {
-            const { map, width, height } = await predictAttentionFast(imagePath);
+            console.log(`[VideoPrediction] Frame ${i}/${frames.length} starting (${frame.mediaId})`);
+            const { map, width, height } = await withTimeout(
+                predictAttentionFast(imagePath),
+                FRAME_TIMEOUT_MS,
+                `Frame ${i} (${frame.mediaId})`,
+            );
 
             // Initialize accumulator on first success
             if (!runningSum) {
@@ -250,6 +267,8 @@ export async function predictVideoFrames(
             }
         }
     }
+
+    console.log(`[VideoPrediction] All frames done: ${successCount} success, ${failedFrames} failed`);
 
     if (!runningSum || successCount === 0) {
         throw new Error('No frames were successfully processed');
