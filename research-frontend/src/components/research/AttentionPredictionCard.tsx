@@ -853,6 +853,7 @@ export const AttentionPredictionCard = ({
                     onRunPrediction={onRunPrediction}
                     isPredicting={isPredicting || (videoProgress != null && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete')}
                     predictElapsed={predictElapsed}
+                    videoProgressMessage={videoProgress?.message}
                     hasHeatmap={hasHeatmap}
                     predictionGateOpen={predictionGateOpen}
                     onPredictClick={handlePredictClick}
@@ -1281,7 +1282,7 @@ export const AttentionPredictionCard = ({
 
 const CardHeader = ({
     title, onAddMore, onDelete, isDeleting, headerExtra,
-    onRunPrediction, isPredicting, predictElapsed, hasHeatmap,
+    onRunPrediction, isPredicting, predictElapsed, videoProgressMessage, hasHeatmap,
     predictionGateOpen, onPredictClick, heatmapStale,
     onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,
 }: {
@@ -1293,6 +1294,7 @@ const CardHeader = ({
     onRunPrediction?: (aois: ManualAOI[]) => void;
     isPredicting: boolean;
     predictElapsed: number;
+    videoProgressMessage?: string;
     hasHeatmap: boolean;
     predictionGateOpen: boolean;
     onPredictClick: () => void;
@@ -1340,7 +1342,7 @@ const CardHeader = ({
                     title={!predictionGateOpen ? 'Define al menos una zona o continúa sin zonas' : hasHeatmap ? 'Regenerar heatmap TranSalNet' : 'Generar heatmap TranSalNet'}
                 >
                     {isPredicting
-                        ? `Generando heatmap... ${predictElapsed}s`
+                        ? (videoProgressMessage || `Generando heatmap... ${predictElapsed}s`)
                         : heatmapStale
                             ? 'Recalcular con zonas actuales'
                             : hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
