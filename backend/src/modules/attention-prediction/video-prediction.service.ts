@@ -315,13 +315,27 @@ export async function predictVideoFrames(
 
     const autoPresets = computeAutoPresets(finalMap);
     const griddedAOIs = computeGriddedAOIs(finalMap, mapWidth, mapHeight);
-    const accumulatedHeatmapData = extractHeatmapPoints(
-        finalMap,
-        mapWidth,
-        mapHeight,
-        buildExtractOptions(threshold, 300, true),
-    );
-    console.error(`[VideoPrediction] Extracted ${accumulatedHeatmapData.length} heatmap points`);
+
+    // Dense uniform sampling — stride-based single pass.
+    // NMS fails on averaged maps (values too uniform), so we sample every Nth pixel.
+    const DENSE_STEP = 4;
+    const rowStride = mapWidth * DENSE_STEP; // jump DENSE_STEP rows at a time
+    const invW = 100 / mapWidth;
+    const invH = 100 / mapHeight;
+    const accumulatedHeatmapData: Array<{ x: number; y: number; value: number }> = [];
+
+    for (let rowStart = 0; rowStart < finalMap.length; rowStart += rowStride) {
+        const row = (rowStart / mapWidth) | 0;
+        const yPct = row * invH;
+        const rowEnd = Math.min(rowStart + mapWidth, finalMap.length);
+        for (let idx = rowStart; idx < rowEnd; idx += DENSE_STEP) {
+            const val = finalMap[idx];
+            if (val > 0.05) {
+                accumulatedHeatmapData.push({ x: (idx - rowStart) * invW, y: yPct, value: val });
+            }
+        }
+    }
+    console.error(`[VideoPrediction] Exported ${accumulatedHeatmapData.length} dense points (step=${DENSE_STEP})`);
 
     // Build temporal grid result
     const temporalGrid: TemporalGridCell[] = [];
