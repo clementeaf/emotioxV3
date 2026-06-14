@@ -603,6 +603,8 @@ export const AttentionPredictionCard = ({
             return;
         }
         aoiCountAtPredict.current = aoiList.length;
+        // Switch to heatmap tab for video so user sees progress overlay
+        if (isVideo) setActiveTab('heatmap');
         onRunPrediction(aoiList);
     };
 
@@ -849,7 +851,7 @@ export const AttentionPredictionCard = ({
                     isDeleting={isDeleting}
                     headerExtra={headerExtra}
                     onRunPrediction={onRunPrediction}
-                    isPredicting={isPredicting}
+                    isPredicting={isPredicting || (videoProgress != null && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete')}
                     predictElapsed={predictElapsed}
                     hasHeatmap={hasHeatmap}
                     predictionGateOpen={predictionGateOpen}
