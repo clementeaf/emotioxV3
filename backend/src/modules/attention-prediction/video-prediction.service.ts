@@ -182,7 +182,7 @@ export async function predictVideoFrames(
         const imagePath = getMediaPath(frame.s3Key);
 
         try {
-            console.log(`[VideoPrediction] Frame ${i}/${frames.length} starting (${frame.mediaId})`);
+            console.error(`[VideoPrediction] Frame ${i}/${frames.length} starting (${frame.mediaId})`);
             const { map, width, height } = await withTimeout(
                 predictAttentionFast(imagePath),
                 FRAME_TIMEOUT_MS,
@@ -268,7 +268,7 @@ export async function predictVideoFrames(
         }
     }
 
-    console.log(`[VideoPrediction] All frames done: ${successCount} success, ${failedFrames} failed`);
+    console.error(`[VideoPrediction] All frames done: ${successCount} success, ${failedFrames} failed`);
 
     if (!runningSum || successCount === 0) {
         throw new Error('No frames were successfully processed');

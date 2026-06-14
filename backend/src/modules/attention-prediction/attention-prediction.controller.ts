@@ -701,6 +701,7 @@ export const handleAttentionPredictionRoutes = async (
             // Fire-and-forget: run prediction in background
             (async () => {
                 try {
+                    console.error(`[VideoPrediction] Starting job ${jobId}: ${framesWithKeys.length} frames, grid: ${JSON.stringify(gridConfig)}`);
                     const result = await predictVideoFrames(
                         framesWithKeys,
                         threshold,
