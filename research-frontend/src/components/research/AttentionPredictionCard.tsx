@@ -769,7 +769,7 @@ export const AttentionPredictionCard = ({
     const heatmapGranularity: 'precise' | 'smooth' = settings.preset === 'Smooth' ? 'smooth' : 'precise';
     const heatmapVisualProfile = resolveHeatmapVisualProfile(settings.preset);
     const effectiveMapMode: HeatmapMapMode = isAoiEditMode ? 'classic' : mapMode;
-    const showLegacyHeatmapBanner = hasHeatmap && isLegacyDenseHeatmap(heatmapData.length);
+    const showLegacyHeatmapBanner = hasHeatmap && !isVideo && isLegacyDenseHeatmap(heatmapData.length);
 
     /* ── Heatmap settings management ── */
     const applyHeatmapViewSettings = useCallback((view: HeatmapViewSettings): void => {
