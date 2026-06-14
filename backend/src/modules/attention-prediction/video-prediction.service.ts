@@ -292,30 +292,36 @@ export async function predictVideoFrames(
 
     // ─── Phase 3: Hybrid saliency on accumulated map ─────────────────
 
+    console.error('[VideoPrediction] Phase 3: hybrid saliency starting');
     onProgress?.({ type: 'hybrid', totalFrames });
 
     let finalMap: Float32Array;
     const hybridImagePath = representativeFramePath || getMediaPath(frames[0].s3Key);
 
     try {
-        finalMap = await generateHybridSaliency(
-            hybridImagePath,
-            accumulated,
-            mapWidth,
-            mapHeight,
-            profile,
+        finalMap = await withTimeout(
+            generateHybridSaliency(hybridImagePath, accumulated, mapWidth, mapHeight, profile),
+            90_000,
+            'Hybrid saliency',
         );
+        console.error('[VideoPrediction] Phase 3: hybrid saliency done');
     } catch (hybridErr) {
-        console.warn('[VideoPrediction] Hybrid fusion failed, using averaged TranSalNet:', hybridErr);
+        console.error('[VideoPrediction] Hybrid fusion failed, using averaged TranSalNet:', hybridErr);
         finalMap = accumulated;
     }
 
     try {
-        finalMap = await suppressWhitespaceSaliency(finalMap, hybridImagePath, mapWidth, mapHeight);
+        finalMap = await withTimeout(
+            suppressWhitespaceSaliency(finalMap, hybridImagePath, mapWidth, mapHeight),
+            30_000,
+            'Whitespace suppression',
+        );
+        console.error('[VideoPrediction] Phase 3: whitespace suppression done');
     } catch (suppressErr) {
-        console.warn('[VideoPrediction] Whitespace suppression skipped:', suppressErr);
+        console.error('[VideoPrediction] Whitespace suppression skipped:', suppressErr);
     }
 
+    console.error('[VideoPrediction] Phase 4: computing final outputs');
     // ─── Phase 4: Compute final outputs ──────────────────────────────
 
     const autoPresets = computeAutoPresets(finalMap);
