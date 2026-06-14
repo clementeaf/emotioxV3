@@ -14,7 +14,7 @@ import {
     extractHeatmapPoints,
     suppressWhitespaceSaliency,
 } from './attention-prediction.service';
-import { generateHybridSaliency, type AnalysisProfile } from './ai-analysis.service';
+import { type AnalysisProfile } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
 import type { VideoJobEvent } from './video-prediction-jobs';
 
@@ -292,23 +292,14 @@ export async function predictVideoFrames(
 
     // ─── Phase 3: Hybrid saliency on accumulated map ─────────────────
 
-    console.error('[VideoPrediction] Phase 3: hybrid saliency starting');
+    // Skip hybrid saliency for video — Gemini API calls per 5MB frame are too slow
+    // and unreliable (JSON parse failures, rate limits). Temporal averaging across
+    // frames already provides robust saliency without LLM fusion.
+    console.error('[VideoPrediction] Phase 3: skipping hybrid saliency (video mode)');
     onProgress?.({ type: 'hybrid', totalFrames });
 
-    let finalMap: Float32Array;
+    let finalMap: Float32Array = accumulated;
     const hybridImagePath = representativeFramePath || getMediaPath(frames[0].s3Key);
-
-    try {
-        finalMap = await withTimeout(
-            generateHybridSaliency(hybridImagePath, accumulated, mapWidth, mapHeight, profile),
-            90_000,
-            'Hybrid saliency',
-        );
-        console.error('[VideoPrediction] Phase 3: hybrid saliency done');
-    } catch (hybridErr) {
-        console.error('[VideoPrediction] Hybrid fusion failed, using averaged TranSalNet:', hybridErr);
-        finalMap = accumulated;
-    }
 
     try {
         finalMap = await withTimeout(
