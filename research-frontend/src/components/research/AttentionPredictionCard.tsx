@@ -1209,14 +1209,16 @@ export const AttentionPredictionCard = ({
                         />
                     )}
 
-                    {/* Video AOI timeline */}
-                    {isVideo && aoiList.length > 0 && (activeTab === 'aoi-editor' || activeTab === 'heatmap') && videoDuration > 0 && (
-                        <AoiTimelineBar
-                            aois={aoiList}
-                            videoDuration={videoDuration}
-                            onChange={handleAoiTimeRangeChange}
-                            frameTimestamps={videoFrames.map(f => f.timestamp)}
-                        />
+                    {/* Video AOI timeline — only for manual AOIs, not grid presets */}
+                    {isVideo && aoiList.some(a => a.source !== 'imported-grid') && (activeTab === 'aoi-editor' || activeTab === 'heatmap') && videoDuration > 0 && (
+                        <div className="shrink-0 max-h-40 overflow-y-auto border-t border-gray-100">
+                            <AoiTimelineBar
+                                aois={aoiList.filter(a => a.source !== 'imported-grid')}
+                                videoDuration={videoDuration}
+                                onChange={handleAoiTimeRangeChange}
+                                frameTimestamps={videoFrames.map(f => f.timestamp)}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
