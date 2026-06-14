@@ -440,26 +440,42 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                     return;
                 }
 
-                // Connection lost (proxy timeout, network issue) — not necessarily a failure.
-                // The backend may still be processing. Poll the research to check.
+                // Connection lost (LiteSpeed proxy timeout) — backend likely still processing.
+                // Poll research data until processedAt appears or max retries exhausted.
                 sse.close();
                 videoSSERef.current = null;
                 setVideoProgress(prev => prev && prev.phase !== 'error' && prev.phase !== 'complete'
-                    ? { ...prev, message: 'Conexión perdida, verificando resultado...' }
+                    ? { ...prev, message: 'Procesando en segundo plano...' }
                     : prev);
 
-                // Wait briefly then check if prediction completed
-                setTimeout(() => {
-                    queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
-                    // After refetch, the UI will show results if backend finished,
-                    // or the user can retry if it truly failed.
-                    setVideoProgress(prev => {
-                        if (prev && prev.phase !== 'complete' && prev.phase !== 'error') {
-                            return { phase: 'error', current: 0, total: 0, message: 'Conexión SSE perdida. Recarga la página para ver si el procesamiento terminó.' };
+                let pollCount = 0;
+                const maxPolls = 18; // 18 × 10s = 3 min max wait
+                const pollInterval = setInterval(async () => {
+                    pollCount++;
+                    try {
+                        await queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
+                        const fresh = queryClient.getQueryData<{ settings?: { stimuli?: Array<{ mediaId: string; processedAt?: string; predictionError?: string }> } }>(researchKeys.detail(research.id));
+                        const stim = fresh?.settings?.stimuli?.find(s => s.mediaId === videoStimulus.mediaId);
+                        if (stim?.processedAt) {
+                            clearInterval(pollInterval);
+                            setVideoProgress({ phase: 'complete', current: 0, total: 0, message: 'Procesamiento completado' });
+                            setTimeout(() => setVideoProgress(null), 3000);
+                            return;
                         }
-                        return prev;
-                    });
-                }, 5000);
+                        if (stim?.predictionError) {
+                            clearInterval(pollInterval);
+                            setVideoProgress({ phase: 'error', current: 0, total: 0, message: stim.predictionError });
+                            return;
+                        }
+                    } catch { /* network error, keep polling */ }
+                    setVideoProgress(prev => prev && prev.phase !== 'complete' && prev.phase !== 'error'
+                        ? { ...prev, message: `Procesando en segundo plano... (${pollCount * 10}s)` }
+                        : prev);
+                    if (pollCount >= maxPolls) {
+                        clearInterval(pollInterval);
+                        setVideoProgress({ phase: 'error', current: 0, total: 0, message: 'Tiempo de espera agotado. Recarga la página.' });
+                    }
+                }, 10_000);
             });
         } catch (err) {
             setVideoProgress({
