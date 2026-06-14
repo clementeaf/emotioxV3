@@ -226,7 +226,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
 
     useEffect(() => {
         setLiveAois(activeStimulus?.aois ?? []);
-        // Reset live AOIs only when switching stimulus; card keeps parent in sync via onAoiListChange
+        setVideoProgress(null);
+        videoSSERef.current?.close();
+        videoSSERef.current = null;
+        // Reset live AOIs + video state only when switching stimulus
         // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid overwriting in-memory edits on research refetch
     }, [activeStimulus?.mediaId]);
 
