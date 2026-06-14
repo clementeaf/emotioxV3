@@ -93,7 +93,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 function buildExtractOptions(
     threshold: number,
     maxPoints: number,
+    forAccumulated = false,
 ): { minAbsolute: number; maxPoints: number; gridCols: number; minRelative: number } {
+    // Accumulated video maps are smoother (averaged across frames) — use relaxed thresholds
+    if (forAccumulated) {
+        return {
+            minAbsolute: Math.max(0.15, threshold * 0.5),
+            maxPoints,
+            gridCols: 48,
+            minRelative: 0.25,
+        };
+    }
     return {
         minAbsolute: Math.max(0.4, threshold),
         maxPoints,
@@ -292,25 +302,13 @@ export async function predictVideoFrames(
 
     // ─── Phase 3: Hybrid saliency on accumulated map ─────────────────
 
-    // Skip hybrid saliency for video — Gemini API calls per 5MB frame are too slow
-    // and unreliable (JSON parse failures, rate limits). Temporal averaging across
-    // frames already provides robust saliency without LLM fusion.
-    console.error('[VideoPrediction] Phase 3: skipping hybrid saliency (video mode)');
+    // Skip hybrid saliency + whitespace suppression for video.
+    // Temporal averaging across frames already provides robust saliency.
+    // Whitespace suppression is designed for isolated products, not video scenes.
+    console.error('[VideoPrediction] Phase 3: skipping hybrid saliency + whitespace (video mode)');
     onProgress?.({ type: 'hybrid', totalFrames });
 
-    let finalMap: Float32Array = accumulated;
-    const hybridImagePath = representativeFramePath || getMediaPath(frames[0].s3Key);
-
-    try {
-        finalMap = await withTimeout(
-            suppressWhitespaceSaliency(finalMap, hybridImagePath, mapWidth, mapHeight),
-            30_000,
-            'Whitespace suppression',
-        );
-        console.error('[VideoPrediction] Phase 3: whitespace suppression done');
-    } catch (suppressErr) {
-        console.error('[VideoPrediction] Whitespace suppression skipped:', suppressErr);
-    }
+    const finalMap: Float32Array = accumulated;
 
     console.error('[VideoPrediction] Phase 4: computing final outputs');
     // ─── Phase 4: Compute final outputs ──────────────────────────────
@@ -321,8 +319,9 @@ export async function predictVideoFrames(
         finalMap,
         mapWidth,
         mapHeight,
-        buildExtractOptions(threshold, 72),
+        buildExtractOptions(threshold, 300, true),
     );
+    console.error(`[VideoPrediction] Extracted ${accumulatedHeatmapData.length} heatmap points`);
 
     // Build temporal grid result
     const temporalGrid: TemporalGridCell[] = [];
