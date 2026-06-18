@@ -1,3 +1,19 @@
+## v0.84.0 — Video Attention Prediction: thermal heatmap overlay with IDW interpolation (2026-06-18)
+
+### research-frontend
+- **Thermal heatmap overlay.** Video heatmap tab now renders a FLIR-style thermal overlay using IDW (Inverse Distance Weighting) per-pixel interpolation + colormap LUT. Replaces simpleheat point-based approach. Full canvas coverage with navy→blue→green→yellow→red gradient.
+- **Real-time video playback.** Thermal overlay + grid composite cached once, then composited over each video frame via `requestAnimationFrame` loop. Play, pause, and seek update the overlay in real time.
+- **Grid overlay.** Configurable grid (2×2 to 10×10) with white lines and green percentage labels per cell. Grid and thermal caches are precomputed for zero-cost per-frame rendering.
+- **Adjustable reveal divider.** Draggable handle controls how much of the heatmap overlay is visible via `clipPath`. Default: full coverage.
+- **Video content alignment.** Canvas positioned over the actual video content area (excluding letterbox bars) using aspect-ratio-aware bounding calculation.
+- **CardHeader cleanup.** Removed file title from card header; title already visible in sidebar.
+- **`VideoFrameScrubber` refactor.** Extracted `computeGridPercentages`, `paintHeatmapGradients`, `renderFrameWithHeatmap`, `renderGridComposite` as pure exported functions. Frame-based playback via resolved media URLs.
+
+### tests
+- **`renderGridComposite.test.ts`.** 11 tests: grid lines count/positions, label content, layer ordering, grid sizes 2×2 to 10×10, `computeGridPercentages` distribution.
+
+---
+
 ## v0.83.0 — Video Attention Prediction: grid AOIs, timeline ranges, preprocessSharp fix (2026-06-13)
 
 ### backend

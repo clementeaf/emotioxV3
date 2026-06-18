@@ -9,7 +9,7 @@ import { SpotlightRenderer } from '../results/cognitive-task/components/Spotligh
 import { ColdMapRenderer } from '../results/cognitive-task/components/ColdMapRenderer';
 import { loadCachedStimulusImage } from '../../utils/stimulusImageCache';
 import { GazeScanpathPlayer } from './GazeScanpathPlayer';
-import { VideoAccumulatedHeatmapOverlay } from './VideoAccumulatedHeatmapOverlay';
+import { computeGridPercentages } from './VideoFrameScrubber';
 import { researchService } from '../../services/research.service';
 import { GazePathOverlay } from './GazePathOverlay';
 import { AiAoiOverlay } from './AiAoiOverlay';
@@ -47,7 +47,7 @@ import { AoiTimelineBar } from './AoiTimelineBar';
 import { HeatmapSettingsModal, DEFAULT_SETTINGS, type HeatmapPoint, type HeatmapSettings, type HeatmapViewSettings } from './HeatmapSettingsModal';
 import { MapModeControlBar } from './MapModeControlBar';
 import { StimulusFullscreenModal } from './StimulusFullscreenModal';
-import { VideoFrameScrubber, type VideoFrameData } from './VideoFrameScrubber';
+import type { VideoFrameData } from './VideoFrameScrubber';
 import { extractVideoThumbnail } from '../../utils/extractVideoThumbnail';
 
 /* ─── Constants ─── */
@@ -97,105 +97,439 @@ const BASE_TABS: { id: TabId; label: string; icon: string }[] = [
     { id: 'aoi-editor', label: 'AOI Editor', icon: 'aoi' },
 ];
 
-/* ─── Video overlay — replaces deep ternary chain ─── */
+/* ─── Video thermal grid — frame + IDW heatmap + grid + split ─── */
 
-const VideoOverlayContent = ({
-    videoFrames,
-    imageUrl,
+/* ─── Thermal colormap LUT (navy → blue → cyan → green → yellow → red) ─── */
+
+const THERMAL_LUT: Array<[number, number, number]> = (() => {
+    const stops: Array<{ t: number; r: number; g: number; b: number }> = [
+        { t: 0.00, r: 0,   g: 0,   b: 80  },  // #000050 navy
+        { t: 0.10, r: 0,   g: 0,   b: 140 },  // #00008c blue
+        { t: 0.25, r: 0,   g: 40,  b: 200 },  // #0028c8 medium blue
+        { t: 0.40, r: 0,   g: 160, b: 160 },  // #00a0a0 teal
+        { t: 0.50, r: 0,   g: 200, b: 60  },  // #00c83c green
+        { t: 0.62, r: 100, g: 220, b: 0   },  // #64dc00 lime
+        { t: 0.74, r: 220, g: 220, b: 0   },  // #dcdc00 yellow
+        { t: 0.85, r: 255, g: 140, b: 0   },  // #ff8c00 orange
+        { t: 0.95, r: 255, g: 40,  b: 0   },  // #ff2800 red-orange
+        { t: 1.00, r: 255, g: 0,   b: 0   },  // #ff0000 red
+    ];
+    const lut: Array<[number, number, number]> = [];
+    for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        let lo = 0;
+        for (let s = 1; s < stops.length; s++) {
+            if (stops[s].t >= t) { lo = s - 1; break; }
+        }
+        const hi = Math.min(lo + 1, stops.length - 1);
+        const range = stops[hi].t - stops[lo].t;
+        const f = range > 0 ? (t - stops[lo].t) / range : 0;
+        lut.push([
+            Math.round(stops[lo].r + (stops[hi].r - stops[lo].r) * f),
+            Math.round(stops[lo].g + (stops[hi].g - stops[lo].g) * f),
+            Math.round(stops[lo].b + (stops[hi].b - stops[lo].b) * f),
+        ]);
+    }
+    return lut;
+})();
+
+/* ─── IDW interpolation → thermal ImageData ─── */
+
+const renderThermalImageData = (
+    sparse: HeatmapPoint[],
+    canvasW: number,
+    canvasH: number,
+    alpha: number,
+): ImageData => {
+    const DS = 8; // downsample factor (8x for speed)
+    const dw = Math.ceil(canvasW / DS);
+    const dh = Math.ceil(canvasH / DS);
+
+    // Pre-compute absolute positions
+    const pts = sparse.map(p => ({
+        x: (p.x / 100) * canvasW,
+        y: (p.y / 100) * canvasH,
+        v: p.value ?? 0.5,
+    }));
+
+    // IDW at downsampled resolution — full canvas coverage
+    const grid = new Float32Array(dw * dh);
+    let maxVal = 0;
+    for (let row = 0; row < dh; row++) {
+        for (let col = 0; col < dw; col++) {
+            const px = (col + 0.5) * DS;
+            const py = (row + 0.5) * DS;
+            let num = 0, den = 0;
+            for (const pt of pts) {
+                const dx = px - pt.x;
+                const dy = py - pt.y;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < 1) { num = pt.v; den = 1; break; }
+                const w = 1 / Math.pow(distSq, 1.25);
+                num += w * pt.v;
+                den += w;
+            }
+            const val = den > 0 ? num / den : 0;
+            grid[row * dw + col] = val;
+            if (val > maxVal) maxVal = val;
+        }
+    }
+
+    // Normalize + gamma for contrast
+    const scale = maxVal > 0 ? 1 / maxVal : 1;
+    const GAMMA = 2.0;
+
+    // Multi-pass box blur on downsampled grid — eliminates grid artifacts
+    const boxBlur = (src: Float32Array, dst: Float32Array, w2: number, h2: number) => {
+        for (let row = 0; row < h2; row++) {
+            for (let col = 0; col < w2; col++) {
+                let sum = 0, count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = row + dr;
+                        const nc = col + dc;
+                        if (nr >= 0 && nr < h2 && nc >= 0 && nc < w2) {
+                            sum += src[nr * w2 + nc];
+                            count++;
+                        }
+                    }
+                }
+                dst[row * w2 + col] = sum / count;
+            }
+        }
+    };
+    const tmp = new Float32Array(dw * dh);
+    const blurred = new Float32Array(dw * dh);
+    boxBlur(grid, tmp, dw, dh);
+    boxBlur(tmp, blurred, dw, dh);
+    boxBlur(blurred, tmp, dw, dh);
+    boxBlur(tmp, blurred, dw, dh);
+    boxBlur(blurred, tmp, dw, dh);
+    boxBlur(tmp, blurred, dw, dh);
+
+    // Bilinear upsample + colormap → ImageData
+    const imgData = new ImageData(canvasW, canvasH);
+    const d = imgData.data;
+    const a = Math.round(alpha * 255);
+
+    for (let y = 0; y < canvasH; y++) {
+        for (let x = 0; x < canvasW; x++) {
+            const gx = Math.min((x / DS) - 0.5, dw - 1.001);
+            const gy = Math.min((y / DS) - 0.5, dh - 1.001);
+            const gx0 = Math.max(0, Math.floor(gx));
+            const gy0 = Math.max(0, Math.floor(gy));
+            const gx1 = Math.min(gx0 + 1, dw - 1);
+            const gy1 = Math.min(gy0 + 1, dh - 1);
+            const fx = gx - gx0;
+            const fy = gy - gy0;
+
+            const v00 = blurred[gy0 * dw + gx0];
+            const v10 = blurred[gy0 * dw + gx1];
+            const v01 = blurred[gy1 * dw + gx0];
+            const v11 = blurred[gy1 * dw + gx1];
+            const raw = (v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) +
+                v01 * (1 - fx) * fy + v11 * fx * fy) * scale;
+            const intensity = Math.pow(raw, GAMMA);
+
+            const idx = Math.min(255, Math.max(0, Math.round(intensity * 255)));
+            const [r, g, b] = THERMAL_LUT[idx];
+            const off = (y * canvasW + x) * 4;
+            d[off] = r;
+            d[off + 1] = g;
+            d[off + 2] = b;
+            d[off + 3] = a;
+        }
+    }
+    return imgData;
+};
+
+const THERMAL_GRID_OPTIONS = [
+    { label: '2×2', cols: 2, rows: 2 },
+    { label: '3×3', cols: 3, rows: 3 },
+    { label: '4×4', cols: 4, rows: 4 },
+    { label: '5×5', cols: 5, rows: 5 },
+    { label: '10×10', cols: 10, rows: 10 },
+];
+
+const VideoThermalGrid = ({
     heatmapData,
-    settings,
-    mapMode,
-    spotlightSettings,
-    coldSettings,
-    videoProgress,
-    onProcessVideo,
-    onDismissVideoProgress,
+    videoUrl,
 }: {
-    videoFrames: VideoFrameData[];
-    imageUrl: string;
     heatmapData: HeatmapPoint[];
-    settings: HeatmapSettings;
-    mapMode: HeatmapMapMode;
-    spotlightSettings: SpotlightSettings;
-    coldSettings: ColdMapSettings;
-    videoProgress?: { phase: string; current: number; total: number; message: string } | null;
-    onProcessVideo?: () => void;
-    onDismissVideoProgress?: () => void;
+    videoUrl: string;
 }) => {
-    if (videoFrames.length > 0) {
-        return (
-            <VideoFrameScrubber
-                videoUrl={imageUrl}
-                frames={videoFrames}
-                settings={settings}
-                mapMode={mapMode}
-                spotlightSettings={spotlightSettings}
-                coldSettings={coldSettings}
-            />
-        );
-    }
+    const [gridSize, setGridSize] = useState(1);
+    const [splitPct, setSplitPct] = useState(100);
+    const [dragging, setDragging] = useState(false);
+    const [videoRect, setVideoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
-    if (heatmapData.length > 0) {
-        return (
-            <VideoAccumulatedHeatmapOverlay
-                videoUrl={imageUrl}
-                heatmapData={heatmapData}
-                settings={settings}
-                mapMode={mapMode}
-                spotlightSettings={spotlightSettings}
-                coldSettings={coldSettings}
-            />
-        );
-    }
+    const containerRef = useRef<HTMLDivElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const gridCanvasRef = useRef<HTMLCanvasElement>(null);
 
-    // No heatmap yet — show progress, error, or process button
-    if (videoProgress && videoProgress.phase !== 'error' && videoProgress.phase !== 'complete') {
-        return (
-            <div className="flex flex-col items-center gap-3 px-6 py-4 bg-black/60 rounded-xl">
-                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <p className="text-white text-sm font-medium">{videoProgress.message}</p>
-                {videoProgress.total > 0 && (
-                    <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-white rounded-full transition-all duration-300"
-                            style={{ width: `${(videoProgress.current / videoProgress.total) * 100}%` }}
-                        />
+    const { cols, rows } = THERMAL_GRID_OPTIONS[gridSize];
+
+    // Divider drag — controls how much heatmap is visible
+    useEffect(() => {
+        if (!dragging) return;
+        const onMove = (e: MouseEvent) => {
+            const video = videoRef.current;
+            if (!video) return;
+            const vRect = video.getBoundingClientRect();
+            setSplitPct(Math.max(5, Math.min(100, ((e.clientX - vRect.left) / vRect.width) * 100)));
+        };
+        const onUp = () => setDragging(false);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    }, [dragging]);
+
+    // Track the actual video CONTENT area (excluding internal letterbox bars)
+    const updateVideoRect = useCallback(() => {
+        const video = videoRef.current;
+        const container = containerRef.current;
+        if (!video || !container || !video.videoWidth) return;
+
+        const cRect = container.getBoundingClientRect();
+        const elemW = video.offsetWidth;
+        const elemH = video.offsetHeight;
+        const nativeAR = video.videoWidth / video.videoHeight;
+        const elemAR = elemW / elemH;
+
+        // Content area within the <video> element (object-fit: contain behavior)
+        let contentW: number, contentH: number, offsetX: number, offsetY: number;
+        if (elemAR > nativeAR) {
+            // Element wider than video → vertical bars on sides
+            contentH = elemH;
+            contentW = elemH * nativeAR;
+            offsetX = (elemW - contentW) / 2;
+            offsetY = 0;
+        } else {
+            // Element taller than video → horizontal bars top/bottom
+            contentW = elemW;
+            contentH = elemW / nativeAR;
+            offsetX = 0;
+            offsetY = (elemH - contentH) / 2;
+        }
+
+        const vRect = video.getBoundingClientRect();
+        setVideoRect({
+            left: (vRect.left - cRect.left) + offsetX,
+            top: (vRect.top - cRect.top) + offsetY,
+            width: contentW,
+            height: contentH,
+        });
+    }, []);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const ro = new ResizeObserver(() => updateVideoRect());
+        ro.observe(video);
+        return () => ro.disconnect();
+    }, [updateVideoRect]);
+
+    // ─── Cache thermal overlay (computed once, reused every frame) ───
+
+    const thermalCacheRef = useRef<HTMLCanvasElement | null>(null);
+    const gridOverlayCacheRef = useRef<HTMLCanvasElement | null>(null);
+    const animRef = useRef<number | null>(null);
+
+    const buildCaches = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth || heatmapData.length === 0) return;
+
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+
+        // Thermal heatmap cache
+        const thermalData = renderThermalImageData(heatmapData, w, h, 0.55);
+        const tc = document.createElement('canvas');
+        tc.width = w;
+        tc.height = h;
+        const tctx = tc.getContext('2d');
+        if (tctx) tctx.putImageData(thermalData, 0, 0);
+        thermalCacheRef.current = tc;
+
+        // Grid lines + labels cache
+        const gc = document.createElement('canvas');
+        gc.width = w;
+        gc.height = h;
+        const gctx = gc.getContext('2d');
+        if (gctx) {
+            const cellW = w / cols;
+            const cellH = h / rows;
+            gctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            gctx.lineWidth = 2;
+            for (let ri = 1; ri < rows; ri++) {
+                gctx.beginPath(); gctx.moveTo(0, ri * cellH); gctx.lineTo(w, ri * cellH); gctx.stroke();
+            }
+            for (let ci = 1; ci < cols; ci++) {
+                gctx.beginPath(); gctx.moveTo(ci * cellW, 0); gctx.lineTo(ci * cellW, h); gctx.stroke();
+            }
+            const pcts = computeGridPercentages(heatmapData, cols, rows);
+            const fontSize = Math.max(14, Math.min(28, Math.min(cellW, cellH) * 0.18));
+            gctx.font = `bold ${fontSize}px monospace`;
+            gctx.textAlign = 'center';
+            gctx.textBaseline = 'bottom';
+            gctx.shadowColor = 'rgba(0,0,0,1)';
+            gctx.shadowBlur = 6;
+            gctx.fillStyle = '#00ff00';
+            for (let ri = 0; ri < rows; ri++) {
+                for (let ci = 0; ci < cols; ci++) {
+                    const idx = ri * cols + ci;
+                    gctx.fillText(
+                        `${String.fromCharCode(65 + ci)}${ri + 1}: ${pcts[idx]}%`,
+                        ci * cellW + cellW / 2,
+                        (ri + 1) * cellH - 8,
+                    );
+                }
+            }
+            gctx.shadowBlur = 0;
+        }
+        gridOverlayCacheRef.current = gc;
+    }, [heatmapData, cols, rows]);
+
+    // ─── Composite: video frame + cached thermal + cached grid (runs every frame) ───
+
+    const compositeFrame = useCallback(() => {
+        const video = videoRef.current;
+        const canvas = gridCanvasRef.current;
+        if (!video || !canvas || !video.videoWidth) return;
+
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.drawImage(video, 0, 0, w, h);
+        if (thermalCacheRef.current) ctx.drawImage(thermalCacheRef.current, 0, 0);
+        if (gridOverlayCacheRef.current) ctx.drawImage(gridOverlayCacheRef.current, 0, 0);
+    }, []);
+
+    // ─── Animation loop: redraws canvas while video plays ───
+
+    const startLoop = useCallback(() => {
+        const loop = () => {
+            compositeFrame();
+            animRef.current = requestAnimationFrame(loop);
+        };
+        animRef.current = requestAnimationFrame(loop);
+    }, [compositeFrame]);
+
+    const stopLoop = useCallback(() => {
+        if (animRef.current) cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+    }, []);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        const onPlay = () => startLoop();
+        const onPause = () => { stopLoop(); compositeFrame(); };
+        const onSeeked = () => compositeFrame();
+        video.addEventListener('play', onPlay);
+        video.addEventListener('pause', onPause);
+        video.addEventListener('seeked', onSeeked);
+        video.addEventListener('ended', onPause);
+        return () => {
+            stopLoop();
+            video.removeEventListener('play', onPlay);
+            video.removeEventListener('pause', onPause);
+            video.removeEventListener('seeked', onSeeked);
+            video.removeEventListener('ended', onPause);
+        };
+    }, [startLoop, stopLoop, compositeFrame]);
+
+    // Cleanup on unmount
+    useEffect(() => { return () => stopLoop(); }, [stopLoop]);
+
+    // ─── Init: build caches + draw first frame ───
+
+    const handleVideoLoaded = useCallback(() => {
+        updateVideoRect();
+        buildCaches();
+        compositeFrame();
+    }, [updateVideoRect, buildCaches, compositeFrame]);
+
+    // Rebuild caches when grid size changes
+    useEffect(() => {
+        buildCaches();
+        compositeFrame();
+    }, [buildCaches, compositeFrame]);
+
+    return (
+        <div ref={containerRef} className="absolute inset-0 flex items-center justify-center bg-black select-none">
+            {/* Video — with native controls for play/pause/seek */}
+            <video
+                ref={videoRef}
+                src={videoUrl}
+                className="max-w-full max-h-full block"
+                controls
+                muted
+                playsInline
+                preload="metadata"
+                onLoadedData={handleVideoLoaded}
+            />
+
+            {/* Grid canvas — right side thermal heatmap */}
+            <canvas
+                ref={gridCanvasRef}
+                className="absolute pointer-events-none"
+                style={videoRect ? {
+                    left: videoRect.left,
+                    top: videoRect.top,
+                    width: videoRect.width,
+                    height: videoRect.height,
+                    clipPath: `inset(0 ${100 - splitPct}% 0 0)`,
+                } : { display: 'none' }}
+            />
+
+            {/* Draggable divider — controls heatmap reveal */}
+            {videoRect && (
+                <div
+                    className="absolute z-10 flex items-center"
+                    style={{
+                        left: videoRect.left + videoRect.width * (splitPct / 100),
+                        top: videoRect.top,
+                        height: videoRect.height,
+                        transform: 'translateX(-50%)',
+                    }}
+                >
+                    <div
+                        className="w-5 h-full cursor-col-resize flex items-center justify-center group"
+                        onMouseDown={(e) => { e.preventDefault(); setDragging(true); }}
+                    >
+                        <div className="w-0.5 h-full bg-white/70 group-hover:bg-white transition-colors" />
+                        <div className="absolute w-6 h-10 rounded-full bg-white/80 border-2 border-gray-400 flex items-center justify-center shadow-lg cursor-col-resize">
+                            <svg className="w-3 h-3 text-gray-500" viewBox="0 0 6 10" fill="currentColor">
+                                <circle cx="1" cy="2" r="0.8" /><circle cx="1" cy="5" r="0.8" /><circle cx="1" cy="8" r="0.8" />
+                                <circle cx="5" cy="2" r="0.8" /><circle cx="5" cy="5" r="0.8" /><circle cx="5" cy="8" r="0.8" />
+                            </svg>
+                        </div>
                     </div>
-                )}
+                </div>
+            )}
+
+            {/* Grid size selector */}
+            <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 bg-black/60 rounded px-2 py-1">
+                {THERMAL_GRID_OPTIONS.map((opt, i) => (
+                    <button
+                        key={opt.label}
+                        onClick={() => setGridSize(i)}
+                        className={cn(
+                            'px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors',
+                            i === gridSize ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white',
+                        )}
+                    >
+                        {opt.label}
+                    </button>
+                ))}
             </div>
-        );
-    }
-
-    if (videoProgress?.phase === 'error') {
-        return (
-            <div className="flex flex-col items-center gap-2 px-6 py-4 bg-red-900/70 rounded-xl">
-                <p className="text-red-200 text-sm font-medium">{videoProgress.message}</p>
-                {onProcessVideo && (
-                    <button onClick={onProcessVideo} className="text-xs text-white underline">Retry</button>
-                )}
-                {onDismissVideoProgress && (
-                    <button onClick={onDismissVideoProgress} className="text-xs text-red-300">Dismiss</button>
-                )}
-            </div>
-        );
-    }
-
-    if (onProcessVideo) {
-        return (
-            <button
-                onClick={onProcessVideo}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Process Video
-            </button>
-        );
-    }
-
-    return null;
+        </div>
+    );
 };
 
 /* ─── Props ─── */
@@ -272,9 +606,9 @@ export const AttentionPredictionCard = ({
     isAnalyzing = false,
     analyzeElapsed = 0,
     headerExtra,
-    onProcessVideo,
+    onProcessVideo: _onProcessVideo,
     videoProgress,
-    onDismissVideoProgress,
+    onDismissVideoProgress: _onDismissVideoProgress,
 }: AttentionPredictionCardProps) => {
     /* ── Tab & layer state ── */
     const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'original');
@@ -1011,20 +1345,10 @@ export const AttentionPredictionCard = ({
                                     style={{ display: (activeTab === 'heatmap' && videoFrames.length > 0) ? 'none' : 'block' }}
                                 />
                                 {activeTab === 'heatmap' && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                        <VideoOverlayContent
-                                            videoFrames={videoFrames}
-                                            imageUrl={imageUrl}
-                                            heatmapData={heatmapData}
-                                            settings={settings}
-                                            mapMode={mapMode}
-                                            spotlightSettings={spotlightSettings}
-                                            coldSettings={coldSettings}
-                                            videoProgress={videoProgress}
-                                            onProcessVideo={onProcessVideo}
-                                            onDismissVideoProgress={onDismissVideoProgress}
-                                        />
-                                    </div>
+                                    <VideoThermalGrid
+                                        heatmapData={heatmapData}
+                                        videoUrl={imageUrl}
+                                    />
                                 )}
                             </div>
                         )}
@@ -1283,7 +1607,7 @@ export const AttentionPredictionCard = ({
    ═══════════════════════════════════════════════════════════════ */
 
 const CardHeader = ({
-    title, onAddMore, onDelete, isDeleting, headerExtra,
+    title: _title, onAddMore, onDelete, isDeleting, headerExtra,
     onRunPrediction, isPredicting, predictElapsed, videoProgressMessage, hasHeatmap,
     predictionGateOpen, onPredictClick, heatmapStale,
     onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,
@@ -1308,10 +1632,9 @@ const CardHeader = ({
     aiAnalysis?: AiAnalysisResult;
     onAnalysisClick: () => void;
 }) => (
-    <div className="p-4 border-b flex items-start justify-between">
-        <div>
-            <h4 className="font-semibold text-base">{title}</h4>
-            <p className="text-sm text-gray-500 mt-0.5">Prediction of visual attention</p>
+    <div className="p-4 border-b flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+            <p className="text-sm text-gray-500">Prediction of visual attention</p>
         </div>
         <div className="flex items-center gap-1">
             {onAddMore && (
