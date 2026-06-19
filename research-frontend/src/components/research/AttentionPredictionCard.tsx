@@ -324,7 +324,7 @@ const VideoThermalGrid = ({
     const [videoRect, setVideoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
     const [activeFrameIdx, setActiveFrameIdx] = useState(0);
 
-    // Accumulated base + per-frame intensity modulation
+    // Per-frame modulated data (for grid percentages only — NOT for thermal IDW)
     const activeHeatmapData = useMemo(
         () => modulateAccumulatedByFrame(heatmapData, videoFrames, activeFrameIdx),
         [heatmapData, videoFrames, activeFrameIdx],
@@ -366,13 +366,11 @@ const VideoThermalGrid = ({
         // Content area within the <video> element (object-fit: contain behavior)
         let contentW: number, contentH: number, offsetX: number, offsetY: number;
         if (elemAR > nativeAR) {
-            // Element wider than video → vertical bars on sides
             contentH = elemH;
             contentW = elemH * nativeAR;
             offsetX = (elemW - contentW) / 2;
             offsetY = 0;
         } else {
-            // Element taller than video → horizontal bars top/bottom
             contentW = elemW;
             contentH = elemW / nativeAR;
             offsetX = 0;
@@ -405,30 +403,100 @@ const VideoThermalGrid = ({
         setActiveFrameIdx(prev => (prev === idx ? prev : idx));
     }, [videoFrames]);
 
-    // ─── Cache thermal overlay (rebuilt per prediction frame) ───
+    // ─── Layer 1: Base thermal (accumulated IDW — built ONCE, expensive) ───
 
+    // ─── Layer 1: Base thermal ImageData (accumulated IDW — built ONCE) ───
+
+    const baseThermalDataRef = useRef<ImageData | null>(null);
     const thermalCacheRef = useRef<HTMLCanvasElement | null>(null);
     const gridOverlayCacheRef = useRef<HTMLCanvasElement | null>(null);
     const animRef = useRef<number | null>(null);
+    const canvasDimsRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
 
-    const buildCaches = useCallback(() => {
+    const buildBaseThermal = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth || heatmapData.length === 0) return;
+
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        baseThermalDataRef.current = renderThermalImageData(heatmapData, w, h, 0.55);
+        canvasDimsRef.current = { w, h };
+
+        // Init canvas dimensions once
+        const canvas = gridCanvasRef.current;
+        if (canvas) { canvas.width = w; canvas.height = h; }
+    }, [heatmapData]);
+
+    // ─── Layer 2: Modulated thermal (per frame — clones base, multiplies alpha by proximity) ───
+
+    const buildModulatedThermal = useCallback(() => {
+        const base = baseThermalDataRef.current;
+        if (!base) return;
+
+        const { w, h } = canvasDimsRef.current;
+        const framePoints = videoFrames[activeFrameIdx]?.heatmapData ?? [];
+
+        // Clone base ImageData
+        const modulated = new ImageData(new Uint8ClampedArray(base.data), base.width, base.height);
+
+        // No frame hotspots → use base as-is (full accumulated)
+        if (framePoints.length > 0) {
+            // Pre-compute hotspot positions in pixel space
+            const hotspots = framePoints.map(fp => ({
+                px: (fp.x / 100) * w,
+                py: (fp.y / 100) * h,
+                v: fp.value ?? 0.5,
+            }));
+            const boostRadius = Math.max(40, Math.min(w, h) * 0.12);
+            const radiusSq = boostRadius * boostRadius;
+            const BASE_ATT = 0.25;
+
+            // Modulate alpha per pixel — iterate at 4x step for speed, interpolate neighbors
+            const d = modulated.data;
+            const STEP = 4;
+            for (let y = 0; y < h; y += STEP) {
+                for (let x = 0; x < w; x += STEP) {
+                    // Find min squared distance to any hotspot
+                    let minDistSq = Infinity;
+                    for (const hs of hotspots) {
+                        const dx = x - hs.px;
+                        const dy = y - hs.py;
+                        const dsq = dx * dx + dy * dy;
+                        if (dsq < minDistSq) minDistSq = dsq;
+                    }
+                    const proximity = Math.max(0, 1 - minDistSq / radiusSq);
+                    const multiplier = BASE_ATT + (1 - BASE_ATT) * proximity;
+
+                    // Apply to STEP×STEP block
+                    const yEnd = Math.min(y + STEP, h);
+                    const xEnd = Math.min(x + STEP, w);
+                    for (let by = y; by < yEnd; by++) {
+                        for (let bx = x; bx < xEnd; bx++) {
+                            const off = (by * w + bx) * 4 + 3; // alpha channel
+                            d[off] = Math.round(d[off] * multiplier);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Put on thermal cache canvas
+        const tc = thermalCacheRef.current ?? document.createElement('canvas');
+        tc.width = w;
+        tc.height = h;
+        tc.getContext('2d')?.putImageData(modulated, 0, 0);
+        thermalCacheRef.current = tc;
+    }, [videoFrames, activeFrameIdx]);
+
+    // ─── Layer 3: Grid lines + labels (per frame — updated percentages) ───
+
+    const buildGridOverlay = useCallback(() => {
         const video = videoRef.current;
         const data = activeHeatmapData;
-        // Guards: need video dimensions and heatmap points
         if (!video || !video.videoWidth || data.length === 0) return;
 
         const w = video.videoWidth;
         const h = video.videoHeight;
-
-        // Thermal heatmap cache
-        const thermalData = renderThermalImageData(data, w, h, 0.55);
-        const tc = document.createElement('canvas');
-        tc.width = w;
-        tc.height = h;
-        tc.getContext('2d')?.putImageData(thermalData, 0, 0);
-        thermalCacheRef.current = tc;
-
-        // Grid lines + labels cache
         const gc = document.createElement('canvas');
         gc.width = w;
         gc.height = h;
@@ -466,17 +534,16 @@ const VideoThermalGrid = ({
         gridOverlayCacheRef.current = gc;
     }, [activeHeatmapData, cols, rows]);
 
-    // ─── Composite: video frame + cached thermal + cached grid (runs every frame) ───
+    // ─── Composite: video + thermal + grid — runs every rAF frame ───
 
     const compositeFrame = useCallback(() => {
         const video = videoRef.current;
         const canvas = gridCanvasRef.current;
         if (!video || !canvas || !video.videoWidth) return;
 
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        canvas.width = w;
-        canvas.height = h;
+        const { w, h } = canvasDimsRef.current;
+        if (!w) return;
+
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
@@ -526,19 +593,24 @@ const VideoThermalGrid = ({
     // Cleanup on unmount
     useEffect(() => { return () => stopLoop(); }, [stopLoop]);
 
-    // ─── Init: build caches + draw first frame ───
+    // ─── Init: build base thermal once on video load ───
 
     const handleVideoLoaded = useCallback(() => {
         updateVideoRect();
-        buildCaches();
+        buildBaseThermal();
+        buildModulatedThermal();
+        buildGridOverlay();
         compositeFrame();
-    }, [updateVideoRect, buildCaches, compositeFrame]);
+    }, [updateVideoRect, buildBaseThermal, buildModulatedThermal, buildGridOverlay, compositeFrame]);
 
-    // Rebuild caches when grid size changes
-    useEffect(() => {
-        buildCaches();
-        compositeFrame();
-    }, [buildCaches, compositeFrame]);
+    // Rebuild base thermal only when accumulated data changes (rare)
+    useEffect(() => { buildBaseThermal(); }, [buildBaseThermal]);
+
+    // Rebuild modulated thermal on frame change (cheap alpha multiply)
+    useEffect(() => { buildModulatedThermal(); compositeFrame(); }, [buildModulatedThermal, compositeFrame]);
+
+    // Rebuild grid overlay on frame change or grid size change (cheap)
+    useEffect(() => { buildGridOverlay(); compositeFrame(); }, [buildGridOverlay, compositeFrame]);
 
     return (
         <div ref={containerRef} className="absolute inset-0 flex items-center justify-center bg-black select-none">
