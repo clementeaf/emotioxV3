@@ -243,6 +243,64 @@ const renderThermalImageData = (
     return imgData;
 };
 
+/* ─── Per-frame heatmap resolution (pure, exported for tests) ─── */
+
+/**
+ * Returns the index of the last frame whose timestamp ≤ currentTime.
+ * Falls back to 0 when no frame qualifies.
+ */
+export const resolveFrameIndex = (
+    frames: { timestamp: number }[],
+    currentTime: number,
+): number => frames.reduce<number>(
+    (best, frame, idx) => (frame.timestamp <= currentTime ? idx : best),
+    0,
+);
+
+/**
+ * Modulates accumulated heatmap intensity using the current frame's hotspots.
+ *
+ * The accumulated map provides stable spatial coverage (~1700 pts).
+ * Per-frame hotspots boost nearby accumulated points and attenuate distant ones,
+ * so the overall shape stays clean but "hot zones" shift over time.
+ *
+ * @param baseAttenuation - minimum multiplier for points far from any frame hotspot (0..1, default 0.25)
+ * @param boostRadius     - distance in % units within which frame hotspots boost accumulated points (default 12)
+ */
+export const modulateAccumulatedByFrame = (
+    accumulated: HeatmapPoint[],
+    frames: VideoFrameData[],
+    centerIdx: number,
+    baseAttenuation = 0.25,
+    boostRadius = 12,
+): HeatmapPoint[] => {
+    const framePoints = frames[centerIdx]?.heatmapData ?? [];
+    // No per-frame data → return accumulated unmodified
+    if (framePoints.length === 0) return accumulated;
+
+    const radiusSq = boostRadius * boostRadius;
+
+    return accumulated.map(ap => {
+        // Find closest frame hotspot (squared distance in % space)
+        const minDistSq = framePoints.reduce(
+            (best, fp) => {
+                const dx = ap.x - fp.x;
+                const dy = ap.y - fp.y;
+                return Math.min(best, dx * dx + dy * dy);
+            },
+            Infinity,
+        );
+        // Gaussian-like falloff: 1.0 at hotspot center → baseAttenuation far away
+        const proximity = Math.max(0, 1 - minDistSq / radiusSq);
+        const multiplier = baseAttenuation + (1 - baseAttenuation) * proximity;
+        return {
+            x: ap.x,
+            y: ap.y,
+            value: (ap.value ?? 0.5) * multiplier,
+        };
+    });
+};
+
 const THERMAL_GRID_OPTIONS = [
     { label: '2×2', cols: 2, rows: 2 },
     { label: '3×3', cols: 3, rows: 3 },
@@ -254,14 +312,23 @@ const THERMAL_GRID_OPTIONS = [
 const VideoThermalGrid = ({
     heatmapData,
     videoUrl,
+    videoFrames,
 }: {
     heatmapData: HeatmapPoint[];
     videoUrl: string;
+    videoFrames: VideoFrameData[];
 }) => {
     const [gridSize, setGridSize] = useState(1);
     const [splitPct, setSplitPct] = useState(100);
     const [dragging, setDragging] = useState(false);
     const [videoRect, setVideoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+    const [activeFrameIdx, setActiveFrameIdx] = useState(0);
+
+    // Accumulated base + per-frame intensity modulation
+    const activeHeatmapData = useMemo(
+        () => modulateAccumulatedByFrame(heatmapData, videoFrames, activeFrameIdx),
+        [heatmapData, videoFrames, activeFrameIdx],
+    );
 
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -329,7 +396,16 @@ const VideoThermalGrid = ({
         return () => ro.disconnect();
     }, [updateVideoRect]);
 
-    // ─── Cache thermal overlay (computed once, reused every frame) ───
+    // ─── Track video time → resolve active prediction frame ───
+
+    const handleTimeUpdate = useCallback(() => {
+        const video = videoRef.current;
+        const time = video?.currentTime ?? 0;
+        const idx = resolveFrameIndex(videoFrames, time);
+        setActiveFrameIdx(prev => (prev === idx ? prev : idx));
+    }, [videoFrames]);
+
+    // ─── Cache thermal overlay (rebuilt per prediction frame) ───
 
     const thermalCacheRef = useRef<HTMLCanvasElement | null>(null);
     const gridOverlayCacheRef = useRef<HTMLCanvasElement | null>(null);
@@ -337,18 +413,19 @@ const VideoThermalGrid = ({
 
     const buildCaches = useCallback(() => {
         const video = videoRef.current;
-        if (!video || !video.videoWidth || heatmapData.length === 0) return;
+        const data = activeHeatmapData;
+        // Guards: need video dimensions and heatmap points
+        if (!video || !video.videoWidth || data.length === 0) return;
 
         const w = video.videoWidth;
         const h = video.videoHeight;
 
         // Thermal heatmap cache
-        const thermalData = renderThermalImageData(heatmapData, w, h, 0.55);
+        const thermalData = renderThermalImageData(data, w, h, 0.55);
         const tc = document.createElement('canvas');
         tc.width = w;
         tc.height = h;
-        const tctx = tc.getContext('2d');
-        if (tctx) tctx.putImageData(thermalData, 0, 0);
+        tc.getContext('2d')?.putImageData(thermalData, 0, 0);
         thermalCacheRef.current = tc;
 
         // Grid lines + labels cache
@@ -356,39 +433,38 @@ const VideoThermalGrid = ({
         gc.width = w;
         gc.height = h;
         const gctx = gc.getContext('2d');
-        if (gctx) {
-            const cellW = w / cols;
-            const cellH = h / rows;
-            gctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            gctx.lineWidth = 2;
-            for (let ri = 1; ri < rows; ri++) {
-                gctx.beginPath(); gctx.moveTo(0, ri * cellH); gctx.lineTo(w, ri * cellH); gctx.stroke();
-            }
-            for (let ci = 1; ci < cols; ci++) {
-                gctx.beginPath(); gctx.moveTo(ci * cellW, 0); gctx.lineTo(ci * cellW, h); gctx.stroke();
-            }
-            const pcts = computeGridPercentages(heatmapData, cols, rows);
-            const fontSize = Math.max(14, Math.min(28, Math.min(cellW, cellH) * 0.18));
-            gctx.font = `bold ${fontSize}px monospace`;
-            gctx.textAlign = 'center';
-            gctx.textBaseline = 'bottom';
-            gctx.shadowColor = 'rgba(0,0,0,1)';
-            gctx.shadowBlur = 6;
-            gctx.fillStyle = '#00ff00';
-            for (let ri = 0; ri < rows; ri++) {
-                for (let ci = 0; ci < cols; ci++) {
-                    const idx = ri * cols + ci;
-                    gctx.fillText(
-                        `${String.fromCharCode(65 + ci)}${ri + 1}: ${pcts[idx]}%`,
-                        ci * cellW + cellW / 2,
-                        (ri + 1) * cellH - 8,
-                    );
-                }
-            }
-            gctx.shadowBlur = 0;
-        }
+        if (!gctx) return;
+
+        const cellW = w / cols;
+        const cellH = h / rows;
+        gctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        gctx.lineWidth = 2;
+        Array.from({ length: rows - 1 }, (_, i) => (i + 1) * cellH).forEach(y => {
+            gctx.beginPath(); gctx.moveTo(0, y); gctx.lineTo(w, y); gctx.stroke();
+        });
+        Array.from({ length: cols - 1 }, (_, i) => (i + 1) * cellW).forEach(x => {
+            gctx.beginPath(); gctx.moveTo(x, 0); gctx.lineTo(x, h); gctx.stroke();
+        });
+        const pcts = computeGridPercentages(data, cols, rows);
+        const fontSize = Math.max(14, Math.min(28, Math.min(cellW, cellH) * 0.18));
+        gctx.font = `bold ${fontSize}px monospace`;
+        gctx.textAlign = 'center';
+        gctx.textBaseline = 'bottom';
+        gctx.shadowColor = 'rgba(0,0,0,1)';
+        gctx.shadowBlur = 6;
+        gctx.fillStyle = '#00ff00';
+        Array.from({ length: rows * cols }, (_, idx) => idx).forEach(idx => {
+            const ri = Math.floor(idx / cols);
+            const ci = idx % cols;
+            gctx.fillText(
+                `${String.fromCharCode(65 + ci)}${ri + 1}: ${pcts[idx]}%`,
+                ci * cellW + cellW / 2,
+                (ri + 1) * cellH - 8,
+            );
+        });
+        gctx.shadowBlur = 0;
         gridOverlayCacheRef.current = gc;
-    }, [heatmapData, cols, rows]);
+    }, [activeHeatmapData, cols, rows]);
 
     // ─── Composite: video frame + cached thermal + cached grid (runs every frame) ───
 
@@ -426,22 +502,26 @@ const VideoThermalGrid = ({
 
     useEffect(() => {
         const video = videoRef.current;
+        // Guard: no video element → nothing to wire
         if (!video) return;
         const onPlay = () => startLoop();
         const onPause = () => { stopLoop(); compositeFrame(); };
-        const onSeeked = () => compositeFrame();
+        const onSeeked = () => { handleTimeUpdate(); compositeFrame(); };
+        const onTimeUpdate = () => handleTimeUpdate();
         video.addEventListener('play', onPlay);
         video.addEventListener('pause', onPause);
         video.addEventListener('seeked', onSeeked);
         video.addEventListener('ended', onPause);
+        video.addEventListener('timeupdate', onTimeUpdate);
         return () => {
             stopLoop();
             video.removeEventListener('play', onPlay);
             video.removeEventListener('pause', onPause);
             video.removeEventListener('seeked', onSeeked);
             video.removeEventListener('ended', onPause);
+            video.removeEventListener('timeupdate', onTimeUpdate);
         };
-    }, [startLoop, stopLoop, compositeFrame]);
+    }, [startLoop, stopLoop, compositeFrame, handleTimeUpdate]);
 
     // Cleanup on unmount
     useEffect(() => { return () => stopLoop(); }, [stopLoop]);
@@ -1348,6 +1428,7 @@ export const AttentionPredictionCard = ({
                                     <VideoThermalGrid
                                         heatmapData={heatmapData}
                                         videoUrl={imageUrl}
+                                        videoFrames={videoFrames}
                                     />
                                 )}
                             </div>

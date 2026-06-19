@@ -1,3 +1,15 @@
+## v0.84.1 — Video Attention Prediction: per-frame temporal modulation (2026-06-19)
+
+### research-frontend
+- **Temporal heatmap modulation.** Video thermal overlay now varies per frame. Accumulated heatmap provides spatial base; per-frame hotspots modulate intensity via proximity-based Gaussian falloff. Zones near active hotspots retain full intensity, distant zones attenuate to 25%.
+- **Frame tracking.** `VideoThermalGrid` tracks `<video>` `timeupdate` events, resolves the active prediction frame via `resolveFrameIndex`, and rebuilds thermal + grid caches only on frame transitions.
+- **Pure helpers.** Exported `resolveFrameIndex` (last frame ≤ currentTime) and `modulateAccumulatedByFrame` (accumulated × proximity multiplier) for testability.
+
+### tests
+- **`resolveFrameIndex.test.ts`.** 22 tests: frame resolution (boundaries, irregular intervals, sequential playback) + accumulated modulation (boost/attenuation, immutability, custom params, multi-hotspot).
+
+---
+
 ## v0.84.0 — Video Attention Prediction: thermal heatmap overlay with IDW interpolation (2026-06-18)
 
 ### research-frontend
