@@ -51,12 +51,12 @@ export const OVERLAY_DIM_FACTORS: Record<HeatmapVisualProfile, number> = {
     smooth: 0.35,
 };
 
-/** Blue→violet heatmap gradient stops per visual profile (simpleheat format) */
+/** Warm heatmap gradient stops per visual profile (simpleheat format) — green→yellow→red */
 export const HEATMAP_GRADIENTS: Record<HeatmapVisualProfile, Record<number, string>> = {
-    lab:      { 0.55: '#5599ff', 0.75: '#7744ee', 0.9: '#aa22dd', 1.0: '#cc00aa' },
-    precise:  { 0.52: '#5599ff', 0.72: '#7744ee', 0.88: '#aa22dd', 1.0: '#aa22dd' },
-    balanced: { 0.58: '#5599ff', 0.76: '#7744ee', 0.9: '#aa22dd', 1.0: '#bb00bb' },
-    smooth:   { 0.15: '#3377cc', 0.35: '#5599ff', 0.5: '#7744ee', 0.7: '#9933dd', 0.85: '#bb11cc', 1.0: '#bb11cc' },
+    lab:      { 0.15: '#00ff00', 0.35: '#88ff00', 0.5: '#ffff00', 0.7: '#ff8800', 0.85: '#ff0000', 1.0: '#ff0000' },
+    precise:  { 0.20: '#00ff00', 0.40: '#88ff00', 0.55: '#ffff00', 0.72: '#ff8800', 0.88: '#ff0000', 1.0: '#ff0000' },
+    balanced: { 0.15: '#00ff00', 0.35: '#88ff00', 0.5: '#ffff00', 0.7: '#ff8800', 0.85: '#ff0000', 1.0: '#ff0000' },
+    smooth:   { 0.10: '#00cc00', 0.30: '#66ff00', 0.45: '#ccff00', 0.6: '#ffcc00', 0.75: '#ff6600', 0.9: '#ff0000', 1.0: '#ff0000' },
 };
 
 export const HeatmapRenderer = ({

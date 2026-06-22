@@ -1,3 +1,10 @@
+## v0.84.2 — Attention Prediction: restore warm heatmap gradient (2026-06-22)
+
+### research-frontend
+- **Warm gradient restored.** `HeatmapRenderer` gradients reverted from blue→purple (introduced in v0.80.0) back to green→yellow→orange→red for all visual profiles (lab, precise, balanced, smooth). Matches the original pre-v0.80.0 Hotjar-style warm overlay.
+
+---
+
 ## v0.84.1 — Video Attention Prediction: per-frame temporal modulation (2026-06-19)
 
 ### research-frontend
