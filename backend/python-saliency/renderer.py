@@ -333,7 +333,10 @@ def render_video(
     final_w, final_h = output_dimensions(orig_w, orig_h, config)
     out_path = output_path or str(Path(video_path).with_suffix(".heatmap.mp4"))
 
-    writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (final_w, final_h))
+    # ponytail: VP8/WebM plays in all browsers. mp4v (MPEG-4 Part 2) doesn't play in Chrome.
+    is_webm = out_path.endswith('.webm')
+    codec = cv2.VideoWriter_fourcc(*("VP80" if is_webm else "mp4v"))
+    writer = cv2.VideoWriter(out_path, codec, fps, (final_w, final_h))
     assert writer.isOpened(), f"Cannot create output: {out_path}"
 
     # pre-build static footer (computed once)

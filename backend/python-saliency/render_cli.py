@@ -29,7 +29,29 @@ torch.set_num_threads(1)
 
 from transformers import AutoImageProcessor, AutoModel
 
+import shutil
+import subprocess as sp
+
 from renderer import RenderConfig, make_dino_extractor, render_video
+
+
+def _reencode_h264(mp4_path: str) -> None:
+    """Re-encode MP4 from MPEG-4 Part 2 to H.264 so browsers can play it."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        ffmpeg = shutil.which("ffmpeg")
+    assert ffmpeg, "ffmpeg not found — install imageio-ffmpeg"
+
+    tmp = mp4_path + ".h264.mp4"
+    sp.run(
+        [ffmpeg, "-y", "-i", mp4_path, "-c:v", "libx264", "-preset", "fast",
+         "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", tmp],
+        check=True, capture_output=True,
+    )
+    os.replace(tmp, mp4_path)
+    sys.stderr.write(f"Re-encoded to H.264: {mp4_path}\n")
 
 
 def _maybe_downscale(video_path: str, max_dim: int) -> str:
@@ -128,6 +150,7 @@ def main() -> None:
 
     elapsed = time.time() - t1
     sys.stderr.write(f"Done: {result.processed_frames} frames in {elapsed:.1f}s\n")
+
     sys.stderr.write(f"Output: {result.output_path}\n")
 
     # Print JSON result to stdout (Node reads this)
