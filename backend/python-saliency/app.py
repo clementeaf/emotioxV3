@@ -201,18 +201,16 @@ async def _stream_prediction(request: PredictVideoRequest, config: InferenceConf
 async def _stream_render(request: RenderVideoRequest):
     """Yield JSON-lines: progress events then render result.
 
-    render_video is CPU-bound (DINO inference), so it runs in a thread
-    to avoid blocking uvicorn's event loop and killing the HTTP socket.
+    render_video is CPU-bound (DINO inference), so it runs in a bare thread
+    (not asyncio.to_thread) to guarantee completion even if the HTTP socket
+    drops — the .meta.json sidecar must be written regardless.
     """
     import asyncio
+    import threading
 
     extractor = get_dino_extractor()
     queue: asyncio.Queue[str | None] = asyncio.Queue()
     loop = asyncio.get_event_loop()
-
-    def on_progress(current: int, total: int) -> None:
-        event = ProgressEvent(frame=current, total=total)
-        loop.call_soon_threadsafe(queue.put_nowait, event.model_dump_json() + "\n")
 
     config = RenderConfig(
         grid_rows=request.grid_rows,
@@ -225,34 +223,46 @@ async def _stream_render(request: RenderVideoRequest):
         sample_interval_s=request.sample_interval_s,
     )
 
-    async def _run_in_thread():
-        result = await asyncio.to_thread(
-            render_video,
-            request.video_path,
-            extractor,
-            config,
-            request.output_path,
-            on_progress,
-        )
-        # Signal completion via queue
-        result_event = RenderVideoResultEvent(
-            output_path=result.output_path,
-            duration_s=result.duration_s,
-            fps=result.fps,
-            total_frames=result.total_frames,
-            processed_frames=result.processed_frames,
-            frames=[
-                RenderFrameData(
-                    timestamp=fr.timestamp,
-                    cells=[RenderGridCell(label=c.label, percentage=c.percentage) for c in fr.cells],
-                )
-                for fr in result.frame_results
-            ],
-        )
-        await queue.put(result_event.model_dump_json() + "\n")
-        await queue.put(None)  # sentinel
+    render_error: BaseException | None = None
 
-    task = asyncio.create_task(_run_in_thread())
+    def _worker() -> None:
+        nonlocal render_error
+        try:
+            def on_progress(current: int, total: int) -> None:
+                event = ProgressEvent(frame=current, total=total)
+                loop.call_soon_threadsafe(queue.put_nowait, event.model_dump_json() + "\n")
+
+            result = render_video(
+                video_path=request.video_path,
+                extractor=extractor,
+                config=config,
+                output_path=request.output_path,
+                on_progress=on_progress,
+            )
+
+            result_event = RenderVideoResultEvent(
+                output_path=result.output_path,
+                duration_s=result.duration_s,
+                fps=result.fps,
+                total_frames=result.total_frames,
+                processed_frames=result.processed_frames,
+                frames=[
+                    RenderFrameData(
+                        timestamp=fr.timestamp,
+                        cells=[RenderGridCell(label=c.label, percentage=c.percentage) for c in fr.cells],
+                    )
+                    for fr in result.frame_results
+                ],
+            )
+            loop.call_soon_threadsafe(queue.put_nowait, result_event.model_dump_json() + "\n")
+        except BaseException as exc:
+            render_error = exc
+            logger.error("Render thread failed: %s", exc)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    thread = threading.Thread(target=_worker, daemon=False)  # daemon=False: survives socket abort
+    thread.start()
 
     while True:
         item = await queue.get()
@@ -260,7 +270,7 @@ async def _stream_render(request: RenderVideoRequest):
             break
         yield item
 
-    await task  # propagate exceptions
+    thread.join(timeout=1)  # thread already done by the time sentinel arrives
     yield result_event.model_dump_json() + "\n"
 
 
