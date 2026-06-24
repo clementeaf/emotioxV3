@@ -11,10 +11,22 @@ Usage: python render_cli.py <video_path> <output_path> [--grid 3x3] [--rotate 1]
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 
+# ponytail: cPanel LVE kills processes that spawn too many threads.
+# Force single-threaded execution before importing torch/cv2.
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OPENCV_THREAD_COUNT"] = "0"
+
 import torch
+torch.set_num_threads(1)
+
 from transformers import AutoImageProcessor, AutoModel
 
 from renderer import RenderConfig, make_dino_extractor, render_video
