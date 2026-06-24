@@ -1533,38 +1533,60 @@ export const AttentionPredictionCard = ({
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         {/* Video layout — original and heatmap tabs */}
                         {isVideo && activeTab !== 'aoi-editor' && (
-                            <div className="relative flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-black">
-                                <video
-                                    src={imageUrl}
-                                    controls={activeTab === 'original'}
-                                    muted
-                                    playsInline
-                                    preload="metadata"
-                                    className="max-w-full max-h-full block"
-                                    style={{ display: (activeTab === 'heatmap' && (heatmapVideoUrl || videoFrames.length > 0)) ? 'none' : 'block' }}
-                                />
-                                {activeTab === 'heatmap' && heatmapVideoUrl && (
+                            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+                                <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-black">
                                     <video
-                                        src={resolveMediaUrl(heatmapVideoUrl)}
-                                        controls
-                                        autoPlay
-                                        loop
+                                        src={imageUrl}
+                                        controls={activeTab === 'original'}
                                         muted
                                         playsInline
-                                        preload="auto"
+                                        preload="metadata"
                                         className="max-w-full max-h-full block"
-                                        data-testid="heatmap-video"
+                                        style={{ display: (activeTab === 'heatmap' && (heatmapVideoUrl || videoFrames.length > 0)) ? 'none' : 'block' }}
                                     />
-                                )}
-                                {activeTab === 'heatmap' && !heatmapVideoUrl && (
-                                    <VideoThermalGrid
-                                        heatmapData={heatmapData}
-                                        videoUrl={imageUrl}
-                                        videoFrames={videoFrames}
-                                        thermalMap={thermalMap}
-                                        thermalMapWidth={thermalMapWidth}
-                                        thermalMapHeight={thermalMapHeight}
-                                    />
+                                    {activeTab === 'heatmap' && heatmapVideoUrl && (
+                                        <video
+                                            src={resolveMediaUrl(heatmapVideoUrl)}
+                                            controls
+                                            autoPlay
+                                            loop
+                                            muted
+                                            playsInline
+                                            preload="auto"
+                                            className="max-w-full max-h-full block"
+                                            data-testid="heatmap-video"
+                                        />
+                                    )}
+                                    {activeTab === 'heatmap' && !heatmapVideoUrl && (
+                                        <VideoThermalGrid
+                                            heatmapData={heatmapData}
+                                            videoUrl={imageUrl}
+                                            videoFrames={videoFrames}
+                                            thermalMap={thermalMap}
+                                            thermalMapWidth={thermalMapWidth}
+                                            thermalMapHeight={thermalMapHeight}
+                                        />
+                                    )}
+                                </div>
+                                {isVideo && heatmapVideoUrl && (
+                                    <div className="flex items-center gap-2 pt-2">
+                                        <a
+                                            href={resolveMediaUrl(imageUrl)}
+                                            download
+                                            className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                                        >
+                                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" /></svg>
+                                            Video original
+                                        </a>
+                                        <a
+                                            href={resolveMediaUrl(heatmapVideoUrl)}
+                                            download
+                                            className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
+                                        >
+                                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" /></svg>
+                                            Video heatmap
+                                        </a>
+                                    </div>
                                 )}
                             </div>
                         )}
