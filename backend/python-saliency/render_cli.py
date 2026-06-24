@@ -158,6 +158,11 @@ def main() -> None:
     elapsed = time.time() - t1
     sys.stderr.write(f"Done: {result.processed_frames} frames in {elapsed:.1f}s\n")
 
+    # ponytail: free DINO (~330MB) before ffmpeg re-encode — cPanel LVE kills otherwise
+    del model, processor, extractor
+    import gc
+    gc.collect()
+
     # Convert WebM → MP4 (H.264) for universal playback
     output_mp4 = _to_h264_mp4(result.output_path)
     overlay_mp4 = _to_h264_mp4(result.overlay_only_path)
