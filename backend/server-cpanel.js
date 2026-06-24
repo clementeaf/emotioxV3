@@ -189,6 +189,59 @@ app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }),
     }
 });
 
+// ─── Upload heatmap video from external renderer (Colab) ─────────
+// POST /api/attention-prediction/upload-heatmap-video
+// Body: multipart/form-data with file + researchId + stimulusMediaId + secret
+app.post('/api/attention-prediction/upload-heatmap-video', upload.single('file'), async (req, res) => {
+    try {
+        const { researchId, stimulusMediaId, secret } = req.body || {};
+        const expectedSecret = process.env.HEATMAP_UPLOAD_SECRET || 'emotiox-heatmap-2026';
+
+        if (secret !== expectedSecret) {
+            return res.status(403).json({ error: 'Invalid secret' });
+        }
+        if (!researchId || !stimulusMediaId || !req.file) {
+            return res.status(400).json({ error: 'researchId, stimulusMediaId, and file are required' });
+        }
+
+        // Save MP4 to media dir
+        const timestamp = Date.now();
+        const relativePath = `research/${researchId}/heatmap_${timestamp}.mp4`;
+        const absolutePath = path.join(MEDIA_BASE_DIR, relativePath);
+        const dir = path.dirname(absolutePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(absolutePath, req.file.buffer);
+
+        // Build public URL
+        const mediaUrl = `${MEDIA_PUBLIC_URL}/${relativePath}`;
+
+        // Update stimulus in research config
+        const pool = require('./dist/config/database').default;
+        const [rows] = await pool.query('SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL', [researchId]);
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Research not found' });
+        }
+
+        let config = {};
+        try { config = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : (rows[0].config || {}); } catch { config = {}; }
+
+        const stimuli = config.stimuli || [];
+        config.stimuli = stimuli.map(s =>
+            s.mediaId === stimulusMediaId
+                ? { ...s, heatmapVideoUrl: mediaUrl, heatmapVideoPath: relativePath, processedAt: new Date().toISOString(), predictionError: undefined, predictionErrorAt: undefined }
+                : s
+        );
+
+        await pool.query('UPDATE researches SET config = ? WHERE id = ?', [JSON.stringify(config), researchId]);
+
+        console.log(`[HeatmapUpload] Saved ${relativePath} (${(req.file.size / 1024 / 1024).toFixed(1)}MB) for stimulus ${stimulusMediaId}`);
+        res.status(200).json({ success: true, heatmapVideoUrl: mediaUrl, path: relativePath });
+    } catch (error) {
+        console.error('[HeatmapUpload] Error:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Upload failed' });
+    }
+});
+
 // Serve media files statically (for Cognitive Tasks images, etc.)
 // This replaces S3 presigned URLs with direct file serving
 const MEDIA_BASE_DIR = process.env.MEDIA_BASE_DIR || path.join(__dirname, 'media');

@@ -171,6 +171,48 @@ app.put('/api/media/upload-direct', express.raw({ type: '*/*', limit: '50mb' }),
     }
 });
 
+// ─── Upload heatmap video from external renderer (Colab) ─────────
+app.post('/api/attention-prediction/upload-heatmap-video', upload.single('file'), async (req: Request, res: Response) => {
+    try {
+        const { researchId, stimulusMediaId, secret } = req.body || {};
+        const expectedSecret = process.env.HEATMAP_UPLOAD_SECRET || 'emotiox-heatmap-2026';
+
+        if (secret !== expectedSecret) { res.status(403).json({ error: 'Invalid secret' }); return; }
+        if (!researchId || !stimulusMediaId || !req.file) { res.status(400).json({ error: 'researchId, stimulusMediaId, and file are required' }); return; }
+
+        const timestamp = Date.now();
+        const relativePath = `research/${researchId}/heatmap_${timestamp}.mp4`;
+        const absolutePath = path.join(MEDIA_BASE_DIR, relativePath);
+        const dir = path.dirname(absolutePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(absolutePath, req.file.buffer);
+
+        const mediaUrl = `${MEDIA_PUBLIC_URL}/${relativePath}`;
+
+        const dbPool = (await import('./config/database')).default;
+        const dbResult = await dbPool.query('SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL', [researchId]);
+        if (dbResult.rows.length === 0) { res.status(404).json({ error: 'Research not found' }); return; }
+
+        let config: Record<string, unknown> = {};
+        try { const raw = dbResult.rows[0].config; config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {}); } catch { config = {}; }
+
+        const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+        config.stimuli = stimuli.map(s =>
+            s.mediaId === stimulusMediaId
+                ? { ...s, heatmapVideoUrl: mediaUrl, heatmapVideoPath: relativePath, processedAt: new Date().toISOString(), predictionError: undefined, predictionErrorAt: undefined }
+                : s
+        );
+
+        await dbPool.query('UPDATE researches SET config = ? WHERE id = ?', [JSON.stringify(config), researchId]);
+        console.log(`[HeatmapUpload] Saved ${relativePath} for stimulus ${stimulusMediaId}`);
+        res.status(200).json({ success: true, heatmapVideoUrl: mediaUrl, path: relativePath });
+    } catch (error) {
+        console.error('[HeatmapUpload] Error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+        res.status(500).json({ error: errorMessage });
+    }
+});
+
 // Serve media files statically
 const MEDIA_BASE_DIR = process.env.MEDIA_BASE_DIR || path.join(__dirname, '../media');
 const MEDIA_PUBLIC_URL = process.env.MEDIA_PUBLIC_URL || '/media';
