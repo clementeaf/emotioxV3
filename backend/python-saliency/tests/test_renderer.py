@@ -282,26 +282,26 @@ class TestOutputDimensions:
 class TestProcessFrame:
     def test_side_by_side_doubles_width(self, bgr_frame, mock_extractor):
         config = RenderConfig()
-        combined, _ = process_frame(bgr_frame, mock_extractor, config, 0.0)
+        combined, _, _, _ = process_frame(bgr_frame, mock_extractor, config, 0.0)
         assert combined.shape[1] == bgr_frame.shape[1] * 2
         assert combined.shape[0] == bgr_frame.shape[0]
 
     def test_metadata_has_nine_cells(self, bgr_frame, mock_extractor):
         config = RenderConfig()
-        _, meta = process_frame(bgr_frame, mock_extractor, config, 1.5)
+        _, _, _, meta = process_frame(bgr_frame, mock_extractor, config, 1.5)
         assert meta.timestamp == 1.5
         assert len(meta.cells) == 9
 
     def test_cells_sum_to_100(self, bgr_frame, mock_extractor):
         config = RenderConfig()
-        _, meta = process_frame(bgr_frame, mock_extractor, config, 0.0)
+        _, _, _, meta = process_frame(bgr_frame, mock_extractor, config, 0.0)
         total = sum(c.percentage for c in meta.cells)
         assert total == pytest.approx(100.0, abs=1.0)
 
     def test_rotation_changes_dimensions(self, mock_extractor):
         frame = np.random.randint(0, 256, (240, 320, 3), dtype=np.uint8)
         config = RenderConfig(rotation=cv2.ROTATE_90_CLOCKWISE)
-        combined, _ = process_frame(frame, mock_extractor, config, 0.0)
+        combined, _, _, _ = process_frame(frame, mock_extractor, config, 0.0)
         # after 90 rotation: 240w x 320h, side-by-side: 480w x 320h
         assert combined.shape == (320, 480, 3)
 
@@ -379,13 +379,113 @@ class TestRenderVideo:
 
     def test_default_output_path(self, tiny_video, mock_extractor):
         result = render_video(tiny_video, mock_extractor, RenderConfig())
-        expected = str(Path(tiny_video).with_suffix(".heatmap.mp4"))
+        expected = str(Path(tiny_video).with_suffix(".heatmap.webm"))
         assert result.output_path == expected
         assert Path(expected).exists()
         # cleanup
         Path(expected).unlink(missing_ok=True)
+        Path(result.overlay_only_path).unlink(missing_ok=True)
 
     def test_duration_matches(self, tiny_video, mock_extractor, tmp_path):
         output = str(tmp_path / "output.mp4")
         result = render_video(tiny_video, mock_extractor, RenderConfig(), output_path=output)
         assert result.duration_s == pytest.approx(1.0)  # 10 frames / 10 fps
+
+    def test_overlay_intermediate_frames_differ(self, tmp_path, mock_extractor):
+        """Overlay-only video: intermediate frames must show current content, not frozen keyframe."""
+        # 6 frames, each a different solid color. sample_interval=10s → only frame 0 is keyframe.
+        vid_path = str(tmp_path / "src.mp4")
+        writer = cv2.VideoWriter(vid_path, cv2.VideoWriter_fourcc(*"mp4v"), 10, (160, 120))
+        for i in range(6):
+            writer.write(np.full((120, 160, 3), i * 50, dtype=np.uint8))
+        writer.release()
+
+        output = str(tmp_path / "out.mp4")
+        config = RenderConfig(sample_interval_s=10.0)  # single keyframe
+        result = render_video(vid_path, mock_extractor, config, output_path=output)
+
+        # Read back overlay-only video frames
+        cap = cv2.VideoCapture(result.overlay_only_path)
+        frames = []
+        while True:
+            ok, f = cap.read()
+            if not ok:
+                break
+            frames.append(f)
+        cap.release()
+
+        assert len(frames) == 6
+        # Each source frame has different brightness → overlay frames must also differ.
+        # If the old bug were present, frames 1-5 would be identical to frame 0.
+        for i in range(1, 6):
+            assert not np.array_equal(frames[0], frames[i]), (
+                f"Frame {i} is identical to frame 0 — overlay is frozen instead of blending current content"
+            )
+
+    def test_sidebyside_right_half_updates(self, tmp_path, mock_extractor):
+        """Side-by-side video: right half (heatmap) must reflect current frame content."""
+        vid_path = str(tmp_path / "src.mp4")
+        writer = cv2.VideoWriter(vid_path, cv2.VideoWriter_fourcc(*"mp4v"), 10, (160, 120))
+        for i in range(4):
+            writer.write(np.full((120, 160, 3), i * 80, dtype=np.uint8))
+        writer.release()
+
+        output = str(tmp_path / "out.mp4")
+        config = RenderConfig(sample_interval_s=10.0)  # single keyframe
+        render_video(vid_path, mock_extractor, config, output_path=output)
+
+        cap = cv2.VideoCapture(output)
+        frames = []
+        while True:
+            ok, f = cap.read()
+            if not ok:
+                break
+            frames.append(f)
+        cap.release()
+
+        # Right half of frame 0 vs frame 3 must differ (different source brightness)
+        w = frames[0].shape[1] // 2
+        right_0 = frames[0][:, w:]
+        right_3 = frames[3][:, w:]
+        assert not np.array_equal(right_0, right_3), (
+            "Right half (heatmap overlay) is frozen — not blending onto current frame"
+        )
+
+    def test_output_preserves_input_resolution(self, tmp_path, mock_extractor):
+        """render_video must not downscale — output matches input dimensions."""
+        vid_path = str(tmp_path / "hd.mp4")
+        writer = cv2.VideoWriter(vid_path, cv2.VideoWriter_fourcc(*"mp4v"), 10, (640, 480))
+        for i in range(3):
+            writer.write(np.full((480, 640, 3), i * 80, dtype=np.uint8))
+        writer.release()
+
+        output = str(tmp_path / "out.mp4")
+        render_video(vid_path, mock_extractor, RenderConfig(), output_path=output)
+
+        cap = cv2.VideoCapture(output)
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        # side-by-side doubles width, height preserved
+        assert w == 1280  # 640 * 2
+        assert h == 480
+
+
+# ---------------------------------------------------------------------------
+# _maybe_downscale (render_cli)
+# ---------------------------------------------------------------------------
+
+class TestMaxdimConfig:
+    def test_default_maxdim_is_1280(self):
+        """render_cli.py must default --maxdim to 1280 (not 640)."""
+        source = Path(__file__).parent.parent.joinpath("render_cli.py").read_text()
+        assert 'default=1280' in source, "render_cli.py --maxdim default must be 1280"
+        assert 'default=640' not in source, "render_cli.py still has old 640 default"
+
+    def test_node_passes_maxdim_1280(self):
+        """video-prediction.service.ts must pass --maxdim 1280 explicitly."""
+        svc = Path(__file__).parents[2] / "src" / "modules" / "attention-prediction" / "video-prediction.service.ts"
+        source = svc.read_text()
+        assert "'--maxdim'" in source and "'1280'" in source, (
+            "video-prediction.service.ts must pass --maxdim 1280 to render_cli.py"
+        )

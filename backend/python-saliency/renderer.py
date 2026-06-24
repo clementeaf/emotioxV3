@@ -270,8 +270,8 @@ def process_frame(
     extractor: AttentionExtractor,
     config: RenderConfig,
     timestamp: float,
-) -> tuple[np.ndarray, np.ndarray, FrameResult]:
-    """Process one frame. Returns (combined side-by-side, overlay-only, metadata)."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, FrameResult]:
+    """Process one frame. Returns (combined side-by-side, overlay-only, raw heatmap BGR, metadata)."""
     rotate_fn = _ROTATORS.get(config.rotation, _IDENTITY)
     frame = rotate_fn(frame_bgr)
     h, w = frame.shape[:2]
@@ -296,7 +296,7 @@ def process_frame(
 
     # side by side
     combined = np.hstack((frame, overlay))
-    return combined, overlay, FrameResult(timestamp=timestamp, cells=cells)
+    return combined, overlay, heatmap, FrameResult(timestamp=timestamp, cells=cells)
 
 
 # ---------------------------------------------------------------------------
@@ -362,8 +362,7 @@ def render_video(
     keyframe_count = max(1, total_frames // sample_gap)
 
     results: list[FrameResult] = []
-    last_combined: np.ndarray | None = None
-    last_overlay_frame: np.ndarray | None = None
+    last_heatmap_bgr: np.ndarray | None = None
     last_meta: FrameResult | None = None
     idx = 0
 
@@ -382,17 +381,17 @@ def render_video(
         overlay_frame: np.ndarray
         meta: FrameResult
 
-        if is_keyframe or last_combined is None:
-            combined, overlay_frame, meta = process_frame(raw_frame, extractor, config, timestamp)
-            last_combined = combined
-            last_overlay_frame = overlay_frame
+        if is_keyframe or last_heatmap_bgr is None:
+            combined, overlay_frame, heatmap_bgr, meta = process_frame(raw_frame, extractor, config, timestamp)
+            last_heatmap_bgr = heatmap_bgr
             last_meta = meta
             notify(min(idx // sample_gap + 1, keyframe_count), keyframe_count)
         else:
-            combined = last_combined.copy()
-            _ensure_left_half(combined, frame, frame.shape[1])
-            overlay_frame = last_overlay_frame if last_overlay_frame is not None else frame
-            meta = FrameResult(timestamp=timestamp, cells=last_meta.cells if last_meta else ())
+            # ponytail: blend cached heatmap onto current frame — smooth playback between keyframes
+            overlay_frame = cv2.addWeighted(frame, 1.0 - config.overlay_alpha, last_heatmap_bgr, config.overlay_alpha, 0)
+            overlay_frame = draw_grid(overlay_frame, last_meta.cells, config.grid_rows, config.grid_cols)
+            combined = np.hstack((frame, overlay_frame))
+            meta = FrameResult(timestamp=timestamp, cells=last_meta.cells)
 
         writer.write(compose(combined))
         overlay_writer.write(_ensure_size(overlay_frame, fw, fh))
@@ -435,15 +434,6 @@ def _write_metadata(path: str, result: RenderResult) -> None:
     }
     Path(path).write_text(json.dumps(data), encoding="utf-8")
 
-
-def _ensure_left_half(combined: np.ndarray, frame: np.ndarray, frame_w: int) -> None:
-    """Replace the left half of a side-by-side frame with the current original. Mutates combined."""
-    ch, cw = combined.shape[:2]
-    fh, fw = frame.shape[:2]
-    # ponytail: resize frame to match left half dimensions only when needed
-    target = combined[:, :frame_w]
-    resized = cv2.resize(frame, (target.shape[1], target.shape[0])) if (fh != ch or fw != frame_w) else frame
-    combined[:, :frame_w] = resized
 
 
 def _make_compositor(
