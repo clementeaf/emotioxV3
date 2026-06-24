@@ -631,10 +631,49 @@ export interface VideoRenderHeatmapResult {
 }
 
 /**
+ * Re-encode a video to H.264 MP4 via ffmpeg. Runs AFTER Python exits
+ * so they don't share memory. Returns the final .mp4 path.
+ */
+async function reencodeToH264(srcPath: string): Promise<string> {
+    const { execFile } = require('child_process') as typeof import('child_process');
+    const { promisify } = require('util') as typeof import('util');
+    const execFileAsync = promisify(execFile);
+
+    const finalPath = srcPath.replace(/\.[^.]+$/, '.mp4');
+    const tmpPath = srcPath + '.h264.mp4';
+
+    // Find ffmpeg — imageio-ffmpeg puts it in the venv
+    const pythonDir = path.resolve(__dirname, '../../../python-saliency');
+    const venvFfmpeg = path.join(pythonDir, 'venv', 'bin', 'ffmpeg');
+    const ffmpeg = fs.existsSync(venvFfmpeg) ? venvFfmpeg : 'ffmpeg';
+
+    try {
+        await execFileAsync(ffmpeg, [
+            '-y', '-i', srcPath,
+            '-c:v', 'libx264', '-preset', 'ultrafast',
+            '-crf', '28', '-pix_fmt', 'yuv420p', '-threads', '1',
+            '-movflags', '+faststart', tmpPath,
+        ]);
+        fs.renameSync(tmpPath, finalPath);
+        // Clean source if different extension
+        if (path.resolve(srcPath) !== path.resolve(finalPath) && fs.existsSync(srcPath)) {
+            fs.unlinkSync(srcPath);
+        }
+        console.error(`[reencodeToH264] ${finalPath} (${Math.round(fs.statSync(finalPath).size / 1024)}KB)`);
+    } catch (err) {
+        console.error(`[reencodeToH264] ffmpeg failed for ${srcPath}:`, err);
+        // Fallback: use the mp4v file as-is (MPEG-4 Part 2 plays in most browsers)
+        if (fs.existsSync(srcPath)) return srcPath;
+        throw err;
+    }
+    return finalPath;
+}
+
+/**
  * Render a video with DINO attention heatmap via Python subprocess.
  *
  * Calls render_cli.py directly — no HTTP, no uvicorn, no socket issues.
- * Python writes MP4 + .meta.json, prints JSON to stdout. Node reads it.
+ * Python writes mp4v, exits. Node re-encodes to H.264 separately.
  */
 export async function renderVideoHeatmap(
     videoS3Key: string,
@@ -726,6 +765,10 @@ export async function renderVideoHeatmap(
         proc.on('error', (err: Error) => reject(new Error(`Failed to spawn render_cli.py: ${err.message}`)));
     });
 
+    // ponytail: H.264 re-encode runs AFTER Python exits — separate memory budget
+    const reencoded = await reencodeToH264(result.outputPath);
+    const overlayReencoded = await reencodeToH264(result.overlayOnlyPath);
+
     const processingTimeMs = Date.now() - startTime;
 
     onProgress?.({
@@ -735,8 +778,7 @@ export async function renderVideoHeatmap(
         processingTimeMs,
     });
 
-    // Derive overlay-only relative path from the absolute path Python returned
-    const overlayOnlyRelative = path.join(path.dirname(outputRelative), path.basename(result.overlayOnlyPath));
+    const overlayOnlyRelative = path.join(path.dirname(outputRelative), path.basename(overlayReencoded));
 
     return {
         heatmapVideoPath: outputRelative,

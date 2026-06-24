@@ -29,36 +29,7 @@ torch.set_num_threads(1)
 
 from transformers import AutoImageProcessor, AutoModel
 
-import shutil
-import subprocess as sp
-
 from renderer import RenderConfig, make_dino_extractor, render_video
-
-
-def _to_h264_mp4(src_path: str) -> str:
-    """Re-encode any video to H.264 MP4 for universal playback. Returns final path."""
-    try:
-        import imageio_ffmpeg
-        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    except ImportError:
-        ffmpeg = shutil.which("ffmpeg")
-    assert ffmpeg, "ffmpeg not found — install imageio-ffmpeg"
-
-    # ponytail: ultrafast + 1 thread + crf 28 = minimal RAM, fits in cPanel limits
-    final_path = os.path.splitext(src_path)[0] + '.mp4'
-    tmp_path = src_path + '.h264.mp4'
-    sp.run(
-        [ffmpeg, "-y", "-i", src_path, "-c:v", "libx264", "-preset", "ultrafast",
-         "-crf", "28", "-pix_fmt", "yuv420p", "-threads", "1",
-         "-movflags", "+faststart", tmp_path],
-        check=True, capture_output=True,
-    )
-    os.replace(tmp_path, final_path)
-    # Clean source if different from final
-    src_is_final = os.path.abspath(src_path) == os.path.abspath(final_path)
-    src_is_final or os.path.exists(src_path) and os.unlink(src_path)
-    sys.stderr.write(f"H.264 MP4: {final_path} ({os.path.getsize(final_path) // 1024}KB)\n")
-    return final_path
 
 
 def _maybe_downscale(video_path: str, max_dim: int) -> str:
@@ -158,23 +129,15 @@ def main() -> None:
     elapsed = time.time() - t1
     sys.stderr.write(f"Done: {result.processed_frames} frames in {elapsed:.1f}s\n")
 
-    # ponytail: free DINO (~330MB) before ffmpeg re-encode — cPanel LVE kills otherwise
-    del model, processor, extractor
-    import gc
-    gc.collect()
-
-    # Convert WebM → MP4 (H.264) for universal playback
-    output_mp4 = _to_h264_mp4(result.output_path)
-    overlay_mp4 = _to_h264_mp4(result.overlay_only_path)
-
-    sys.stderr.write(f"Output: {output_mp4}\n")
+    # ponytail: NO H.264 re-encode here — Python + ffmpeg together exceed cPanel LVE memory.
+    # Node handles re-encode after this process exits and frees all memory.
 
     # Print JSON result to stdout (Node reads this)
     import json
     from dataclasses import asdict
     meta = {
-        "output_path": output_mp4,
-        "overlay_only_path": overlay_mp4,
+        "output_path": result.output_path,
+        "overlay_only_path": result.overlay_only_path,
         "duration_s": result.duration_s,
         "fps": result.fps,
         "total_frames": result.total_frames,
