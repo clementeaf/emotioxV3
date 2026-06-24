@@ -9,7 +9,8 @@ Faithfully reproduces the pipeline from docs/heatmap_con_cuadrantes.py.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, asdict
 from functools import partial
 from pathlib import Path
 from typing import Callable, Protocol
@@ -387,7 +388,7 @@ def render_video(
     cap.release()
     writer.release()
 
-    return RenderResult(
+    result = RenderResult(
         output_path=out_path,
         duration_s=idx / max(fps, 1.0),
         fps=fps,
@@ -395,6 +396,29 @@ def render_video(
         processed_frames=idx,
         frame_results=tuple(results),
     )
+
+    # Write metadata sidecar JSON alongside the MP4
+    # ponytail: Node reads this if the HTTP stream drops — resilient to Passenger recycles
+    meta_path = str(Path(out_path).with_suffix(".meta.json"))
+    _write_metadata(meta_path, result)
+
+    return result
+
+
+def _write_metadata(path: str, result: RenderResult) -> None:
+    """Write render result as JSON sidecar file."""
+    data = {
+        "output_path": result.output_path,
+        "duration_s": result.duration_s,
+        "fps": result.fps,
+        "total_frames": result.total_frames,
+        "processed_frames": result.processed_frames,
+        "frames": [
+            {"timestamp": fr.timestamp, "cells": [asdict(c) for c in fr.cells]}
+            for fr in result.frame_results
+        ],
+    }
+    Path(path).write_text(json.dumps(data), encoding="utf-8")
 
 
 def _ensure_left_half(combined: np.ndarray, frame: np.ndarray, frame_w: int) -> None:

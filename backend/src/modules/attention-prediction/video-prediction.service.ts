@@ -670,18 +670,28 @@ export async function renderVideoHeatmap(
         outputPath: outputAbsolute,
     };
 
-    const result = await renderVideoClient(
-        renderInput,
-        (frame, total) => {
-            onProgress?.({
-                type: 'frame-complete',
-                frameIndex: frame - 1,
-                totalFrames: total,
-                mediaId: '',
-                timestamp: 0,
-            });
-        },
-    );
+    // Try HTTP streaming first; fall back to sidecar JSON if connection drops
+    const metaJsonPath = outputAbsolute.replace(/\.mp4$/, '.meta.json');
+    let result: RenderVideoResult;
+
+    try {
+        result = await renderVideoClient(
+            renderInput,
+            (frame, total) => {
+                onProgress?.({
+                    type: 'frame-complete',
+                    frameIndex: frame - 1,
+                    totalFrames: total,
+                    mediaId: '',
+                    timestamp: 0,
+                });
+            },
+        );
+    } catch (streamErr) {
+        // ponytail: Python writes .meta.json sidecar — read it if HTTP stream died
+        console.error('[renderVideoHeatmap] Stream failed, checking sidecar:', (streamErr as Error).message);
+        result = await pollForSidecar(metaJsonPath, outputAbsolute, 600_000);
+    }
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -702,4 +712,39 @@ export async function renderVideoHeatmap(
         processedFrames: result.processedFrames,
         processingTimeMs,
     };
+}
+
+/**
+ * Poll for the .meta.json sidecar file that Python writes alongside the MP4.
+ * Retries every 5s until the file appears or timeout.
+ */
+async function pollForSidecar(
+    metaPath: string,
+    mp4Path: string,
+    timeoutMs: number,
+): Promise<RenderVideoResult> {
+    const deadline = Date.now() + timeoutMs;
+    const POLL_INTERVAL = 5_000;
+
+    while (Date.now() < deadline) {
+        const metaExists = fs.existsSync(metaPath);
+        const mp4Exists = fs.existsSync(mp4Path);
+
+        if (metaExists && mp4Exists) {
+            const raw = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+            return {
+                outputPath: raw.output_path,
+                durationS: raw.duration_s,
+                fps: raw.fps,
+                totalFrames: raw.total_frames,
+                processedFrames: raw.processed_frames,
+                frames: raw.frames,
+            };
+        }
+
+        console.error(`[pollForSidecar] Waiting... mp4=${mp4Exists} meta=${metaExists}`);
+        await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    }
+
+    throw new Error('Render sidecar not found within timeout — Python may still be processing');
 }
