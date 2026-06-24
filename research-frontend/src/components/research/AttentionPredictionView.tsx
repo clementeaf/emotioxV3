@@ -9,7 +9,7 @@ import { AttentionPredictionCard } from './AttentionPredictionCard';
 import { Save, Trash2 } from 'lucide-react';
 import { AiAnalysisPanel } from './AiAnalysisPanel';
 import { mediaService, resolveMediaUrl } from '../../services/media.service';
-import { extractVideoFrames } from '../../utils/extractVideoFrames';
+// ponytail: extractVideoFrames no longer needed — dino backend reads video directly
 import type { AiAnalysisResult } from '../../types/aiAnalysis.types';
 import type { ManualAOI } from '../../types/attentionPrediction.types';
 import {
@@ -336,36 +336,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         );
         await persistStimuli(updated);
     }, [stimuli, persistStimuli]);
-    const processVideoStimulus = useCallback(async (videoStimulus: StimulusItem, videoUrl: string) => {
+    const processVideoStimulus = useCallback(async (videoStimulus: StimulusItem, _videoUrl: string) => {
         try {
-            // Phase 1: Extract frames at 1fps (client-side Canvas API)
-            setVideoProgress({ phase: 'extracting', current: 0, total: 0, message: 'Extracting video frames...' });
-            const extracted = await extractVideoFrames(
-                videoUrl,
-                2,   // 1 frame every 2s
-                60,  // max 60 frames (2 min)
-                (progress) => setVideoProgress(prev => prev ? { ...prev, current: Math.round(progress * 100), total: 100 } : null),
-            );
+            setVideoProgress({ phase: 'predicting', current: 0, total: 0, message: 'Starting video prediction...' });
 
-            if (extracted.length === 0) {
-                setVideoProgress({ phase: 'error', current: 0, total: 0, message: 'No frames extracted from video' });
-                return;
-            }
-
-            // Phase 2: Upload each frame as individual media
-            setVideoProgress({ phase: 'uploading', current: 0, total: extracted.length, message: `Uploading frames (0/${extracted.length})...` });
-            const uploadedFrames: Array<{ mediaId: string; timestamp: number }> = [];
-
-            for (let i = 0; i < extracted.length; i++) {
-                const frame = extracted[i];
-                const file = new File([frame.blob], `frame-${i}-${frame.timestamp.toFixed(1)}s.png`, { type: 'image/png' });
-                const { mediaId } = await mediaService.uploadFile(research.id, file);
-                uploadedFrames.push({ mediaId, timestamp: frame.timestamp });
-                setVideoProgress({ phase: 'uploading', current: i + 1, total: extracted.length, message: `Uploading frames (${i + 1}/${extracted.length})...` });
-            }
-
-            // Phase 3: Start backend video prediction
-            setVideoProgress({ phase: 'predicting', current: 0, total: extracted.length, message: 'Starting prediction...' });
             // Detect grid config from AOI sources
             const gridAois = (videoStimulus.aois || []).filter(a => a.source === 'imported-grid');
             const gridConfig = gridAois.length > 0
@@ -384,7 +358,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             const { jobId } = await mediaService.startVideoPrediction(
                 research.id,
                 videoStimulus.mediaId,
-                uploadedFrames,
+                [],  // ponytail: dino backend reads video directly, no client-side frames needed
                 {
                     aois: videoStimulus.aois,
                     gridConfig,

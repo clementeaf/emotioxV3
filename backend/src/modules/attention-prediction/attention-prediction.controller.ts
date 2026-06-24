@@ -664,40 +664,48 @@ export const handleAttentionPredictionRoutes = async (
                 ? rawTimeRanges.filter(r => r.aoiId && typeof r.startTime === 'number' && typeof r.endTime === 'number' && r.startTime < r.endTime)
                 : undefined;
 
-            if (!videoMediaId || !Array.isArray(inputFrames) || inputFrames.length === 0) {
-                return error('videoMediaId and frames[] are required', 400, undefined, origin);
+            const backend = process.env.VIDEO_SALIENCY_BACKEND ?? 'transalnet';
+            const needsFrames = backend !== 'dino';
+
+            if (!videoMediaId) {
+                return error('videoMediaId is required', 400, undefined, origin);
             }
-            if (inputFrames.length > 120) {
+            if (needsFrames && (!Array.isArray(inputFrames) || inputFrames.length === 0)) {
+                return error('frames[] required for this backend', 400, undefined, origin);
+            }
+            if (Array.isArray(inputFrames) && inputFrames.length > 120) {
                 return error(`Too many frames: ${inputFrames.length} (max 120)`, 400, undefined, origin);
             }
 
-            // Lookup s3_keys for all frame mediaIds
-            const mediaIds = inputFrames.map(f => f.mediaId);
-            const placeholders = mediaIds.map(() => '?').join(',');
-            const mediaResult = await pool.query(
-                `SELECT id, s3_key FROM media WHERE id IN (${placeholders}) AND research_id = ?`,
-                [...mediaIds, researchId]
-            );
+            // Lookup s3_keys for frame mediaIds (skip for dino — reads video directly)
+            let framesWithKeys: Array<{ mediaId: string; timestamp: number; s3Key: string }> = [];
+            if (needsFrames) {
+                const mediaIds = inputFrames!.map(f => f.mediaId);
+                const placeholders = mediaIds.map(() => '?').join(',');
+                const mediaResult = await pool.query(
+                    `SELECT id, s3_key FROM media WHERE id IN (${placeholders}) AND research_id = ?`,
+                    [...mediaIds, researchId]
+                );
 
-            const s3KeyMap = new Map<string, string>();
-            for (const row of mediaResult.rows) {
-                s3KeyMap.set(row.id as string, row.s3_key as string);
+                const s3KeyMap = new Map<string, string>();
+                for (const row of mediaResult.rows) {
+                    s3KeyMap.set(row.id as string, row.s3_key as string);
+                }
+
+                const missingIds = mediaIds.filter(id => !s3KeyMap.has(id));
+                if (missingIds.length > 0) {
+                    return error(`Media not found for frame(s): ${missingIds.slice(0, 5).join(', ')}`, 404, undefined, origin);
+                }
+
+                framesWithKeys = inputFrames!.map(f => ({
+                    mediaId: f.mediaId,
+                    timestamp: f.timestamp,
+                    s3Key: s3KeyMap.get(f.mediaId)!,
+                }));
             }
-
-            // Validate all frames have media entries
-            const missingIds = mediaIds.filter(id => !s3KeyMap.has(id));
-            if (missingIds.length > 0) {
-                return error(`Media not found for frame(s): ${missingIds.slice(0, 5).join(', ')}`, 404, undefined, origin);
-            }
-
-            const framesWithKeys = inputFrames.map(f => ({
-                mediaId: f.mediaId,
-                timestamp: f.timestamp,
-                s3Key: s3KeyMap.get(f.mediaId)!,
-            }));
 
             const jobId = crypto.randomUUID();
-            registerJob(jobId, researchId, inputFrames.length);
+            registerJob(jobId, researchId, framesWithKeys.length);
 
             // Fire-and-forget: run prediction in background
             (async () => {
@@ -748,7 +756,7 @@ export const handleAttentionPredictionRoutes = async (
 
                     broadcastProgress(jobId, {
                         type: 'error',
-                        totalFrames: inputFrames.length,
+                        totalFrames: framesWithKeys.length,
                         error: err instanceof Error ? err.message : 'Video prediction failed',
                     });
                 }
@@ -761,8 +769,8 @@ export const handleAttentionPredictionRoutes = async (
                 {
                     status: 'processing',
                     jobId,
-                    totalFrames: inputFrames.length,
-                    estimatedSeconds: inputFrames.length * 5,
+                    totalFrames: framesWithKeys.length,
+                    estimatedSeconds: Math.max(framesWithKeys.length * 5, 30),
                 },
                 202,
                 undefined,
