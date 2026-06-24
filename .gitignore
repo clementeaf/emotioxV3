@@ -72,4 +72,20 @@ infrastructure/terraform.tfstate.backup
 # Research papers and large binaries
 docs/*.pdf
 backend/models/*.data
+backend/models/*.pth
+backend/models/*.onnx
 backend/tsconfig.tsbuildinfo
+
+# Python saliency service
+backend/python-saliency/venv/
+backend/python-saliency/logs/
+backend/python-saliency/pid.txt
+backend/python-saliency/__pycache__/
+backend/python-saliency/.pytest_cache/
+backend/python-saliency/tests/__pycache__/
+
+# Large video files
+docs/video-ejemplo.mp4
+
+# Serena MCP config
+.serena/

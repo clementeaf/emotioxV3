@@ -46,7 +46,12 @@ run_remote() {
 
 # Función para transferir archivos
 transfer_files() {
-    rsync -avz --exclude 'node_modules' --exclude 'dist' --exclude '.env' "$1" "$SSH_HOST:$2"
+    rsync -avz --exclude 'node_modules' --exclude 'dist' --exclude '.env' \
+        --exclude 'python-saliency/venv' --exclude 'python-saliency/logs' \
+        --exclude 'python-saliency/pid.txt' --exclude 'python-saliency/__pycache__' \
+        --exclude 'python-saliency/.pytest_cache' --exclude 'python-saliency/tests/__pycache__' \
+        --exclude 'models/*.onnx' --exclude 'models/*.pth' \
+        "$1" "$SSH_HOST:$2"
 }
 
 # Paso 1: Crear estructura de directorios

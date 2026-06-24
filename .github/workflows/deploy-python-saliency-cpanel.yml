@@ -1,0 +1,54 @@
+name: Deploy Python Saliency to cPanel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/python-saliency/**'
+      - '!backend/python-saliency/tests/**'
+      - '!backend/python-saliency/venv/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CPANEL_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.CPANEL_SSH_PORT }} ${{ secrets.CPANEL_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync source code
+        run: |
+          rsync -avz \
+            --exclude 'venv/' \
+            --exclude 'logs/' \
+            --exclude 'pid.txt' \
+            --exclude '__pycache__/' \
+            --exclude '.pytest_cache/' \
+            --exclude 'tests/' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.CPANEL_SSH_PORT }}" \
+            backend/python-saliency/ \
+            ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }}:~/emotioxv3/backend/python-saliency/
+
+      - name: Install deps and restart
+        run: |
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.CPANEL_SSH_PORT }} \
+            ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} '
+            cd ~/emotioxv3/backend/python-saliency
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            [ -f pid.txt ] && kill $(cat pid.txt) 2>/dev/null || true
+            sleep 1
+            bash start.sh
+          '
+
+      - name: Health check
+        run: |
+          sleep 3
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.CPANEL_SSH_PORT }} \
+            ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} \
+            'curl -sf http://localhost:8001/health'
