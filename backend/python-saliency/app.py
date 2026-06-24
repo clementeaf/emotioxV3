@@ -154,14 +154,66 @@ async def predict_video(request: PredictVideoRequest):
 
 @app.post("/render-video")
 async def render_video_endpoint(request: RenderVideoRequest):
-    """Render video with DINO attention heatmap. Streams JSON-lines progress + result."""
+    """Render video with DINO attention heatmap. Synchronous — blocks until done, returns JSON."""
+    import asyncio
+    import threading
+
     assert _dino_extractor_fn is not None, "DINO model not available"
     assert Path(request.video_path).is_file(), f"Video not found: {request.video_path}"
 
-    return StreamingResponse(
-        _stream_render(request),
-        media_type="text/plain",
+    config = RenderConfig(
+        grid_rows=request.grid_rows,
+        grid_cols=request.grid_cols,
+        overlay_alpha=request.overlay_alpha,
+        rotation=request.rotation,
+        flip_heatmap_v=request.flip_heatmap_v,
+        logo_path=request.logo_path,
+        footer_height=request.footer_height,
+        sample_interval_s=request.sample_interval_s,
     )
+
+    # Run in bare thread to avoid blocking the event loop (keeps HTTP socket alive)
+    result_holder: list = []
+    error_holder: list = []
+    done = threading.Event()
+
+    def _worker() -> None:
+        try:
+            r = render_video(
+                video_path=request.video_path,
+                extractor=get_dino_extractor(),
+                config=config,
+                output_path=request.output_path,
+            )
+            result_holder.append(r)
+        except BaseException as exc:
+            error_holder.append(exc)
+        finally:
+            done.set()
+
+    thread = threading.Thread(target=_worker, daemon=False)
+    thread.start()
+
+    # Poll until done — yields control back to uvicorn so it doesn't kill the socket
+    while not done.is_set():
+        await asyncio.sleep(1)
+
+    thread.join(timeout=1)
+
+    assert not error_holder, f"Render failed: {error_holder[0]}"
+
+    result = result_holder[0]
+    return {
+        "output_path": result.output_path,
+        "duration_s": result.duration_s,
+        "fps": result.fps,
+        "total_frames": result.total_frames,
+        "processed_frames": result.processed_frames,
+        "frames": [
+            {"timestamp": fr.timestamp, "cells": [{"label": c.label, "percentage": c.percentage} for c in fr.cells]}
+            for fr in result.frame_results
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

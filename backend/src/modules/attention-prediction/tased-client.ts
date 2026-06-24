@@ -259,11 +259,11 @@ const RENDER_LINE_HANDLERS: Record<string, (
  * Call the Python service to render a video with DINO attention heatmap.
  *
  * Produces a side-by-side MP4: original | heatmap+grid, with optional logo footer.
- * Streams JSON-lines progress, resolves with path to output MP4 + metadata.
+ * Returns plain JSON (not streaming) — Python keeps the socket alive with asyncio.sleep.
  */
 export function renderVideo(
     input: RenderVideoInput,
-    onProgress?: TasedProgressCallback,
+    _onProgress?: TasedProgressCallback,
 ): Promise<RenderVideoResult> {
     const payload = JSON.stringify({
         video_path: input.videoPath,
@@ -293,33 +293,24 @@ export function renderVideo(
                 timeout: REQUEST_TIMEOUT_MS,
             },
             (res) => {
-                const resultRef: { value: RenderVideoResult | null } = { value: null };
-                let buffer = '';
-
+                let body = '';
                 res.setEncoding('utf-8');
-
-                res.on('data', (chunk: string) => {
-                    buffer += chunk;
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() ?? '';
-
-                    for (const rawLine of lines) {
-                        const parsed = parseStreamLine(rawLine);
-                        const handler = parsed ? RENDER_LINE_HANDLERS[parsed.type] : undefined;
-                        handler?.(parsed!, onProgress, resultRef);
+                res.on('data', (chunk: string) => { body += chunk; });
+                res.on('end', () => {
+                    try {
+                        const r = JSON.parse(body) as RenderResultLine;
+                        resolve({
+                            outputPath: r.output_path,
+                            durationS: r.duration_s,
+                            fps: r.fps,
+                            totalFrames: r.total_frames,
+                            processedFrames: r.processed_frames,
+                            frames: r.frames.map(f => ({ timestamp: f.timestamp, cells: f.cells })),
+                        });
+                    } catch (e) {
+                        reject(new Error(`Failed to parse render response: ${(e as Error).message}`));
                     }
                 });
-
-                res.on('end', () => {
-                    const lastParsed = parseStreamLine(buffer);
-                    const handler = lastParsed ? RENDER_LINE_HANDLERS[lastParsed.type] : undefined;
-                    handler?.(lastParsed!, onProgress, resultRef);
-
-                    resultRef.value
-                        ? resolve(resultRef.value)
-                        : reject(new Error('Render service returned no result event'));
-                });
-
                 res.on('error', reject);
             },
         );
