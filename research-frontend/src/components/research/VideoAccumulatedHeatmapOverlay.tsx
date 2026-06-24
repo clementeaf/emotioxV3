@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import simpleheat from 'simpleheat';
 import { cn } from '../../lib/utils';
 import {
@@ -10,6 +10,13 @@ import {
 import { renderColdMapComposite } from '../../utils/coldMapRender';
 import { renderSpotlightComposite } from '../../utils/spotlightRender';
 import { computeGridPercentages } from './VideoFrameScrubber';
+import {
+    decodeThermalMap,
+    buildColorLUT,
+    renderSaliencyMapDirect,
+    sigmoidContrast,
+    REBALANCED_THERMAL_STOPS,
+} from '../../utils/thermalContrast';
 
 interface HeatmapPoint {
     x: number;
@@ -31,6 +38,9 @@ interface VideoAccumulatedHeatmapOverlayProps {
     mapMode: HeatmapMapMode;
     spotlightSettings: SpotlightSettings;
     coldSettings: ColdMapSettings;
+    thermalMap?: string;       // base64 Uint8Array dense map
+    thermalMapWidth?: number;
+    thermalMapHeight?: number;
 }
 
 /* ─── Thermal blue gradient for simpleheat ─── */
@@ -61,6 +71,9 @@ const GRID_OPTIONS = [
  * Classic mode: thermal blue heatmap + grid + split divider (like video.png reference).
  * Spotlight/Cold modes: full-frame composite overlays.
  */
+// Precomputed FLIR LUT — stable reference across renders
+const FLIR_LUT = buildColorLUT(REBALANCED_THERMAL_STOPS);
+
 export const VideoAccumulatedHeatmapOverlay = ({
     videoUrl,
     heatmapData,
@@ -68,7 +81,17 @@ export const VideoAccumulatedHeatmapOverlay = ({
     mapMode,
     spotlightSettings,
     coldSettings,
+    thermalMap,
+    thermalMapWidth,
+    thermalMapHeight,
 }: VideoAccumulatedHeatmapOverlayProps) => {
+
+    // Decode dense thermal map once (stable across renders)
+    const decodedThermalMap = useMemo(
+        () => thermalMap ? decodeThermalMap(thermalMap) : null,
+        [thermalMap],
+    );
+    const hasDenseMap = decodedThermalMap !== null && thermalMapWidth && thermalMapHeight;
     const [splitPct, setSplitPct] = useState(50);
     const [gridSize, setGridSize] = useState(1);
     const [dragging, setDragging] = useState(false);
@@ -122,8 +145,34 @@ export const VideoAccumulatedHeatmapOverlay = ({
         // Layer 1: video frame
         ctx.drawImage(video, 0, 0, w, h);
 
-        // Layer 2: thermal heatmap via simpleheat
-        if (heatmapData.length > 0) {
+        // Layer 2: thermal heatmap
+        // Dense map path: direct colormap from full saliency array (FLIR style)
+        // Sparse path (fallback): simpleheat from point array
+        const renderDenseOverlay = hasDenseMap && decodedThermalMap && thermalMapWidth && thermalMapHeight;
+        const renderSparseOverlay = !renderDenseOverlay && heatmapData.length > 0;
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- IIFE rendering blocks
+        renderDenseOverlay && (() => {
+            const imgData = renderSaliencyMapDirect(
+                decodedThermalMap,
+                thermalMapWidth,
+                thermalMapHeight,
+                w,
+                h,
+                FLIR_LUT,
+                sigmoidContrast,
+                0.85,
+            );
+            const offscreen = document.createElement('canvas');
+            offscreen.width = w;
+            offscreen.height = h;
+            const offCtx = offscreen.getContext('2d')!;
+            offCtx.putImageData(imgData, 0, 0);
+            ctx.drawImage(offscreen, 0, 0);
+        })();
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- IIFE rendering blocks
+        renderSparseOverlay && (() => {
             const heatCanvas = document.createElement('canvas');
             heatCanvas.width = w;
             heatCanvas.height = h;
@@ -145,7 +194,7 @@ export const VideoAccumulatedHeatmapOverlay = ({
             ctx.globalAlpha = 0.85;
             ctx.drawImage(heatCanvas, 0, 0);
             ctx.globalAlpha = 1;
-        }
+        })();
 
         // Layer 3: grid lines
         const cellW = w / cols;

@@ -15,8 +15,11 @@ import {
     suppressWhitespaceSaliency,
 } from './attention-prediction.service';
 import { type AnalysisProfile } from './ai-analysis.service';
-import { getMediaPath } from '../../config/local-storage';
+import { getMediaPath, getMediaUrl } from '../../config/local-storage';
 import type { VideoJobEvent } from './video-prediction-jobs';
+import { predictWithTased, renderVideo as renderVideoClient, type TasedResult, type RenderVideoResult, type RenderVideoInput } from './tased-client';
+import path from 'node:path';
+import fs from 'node:fs';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -46,6 +49,9 @@ export interface VideoPredictionResult {
     frames: VideoFrameResult[];
     temporalGrid: TemporalGridCell[];
     aoiAttention?: Record<string, { totalAttention: number; frameCount: number }>;
+    thermalMap?: string;       // base64-encoded Uint8Array (dense saliency, 0-255)
+    thermalMapWidth?: number;  // pixel width of thermal map
+    thermalMapHeight?: number; // pixel height of thermal map
     totalFrames: number;
     failedFrames: number;
     processingTimeMs: number;
@@ -386,6 +392,9 @@ export async function predictVideoFrames(
         frames: frameResults,
         temporalGrid,
         ...(Object.keys(aoiAttention).length > 0 ? { aoiAttention } : {}),
+        thermalMap: encodeThermalMap(finalMap),
+        thermalMapWidth: mapWidth,
+        thermalMapHeight: mapHeight,
         totalFrames,
         failedFrames,
         processingTimeMs,
@@ -393,6 +402,18 @@ export async function predictVideoFrames(
 }
 
 // ─── Pure helpers (exported for testing) ─────────────────────────────
+
+/**
+ * Encode a Float32Array saliency map to a base64 Uint8Array.
+ * Maps float [0, 1] → uint8 [0, 255]. Full coverage, no sampling.
+ */
+export function encodeThermalMap(map: Float32Array): string {
+    const uint8 = new Uint8Array(map.length);
+    for (let i = 0; i < map.length; i++) {
+        uint8[i] = Math.min(255, Math.max(0, Math.round(map[i] * 255)));
+    }
+    return Buffer.from(uint8.buffer).toString('base64');
+}
 
 /**
  * Generate temporal grid labels for a given grid size.
@@ -429,4 +450,256 @@ export function computeAoiTemporalAttention(
         result[range.aoiId] = { totalAttention: totalAtt, frameCount: count };
     }
     return result;
+}
+
+// ─── TASED-Net video prediction (Python microservice) ───────────────
+
+/**
+ * Video saliency prediction via TASED-Net Python microservice.
+ *
+ * Calls the FastAPI service, receives raw Float32Array saliency maps,
+ * then runs the same post-processing pipeline as TranSalNet to produce
+ * an identical VideoPredictionResult.
+ *
+ * Used exclusively for VIDEO — images remain on TranSalNet ONNX.
+ */
+export async function predictVideoFramesTased(
+    frames: VideoFrameInput[],
+    threshold: number,
+    _profile?: AnalysisProfile,
+    onProgress?: ProgressCallback,
+    gridConfig?: VideoGridConfig,
+    aoiTimeRanges?: AoiTimeRange[],
+): Promise<VideoPredictionResult> {
+    const startTime = Date.now();
+    const totalFrames = frames.length;
+
+    const gridCols = Math.max(2, Math.min(10, gridConfig?.cols ?? DEFAULT_GRID_COLS));
+    const gridRows = Math.max(2, Math.min(10, gridConfig?.rows ?? DEFAULT_GRID_ROWS));
+
+    // Resolve absolute file paths for the Python service
+    const tasedInputs = frames.map(f => ({
+        path: getMediaPath(f.s3Key),
+        timestamp: f.timestamp,
+    }));
+
+    // Call Python microservice with streaming progress
+    const tasedResult: TasedResult = await predictWithTased(
+        tasedInputs,
+        (frame, total) => {
+            onProgress?.({
+                type: 'frame-complete',
+                frameIndex: frame - 1,
+                totalFrames: total,
+                mediaId: frames[Math.min(frame - 1, frames.length - 1)].mediaId,
+                timestamp: frames[Math.min(frame - 1, frames.length - 1)].timestamp,
+            });
+        },
+    );
+
+    onProgress?.({ type: 'accumulating', totalFrames, successfulFrames: totalFrames });
+
+    // ─── Post-process raw saliency maps ─────────────────────────────
+
+    const mapWidth = tasedResult.width;
+    const mapHeight = tasedResult.height;
+
+    // Build per-frame results + temporal grid + accumulated map
+    const frameResults: VideoFrameResult[] = [];
+    const gridAttention: number[][] = Array.from({ length: gridCols * gridRows }, () => []);
+    const accumulated = new Float32Array(mapWidth * mapHeight);
+
+    for (let i = 0; i < tasedResult.maps.length; i++) {
+        const map = tasedResult.maps[i];
+
+        // Accumulate for averaged map
+        for (let j = 0; j < map.length; j++) {
+            accumulated[j] += map[j];
+        }
+
+        // Extract per-frame heatmap points
+        const heatmapData = extractHeatmapPoints(
+            map, mapWidth, mapHeight,
+            buildExtractOptions(threshold, 48),
+        );
+        frameResults.push({
+            mediaId: frames[i].mediaId,
+            timestamp: frames[i].timestamp,
+            heatmapData,
+        });
+
+        // Compute per-cell attention for temporal grid
+        for (let gr = 0; gr < gridRows; gr++) {
+            for (let gc = 0; gc < gridCols; gc++) {
+                const cellIdx = gr * gridCols + gc;
+                gridAttention[cellIdx].push(
+                    computeCellAverage(map, mapWidth, mapHeight, gr, gc, gridCols, gridRows),
+                );
+            }
+        }
+    }
+
+    // Average accumulated map
+    const invCount = 1 / totalFrames;
+    for (let i = 0; i < accumulated.length; i++) {
+        accumulated[i] *= invCount;
+    }
+
+    // ─── Compute final outputs (same as TranSalNet path) ────────────
+
+    onProgress?.({ type: 'hybrid', totalFrames });
+
+    const autoPresets = computeAutoPresets(accumulated);
+    const griddedAOIs = computeGriddedAOIs(accumulated, mapWidth, mapHeight);
+
+    // Dense uniform sampling for accumulated heatmap
+    const DENSE_STEP = 8;
+    const rowStride = mapWidth * DENSE_STEP;
+    const invW = 100 / mapWidth;
+    const invH = 100 / mapHeight;
+    const accumulatedHeatmapData: Array<{ x: number; y: number; value: number }> = [];
+
+    for (let rowStart = 0; rowStart < accumulated.length; rowStart += rowStride) {
+        const row = (rowStart / mapWidth) | 0;
+        const yPct = row * invH;
+        const rowEnd = Math.min(rowStart + mapWidth, accumulated.length);
+        for (let idx = rowStart; idx < rowEnd; idx += DENSE_STEP) {
+            const val = accumulated[idx];
+            // Skip negligible values
+            accumulatedHeatmapData.push(
+                ...(val > 0.05 ? [{ x: (idx - rowStart) * invW, y: yPct, value: val }] : []),
+            );
+        }
+    }
+
+    // Build temporal grid
+    const temporalGrid: TemporalGridCell[] = [];
+    for (let gr = 0; gr < gridRows; gr++) {
+        for (let gc = 0; gc < gridCols; gc++) {
+            const cellIdx = gr * gridCols + gc;
+            const colLabel = String.fromCharCode(65 + gc);
+            temporalGrid.push({
+                label: `${colLabel}${gr + 1}`,
+                row: gr,
+                col: gc,
+                timeSeries: gridAttention[cellIdx],
+            });
+        }
+    }
+
+    // Compute per-AOI temporal attention
+    const aoiAttention = aoiTimeRanges?.length
+        ? computeAoiTemporalAttention(frameResults, aoiTimeRanges)
+        : undefined;
+
+    const processingTimeMs = Date.now() - startTime;
+
+    onProgress?.({ type: 'complete', totalFrames, failedFrames: 0, processingTimeMs });
+
+    return {
+        accumulatedHeatmapData,
+        autoPresets,
+        griddedAOIs,
+        frames: frameResults,
+        temporalGrid,
+        ...(aoiAttention ? { aoiAttention } : {}),
+        thermalMap: encodeThermalMap(accumulated),
+        thermalMapWidth: mapWidth,
+        thermalMapHeight: mapHeight,
+        totalFrames,
+        failedFrames: 0,
+        processingTimeMs,
+    };
+}
+
+// ─── DINO render-video (server-side MP4 generation) ─────────────────
+
+export interface VideoRenderHeatmapResult {
+    /** Relative media path to rendered MP4 (usable with getMediaUrl) */
+    heatmapVideoPath: string;
+    /** Public URL to rendered MP4 */
+    heatmapVideoUrl: string;
+    /** Per-frame grid metadata */
+    gridMetadata: RenderVideoResult['frames'];
+    durationS: number;
+    fps: number;
+    totalFrames: number;
+    processedFrames: number;
+    processingTimeMs: number;
+}
+
+/**
+ * Render a video with DINO attention heatmap via the Python microservice.
+ *
+ * 1. Resolves the source video path from its s3Key
+ * 2. Calls Python /render-video (DINO ViT-B/16, side-by-side, grid, logo)
+ * 3. Copies output MP4 into the media directory
+ * 4. Returns URL + metadata for stimulus persistence
+ */
+export async function renderVideoHeatmap(
+    videoS3Key: string,
+    researchId: string,
+    options: {
+        gridRows?: number;
+        gridCols?: number;
+        rotation?: number;
+        flipHeatmapV?: boolean;
+        logoPath?: string;
+    } = {},
+    onProgress?: ProgressCallback,
+): Promise<VideoRenderHeatmapResult> {
+    const startTime = Date.now();
+    const videoPath = getMediaPath(videoS3Key);
+
+    // Output path: place rendered MP4 alongside original in media dir
+    const outputFilename = `heatmap_${Date.now()}.mp4`;
+    const outputRelative = path.join(path.dirname(videoS3Key), outputFilename);
+    const outputAbsolute = getMediaPath(outputRelative);
+
+    // Ensure output directory exists
+    const outputDir = path.dirname(outputAbsolute);
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    const renderInput: RenderVideoInput = {
+        videoPath,
+        gridRows: options.gridRows ?? 3,
+        gridCols: options.gridCols ?? 3,
+        rotation: options.rotation ?? -1,
+        flipHeatmapV: options.flipHeatmapV ?? false,
+        logoPath: options.logoPath ?? '',
+        outputPath: outputAbsolute,
+    };
+
+    const result = await renderVideoClient(
+        renderInput,
+        (frame, total) => {
+            onProgress?.({
+                type: 'frame-complete',
+                frameIndex: frame - 1,
+                totalFrames: total,
+                mediaId: '',
+                timestamp: 0,
+            });
+        },
+    );
+
+    const processingTimeMs = Date.now() - startTime;
+
+    onProgress?.({
+        type: 'complete',
+        totalFrames: result.totalFrames,
+        failedFrames: 0,
+        processingTimeMs,
+    });
+
+    return {
+        heatmapVideoPath: outputRelative,
+        heatmapVideoUrl: getMediaUrl(outputRelative),
+        gridMetadata: result.frames,
+        durationS: result.durationS,
+        fps: result.fps,
+        totalFrames: result.totalFrames,
+        processedFrames: result.processedFrames,
+        processingTimeMs,
+    };
 }

@@ -11,6 +11,7 @@ import { loadCachedStimulusImage } from '../../utils/stimulusImageCache';
 import { GazeScanpathPlayer } from './GazeScanpathPlayer';
 import { computeGridPercentages } from './VideoFrameScrubber';
 import { researchService } from '../../services/research.service';
+import { resolveMediaUrl } from '../../services/media.service';
 import { GazePathOverlay } from './GazePathOverlay';
 import { AiAoiOverlay } from './AiAoiOverlay';
 import { AoiRectEditor } from './AoiRectEditor';
@@ -46,6 +47,13 @@ import { generateGridAois } from '../../utils/gridAoiGenerator';
 import { AoiTimelineBar } from './AoiTimelineBar';
 import { HeatmapSettingsModal, DEFAULT_SETTINGS, type HeatmapPoint, type HeatmapSettings, type HeatmapViewSettings } from './HeatmapSettingsModal';
 import { MapModeControlBar } from './MapModeControlBar';
+import {
+    decodeThermalMap,
+    renderSaliencyMapDirect,
+    sigmoidContrast,
+    buildColorLUT,
+    REBALANCED_THERMAL_STOPS,
+} from '../../utils/thermalContrast';
 import { StimulusFullscreenModal } from './StimulusFullscreenModal';
 import type { VideoFrameData } from './VideoFrameScrubber';
 import { extractVideoThumbnail } from '../../utils/extractVideoThumbnail';
@@ -313,16 +321,33 @@ const VideoThermalGrid = ({
     heatmapData,
     videoUrl,
     videoFrames,
+    thermalMap,
+    thermalMapWidth,
+    thermalMapHeight,
 }: {
     heatmapData: HeatmapPoint[];
     videoUrl: string;
     videoFrames: VideoFrameData[];
+    thermalMap?: string;
+    thermalMapWidth?: number;
+    thermalMapHeight?: number;
 }) => {
     const [gridSize, setGridSize] = useState(1);
     const [splitPct, setSplitPct] = useState(100);
     const [dragging, setDragging] = useState(false);
     const [videoRect, setVideoRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
     const [activeFrameIdx, setActiveFrameIdx] = useState(0);
+
+    // Decode dense thermal map once (stable across renders)
+    const decodedThermalMap = useMemo(
+        () => thermalMap ? decodeThermalMap(thermalMap) : null,
+        [thermalMap],
+    );
+    console.log('[VideoThermalGrid] thermalMap received:', { hasThermalMap: !!thermalMap, length: thermalMap?.length, thermalMapWidth, thermalMapHeight, decodedLength: decodedThermalMap?.length });
+    const hasDenseMap = decodedThermalMap !== null && !!thermalMapWidth && !!thermalMapHeight;
+
+    // Precompute FLIR LUT (stable reference)
+    const flirLut = useMemo(() => buildColorLUT(REBALANCED_THERMAL_STOPS), []);
 
     // Per-frame modulated data (for grid percentages only — NOT for thermal IDW)
     const activeHeatmapData = useMemo(
@@ -415,17 +440,27 @@ const VideoThermalGrid = ({
 
     const buildBaseThermal = useCallback(() => {
         const video = videoRef.current;
-        if (!video || !video.videoWidth || heatmapData.length === 0) return;
+        const noData = heatmapData.length === 0 && !hasDenseMap;
+        const noVideo = !video || !video.videoWidth;
+        const skip = noData || noVideo;
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        skip || (() => {
+            const w = video!.videoWidth;
+            const h = video!.videoHeight;
 
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        baseThermalDataRef.current = renderThermalImageData(heatmapData, w, h, 0.55);
-        canvasDimsRef.current = { w, h };
+            // Dense map path: direct FLIR colormap from full saliency array
+            // Sparse path (fallback): IDW interpolation from point array
+            baseThermalDataRef.current = hasDenseMap && decodedThermalMap && thermalMapWidth && thermalMapHeight
+                ? renderSaliencyMapDirect(decodedThermalMap, thermalMapWidth, thermalMapHeight, w, h, flirLut, sigmoidContrast, 0.85)
+                : renderThermalImageData(heatmapData, w, h, 0.55);
+            canvasDimsRef.current = { w, h };
 
-        // Init canvas dimensions once
-        const canvas = gridCanvasRef.current;
-        if (canvas) { canvas.width = w; canvas.height = h; }
-    }, [heatmapData]);
+            // Init canvas dimensions once
+            const canvas = gridCanvasRef.current;
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            canvas && (() => { canvas.width = w; canvas.height = h; })();
+        })();
+    }, [heatmapData, hasDenseMap, decodedThermalMap, thermalMapWidth, thermalMapHeight, flirLut]);
 
     // ─── Layer 2: Modulated thermal (per frame — clones base, multiplies alpha by proximity) ───
 
@@ -722,6 +757,13 @@ interface AttentionPredictionCardProps {
     onProcessVideo?: () => void;
     videoProgress?: { phase: string; current: number; total: number; message: string } | null;
     onDismissVideoProgress?: () => void;
+    thermalMap?: string;
+    thermalMapWidth?: number;
+    thermalMapHeight?: number;
+    /** Pre-rendered heatmap video URL from DINO server-side render */
+    heatmapVideoUrl?: string;
+    /** Per-frame grid metadata from DINO render */
+    gridMetadata?: Array<{ timestamp: number; cells: Array<{ label: string; percentage: number }> }>;
 }
 
 /* ─── Main Card ─── */
@@ -761,6 +803,11 @@ export const AttentionPredictionCard = ({
     onProcessVideo: _onProcessVideo,
     videoProgress,
     onDismissVideoProgress: _onDismissVideoProgress,
+    thermalMap,
+    thermalMapWidth,
+    thermalMapHeight,
+    heatmapVideoUrl,
+    gridMetadata: _gridMetadata,
 }: AttentionPredictionCardProps) => {
     /* ── Tab & layer state ── */
     const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'original');
@@ -1494,13 +1541,27 @@ export const AttentionPredictionCard = ({
                                     playsInline
                                     preload="metadata"
                                     className="max-w-full max-h-full block"
-                                    style={{ display: (activeTab === 'heatmap' && videoFrames.length > 0) ? 'none' : 'block' }}
+                                    style={{ display: (activeTab === 'heatmap' && (heatmapVideoUrl || videoFrames.length > 0)) ? 'none' : 'block' }}
                                 />
-                                {activeTab === 'heatmap' && (
+                                {activeTab === 'heatmap' && heatmapVideoUrl && (
+                                    <video
+                                        src={resolveMediaUrl(heatmapVideoUrl)}
+                                        controls
+                                        muted
+                                        playsInline
+                                        preload="metadata"
+                                        className="max-w-full max-h-full block"
+                                        data-testid="heatmap-video"
+                                    />
+                                )}
+                                {activeTab === 'heatmap' && !heatmapVideoUrl && (
                                     <VideoThermalGrid
                                         heatmapData={heatmapData}
                                         videoUrl={imageUrl}
                                         videoFrames={videoFrames}
+                                        thermalMap={thermalMap}
+                                        thermalMapWidth={thermalMapWidth}
+                                        thermalMapHeight={thermalMapHeight}
                                     />
                                 )}
                             </div>

@@ -67,6 +67,16 @@ interface StimulusItem {
     /** Manual AOIs drawn by researcher */
     aois?: ManualAOI[];
     aoiSkipped?: boolean;
+    /** Dense thermal map from TASED-Net (base64 Uint8Array) */
+    thermalMap?: string;
+    thermalMapWidth?: number;
+    thermalMapHeight?: number;
+    /** Pre-rendered heatmap video URL from DINO server-side render */
+    heatmapVideoUrl?: string;
+    /** Relative media path to rendered heatmap video */
+    heatmapVideoPath?: string;
+    /** Per-frame grid cell metadata from DINO render */
+    gridMetadata?: Array<{ timestamp: number; cells: Array<{ label: string; percentage: number }> }>;
 }
 
 interface AttentionPredictionViewProps {
@@ -769,6 +779,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             } : undefined}
                             videoProgress={videoProgress}
                             onDismissVideoProgress={() => setVideoProgress(null)}
+                            thermalMap={activeStimulus.thermalMap}
+                            thermalMapWidth={activeStimulus.thermalMapWidth}
+                            thermalMapHeight={activeStimulus.thermalMapHeight}
+                            heatmapVideoUrl={activeStimulus.heatmapVideoUrl}
+                            gridMetadata={activeStimulus.gridMetadata}
                             headerExtra={
                                 <button
                                     type="button"

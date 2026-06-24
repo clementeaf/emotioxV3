@@ -20,7 +20,8 @@ import {
 } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
-import { predictVideoFrames } from './video-prediction.service';
+import { predictVideoFrames, predictVideoFramesTased, renderVideoHeatmap } from './video-prediction.service';
+import { isTasedServiceAvailable } from './tased-client';
 import { registerJob, broadcastProgress, removeJob } from './video-prediction-jobs';
 import pool from '../../config/database';
 import crypto from 'crypto';
@@ -701,66 +702,16 @@ export const handleAttentionPredictionRoutes = async (
             // Fire-and-forget: run prediction in background
             (async () => {
                 try {
-                    console.error(`[VideoPrediction] Starting job ${jobId}: ${framesWithKeys.length} frames, grid: ${JSON.stringify(gridConfig)}`);
-                    const result = await predictVideoFrames(
-                        framesWithKeys,
-                        threshold,
-                        profile,
-                        (event) => broadcastProgress(jobId, event),
-                        gridConfig,
-                        aoiTimeRanges,
-                    );
+                    const backend = process.env.VIDEO_SALIENCY_BACKEND ?? 'transalnet';
+                    console.error(`[VideoPrediction] Starting job ${jobId}: backend=${backend}, ${framesWithKeys.length} frames, grid: ${JSON.stringify(gridConfig)}`);
 
-                    // Apply AOI-proximity modulation to accumulated heatmap
-                    const modulatedHeatmapData = videoAois.length > 0
-                        ? modulateIntensityByAoiProximity(result.accumulatedHeatmapData, videoAois)
-                        : result.accumulatedHeatmapData;
+                    // Dispatch: 'dino' → server-side MP4 render; others → frame-by-frame prediction
+                    const stimulusUpdate = backend === 'dino'
+                        ? await runDinoRender(researchId, videoMediaId, jobId, gridConfig)
+                        : await runFramePrediction(framesWithKeys, threshold, profile, jobId, gridConfig, aoiTimeRanges, videoAois, videoMediaId);
 
                     // Save results to research.config.stimuli[]
-                    const researchResult = await pool.query(
-                        'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
-                        [researchId]
-                    );
-                    if (researchResult.rows.length > 0) {
-                        let config: Record<string, unknown> = {};
-                        try {
-                            const raw = researchResult.rows[0].config;
-                            config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
-                        } catch { config = {}; }
-
-                        const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
-                        config.stimuli = stimuli.map((s) => {
-                            if (s.mediaId === videoMediaId) {
-                                return {
-                                    ...s,
-                                    isVideo: true,
-                                    heatmapData: modulatedHeatmapData,
-                                    autoPresets: result.autoPresets,
-                                    griddedAOIs: result.griddedAOIs,
-                                    frames: result.frames,
-                                    temporalGrid: result.temporalGrid,
-                                    ...(result.aoiAttention ? { aoiAttention: result.aoiAttention } : {}),
-                                    ...(gridConfig ? { gridConfig } : {}),
-                                    ...(aoiTimeRanges ? { aoiTimeRanges } : {}),
-                                    processedAt: new Date().toISOString(),
-                                    videoPredictionMeta: {
-                                        totalFrames: result.totalFrames,
-                                        failedFrames: result.failedFrames,
-                                        processingTimeMs: result.processingTimeMs,
-                                        fps: 1,
-                                    },
-                                    predictionError: undefined,
-                                    predictionErrorAt: undefined,
-                                };
-                            }
-                            return s;
-                        });
-
-                        await pool.query(
-                            'UPDATE researches SET config = ? WHERE id = ?',
-                            [JSON.stringify(config), researchId]
-                        );
-                    }
+                    await persistStimulusUpdate(researchId, videoMediaId, stimulusUpdate);
                 } catch (err) {
                     console.error('[VideoPrediction] Background error:', err);
                     // Save error state
@@ -826,3 +777,166 @@ export const handleAttentionPredictionRoutes = async (
         return error(errorMessage, 500, undefined, origin);
     }
 };
+
+// ─── Video prediction backend selector ──────────────────────────────
+
+type VideoPredictArgs = Parameters<typeof predictVideoFrames>;
+
+const VIDEO_BACKENDS: Record<string, (...args: VideoPredictArgs) => ReturnType<typeof predictVideoFrames>> = {
+    tased: predictVideoFramesTased,
+    transalnet: predictVideoFrames,
+};
+
+/**
+ * Dispatch video prediction to the configured backend.
+ *
+ * Reads VIDEO_SALIENCY_BACKEND env var ('tased' | 'transalnet', default 'transalnet').
+ * For 'tased': checks service availability first, falls back to transalnet on failure.
+ */
+async function resolveVideoPrediction(...args: VideoPredictArgs): ReturnType<typeof predictVideoFrames> {
+    const backend = process.env.VIDEO_SALIENCY_BACKEND ?? 'transalnet';
+    const selectedFn = VIDEO_BACKENDS[backend] ?? VIDEO_BACKENDS.transalnet;
+
+    // Direct call for transalnet (no health check needed)
+    const isTransalnet = selectedFn === VIDEO_BACKENDS.transalnet;
+
+    try {
+        // Verify tased service is reachable before committing to it
+        const tasedAvailable = isTransalnet || await isTasedServiceAvailable();
+
+        const fn = tasedAvailable ? selectedFn : VIDEO_BACKENDS.transalnet;
+        console.error(`[VideoPrediction] Using backend: ${tasedAvailable ? backend : 'transalnet (fallback)'}`);
+        return await fn(...args);
+    } catch (err) {
+        // Fallback to transalnet on any tased error
+        console.error(`[VideoPrediction] ${backend} failed, falling back to transalnet:`, err);
+        return VIDEO_BACKENDS.transalnet(...args);
+    }
+}
+
+// ─── Stimulus update helpers ────────────────────────────────────────
+
+type StimulusUpdate = Record<string, unknown>;
+
+/**
+ * Run DINO server-side video render. Resolves video s3Key from stimulus config,
+ * calls renderVideoHeatmap, returns stimulus fields to persist.
+ */
+async function runDinoRender(
+    researchId: string,
+    videoMediaId: string,
+    jobId: string,
+    gridConfig?: { cols: number; rows: number },
+): Promise<StimulusUpdate> {
+    // Lookup the video's s3_key from media table
+    const mediaRow = await pool.query(
+        'SELECT s3_key FROM media WHERE id = ? AND research_id = ?',
+        [videoMediaId, researchId],
+    );
+    const s3Key = mediaRow.rows[0]?.s3_key as string;
+
+    const result = await renderVideoHeatmap(
+        s3Key,
+        researchId,
+        { gridRows: gridConfig?.rows, gridCols: gridConfig?.cols },
+        (event) => broadcastProgress(jobId, event),
+    );
+
+    return {
+        isVideo: true,
+        heatmapVideoUrl: result.heatmapVideoUrl,
+        heatmapVideoPath: result.heatmapVideoPath,
+        gridMetadata: result.gridMetadata,
+        ...(gridConfig ? { gridConfig } : {}),
+        processedAt: new Date().toISOString(),
+        videoPredictionMeta: {
+            totalFrames: result.totalFrames,
+            processedFrames: result.processedFrames,
+            processingTimeMs: result.processingTimeMs,
+            fps: result.fps,
+            backend: 'dino',
+        },
+        predictionError: undefined,
+        predictionErrorAt: undefined,
+    };
+}
+
+/**
+ * Run frame-by-frame prediction (TranSalNet / TASED-Net).
+ * Returns stimulus fields to persist (legacy format).
+ */
+async function runFramePrediction(
+    framesWithKeys: Array<{ mediaId: string; timestamp: number; s3Key: string }>,
+    threshold: number,
+    profile: import('./ai-analysis.service').AnalysisProfile | undefined,
+    jobId: string,
+    gridConfig: { cols: number; rows: number } | undefined,
+    aoiTimeRanges: Array<{ aoiId: string; startTime: number; endTime: number }> | undefined,
+    videoAois: ManualAoiInput[],
+    _videoMediaId: string,
+): Promise<StimulusUpdate> {
+    const result = await resolveVideoPrediction(
+        framesWithKeys,
+        threshold,
+        profile,
+        (event) => broadcastProgress(jobId, event),
+        gridConfig,
+        aoiTimeRanges,
+    );
+
+    const modulatedHeatmapData = videoAois.length > 0
+        ? modulateIntensityByAoiProximity(result.accumulatedHeatmapData, videoAois)
+        : result.accumulatedHeatmapData;
+
+    return {
+        isVideo: true,
+        heatmapData: modulatedHeatmapData,
+        autoPresets: result.autoPresets,
+        griddedAOIs: result.griddedAOIs,
+        frames: result.frames,
+        temporalGrid: result.temporalGrid,
+        ...(result.aoiAttention ? { aoiAttention: result.aoiAttention } : {}),
+        ...(result.thermalMap ? { thermalMap: result.thermalMap, thermalMapWidth: result.thermalMapWidth, thermalMapHeight: result.thermalMapHeight } : {}),
+        ...(gridConfig ? { gridConfig } : {}),
+        ...(aoiTimeRanges ? { aoiTimeRanges } : {}),
+        processedAt: new Date().toISOString(),
+        videoPredictionMeta: {
+            totalFrames: result.totalFrames,
+            failedFrames: result.failedFrames,
+            processingTimeMs: result.processingTimeMs,
+            fps: 1,
+        },
+        predictionError: undefined,
+        predictionErrorAt: undefined,
+    };
+}
+
+/**
+ * Read research config, update the matching stimulus, save back.
+ */
+async function persistStimulusUpdate(
+    researchId: string,
+    videoMediaId: string,
+    update: StimulusUpdate,
+): Promise<void> {
+    const researchResult = await pool.query(
+        'SELECT config FROM researches WHERE id = ? AND deleted_at IS NULL',
+        [researchId],
+    );
+    const row = researchResult.rows[0];
+    let config: Record<string, unknown> = {};
+    try {
+        const raw = row?.config;
+        config = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});
+    } catch { config = {}; }
+
+    const stimuli = (config.stimuli as Array<Record<string, unknown>>) || [];
+    config.stimuli = stimuli.map((s) =>
+        s.mediaId === videoMediaId ? { ...s, ...update } : s,
+    );
+
+    await pool.query(
+        'UPDATE researches SET config = ? WHERE id = ?',
+        [JSON.stringify(config), researchId],
+    );
+}
