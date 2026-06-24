@@ -32,6 +32,48 @@ from transformers import AutoImageProcessor, AutoModel
 from renderer import RenderConfig, make_dino_extractor, render_video
 
 
+def _maybe_downscale(video_path: str, max_dim: int) -> str:
+    """Downscale video if larger than max_dim. Returns path (original or temp)."""
+    import cv2
+    import tempfile
+
+    cap = cv2.VideoCapture(video_path)
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    largest = max(w, h)
+    cap.release()
+
+    # No downscale needed
+    if largest <= max_dim:
+        sys.stderr.write(f"Video {w}x{h} within {max_dim}px limit\n")
+        return video_path
+
+    scale = max_dim / largest
+    new_w = int(w * scale) & ~1  # even dimensions for codec
+    new_h = int(h * scale) & ~1
+
+    sys.stderr.write(f"Downscaling {w}x{h} -> {new_w}x{new_h} (max_dim={max_dim})\n")
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+    tmp.close()
+
+    cap = cv2.VideoCapture(video_path)
+    writer = cv2.VideoWriter(tmp.name, cv2.VideoWriter_fourcc(*'mp4v'), fps, (new_w, new_h))
+
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        writer.write(cv2.resize(frame, (new_w, new_h)))
+
+    cap.release()
+    writer.release()
+    sys.stderr.write(f"Downscaled video: {tmp.name}\n")
+    return tmp.name
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Render video with DINO attention heatmap")
     parser.add_argument("video_path", help="Absolute path to source video")
@@ -43,9 +85,13 @@ def main() -> None:
     parser.add_argument("--sample", type=float, default=2.0, help="Seconds between keyframes")
     parser.add_argument("--logo", default="", help="Logo image path")
     parser.add_argument("--footer", type=int, default=100, help="Footer height px")
+    parser.add_argument("--maxdim", type=int, default=640, help="Max dimension (width or height) — downscale large videos")
     args = parser.parse_args()
 
     rows, cols = (int(x) for x in args.grid.split("x"))
+
+    # Downscale large videos to fit in memory
+    actual_video = _maybe_downscale(args.video_path, args.maxdim)
 
     # Load DINO
     t0 = time.time()
@@ -73,7 +119,7 @@ def main() -> None:
 
     t1 = time.time()
     result = render_video(
-        video_path=args.video_path,
+        video_path=actual_video,
         extractor=extractor,
         config=config,
         output_path=args.output_path,
