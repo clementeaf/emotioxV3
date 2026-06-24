@@ -215,6 +215,7 @@ async def _stream_render(request: RenderVideoRequest):
         flip_heatmap_v=request.flip_heatmap_v,
         logo_path=request.logo_path,
         footer_height=request.footer_height,
+        sample_interval_s=request.sample_interval_s,
     )
 
     result = render_video(

@@ -342,16 +342,19 @@ class TestRenderVideo:
         assert timestamps[0] == pytest.approx(0.0)
 
     def test_progress_callback(self, tiny_video, mock_extractor, tmp_path):
+        """Progress fires per keyframe, not per video frame."""
         output = str(tmp_path / "output.mp4")
         calls: list[tuple[int, int]] = []
+        # sample_interval=0.5s at 10fps → sample_gap=5 → 2 keyframes (0, 5)
+        config = RenderConfig(sample_interval_s=0.5)
         render_video(
-            tiny_video, mock_extractor, RenderConfig(),
+            tiny_video, mock_extractor, config,
             output_path=output,
             on_progress=lambda c, t: calls.append((c, t)),
         )
-        assert len(calls) == 10
-        assert calls[0] == (1, 10)
-        assert calls[-1] == (10, 10)
+        assert len(calls) == 2
+        assert calls[0] == (1, 2)
+        assert calls[-1] == (2, 2)
 
     def test_output_video_dimensions(self, tiny_video, mock_extractor, tmp_path):
         output = str(tmp_path / "output.mp4")

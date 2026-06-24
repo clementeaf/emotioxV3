@@ -62,6 +62,7 @@ class RenderVideoRequest(BaseModel):
     overlay_alpha: float = Field(default=0.6, ge=0.1, le=1.0)
     rotation: int = Field(default=-1, description="cv2 rotation constant. -1 = none.")
     flip_heatmap_v: bool = Field(default=False)
+    sample_interval_s: float = Field(default=2.0, ge=0.5, le=30.0, description="Seconds between DINO keyframes.")
     logo_path: str = Field(default="", description="Path to logo image for footer.")
     footer_height: int = Field(default=100, ge=0, le=300)
     output_path: str = Field(default="", description="Output MP4 path. Auto-generated if empty.")

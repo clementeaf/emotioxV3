@@ -63,6 +63,7 @@ class RenderConfig:
     flip_heatmap_v: bool = False
     logo_path: str = ""
     footer_height: int = 100
+    sample_interval_s: float = 2.0  # seconds between DINO keyframes; intermediates reuse last overlay
 
 
 class AttentionExtractor(Protocol):
@@ -342,7 +343,13 @@ def render_video(
     compose = _make_compositor(footer, final_w, final_h, config)
     notify = on_progress or (lambda _c, _t: None)
 
+    # Sample interval: run DINO every N seconds, reuse overlay for intermediate frames
+    sample_gap = max(1, round(fps * config.sample_interval_s))
+    keyframe_count = max(1, total_frames // sample_gap)
+
     results: list[FrameResult] = []
+    last_overlay: np.ndarray | None = None
+    last_meta: FrameResult | None = None
     idx = 0
 
     while True:
@@ -350,11 +357,32 @@ def render_video(
         if not ok:
             break
 
-        content, meta = process_frame(raw_frame, extractor, config, idx / fps)
-        writer.write(compose(content))
+        is_keyframe = (idx % sample_gap == 0)
+        timestamp = idx / max(fps, 1.0)
+
+        # Keyframes: run DINO; intermediates: reuse last overlay
+        content: np.ndarray
+        meta: FrameResult
+        rotate_fn = _ROTATORS.get(config.rotation, _IDENTITY)
+        frame = rotate_fn(raw_frame)
+
+        combined: np.ndarray
+        if is_keyframe or last_overlay is None:
+            combined, meta = process_frame(raw_frame, extractor, config, timestamp)
+            last_overlay = combined
+            last_meta = meta
+            notify(min(idx // sample_gap + 1, keyframe_count), keyframe_count)
+        else:
+            # Reuse last heatmap overlay on right half, fresh original on left
+            combined = last_overlay.copy()
+            h, w = frame.shape[:2]
+            # Replace left half (original) with current frame
+            _ensure_left_half(combined, frame, w)
+            meta = FrameResult(timestamp=timestamp, cells=last_meta.cells if last_meta else ())
+
+        writer.write(compose(combined))
         results.append(meta)
         idx += 1
-        notify(idx, total_frames)
 
     cap.release()
     writer.release()
@@ -367,6 +395,16 @@ def render_video(
         processed_frames=idx,
         frame_results=tuple(results),
     )
+
+
+def _ensure_left_half(combined: np.ndarray, frame: np.ndarray, frame_w: int) -> None:
+    """Replace the left half of a side-by-side frame with the current original. Mutates combined."""
+    ch, cw = combined.shape[:2]
+    fh, fw = frame.shape[:2]
+    # ponytail: resize frame to match left half dimensions only when needed
+    target = combined[:, :frame_w]
+    resized = cv2.resize(frame, (target.shape[1], target.shape[0])) if (fh != ch or fw != frame_w) else frame
+    combined[:, :frame_w] = resized
 
 
 def _make_compositor(

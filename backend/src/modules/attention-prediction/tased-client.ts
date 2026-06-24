@@ -28,7 +28,7 @@ export type TasedProgressCallback = (frame: number, total: number) => void;
 // ─── Configuration ──────────────────────────────────────────────────
 
 const TASED_SERVICE_URL = process.env.TASED_SERVICE_URL ?? 'http://localhost:8001';
-const REQUEST_TIMEOUT_MS = 300_000; // 5 minutes
+const REQUEST_TIMEOUT_MS = 600_000; // 10 minutes
 
 // ─── JSON-lines event types ─────────────────────────────────────────
 
