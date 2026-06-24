@@ -84,10 +84,10 @@ def _do_load_tased(path: Path) -> TASED_v2:
 
 def _load_dino() -> tuple:
     """Load DINO ViT-B/16 from HuggingFace."""
-    from transformers import AutoFeatureExtractor, AutoModel
+    from transformers import AutoImageProcessor, AutoModel
 
     logger.info("Loading DINO model: %s", DINO_MODEL_NAME)
-    feature_extractor = AutoFeatureExtractor.from_pretrained(DINO_MODEL_NAME)
+    feature_extractor = AutoImageProcessor.from_pretrained(DINO_MODEL_NAME)
     model = AutoModel.from_pretrained(DINO_MODEL_NAME)
     model.eval()
     extractor_fn = make_dino_extractor(model, feature_extractor)
