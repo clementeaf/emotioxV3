@@ -1547,9 +1547,11 @@ export const AttentionPredictionCard = ({
                                     <video
                                         src={resolveMediaUrl(heatmapVideoUrl)}
                                         controls
+                                        autoPlay
+                                        loop
                                         muted
                                         playsInline
-                                        preload="metadata"
+                                        preload="auto"
                                         className="max-w-full max-h-full block"
                                         data-testid="heatmap-video"
                                     />
