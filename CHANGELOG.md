@@ -1,3 +1,28 @@
+## v0.85.0 — Video Attention Prediction: server-side DINO heatmap rendering (2026-06-24)
+
+### backend
+- **DINO ViT-B/16 server-side render.** Video heatmap now rendered entirely on the server via Python subprocess (`render_cli.py`). Produces side-by-side WebM: original (left) | JET heatmap + 3x3 grid with Q-label percentages (right). Replaces browser-side canvas rendering (IDW, thermal cache, rAF loop).
+- **Python saliency service.** `renderer.py` — pure functions for attention extraction, heatmap overlay, grid drawing, logo footer. `render_cli.py` — CLI entrypoint spawned by Node.js. Single-threaded (`OMP_NUM_THREADS=1`) for cPanel LVE compatibility. Auto-downscales videos >640px to prevent OOM.
+- **VP8/WebM output.** `cv2.VideoWriter` with VP80 codec — plays natively in all browsers. MPEG-4 Part 2 (mp4v) and H.264 reencode both failed on cPanel.
+- **Sample interval.** `sample_interval_s=2.0` — runs DINO on keyframes only (1 every 2s), reuses overlay for intermediate frames. 529-frame video processes in ~85s on CPU.
+- **Subprocess architecture.** Node spawns `python render_cli.py` directly — no HTTP/uvicorn/streaming/sockets. Python writes WebM + `.meta.json` sidecar, prints JSON to stdout. Node reads stdout, persists `heatmapVideoUrl` on stimulus.
+- **Upload endpoint.** `POST /api/attention-prediction/upload-heatmap-video` — accepts MP4/WebM from external renderers (Colab). Secret key auth (`HEATMAP_UPLOAD_SECRET`).
+- **Backend dispatch.** `VIDEO_SALIENCY_BACKEND=dino` activates server-side render. Falls back to TranSalNet frame-by-frame for `transalnet`/`tased`.
+
+### research-frontend
+- **Video heatmap as `<video>`.** When `stimulus.heatmapVideoUrl` exists, Heatmap tab renders a plain `<video autoPlay loop muted>`. No canvas, no IDW, no thermal cache. Legacy `VideoThermalGrid` fallback preserved for old data.
+- **No client-side frame extraction.** `processVideoStimulus` sends empty `frames[]` — backend reads video directly.
+- **Types.** `StimulusItem` extended with `heatmapVideoUrl`, `heatmapVideoPath`, `gridMetadata`.
+
+### docs
+- **`heatmap_colab_emotiox.py`.** Google Colab notebook: upload video → DINO render → auto-upload to EmotioX.
+
+### config
+- `VIDEO_SALIENCY_BACKEND=dino` in backend `.env`
+- `HEATMAP_UPLOAD_SECRET` for Colab upload endpoint
+
+---
+
 ## v0.84.2 — Attention Prediction: restore warm heatmap gradient (2026-06-22)
 
 ### research-frontend
