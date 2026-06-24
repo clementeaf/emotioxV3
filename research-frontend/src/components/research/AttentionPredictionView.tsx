@@ -73,6 +73,8 @@ interface StimulusItem {
     thermalMapHeight?: number;
     /** Pre-rendered heatmap video URL from DINO server-side render */
     heatmapVideoUrl?: string;
+    /** Overlay-only video URL (heatmap without original) */
+    overlayOnlyUrl?: string;
     /** Relative media path to rendered heatmap video */
     heatmapVideoPath?: string;
     /** Per-frame grid cell metadata from DINO render */
@@ -757,6 +759,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             thermalMapWidth={activeStimulus.thermalMapWidth}
                             thermalMapHeight={activeStimulus.thermalMapHeight}
                             heatmapVideoUrl={activeStimulus.heatmapVideoUrl}
+                            overlayOnlyUrl={activeStimulus.overlayOnlyUrl}
                             gridMetadata={activeStimulus.gridMetadata}
                             headerExtra={
                                 <button

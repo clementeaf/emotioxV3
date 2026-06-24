@@ -762,6 +762,8 @@ interface AttentionPredictionCardProps {
     thermalMapHeight?: number;
     /** Pre-rendered heatmap video URL from DINO server-side render */
     heatmapVideoUrl?: string;
+    /** Overlay-only video URL (heatmap without original) */
+    overlayOnlyUrl?: string;
     /** Per-frame grid metadata from DINO render */
     gridMetadata?: Array<{ timestamp: number; cells: Array<{ label: string; percentage: number }> }>;
 }
@@ -807,6 +809,7 @@ export const AttentionPredictionCard = ({
     thermalMapWidth,
     thermalMapHeight,
     heatmapVideoUrl,
+    overlayOnlyUrl,
     gridMetadata: _gridMetadata,
 }: AttentionPredictionCardProps) => {
     /* ── Tab & layer state ── */
@@ -1579,7 +1582,7 @@ export const AttentionPredictionCard = ({
                                             Video original
                                         </a>
                                         <a
-                                            href={resolveMediaUrl(heatmapVideoUrl)}
+                                            href={resolveMediaUrl(overlayOnlyUrl || heatmapVideoUrl)}
                                             download
                                             className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
                                         >

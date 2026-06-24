@@ -209,6 +209,7 @@ export interface RenderFrameData {
 
 export interface RenderVideoResult {
     outputPath: string;
+    overlayOnlyPath: string;
     durationS: number;
     fps: number;
     totalFrames: number;
@@ -219,6 +220,7 @@ export interface RenderVideoResult {
 interface RenderResultLine {
     type: 'result';
     output_path: string;
+    overlay_only_path?: string;
     duration_s: number;
     fps: number;
     total_frames: number;
@@ -241,6 +243,7 @@ const RENDER_LINE_HANDLERS: Record<string, (
         const r = line as RenderResultLine;
         resultRef.value = {
             outputPath: r.output_path,
+            overlayOnlyPath: r.overlay_only_path ?? '',
             durationS: r.duration_s,
             fps: r.fps,
             totalFrames: r.total_frames,
@@ -301,6 +304,7 @@ export function renderVideo(
                         const r = JSON.parse(body) as RenderResultLine;
                         resolve({
                             outputPath: r.output_path,
+                            overlayOnlyPath: r.overlay_only_path ?? '',
                             durationS: r.duration_s,
                             fps: r.fps,
                             totalFrames: r.total_frames,

@@ -853,6 +853,7 @@ async function runDinoRender(
     return {
         isVideo: true,
         heatmapVideoUrl: result.heatmapVideoUrl,
+        overlayOnlyUrl: result.overlayOnlyUrl,
         heatmapVideoPath: result.heatmapVideoPath,
         gridMetadata: result.gridMetadata,
         ...(gridConfig ? { gridConfig } : {}),

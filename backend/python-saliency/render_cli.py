@@ -158,6 +158,7 @@ def main() -> None:
     from dataclasses import asdict
     meta = {
         "output_path": result.output_path,
+        "overlay_only_path": result.overlay_only_path,
         "duration_s": result.duration_s,
         "fps": result.fps,
         "total_frames": result.total_frames,

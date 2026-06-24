@@ -46,6 +46,7 @@ class RenderResult:
     """Output of a complete video render."""
 
     output_path: str
+    overlay_only_path: str
     duration_s: float
     fps: float
     total_frames: int
@@ -269,8 +270,8 @@ def process_frame(
     extractor: AttentionExtractor,
     config: RenderConfig,
     timestamp: float,
-) -> tuple[np.ndarray, FrameResult]:
-    """Process one frame: rotate, extract attention, overlay, grid. Returns (combined, metadata)."""
+) -> tuple[np.ndarray, np.ndarray, FrameResult]:
+    """Process one frame. Returns (combined side-by-side, overlay-only, metadata)."""
     rotate_fn = _ROTATORS.get(config.rotation, _IDENTITY)
     frame = rotate_fn(frame_bgr)
     h, w = frame.shape[:2]
@@ -295,7 +296,7 @@ def process_frame(
 
     # side by side
     combined = np.hstack((frame, overlay))
-    return combined, FrameResult(timestamp=timestamp, cells=cells)
+    return combined, overlay, FrameResult(timestamp=timestamp, cells=cells)
 
 
 # ---------------------------------------------------------------------------
@@ -331,13 +332,22 @@ def render_video(
     orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     final_w, final_h = output_dimensions(orig_w, orig_h, config)
-    out_path = output_path or str(Path(video_path).with_suffix(".heatmap.mp4"))
+    out_path = output_path or str(Path(video_path).with_suffix(".heatmap.webm"))
+
+    # Overlay-only path: same name with _only suffix
+    ext = Path(out_path).suffix
+    overlay_only_path = out_path.replace(ext, f"_only{ext}")
 
     # ponytail: VP8/WebM plays in all browsers. mp4v (MPEG-4 Part 2) doesn't play in Chrome.
     is_webm = out_path.endswith('.webm')
     codec = cv2.VideoWriter_fourcc(*("VP80" if is_webm else "mp4v"))
     writer = cv2.VideoWriter(out_path, codec, fps, (final_w, final_h))
     assert writer.isOpened(), f"Cannot create output: {out_path}"
+
+    # Overlay-only writer: single panel dimensions
+    fw, fh = rotated_dims(orig_w, orig_h, config.rotation)
+    overlay_writer = cv2.VideoWriter(overlay_only_path, codec, fps, (fw, fh))
+    assert overlay_writer.isOpened(), f"Cannot create overlay output: {overlay_only_path}"
 
     # pre-build static footer (computed once)
     logo = load_logo(config.logo_path, config.footer_height - 20) if config.logo_path else None
@@ -352,7 +362,8 @@ def render_video(
     keyframe_count = max(1, total_frames // sample_gap)
 
     results: list[FrameResult] = []
-    last_overlay: np.ndarray | None = None
+    last_combined: np.ndarray | None = None
+    last_overlay_frame: np.ndarray | None = None
     last_meta: FrameResult | None = None
     idx = 0
 
@@ -364,35 +375,37 @@ def render_video(
         is_keyframe = (idx % sample_gap == 0)
         timestamp = idx / max(fps, 1.0)
 
-        # Keyframes: run DINO; intermediates: reuse last overlay
-        content: np.ndarray
-        meta: FrameResult
         rotate_fn = _ROTATORS.get(config.rotation, _IDENTITY)
         frame = rotate_fn(raw_frame)
 
         combined: np.ndarray
-        if is_keyframe or last_overlay is None:
-            combined, meta = process_frame(raw_frame, extractor, config, timestamp)
-            last_overlay = combined
+        overlay_frame: np.ndarray
+        meta: FrameResult
+
+        if is_keyframe or last_combined is None:
+            combined, overlay_frame, meta = process_frame(raw_frame, extractor, config, timestamp)
+            last_combined = combined
+            last_overlay_frame = overlay_frame
             last_meta = meta
             notify(min(idx // sample_gap + 1, keyframe_count), keyframe_count)
         else:
-            # Reuse last heatmap overlay on right half, fresh original on left
-            combined = last_overlay.copy()
-            h, w = frame.shape[:2]
-            # Replace left half (original) with current frame
-            _ensure_left_half(combined, frame, w)
+            combined = last_combined.copy()
+            _ensure_left_half(combined, frame, frame.shape[1])
+            overlay_frame = last_overlay_frame if last_overlay_frame is not None else frame
             meta = FrameResult(timestamp=timestamp, cells=last_meta.cells if last_meta else ())
 
         writer.write(compose(combined))
+        overlay_writer.write(_ensure_size(overlay_frame, fw, fh))
         results.append(meta)
         idx += 1
 
     cap.release()
     writer.release()
+    overlay_writer.release()
 
     result = RenderResult(
         output_path=out_path,
+        overlay_only_path=overlay_only_path,
         duration_s=idx / max(fps, 1.0),
         fps=fps,
         total_frames=total_frames,
@@ -400,8 +413,6 @@ def render_video(
         frame_results=tuple(results),
     )
 
-    # Write metadata sidecar JSON alongside the MP4
-    # ponytail: Node reads this if the HTTP stream drops — resilient to Passenger recycles
     meta_path = str(Path(out_path).with_suffix(".meta.json"))
     _write_metadata(meta_path, result)
 
@@ -412,6 +423,7 @@ def _write_metadata(path: str, result: RenderResult) -> None:
     """Write render result as JSON sidecar file."""
     data = {
         "output_path": result.output_path,
+        "overlay_only_path": result.overlay_only_path,
         "duration_s": result.duration_s,
         "fps": result.fps,
         "total_frames": result.total_frames,

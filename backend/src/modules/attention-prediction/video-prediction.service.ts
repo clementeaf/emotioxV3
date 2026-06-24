@@ -615,10 +615,12 @@ export async function predictVideoFramesTased(
 // ─── DINO render-video (server-side MP4 generation) ─────────────────
 
 export interface VideoRenderHeatmapResult {
-    /** Relative media path to rendered MP4 (usable with getMediaUrl) */
+    /** Relative media path to rendered video (usable with getMediaUrl) */
     heatmapVideoPath: string;
-    /** Public URL to rendered MP4 */
+    /** Public URL to rendered side-by-side video */
     heatmapVideoUrl: string;
+    /** Public URL to overlay-only video (heatmap without original) */
+    overlayOnlyUrl: string;
     /** Per-frame grid metadata */
     gridMetadata: RenderVideoResult['frames'];
     durationS: number;
@@ -708,6 +710,7 @@ export async function renderVideoHeatmap(
                 const parsed = JSON.parse(stdout);
                 resolve({
                     outputPath: parsed.output_path,
+                    overlayOnlyPath: parsed.overlay_only_path,
                     durationS: parsed.duration_s,
                     fps: parsed.fps,
                     totalFrames: parsed.total_frames,
@@ -731,9 +734,13 @@ export async function renderVideoHeatmap(
         processingTimeMs,
     });
 
+    // Derive overlay-only relative path from the absolute path Python returned
+    const overlayOnlyRelative = path.join(path.dirname(outputRelative), path.basename(result.overlayOnlyPath));
+
     return {
         heatmapVideoPath: outputRelative,
         heatmapVideoUrl: getMediaUrl(outputRelative),
+        overlayOnlyUrl: getMediaUrl(overlayOnlyRelative),
         gridMetadata: result.frames,
         durationS: result.durationS,
         fps: result.fps,
@@ -763,6 +770,7 @@ async function pollForSidecar(
             const raw = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
             return {
                 outputPath: raw.output_path,
+                overlayOnlyPath: raw.overlay_only_path ?? '',
                 durationS: raw.duration_s,
                 fps: raw.fps,
                 totalFrames: raw.total_frames,
