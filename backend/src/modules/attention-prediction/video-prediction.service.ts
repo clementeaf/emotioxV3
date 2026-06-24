@@ -673,7 +673,7 @@ export async function renderVideoHeatmap(
         '--grid', `${rows}x${cols}`,
         '--rotation', String(options.rotation ?? -1),
         '--alpha', '0.6',
-        '--sample', '2.0',
+        '--sample', '1.0',
         '--maxdim', '960',
     ];
     options.flipHeatmapV && args.push('--flip');
