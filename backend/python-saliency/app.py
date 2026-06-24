@@ -103,7 +103,8 @@ def _load_dino() -> tuple:
 async def lifespan(app: FastAPI):
     global _tased_model, _dino_model, _dino_feature_extractor, _dino_extractor_fn
 
-    _tased_model = _load_tased()
+    # ponytail: only load DINO — TASED wastes ~300MB and is unused when VIDEO_SALIENCY_BACKEND=dino
+    _tased_model = None  # _load_tased() — disabled to save memory
     _dino_model, _dino_feature_extractor, _dino_extractor_fn = _load_dino()
 
     yield
