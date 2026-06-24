@@ -35,8 +35,8 @@ import subprocess as sp
 from renderer import RenderConfig, make_dino_extractor, render_video
 
 
-def _reencode_h264(mp4_path: str) -> None:
-    """Re-encode MP4 from MPEG-4 Part 2 to H.264 so browsers can play it."""
+def _to_h264_mp4(src_path: str) -> str:
+    """Re-encode any video to H.264 MP4 for universal playback. Returns final path."""
     try:
         import imageio_ffmpeg
         ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
@@ -44,14 +44,21 @@ def _reencode_h264(mp4_path: str) -> None:
         ffmpeg = shutil.which("ffmpeg")
     assert ffmpeg, "ffmpeg not found — install imageio-ffmpeg"
 
-    tmp = mp4_path + ".h264.mp4"
+    # ponytail: ultrafast + 1 thread + crf 28 = minimal RAM, fits in cPanel limits
+    final_path = os.path.splitext(src_path)[0] + '.mp4'
+    tmp_path = src_path + '.h264.mp4'
     sp.run(
-        [ffmpeg, "-y", "-i", mp4_path, "-c:v", "libx264", "-preset", "fast",
-         "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", tmp],
+        [ffmpeg, "-y", "-i", src_path, "-c:v", "libx264", "-preset", "ultrafast",
+         "-crf", "28", "-pix_fmt", "yuv420p", "-threads", "1",
+         "-movflags", "+faststart", tmp_path],
         check=True, capture_output=True,
     )
-    os.replace(tmp, mp4_path)
-    sys.stderr.write(f"Re-encoded to H.264: {mp4_path}\n")
+    os.replace(tmp_path, final_path)
+    # Clean source if different from final
+    src_is_final = os.path.abspath(src_path) == os.path.abspath(final_path)
+    src_is_final or os.path.exists(src_path) and os.unlink(src_path)
+    sys.stderr.write(f"H.264 MP4: {final_path} ({os.path.getsize(final_path) // 1024}KB)\n")
+    return final_path
 
 
 def _maybe_downscale(video_path: str, max_dim: int) -> str:
@@ -151,14 +158,18 @@ def main() -> None:
     elapsed = time.time() - t1
     sys.stderr.write(f"Done: {result.processed_frames} frames in {elapsed:.1f}s\n")
 
-    sys.stderr.write(f"Output: {result.output_path}\n")
+    # Convert WebM → MP4 (H.264) for universal playback
+    output_mp4 = _to_h264_mp4(result.output_path)
+    overlay_mp4 = _to_h264_mp4(result.overlay_only_path)
+
+    sys.stderr.write(f"Output: {output_mp4}\n")
 
     # Print JSON result to stdout (Node reads this)
     import json
     from dataclasses import asdict
     meta = {
-        "output_path": result.output_path,
-        "overlay_only_path": result.overlay_only_path,
+        "output_path": output_mp4,
+        "overlay_only_path": overlay_mp4,
         "duration_s": result.duration_s,
         "fps": result.fps,
         "total_frames": result.total_frames,

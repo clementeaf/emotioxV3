@@ -651,7 +651,7 @@ export async function renderVideoHeatmap(
     const startTime = Date.now();
     const videoPath = getMediaPath(videoS3Key);
 
-    const outputFilename = `heatmap_${Date.now()}.webm`;
+    const outputFilename = `heatmap_${Date.now()}.mp4`;
     const outputRelative = path.join(path.dirname(videoS3Key), outputFilename);
     const outputAbsolute = getMediaPath(outputRelative);
 

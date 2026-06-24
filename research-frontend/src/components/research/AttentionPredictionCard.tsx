@@ -812,6 +812,21 @@ export const AttentionPredictionCard = ({
     overlayOnlyUrl,
     gridMetadata: _gridMetadata,
 }: AttentionPredictionCardProps) => {
+    /* ── Download helper ── */
+    const downloadVideo = useCallback((url: string, filename: string) => {
+        fetch(url)
+            .then(r => r.blob())
+            .then(blob => {
+                const ext = url.split('.').pop() || 'webm';
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `${filename}.${ext}`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            })
+            .catch(() => window.open(url, '_blank'));
+    }, []);
+
     /* ── Tab & layer state ── */
     const [activeTab, setActiveTab] = useState<TabId>(initialTab ?? 'original');
     const [layers, setLayers] = useState<StimulusLayers>({
@@ -1400,6 +1415,10 @@ export const AttentionPredictionCard = ({
                     analysisGateOpen={analysisGateOpen}
                     aiAnalysis={aiAnalysis}
                     onAnalysisClick={handleAnalysisClick}
+                    heatmapVideoUrl={heatmapVideoUrl}
+                    overlayOnlyUrl={overlayOnlyUrl}
+                    imageUrl={imageUrl}
+                    downloadVideo={downloadVideo}
                 />
 
                 {showLegacyHeatmapBanner && (
@@ -1536,8 +1555,7 @@ export const AttentionPredictionCard = ({
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         {/* Video layout — original and heatmap tabs */}
                         {isVideo && activeTab !== 'aoi-editor' && (
-                            <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-                                <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-black">
+                            <div className="relative flex h-full min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-black">
                                     <video
                                         src={imageUrl}
                                         controls={activeTab === 'original'}
@@ -1570,27 +1588,6 @@ export const AttentionPredictionCard = ({
                                             thermalMapHeight={thermalMapHeight}
                                         />
                                     )}
-                                </div>
-                                {isVideo && heatmapVideoUrl && (
-                                    <div className="flex items-center gap-2 pt-2">
-                                        <a
-                                            href={resolveMediaUrl(imageUrl)}
-                                            download
-                                            className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                                        >
-                                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" /></svg>
-                                            Video original
-                                        </a>
-                                        <a
-                                            href={resolveMediaUrl(overlayOnlyUrl || heatmapVideoUrl)}
-                                            download
-                                            className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
-                                        >
-                                            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" /></svg>
-                                            Video heatmap
-                                        </a>
-                                    </div>
-                                )}
                             </div>
                         )}
 
@@ -1852,6 +1849,7 @@ const CardHeader = ({
     onRunPrediction, isPredicting, predictElapsed, videoProgressMessage, hasHeatmap,
     predictionGateOpen, onPredictClick, heatmapStale,
     onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,
+    heatmapVideoUrl, overlayOnlyUrl, imageUrl, downloadVideo,
 }: {
     title: string;
     onAddMore?: () => void;
@@ -1872,6 +1870,10 @@ const CardHeader = ({
     analysisGateOpen: boolean;
     aiAnalysis?: AiAnalysisResult;
     onAnalysisClick: () => void;
+    heatmapVideoUrl?: string;
+    overlayOnlyUrl?: string;
+    imageUrl?: string;
+    downloadVideo?: (url: string, filename: string) => void;
 }) => (
     <div className="p-4 border-b flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -1913,6 +1915,26 @@ const CardHeader = ({
                             ? 'Recalcular con zonas actuales'
                             : hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
                 </button>
+            )}
+            {heatmapVideoUrl && downloadVideo && imageUrl && (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => downloadVideo(resolveMediaUrl(imageUrl), 'video-original')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                    >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" /></svg>
+                        Video original
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => downloadVideo(resolveMediaUrl(overlayOnlyUrl || heatmapVideoUrl), 'video-heatmap')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-blue-200 bg-blue-50 text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
+                    >
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" /></svg>
+                        Video heatmap
+                    </button>
+                </>
             )}
             {onRunAnalysis && (
                 <button
