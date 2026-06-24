@@ -629,12 +629,10 @@ export interface VideoRenderHeatmapResult {
 }
 
 /**
- * Render a video with DINO attention heatmap via the Python microservice.
+ * Render a video with DINO attention heatmap via Python subprocess.
  *
- * 1. Resolves the source video path from its s3Key
- * 2. Calls Python /render-video (DINO ViT-B/16, side-by-side, grid, logo)
- * 3. Copies output MP4 into the media directory
- * 4. Returns URL + metadata for stimulus persistence
+ * Calls render_cli.py directly — no HTTP, no uvicorn, no socket issues.
+ * Python writes MP4 + .meta.json, prints JSON to stdout. Node reads it.
  */
 export async function renderVideoHeatmap(
     videoS3Key: string,
@@ -651,47 +649,78 @@ export async function renderVideoHeatmap(
     const startTime = Date.now();
     const videoPath = getMediaPath(videoS3Key);
 
-    // Output path: place rendered MP4 alongside original in media dir
     const outputFilename = `heatmap_${Date.now()}.mp4`;
     const outputRelative = path.join(path.dirname(videoS3Key), outputFilename);
     const outputAbsolute = getMediaPath(outputRelative);
 
-    // Ensure output directory exists
     const outputDir = path.dirname(outputAbsolute);
     fs.mkdirSync(outputDir, { recursive: true });
 
-    const renderInput: RenderVideoInput = {
+    const rows = options.gridRows ?? 3;
+    const cols = options.gridCols ?? 3;
+
+    // ponytail: subprocess > HTTP. No sockets to drop, no event loops to block.
+    const pythonDir = path.resolve(__dirname, '../../../python-saliency');
+    const venvPython = path.join(pythonDir, 'venv', 'bin', 'python');
+    const cliScript = path.join(pythonDir, 'render_cli.py');
+
+    const args = [
+        cliScript,
         videoPath,
-        gridRows: options.gridRows ?? 3,
-        gridCols: options.gridCols ?? 3,
-        rotation: options.rotation ?? -1,
-        flipHeatmapV: options.flipHeatmapV ?? false,
-        logoPath: options.logoPath ?? '',
-        outputPath: outputAbsolute,
-    };
+        outputAbsolute,
+        '--grid', `${rows}x${cols}`,
+        '--rotation', String(options.rotation ?? -1),
+        '--alpha', '0.6',
+        '--sample', '2.0',
+    ];
+    options.flipHeatmapV && args.push('--flip');
+    options.logoPath && args.push('--logo', options.logoPath);
 
-    // Try HTTP streaming first; fall back to sidecar JSON if connection drops
-    const metaJsonPath = outputAbsolute.replace(/\.mp4$/, '.meta.json');
-    let result: RenderVideoResult;
+    console.error(`[renderVideoHeatmap] Spawning: ${venvPython} ${args.join(' ')}`);
 
-    try {
-        result = await renderVideoClient(
-            renderInput,
-            (frame, total) => {
-                onProgress?.({
-                    type: 'frame-complete',
-                    frameIndex: frame - 1,
-                    totalFrames: total,
-                    mediaId: '',
-                    timestamp: 0,
+    const result = await new Promise<RenderVideoResult>((resolve, reject) => {
+        const { spawn } = require('child_process') as typeof import('child_process');
+        const proc = spawn(venvPython, args, { cwd: pythonDir, stdio: ['ignore', 'pipe', 'pipe'] });
+
+        let stdout = '';
+        let stderr = '';
+
+        proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+        proc.stderr.on('data', (chunk: Buffer) => {
+            const line = chunk.toString();
+            stderr += line;
+            // Forward keyframe progress to SSE
+            const match = line.match(/keyframe (\d+)\/(\d+)/);
+            match && onProgress?.({
+                type: 'frame-complete',
+                frameIndex: parseInt(match[1]) - 1,
+                totalFrames: parseInt(match[2]),
+                mediaId: '',
+                timestamp: 0,
+            });
+        });
+
+        proc.on('close', (code: number) => {
+            console.error(`[renderVideoHeatmap] Process exited with code ${code}`);
+            stderr && console.error(`[renderVideoHeatmap] stderr:\n${stderr}`);
+
+            try {
+                const parsed = JSON.parse(stdout);
+                resolve({
+                    outputPath: parsed.output_path,
+                    durationS: parsed.duration_s,
+                    fps: parsed.fps,
+                    totalFrames: parsed.total_frames,
+                    processedFrames: parsed.processed_frames,
+                    frames: parsed.frames,
                 });
-            },
-        );
-    } catch (streamErr) {
-        // ponytail: Python writes .meta.json sidecar — read it if HTTP stream died
-        console.error('[renderVideoHeatmap] Stream failed, checking sidecar:', (streamErr as Error).message);
-        result = await pollForSidecar(metaJsonPath, outputAbsolute, 600_000);
-    }
+            } catch (e) {
+                reject(new Error(`render_cli.py failed (code ${code}): ${stderr.slice(-500)}`));
+            }
+        });
+
+        proc.on('error', (err: Error) => reject(new Error(`Failed to spawn render_cli.py: ${err.message}`)));
+    });
 
     const processingTimeMs = Date.now() - startTime;
 
