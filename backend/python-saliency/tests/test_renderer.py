@@ -476,16 +476,16 @@ class TestRenderVideo:
 # ---------------------------------------------------------------------------
 
 class TestMaxdimConfig:
-    def test_default_maxdim_is_1280(self):
-        """render_cli.py must default --maxdim to 1280 (not 640)."""
+    def test_default_maxdim_is_960(self):
+        """render_cli.py must default --maxdim to 960 (not 640)."""
         source = Path(__file__).parent.parent.joinpath("render_cli.py").read_text()
-        assert 'default=1280' in source, "render_cli.py --maxdim default must be 1280"
+        assert 'default=960' in source, "render_cli.py --maxdim default must be 960"
         assert 'default=640' not in source, "render_cli.py still has old 640 default"
 
-    def test_node_passes_maxdim_1280(self):
-        """video-prediction.service.ts must pass --maxdim 1280 explicitly."""
+    def test_node_passes_maxdim_960(self):
+        """video-prediction.service.ts must pass --maxdim 960 explicitly."""
         svc = Path(__file__).parents[2] / "src" / "modules" / "attention-prediction" / "video-prediction.service.ts"
         source = svc.read_text()
-        assert "'--maxdim'" in source and "'1280'" in source, (
-            "video-prediction.service.ts must pass --maxdim 1280 to render_cli.py"
+        assert "'--maxdim'" in source and "'960'" in source, (
+            "video-prediction.service.ts must pass --maxdim 960 to render_cli.py"
         )
