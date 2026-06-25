@@ -24,14 +24,6 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OPENCV_THREAD_COUNT"] = "0"
 
-import torch
-torch.set_num_threads(1)
-
-from transformers import AutoImageProcessor, AutoModel
-
-from renderer import RenderConfig, make_dino_extractor, render_video
-
-
 def _maybe_downscale(video_path: str, max_dim: int) -> str:
     """Downscale video if larger than max_dim. Returns path (original or temp)."""
     import cv2
@@ -90,8 +82,14 @@ def main() -> None:
 
     rows, cols = (int(x) for x in args.grid.split("x"))
 
-    # Downscale large videos to fit in memory
+    # Downscale BEFORE importing torch/transformers — they use ~400MB
     actual_video = _maybe_downscale(args.video_path, args.maxdim)
+
+    # ponytail: lazy imports — torch/transformers only after downscale frees the large source frames
+    import torch
+    torch.set_num_threads(1)
+    from transformers import AutoImageProcessor, AutoModel
+    from renderer import RenderConfig, make_dino_extractor, render_video
 
     # Load DINO
     t0 = time.time()
