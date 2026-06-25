@@ -774,8 +774,8 @@ export async function renderVideoHeatmap(
         '--grid', `${rows}x${cols}`,
         '--rotation', String(options.rotation ?? -1),
         '--alpha', '0.6',
-        '--sample', '2.0',
-        '--maxdim', '640',
+        '--sample', process.env.VIDEO_SAMPLE_INTERVAL ?? '2.0',
+        '--maxdim', process.env.VIDEO_MAX_DIM ?? '640',
     ];
     options.flipHeatmapV && args.push('--flip');
     options.logoPath && args.push('--logo', options.logoPath);

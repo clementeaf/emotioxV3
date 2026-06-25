@@ -1,3 +1,17 @@
+## v0.85.2 — Video heatmap: per-frame render + legacy banner fix (2026-06-25)
+
+### backend
+- **Configurable sample interval.** `renderVideoHeatmap` reads `VIDEO_SAMPLE_INTERVAL` and `VIDEO_MAX_DIM` from env. Local: `0.0` (every frame, fluid heatmap). cPanel: `2.0` (keyframes only, lower CPU). Previously hardcoded `2.0`/`640`.
+
+### research-frontend
+- **Legacy banner fix for DINO video.** `isLegacyAttentionStimulus` now accepts `hasHeatmapVideo` param. DINO videos with `heatmapVideoUrl` but no `heatmapData` are no longer incorrectly flagged as legacy flow.
+
+### config
+- `VIDEO_SAMPLE_INTERVAL=0.0` in local `.env` (every frame)
+- `VIDEO_MAX_DIM=960` in local `.env` (higher resolution)
+
+---
+
 ## v0.85.1 — Video Attention Prediction: AI analysis support (2026-06-25)
 
 ### backend
