@@ -526,6 +526,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
             hasAnalysis,
             liveAois.length,
             Boolean(activeStimulus.aoiSkipped),
+            Boolean(activeStimulus.heatmapVideoUrl),
         )
         : false;
 

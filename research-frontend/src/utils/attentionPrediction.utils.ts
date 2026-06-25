@@ -386,11 +386,12 @@ export function isLegacyAttentionStimulus(
     hasAiAnalysis: boolean,
     manualAoiCount: number,
     aoiSkipped: boolean,
+    hasHeatmapVideo = false,
 ): boolean {
     if (!hasAiAnalysis) {
         return false;
     }
-    if (heatmapPointCount === 0 || !processedAt) {
+    if ((heatmapPointCount === 0 && !hasHeatmapVideo) || !processedAt) {
         return true;
     }
     return manualAoiCount === 0 && !aoiSkipped;
