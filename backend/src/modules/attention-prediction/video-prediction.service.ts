@@ -630,6 +630,33 @@ export interface VideoRenderHeatmapResult {
     processingTimeMs: number;
 }
 
+/** Find ffmpeg binary — checks imageio-ffmpeg's bundled location, then PATH. */
+function findFfmpeg(pythonDir: string): string {
+    // imageio-ffmpeg bundles ffmpeg inside site-packages/imageio_ffmpeg/binaries/
+    // Check both lib and lib64 (cPanel uses lib64)
+    for (const libDir of ['lib', 'lib64']) {
+        const binariesDir = path.join(pythonDir, 'venv', libDir);
+        if (!fs.existsSync(binariesDir)) continue;
+        try {
+            const walkForFfmpeg = (dir: string): string | null => {
+                for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const full = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                        const found = walkForFfmpeg(full);
+                        if (found) return found;
+                    } else if (entry.name.startsWith('ffmpeg') && !entry.name.endsWith('.exe')) {
+                        if (full.includes('imageio_ffmpeg')) return full;
+                    }
+                }
+                return null;
+            };
+            const found = walkForFfmpeg(binariesDir);
+            if (found) return found;
+        } catch { /* continue */ }
+    }
+    return 'ffmpeg';
+}
+
 /**
  * Re-encode a video to H.264 MP4 via ffmpeg. Runs AFTER Python exits
  * so they don't share memory. Returns the final .mp4 path.
@@ -642,10 +669,9 @@ async function reencodeToH264(srcPath: string): Promise<string> {
     const finalPath = srcPath.replace(/\.[^.]+$/, '.mp4');
     const tmpPath = srcPath + '.h264.mp4';
 
-    // Find ffmpeg — imageio-ffmpeg puts it in the venv
+    // ponytail: imageio-ffmpeg bundles ffmpeg deep inside the package, not in venv/bin
     const pythonDir = path.resolve(__dirname, '../../../python-saliency');
-    const venvFfmpeg = path.join(pythonDir, 'venv', 'bin', 'ffmpeg');
-    const ffmpeg = fs.existsSync(venvFfmpeg) ? venvFfmpeg : 'ffmpeg';
+    const ffmpeg = findFfmpeg(pythonDir);
 
     try {
         await execFileAsync(ffmpeg, [
