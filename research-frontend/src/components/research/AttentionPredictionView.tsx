@@ -342,12 +342,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         try {
             setVideoProgress({ phase: 'predicting', current: 0, total: 0, message: 'Starting video prediction...' });
 
-            // Detect grid config from AOI sources
+            // Detect grid config from AOI sources — cell dimensions are exact (100/cols, 100/rows)
             const gridAois = (videoStimulus.aois || []).filter(a => a.source === 'imported-grid');
-            const gridConfig = gridAois.length > 0
+            const gridConfig = gridAois.length > 0 && gridAois[0].width > 0 && gridAois[0].height > 0
                 ? (() => {
-                    const cols = new Set(gridAois.map(a => Math.round(a.x / (a.width || 1)))).size;
-                    const rows = new Set(gridAois.map(a => Math.round(a.y / (a.height || 1)))).size;
+                    const cols = Math.round(100 / gridAois[0].width);
+                    const rows = Math.round(100 / gridAois[0].height);
                     return cols >= 2 && rows >= 2 ? { cols, rows } : undefined;
                 })()
                 : undefined;
