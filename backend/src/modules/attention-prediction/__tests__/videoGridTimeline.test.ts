@@ -58,17 +58,17 @@ describe('buildGridLabels', () => {
         expect(labels[8]).toBe('C3');
     });
 
-    it('generates 100 labels for 10x10 grid', () => {
-        const labels = buildGridLabels(10, 10);
-        expect(labels).toHaveLength(100);
+    it('generates 25 labels for 5x5 grid', () => {
+        const labels = buildGridLabels(5, 5);
+        expect(labels).toHaveLength(25);
         expect(labels[0]).toBe('A1');
-        expect(labels[9]).toBe('J1');
-        expect(labels[99]).toBe('J10');
+        expect(labels[4]).toBe('E1');
+        expect(labels[24]).toBe('E5');
     });
 
-    it('generates correct column letters up to J', () => {
-        const labels = buildGridLabels(10, 1);
-        expect(labels).toEqual(['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1']);
+    it('generates correct column letters up to E', () => {
+        const labels = buildGridLabels(5, 1);
+        expect(labels).toEqual(['A1', 'B1', 'C1', 'D1', 'E1']);
     });
 });
 

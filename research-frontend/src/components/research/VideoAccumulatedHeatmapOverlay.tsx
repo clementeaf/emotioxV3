@@ -63,7 +63,6 @@ const GRID_OPTIONS = [
     { label: '3×3', cols: 3, rows: 3 },
     { label: '4×4', cols: 4, rows: 4 },
     { label: '5×5', cols: 5, rows: 5 },
-    { label: '10×10', cols: 10, rows: 10 },
 ];
 
 /**

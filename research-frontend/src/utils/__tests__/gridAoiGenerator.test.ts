@@ -12,11 +12,6 @@ describe('generateGridAois', () => {
         expect(aois).toHaveLength(25);
     });
 
-    it('generates 100 AOIs for a 10x10 grid', () => {
-        const aois = generateGridAois(10, 10);
-        expect(aois).toHaveLength(100);
-    });
-
     it('produces correct bounds for 3x3', () => {
         const aois = generateGridAois(3, 3);
         const cellW = 100 / 3;
@@ -67,9 +62,9 @@ describe('generateGridAois', () => {
         }
     });
 
-    it('clamps cols and rows to 2-10 range', () => {
+    it('clamps cols and rows to 2-5 range', () => {
         expect(generateGridAois(1, 1)).toHaveLength(4);   // clamped to 2x2
-        expect(generateGridAois(15, 15)).toHaveLength(100); // clamped to 10x10
+        expect(generateGridAois(15, 15)).toHaveLength(25); // clamped to 5x5
     });
 
     it('cells cover the full 100x100 space without gaps', () => {

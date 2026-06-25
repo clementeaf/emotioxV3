@@ -128,9 +128,9 @@ describe('renderGridComposite', () => {
         expect(ctx.calls.filter(c => c.method === 'stroke')).toHaveLength(2);
     });
 
-    it('10x10 grid: 100 labels, 18 lines', () => {
-        renderGridComposite(ctx, VIDEO, [], 1000, 1000, 10, 10, new Array(100).fill(1));
-        expect(ctx.calls.filter(c => c.method === 'fillText')).toHaveLength(100);
-        expect(ctx.calls.filter(c => c.method === 'stroke')).toHaveLength(18);
+    it('5x5 grid: 25 labels, 8 lines', () => {
+        renderGridComposite(ctx, VIDEO, [], 1000, 1000, 5, 5, new Array(25).fill(4));
+        expect(ctx.calls.filter(c => c.method === 'fillText')).toHaveLength(25);
+        expect(ctx.calls.filter(c => c.method === 'stroke')).toHaveLength(8);
     });
 });

@@ -2,8 +2,8 @@ import type { ManualAOI } from '../types/attentionPrediction.types';
 
 /**
  * Generates a grid of ManualAOI items that evenly divide the frame.
- * @param cols - Number of columns (2-10)
- * @param rows - Number of rows (2-10)
+ * @param cols - Number of columns (2-5)
+ * @param rows - Number of rows (2-5)
  * @param videoDuration - Optional video duration in seconds; sets timeRange on each AOI
  * @returns ManualAOI[] with percentage-based coordinates (0-100)
  */
@@ -12,8 +12,8 @@ export const generateGridAois = (
     rows: number,
     videoDuration?: number,
 ): ManualAOI[] => {
-    const clampedCols = Math.max(2, Math.min(10, Math.round(cols)));
-    const clampedRows = Math.max(2, Math.min(10, Math.round(rows)));
+    const clampedCols = Math.max(2, Math.min(5, Math.round(cols)));
+    const clampedRows = Math.max(2, Math.min(5, Math.round(rows)));
     const cellWidth = 100 / clampedCols;
     const cellHeight = 100 / clampedRows;
     const aois: ManualAOI[] = [];

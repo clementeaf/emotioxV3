@@ -77,7 +77,7 @@ def main() -> None:
     parser.add_argument("--sample", type=float, default=2.0, help="Seconds between keyframes")
     parser.add_argument("--logo", default="", help="Logo image path")
     parser.add_argument("--footer", type=int, default=100, help="Footer height px")
-    parser.add_argument("--maxdim", type=int, default=960, help="Max dimension (width or height) — downscale large videos")
+    parser.add_argument("--maxdim", type=int, default=640, help="Max dimension (width or height) — downscale large videos")
     args = parser.parse_args()
 
     rows, cols = (int(x) for x in args.grid.split("x"))

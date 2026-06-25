@@ -24,11 +24,6 @@ describe('Grid preset handler logic', () => {
         expect(result).toHaveLength(25);
     });
 
-    it('generates 100 AOIs for 10x10 preset', () => {
-        const result = generateGridAois(10, 10);
-        expect(result).toHaveLength(100);
-    });
-
     it('grid AOIs replace existing manual AOIs', () => {
         const existing: ManualAOI[] = [makeManualAoi('m1'), makeManualAoi('m2')];
         // Simulates the handler: preset replaces all
