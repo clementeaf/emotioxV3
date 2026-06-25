@@ -20,7 +20,7 @@ import {
 } from './attention-prediction.service';
 import { analyzeAttentionWithAI, generateHybridSaliency, parseManualAois, type ManualAoiInput } from './ai-analysis.service';
 import { getMediaPath } from '../../config/local-storage';
-import { predictVideoFrames, predictVideoFramesTased, renderVideoHeatmap } from './video-prediction.service';
+import { predictVideoFrames, predictVideoFramesTased, renderVideoHeatmap, extractVideoFrame } from './video-prediction.service';
 import { isTasedServiceAvailable } from './tased-client';
 import { registerJob, broadcastProgress, removeJob } from './video-prediction-jobs';
 import pool from '../../config/database';
@@ -469,7 +469,8 @@ export const handleAttentionPredictionRoutes = async (
 
             const s3Key = mediaResult.rows[0].s3_key as string;
             const fileName = (mediaResult.rows[0].file_name as string) || 'image';
-            const imagePath = getMediaPath(s3Key);
+            const mediaPath = getMediaPath(s3Key);
+            const isVideoFile = /\.(mp4|webm|mov|avi|mkv)$/i.test(fileName) || /\.(mp4|webm|mov|avi|mkv)$/i.test(s3Key);
 
             // Read research config to get heatmapData
             const researchResult = await pool.query(
@@ -509,7 +510,15 @@ export const handleAttentionPredictionRoutes = async (
 
             // Fire-and-forget: run analysis in background
             (async () => {
+                let framePath: string | null = null;
                 try {
+                    // For video files, extract a representative frame for the AI to analyze
+                    let imagePath = mediaPath;
+                    if (isVideoFile) {
+                        framePath = await extractVideoFrame(mediaPath);
+                        imagePath = framePath;
+                    }
+
                     const customPrompt = typeof config.attentionPrompt === 'string' ? config.attentionPrompt : undefined;
                     const analysis = await analyzeAttentionWithAI(
                         imagePath,
@@ -557,6 +566,9 @@ export const handleAttentionPredictionRoutes = async (
                             await pool.query('UPDATE researches SET config = ? WHERE id = ?', [JSON.stringify(errConfig), researchId]);
                         }
                     } catch { /* silent */ }
+                } finally {
+                    // Clean up extracted video frame
+                    if (framePath) try { require('fs').unlinkSync(framePath); } catch { /* best-effort */ }
                 }
             })();
 
@@ -651,11 +663,11 @@ export const handleAttentionPredictionRoutes = async (
             const profile = body.profile || undefined;
             const videoAois = parseManualAois(body.aois ?? []);
 
-            // Grid config (2-10 cols/rows, default 4x4)
+            // Grid config (2-5 cols/rows, default 4x4)
             const rawGrid = body.gridConfig as { cols?: number; rows?: number } | undefined;
             const gridConfig = rawGrid ? {
-                cols: Math.max(2, Math.min(10, Math.round(rawGrid.cols ?? 4))),
-                rows: Math.max(2, Math.min(10, Math.round(rawGrid.rows ?? 4))),
+                cols: Math.max(2, Math.min(5, Math.round(rawGrid.cols ?? 4))),
+                rows: Math.max(2, Math.min(5, Math.round(rawGrid.rows ?? 4))),
             } : undefined;
 
             // AOI time ranges for temporal filtering

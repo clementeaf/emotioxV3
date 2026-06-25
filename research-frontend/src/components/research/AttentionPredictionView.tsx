@@ -338,12 +338,15 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         );
         await persistStimuli(updated);
     }, [stimuli, persistStimuli]);
-    const processVideoStimulus = useCallback(async (videoStimulus: StimulusItem, _videoUrl: string) => {
+    const processVideoStimulus = useCallback(async (videoStimulus: StimulusItem, _videoUrl: string, freshAois?: ManualAOI[]) => {
         try {
             setVideoProgress({ phase: 'predicting', current: 0, total: 0, message: 'Starting video prediction...' });
 
+            // Use fresh AOIs from the card (avoids race with async persistAois) or fall back to persisted
+            const effectiveAois = freshAois ?? videoStimulus.aois ?? [];
+
             // Detect grid config from AOI sources — cell dimensions are exact (100/cols, 100/rows)
-            const gridAois = (videoStimulus.aois || []).filter(a => a.source === 'imported-grid');
+            const gridAois = effectiveAois.filter(a => a.source === 'imported-grid');
             const gridConfig = gridAois.length > 0 && gridAois[0].width > 0 && gridAois[0].height > 0
                 ? (() => {
                     const cols = Math.round(100 / gridAois[0].width);
@@ -353,7 +356,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 : undefined;
 
             // Extract time ranges from AOIs
-            const aoiTimeRanges = (videoStimulus.aois || [])
+            const aoiTimeRanges = effectiveAois
                 .filter(a => a.timeRange && a.timeRange.startTime < a.timeRange.endTime)
                 .map(a => ({ aoiId: a.id, startTime: a.timeRange!.startTime, endTime: a.timeRange!.endTime }));
 
@@ -362,7 +365,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 videoStimulus.mediaId,
                 [],  // ponytail: dino backend reads video directly, no client-side frames needed
                 {
-                    aois: videoStimulus.aois,
+                    aois: effectiveAois,
                     gridConfig,
                     ...(aoiTimeRanges.length > 0 ? { aoiTimeRanges } : {}),
                 },
@@ -512,8 +515,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
         ? isNewAttentionStimulus(activeStimulus.processedAt, hasAnalysis)
         : false;
     const heatmapPointCount = activeStimulus?.heatmapData?.length ?? 0;
+    const hasHeatmapOrVideo = heatmapPointCount > 0 || Boolean(activeStimulus?.heatmapVideoUrl);
     const needsHeatmapRegeneration = Boolean(
-        activeStimulus && hasAnalysis && heatmapPointCount === 0,
+        activeStimulus && hasAnalysis && heatmapPointCount === 0 && !activeStimulus?.heatmapVideoUrl,
     );
     const isLegacyStimulus = activeStimulus
         ? isLegacyAttentionStimulus(
@@ -730,9 +734,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onAddMore={() => setShowUploadModal(true)}
                             onRunAnalysis={(aois) => void runAnalysis(activeStimulus.mediaId, aois)}
                             onRunPrediction={activeStimulus.isVideo
-                                ? () => {
+                                ? (aois) => {
                                     const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
-                                    void processVideoStimulus(activeStimulus, videoUrl);
+                                    void processVideoStimulus(activeStimulus, videoUrl, aois);
                                 }
                                 : (aois) => void runPrediction(activeStimulus.mediaId, aois)}
                             isPredicting={isPredicting}
@@ -749,9 +753,9 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             griddedAOIs={activeStimulus.griddedAOIs}
                             isAnalyzing={isProcessing}
                             analyzeElapsed={analyzeElapsed}
-                            onProcessVideo={activeStimulus.isVideo ? () => {
+                            onProcessVideo={activeStimulus.isVideo ? (aois?: ManualAOI[]) => {
                                 const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
-                                void processVideoStimulus(activeStimulus, videoUrl);
+                                void processVideoStimulus(activeStimulus, videoUrl, aois ?? liveAois);
                             } : undefined}
                             videoProgress={videoProgress}
                             onDismissVideoProgress={() => setVideoProgress(null)}
@@ -863,7 +867,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 isAnalyzing={isProcessing}
                                 onAnalyze={() => activeStimulus && runAnalysis(activeStimulus.mediaId, liveAois)}
                                 onImportAois={(aois) => setPendingImportAois(aois)}
-                                hasHeatmap={heatmapPointCount > 0}
+                                hasHeatmap={hasHeatmapOrVideo}
                                 hasAois={Boolean(liveAois.length || activeStimulus?.aoiSkipped)}
                                 manualAois={liveAois}
                                 isLegacyFlow={isLegacyStimulus}
@@ -875,7 +879,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                     if (!activeStimulus) return;
                                     if (activeStimulus.isVideo) {
                                         const videoUrl = activeStimulus.url.startsWith('http') ? activeStimulus.url : resolveMediaUrl(activeStimulus.url);
-                                        void processVideoStimulus(activeStimulus, videoUrl);
+                                        void processVideoStimulus(activeStimulus, videoUrl, liveAois);
                                     } else {
                                         void runPrediction(activeStimulus.mediaId, liveAois);
                                     }

@@ -1,3 +1,20 @@
+## v0.85.1 — Video Attention Prediction: AI analysis support (2026-06-25)
+
+### backend
+- **Video frame extraction for AI analysis.** `/analyze/:mediaId` now detects video files and extracts a midpoint frame via ffmpeg before sending to Gemini/OpenAI. Previously `sharp(video.mp4)` crashed silently, leaving analysis stuck in `processing` state forever.
+- **`extractVideoFrame` utility.** Exported from `video-prediction.service.ts`. Uses ffmpeg to probe duration, seeks to midpoint, extracts 1 JPEG frame. Temp file cleaned up in `finally` block.
+- **Top-level child_process imports.** Replaced inline `require('child_process')` with top-level `import` in `video-prediction.service.ts` — enables proper test mocking.
+
+### research-frontend
+- **Analysis gate accepts video heatmaps.** `canRunAnalysisGate` now takes optional `hasHeatmapVideo` param. DINO videos (which have `heatmapVideoUrl` but no `heatmapData`) can now trigger AI analysis.
+- **`hasHeatmap` considers `heatmapVideoUrl`.** Both `AttentionPredictionCard` and `AttentionPredictionView` treat `heatmapVideoUrl` as a valid heatmap for gate checks and wizard step completion.
+
+### tests
+- **`extractVideoFrame.test.ts`** (5 tests): output path, midpoint seek, duration parsing with hours, fallback without duration, ffmpeg flags.
+- **`attentionPrediction.videoAnalysis.test.ts`** (9 tests): gate with/without `heatmapVideoUrl`, backward compat, AOI/skip combinations.
+
+---
+
 ## v0.85.0 — Video Attention Prediction: server-side DINO heatmap rendering (2026-06-24)
 
 ### backend

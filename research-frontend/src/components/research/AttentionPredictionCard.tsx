@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect, type ReactNode } from 'react';
 import { useViewportHeight } from '../../hooks/useViewportHeight';
 import { createPortal } from 'react-dom';
-import { toPng } from 'html-to-image';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { cn } from '../../lib/utils';
 import { HeatmapRenderer } from '../results/cognitive-task/components/HeatmapRenderer';
@@ -314,7 +313,6 @@ const THERMAL_GRID_OPTIONS = [
     { label: '3×3', cols: 3, rows: 3 },
     { label: '4×4', cols: 4, rows: 4 },
     { label: '5×5', cols: 5, rows: 5 },
-    { label: '10×10', cols: 10, rows: 10 },
 ];
 
 const VideoThermalGrid = ({
@@ -940,10 +938,10 @@ export const AttentionPredictionCard = ({
     /* ── Tabs filter ── */
     const tabs = useMemo(() => {
         return BASE_TABS.filter(tab => {
-            if (tab.id === 'gaze-paths') return aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
+            if (tab.id === 'gaze-paths') return !isVideo && aiAnalysis?.gazePath && aiAnalysis.gazePath.length > 0;
             return true;
         });
-    }, [aiAnalysis]);
+    }, [aiAnalysis, isVideo]);
 
     /* ── Auto-presets sync ── */
     useEffect(() => {
@@ -1143,8 +1141,8 @@ export const AttentionPredictionCard = ({
 
     /* ── Gates ── */
     const predictionGateOpen = canRunPredictionGate(aoiList.length, aoiSkipped);
-    const analysisGateOpen = canRunAnalysisGate(heatmapData.length, aoiList.length, aoiSkipped);
-    const hasHeatmap = heatmapData.length > 0;
+    const analysisGateOpen = canRunAnalysisGate(heatmapData.length, aoiList.length, aoiSkipped, Boolean(heatmapVideoUrl));
+    const hasHeatmap = heatmapData.length > 0 || Boolean(heatmapVideoUrl);
 
     const handlePredictClick = (): void => {
         if (!onRunPrediction) return;
@@ -1365,22 +1363,6 @@ export const AttentionPredictionCard = ({
         setSettings(prev => ({ ...prev, preset, ...values }));
     }, []);
 
-    const handleDownloadImage = useCallback(async () => {
-        const el = tabContentRef.current;
-        if (!el) return;
-        try {
-            const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2 });
-            const link = document.createElement('a');
-            link.download = `attention-prediction-${activeTab}-${effectiveMapMode}.png`;
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch {
-            // Download failed silently
-        }
-    }, [activeTab, effectiveMapMode]);
-
     /* ── Empty state ── */
     if (!imageUrl) {
         return (
@@ -1458,15 +1440,6 @@ export const AttentionPredictionCard = ({
                                 </button>
                             ))}
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => void handleDownloadImage()}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors mr-1"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </button>
                         {!isVideo && (
                             <button
                                 type="button"
@@ -1479,22 +1452,24 @@ export const AttentionPredictionCard = ({
                                 </svg>
                             </button>
                         )}
-                        <button
-                            type="button"
-                            onClick={openHeatmapSettings}
-                            className={cn(
-                                'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
-                                showSettings ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900',
-                            )}
-                        >
-                            {TAB_ICONS.settings}
-                            Settings
-                        </button>
+                        {!isVideo && (
+                            <button
+                                type="button"
+                                onClick={openHeatmapSettings}
+                                className={cn(
+                                    'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                                    showSettings ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900',
+                                )}
+                            >
+                                {TAB_ICONS.settings}
+                                Settings
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* Layer toggles — Heatmap and Gaze Paths tabs */}
-                {(activeTab === 'heatmap' || activeTab === 'gaze-paths') && (
+                {!isVideo && (activeTab === 'heatmap' || activeTab === 'gaze-paths') && (
                     <LayerToggles
                         layers={layers}
                         hasHeatmap={hasHeatmap}
@@ -1506,8 +1481,8 @@ export const AttentionPredictionCard = ({
                     />
                 )}
 
-                {/* Map mode control bar — unified for image and video */}
-                {showMapModeControls && activeTab === 'heatmap' && (
+                {/* Map mode control bar — image only */}
+                {!isVideo && showMapModeControls && activeTab === 'heatmap' && (
                     <MapModeControlBar
                         mapMode={mapMode}
                         settings={settings}
@@ -1517,6 +1492,30 @@ export const AttentionPredictionCard = ({
                         onPresetChange={handlePresetChange}
                         onOpenSettings={openHeatmapSettings}
                     />
+                )}
+
+                {/* Grid preset selector — heatmap tab */}
+                {activeTab === 'heatmap' && (
+                    <div className="px-4 py-2 border-b bg-slate-50 flex items-center gap-3">
+                        <span className="text-xs text-gray-500">Malla</span>
+                        <div className="flex items-center gap-1 border border-gray-200 rounded bg-white p-0.5">
+                            {GRID_PRESETS.map(preset => (
+                                <button
+                                    key={preset.label}
+                                    type="button"
+                                    onClick={() => handleGridPresetChange(preset)}
+                                    className={cn(
+                                        'px-2.5 py-1 text-xs font-medium rounded transition-colors',
+                                        activeGridPreset === preset.label
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-gray-600 hover:bg-gray-100',
+                                    )}
+                                >
+                                    {preset.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 )}
 
                 {/* Gaze route toggles */}
@@ -1569,8 +1568,6 @@ export const AttentionPredictionCard = ({
                                         <video
                                             src={resolveMediaUrl(heatmapVideoUrl)}
                                             controls
-                                            autoPlay
-                                            loop
                                             muted
                                             playsInline
                                             preload="auto"
@@ -1875,11 +1872,11 @@ const CardHeader = ({
     imageUrl?: string;
     downloadVideo?: (url: string, filename: string) => void;
 }) => (
-    <div className="p-4 border-b flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
+    <div className="p-4 border-b flex flex-wrap items-center gap-2">
+        <div className="min-w-0 shrink-0">
             <p className="text-sm text-gray-500">Prediction of visual attention</p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1 ml-auto">
             {onAddMore && (
                 <button type="button" onClick={onAddMore} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Add more images or videos">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -2074,7 +2071,6 @@ const GRID_PRESETS = [
     { label: 'Manual', cols: 0, rows: 0 },
     { label: '3×3', cols: 3, rows: 3 },
     { label: '5×5', cols: 5, rows: 5 },
-    { label: '10×10', cols: 10, rows: 10 },
 ] as const;
 
 const AoiEditorToolbar = ({

@@ -130,6 +130,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - **Video grid AOIs + timeline (v0.83.0)**: Grid presets (3×3, 5×5, 10×10) generan `ManualAOI[]` con `source: 'imported-grid'`. Backend `predictVideoFrames` acepta `gridConfig` (2-10 cols/rows, default 4×4) y `aoiTimeRanges` para filtrado temporal per-AOI. `AoiTimelineBar` con handles draggables start/end, snap a frames. `preprocessSharp` fix para Safari Canvas PNGs (flatten + sRGB fallback). 44 tests.
 - **Video thermal heatmap (v0.84.0→v0.85.0)**: Replaced browser-side IDW/thermal/canvas pipeline with server-side DINO render. See v0.85.0 above. Legacy `VideoThermalGrid` kept as fallback for pre-v0.85 data.
 - **Warm heatmap gradient restored (v0.84.2)**: `HeatmapRenderer` gradients reverted to green→yellow→orange→red. Applies to images only — videos use server-rendered WebM.
+- **Video AI analysis (v0.85.1)**: Video stimuli now support AI analysis. Backend extracts midpoint frame via ffmpeg (`extractVideoFrame`) before sending to Gemini/OpenAI. Frontend gates (`canRunAnalysisGate`, `hasHeatmap`) accept `heatmapVideoUrl` as valid heatmap for DINO videos. 14 tests.
 
 > **Feature-specific conventions** (IAT, Website Tracking, Attention Prediction, Eye Tracking, Results, Insights): see [.agent/CONVENTIONS_FEATURES.md](.agent/CONVENTIONS_FEATURES.md)
 

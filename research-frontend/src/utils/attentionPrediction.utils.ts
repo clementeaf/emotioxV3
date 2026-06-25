@@ -353,8 +353,9 @@ export function canRunAnalysisGate(
     heatmapPointCount: number,
     aoiCount: number,
     aoiSkipped: boolean,
+    hasHeatmapVideo = false,
 ): boolean {
-    return heatmapPointCount > 0 && canRunPredictionGate(aoiCount, aoiSkipped);
+    return (heatmapPointCount > 0 || hasHeatmapVideo) && canRunPredictionGate(aoiCount, aoiSkipped);
 }
 
 /**

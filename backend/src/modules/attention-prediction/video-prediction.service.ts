@@ -20,6 +20,10 @@ import type { VideoJobEvent } from './video-prediction-jobs';
 import { predictWithTased, renderVideo as renderVideoClient, type TasedResult, type RenderVideoResult, type RenderVideoInput } from './tased-client';
 import path from 'node:path';
 import fs from 'node:fs';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -64,8 +68,8 @@ export interface AoiTimeRange {
 }
 
 export interface VideoGridConfig {
-    cols: number; // 2-10
-    rows: number; // 2-10
+    cols: number; // 2-5
+    rows: number; // 2-5
 }
 
 export type ProgressCallback = (event: VideoJobEvent) => void;
@@ -165,8 +169,8 @@ export async function predictVideoFrames(
         throw new Error('No frames provided');
     }
 
-    const gridCols = Math.max(2, Math.min(10, gridConfig?.cols ?? DEFAULT_GRID_COLS));
-    const gridRows = Math.max(2, Math.min(10, gridConfig?.rows ?? DEFAULT_GRID_ROWS));
+    const gridCols = Math.max(2, Math.min(5, gridConfig?.cols ?? DEFAULT_GRID_COLS));
+    const gridRows = Math.max(2, Math.min(5, gridConfig?.rows ?? DEFAULT_GRID_ROWS));
 
     const startTime = Date.now();
     const totalFrames = frames.length;
@@ -474,8 +478,8 @@ export async function predictVideoFramesTased(
     const startTime = Date.now();
     const totalFrames = frames.length;
 
-    const gridCols = Math.max(2, Math.min(10, gridConfig?.cols ?? DEFAULT_GRID_COLS));
-    const gridRows = Math.max(2, Math.min(10, gridConfig?.rows ?? DEFAULT_GRID_ROWS));
+    const gridCols = Math.max(2, Math.min(5, gridConfig?.cols ?? DEFAULT_GRID_COLS));
+    const gridRows = Math.max(2, Math.min(5, gridConfig?.rows ?? DEFAULT_GRID_ROWS));
 
     // Resolve absolute file paths for the Python service
     const tasedInputs = frames.map(f => ({
@@ -631,7 +635,7 @@ export interface VideoRenderHeatmapResult {
 }
 
 /** Find ffmpeg binary — checks imageio-ffmpeg's bundled location, then PATH. */
-function findFfmpeg(pythonDir: string): string {
+export function findFfmpeg(pythonDir: string): string {
     // imageio-ffmpeg bundles ffmpeg inside site-packages/imageio_ffmpeg/binaries/
     // Check both lib and lib64 (cPanel uses lib64)
     for (const libDir of ['lib', 'lib64']) {
@@ -658,13 +662,45 @@ function findFfmpeg(pythonDir: string): string {
 }
 
 /**
+ * Extract a single frame from a video at the midpoint. Returns path to a temp JPEG.
+ * Caller must delete the file when done.
+ */
+export async function extractVideoFrame(videoPath: string): Promise<string> {
+    const pythonDir = path.resolve(__dirname, '../../../python-saliency');
+    const ffmpeg = findFfmpeg(pythonDir);
+
+    // Get duration via ffprobe (or ffmpeg -i)
+    let durationS = 2; // fallback: grab frame at 1s
+    try {
+        // ffprobe might not exist; use ffmpeg -i which prints duration to stderr
+        const { stderr } = await execFileAsync(ffmpeg, [
+            '-i', videoPath, '-f', 'null', '-t', '0', '-',
+        ]).catch((err: { stderr?: string }) => ({ stderr: err.stderr || '' }));
+        const match = (stderr as string).match(/Duration:\s*(\d+):(\d+):(\d+)\.(\d+)/);
+        if (match) {
+            durationS = parseInt(match[1]) * 3600 + parseInt(match[2]) * 60 + parseInt(match[3]) + parseInt(match[4]) / 100;
+        }
+    } catch { /* use fallback */ }
+
+    const seekTo = Math.max(0, durationS / 2);
+    const outPath = videoPath + '.thumb.jpg';
+
+    await execFileAsync(ffmpeg, [
+        '-ss', String(seekTo),
+        '-i', videoPath,
+        '-frames:v', '1',
+        '-q:v', '2',
+        '-y', outPath,
+    ]);
+
+    return outPath;
+}
+
+/**
  * Re-encode a video to H.264 MP4 via ffmpeg. Runs AFTER Python exits
  * so they don't share memory. Returns the final .mp4 path.
  */
 async function reencodeToH264(srcPath: string): Promise<string> {
-    const { execFile } = require('child_process') as typeof import('child_process');
-    const { promisify } = require('util') as typeof import('util');
-    const execFileAsync = promisify(execFile);
 
     const finalPath = srcPath.replace(/\.[^.]+$/, '.mp4');
     const tmpPath = srcPath + '.h264.mp4';
@@ -738,8 +774,8 @@ export async function renderVideoHeatmap(
         '--grid', `${rows}x${cols}`,
         '--rotation', String(options.rotation ?? -1),
         '--alpha', '0.6',
-        '--sample', '1.0',
-        '--maxdim', '960',
+        '--sample', '2.0',
+        '--maxdim', '640',
     ];
     options.flipHeatmapV && args.push('--flip');
     options.logoPath && args.push('--logo', options.logoPath);
@@ -747,7 +783,6 @@ export async function renderVideoHeatmap(
     console.error(`[renderVideoHeatmap] Spawning: ${venvPython} ${args.join(' ')}`);
 
     const result = await new Promise<RenderVideoResult>((resolve, reject) => {
-        const { spawn } = require('child_process') as typeof import('child_process');
         const proc = spawn(venvPython, args, { cwd: pythonDir, stdio: ['ignore', 'pipe', 'pipe'] });
 
         let stdout = '';
