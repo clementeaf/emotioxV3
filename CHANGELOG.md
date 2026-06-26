@@ -1,3 +1,13 @@
+## v0.85.3 — Video heatmap frame-by-frame en producción + page transition (2026-06-26)
+
+### config
+- **Frame-by-frame en cPanel.** `VIDEO_SAMPLE_INTERVAL=0.0` y `VIDEO_MAX_DIM=480` en `.env` de producción. DINO procesa cada frame del video (no cada 2s). Resultado fluido a fps originales. Testeado: 347 frames (11.5s, 30fps) en 233s sin que LVE mate el proceso.
+
+### research-frontend
+- **Page transition.** `DashboardLayout` aplica fade opacity (200ms) al navegar entre páginas. `useLocation` detecta cambio de ruta, `requestAnimationFrame` evita flash.
+
+---
+
 ## v0.85.2 — Video heatmap: per-frame render + legacy banner fix (2026-06-25)
 
 ### backend
