@@ -1,3 +1,33 @@
+## v0.86.0 — Eye Tracking V2: zone-based attention pipeline (2026-06-28)
+
+### participant-frontend
+- **Zone Registry.** `ZoneRegistry` class manages named regions over stimulus. Dynamic zones via `getBoundingClientRect` or manual rects. ResizeObserver auto-update. Fallback grid NxN with backward-compat `r{row}c{col}` IDs matching `HYBRID_AOI_GRID`.
+- **Zone Classifier.** `classifyGaze()` transforms gaze point + uncertainty radius into probability distribution over zones. Gaussian 2D overlap, configurable radius (desktop 120px, mobile 200px).
+- **Hysteresis Engine.** `HysteresisEngine` prevents erratic zone switching. Candidate zone must hold top position for configurable threshold (200ms desktop, 300ms mobile) before committing transition.
+- **Zone Event Emitter.** `ZoneEventEmitter` integrates classifier + hysteresis + zone-level fixation detection. Emits `zone_enter`, `zone_leave`, `fixation_start`, `fixation_end` events. Public API: app consumes events, never raw coordinates.
+- **Head Pose Compensation.** `compensateHeadPose()` corrects gaze for head rotation. Linear offset proportional to yaw/pitch with configurable gains. Roll warning flag. `extractEulerAngles()` from MediaPipe rotation matrix.
+- **Calibration Store.** `calibrationStore.ts` persists calibration in localStorage (30min TTL, device fingerprint validation). Replaces 2min sessionStorage.
+- **Partial Recalibration.** `detectDeficientPoints()` identifies bad calibration points via median error factor. `recalibratePartial()` replaces only deficient residuals.
+- **V2 Response Builder.** `buildV2Response()` constructs zone-event payload: `zoneEvents[]`, `zoneMetrics{}`, `zones[]`, backward-compat `fixations[]` and `zoneMass{}`. Feature flag `EYE_TRACKING_V2_ENABLED = false`.
+- **Device Profile.** `deviceProfile.ts` returns tuning params per device: uncertaintyRadius, hysteresisMs, minConfidence, hasGazeTracking, headPoseGainMultiplier. Desktop < tablet < mobile for radius/hysteresis.
+- **Test Page.** `/test/eye-tracking-v2` — standalone page with 5-point calibration + IDW correction + real-time zone highlighting. Desktop: BlazeGaze CNN webcam. Mobile: tap proxy.
+
+### backend
+- **V2 Analytics Adapter.** `eye-tracking-v2.analytics.ts` — reads V2 zone-event responses natively. `isV2Response()` detects version. `extractV2ParticipantData()`, `v2HeatmapFromZones()`, `v2SequenceAnalysis()`, `v2AggregateZoneMetrics()`. Dual-read: V1 fixation-based and V2 zone-based.
+
+### research-frontend
+- **Zone Metrics Panel.** `ZoneMetricsPanel.tsx` — dwell time bars, first zone badge, exploration order timeline, confidence badge. Renders when V2 data available.
+- **V2 UI Utilities.** `eyeTrackingV2.ts` — `hasV2ZoneData()`, `buildDwellBars()`, `firstZoneObserved()`, `explorationOrder()`, `buildAttentionSummary()`, format helpers.
+
+### tests
+- **469 tests** across 3 subprojects (participant: 379, backend: 43, research: 47). Zone registry, classifier, hysteresis, event emitter, head pose, calibration store, partial recal, V2 response builder, V2 analytics, UI utilities, device profile.
+
+### config
+- **i18n chunk fix.** `react-i18next` moved to `react-vendor` chunk to prevent `createContext` race condition on load.
+- **Test exclusion.** `tsconfig.app.json` excludes `__tests__/` from build.
+
+---
+
 ## v0.85.3 — Video heatmap frame-by-frame en producción + page transition (2026-06-26)
 
 ### config

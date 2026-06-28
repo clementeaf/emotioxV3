@@ -139,6 +139,82 @@ export function computeMicroRecalibResidual(
     };
 }
 
+// ── Partial recalibration ─────────────────────────────────────────────────
+
+/** Points with error > median × this factor are deficient. */
+export const DEFICIENT_POINT_FACTOR = 1.5;
+
+export interface PointError {
+  readonly index: number;
+  readonly errorPx: number;
+}
+
+/**
+ * Compute per-point error from residuals (magnitude of dx,dy vector).
+ */
+export function computePointErrors(
+  residuals: readonly HybridCalibrationResidual[],
+): PointError[] {
+  return residuals.map((r, index) => ({
+    index,
+    errorPx: Math.sqrt(r.dx * r.dx + r.dy * r.dy),
+  }));
+}
+
+/**
+ * Identify deficient calibration points — those with error > median × DEFICIENT_POINT_FACTOR.
+ * Returns indices into the residuals array.
+ *
+ * @returns Empty array when all points are acceptable or when fewer than 3 residuals
+ *          (can't compute meaningful median with fewer).
+ */
+export function detectDeficientPoints(
+  residuals: readonly HybridCalibrationResidual[],
+  factor = DEFICIENT_POINT_FACTOR,
+): number[] {
+  const errors = computePointErrors(residuals);
+  // Need at least 3 points for a meaningful median comparison
+  const canCompute = errors.length >= 3;
+  return canCompute ? findDeficient(errors, factor) : [];
+}
+
+const findDeficient = (errors: PointError[], factor: number): number[] => {
+  const sorted = errors.map((e) => e.errorPx).sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+  const threshold = median * factor;
+  return errors
+    .filter((e) => e.errorPx > threshold)
+    .map((e) => e.index);
+};
+
+/**
+ * Replace residuals at deficient indices with new measurements.
+ * Non-deficient residuals are preserved as-is.
+ *
+ * @param original   — full residual array from initial calibration
+ * @param newPartial — new residuals for deficient points (same length as deficientIndices)
+ * @param deficientIndices — indices to replace
+ * @returns New residual array with deficient points replaced
+ */
+export function recalibratePartial(
+  original: readonly HybridCalibrationResidual[],
+  newPartial: readonly HybridCalibrationResidual[],
+  deficientIndices: readonly number[],
+): HybridCalibrationResidual[] {
+  const deficientSet = new Set(deficientIndices);
+  let partialIdx = 0;
+
+  return original.map((residual, i) => {
+    const isDeficient = deficientSet.has(i);
+    return isDeficient && partialIdx < newPartial.length
+      ? newPartial[partialIdx++]
+      : residual;
+  });
+}
+
 /** Higher = confidence falls off faster with distance from nearest calibration anchor in UV space. */
 export const HYBRID_CALIB_CONFIDENCE_K = 14;
 

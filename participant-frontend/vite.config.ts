@@ -90,8 +90,10 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('react-router-dom') || id.includes('react-router')) {
             return 'router-vendor';
           }
+          // react-i18next calls React.createContext at top-level —
+          // must be in the same chunk as React to avoid load-order issues
           if (id.includes('react-i18next') || id.includes('i18next')) {
-            return 'i18n-vendor';
+            return 'react-vendor';
           }
           if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
             return 'ui-vendor';
@@ -117,6 +119,9 @@ export default defineConfig(({ mode }) => ({
   },
   esbuild: {
     sourcemap: false,
+  },
+  resolve: {
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
     exclude: ['@mediapipe/tasks-vision'],

@@ -6,6 +6,7 @@ import { QueryProvider } from './providers/QueryProvider';
 const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
 const ResearchPage = lazy(() => import('./pages/ResearchPage').then(m => ({ default: m.ResearchPage })));
 const EyeTrackingHybridPage = lazy(() => import('./pages/EyeTrackingHybridPage').then(m => ({ default: m.EyeTrackingHybridPage })));
+const EyeTrackingV2TestPage = lazy(() => import('./pages/EyeTrackingV2TestPage').then(m => ({ default: m.EyeTrackingV2TestPage })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -41,6 +42,14 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<PageLoader />}>
         <EyeTrackingHybridPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/test/eye-tracking-v2',
+    element: (
+      <Suspense fallback={<PageLoader />}>
+        <EyeTrackingV2TestPage />
       </Suspense>
     ),
   },
