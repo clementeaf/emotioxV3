@@ -74,8 +74,8 @@ const standardZones = (): Zone[] => [
 // ---------------------------------------------------------------------------
 
 describe('EYE_TRACKING_V2_ENABLED', () => {
-  it('defaults to false (safe rollout)', () => {
-    expect(EYE_TRACKING_V2_ENABLED).toBe(false);
+  it('is enabled (v0.86+ production wiring)', () => {
+    expect(EYE_TRACKING_V2_ENABLED).toBe(true);
   });
 });
 

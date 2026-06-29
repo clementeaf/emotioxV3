@@ -44,7 +44,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
 }) => {
     const { t } = useTranslation();
 
-    const viewingPercent = Math.round(65 + (1 - timeLeft / Math.ceil(viewingDuration / 1000)) * 35);
+    const viewingPercent = Math.round(70 + (1 - timeLeft / Math.ceil(viewingDuration / 1000)) * 30);
 
     return (
         <div
@@ -52,7 +52,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
             style={{ backgroundImage: 'linear-gradient(rgb(235, 239, 251) 0%, rgb(245, 247, 253) 50%, rgb(255, 255, 255) 100%)' }}
         >
             <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
-                <StepProgressPill step={2} total={TOTAL_STEPS} percent={viewingPercent} />
+                <StepProgressPill step={4} total={TOTAL_STEPS} percent={viewingPercent} />
             </div>
 
             {/* Timer */}

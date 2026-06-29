@@ -22,7 +22,7 @@ import type { ZoneEvent } from './zoneEventEmitter';
  * When false, the legacy V1 coordinate-based pipeline is used.
  * ponytail: simple boolean, flip when ready
  */
-export const EYE_TRACKING_V2_ENABLED = false;
+export const EYE_TRACKING_V2_ENABLED = true;
 
 // ---------------------------------------------------------------------------
 // V2 Response types

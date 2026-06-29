@@ -31,12 +31,13 @@ export interface ShelfConfig {
 
 /**
  * Phases:
- * intro → setup → preparing → calibration → validating → viewing → complete
+ * intro → setup → quality-gate → preparing → calibration → validating → viewing → complete
  * If validation fails, loops back to calibration (re-calibrate).
+ * quality-gate: pre-calibration environment checks (brightness, distance, resolution, head stability, face detection).
  */
-export type ETPhase = 'intro' | 'setup' | 'preparing' | 'calibration' | 'validating' | 'viewing' | 'complete';
+export type ETPhase = 'intro' | 'setup' | 'quality-gate' | 'preparing' | 'calibration' | 'validating' | 'viewing' | 'complete';
 
-export const TOTAL_STEPS = 3;
+export const TOTAL_STEPS = 4;
 
 /** One-Euro params — adaptive layer on top of Kalman. Smooth at rest, responsive on saccade. */
 export const EYE_TRACKING_ONE_EURO_MIN_CUTOFF = 0.8;

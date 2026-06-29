@@ -8,6 +8,7 @@ import { ShelfGrid } from './ShelfGrid';
 
 interface CalibrationPhaseProps {
     calibrationIndex: number;
+    isDesktop: boolean;
     resolvedUrl: string;
     imgRef: React.RefObject<HTMLImageElement | null>;
     onCalibrationClick: () => void;
@@ -17,6 +18,7 @@ interface CalibrationPhaseProps {
 
 export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
     calibrationIndex,
+    isDesktop,
     resolvedUrl,
     imgRef,
     onCalibrationClick,
@@ -36,21 +38,22 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
         onCalibrationClick();
     };
 
+    const hintText = isDesktop
+        ? t('eyeTracking.calibrationHintDwell', 'Look at the green dot and hold your gaze for 1.5 seconds.')
+        : t('eyeTracking.calibrationHint4Point', 'Look at the green dot, then click anywhere.');
+
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center cursor-crosshair bg-black"
+            className={`fixed inset-0 z-50 flex items-center justify-center bg-black ${isDesktop ? 'cursor-default' : 'cursor-crosshair'}`}
             onClickCapture={handleClick}
         >
             <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
-                <StepProgressPill step={1} total={TOTAL_STEPS} percent={calibrationPercent} />
+                <StepProgressPill step={2} total={TOTAL_STEPS} percent={calibrationPercent} />
             </div>
 
             <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
                 <p className="text-sm text-white/80">
-                    {t(
-                        'eyeTracking.calibrationHint4Point',
-                        'Look at the green dot, then click anywhere.',
-                    )}
+                    {hintText}
                 </p>
                 <p className="mt-1 text-xs text-white/50">
                     {t('eyeTracking.pointOf', 'Point {{current}} of {{total}}', {
@@ -85,9 +88,14 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
                     )}
                     {calDotImagePct && (
                         <div
-                            className="pointer-events-none absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"
+                            className="pointer-events-none absolute z-10 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/50"
                             style={{ left: `${calDotImagePct[0]}%`, top: `${calDotImagePct[1]}%` }}
-                        />
+                        >
+                            {/* Pulsing ring for dwell feedback on desktop */}
+                            {isDesktop && (
+                                <div className="absolute inset-0 rounded-full border-2 border-green-300 animate-ping opacity-75" />
+                            )}
+                        </div>
                     )}
                 </div>
             )}

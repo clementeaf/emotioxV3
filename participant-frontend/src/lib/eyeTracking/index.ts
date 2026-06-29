@@ -71,7 +71,9 @@ export {
   HYBRID_FIXATION_DWELL_MS,
   HYBRID_IMAGE_CALIBRATION_POINTS,
   HYBRID_VALIDATION_POINT,
+  HYBRID_VALIDATION_POINTS,
   HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX,
+  HYBRID_REJECT_RMSE_THRESHOLD_PX,
   hybridImagePercentToBlazeNorm,
     hybridStretchFromCenter01,
     hybridStretchFromCenter01MiddleSoft,
@@ -128,3 +130,16 @@ export type {
 
 export { detectMicroExpressions } from './microExpressionDetector';
 export type { MicroExpression } from './microExpressionDetector';
+
+export {
+    measureBrightness,
+    checkBrightness,
+    checkResolution,
+    checkDistance,
+    checkHeadStability,
+    checkFaceConfidence,
+    estimateDistanceCm,
+    computePositionVariance,
+    evaluateGate,
+} from './sessionQualityChecks';
+export type { QualityCheckResult, QualityGateResult, CheckStatus, QualityCheckId } from './sessionQualityChecks';

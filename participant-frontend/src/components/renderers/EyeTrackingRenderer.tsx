@@ -9,8 +9,9 @@ import {
     BLAZE_GAZE_MEDIA_STREAM_CONSTRAINTS,
     HYBRID_CALIBRATION_FIELD_STRENGTH,
     HYBRID_IMAGE_CALIBRATION_POINTS,
-    HYBRID_VALIDATION_POINT,
+    HYBRID_VALIDATION_POINTS,
     HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX,
+    // HYBRID_REJECT_RMSE_THRESHOLD_PX used in ValidationPhase component
     HYBRID_AOI_GRID,
     hybridApplyCalibrationField,
     hybridCalibrationRmsePx,
@@ -31,6 +32,16 @@ import {
 } from '../../lib/eyeTracking';
 import type { HybridCalibrationResidual } from '../../lib/eyeTracking';
 
+// V2 zone pipeline
+import { ZoneRegistry, generateGrid } from '../../lib/eyeTracking/zoneRegistry';
+import { ZoneEventEmitter } from '../../lib/eyeTracking/zoneEventEmitter';
+import type { ZoneEvent } from '../../lib/eyeTracking/zoneEventEmitter';
+import {
+    EYE_TRACKING_V2_ENABLED,
+    buildV2Response,
+} from '../../lib/eyeTracking/v2ResponseBuilder';
+import { getCurrentDeviceProfile } from '../../lib/eyeTracking/deviceProfile';
+
 import type { EyeTrackingRendererProps, ETPhase, Fixation } from './eye-tracking/types';
 import {
     EYE_TRACKING_ONE_EURO_MIN_CUTOFF,
@@ -47,6 +58,7 @@ import { CalibrationPhase } from './eye-tracking/CalibrationPhase';
 import { ValidationPhase } from './eye-tracking/ValidationPhase';
 import { ViewingPhase } from './eye-tracking/ViewingPhase';
 import { CompletePhase } from './eye-tracking/CompletePhase';
+import { SessionQualityGate } from './eye-tracking/SessionQualityGate';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -138,7 +150,10 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     /** Tracks how many times the participant has re-calibrated (validation failed). */
     const recalibrationCountRef = useRef(0);
     const [lowResWarning, setLowResWarning] = useState(false);
-    /** Validation RMSE at the off-grid point (null until validation completes). */
+    /** Validation state for 5-point independent validation (Fase C). */
+    const [validationIndex, setValidationIndex] = useState(0);
+    const [validationPointErrors, setValidationPointErrors] = useState<number[]>([]);
+    /** Average RMSE across all 5 validation points (null until all measured). */
     const [validationRmse, setValidationRmse] = useState<number | null>(null);
 
     // --- BlazeGaze (desktop only) ---
@@ -148,6 +163,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         oneEuroBeta: EYE_TRACKING_ONE_EURO_BETA,
     });
     const gazePointsRef = useRef<{ x: number; y: number; t: number; videoTime?: number }[]>([]);
+
+    // --- V2 zone pipeline (connected AFTER IDW in viewing loop) ---
+    const zoneRegistryRef = useRef<ZoneRegistry | null>(null);
+    const zoneEmitterRef = useRef<ZoneEventEmitter | null>(null);
+    const zoneEventsRef = useRef<ZoneEvent[]>([]);
 
     // --- face-api.js emotion recognition (desktop, parallel to BlazeGaze) ---
     const faceEmotions = useFaceApiEmotions({
@@ -251,8 +271,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     }, [isDesktop, blaze.gazePosRef]);
 
     // Gaze collection during viewing phase (desktop): RAF loop with 50ms throttle, IDW-corrected.
-    // Gaze collection + face-api.js emotion recognition during viewing (desktop).
-    // Matches hybrid page pattern: reads from gazePosRef (cached), uses Date.now() timestamps.
+    // V2: feeds IDW-corrected coords into ZoneEventEmitter AFTER IDW correction.
+    // Pipeline: BlazeGaze CNN → One-Euro → IDW field → ZoneClassifier → HysteresisEngine → ZoneEventEmitter
     useEffect(() => {
         if (phase !== 'viewing' || !isDesktop) return;
 
@@ -267,6 +287,38 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             void stimulusVideoRef.current.play();
         }
 
+        // --- V2 zone pipeline initialization ---
+        const profile = getCurrentDeviceProfile();
+        const registry = new ZoneRegistry();
+        const emitter = new ZoneEventEmitter({
+            uncertaintyRadius: profile.uncertaintyRadius,
+            switchThresholdMs: profile.hysteresisMs,
+            minFixationMs: 150,
+        });
+        zoneRegistryRef.current = registry;
+        zoneEmitterRef.current = emitter;
+        zoneEventsRef.current = [];
+
+        // Collect all zone events
+        const eventTypes = ['zone_enter', 'zone_leave', 'fixation_start', 'fixation_end'] as const;
+        eventTypes.forEach(type => {
+            emitter.on(type, (event: ZoneEvent) => {
+                zoneEventsRef.current.push(event);
+            });
+        });
+
+        // Register 3×3 grid zones (matches HYBRID_AOI_GRID IDs)
+        const initGrid = () => {
+            const stimEl = getStimulusElement();
+            const rect = stimEl?.getBoundingClientRect();
+            if (rect && rect.width > 0 && rect.height > 0) {
+                const zones = generateGrid(3, 3, { x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+                zones.forEach(z => registry.register(z.id, z.label, z.rect));
+            }
+        };
+        // Delay slightly to ensure stimulus is laid out
+        setTimeout(initGrid, 100);
+
         let raf = 0;
         let lastCollect = 0;
         const loop = () => {
@@ -275,6 +327,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             const stimEl = getStimulusElement();
             const rect = stimEl?.getBoundingClientRect();
             if (rect && rect.width > 0 && rect.height > 0 && blaze.gazeState === 'open' && now - lastCollect >= GAZE_POLL_MS) {
+                // V1: IDW correction
                 const corrected = hybridApplyCalibrationField(
                     gx, gy, rect,
                     calibrationResidualsRef.current,
@@ -282,6 +335,17 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 );
                 const videoTime = isVideo && stimulusVideoRef.current ? stimulusVideoRef.current.currentTime : undefined;
                 gazePointsRef.current.push({ x: corrected.x, y: corrected.y, t: now, videoTime });
+
+                // V2: feed corrected gaze into zone pipeline (AFTER IDW)
+                if (EYE_TRACKING_V2_ENABLED) {
+                    const zones = registry.getZones();
+                    if (zones.length > 0) {
+                        // ponytail: skip emotion per-sample — V2 zone events capture emotion at zone boundaries via faceEmotions.getSamples() at save time
+                        const emotion = undefined;
+                        emitter.feed(corrected.x, corrected.y, now, zones, emotion);
+                    }
+                }
+
                 lastCollect = now;
             }
             raf = requestAnimationFrame(loop);
@@ -292,6 +356,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             cancelAnimationFrame(raf);
             if (hasEmotionRecognition) faceEmotions.stop();
             if (videoEl) videoEl.pause();
+            emitter.destroy();
+            registry.destroy();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live blaze.* reads via ref
     }, [phase, isDesktop, hasEmotionRecognition, isVideo]);
@@ -425,6 +491,12 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         return () => clearTimeout(timer);
     }, [phase, isDesktop, startCamera, cachedCalibration, blaze, viewingDuration]);
 
+    // Start BlazeGaze early in quality-gate so face detection check can use gazeState
+    useEffect(() => {
+        if (phase !== 'quality-gate' || !isDesktop) return;
+        blaze.start();
+    }, [phase, isDesktop, blaze]);
+
     // Desktop: run BlazeGaze during calibration (gaze samples for IDW residuals) and through viewing
     useEffect(() => {
         if (phase !== 'calibration' || !isDesktop) return;
@@ -520,7 +592,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 calibrationQuality = 'click-proxy';
             }
 
-            const responseValue = JSON.stringify({
+            // --- Build response payload ---
+            // V1 payload (backward compat, always included)
+            const v1Payload = {
                 fixations: finalFixations.map(f => ({
                     x: f.x,
                     y: f.y,
@@ -537,6 +611,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 fixationMethod: isDesktop ? 'idt' : 'click-proxy',
                 gazePipeline: isDesktop ? 'hybrid-zone-idt' : 'click-proxy',
                 calibrationRmsePx: isDesktop ? calibrationRmsePxRef.current : undefined,
+                validationRmsePx: isDesktop ? validationRmse : undefined,
                 emotions: hasEmotionRecognition ? faceEmotions.getSamples() : undefined,
                 microExpressions: hasEmotionRecognition ? detectMicroExpressions(faceEmotions.getSamples()) : undefined,
                 stimulusType: isShelf ? 'shelf' : isVideo ? 'video' : 'image',
@@ -545,6 +620,36 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 gazeTimeline: isVideo && isDesktop ? gazePointsRef.current.map(p => ({
                     x: p.x, y: p.y, t: p.t, videoTime: p.videoTime,
                 })) : undefined,
+            };
+
+            // V2 zone-event response (when enabled, alongside V1 for backward compat)
+            let v2Payload = undefined;
+            if (EYE_TRACKING_V2_ENABLED && isDesktop && zoneRegistryRef.current) {
+                const profile = getCurrentDeviceProfile();
+                const zones = zoneRegistryRef.current.getZones();
+                v2Payload = buildV2Response({
+                    events: zoneEventsRef.current,
+                    zones,
+                    calibration: {
+                        method: 'dwell-13pt-idw',
+                        rmsePx: calibrationRmsePxRef.current ?? 0,
+                        pointCount: HYBRID_IMAGE_CALIBRATION_POINTS.length,
+                        persistent: !!cachedCalibration,
+                    },
+                    metadata: {
+                        trackingMethod: 'blazegaze-v2',
+                        deviceType,
+                        uncertaintyRadius: profile.uncertaintyRadius,
+                        hysteresisMs: profile.hysteresisMs,
+                        gazeSampleCount: gazePointsRef.current.length,
+                        pipeline: 'zone-event-v2',
+                    },
+                });
+            }
+
+            const responseValue = JSON.stringify({
+                ...v1Payload,
+                ...(v2Payload ? { v2: v2Payload } : {}),
             });
             saveResponse(module.id, 'eye-tracking-data', responseValue);
 
@@ -643,13 +748,116 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         });
     }, [phase, isDesktop, isShelf]);
 
+    // --- Dwell-based calibration (Fase B) ---
+    // Desktop: auto-advance after 1.5s of stable gaze near the calibration dot.
+    // Collects gaze samples during the dwell and calls blaze.calibrate() multiple times.
+    // Mobile: falls back to single click.
+
+    /** Dwell detection threshold (ms) — dot disappears after this duration of stable fixation. */
+    const DWELL_THRESHOLD_MS = 1500;
+    /** Number of blaze.calibrate() calls per point (averaged gaze during dwell). */
+    const CALIBRATE_CALLS_PER_POINT = 3;
+    /** Max distance (px) from dot to accept gaze as "looking at dot". */
+    const DWELL_PROXIMITY_PX = 180;
+
+    const dwellStartRef = useRef<number | null>(null);
+    const dwellSamplesRef = useRef<{ x: number; y: number }[]>([]);
+    const dwellTimerRef = useRef(0);
+
+    // Desktop dwell loop during calibration
+    useEffect(() => {
+        if (phase !== 'calibration' || !isDesktop) return;
+
+        dwellStartRef.current = null;
+        dwellSamplesRef.current = [];
+
+        const loop = () => {
+            const el = getStimulusElement();
+            if (!el) { dwellTimerRef.current = requestAnimationFrame(loop); return; }
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0) { dwellTimerRef.current = requestAnimationFrame(loop); return; }
+
+            const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
+            const idx = calibrationIndex;
+            if (idx >= pts.length) return;
+
+            const [ipx, ipy] = pts[idx];
+            const dotX = rect.left + (ipx / 100) * rect.width;
+            const dotY = rect.top + (ipy / 100) * rect.height;
+            const [gx, gy] = gazePosRef.current;
+            const dist = Math.sqrt((gx - dotX) ** 2 + (gy - dotY) ** 2);
+
+            if (dist <= DWELL_PROXIMITY_PX && blaze.gazeState === 'open') {
+                if (dwellStartRef.current === null) {
+                    dwellStartRef.current = performance.now();
+                    dwellSamplesRef.current = [];
+                }
+                dwellSamplesRef.current.push({ x: gx, y: gy });
+
+                const elapsed = performance.now() - dwellStartRef.current;
+                if (elapsed >= DWELL_THRESHOLD_MS) {
+                    // Dwell complete — advance this point
+                    const samples = dwellSamplesRef.current;
+                    let avgX = 0, avgY = 0;
+                    for (const s of samples) { avgX += s.x; avgY += s.y; }
+                    avgX /= samples.length;
+                    avgY /= samples.length;
+
+                    const targetX = dotX;
+                    const targetY = dotY;
+                    calibrationResidualsRef.current.push({
+                        u: ipx / 100,
+                        v: ipy / 100,
+                        dx: targetX - avgX,
+                        dy: targetY - avgY,
+                    });
+
+                    const vw = window.innerWidth;
+                    const vh = window.innerHeight;
+                    const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
+                    for (let c = 0; c < CALIBRATE_CALLS_PER_POINT; c++) {
+                        blaze.calibrate(normX, normY);
+                    }
+
+                    dwellStartRef.current = null;
+                    dwellSamplesRef.current = [];
+
+                    if (idx + 1 >= pts.length) {
+                        calibrationRmsePxRef.current = hybridCalibrationRmsePx(calibrationResidualsRef.current);
+                        if (!isPreviewMode) {
+                            setTimeout(() => setPhase('validating'), 400);
+                        } else {
+                            saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
+                            gazePointsRef.current = [];
+                            setTimeLeft(Math.ceil(viewingDuration / 1000));
+                            setTimeout(() => setPhase('viewing'), 600);
+                        }
+                    } else {
+                        setCalibrationIndex(idx + 1);
+                    }
+                    return; // stop loop — next point will re-trigger via calibrationIndex change
+                }
+            } else {
+                // Gaze left proximity — reset dwell
+                dwellStartRef.current = null;
+                dwellSamplesRef.current = [];
+            }
+
+            dwellTimerRef.current = requestAnimationFrame(loop);
+        };
+
+        dwellTimerRef.current = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(dwellTimerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop
+    }, [phase, calibrationIndex, isDesktop, blaze, viewingDuration, isPreviewMode]);
+
     /**
-     * One click per dot: user LOOKS at the green dot and clicks anywhere.
-     * BlazeGaze captures where the eyes are looking, not where the click lands.
-     * Same approach as /eye-tracking-hybrid.
+     * Fallback click handler for mobile/tablet calibration (no gaze → no dwell).
+     * Desktop uses dwell-based auto-advance above.
      */
     const handleCalibrationClick = useCallback(() => {
         if (phase !== 'calibration') return;
+        if (isDesktop) return; // desktop uses dwell loop
         const el = getStimulusElement();
         if (!el) return;
         const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
@@ -659,41 +867,17 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         const rect = el.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
 
-        const [ipx, ipy] = pts[idx];
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        const targetX = rect.left + (ipx / 100) * rect.width;
-        const targetY = rect.top + (ipy / 100) * rect.height;
-
-        if (isDesktop) {
-            const [gx, gy] = gazePosRef.current;
-            calibrationResidualsRef.current.push({
-                u: ipx / 100,
-                v: ipy / 100,
-                dx: targetX - gx,
-                dy: targetY - gy,
-            });
-            const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
-            blaze.calibrate(normX, normY);
-        }
-
         if (idx + 1 >= pts.length) {
-            calibrationRmsePxRef.current = isDesktop
-                ? hybridCalibrationRmsePx(calibrationResidualsRef.current)
-                : null;
-            if (isDesktop && !isPreviewMode) {
-                setTimeout(() => setPhase('validating'), 400);
-            } else {
-                saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
-                gazePointsRef.current = [];
-                setTimeLeft(Math.ceil(viewingDuration / 1000));
-                setTimeout(() => setPhase('viewing'), 600);
-            }
+            calibrationRmsePxRef.current = null;
+            saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
+            gazePointsRef.current = [];
+            setTimeLeft(Math.ceil(viewingDuration / 1000));
+            setTimeout(() => setPhase('viewing'), 600);
         } else {
             setCalibrationIndex(idx + 1);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
-    }, [phase, calibrationIndex, isDesktop, blaze, viewingDuration, isPreviewMode]);
+    }, [phase, calibrationIndex, isDesktop, viewingDuration]);
 
     // Toggle a setup checkbox
     const toggleCheck = useCallback((index: number) => {
@@ -704,39 +888,108 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         });
     }, []);
 
-    /**
-     * Validation phase (desktop): show off-grid dot, user clicks while we measure
-     * gaze error. If RMSE > threshold and max 2 retries not reached, offer re-calibration.
-     */
-    const handleValidationClick = useCallback(() => {
-        if (phase !== 'validating') return;
-        const el = getStimulusElement();
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
+    // --- 5-point validation with dwell detection (Fase C) ---
+    const VALIDATION_DWELL_MS = 1200;
+    const VALIDATION_PROXIMITY_PX = 200;
+    const validationDwellStartRef = useRef<number | null>(null);
+    const validationDwellSamplesRef = useRef<{ x: number; y: number }[]>([]);
+    const validationRafRef = useRef(0);
 
-        const [vpx, vpy] = HYBRID_VALIDATION_POINT;
-        const targetX = rect.left + (vpx / 100) * rect.width;
-        const targetY = rect.top + (vpy / 100) * rect.height;
-        const [gx, gy] = gazePosRef.current;
+    // Desktop dwell loop for validation points
+    useEffect(() => {
+        if (phase !== 'validating' || !isDesktop) return;
+        if (validationRmse !== null) return; // all points measured, showing result
 
-        const errorPx = Math.sqrt((targetX - gx) ** 2 + (targetY - gy) ** 2);
-        setValidationRmse(Math.round(errorPx));
+        validationDwellStartRef.current = null;
+        validationDwellSamplesRef.current = [];
 
-        if (errorPx > HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX && recalibrationCountRef.current < 2) {
-            // Validation failed — will show re-calibrate option in UI
-            return;
+        const loop = () => {
+            const el = getStimulusElement();
+            if (!el) { validationRafRef.current = requestAnimationFrame(loop); return; }
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 0) { validationRafRef.current = requestAnimationFrame(loop); return; }
+
+            const idx = validationIndex;
+            if (idx >= HYBRID_VALIDATION_POINTS.length) return;
+
+            const [vpx, vpy] = HYBRID_VALIDATION_POINTS[idx];
+            const dotX = rect.left + (vpx / 100) * rect.width;
+            const dotY = rect.top + (vpy / 100) * rect.height;
+            const [gx, gy] = gazePosRef.current;
+            const dist = Math.sqrt((gx - dotX) ** 2 + (gy - dotY) ** 2);
+
+            if (dist <= VALIDATION_PROXIMITY_PX && blaze.gazeState === 'open') {
+                if (validationDwellStartRef.current === null) {
+                    validationDwellStartRef.current = performance.now();
+                    validationDwellSamplesRef.current = [];
+                }
+                validationDwellSamplesRef.current.push({ x: gx, y: gy });
+
+                const elapsed = performance.now() - validationDwellStartRef.current;
+                if (elapsed >= VALIDATION_DWELL_MS) {
+                    // Dwell complete — measure error for this point
+                    const samples = validationDwellSamplesRef.current;
+                    let avgX = 0, avgY = 0;
+                    for (const s of samples) { avgX += s.x; avgY += s.y; }
+                    avgX /= samples.length;
+                    avgY /= samples.length;
+
+                    const errorPx = Math.round(Math.sqrt((dotX - avgX) ** 2 + (dotY - avgY) ** 2));
+                    const newErrors = [...validationPointErrors, errorPx];
+                    setValidationPointErrors(newErrors);
+
+                    validationDwellStartRef.current = null;
+                    validationDwellSamplesRef.current = [];
+
+                    if (idx + 1 >= HYBRID_VALIDATION_POINTS.length) {
+                        // All 5 points measured — compute average RMSE
+                        const sumSq = newErrors.reduce((s, e) => s + e * e, 0);
+                        const rmse = Math.round(Math.sqrt(sumSq / newErrors.length));
+                        setValidationRmse(rmse);
+
+                        if (rmse <= HYBRID_RECALIBRATION_RMSE_THRESHOLD_PX) {
+                            // Passed — auto-proceed to viewing
+                            saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
+                            if (blaze) blaze.resetFrameStats();
+                            gazePointsRef.current = [];
+                            setTimeLeft(Math.ceil(viewingDuration / 1000));
+                            setTimeout(() => setPhase('viewing'), 800);
+                        }
+                        // else: UI will show recalibrate/reject options
+                    } else {
+                        setValidationIndex(idx + 1);
+                    }
+                    return;
+                }
+            } else {
+                validationDwellStartRef.current = null;
+                validationDwellSamplesRef.current = [];
+            }
+
+            validationRafRef.current = requestAnimationFrame(loop);
+        };
+
+        validationRafRef.current = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(validationRafRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop
+    }, [phase, validationIndex, validationRmse, isDesktop, blaze, viewingDuration, validationPointErrors]);
+
+    /** Mobile/tablet fallback — click to measure validation point. */
+    const handleValidationDwellComplete = useCallback(() => {
+        if (phase !== 'validating' || isDesktop) return;
+        // Mobile doesn't have gaze, just advance
+        const newErrors = [...validationPointErrors, 0];
+        setValidationPointErrors(newErrors);
+        if (validationIndex + 1 >= HYBRID_VALIDATION_POINTS.length) {
+            setValidationRmse(0);
+            saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
+            gazePointsRef.current = [];
+            setTimeLeft(Math.ceil(viewingDuration / 1000));
+            setTimeout(() => setPhase('viewing'), 600);
+        } else {
+            setValidationIndex(validationIndex + 1);
         }
-
-        // Passed — proceed to viewing
-        saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
-        if (blaze) blaze.resetFrameStats();
-        gazePointsRef.current = [];
-        setTimeLeft(Math.ceil(viewingDuration / 1000));
-        setValidationRmse(null);
-        setTimeout(() => setPhase('viewing'), 400);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
-    }, [phase, blaze, viewingDuration]);
+    }, [phase, isDesktop, validationIndex, validationPointErrors, viewingDuration]);
 
     /** Re-calibrate: reset residuals and go back to calibration phase.
      *  Increments recalibrationCount so auto-retry offer stops after 2 attempts. */
@@ -745,6 +998,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         calibrationResidualsRef.current = [];
         calibrationRmsePxRef.current = null;
         setCalibrationIndex(0);
+        setValidationIndex(0);
+        setValidationPointErrors([]);
         setValidationRmse(null);
         setPhase('calibration');
     }, []);
@@ -755,9 +1010,20 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         if (blaze) blaze.resetFrameStats();
         gazePointsRef.current = [];
         setTimeLeft(Math.ceil(viewingDuration / 1000));
+        setValidationIndex(0);
+        setValidationPointErrors([]);
         setValidationRmse(null);
         setTimeout(() => setPhase('viewing'), 400);
     }, [blaze, viewingDuration]);
+
+    /** Reject session — session quality too low after max attempts. */
+    const handleRejectSession = useCallback(() => {
+        if (isDesktop) {
+            blaze.stop();
+            stopCamera();
+        }
+        onComplete?.();
+    }, [isDesktop, blaze, stopCamera, onComplete]);
 
     // -----------------------------------------------------------------------
     // Unconfigured
@@ -799,8 +1065,17 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 checks={checks}
                 allChecked={allChecked}
                 onToggleCheck={toggleCheck}
-                onReady={() => setPhase('preparing')}
+                onReady={() => setPhase(isDesktop ? 'quality-gate' : 'preparing')}
                 cameraRef={videoRef}
+            />
+        );
+    } else if (phase === 'quality-gate') {
+        phaseContent = (
+            <SessionQualityGate
+                cameraRef={videoRef}
+                gazeActive={blaze.gazeState === 'open'}
+                onPass={() => setPhase('preparing')}
+                onReject={() => setPhase('preparing')}
             />
         );
     } else if (phase === 'preparing') {
@@ -817,6 +1092,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 )}
                 <CalibrationPhase
                     calibrationIndex={calibrationIndex}
+                    isDesktop={isDesktop}
                     resolvedUrl={resolvedUrl}
                     imgRef={imgRef}
                     onCalibrationClick={handleCalibrationClick}
@@ -828,12 +1104,16 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     } else if (phase === 'validating') {
         phaseContent = (
             <ValidationPhase
+                validationIndex={validationIndex}
                 validationRmse={validationRmse}
+                pointErrors={validationPointErrors}
+                recalibrationCount={recalibrationCountRef.current}
                 resolvedUrl={resolvedUrl}
                 imgRef={imgRef}
-                onValidationClick={handleValidationClick}
+                onValidationDwellComplete={handleValidationDwellComplete}
                 onRecalibrate={handleRecalibrate}
                 onSkipValidation={handleSkipValidation}
+                onRejectSession={handleRejectSession}
                 onImageLoad={handleImageLoad}
                 shelfConfig={shelfConfig}
             />
