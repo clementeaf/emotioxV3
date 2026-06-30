@@ -215,7 +215,7 @@ export const VideoAccumulatedHeatmapOverlay = ({
             ctx.stroke();
         }
 
-        // Layer 4: labels — scale font to cell size, clamp to readable range
+        // Layer 4: labels — scale font to cell size, abbreviate when tight
         const pcts = computeGridPercentages(heatmapData, cols, rows);
         const cellRef = Math.min(cellW, cellH);
         const fontSize = Math.max(10, Math.min(28, cellRef * 0.15));
@@ -226,17 +226,17 @@ export const VideoAccumulatedHeatmapOverlay = ({
         ctx.shadowColor = 'rgba(0,0,0,1)';
         ctx.shadowBlur = Math.max(3, fontSize * 0.4);
         ctx.fillStyle = '#00ff00';
+        const maxTextW = cellW * 0.9;
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const idx = r * cols + c;
-                const label = `${String.fromCharCode(65 + c)}${r + 1}: ${pcts[idx]}%`;
-                const textWidth = ctx.measureText(label).width;
-                if (textWidth > cellW * 0.9) continue;
-                ctx.fillText(
-                    label,
-                    c * cellW + cellW / 2,
-                    (r + 1) * cellH - labelPad,
-                );
+                const full = `${String.fromCharCode(65 + c)}${r + 1}: ${pcts[idx]}%`;
+                const short = `${pcts[idx]}%`;
+                const label = ctx.measureText(full).width <= maxTextW ? full
+                    : ctx.measureText(short).width <= maxTextW ? short
+                    : null;
+                if (!label) continue;
+                ctx.fillText(label, c * cellW + cellW / 2, (r + 1) * cellH - labelPad);
             }
         }
         ctx.shadowBlur = 0;

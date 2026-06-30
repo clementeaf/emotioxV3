@@ -216,12 +216,20 @@ def draw_grid(
 def _draw_cell_label(canvas: np.ndarray, cell: GridCell, font_scale: float, thickness: int) -> None:
     """Stamp one Q-label with black background onto canvas. Mutates canvas."""
     x1, y1, x2, y2 = cell.bounds
+    cell_w = x2 - x1
     cx, by = (x1 + x2) // 2, y2 - max(6, int((y2 - y1) * 0.06))
-    text = f"{cell.label}: {cell.percentage}%"
-    (tw, th), _ = cv2.getTextSize(text, _FONT, font_scale, thickness)
-    pad = max(2, int(th * 0.3))
-    cv2.rectangle(canvas, (cx - tw // 2 - pad, by - th - pad), (cx + tw // 2 + pad, by + pad), _BLACK, -1)
-    cv2.putText(canvas, text, (cx - tw // 2, by), _FONT, font_scale, _GREEN, thickness)
+    max_tw = int(cell_w * 0.9)
+
+    # Try full label, then abbreviated, then skip
+    full = f"{cell.label}: {cell.percentage}%"
+    short = f"{cell.percentage}%"
+    for text in (full, short):
+        (tw, th), _ = cv2.getTextSize(text, _FONT, font_scale, thickness)
+        if tw <= max_tw:
+            pad = max(2, int(th * 0.3))
+            cv2.rectangle(canvas, (cx - tw // 2 - pad, by - th - pad), (cx + tw // 2 + pad, by + pad), _BLACK, -1)
+            cv2.putText(canvas, text, (cx - tw // 2, by), _FONT, font_scale, _GREEN, thickness)
+            return
 
 
 # ---------------------------------------------------------------------------
