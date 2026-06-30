@@ -174,8 +174,16 @@ _WHITE = (255, 255, 255)
 _GREEN = (0, 255, 0)
 _BLACK = (0, 0, 0)
 _FONT = cv2.FONT_HERSHEY_SIMPLEX
-_FONT_SCALE = 0.8
-_THICKNESS = 2
+# ponytail: font scale relative to 640px reference — scales with actual frame size
+_REF_DIM = 640
+
+
+def _cell_font_params(cell_w: int, cell_h: int) -> tuple[float, int]:
+    """Compute font scale and thickness proportional to cell size."""
+    ref = min(cell_w, cell_h)
+    scale = max(0.3, ref / _REF_DIM * 2.4)
+    thickness = max(1, round(scale * 2))
+    return scale, thickness
 
 
 def draw_grid(
@@ -198,20 +206,22 @@ def draw_grid(
         cv2.line(canvas, (j * cell_w, 0), (j * cell_w, h), _WHITE, 2)
 
     # labels
+    font_scale, thickness = _cell_font_params(cell_w, cell_h)
     for cell in cells:
-        _draw_cell_label(canvas, cell)
+        _draw_cell_label(canvas, cell, font_scale, thickness)
 
     return canvas
 
 
-def _draw_cell_label(canvas: np.ndarray, cell: GridCell) -> None:
+def _draw_cell_label(canvas: np.ndarray, cell: GridCell, font_scale: float, thickness: int) -> None:
     """Stamp one Q-label with black background onto canvas. Mutates canvas."""
     x1, y1, x2, y2 = cell.bounds
-    cx, by = (x1 + x2) // 2, y2 - 10
+    cx, by = (x1 + x2) // 2, y2 - max(6, int((y2 - y1) * 0.06))
     text = f"{cell.label}: {cell.percentage}%"
-    (tw, th), _ = cv2.getTextSize(text, _FONT, _FONT_SCALE, _THICKNESS)
-    cv2.rectangle(canvas, (cx - tw // 2 - 5, by - th - 5), (cx + tw // 2 + 5, by + 5), _BLACK, -1)
-    cv2.putText(canvas, text, (cx - tw // 2, by), _FONT, _FONT_SCALE, _GREEN, _THICKNESS)
+    (tw, th), _ = cv2.getTextSize(text, _FONT, font_scale, thickness)
+    pad = max(2, int(th * 0.3))
+    cv2.rectangle(canvas, (cx - tw // 2 - pad, by - th - pad), (cx + tw // 2 + pad, by + pad), _BLACK, -1)
+    cv2.putText(canvas, text, (cx - tw // 2, by), _FONT, font_scale, _GREEN, thickness)
 
 
 # ---------------------------------------------------------------------------

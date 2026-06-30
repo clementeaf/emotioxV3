@@ -131,21 +131,27 @@ export const renderGridComposite = (
         ctx.stroke();
     }
 
-    // Labels
-    const fontSize = Math.max(14, Math.min(28, Math.min(cellW, cellH) * 0.18));
+    // Labels — scale font to cell size, clamp to readable range
+    const cellRef = Math.min(cellW, cellH);
+    const fontSize = Math.max(10, Math.min(28, cellRef * 0.15));
+    const labelPad = Math.max(4, cellRef * 0.05);
     ctx.font = `bold ${fontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.shadowColor = 'rgba(0,0,0,1)';
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = Math.max(3, fontSize * 0.4);
     ctx.fillStyle = '#00ff00';
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             const idx = r * cols + c;
+            const label = `${String.fromCharCode(65 + c)}${r + 1}: ${pcts[idx]}%`;
+            const textWidth = ctx.measureText(label).width;
+            // Skip label if it would overflow the cell
+            if (textWidth > cellW * 0.9) continue;
             ctx.fillText(
-                `${String.fromCharCode(65 + c)}${r + 1}: ${pcts[idx]}%`,
+                label,
                 c * cellW + cellW / 2,
-                (r + 1) * cellH - 8,
+                (r + 1) * cellH - labelPad,
             );
         }
     }

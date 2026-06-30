@@ -1,3 +1,13 @@
+## v0.86.1 — Video heatmap grid labels scaling fix (2026-06-30)
+
+### python-saliency
+- **Adaptive font scaling.** `renderer.py` — `_cell_font_params()` computes font scale and thickness proportional to cell size (relative to 640px reference). Labels no longer overflow or overlap on small cells after downscale. Label padding and bottom offset also proportional.
+
+### research-frontend
+- **Grid label scaling.** `VideoAccumulatedHeatmapOverlay.tsx` and `VideoFrameScrubber.tsx` — font minimum lowered 14→10px, factor 0.18→0.15. Shadow blur proportional to font size. Labels auto-hidden when text width exceeds 90% of cell width (prevents overflow on 5×5 grids). Label padding proportional to cell size.
+
+---
+
 ## v0.86.0 — Eye Tracking V2: zone-based attention pipeline (2026-06-28)
 
 ### participant-frontend
