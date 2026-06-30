@@ -66,7 +66,6 @@ class RenderConfig:
     logo_path: str = ""
     footer_height: int = 100
     sample_interval_s: float = 2.0  # seconds between DINO keyframes; intermediates reuse last overlay
-    draw_labels: bool = True  # False = skip grid lines & labels on video (frontend draws them)
 
 
 class AttentionExtractor(Protocol):
@@ -162,7 +161,8 @@ def compute_grid_cells(
         y1, y2 = r * cell_h, (h if r == rows - 1 else (r + 1) * cell_h)
         x1, x2 = c * cell_w, (w if c == cols - 1 else (c + 1) * cell_w)
         pct = float(np.sum(attention[y1:y2, x1:x2])) / total * 100
-        return GridCell(label=f"Q{idx + 1}", percentage=round(pct, 1), bounds=(x1, y1, x2, y2))
+        label = f"{chr(65 + c)}{r + 1}"  # A1, B1, C1, A2, B2...
+        return GridCell(label=label, percentage=round(pct, 1), bounds=(x1, y1, x2, y2))
 
     return tuple(_cell(i) for i in range(rows * cols))
 
@@ -172,18 +172,17 @@ def compute_grid_cells(
 # ---------------------------------------------------------------------------
 
 _WHITE = (255, 255, 255)
-_GREEN = (0, 255, 0)
-_BLACK = (0, 0, 0)
-_FONT = cv2.FONT_HERSHEY_SIMPLEX
-# ponytail: font scale relative to 640px reference — scales with actual frame size
+_LABEL_COLOR = (255, 255, 255)  # white text — readable over any heatmap color
+_PILL_COLOR = (0, 0, 0)  # black pill background
+_FONT = cv2.FONT_HERSHEY_DUPLEX  # thicker strokes than SIMPLEX, legible at low res
 _REF_DIM = 640
 
 
 def _cell_font_params(cell_w: int, cell_h: int) -> tuple[float, int]:
     """Compute font scale and thickness proportional to cell size."""
     ref = min(cell_w, cell_h)
-    scale = max(0.3, ref / _REF_DIM * 2.4)
-    thickness = max(1, round(scale * 2))
+    scale = max(0.35, ref / _REF_DIM * 2.8)
+    thickness = max(1, round(scale * 1.5))
     return scale, thickness
 
 
@@ -193,7 +192,7 @@ def draw_grid(
     rows: int = 3,
     cols: int = 3,
 ) -> np.ndarray:
-    """Draw grid lines and Q-labels with percentages. Does not mutate input."""
+    """Draw grid lines and labels with percentages. Does not mutate input."""
     canvas = frame.copy()
     h, w = canvas.shape[:2]
     cell_h, cell_w = h // rows, w // cols
@@ -206,31 +205,43 @@ def draw_grid(
     for j in range(1, cols):
         cv2.line(canvas, (j * cell_w, 0), (j * cell_w, h), _WHITE, 2)
 
-    # labels
+    # Decide label format globally — all full or all short (consistency)
     font_scale, thickness = _cell_font_params(cell_w, cell_h)
+    max_tw = int(cell_w * 0.9)
+    all_full_fit = all(
+        cv2.getTextSize(f"{c.label}: {c.percentage}%", _FONT, font_scale, thickness)[0][0] <= max_tw
+        for c in cells
+    )
+
     for cell in cells:
-        _draw_cell_label(canvas, cell, font_scale, thickness)
+        _draw_cell_label(canvas, cell, font_scale, thickness, max_tw, use_full=all_full_fit)
 
     return canvas
 
 
-def _draw_cell_label(canvas: np.ndarray, cell: GridCell, font_scale: float, thickness: int) -> None:
-    """Stamp one Q-label with black background onto canvas. Mutates canvas."""
+def _draw_cell_label(
+    canvas: np.ndarray, cell: GridCell,
+    font_scale: float, thickness: int,
+    max_tw: int, use_full: bool,
+) -> None:
+    """Stamp one label with dark pill onto canvas, centered in cell."""
     x1, y1, x2, y2 = cell.bounds
-    cell_w = x2 - x1
-    cx, by = (x1 + x2) // 2, y2 - max(6, int((y2 - y1) * 0.06))
-    max_tw = int(cell_w * 0.9)
+    cx = (x1 + x2) // 2
+    cy = (y1 + y2) // 2
 
-    # Try full label, then abbreviated, then skip
-    full = f"{cell.label}: {cell.percentage}%"
-    short = f"{cell.percentage}%"
-    for text in (full, short):
-        (tw, th), _ = cv2.getTextSize(text, _FONT, font_scale, thickness)
-        if tw <= max_tw:
-            pad = max(2, int(th * 0.3))
-            cv2.rectangle(canvas, (cx - tw // 2 - pad, by - th - pad), (cx + tw // 2 + pad, by + pad), _BLACK, -1)
-            cv2.putText(canvas, text, (cx - tw // 2, by), _FONT, font_scale, _GREEN, thickness)
-            return
+    text = f"{cell.label}: {cell.percentage}%" if use_full else f"{cell.percentage}%"
+    (tw, th), _ = cv2.getTextSize(text, _FONT, font_scale, thickness)
+    if tw > max_tw:
+        return  # skip if even short doesn't fit
+
+    pad = max(4, int(th * 0.5))
+    # Center vertically: text baseline at cy + th/2
+    text_y = cy + th // 2
+    # Semi-transparent dark pill via overlay blending
+    overlay = canvas.copy()
+    cv2.rectangle(overlay, (cx - tw // 2 - pad, text_y - th - pad), (cx + tw // 2 + pad, text_y + pad), _PILL_COLOR, -1)
+    cv2.addWeighted(overlay, 0.85, canvas, 0.15, 0, dst=canvas)
+    cv2.putText(canvas, text, (cx - tw // 2, text_y), _FONT, font_scale, _LABEL_COLOR, thickness, cv2.LINE_AA)
 
 
 # ---------------------------------------------------------------------------
@@ -308,11 +319,10 @@ def process_frame(
     # grid
     cells = compute_grid_cells(attention_resized, config.grid_rows, config.grid_cols)
 
-    # compose: overlay, optionally with grid
+    # compose: overlay then grid
     alpha = config.overlay_alpha
     overlay = cv2.addWeighted(frame, 1.0 - alpha, heatmap, alpha, 0)
-    if config.draw_labels:
-        overlay = draw_grid(overlay, cells, config.grid_rows, config.grid_cols)
+    overlay = draw_grid(overlay, cells, config.grid_rows, config.grid_cols)
 
     # side by side
     combined = np.hstack((frame, overlay))
@@ -409,8 +419,7 @@ def render_video(
         else:
             # ponytail: blend cached heatmap onto current frame — smooth playback between keyframes
             overlay_frame = cv2.addWeighted(frame, 1.0 - config.overlay_alpha, last_heatmap_bgr, config.overlay_alpha, 0)
-            if config.draw_labels:
-                overlay_frame = draw_grid(overlay_frame, last_meta.cells, config.grid_rows, config.grid_cols)
+            overlay_frame = draw_grid(overlay_frame, last_meta.cells, config.grid_rows, config.grid_cols)
             combined = np.hstack((frame, overlay_frame))
             meta = FrameResult(timestamp=timestamp, cells=last_meta.cells)
 

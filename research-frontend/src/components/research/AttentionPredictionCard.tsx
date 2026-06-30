@@ -717,176 +717,6 @@ const VideoThermalGrid = ({
     );
 };
 
-/* ─── DINO video with frontend grid overlay ─── */
-
-const DINO_GRID_OPTIONS = [
-    { label: '3×3', cols: 3, rows: 3 },
-    { label: '5×5', cols: 5, rows: 5 },
-];
-
-const DinoVideoWithGrid = ({
-    videoUrl,
-    gridMetadata,
-    heatmapData,
-}: {
-    videoUrl: string;
-    gridMetadata?: Array<{ timestamp: number; cells: Array<{ label: string; percentage: number }> }>;
-    heatmapData: HeatmapPoint[];
-}) => {
-    const [gridIdx, setGridIdx] = useState(0);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const rafRef = useRef<number | null>(null);
-
-    const { cols, rows } = DINO_GRID_OPTIONS[gridIdx];
-
-    const drawGrid = useCallback(() => {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        if (!video || !canvas || !video.videoWidth) return;
-
-        // Use display size for crisp labels
-        const rect = canvas.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        const w = Math.round(rect.width * dpr) || video.videoWidth;
-        const h = Math.round(rect.height * dpr) || video.videoHeight;
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.clearRect(0, 0, w, h);
-
-        const cellW = w / cols;
-        const cellH = h / rows;
-
-        // Grid lines
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 2 * dpr;
-        for (let r = 1; r < rows; r++) {
-            ctx.beginPath();
-            ctx.moveTo(0, r * cellH);
-            ctx.lineTo(w, r * cellH);
-            ctx.stroke();
-        }
-        for (let c = 1; c < cols; c++) {
-            ctx.beginPath();
-            ctx.moveTo(c * cellW, 0);
-            ctx.lineTo(c * cellW, h);
-            ctx.stroke();
-        }
-
-        // Compute percentages — use grid metadata if available, else from heatmapData
-        let pcts: number[];
-        if (gridMetadata && gridMetadata.length > 0) {
-            // Find closest frame by timestamp
-            const t = video.currentTime;
-            let closest = gridMetadata[0];
-            let minDist = Math.abs(t - closest.timestamp);
-            for (const fm of gridMetadata) {
-                const d = Math.abs(t - fm.timestamp);
-                if (d < minDist) { minDist = d; closest = fm; }
-            }
-            // Grid metadata may be for a different grid size — recompute if mismatch
-            if (closest.cells.length === cols * rows) {
-                pcts = closest.cells.map(c => c.percentage);
-            } else {
-                pcts = computeGridPercentages(heatmapData, cols, rows);
-            }
-        } else {
-            pcts = computeGridPercentages(heatmapData, cols, rows);
-        }
-
-        // Labels with dark pill, abbreviation
-        const cellRef = Math.min(cellW, cellH);
-        const fontSize = Math.max(10 * dpr, Math.min(28 * dpr, cellRef * 0.18));
-        const labelPad = Math.max(4 * dpr, cellRef * 0.06);
-        ctx.font = `bold ${fontSize}px monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.shadowBlur = 0;
-        const maxTextW = cellW * 0.9;
-
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const idx = r * cols + c;
-                const full = `${String.fromCharCode(65 + c)}${r + 1}: ${pcts[idx]}%`;
-                const short = `${pcts[idx]}%`;
-                const label = ctx.measureText(full).width <= maxTextW ? full
-                    : ctx.measureText(short).width <= maxTextW ? short
-                    : null;
-                if (!label) continue;
-                const tx = c * cellW + cellW / 2;
-                const ty = (r + 1) * cellH - labelPad;
-                const tw = ctx.measureText(label).width;
-                const pillPad = Math.max(3 * dpr, fontSize * 0.25);
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-                ctx.beginPath();
-                const rx = tx - tw / 2 - pillPad;
-                const ry = ty - fontSize - pillPad;
-                const rw = tw + pillPad * 2;
-                const rh = fontSize + pillPad * 2;
-                ctx.roundRect(rx, ry, rw, rh, Math.min(4 * dpr, rh / 3));
-                ctx.fill();
-                ctx.fillStyle = '#00ff00';
-                ctx.fillText(label, tx, ty);
-            }
-        }
-    }, [cols, rows, gridMetadata, heatmapData]);
-
-    // Redraw on grid change or video load
-    const handleVideoEvent = useCallback(() => { drawGrid(); }, [drawGrid]);
-    useEffect(() => { drawGrid(); }, [drawGrid]);
-
-    // Animation loop — redraw while playing (grid metadata is time-based)
-    useEffect(() => {
-        const loop = () => {
-            const video = videoRef.current;
-            if (video && !video.paused) drawGrid();
-            rafRef.current = requestAnimationFrame(loop);
-        };
-        rafRef.current = requestAnimationFrame(loop);
-        return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-    }, [drawGrid]);
-
-    return (
-        <div ref={containerRef} className="relative flex h-full w-full items-center justify-center">
-            <video
-                ref={videoRef}
-                src={videoUrl}
-                controls
-                muted
-                playsInline
-                preload="auto"
-                className="max-w-full max-h-full w-full block object-contain"
-                data-testid="heatmap-video"
-                onLoadedData={handleVideoEvent}
-                onSeeked={handleVideoEvent}
-            />
-            <canvas
-                ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
-            />
-            {/* Grid size selector */}
-            <div className="absolute bottom-12 right-2 z-10 flex items-center gap-1 bg-black/60 rounded px-2 py-1">
-                {DINO_GRID_OPTIONS.map((opt, i) => (
-                    <button
-                        key={opt.label}
-                        onClick={() => setGridIdx(i)}
-                        className={cn(
-                            'px-1.5 py-0.5 text-[10px] font-medium rounded transition-colors',
-                            i === gridIdx ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white',
-                        )}
-                    >
-                        {opt.label}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-};
-
 /* ─── Props ─── */
 
 interface AttentionPredictionCardProps {
@@ -1735,10 +1565,14 @@ export const AttentionPredictionCard = ({
                                         style={{ display: (activeTab === 'heatmap' && (heatmapVideoUrl || videoFrames.length > 0)) ? 'none' : 'block' }}
                                     />
                                     {activeTab === 'heatmap' && heatmapVideoUrl && (
-                                        <DinoVideoWithGrid
-                                            videoUrl={resolveMediaUrl(heatmapVideoUrl)}
-                                            gridMetadata={_gridMetadata}
-                                            heatmapData={heatmapData}
+                                        <video
+                                            src={resolveMediaUrl(heatmapVideoUrl)}
+                                            controls
+                                            muted
+                                            playsInline
+                                            preload="auto"
+                                            className="max-w-full max-h-full w-full block object-contain"
+                                            data-testid="heatmap-video"
                                         />
                                     )}
                                     {activeTab === 'heatmap' && !heatmapVideoUrl && (

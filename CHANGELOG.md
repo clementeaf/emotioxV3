@@ -1,10 +1,15 @@
-## v0.86.1 — Video heatmap grid labels scaling fix (2026-06-30)
+## v0.86.1 — Video heatmap grid labels overhaul (2026-06-30)
 
 ### python-saliency
-- **Adaptive font scaling.** `renderer.py` — `_cell_font_params()` computes font scale and thickness proportional to cell size (relative to 640px reference). Labels no longer overflow or overlap on small cells after downscale. Label padding and bottom offset also proportional.
+- **Label format A1/B2.** `compute_grid_cells()` now generates column-letter + row-number labels (A1, B1, C1, A2…) instead of sequential Q1–Q25. Matches frontend convention.
+- **Consistent label mode.** `draw_grid()` checks if ALL cells fit the full label (`A1: 3.2%`). If any doesn't fit, ALL cells show only the percentage. No more mixed formats across rows.
+- **Centered labels.** Labels placed at vertical center of each cell instead of pinned to bottom edge. Last row no longer cut off.
+- **White text + DUPLEX font.** Switched from green SIMPLEX to white DUPLEX — thicker strokes, anti-aliased (`LINE_AA`), readable over any heatmap color.
+- **Semi-transparent pill.** Dark background at 85% opacity with larger padding. Blended via `addWeighted` for smooth edges.
+- **Adaptive font scaling.** `_cell_font_params()` scales font proportionally to cell size (factor 2.8, reference 640px). Abbreviation fallback: full → percent-only → skip.
 
 ### research-frontend
-- **Grid label scaling.** `VideoAccumulatedHeatmapOverlay.tsx` and `VideoFrameScrubber.tsx` — font minimum lowered 14→10px, factor 0.18→0.15. Shadow blur proportional to font size. Labels auto-hidden when text width exceeds 90% of cell width (prevents overflow on 5×5 grids). Label padding proportional to cell size.
+- **Grid label scaling.** `VideoAccumulatedHeatmapOverlay.tsx` and `VideoFrameScrubber.tsx` — font minimum lowered 14→10px, dark pill background behind labels, abbreviation (full → percent-only → skip) when text exceeds 90% of cell width.
 
 ---
 

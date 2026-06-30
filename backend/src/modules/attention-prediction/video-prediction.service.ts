@@ -779,7 +779,6 @@ export async function renderVideoHeatmap(
     ];
     options.flipHeatmapV && args.push('--flip');
     options.logoPath && args.push('--logo', options.logoPath);
-    args.push('--no-labels'); // Frontend draws grid labels at display resolution
 
     console.error(`[renderVideoHeatmap] Spawning: ${venvPython} ${args.join(' ')}`);
 

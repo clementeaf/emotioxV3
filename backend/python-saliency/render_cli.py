@@ -78,7 +78,6 @@ def main() -> None:
     parser.add_argument("--logo", default="", help="Logo image path")
     parser.add_argument("--footer", type=int, default=100, help="Footer height px")
     parser.add_argument("--maxdim", type=int, default=640, help="Max dimension (width or height) — downscale large videos")
-    parser.add_argument("--no-labels", action="store_true", help="Skip grid lines & labels (frontend draws them)")
     args = parser.parse_args()
 
     rows, cols = (int(x) for x in args.grid.split("x"))
@@ -111,7 +110,6 @@ def main() -> None:
         logo_path=args.logo,
         footer_height=args.footer,
         sample_interval_s=args.sample,
-        draw_labels=not args.no_labels,
     )
 
     def on_progress(current: int, total: int) -> None:

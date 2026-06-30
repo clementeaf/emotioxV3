@@ -141,10 +141,10 @@ class TestComputeGridCells:
         cells = compute_grid_cells(uniform_14x14, 3, 3)
         assert len(cells) == 9
 
-    def test_labels_q1_to_q9(self, uniform_14x14):
+    def test_labels_column_row(self, uniform_14x14):
         cells = compute_grid_cells(uniform_14x14, 3, 3)
         labels = [c.label for c in cells]
-        assert labels == [f"Q{i}" for i in range(1, 10)]
+        assert labels == ["A1", "B1", "C1", "A2", "B2", "C2", "A3", "B3", "C3"]
 
     def test_percentages_sum_to_100(self, gradient_300x300):
         cells = compute_grid_cells(gradient_300x300, 3, 3)
@@ -166,8 +166,8 @@ class TestComputeGridCells:
     def test_custom_grid_4x4(self, uniform_14x14):
         cells = compute_grid_cells(uniform_14x14, 4, 4)
         assert len(cells) == 16
-        assert cells[0].label == "Q1"
-        assert cells[15].label == "Q16"
+        assert cells[0].label == "A1"
+        assert cells[15].label == "D4"
 
     def test_bounds_cover_full_image(self, gradient_300x300):
         cells = compute_grid_cells(gradient_300x300, 3, 3)
