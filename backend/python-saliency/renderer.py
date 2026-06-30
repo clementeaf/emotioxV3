@@ -66,6 +66,7 @@ class RenderConfig:
     logo_path: str = ""
     footer_height: int = 100
     sample_interval_s: float = 2.0  # seconds between DINO keyframes; intermediates reuse last overlay
+    draw_labels: bool = True  # False = skip grid lines & labels on video (frontend draws them)
 
 
 class AttentionExtractor(Protocol):
@@ -307,10 +308,11 @@ def process_frame(
     # grid
     cells = compute_grid_cells(attention_resized, config.grid_rows, config.grid_cols)
 
-    # compose: overlay then grid
+    # compose: overlay, optionally with grid
     alpha = config.overlay_alpha
     overlay = cv2.addWeighted(frame, 1.0 - alpha, heatmap, alpha, 0)
-    overlay = draw_grid(overlay, cells, config.grid_rows, config.grid_cols)
+    if config.draw_labels:
+        overlay = draw_grid(overlay, cells, config.grid_rows, config.grid_cols)
 
     # side by side
     combined = np.hstack((frame, overlay))
@@ -407,7 +409,8 @@ def render_video(
         else:
             # ponytail: blend cached heatmap onto current frame — smooth playback between keyframes
             overlay_frame = cv2.addWeighted(frame, 1.0 - config.overlay_alpha, last_heatmap_bgr, config.overlay_alpha, 0)
-            overlay_frame = draw_grid(overlay_frame, last_meta.cells, config.grid_rows, config.grid_cols)
+            if config.draw_labels:
+                overlay_frame = draw_grid(overlay_frame, last_meta.cells, config.grid_rows, config.grid_cols)
             combined = np.hstack((frame, overlay_frame))
             meta = FrameResult(timestamp=timestamp, cells=last_meta.cells)
 

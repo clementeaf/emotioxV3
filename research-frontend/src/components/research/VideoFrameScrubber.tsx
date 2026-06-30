@@ -131,16 +131,14 @@ export const renderGridComposite = (
         ctx.stroke();
     }
 
-    // Labels — scale font to cell size, abbreviate when tight
+    // Labels — scale font to cell size, dark pill background, abbreviate when tight
     const cellRef = Math.min(cellW, cellH);
-    const fontSize = Math.max(10, Math.min(28, cellRef * 0.15));
-    const labelPad = Math.max(4, cellRef * 0.05);
+    const fontSize = Math.max(10, Math.min(28, cellRef * 0.18));
+    const labelPad = Math.max(4, cellRef * 0.06);
     ctx.font = `bold ${fontSize}px monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.shadowColor = 'rgba(0,0,0,1)';
-    ctx.shadowBlur = Math.max(3, fontSize * 0.4);
-    ctx.fillStyle = '#00ff00';
+    ctx.shadowBlur = 0;
     const maxTextW = cellW * 0.9;
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -151,10 +149,25 @@ export const renderGridComposite = (
                 : ctx.measureText(short).width <= maxTextW ? short
                 : null;
             if (!label) continue;
-            ctx.fillText(label, c * cellW + cellW / 2, (r + 1) * cellH - labelPad);
+            const tx = c * cellW + cellW / 2;
+            const ty = (r + 1) * cellH - labelPad;
+            const tw = ctx.measureText(label).width;
+            const pillPad = Math.max(3, fontSize * 0.25);
+            // Dark pill behind text
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.beginPath();
+            const rx = tx - tw / 2 - pillPad;
+            const ry = ty - fontSize - pillPad;
+            const rw = tw + pillPad * 2;
+            const rh = fontSize + pillPad * 2;
+            const radius = Math.min(4, rh / 3);
+            ctx.roundRect(rx, ry, rw, rh, radius);
+            ctx.fill();
+            // Text
+            ctx.fillStyle = '#00ff00';
+            ctx.fillText(label, tx, ty);
         }
     }
-    ctx.shadowBlur = 0;
 };
 
 /* ─── Component ─── */
@@ -244,8 +257,11 @@ export const VideoFrameScrubber = ({
         const canvas = gridCanvasRef.current;
         if (!img || !canvas || !img.naturalWidth) return;
 
-        const w = img.naturalWidth;
-        const h = img.naturalHeight;
+        // Draw at display resolution for crisp labels on HiDPI screens
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const w = Math.round(rect.width * dpr) || img.naturalWidth;
+        const h = Math.round(rect.height * dpr) || img.naturalHeight;
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
