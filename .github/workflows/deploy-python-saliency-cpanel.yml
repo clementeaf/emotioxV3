@@ -48,7 +48,7 @@ jobs:
 
       - name: Health check
         run: |
-          sleep 3
+          sleep 30
           ssh -i ~/.ssh/deploy_key -p ${{ secrets.CPANEL_SSH_PORT }} \
             ${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_SSH_HOST }} \
             'curl -sf http://localhost:8001/health'
