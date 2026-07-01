@@ -161,7 +161,7 @@ def compute_grid_cells(
         y1, y2 = r * cell_h, (h if r == rows - 1 else (r + 1) * cell_h)
         x1, x2 = c * cell_w, (w if c == cols - 1 else (c + 1) * cell_w)
         pct = float(np.sum(attention[y1:y2, x1:x2])) / total * 100
-        label = f"{chr(65 + c)}{r + 1}"  # A1, B1, C1, A2, B2...
+        label = f"{chr(65 + r)}{c + 1}"  # A1, A2, A3, B1, B2...
         return GridCell(label=label, percentage=round(pct, 1), bounds=(x1, y1, x2, y2))
 
     return tuple(_cell(i) for i in range(rows * cols))
@@ -227,7 +227,6 @@ def _draw_cell_label(
     """Stamp one label with dark pill onto canvas, centered in cell."""
     x1, y1, x2, y2 = cell.bounds
     cx = (x1 + x2) // 2
-    cy = (y1 + y2) // 2
 
     text = f"{cell.label}: {cell.percentage}%" if use_full else f"{cell.percentage}%"
     (tw, th), _ = cv2.getTextSize(text, _FONT, font_scale, thickness)
@@ -235,12 +234,12 @@ def _draw_cell_label(
         return  # skip if even short doesn't fit
 
     pad = max(4, int(th * 0.5))
-    # Center vertically: text baseline at cy + th/2
-    text_y = cy + th // 2
-    # Semi-transparent dark pill via overlay blending
+    # Bottom of cell: text baseline near y2
+    text_y = y2 - pad
+    # Semi-transparent dark pill via overlay blending (75% alpha)
     overlay = canvas.copy()
     cv2.rectangle(overlay, (cx - tw // 2 - pad, text_y - th - pad), (cx + tw // 2 + pad, text_y + pad), _PILL_COLOR, -1)
-    cv2.addWeighted(overlay, 0.85, canvas, 0.15, 0, dst=canvas)
+    cv2.addWeighted(overlay, 0.75, canvas, 0.25, 0, dst=canvas)
     cv2.putText(canvas, text, (cx - tw // 2, text_y), _FONT, font_scale, _LABEL_COLOR, thickness, cv2.LINE_AA)
 
 

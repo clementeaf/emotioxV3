@@ -1,3 +1,12 @@
+## v0.86.2 — Video heatmap grid label refinements (2026-07-01)
+
+### python-saliency
+- **Row-first labeling.** `compute_grid_cells()` labels by row then column: A1, A2, A3 (row A), B1, B2, B3 (row B), etc. Previously column-first (A1, B1, C1…).
+- **Labels at cell bottom.** Labels now anchored to the base of each cell instead of vertically centered. Cleaner visual separation between heatmap content and label.
+- **Pill alpha 75%.** Dark pill background reduced from 85% to 75% opacity, letting more heatmap show through.
+
+---
+
 ## v0.86.1 — Video heatmap grid labels overhaul (2026-06-30)
 
 ### python-saliency
