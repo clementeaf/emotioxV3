@@ -7,8 +7,6 @@ import { HysteresisEngine } from '../hysteresisEngine';
 import {
   buildV2Response,
   computeZoneMetrics,
-  generateBackwardFixations,
-  generateBackwardZoneMass,
   EYE_TRACKING_V2_ENABLED,
 } from '../v2ResponseBuilder';
 import { getCurrentDeviceProfile, getProfileForDevice } from '../deviceProfile';
@@ -182,9 +180,11 @@ describe('classifyGaze — IDW-corrected coords', () => {
     expect(probs[0].zoneId).toBe('r0c0');
   });
 
-  it('point far outside → empty probabilities', () => {
+  it('point far outside → falls back to nearest zone', () => {
     const probs = classifyGaze(-1000, -1000, 120, zones);
-    expect(probs).toHaveLength(0);
+    expect(probs).toHaveLength(1);
+    expect(probs[0].zoneId).toBe('r0c0'); // nearest = top-left
+    expect(probs[0].confidence).toBeLessThan(0.5);
   });
 
   it('smaller uncertainty radius → sharper distribution', () => {
@@ -412,8 +412,8 @@ describe('DeviceProfile — zone pipeline config', () => {
   it('desktop profile has gaze tracking', () => {
     const profile = getProfileForDevice('desktop');
     expect(profile.hasGazeTracking).toBe(true);
-    expect(profile.uncertaintyRadius).toBe(120);
-    expect(profile.hysteresisMs).toBe(200);
+    expect(profile.uncertaintyRadius).toBe(300);
+    expect(profile.hysteresisMs).toBe(180);
   });
 
   it('tablet has larger uncertainty radius', () => {

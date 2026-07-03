@@ -256,6 +256,7 @@ const renderThermalImageData = (
  * Returns the index of the last frame whose timestamp ≤ currentTime.
  * Falls back to 0 when no frame qualifies.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const resolveFrameIndex = (
     frames: { timestamp: number }[],
     currentTime: number,
@@ -274,6 +275,7 @@ export const resolveFrameIndex = (
  * @param baseAttenuation - minimum multiplier for points far from any frame hotspot (0..1, default 0.25)
  * @param boostRadius     - distance in % units within which frame hotspots boost accumulated points (default 12)
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const modulateAccumulatedByFrame = (
     accumulated: HeatmapPoint[],
     frames: VideoFrameData[],
@@ -800,15 +802,12 @@ export const AttentionPredictionCard = ({
     isAnalyzing = false,
     analyzeElapsed = 0,
     headerExtra,
-    onProcessVideo: _onProcessVideo,
     videoProgress,
-    onDismissVideoProgress: _onDismissVideoProgress,
     thermalMap,
     thermalMapWidth,
     thermalMapHeight,
     heatmapVideoUrl,
     overlayOnlyUrl,
-    gridMetadata: _gridMetadata,
 }: AttentionPredictionCardProps) => {
     /* ── Download helper ── */
     const downloadVideo = useCallback((url: string, filename: string) => {
@@ -1266,6 +1265,7 @@ export const AttentionPredictionCard = ({
         applyTabLayers(tab, context);
         setGazeMode('static');
         setVisibleRoutes(new Set(['typical-scan', 'group-scan', 'novelty-search']));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stimulusMediaId, initialTab, applyTabLayers]);
 
     useEffect(() => {
@@ -1842,7 +1842,7 @@ export const AttentionPredictionCard = ({
    ═══════════════════════════════════════════════════════════════ */
 
 const CardHeader = ({
-    title: _title, onAddMore, onDelete, isDeleting, headerExtra,
+    title: _title, onAddMore, onDelete, isDeleting, headerExtra, // eslint-disable-line @typescript-eslint/no-unused-vars
     onRunPrediction, isPredicting, predictElapsed, videoProgressMessage, hasHeatmap,
     predictionGateOpen, onPredictClick, heatmapStale,
     onRunAnalysis, isAnalyzing, analyzeElapsed, analysisGateOpen, aiAnalysis, onAnalysisClick,

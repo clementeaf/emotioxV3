@@ -9,7 +9,6 @@ import {
   MAX_HEAD_VARIANCE_PX,
   MIN_FACE_CONFIDENCE,
   HEAD_STABILITY_FRAMES,
-  checkBrightness,
   checkResolution,
   checkDistance,
   checkHeadStability,
@@ -305,8 +304,11 @@ describe('checkBrightness — threshold logic', () => {
 // ---------------------------------------------------------------------------
 
 describe('evaluateGate', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pass = (id: string): QualityCheckResult => ({ id: id as any, status: 'pass' });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fail = (id: string): QualityCheckResult => ({ id: id as any, status: 'fail', message: 'bad' });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const warn = (id: string): QualityCheckResult => ({ id: id as any, status: 'warn', message: 'meh' });
 
   it('all pass → canProceed true', () => {

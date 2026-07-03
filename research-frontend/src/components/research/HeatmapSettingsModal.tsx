@@ -31,6 +31,7 @@ export interface HeatmapSettings {
     preset: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_SETTINGS: HeatmapSettings = {
     blur: 5,
     opacity: 45,
@@ -48,6 +49,7 @@ export interface HeatmapViewSettings {
 /* ─── Helpers ─── */
 
 /** Debounces a value — returns the latest value after `delay` ms of inactivity. */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDebouncedValue = <T,>(value: T, delay: number): T => {
     const [debounced, setDebounced] = useState(value);
     useEffect(() => {

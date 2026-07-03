@@ -199,14 +199,14 @@ describe('LEGACY_THERMAL_STOPS vs REBALANCED_THERMAL_STOPS', () => {
     });
 
     it('PROBLEM (legacy): LUT index 128 (50%) is still in cold zone (dominant blue)', () => {
-        const [r, g, b] = legacyLUT[128];
+        const [r, , b] = legacyLUT[128];
         // At 50%, legacy is around teal/green — blue channel still significant
         expect(b).toBeGreaterThan(0);
         expect(r).toBeLessThan(50);
     });
 
     it('FIX (rebalanced): LUT index 128 (50%) reaches warm transition (green/yellow)', () => {
-        const [r, g, b] = rebalancedLUT[128];
+        const [r, g] = rebalancedLUT[128];
         // Rebalanced at 50% should be in green/yellow territory
         expect(g).toBeGreaterThan(100);
         // Red channel should be emerging

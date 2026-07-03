@@ -256,6 +256,7 @@ export const VideoAccumulatedHeatmapOverlay = ({
                 ctx.fillText(label, tx, ty);
             }
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [heatmapData, cols, rows]);
 
     // ─── Draw spotlight/cold on canvasRef ───

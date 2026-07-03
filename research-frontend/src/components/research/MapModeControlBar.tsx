@@ -14,6 +14,7 @@ interface HeatmapSettings {
 
 const DETAIL_PRESETS = ['Lab', 'Precise', 'Balanced', 'Smooth'];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const PRESET_VALUES: Record<string, Pick<HeatmapSettings, 'blur' | 'threshold' | 'opacity'>> = {
     'Lab':      { blur: 5,  threshold: 68, opacity: 45 },
     'Precise':  { blur: 8,  threshold: 58, opacity: 55 },

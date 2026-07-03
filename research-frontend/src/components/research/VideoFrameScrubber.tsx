@@ -21,6 +21,7 @@ const GRID_OPTIONS = [
     { label: '5×5', cols: 5, rows: 5 },
 ];
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const computeGridPercentages = (data: HeatmapPoint[], cols: number, rows: number): number[] => {
     const cells = new Array(cols * rows).fill(0);
     let total = 0;
@@ -50,6 +51,7 @@ const THERMAL_GRADIENT = {
     1.0: '#ff0000',
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const paintThermalHeatmap = (
     targetCtx: CanvasRenderingContext2D,
     data: HeatmapPoint[],
@@ -86,6 +88,7 @@ export const paintThermalHeatmap = (
 
 /* ─── Renderers (pure, testeable) ─── */
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const renderFrameWithHeatmap = (
     ctx: CanvasRenderingContext2D,
     frameSource: CanvasImageSource,
@@ -97,6 +100,7 @@ export const renderFrameWithHeatmap = (
     paintThermalHeatmap(ctx, data, width, height);
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const renderGridComposite = (
     ctx: CanvasRenderingContext2D,
     frameSource: CanvasImageSource,

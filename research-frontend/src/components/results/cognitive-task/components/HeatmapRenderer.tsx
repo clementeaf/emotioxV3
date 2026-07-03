@@ -44,6 +44,7 @@ interface HeatmapRendererProps {
 }
 
 /** Dim overlay strength per visual profile */
+// eslint-disable-next-line react-refresh/only-export-components
 export const OVERLAY_DIM_FACTORS: Record<HeatmapVisualProfile, number> = {
     lab: 0.08,
     precise: 0.15,
@@ -52,6 +53,7 @@ export const OVERLAY_DIM_FACTORS: Record<HeatmapVisualProfile, number> = {
 };
 
 /** Warm heatmap gradient stops per visual profile (simpleheat format) — green→yellow→red */
+// eslint-disable-next-line react-refresh/only-export-components
 export const HEATMAP_GRADIENTS: Record<HeatmapVisualProfile, Record<number, string>> = {
     lab:      { 0.15: '#00ff00', 0.35: '#88ff00', 0.5: '#ffff00', 0.7: '#ff8800', 0.85: '#ff0000', 1.0: '#ff0000' },
     precise:  { 0.20: '#00ff00', 0.40: '#88ff00', 0.55: '#ffff00', 0.72: '#ff8800', 0.88: '#ff0000', 1.0: '#ff0000' },

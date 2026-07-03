@@ -52,6 +52,7 @@ describe('hasV2ZoneData', () => {
   });
 
   it('returns false when zoneMass is null', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(hasV2ZoneData({ zoneMass: null as any })).toBe(false);
   });
 

@@ -39,6 +39,7 @@ export const StimulusOverlayFrame = ({
     </div>
 );
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const STIMULUS_TRANSFORM_CONTENT_STYLE = {
     width: '100%',
     display: 'flex',

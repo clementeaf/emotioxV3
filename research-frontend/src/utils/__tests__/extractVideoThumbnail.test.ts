@@ -16,7 +16,7 @@ function createMockVideo(): HTMLVideoElement {
         videoHeight: 480,
         duration: 10,
         currentTime: 0,
-        addEventListener: vi.fn((event: string, handler: EventListener, _opts?: unknown) => {
+        addEventListener: vi.fn((event: string, handler: EventListener, _opts?: unknown) => { // eslint-disable-line @typescript-eslint/no-unused-vars
             listeners.set(event, handler);
         }),
         removeAttribute: vi.fn(),
