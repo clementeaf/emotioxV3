@@ -153,5 +153,9 @@ export const flattenResearchConfig = (config: Record<string, unknown>): Record<s
             : String(config.participantLimit);
     }
 
+    if (config.participationMode) {
+        values.participationMode = String(config.participationMode);
+    }
+
     return values;
 };
