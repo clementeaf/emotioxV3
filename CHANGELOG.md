@@ -1,3 +1,10 @@
+## v0.86.3 — Fix: participation mode reverts to panel on save (2026-07-03)
+
+### research-frontend
+- **participationMode round-trip fix.** `flattenResearchConfig` did not extract `participationMode` from stored config, so `componentValues` never contained the key. On every save, `transformResearchConfigComponentValues` defaulted to `'panel'`, silently overwriting a previously saved `'kiosk'` mode.
+
+---
+
 ## v0.86.2 — Video heatmap grid label refinements (2026-07-01)
 
 ### python-saliency
