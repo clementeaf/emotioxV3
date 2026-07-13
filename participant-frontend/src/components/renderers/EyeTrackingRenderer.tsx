@@ -218,6 +218,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const v3EllipsesRef = useRef<CalibrationEllipse[]>([]);
     const v3LastTimeRef = useRef(0);
     const v3LastGazeRef = useRef<{ x: number; y: number } | null>(null);
+    /** Initial stimulus rect when V3 heatmap was created — used to rescale gaze on resize. */
+    const v3InitRectRef = useRef<{ width: number; height: number; left: number; top: number } | null>(null);
     const [v3DebugInfo, setV3DebugInfo] = useState<{
         mass: number; duration: number; sigma1: number; sigma2: number; theta: number;
     } | null>(null);
@@ -379,6 +381,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             if (stimRect && stimRect.width > 0) {
                 const hm = new ProbabilisticHeatmap(stimRect.width, stimRect.height);
                 v3HeatmapRef.current = hm;
+                v3InitRectRef.current = { width: stimRect.width, height: stimRect.height, left: stimRect.left, top: stimRect.top };
 
                 // Fit uncertainty ellipses — prefer LOOCV residuals from Ridge diagnostics
                 const residuals = calibrationResidualsRef.current;
@@ -461,15 +464,18 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         gazeX: corrected.x,
                         gazeY: corrected.y,
                         velocity,
-                        pitch: 0, // ponytail: head pose angles available via mpGaze but not exposed in unified interface yet — use 0 for now
-                        yaw: 0,
-                        ear: 0.28, // ponytail: EAR not exposed yet — use near-open default
+                        pitch: useMP ? mpGaze.headPoseRef.current.pitch : 0,
+                        yaw: useMP ? mpGaze.headPoseRef.current.yaw : 0,
+                        ear: useMP ? mpGaze.earRef.current : 0.28,
                         rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
                     }, v3EllipsesRef.current);
 
-                    // Add sample with stimulus-relative coordinates
-                    const stimX = corrected.x - rect.left;
-                    const stimY = corrected.y - rect.top;
+                    // Add sample with stimulus-relative coordinates, rescaled to initial grid dimensions on resize
+                    const initRect = v3InitRectRef.current!;
+                    const relX = (corrected.x - rect.left) / rect.width;
+                    const relY = (corrected.y - rect.top) / rect.height;
+                    const stimX = relX * initRect.width;
+                    const stimY = relY * initRect.height;
                     if (dtS > 0 && dtS < 1) { // skip first frame (dtS=0) and outlier gaps
                         v3HeatmapRef.current.addSample(stimX, stimY, unc, dtS);
                     }

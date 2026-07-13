@@ -127,6 +127,11 @@ export function useMediaPipeGaze(
   // ponytail: store last features for calibrate() — avoids re-running detection
   const lastFeaturesRef = useRef<number[] | null>(null);
 
+  /** Live EAR (Eye Aspect Ratio), avg of both eyes. Updated every valid frame. */
+  const earRef = useRef(0.28);
+  /** Live head pose angles (degrees). Updated every valid frame with facial matrix. */
+  const headPoseRef = useRef<{ pitch: number; yaw: number }>({ pitch: 0, yaw: 0 });
+
   const minCutoff = options?.oneEuroMinCutoff ?? DEFAULT_MIN_CUTOFF;
   const beta = options?.oneEuroBeta ?? DEFAULT_BETA;
   const headPose = options?.headPoseCompensation ?? false;
@@ -237,7 +242,9 @@ export function useMediaPipeGaze(
       // Blink detection via EAR
       const earL = computeEAR(landmarks, LEFT_EYE_EAR);
       const earR = computeEAR(landmarks, RIGHT_EYE_EAR);
-      const eyesOpen = (earL + earR) / 2 >= EAR_OPEN_THRESHOLD;
+      const avgEar = (earL + earR) / 2;
+      earRef.current = avgEar;
+      const eyesOpen = avgEar >= EAR_OPEN_THRESHOLD;
 
       if (!eyesOpen) {
         frameStatsRef.current.noValidGazeFrames += 1;
@@ -261,6 +268,15 @@ export function useMediaPipeGaze(
 
       lastFeaturesRef.current = features;
       frameStatsRef.current.validGazeFrames += 1;
+
+      // Extract head pose angles for uncertainty estimation (always, independent of compensation)
+      if (facialMatrix) {
+        const parsed = parseFacialTransformationMatrix(facialMatrix);
+        if (parsed) {
+          const angles = extractEulerAngles(parsed.rotationRowMajor);
+          headPoseRef.current = { pitch: angles.pitch, yaw: angles.yaw };
+        }
+      }
 
       // Update ONNX predictor with current video + landmarks (if applicable)
       const pred = predictorRef.current;
@@ -368,6 +384,10 @@ export function useMediaPipeGaze(
     lastFeaturesRef,
     /** Predictor instance (for diagnostics — cvRmsePx, diagnostics). */
     predictorRef,
+    /** Live EAR (avg both eyes), updated every valid frame. */
+    earRef,
+    /** Live head pose {pitch, yaw} in degrees, updated every valid frame. */
+    headPoseRef,
     getFrameStats,
     resetFrameStats,
   };

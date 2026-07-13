@@ -58,6 +58,12 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
           ...stimulus.emotions,
           perParticipant: stimulus.emotions.perParticipant.filter(p => filteredParticipantIds.has(p.participantId)),
         },
+        // Filter V3 heatmap per-participant data (grid stays aggregated — frontend re-filters AOI display)
+        v3Heatmap: stimulus.v3Heatmap ? {
+          ...stimulus.v3Heatmap,
+          perParticipant: stimulus.v3Heatmap.perParticipant.filter(p => filteredParticipantIds.has(p.participantId)),
+          participantCount: stimulus.v3Heatmap.perParticipant.filter(p => filteredParticipantIds.has(p.participantId)).length,
+        } : undefined,
       };
     });
   }, [data?.stimuli, filteredParticipantIds]);
