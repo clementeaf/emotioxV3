@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { NavigationFlow } from './NavigationFlow';
 
 vi.mock('react-i18next', () => ({
@@ -42,10 +43,12 @@ describe('NavigationFlow', () => {
         const onComplete = vi.fn();
 
         render(
-            <NavigationFlow
-                images={[{ id: '1', name: 'Only', hitZones: [] }]}
-                onComplete={onComplete}
-            />
+            <MemoryRouter>
+                <NavigationFlow
+                    images={[{ id: '1', name: 'Only', hitZones: [] }]}
+                    onComplete={onComplete}
+                />
+            </MemoryRouter>
         );
 
         await waitFor(() => {

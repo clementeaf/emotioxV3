@@ -45,14 +45,15 @@ describe('ShelfGrid', () => {
         const images = container.querySelectorAll('img');
         expect(images.length).toBe(6); // 2×3
 
-        // Row 0: col0=a, col1=b, col2=a (wraps)
+        // Sequential cycling: i % urls.length
+        // Row 0: i=0→a, i=1→b, i=2→a
         expect(images[0].getAttribute('src')).toBe(twoUrls[0]);
         expect(images[1].getAttribute('src')).toBe(twoUrls[1]);
         expect(images[2].getAttribute('src')).toBe(twoUrls[0]);
-        // Row 1: same pattern
-        expect(images[3].getAttribute('src')).toBe(twoUrls[0]);
-        expect(images[4].getAttribute('src')).toBe(twoUrls[1]);
-        expect(images[5].getAttribute('src')).toBe(twoUrls[0]);
+        // Row 1: i=3→b, i=4→a, i=5→b
+        expect(images[3].getAttribute('src')).toBe(twoUrls[1]);
+        expect(images[4].getAttribute('src')).toBe(twoUrls[0]);
+        expect(images[5].getAttribute('src')).toBe(twoUrls[1]);
     });
 
     it('renders nothing when urls is empty', () => {
