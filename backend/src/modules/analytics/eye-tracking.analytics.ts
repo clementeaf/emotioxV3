@@ -110,6 +110,89 @@ interface EyeTrackingStimulus {
     transitionMatrix: Record<string, Record<string, number>>;
     aoiLabels: string[];
   };
+  /** V3 probabilistic heatmap (aggregated across participants). */
+  v3Heatmap?: V3AggregatedHeatmap;
+}
+
+// ---------------------------------------------------------------------------
+// V3 probabilistic heatmap types
+// ---------------------------------------------------------------------------
+
+interface V3ParticipantPayload {
+  version: 3;
+  heatmap: {
+    cols: number;
+    rows: number;
+    cellW: number;
+    cellH: number;
+    densityBase64: string;
+  };
+  aoiMetrics: Array<{
+    aoiId: string;
+    label: string;
+    expectedDwellS: number;
+    attentionShare: number;
+    firstAttentionMs: number | null;
+    peakProbability: number;
+  }>;
+  totalMassS: number;
+  totalDurationS: number;
+  massError: number;
+  confidence: {
+    score: number;
+    calibrationQuality: number;
+    validFrameRatio: number;
+    headStability: number;
+    effectiveDurationS: number;
+    spatialCoverage: number;
+  };
+  ellipses: Array<{
+    u: number; v: number;
+    sigma1: number; sigma2: number;
+    thetaDeg: number;
+  }>;
+  pipeline: string;
+}
+
+interface V3AggregatedHeatmap {
+  /** Grid dimensions (same for all participants — based on stimulus size). */
+  cols: number;
+  rows: number;
+  cellW: number;
+  cellH: number;
+  /** Aggregated density as base64 Float64Array (sum of all participants). */
+  densityBase64: string;
+  /** Normalized [0,1] values for direct heatmap rendering. */
+  normalizedBase64: string;
+  /** Total mass across all participants (seconds). */
+  totalMassS: number;
+  /** Number of participants with V3 data. */
+  participantCount: number;
+  /** Average session confidence score [0,1]. */
+  avgConfidence: number;
+  /** Average spatial coverage [0,1]. */
+  avgSpatialCoverage: number;
+  /** Per-AOI aggregated attention metrics. */
+  aoiMetrics: Array<{
+    aoiId: string;
+    label: string;
+    /** Sum of expected dwell across all participants (seconds). */
+    totalDwellS: number;
+    /** Average attention share across participants [0,1]. */
+    avgAttentionShare: number;
+    /** Earliest first-attention across participants (ms). */
+    earliestFirstAttentionMs: number | null;
+    /** Number of participants who attended this AOI. */
+    participantCount: number;
+  }>;
+  /** Per-participant V3 summary (for quality filtering in frontend). */
+  perParticipant: Array<{
+    participantId: string;
+    totalDurationS: number;
+    totalMassS: number;
+    confidence: number;
+    spatialCoverage: number;
+  }>;
 }
 
 /**
@@ -714,6 +797,146 @@ const computeEyeTrackingMetrics = (
   };
 };
 
+// ---------------------------------------------------------------------------
+// V3 heatmap extraction & aggregation
+// ---------------------------------------------------------------------------
+
+/**
+ * Decode base64 Float64Array density grid.
+ */
+function decodeDensityBase64(b64: string, expectedLength: number): Float64Array | null {
+  try {
+    const binary = Buffer.from(b64, 'base64');
+    if (binary.byteLength !== expectedLength * 8) return null;
+    return new Float64Array(binary.buffer, binary.byteOffset, expectedLength);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Encode Float64Array to base64.
+ */
+function encodeDensityBase64(data: Float64Array): string {
+  return Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
+}
+
+/**
+ * Extract and aggregate V3 probabilistic heatmap data from eye-tracking responses.
+ * Sums density grids across participants (grids share dimensions from stimulus size).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractV3Heatmap(responses: any[]): V3AggregatedHeatmap | undefined {
+  const v3Payloads: Array<{ participantId: string; payload: V3ParticipantPayload }> = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const v3 = parsed?.v3;
+      if (!v3 || v3.version !== 3 || !v3.heatmap?.densityBase64) continue;
+      v3Payloads.push({ participantId: row.participant_id, payload: v3 });
+    } catch { /* skip malformed */ }
+  }
+
+  if (v3Payloads.length === 0) return undefined;
+
+  // Use first payload's grid dimensions as reference
+  const ref = v3Payloads[0].payload.heatmap;
+  const gridSize = ref.cols * ref.rows;
+
+  // Sum all density grids
+  const sumGrid = new Float64Array(gridSize);
+  const perParticipant: V3AggregatedHeatmap['perParticipant'] = [];
+  let totalConfidence = 0;
+  let totalCoverage = 0;
+
+  for (const { participantId, payload } of v3Payloads) {
+    // Only aggregate grids with matching dimensions
+    if (payload.heatmap.cols !== ref.cols || payload.heatmap.rows !== ref.rows) continue;
+
+    const grid = decodeDensityBase64(payload.heatmap.densityBase64, gridSize);
+    if (!grid) continue;
+
+    for (let i = 0; i < gridSize; i++) sumGrid[i] += grid[i];
+
+    totalConfidence += payload.confidence.score;
+    totalCoverage += payload.confidence.spatialCoverage;
+
+    perParticipant.push({
+      participantId,
+      totalDurationS: payload.totalDurationS,
+      totalMassS: payload.totalMassS,
+      confidence: payload.confidence.score,
+      spatialCoverage: payload.confidence.spatialCoverage,
+    });
+  }
+
+  if (perParticipant.length === 0) return undefined;
+
+  // Normalized grid [0,1] for rendering
+  let maxVal = 0;
+  for (let i = 0; i < gridSize; i++) if (sumGrid[i] > maxVal) maxVal = sumGrid[i];
+  const normGrid = new Float64Array(gridSize);
+  if (maxVal > 0) {
+    for (let i = 0; i < gridSize; i++) normGrid[i] = sumGrid[i] / maxVal;
+  }
+
+  // Aggregate AOI metrics across participants
+  const aoiAgg = new Map<string, {
+    label: string;
+    totalDwellS: number;
+    attentionShareSum: number;
+    earliestFirstMs: number | null;
+    count: number;
+  }>();
+
+  for (const { payload } of v3Payloads) {
+    for (const aoi of payload.aoiMetrics) {
+      const existing = aoiAgg.get(aoi.aoiId) ?? {
+        label: aoi.label,
+        totalDwellS: 0,
+        attentionShareSum: 0,
+        earliestFirstMs: null,
+        count: 0,
+      };
+      existing.totalDwellS += aoi.expectedDwellS;
+      existing.attentionShareSum += aoi.attentionShare;
+      if (aoi.firstAttentionMs !== null) {
+        existing.earliestFirstMs = existing.earliestFirstMs === null
+          ? aoi.firstAttentionMs
+          : Math.min(existing.earliestFirstMs, aoi.firstAttentionMs);
+      }
+      if (aoi.expectedDwellS > 0) existing.count++;
+      aoiAgg.set(aoi.aoiId, existing);
+    }
+  }
+
+  const n = perParticipant.length;
+  const totalMassS = sumGrid.reduce((s, v) => s + v, 0);
+
+  return {
+    cols: ref.cols,
+    rows: ref.rows,
+    cellW: ref.cellW,
+    cellH: ref.cellH,
+    densityBase64: encodeDensityBase64(sumGrid),
+    normalizedBase64: encodeDensityBase64(normGrid),
+    totalMassS,
+    participantCount: n,
+    avgConfidence: totalConfidence / n,
+    avgSpatialCoverage: totalCoverage / n,
+    aoiMetrics: Array.from(aoiAgg.entries()).map(([aoiId, a]) => ({
+      aoiId,
+      label: a.label,
+      totalDwellS: a.totalDwellS,
+      avgAttentionShare: n > 0 ? a.attentionShareSum / n : 0,
+      earliestFirstAttentionMs: a.earliestFirstMs,
+      participantCount: a.count,
+    })),
+    perParticipant,
+  };
+}
+
 export const getEyeTrackingResults = async (researchId: string) => {
   // 1. Find the Eye Tracking stage
   const stageQuery = `
@@ -758,6 +981,9 @@ export const getEyeTrackingResults = async (researchId: string) => {
 
     const metrics = computeEyeTrackingMetrics(responsesResult.rows, configAois, hasEmotionRecognition);
 
+    // V3 probabilistic heatmap (aggregated across participants)
+    const v3Heatmap = extractV3Heatmap(responsesResult.rows);
+
     // TranSalNet prediction data (stored in module config by attention-prediction controller)
     const predictionHeatmap = config.predictionHeatmap as Array<{ x: number; y: number; value: number }> | undefined;
     const predictionProcessedAt = config.predictionProcessedAt as string | undefined;
@@ -790,6 +1016,7 @@ export const getEyeTrackingResults = async (researchId: string) => {
       predictionProcessedAt,
       stimulusType,
       gazeTimeline: gazeTimeline.length > 0 ? gazeTimeline : undefined,
+      v3Heatmap,
     });
   }
 
