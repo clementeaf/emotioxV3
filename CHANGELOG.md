@@ -1,3 +1,26 @@
+## v0.87.0 — Eye Tracking V3: probabilistic heatmap end-to-end (2026-07-13)
+
+### participant-frontend
+- **LOOCV ellipses.** V3 uncertainty estimator now reads Ridge LOOCV diagnostics (`predictorRef.diagnostics.perPoint`) instead of in-sample residuals. Fixes ~30-40% underestimated uncertainty. Falls back to `fitFromHybridResiduals` for BlazeGaze engine.
+- **Mass-duration consistency.** `ProbabilisticHeatmap.addSample` only increments `totalDurationS` when `kernelSum > 0` — frames where gaze falls entirely outside the grid no longer inflate duration without contributing mass.
+- **Payload size reduction.** Removed redundant `normalized[]` array from V3 payload (~16KB savings per session). Backend reconstructs from `densityBase64`.
+- **Live head pose + EAR.** `useMediaPipeGaze` now exposes `earRef` and `headPoseRef` (pitch/yaw degrees). V3 uncertainty scaling uses real values instead of hardcoded defaults.
+- **Resize-safe grid.** V3 heatmap stores initial stimulus rect at creation. Gaze coordinates are rescaled proportionally when the viewport changes during viewing, preventing cell mismatch.
+
+### backend
+- **V3 heatmap aggregation.** `extractV3Heatmap()` in `eye-tracking.analytics.ts` decodes base64 `Float64Array` density grids from per-participant V3 payloads, sums across participants, and returns aggregated heatmap via existing `/analytics/research/:id/eye-tracking` endpoint. Includes normalized grid for rendering, per-AOI aggregated metrics (dwell, attention share, TTFA), per-participant quality summary (confidence, coverage, mass). No new endpoint — `v3Heatmap` is optional on `EyeTrackingStimulus`.
+
+### research-frontend
+- **Density tab.** New "Density" `ViewMode` in `StimulusCard` (Grid3X3 icon). Decodes `normalizedBase64` → cell-center points → renders via existing `HeatmapRenderer`. Defaults to density tab when V3 data exists. Shows metrics footer (participant count, confidence %, total mass, spatial coverage) and per-AOI probabilistic attention panel.
+- **V3 demographic filters.** `filteredStimuli` now filters `v3Heatmap.perParticipant` by selected demographic IDs, keeping participant count in sync.
+
+### quality
+- **16 TS errors + 19 lint warnings fixed** across eye-tracking pipeline files (eval/, useMediaPipeGaze, featureExtraction, onnxGazePredictor, modelAdapters, test pages, test files, vite.config).
+- **5 pre-existing test failures fixed** — DemographicsStep (×3, rewritten for CustomSelect + store mock), NavigationFlow (MemoryRouter wrapper), ShelfGrid (sequential cycling expectation).
+- **613 tests, 0 failures.** Pre-commit clean across all 3 subprojects.
+
+---
+
 ## v0.86.3 — Fix: participation mode reverts to panel on save (2026-07-03)
 
 ### research-frontend
