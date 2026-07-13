@@ -110,57 +110,58 @@ export function extractGazeFeatures(
   const rightTop = landmarks[rightEyeTop];
   const rightBottom = landmarks[rightEyeBottom];
 
-  const leftEyeW = leftInner.x - leftOuter.x;
-  const leftEyeH = leftBottom.y - leftTop.y;
-  const rightEyeW = rightInner.x - rightOuter.x;
-  const rightEyeH = rightBottom.y - rightTop.y;
+  // Eye center = midpoint of inner and outer corners
+  const leftCenterX = (leftInner.x + leftOuter.x) / 2;
+  const leftCenterY = (leftTop.y + leftBottom.y) / 2;
+  const rightCenterX = (rightInner.x + rightOuter.x) / 2;
+  const rightCenterY = (rightTop.y + rightBottom.y) / 2;
 
-  if (
-    Math.abs(leftEyeW) < MIN_EYE_AXIS_SPAN ||
-    Math.abs(leftEyeH) < MIN_EYE_AXIS_SPAN ||
-    Math.abs(rightEyeW) < MIN_EYE_AXIS_SPAN ||
-    Math.abs(rightEyeH) < MIN_EYE_AXIS_SPAN
-  ) {
+  // Inter-pupilar distance as stable normalization scale (changes little vs eye aperture)
+  const ipd = Math.sqrt(
+    (rightCenterX - leftCenterX) ** 2 + (rightCenterY - leftCenterY) ** 2,
+  );
+
+  if (ipd < MIN_EYE_AXIS_SPAN) {
     return null;
   }
 
-  const lrx = (leftIris.x - leftOuter.x) / leftEyeW;
-  const lry = (leftIris.y - leftTop.y) / leftEyeH;
-  const rrx = (rightIris.x - rightOuter.x) / rightEyeW;
-  const rry = (rightIris.y - rightTop.y) / rightEyeH;
+  // Iris displacement from eye center, normalized by IPD.
+  // Centered around 0 (gaze straight ahead), range ~[-0.15, +0.15].
+  // Using IPD instead of per-eye width eliminates:
+  //   - Eyelid aperture contamination in Y
+  //   - Perspective asymmetry between near/far eye
+  const lrx = (leftIris.x - leftCenterX) / ipd;
+  const lry = (leftIris.y - leftCenterY) / ipd;
+  const rrx = (rightIris.x - rightCenterX) / ipd;
+  const rry = (rightIris.y - rightCenterY) / ipd;
 
   const avgRx = (lrx + rrx) / 2;
   const avgRy = (lry + rry) / 2;
 
+  // Vergence: difference between left and right iris displacement.
+  // Captures depth-dependent eye convergence that a single average misses.
+  const vergX = lrx - rrx;
+  const vergY = lry - rry;
+
   const [tx, ty, tz] = head.translation;
   const R = head.rotationRowMajor;
 
-  const poly1 = avgRx * avgRx;
-  const poly2 = avgRy * avgRy;
-  const poly3 = avgRx * avgRy;
-
   const out: number[] = [
-    lrx,
-    lry,
-    rrx,
-    rry,
-    avgRx,
-    avgRy,
+    // Gaze direction (IPD-normalized, centered at 0)
+    avgRx,        // horizontal gaze: negative = left, positive = right
+    avgRy,        // vertical gaze: negative = up, positive = down
+    // Per-eye iris displacement (for asymmetric gaze / head turn)
+    lrx, lry,
+    rrx, rry,
+    // Vergence (convergence signal — useful for near/far targets)
+    vergX, vergY,
+    // Head pose (rotation matrix — 9 values)
     ...R,
-    tx,
-    ty,
-    tz,
-    poly1,
-    poly2,
-    poly3,
-    avgRx * tx,
-    avgRx * ty,
-    avgRx * tz,
-    avgRy * tx,
-    avgRy * ty,
-    avgRy * tz,
+    // Head position (translation — distance/position)
+    tx, ty, tz,
   ];
 
+  // 8 iris/vergence + 9 rotation + 3 translation = 20
   if (out.length !== GAZE_FEATURE_DIMENSION) {
     return null;
   }

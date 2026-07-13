@@ -631,12 +631,14 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             setPhase('calibration');
         }, 2000);
         return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze is unstable object literal; reads via ref
     }, [phase, isDesktop, startCamera, cachedCalibration, blaze, viewingDuration]);
 
     // Start BlazeGaze early in quality-gate so face detection check can use gazeState
     useEffect(() => {
         if (phase !== 'quality-gate' || !isDesktop) return;
         gaze.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze is unstable object literal; reads via ref
     }, [phase, isDesktop, blaze]);
 
     // Desktop: run BlazeGaze during calibration (gaze samples for IDW residuals) and through viewing
@@ -654,6 +656,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             }
         }, 2000);
         return () => clearTimeout(resCheckTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze is unstable object literal; reads via ref
     }, [phase, isDesktop, blaze]);
 
     // Save results when complete
@@ -1242,6 +1245,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         setValidationPointErrors([]);
         setValidationRmse(null);
         setTimeout(() => setPhase('viewing'), 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze is unstable object literal
     }, [blaze, viewingDuration]);
 
     /** Reject session — session quality too low after max attempts. */
@@ -1251,6 +1255,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             stopCamera();
         }
         onComplete?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze is unstable object literal
     }, [isDesktop, blaze, stopCamera, onComplete]);
 
     // -----------------------------------------------------------------------
