@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings } from 'lucide-react';
+import { useState, useCallback, useMemo } from 'react';
+import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
@@ -19,11 +19,33 @@ import type { HeatmapSettings } from './HeatmapSettingsModal';
 export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: { stimulus: EyeTrackingStimulus; researchId: string; onRefresh: () => void }) => {
   const stimulus = { ...rawStimulus, stimulusUrl: resolveStimulusUrl(rawStimulus.stimulusUrl) };
   const hasZoneMass = stimulus.zoneMass && Object.values(stimulus.zoneMass).some(v => v > 0);
-  const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0;
-  const [viewMode, setViewMode] = useState<ViewMode>('heatmap');
+  const hasV3 = !!stimulus.v3Heatmap;
+  const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0 || hasV3;
+  const [viewMode, setViewMode] = useState<ViewMode>(hasV3 ? 'density' : 'heatmap');
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Convert V3 density grid (base64 Float64Array) to HeatmapRenderer points
+  const v3HeatmapPoints = useMemo(() => {
+    const v3 = stimulus.v3Heatmap;
+    if (!v3?.normalizedBase64) return [];
+    try {
+      const binary = Uint8Array.from(atob(v3.normalizedBase64), c => c.charCodeAt(0));
+      const grid = new Float64Array(binary.buffer, binary.byteOffset, v3.cols * v3.rows);
+      const points: Array<{ x: number; y: number; value: number }> = [];
+      for (let r = 0; r < v3.rows; r++) {
+        for (let c = 0; c < v3.cols; c++) {
+          const val = grid[r * v3.cols + c];
+          if (val > 0.01) {
+            // Cell center in pixel coords (relative to stimulus)
+            points.push({ x: (c + 0.5) * v3.cellW, y: (r + 0.5) * v3.cellH, value: val });
+          }
+        }
+      }
+      return points;
+    } catch { return []; }
+  }, [stimulus.v3Heatmap]);
 
   const handleDownload = useCallback(async () => {
     if (!imageContainerRef) return;
@@ -88,6 +110,14 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             icon={<Eye className="h-4 w-4" />}
             label="Heat map"
           />
+          {hasV3 && (
+            <ViewModeTab
+              active={viewMode === 'density'}
+              onClick={() => setViewMode('density')}
+              icon={<Grid3X3 className="h-4 w-4" />}
+              label="Density"
+            />
+          )}
           <ViewModeTab
             active={viewMode === 'scanpath'}
             onClick={() => setViewMode('scanpath')}
@@ -167,7 +197,47 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
 
       {/* Stimulus image / heatmap / emotions / prediction */}
       <div className="px-5 pb-4">
-        {viewMode === 'sequence' && stimulus.sequenceAnalysis ? (
+        {viewMode === 'density' && hasV3 && stimulus.stimulusUrl ? (
+          <div ref={setImageContainerRef} className="w-fit mx-auto">
+            <HeatmapRenderer
+              imageUrl={stimulus.stimulusUrl}
+              data={v3HeatmapPoints}
+              coordSystem="pixel"
+              blur={heatmapSettings.blur}
+              opacity={heatmapSettings.opacity}
+              threshold={heatmapSettings.threshold}
+              className="w-full"
+            />
+            <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+              <span>
+                V3 probabilistic · {stimulus.v3Heatmap!.participantCount} participant{stimulus.v3Heatmap!.participantCount !== 1 ? 's' : ''}
+                · confidence {(stimulus.v3Heatmap!.avgConfidence * 100).toFixed(0)}%
+              </span>
+              <span>
+                {stimulus.v3Heatmap!.totalMassS.toFixed(1)}s total · coverage {(stimulus.v3Heatmap!.avgSpatialCoverage * 100).toFixed(0)}%
+              </span>
+            </div>
+            {/* V3 AOI metrics */}
+            {stimulus.v3Heatmap!.aoiMetrics.length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Probabilistic AOI Attention</h4>
+                {stimulus.v3Heatmap!.aoiMetrics.map(aoi => (
+                  <div key={aoi.aoiId} className="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-1.5">
+                    <span className="font-medium text-gray-700">{aoi.label}</span>
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <span>{aoi.totalDwellS.toFixed(1)}s dwell</span>
+                      <span>{(aoi.avgAttentionShare * 100).toFixed(0)}% share</span>
+                      {aoi.earliestFirstAttentionMs !== null && (
+                        <span>TTFA {(aoi.earliestFirstAttentionMs / 1000).toFixed(1)}s</span>
+                      )}
+                      <span>{aoi.participantCount} participant{aoi.participantCount !== 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : viewMode === 'sequence' && stimulus.sequenceAnalysis ? (
           <SequencePanel sequenceAnalysis={stimulus.sequenceAnalysis} />
         ) : viewMode === 'transparency' && stimulus.stimulusUrl ? (
           <TransparencyMap imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} />

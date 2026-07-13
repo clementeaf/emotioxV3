@@ -512,6 +512,36 @@ export interface EyeTrackingStimulus {
         transitionMatrix: Record<string, Record<string, number>>;
         aoiLabels: string[];
     };
+    /** V3 probabilistic heatmap (aggregated across participants). */
+    v3Heatmap?: V3AggregatedHeatmap;
+}
+
+export interface V3AggregatedHeatmap {
+    cols: number;
+    rows: number;
+    cellW: number;
+    cellH: number;
+    densityBase64: string;
+    normalizedBase64: string;
+    totalMassS: number;
+    participantCount: number;
+    avgConfidence: number;
+    avgSpatialCoverage: number;
+    aoiMetrics: Array<{
+        aoiId: string;
+        label: string;
+        totalDwellS: number;
+        avgAttentionShare: number;
+        earliestFirstAttentionMs: number | null;
+        participantCount: number;
+    }>;
+    perParticipant: Array<{
+        participantId: string;
+        totalDurationS: number;
+        totalMassS: number;
+        confidence: number;
+        spatialCoverage: number;
+    }>;
 }
 
 export interface EyeTrackingResults {

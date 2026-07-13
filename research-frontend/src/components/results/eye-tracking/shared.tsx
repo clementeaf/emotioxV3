@@ -3,7 +3,7 @@ import { Crosshair, Users } from 'lucide-react';
 import type { EyeTrackingAOI, EkmanEmotion } from '../../../services/analytics.service';
 import { resolveMediaUrl } from '../../../services/media.service';
 
-export type ViewMode = 'heatmap' | 'image' | 'emotions' | 'prediction' | 'video' | 'scanpath' | 'firstlook' | 'transparency' | 'sequence';
+export type ViewMode = 'heatmap' | 'density' | 'image' | 'emotions' | 'prediction' | 'video' | 'scanpath' | 'firstlook' | 'transparency' | 'sequence';
 
 /** Resolve stimulusUrl: may be a clean URL or a JSON array string from the backend. */
 export const resolveStimulusUrl = (raw: string): string => {
