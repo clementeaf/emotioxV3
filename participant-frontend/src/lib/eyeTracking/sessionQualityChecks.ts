@@ -41,7 +41,7 @@ export const MIN_FACE_CONFIDENCE = 0.8;
 // Check results
 // ---------------------------------------------------------------------------
 
-export type QualityCheckId = 'brightness' | 'distance' | 'resolution' | 'headStability' | 'faceDetection';
+export type QualityCheckId = 'brightness' | 'distance' | 'resolution' | 'headStability' | 'faceDetection' | 'headPose';
 
 export type CheckStatus = 'pending' | 'checking' | 'pass' | 'warn' | 'fail';
 
@@ -94,6 +94,39 @@ export function checkBrightness(video: HTMLVideoElement): QualityCheckResult {
         return { id: 'brightness', status: 'warn', value: Math.round(brightness), message: 'Low light — accuracy may be reduced' };
     }
     return { id: 'brightness', status: 'pass', value: Math.round(brightness) };
+}
+
+/**
+ * Detect backlight — face (center) significantly darker than background (edges).
+ * A bright background with a dark face silhouette degrades iris tracking.
+ */
+export function checkBacklight(video: HTMLVideoElement): QualityCheckResult {
+    const w = 64, h = 48;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return { id: 'brightness', status: 'pass' };
+    ctx.drawImage(video, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+
+    let centerSum = 0, centerCount = 0, edgeSum = 0, edgeCount = 0;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            const isCenter = x > w * 0.25 && x < w * 0.75 && y > h * 0.15 && y < h * 0.85;
+            if (isCenter) { centerSum += lum; centerCount++; }
+            else { edgeSum += lum; edgeCount++; }
+        }
+    }
+    const centerAvg = centerCount > 0 ? centerSum / centerCount : 128;
+    const edgeAvg = edgeCount > 0 ? edgeSum / edgeCount : 128;
+
+    if (edgeAvg > centerAvg * 1.8 && centerAvg < 100) {
+        return { id: 'brightness', status: 'warn', value: Math.round(centerAvg), message: 'Backlight detected — face is darker than background' };
+    }
+    return { id: 'brightness', status: 'pass', value: Math.round(centerAvg) };
 }
 
 // ---------------------------------------------------------------------------

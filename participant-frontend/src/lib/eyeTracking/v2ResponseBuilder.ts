@@ -50,7 +50,7 @@ export interface V2CalibrationInfo {
 }
 
 export interface V2Metadata {
-  readonly trackingMethod: 'blazegaze-v2' | 'click-proxy';
+  readonly trackingMethod: 'blazegaze-v2' | 'mediapipe-ridge-v2' | 'click-proxy';
   readonly deviceType: string;
   readonly uncertaintyRadius: number;
   readonly hysteresisMs: number;

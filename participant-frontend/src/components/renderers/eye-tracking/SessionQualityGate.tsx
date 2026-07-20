@@ -4,6 +4,7 @@ import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS } from './types';
 import {
     checkBrightness,
+    checkBacklight,
     checkResolution,
     checkDistance,
     checkHeadStability,
@@ -24,6 +25,16 @@ interface SessionQualityGateProps {
     cameraRef: React.RefObject<HTMLVideoElement | null>;
     /** BlazeGaze gazePosRef — used as proxy for face detection (if gaze is valid, face is detected). */
     gazeActive: boolean;
+    /** Real face detection confidence from MediaPipe (0 = no face, 1 = detected + eyes open). */
+    faceConfidence?: number;
+    /** Live head pose from MediaPipe (pitch/yaw degrees). */
+    headPoseRef?: React.RefObject<{ pitch: number; yaw: number }>;
+    /** Live EAR (eye aspect ratio) from MediaPipe. */
+    earRef?: React.RefObject<number>;
+    /** Last 478 face landmarks from MediaPipe (normalized 0-1). */
+    landmarksRef?: React.RefObject<Array<{ x: number; y: number; z: number }> | null>;
+    /** Frame stats getter from MediaPipe hook. */
+    frameStatsGetter?: () => { validGazeFrames: number; noValidGazeFrames: number; captureWidthPx: number | null; captureHeightPx: number | null };
     onPass: () => void;
     onReject: () => void;
 }
@@ -54,6 +65,11 @@ const statusBg = (status: CheckStatus): string => {
 export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
     cameraRef,
     gazeActive,
+    faceConfidence,
+    headPoseRef,
+    earRef: _earRef,
+    landmarksRef,
+    frameStatsGetter: _frameStatsGetter,
     onPass,
     onReject,
 }) => {
@@ -65,6 +81,7 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
         { id: 'faceDetection', status: 'pending' },
         { id: 'distance', status: 'pending' },
         { id: 'headStability', status: 'pending' },
+        { id: 'headPose', status: 'pending' },
     ]);
     const [gateResult, setGateResult] = useState<{ canProceed: boolean } | null>(null);
     const [autoAdvance, setAutoAdvance] = useState(false);
@@ -92,30 +109,50 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
             // 1. Resolution — instant
             updateCheck('resolution', checkResolution(video));
 
-            // 2. Brightness — instant from frame
+            // 2. Brightness + backlight detection
             setTimeout(() => {
-                updateCheck('brightness', checkBrightness(video));
+                const brightnessResult = checkBrightness(video);
+                if (brightnessResult.status === 'pass') {
+                    const backlightResult = checkBacklight(video);
+                    updateCheck('brightness', backlightResult.status !== 'pass' ? backlightResult : brightnessResult);
+                } else {
+                    updateCheck('brightness', brightnessResult);
+                }
             }, 300);
 
-            // 3. Face detection — use gazeActive as proxy (BlazeGaze needs face)
-            setTimeout(() => {
-                const confidence = gazeActive ? 0.9 : 0.3;
-                updateCheck('faceDetection', checkFaceConfidence(confidence));
-            }, 800);
+            // 3. Face detection — poll until MediaPipe has a real answer (up to 4s)
+            const pollFace = (attempt: number) => {
+                const confidence = faceConfidence ?? (gazeActive ? 0.9 : 0.3);
+                if (confidence > 0 || attempt >= 8) {
+                    updateCheck('faceDetection', checkFaceConfidence(confidence));
+                } else {
+                    setTimeout(() => pollFace(attempt + 1), 500);
+                }
+            };
+            setTimeout(() => pollFace(0), 800);
 
-            // 4. Distance — estimate from video frame center region brightness proxy
-            // In production this would use MediaPipe iris landmarks.
-            // ponytail: approximate via frame analysis — iris landmarks need FaceLandmarker
-            // which is heavy. Using brightness-based face size estimation as proxy.
-            setTimeout(() => {
-                // Rough iris diameter estimate from video width
-                // Average face width in frame ≈ 30-50% of frame width at 50-60cm
-                // This is a rough heuristic; real MediaPipe iris would be better
-                const faceWidthRatio = estimateFaceWidthRatio(video);
-                const irisEstPx = faceWidthRatio * video.videoWidth * 0.08; // iris ≈ 8% of face width
-                const distCm = estimateDistanceCm(irisEstPx, video.videoWidth);
-                updateCheck('distance', checkDistance(distCm));
-            }, 1200);
+            // 4. Distance — poll for real iris landmarks, fallback to brightness heuristic
+            const pollDistance = (attempt: number) => {
+                const lm = landmarksRef?.current;
+                if (lm && lm.length > 473) {
+                    const irisL = lm[468];
+                    const irisR = lm[473];
+                    const ipdNorm = Math.sqrt((irisL.x - irisR.x) ** 2 + (irisL.y - irisR.y) ** 2);
+                    const ipdPx = ipdNorm * video.videoWidth;
+                    const irisDiamPx = ipdPx * (11.7 / 63);
+                    const distCm = estimateDistanceCm(irisDiamPx, video.videoWidth);
+                    updateCheck('distance', checkDistance(distCm));
+                } else if (attempt < 4) {
+                    setTimeout(() => pollDistance(attempt + 1), 500);
+                } else {
+                    // Fallback after retries: brightness heuristic
+                    const faceWidthRatio = estimateFaceWidthRatio(video);
+                    const irisEstPx = faceWidthRatio * video.videoWidth * 0.08;
+                    const distCm = estimateDistanceCm(irisEstPx, video.videoWidth);
+                    updateCheck('distance', checkDistance(distCm));
+                }
+            };
+            setTimeout(() => pollDistance(0), 1200);
 
             // 5. Head stability — collect positions over ~1s
             setTimeout(() => {
@@ -129,17 +166,46 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
                         updateCheck('headStability', checkHeadStability(variance));
                         return;
                     }
-                    // Use brightness centroid as rough head position proxy
-                    const pos = estimateFaceCentroid(video);
+                    // Use real nose-tip landmark when available, fallback to brightness centroid
+                    const lm = landmarksRef?.current;
+                    const pos = lm && lm.length > 1
+                        ? { x: lm[1].x * video.videoWidth, y: lm[1].y * video.videoHeight }
+                        : estimateFaceCentroid(video);
                     if (pos) headPositionsRef.current.push(pos);
                     frameCount++;
                     requestAnimationFrame(collectFrame);
                 };
                 requestAnimationFrame(collectFrame);
             }, 1500);
+
+            // 6. Head pose — poll until MediaPipe produces real angles (not default 0,0)
+            const pollPose = (attempt: number) => {
+                const pose = headPoseRef?.current;
+                const hasRealData = pose && (pose.pitch !== 0 || pose.yaw !== 0);
+                if (!hasRealData && attempt < 6) {
+                    setTimeout(() => pollPose(attempt + 1), 500);
+                    return;
+                }
+                if (hasRealData) {
+                    const absYaw = Math.abs(pose.yaw);
+                    const absPitch = Math.abs(pose.pitch);
+                    if (absYaw > 25 || absPitch > 25) {
+                        updateCheck('headPose', { id: 'headPose', status: 'fail', message: 'Face the screen directly' });
+                    } else if (absYaw > 15 || absPitch > 15) {
+                        updateCheck('headPose', { id: 'headPose', status: 'warn', message: 'Try to face the screen more directly' });
+                    } else {
+                        updateCheck('headPose', { id: 'headPose', status: 'pass' });
+                    }
+                } else {
+                    // No MediaPipe data after retries — skip
+                    updateCheck('headPose', { id: 'headPose', status: 'pass' });
+                }
+            };
+            setTimeout(() => pollPose(0), 1800);
         };
 
         startChecks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable, faceConfidence changes with gazeActive
     }, [cameraRef, gazeActive, updateCheck]);
 
     // Evaluate gate when all checks complete
@@ -167,6 +233,7 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
         faceDetection: t('eyeTracking.qg.faceDetection', 'Face detection'),
         distance: t('eyeTracking.qg.distance', 'Face distance'),
         headStability: t('eyeTracking.qg.headStability', 'Head stability'),
+        headPose: t('eyeTracking.qg.headPose', 'Head orientation'),
     };
 
     return (

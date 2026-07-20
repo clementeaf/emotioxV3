@@ -755,7 +755,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 zoneMass,
                 calibrationQuality,
                 integrityScore: isDesktop ? Math.min(gazePointsRef.current.length / 100, 1.0) : Math.min(fixations.length / 5, 0.8),
-                trackingMethod: isDesktop ? 'blazegaze' : 'click-proxy',
+                trackingMethod: isDesktop ? (useMP ? 'mediapipe-ridge' : 'blazegaze') : 'click-proxy',
                 deviceType,
                 gazePointCount: isDesktop ? gazePointsRef.current.length : undefined,
                 fixationCount: isDesktop ? finalFixations.length : undefined,
@@ -788,7 +788,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         persistent: !!cachedCalibration,
                     },
                     metadata: {
-                        trackingMethod: 'blazegaze-v2',
+                        trackingMethod: useMP ? 'mediapipe-ridge-v2' : 'blazegaze-v2',
                         deviceType,
                         uncertaintyRadius: profile.uncertaintyRadius,
                         hysteresisMs: profile.hysteresisMs,
@@ -1034,16 +1034,23 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     dwellExitTimeRef.current = null;
 
                     if (idx + 1 >= pts.length) {
-                        // Train MediaPipe ridge after all calibration points
-                        if (useMP && gaze.trainRidge) void gaze.trainRidge();
-                        calibrationRmsePxRef.current = hybridCalibrationRmsePx(calibrationResidualsRef.current);
-                        if (!isPreviewMode) {
-                            setTimeout(() => setPhase('validating'), 400);
+                        // Train MediaPipe ridge after all calibration points — await so
+                        // diagnostics (LOOCV per-point errors) are ready before V3 init
+                        const afterTrain = () => {
+                            calibrationRmsePxRef.current = hybridCalibrationRmsePx(calibrationResidualsRef.current);
+                            if (!isPreviewMode) {
+                                setTimeout(() => setPhase('validating'), 400);
+                            } else {
+                                saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
+                                gazePointsRef.current = [];
+                                setTimeLeft(Math.ceil(viewingDuration / 1000));
+                                setTimeout(() => setPhase('viewing'), 600);
+                            }
+                        };
+                        if (useMP && gaze.trainRidge) {
+                            gaze.trainRidge().then(afterTrain);
                         } else {
-                            saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
-                            gazePointsRef.current = [];
-                            setTimeLeft(Math.ceil(viewingDuration / 1000));
-                            setTimeout(() => setPhase('viewing'), 600);
+                            afterTrain();
                         }
                     } else {
                         setCalibrationIndex(idx + 1);
@@ -1313,6 +1320,11 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             <SessionQualityGate
                 cameraRef={videoRef}
                 gazeActive={gaze.gazeState === 'open'}
+                faceConfidence={mpGaze.gazeState === 'open' ? 1.0 : 0}
+                headPoseRef={mpGaze.headPoseRef}
+                earRef={mpGaze.earRef}
+                landmarksRef={mpGaze.lastLandmarksRef}
+                frameStatsGetter={mpGaze.getFrameStats}
                 onPass={() => setPhase('preparing')}
                 onReject={() => setPhase('preparing')}
             />

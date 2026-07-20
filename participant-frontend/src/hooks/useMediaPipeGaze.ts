@@ -131,6 +131,8 @@ export function useMediaPipeGaze(
   const earRef = useRef(0.28);
   /** Live head pose angles (degrees). Updated every valid frame with facial matrix. */
   const headPoseRef = useRef<{ pitch: number; yaw: number }>({ pitch: 0, yaw: 0 });
+  /** Last detected face landmarks (478 points, normalized 0-1). Updated every valid frame. */
+  const lastLandmarksRef = useRef<Array<{ x: number; y: number; z: number }> | null>(null);
 
   const minCutoff = options?.oneEuroMinCutoff ?? DEFAULT_MIN_CUTOFF;
   const beta = options?.oneEuroBeta ?? DEFAULT_BETA;
@@ -228,6 +230,7 @@ export function useMediaPipeGaze(
       // Synchronous detection — FaceLandmarker in VIDEO mode
       const result = lm.detectForVideo(video, performance.now());
       const landmarks = result.faceLandmarks?.[0];
+      lastLandmarksRef.current = landmarks ?? null;
 
       if (!landmarks || landmarks.length < LANDMARK_INDICES.rightIrisCenter + 1) {
         frameStatsRef.current.noValidGazeFrames += 1;
@@ -388,6 +391,8 @@ export function useMediaPipeGaze(
     earRef,
     /** Live head pose {pitch, yaw} in degrees, updated every valid frame. */
     headPoseRef,
+    /** Last detected 478 face landmarks (normalized 0-1). */
+    lastLandmarksRef,
     getFrameStats,
     resetFrameStats,
   };
