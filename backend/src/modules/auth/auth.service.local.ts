@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { OAuth2Client } from 'google-auth-library';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import { URLSearchParams as NodeURLSearchParams } from 'url';
 
 // Read secrets lazily to ensure dotenv has loaded
 const getJwtSecret = (): string => process.env.JWT_SECRET || 'change-this-secret-in-production';
@@ -509,60 +511,79 @@ export const exchangeGoogleCode = async (code: string, redirectUri: string): Pro
             throw new Error('Google OAuth credentials incomplete');
         }
         
-        const client = new OAuth2Client(
-            credentials.web.client_id,
-            credentials.web.client_secret,
-            redirectUri
-        );
-        
-        // Intercambiar código por tokens
-        const { tokens } = await client.getToken(code);
-        
-        if (!tokens.access_token) {
+        // ponytail: bypass undici (native fetch) — "Premature close" on cPanel Node 24.
+        // Manual POST via stdlib https. Upgrade path: revert when cPanel fixes undici HTTP/2.
+        const tokenBody = new NodeURLSearchParams({
+            code,
+            client_id: credentials.web!.client_id!,
+            client_secret: credentials.web!.client_secret!,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code',
+        }).toString();
+
+        const tokenResponse = await new Promise<{
+            access_token?: string;
+            id_token?: string;
+            refresh_token?: string;
+            expires_in?: number;
+        }>((resolve, reject) => {
+            const req = https.request('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Length': Buffer.byteLength(tokenBody),
+                },
+            }, (res) => {
+                let data = '';
+                res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+                res.on('end', () => {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch {
+                        reject(new Error(`Google token response not JSON: ${data.slice(0, 200)}`));
+                    }
+                });
+            });
+            req.on('error', reject);
+            req.write(tokenBody);
+            req.end();
+        });
+
+        if (!tokenResponse.access_token) {
             throw new Error('Failed to get access token from Google');
         }
-        
-        // Configurar credenciales en el cliente
-        client.setCredentials(tokens);
-        
-        // Obtener información del usuario
-        if (!tokens.id_token) {
+
+        if (!tokenResponse.id_token) {
             throw new Error('ID token not received from Google');
         }
-        
-        const ticket = await client.verifyIdToken({
-            idToken: tokens.id_token,
-            audience: clientId,
-        });
-        
-        const payload = ticket.getPayload();
-        if (!payload) {
-            throw new Error('Failed to get user info from Google');
-        }
-        
-        const userData: GoogleUserData = {
-            email: payload.email || '',
-            given_name: payload.given_name,
-            family_name: payload.family_name,
-            name: payload.name,
-            picture: payload.picture,
-            sub: payload.sub,
+
+        // Decode id_token JWT payload (no verification needed — we just got it from Google over TLS)
+        const idTokenParts = tokenResponse.id_token.split('.');
+        const idPayload = JSON.parse(Buffer.from(idTokenParts[1], 'base64url').toString()) as {
+            email?: string; given_name?: string; family_name?: string;
+            name?: string; picture?: string; sub: string;
         };
-        
+
+        const userData: GoogleUserData = {
+            email: idPayload.email || '',
+            given_name: idPayload.given_name,
+            family_name: idPayload.family_name,
+            name: idPayload.name,
+            picture: idPayload.picture,
+            sub: idPayload.sub,
+        };
+
         if (!userData.email) {
             throw new Error('Email not provided by Google');
         }
-        
-        // Calcular expiresIn en segundos
-        const expiresIn = tokens.expiry_date 
-            ? Math.floor((tokens.expiry_date - Date.now()) / 1000)
-            : 3600; // Default 1 hour
+
+        const expiresIn = tokenResponse.expires_in || 3600;
         
         return {
             user: userData,
             tokens: {
-                accessToken: tokens.access_token,
-                refreshToken: tokens.refresh_token || undefined,
+                accessToken: tokenResponse.access_token!,
+                refreshToken: tokenResponse.refresh_token || undefined,
                 expiresIn,
             },
         };

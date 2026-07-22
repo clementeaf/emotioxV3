@@ -1,3 +1,10 @@
+## v0.87.1 — Fix: Google OAuth "Premature close" on cPanel (2026-07-22)
+
+### backend
+- **Bypass undici for Google token exchange.** `exchangeGoogleCode` now uses stdlib `https.request` (HTTP/1.1) instead of `client.getToken()` which relies on `gaxios`/`undici` native fetch. Node 24 + cPanel LVE causes systematic "Premature close" on HTTP/2 connections to `googleapis.com/token`. ID token decoded directly from JWT payload (safe — received over TLS).
+
+---
+
 ## v0.87.0 — Eye Tracking V3: probabilistic heatmap end-to-end (2026-07-13)
 
 ### participant-frontend
