@@ -1,3 +1,10 @@
+## v0.89.5 — UI refresh: Research Types page (2026-07-24)
+
+### research-frontend
+- **Research Types page refresh.** Two-column layout with rounded-xl cards, hover-reveal actions (edit/delete/assign), inline search replacing SearchInput component, FileText/FlaskConical differentiated icons, column headers with count badges. Compact 13px cards, line-clamp descriptions. Removed Button/SearchInput imports.
+
+---
+
 ## v0.89.4 — UI refresh: Clients page (2026-07-24)
 
 ### research-frontend
