@@ -1,3 +1,11 @@
+## v0.88.2 — Eye Tracking: preview modal + video view mode guards (2026-07-24)
+
+### research-frontend
+- **Eye Tracking Preview Modal.** New `EyeTrackingPreviewModal` component shows stimulus preview (stand_alone/shelf/video), AOI overlay, config summary (duration, emotion recognition, display mode), and simulated calibration phase. Preview button added to `CognitiveTaskModuleCard` for Eye Tracking modules — same pattern as IAT preview.
+- **Video view mode guards.** `StimulusCard` hides image-based tabs (Scan Path, First Look, Transparency, Image) for video stimuli — these use `<img>` tags that can't render video files. Video stimuli default to Video Gaze tab when gaze data exists.
+
+---
+
 ## v0.88.1 — Fix: Eye Tracking test page calibration + raw iris coords (2026-07-24)
 
 ### participant-frontend

@@ -18,11 +18,14 @@ import type { HeatmapSettings } from './HeatmapSettingsModal';
 
 export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: { stimulus: EyeTrackingStimulus; researchId: string; onRefresh: () => void }) => {
   const stimulus = { ...rawStimulus, stimulusUrl: resolveStimulusUrl(rawStimulus.stimulusUrl) };
+  const isVideo = stimulus.stimulusType === 'video';
   const hasZoneMass = stimulus.zoneMass && Object.values(stimulus.zoneMass).some(v => v > 0);
   const hasV3 = !!stimulus.v3Heatmap;
   const hasV3Temporal = hasV3 && stimulus.v3Heatmap?.hasTemporalData;
   const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0 || hasV3;
-  const [viewMode, setViewMode] = useState<ViewMode>(hasV3 ? 'density' : 'heatmap');
+  const hasVideoGaze = isVideo && stimulus.gazeTimeline && stimulus.gazeTimeline.length > 0;
+  const defaultViewMode: ViewMode = hasVideoGaze ? 'video' : hasV3 ? 'density' : 'heatmap';
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
   const [densityMode, setDensityMode] = useState<'density' | 'firstlook' | 'peak'>('density');
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
@@ -162,24 +165,29 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               label="Density"
             />
           )}
-          <ViewModeTab
-            active={viewMode === 'scanpath'}
-            onClick={() => setViewMode('scanpath')}
-            icon={<Crosshair className="h-4 w-4" />}
-            label="Scan Path"
-          />
-          <ViewModeTab
-            active={viewMode === 'firstlook'}
-            onClick={() => setViewMode('firstlook')}
-            icon={<Eye className="h-4 w-4" />}
-            label="First Look"
-          />
-          <ViewModeTab
-            active={viewMode === 'transparency'}
-            onClick={() => setViewMode('transparency')}
-            icon={<Eye className="h-4 w-4" />}
-            label="Transparency"
-          />
+          {/* Image-based overlays — hidden for video stimuli (can't render video in <img>) */}
+          {!isVideo && (
+            <>
+              <ViewModeTab
+                active={viewMode === 'scanpath'}
+                onClick={() => setViewMode('scanpath')}
+                icon={<Crosshair className="h-4 w-4" />}
+                label="Scan Path"
+              />
+              <ViewModeTab
+                active={viewMode === 'firstlook'}
+                onClick={() => setViewMode('firstlook')}
+                icon={<Eye className="h-4 w-4" />}
+                label="First Look"
+              />
+              <ViewModeTab
+                active={viewMode === 'transparency'}
+                onClick={() => setViewMode('transparency')}
+                icon={<Eye className="h-4 w-4" />}
+                label="Transparency"
+              />
+            </>
+          )}
           {stimulus.sequenceAnalysis && (
             <ViewModeTab
               active={viewMode === 'sequence'}
@@ -188,12 +196,14 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               label="Sequence"
             />
           )}
-          <ViewModeTab
-            active={viewMode === 'image'}
-            onClick={() => setViewMode('image')}
-            icon={<Image className="h-4 w-4" />}
-            label="Image"
-          />
+          {!isVideo && (
+            <ViewModeTab
+              active={viewMode === 'image'}
+              onClick={() => setViewMode('image')}
+              icon={<Image className="h-4 w-4" />}
+              label="Image"
+            />
+          )}
           {stimulus.emotions?.enabled && (
             <ViewModeTab
               active={viewMode === 'emotions'}

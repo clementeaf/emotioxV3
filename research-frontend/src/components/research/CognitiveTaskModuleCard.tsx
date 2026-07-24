@@ -13,6 +13,7 @@ import { getModuleConditionality, getModuleConditionalityConfig, getModuleHidden
 import type { ConditionalityConfig } from '../../utils/moduleRequired';
 import { isImplicitAssociationModuleName } from '../../utils/implicitAssociationBuilder';
 import { IATPreviewModal } from './IATPreviewModal';
+import { EyeTrackingPreviewModal } from './EyeTrackingPreviewModal';
 import { Play } from 'lucide-react';
 
 export interface CognitiveTaskModuleCardRef {
@@ -66,6 +67,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     const isIatModule = isImplicitAssociationModuleName(module.name);
+    const isEtModule = module.name.trim().toLowerCase() === 'eye tracking';
 
     // Ensure IAT modules have a response-keys component
     useEffect(() => {
@@ -219,6 +221,16 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                 <div className="flex items-center gap-4">
                     <h3 className="text-base font-semibold text-gray-900">{questionNumber ? `${questionNumber}. ` : ''}{module.name}</h3>
                     <div className="flex items-center gap-4 ml-auto">
+                        {isEtModule && (
+                            <button
+                                type="button"
+                                onClick={() => setIsPreviewOpen(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                            >
+                                <Play className="h-3.5 w-3.5" />
+                                Preview
+                            </button>
+                        )}
                         {isIatModule && (
                             <>
                                 <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
@@ -357,6 +369,27 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     </div>
                 </div>
             )}
+            {isEtModule && isPreviewOpen && (() => {
+                let etStimuli: Array<{ url?: string; s3Key?: string; name?: string }> = [];
+                try { etStimuli = JSON.parse(componentValues['stimuli'] || '[]'); } catch { /* ignore */ }
+                let etAois: Array<{ id: string; label: string; x: number; y: number; width: number; height: number }> = [];
+                try { etAois = JSON.parse(componentValues['aois'] || '[]'); } catch { /* ignore */ }
+                return (
+                    <EyeTrackingPreviewModal
+                        isOpen={true}
+                        onClose={() => setIsPreviewOpen(false)}
+                        stimuli={etStimuli}
+                        aois={etAois}
+                        displayMode={componentValues['display-mode'] === 'shelf' ? 'shelf' : 'stand_alone'}
+                        primingTimeS={parseInt(componentValues['priming-time'] || '10', 10) || 10}
+                        shelfCount={parseInt(componentValues['shelf-count'] || '2', 10)}
+                        itemsPerShelf={parseInt(componentValues['shelf-items'] || '5', 10)}
+                        taskInstructions={componentValues['task-instructions'] || ''}
+                        emotionRecognition={componentValues['emotion-recognition'] === 'true'}
+                        attentionPrediction={componentValues['attention-prediction'] === 'true'}
+                    />
+                );
+            })()}
             {isIatModule && isPreviewOpen && (() => {
                 const moduleName = module.name.trim().toLowerCase();
                 const testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing' =
