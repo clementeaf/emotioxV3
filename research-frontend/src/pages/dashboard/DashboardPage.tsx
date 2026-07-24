@@ -2,43 +2,83 @@ import { useState, useMemo, useCallback, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useResearches, useDeleteResearch, useDuplicateResearch, useDashboardSummary, useArchiveResearch, useUnarchiveResearch } from '../../hooks/useResearchQuery';
 import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
+import { useAuthStore } from '../../stores/auth.store';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
-import { Trash2, Copy, Users, FileText, BarChart3, CheckCircle, Archive, ArchiveRestore, Search, X } from 'lucide-react';
-import type { Research } from '../../services/research.service';
+import { Trash2, Copy, Users, FileText, BarChart3, CheckCircle, Archive, ArchiveRestore, Search, X, Plus } from 'lucide-react';
+import type { Research, DashboardSummary } from '../../services/research.service';
 
 /* ─── Summary Card ──────────────────────────────────────────────── */
 
-const SummaryCard = memo(({ label, value, icon: Icon, color }: {
+/** Tiny inline sparkline from an array of numbers */
+const Sparkline = memo(({ data, color }: { data: number[]; color: string }) => {
+    if (data.length < 2) return null;
+    const max = Math.max(...data, 1);
+    const min = Math.min(...data, 0);
+    const range = max - min || 1;
+    const w = 64;
+    const h = 24;
+    const points = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
+    return (
+        <svg width={w} height={h} className="flex-shrink-0">
+            <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+});
+Sparkline.displayName = 'Sparkline';
+
+const SummaryCard = memo(({ label, value, icon: Icon, accent, trend, sparkData, sparkColor }: {
     label: string;
     value: string | number;
     icon: React.ElementType;
-    color: string;
+    accent: string;
+    trend?: { value: number; label: string } | null;
+    sparkData?: number[];
+    sparkColor?: string;
 }) => (
-    <div className="bg-white rounded-lg border border-gray-100 p-4 flex items-center gap-4">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
-            <Icon className="h-5 w-5 text-white" />
+    <div className="flex items-center gap-3.5 rounded-xl border border-gray-100 bg-white px-4 py-3.5">
+        <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${accent}`}>
+            <Icon className="h-4 w-4" />
         </div>
-        <div>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
-            <p className="text-xs text-gray-500">{label}</p>
+        <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2">
+                <p className="text-[22px] font-semibold text-gray-900 leading-tight">{value}</p>
+                {trend && trend.value !== 0 && (
+                    <span className={`text-[11px] font-medium ${trend.value > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                        {trend.value > 0 ? '+' : ''}{trend.value} {trend.label}
+                    </span>
+                )}
+            </div>
+            <p className="text-[11px] text-gray-400 leading-tight mt-0.5">{label}</p>
         </div>
+        {sparkData && sparkData.length >= 2 && (
+            <Sparkline data={sparkData} color={sparkColor ?? '#9ca3af'} />
+        )}
     </div>
 ));
 SummaryCard.displayName = 'SummaryCard';
 
-/* ─── Activity Chart (simple bar) ───────────────────────────────── */
-
-
 /* ─── Status Badge ──────────────────────────────────────────────── */
 
-const STATUS_STYLES: Record<string, string> = {
-    active: 'bg-green-100 text-green-800',
-    approved: 'bg-green-100 text-green-800',
-    completed: 'bg-blue-100 text-blue-800',
-    closed: 'bg-blue-100 text-blue-800',
-    draft: 'bg-gray-100 text-gray-800',
-    pending: 'bg-yellow-100 text-yellow-800',
-    rejected: 'bg-red-100 text-red-800',
+const STATUS_STYLES: Record<string, { dot: string; bg: string; text: string }> = {
+    active:    { dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    approved:  { dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    completed: { dot: 'bg-blue-500',    bg: 'bg-blue-50',    text: 'text-blue-700' },
+    closed:    { dot: 'bg-blue-500',    bg: 'bg-blue-50',    text: 'text-blue-700' },
+    draft:     { dot: 'bg-gray-400',    bg: 'bg-gray-50',    text: 'text-gray-600' },
+    pending:   { dot: 'bg-amber-500',   bg: 'bg-amber-50',   text: 'text-amber-700' },
+    rejected:  { dot: 'bg-red-500',     bg: 'bg-red-50',     text: 'text-red-700' },
+};
+
+const StatusBadge = ({ status, archived }: { status: string; archived: boolean }) => {
+    const s = archived
+        ? { dot: 'bg-orange-400', bg: 'bg-orange-50', text: 'text-orange-700' }
+        : STATUS_STYLES[status.toLowerCase()] ?? { dot: 'bg-gray-400', bg: 'bg-gray-50', text: 'text-gray-600' };
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-full ${s.bg} ${s.text}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
+            {archived ? 'archived' : status}
+        </span>
+    );
 };
 
 /* ─── Research Table Row ────────────────────────────────────────── */
@@ -59,47 +99,44 @@ const ResearchTableRow = memo(({
     onArchive: (research: Research, e: React.MouseEvent) => void;
 }) => {
     const isArchived = Boolean(research.archived_at);
-    const statusClass = isArchived
-        ? 'bg-orange-100 text-orange-800'
-        : STATUS_STYLES[research.status.toLowerCase()] || 'bg-gray-100 text-gray-800';
-
     const creatorName = [research.creator_first_name, research.creator_last_name].filter(Boolean).join(' ');
 
     return (
-        <tr onClick={() => onRowClick(research.id)} className={`hover:bg-gray-50 cursor-pointer transition-colors ${isArchived ? 'opacity-60' : ''}`}>
-            <td className="px-3 py-3 whitespace-nowrap">
-                <div className="text-sm font-medium text-gray-900">{research.name}</div>
-                <div className="text-xs text-gray-400">{research.research_technique_name || ''}</div>
+        <tr
+            onClick={() => onRowClick(research.id)}
+            className={`group hover:bg-gray-50/80 cursor-pointer transition-colors ${isArchived ? 'opacity-50' : ''}`}
+        >
+            <td className="px-3 py-2.5 whitespace-nowrap">
+                <div className="text-[13px] font-medium text-gray-900">{research.name}</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">{research.research_technique_name || ''}</div>
             </td>
-            <td className="px-3 py-3 whitespace-nowrap">
-                <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${statusClass}`}>
-                    {isArchived ? 'archived' : research.status}
-                </span>
+            <td className="px-3 py-2.5 whitespace-nowrap">
+                <StatusBadge status={research.status} archived={isArchived} />
             </td>
-            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">
-                <div className="text-sm text-gray-700 truncate max-w-[120px]">{creatorName || '—'}</div>
+            <td className="px-3 py-2.5 whitespace-nowrap hidden md:table-cell">
+                <span className="text-[13px] text-gray-500 truncate max-w-[120px] block">{creatorName || '—'}</span>
             </td>
-            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell truncate max-w-[120px]">
+            <td className="px-3 py-2.5 whitespace-nowrap text-[13px] text-gray-500 hidden lg:table-cell truncate max-w-[120px]">
                 {research.enterprise_name || '—'}
             </td>
-            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
+            <td className="px-3 py-2.5 whitespace-nowrap text-[13px] text-gray-500 hidden lg:table-cell">
                 {participantCount > 0 ? participantCount : '—'}
             </td>
-            <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
+            <td className="px-3 py-2.5 whitespace-nowrap text-[13px] text-gray-400 hidden xl:table-cell">
                 {new Date(research.created_at).toLocaleDateString('en-US', {
-                    month: '2-digit', day: '2-digit', year: 'numeric',
+                    month: 'short', day: 'numeric', year: 'numeric',
                 })}
             </td>
-            <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
-                <div className="flex items-center gap-1">
-                    <button onClick={(e) => onDuplicate(research, e)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50" title="Duplicate">
-                        <Copy className="h-4 w-4" />
+            <td className="px-3 py-2.5 whitespace-nowrap">
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => onDuplicate(research, e)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors" title="Duplicate">
+                        <Copy className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={(e) => onArchive(research, e)} className={`p-1.5 text-gray-400 rounded ${isArchived ? 'hover:text-green-600 hover:bg-green-50' : 'hover:text-orange-600 hover:bg-orange-50'}`} title={isArchived ? 'Unarchive' : 'Archive'}>
-                        {isArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                    <button onClick={(e) => onArchive(research, e)} className={`p-1.5 text-gray-400 rounded-md transition-colors ${isArchived ? 'hover:text-green-600 hover:bg-green-50' : 'hover:text-orange-600 hover:bg-orange-50'}`} title={isArchived ? 'Unarchive' : 'Archive'}>
+                        {isArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
                     </button>
-                    <button onClick={(e) => onDelete(research, e)} className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50" title="Delete">
-                        <Trash2 className="h-4 w-4" />
+                    <button onClick={(e) => onDelete(research, e)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors" title="Delete">
+                        <Trash2 className="h-3.5 w-3.5" />
                     </button>
                 </div>
             </td>
@@ -112,21 +149,83 @@ ResearchTableRow.displayName = 'ResearchTableRow';
 
 const TableSkeletonRow = memo(() => (
     <tr className="animate-pulse">
-        <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded w-32" /></td>
-        <td className="px-3 py-3"><div className="h-6 bg-gray-200 rounded-full w-16" /></td>
-        <td className="px-3 py-3 hidden md:table-cell"><div className="h-4 bg-gray-200 rounded w-20" /></td>
-        <td className="px-3 py-3 hidden lg:table-cell"><div className="h-4 bg-gray-200 rounded w-20" /></td>
-        <td className="px-3 py-3 hidden lg:table-cell"><div className="h-4 bg-gray-200 rounded w-12" /></td>
-        <td className="px-3 py-3 hidden xl:table-cell"><div className="h-4 bg-gray-200 rounded w-20" /></td>
-        <td className="px-3 py-3"><div className="h-6 w-6 bg-gray-200 rounded" /></td>
+        <td className="px-3 py-3"><div className="h-4 bg-gray-100 rounded w-32" /></td>
+        <td className="px-3 py-3"><div className="h-5 bg-gray-100 rounded-full w-16" /></td>
+        <td className="px-3 py-3 hidden md:table-cell"><div className="h-4 bg-gray-100 rounded w-20" /></td>
+        <td className="px-3 py-3 hidden lg:table-cell"><div className="h-4 bg-gray-100 rounded w-20" /></td>
+        <td className="px-3 py-3 hidden lg:table-cell"><div className="h-4 bg-gray-100 rounded w-12" /></td>
+        <td className="px-3 py-3 hidden xl:table-cell"><div className="h-4 bg-gray-100 rounded w-20" /></td>
+        <td className="px-3 py-3"><div className="h-4 w-4 bg-gray-100 rounded" /></td>
     </tr>
 ));
 TableSkeletonRow.displayName = 'TableSkeletonRow';
+
+/* ─── Summary Cards (with trends + sparklines) ─────────────────── */
+
+function SummaryCards({ summary }: { summary: DashboardSummary | undefined }) {
+    const researchSpark = summary?.researchesOverTime?.map(d => d.count) ?? [];
+    const participantSpark = summary?.participantsOverTime?.map(d => d.count) ?? [];
+
+    // Month-over-month trend: last vs previous
+    const researchTrend = useMemo(() => {
+        if (!researchSpark || researchSpark.length < 2) return null;
+        const curr = researchSpark[researchSpark.length - 1];
+        const prev = researchSpark[researchSpark.length - 2];
+        return { value: curr - prev, label: 'this month' };
+    }, [researchSpark]);
+
+    const participantTrend = useMemo(() => {
+        if (!participantSpark || participantSpark.length < 2) return null;
+        const curr = participantSpark[participantSpark.length - 1];
+        const prev = participantSpark[participantSpark.length - 2];
+        return { value: curr - prev, label: 'this month' };
+    }, [participantSpark]);
+
+    const activeCount = summary?.byStatus?.active ?? 0;
+    const draftCount = summary?.byStatus?.draft ?? 0;
+
+    return (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-6 flex-shrink-0">
+            <SummaryCard
+                label="Researches"
+                value={summary?.totalResearches ?? '—'}
+                icon={FileText}
+                accent="bg-blue-50 text-blue-600"
+                trend={researchTrend}
+                sparkData={researchSpark}
+                sparkColor="#3b82f6"
+            />
+            <SummaryCard
+                label="Active Studies"
+                value={activeCount}
+                icon={BarChart3}
+                accent="bg-emerald-50 text-emerald-600"
+                trend={draftCount > 0 ? { value: draftCount, label: 'drafts' } : null}
+            />
+            <SummaryCard
+                label="Participants"
+                value={summary?.totalParticipants ?? '—'}
+                icon={Users}
+                accent="bg-violet-50 text-violet-600"
+                trend={participantTrend}
+                sparkData={participantSpark}
+                sparkColor="#8b5cf6"
+            />
+            <SummaryCard
+                label="Avg. Completion"
+                value={summary ? `${summary.avgCompletionRate}%` : '—'}
+                icon={CheckCircle}
+                accent="bg-amber-50 text-amber-600"
+            />
+        </div>
+    );
+}
 
 /* ─── Main Dashboard ────────────────────────────────────────────── */
 
 export const DashboardPage = () => {
     const navigate = useNavigate();
+    const user = useAuthStore((state) => state.user);
     const { data: researches = [], isLoading } = useResearches();
     const { data: researchTypes = [] } = useResearchTypes();
     const { data: summary } = useDashboardSummary();
@@ -139,6 +238,7 @@ export const DashboardPage = () => {
     const typedResearchTypes = researchTypes as Array<{ id: string; name: string }>;
 
     const [activeFilter, setActiveFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [showArchived, setShowArchived] = useState(false);
     const [techniqueFilter, setTechniqueFilter] = useState<string>('all');
@@ -151,7 +251,6 @@ export const DashboardPage = () => {
     const [researchToDuplicate, setResearchToDuplicate] = useState<Research | null>(null);
     const [duplicateName, setDuplicateName] = useState('');
 
-    // Unique techniques and enterprises for dropdown filters
     const techniques = useMemo(() => {
         const set = new Map<string, string>();
         for (const r of typedResearches) {
@@ -168,10 +267,11 @@ export const DashboardPage = () => {
         return Array.from(set.values()).sort();
     }, [typedResearches]);
 
-    const hasActiveFilters = activeFilter !== 'all' || techniqueFilter !== 'all' || enterpriseFilter !== 'all' || dateFrom || dateTo || searchQuery.trim();
+    const hasActiveFilters = activeFilter !== 'all' || statusFilter !== 'all' || techniqueFilter !== 'all' || enterpriseFilter !== 'all' || dateFrom || dateTo || searchQuery.trim();
 
     const clearAllFilters = useCallback(() => {
         setActiveFilter('all');
+        setStatusFilter('all');
         setTechniqueFilter('all');
         setEnterpriseFilter('all');
         setDateFrom('');
@@ -181,37 +281,13 @@ export const DashboardPage = () => {
 
     const filteredResearches = useMemo(() => {
         let result = typedResearches;
-
-        // Filter by archive status
-        if (!showArchived) {
-            result = result.filter(r => !r.archived_at);
-        }
-
-        // Filter by type
-        if (activeFilter !== 'all') {
-            result = result.filter(r => r.research_type_id === activeFilter);
-        }
-
-        // Filter by technique
-        if (techniqueFilter !== 'all') {
-            result = result.filter(r => r.research_technique_name === techniqueFilter);
-        }
-
-        // Filter by enterprise
-        if (enterpriseFilter !== 'all') {
-            result = result.filter(r => r.enterprise_name === enterpriseFilter);
-        }
-
-        // Filter by date range
-        if (dateFrom) {
-            result = result.filter(r => r.created_at >= dateFrom);
-        }
-        if (dateTo) {
-            const toEnd = dateTo + 'T23:59:59';
-            result = result.filter(r => r.created_at <= toEnd);
-        }
-
-        // Filter by search (name, creator, technique, enterprise)
+        if (!showArchived) result = result.filter(r => !r.archived_at);
+        if (activeFilter !== 'all') result = result.filter(r => r.research_type_id === activeFilter);
+        if (statusFilter !== 'all') result = result.filter(r => r.status.toLowerCase() === statusFilter);
+        if (techniqueFilter !== 'all') result = result.filter(r => r.research_technique_name === techniqueFilter);
+        if (enterpriseFilter !== 'all') result = result.filter(r => r.enterprise_name === enterpriseFilter);
+        if (dateFrom) result = result.filter(r => r.created_at >= dateFrom);
+        if (dateTo) { const toEnd = dateTo + 'T23:59:59'; result = result.filter(r => r.created_at <= toEnd); }
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(r => {
@@ -224,11 +300,9 @@ export const DashboardPage = () => {
                     (r.enterprise_name?.toLowerCase().includes(q) ?? false);
             });
         }
-
         return result;
-    }, [typedResearches, activeFilter, searchQuery, showArchived, techniqueFilter, enterpriseFilter, dateFrom, dateTo]);
+    }, [typedResearches, activeFilter, statusFilter, searchQuery, showArchived, techniqueFilter, enterpriseFilter, dateFrom, dateTo]);
 
-    // Build participant/response lookup from summary
     const metricsMap = useMemo(() => {
         const map = new Map<string, { participants: number; responses: number }>();
         if (summary?.topResearches) {
@@ -287,214 +361,196 @@ export const DashboardPage = () => {
         navigate(`/research/${researchId}/builder`);
     }, [navigate]);
 
+    const greeting = user?.first_name ? `Welcome back, ${user.first_name}` : 'Welcome back';
+
     return (
-        <div className="h-full w-full flex flex-col p-4 lg:p-6 overflow-hidden gap-4">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 flex-shrink-0">
-                <SummaryCard label="Total Researches" value={summary?.totalResearches ?? '—'} icon={FileText} color="bg-blue-500" />
-                <SummaryCard label="Active" value={summary?.byStatus?.active ?? '—'} icon={BarChart3} color="bg-green-500" />
-                <SummaryCard label="Total Participants" value={summary?.totalParticipants ?? '—'} icon={Users} color="bg-purple-500" />
-                <SummaryCard label="Completion Rate" value={summary ? `${summary.avgCompletionRate}%` : '—'} icon={CheckCircle} color="bg-amber-500" />
+        <div className="h-full w-full flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 flex-shrink-0">
+                <div>
+                    <h1 className="text-lg font-semibold text-gray-900">{greeting}</h1>
+                    <p className="text-[13px] text-gray-400 mt-0.5">Here's what's happening with your research</p>
+                </div>
+                <button
+                    onClick={() => navigate('/research')}
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors active:scale-[0.98]"
+                >
+                    <Plus className="h-4 w-4" />
+                    New Research
+                </button>
             </div>
 
+            {/* Summary Cards */}
+            <SummaryCards summary={summary} />
+
             {/* Main Content */}
-            <div className="flex flex-col xl:flex-row gap-4 flex-1 min-h-0">
+            <div className="flex flex-col xl:flex-row gap-3 flex-1 min-h-0 px-6 py-4">
                 {/* Left: Research Table */}
-                <div className="flex-1 rounded-lg shadow-sm border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
+                <div className="flex-1 rounded-xl border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
                     {/* Search + filters */}
-                    <div className="p-3 border-b border-gray-100 flex-shrink-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                        {/* Search — searches name, creator, technique, enterprise */}
-                        <div className="relative flex-shrink-0">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Name, author, enterprise..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            />
+                    <div className="px-3 pt-3 pb-2 border-b border-gray-100 flex-shrink-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="relative flex-shrink-0">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-48 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
+                                />
+                            </div>
+
+                            {techniques.length > 1 && (
+                                <select
+                                    value={techniqueFilter}
+                                    onChange={(e) => setTechniqueFilter(e.target.value)}
+                                    className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                        techniqueFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
+                                    }`}
+                                >
+                                    <option value="all">All techniques</option>
+                                    {techniques.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            )}
+
+                            {enterprises.length > 1 && (
+                                <select
+                                    value={enterpriseFilter}
+                                    onChange={(e) => setEnterpriseFilter(e.target.value)}
+                                    className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                                        enterpriseFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
+                                    }`}
+                                >
+                                    <option value="all">All enterprises</option>
+                                    {enterprises.map(e => <option key={e} value={e}>{e}</option>)}
+                                </select>
+                            )}
+
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                                    className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${dateFrom ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`}
+                                    title="From date" />
+                                <span className="text-xs text-gray-300">–</span>
+                                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                                    className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${dateTo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`}
+                                    title="To date" />
+                            </div>
+
+                            <button
+                                onClick={() => setShowArchived(!showArchived)}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                                    showArchived ? 'bg-orange-50 text-orange-600 border border-orange-200' : 'text-gray-500 hover:bg-gray-50 border border-transparent'
+                                }`}
+                            >
+                                <Archive className="h-3 w-3" />
+                                {showArchived ? 'Archived' : 'Archived'}
+                            </button>
+
+                            {hasActiveFilters && (
+                                <button onClick={clearAllFilters} className="px-2 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                                    <X className="h-3 w-3" />
+                                    Clear
+                                </button>
+                            )}
                         </div>
 
-                        {/* Technique dropdown */}
-                        {techniques.length > 1 && (
-                            <select
-                                value={techniqueFilter}
-                                onChange={(e) => setTechniqueFilter(e.target.value)}
-                                className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                    techniqueFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                        {/* Type + Status pills */}
+                        <div className="flex items-center gap-1 flex-wrap">
+                            <button
+                                onClick={() => setActiveFilter('all')}
+                                className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                                    activeFilter === 'all' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
                                 }`}
                             >
-                                <option value="all">All techniques</option>
-                                {techniques.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                        )}
+                                All
+                            </button>
+                            {typedResearchTypes.map(type => (
+                                <button
+                                    key={type.id}
+                                    onClick={() => setActiveFilter(type.id)}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                                        activeFilter === type.id ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    {type.name}
+                                </button>
+                            ))}
 
-                        {/* Enterprise dropdown */}
-                        {enterprises.length > 1 && (
-                            <select
-                                value={enterpriseFilter}
-                                onChange={(e) => setEnterpriseFilter(e.target.value)}
-                                className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                    enterpriseFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
-                                }`}
-                            >
-                                <option value="all">All enterprises</option>
-                                {enterprises.map(e => <option key={e} value={e}>{e}</option>)}
-                            </select>
-                        )}
+                            <span className="w-px h-4 bg-gray-200 mx-1" />
 
-                        {/* Date range */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                            <input
-                                type="date"
-                                value={dateFrom}
-                                onChange={(e) => setDateFrom(e.target.value)}
-                                className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                    dateFrom ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'
-                                }`}
-                                title="From date"
-                            />
-                            <span className="text-xs text-gray-400">–</span>
-                            <input
-                                type="date"
-                                value={dateTo}
-                                onChange={(e) => setDateTo(e.target.value)}
-                                className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                    dateTo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'
-                                }`}
-                                title="To date"
-                            />
+                            {['active', 'draft', 'completed'].map(s => {
+                                const st = STATUS_STYLES[s] ?? STATUS_STYLES.draft;
+                                return (
+                                    <button
+                                        key={s}
+                                        onClick={() => setStatusFilter(statusFilter === s ? 'all' : s)}
+                                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                                            statusFilter === s ? `${st.bg} ${st.text}` : 'text-gray-500 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                                        {s.charAt(0).toUpperCase() + s.slice(1)}
+                                    </button>
+                                );
+                            })}
                         </div>
-
-                        {/* Archive toggle */}
-                        <button
-                            onClick={() => setShowArchived(!showArchived)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                                showArchived ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            }`}
-                        >
-                            <Archive className="h-3 w-3" />
-                            {showArchived ? 'Hide archived' : 'Show archived'}
-                        </button>
-
-                        {/* Clear all filters */}
-                        {hasActiveFilters && (
-                            <button
-                                onClick={clearAllFilters}
-                                className="px-2 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1"
-                            >
-                                <X className="h-3 w-3" />
-                                Clear
-                            </button>
-                        )}
-
-                    </div>
-
-                    {/* Type pills — second row */}
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            onClick={() => setActiveFilter('all')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                                activeFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                        >
-                            All
-                        </button>
-                        {typedResearchTypes.map(type => (
-                            <button
-                                key={type.id}
-                                onClick={() => setActiveFilter(type.id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                                    activeFilter === type.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            >
-                                {type.name}
-                            </button>
-                        ))}
-                    </div>
                     </div>
 
                     <div className={`flex-1 min-h-0 ${filteredResearches.length > 0 || isLoading ? 'overflow-auto' : 'overflow-hidden'}`}>
                         <table className="w-full min-w-[600px] table-fixed">
-                            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                            <thead className="bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
                                 <tr>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[26%]">Name</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Status</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell w-[12%]">Author</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[12%]">Enterprise</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell w-[10%]">Participants</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell w-[12%]">Created</th>
-                                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%]">Actions</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider w-[26%]">Name</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider w-[10%]">Status</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-[12%]">Author</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell w-[12%]">Enterprise</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell w-[10%]">Participants</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell w-[12%]">Created</th>
+                                    <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider w-[10%]"></th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="divide-y divide-gray-50">
                                 {isLoading ? (
                                     [...Array(5)].map((_, i) => <TableSkeletonRow key={i} />)
                                 ) : filteredResearches.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="px-3 py-12 text-center text-gray-500">
-                                            <p className="text-sm">No researches found</p>
+                                        <td colSpan={7} className="px-3 py-16 text-center">
+                                            <p className="text-sm text-gray-400">No researches found</p>
                                             {hasActiveFilters && (
-                                                <button onClick={clearAllFilters} className="mt-2 text-blue-600 hover:text-blue-800 text-sm">
+                                                <button onClick={clearAllFilters} className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
                                                     Clear filters
                                                 </button>
                                             )}
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredResearches.map(research => {
-                                        const metrics = metricsMap.get(research.id);
-                                        return (
-                                            <ResearchTableRow
-                                                key={research.id}
-                                                research={research}
-                                                participantCount={metrics?.participants ?? 0}
-                                                onRowClick={handleRowClick}
-                                                onDelete={handleDeleteClick}
-                                                onDuplicate={handleDuplicateClick}
-                                                onArchive={handleArchiveClick}
-                                            />
-                                        );
-                                    })
+                                    filteredResearches.map(research => (
+                                        <ResearchTableRow
+                                            key={research.id}
+                                            research={research}
+                                            participantCount={metricsMap.get(research.id)?.participants ?? 0}
+                                            onRowClick={handleRowClick}
+                                            onDelete={handleDeleteClick}
+                                            onDuplicate={handleDuplicateClick}
+                                            onArchive={handleArchiveClick}
+                                        />
+                                    ))
                                 )}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                {/* Right Sidebar: Activity + Status breakdown */}
-                <div className="w-full xl:w-72 flex-shrink-0 flex flex-col gap-3">
-                    {/* Status breakdown */}
-                    {summary && (
-                        <div className="bg-white rounded-lg border border-gray-100 p-4">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Status Overview</h3>
-                            <div className="space-y-2">
-                                {Object.entries(summary.byStatus).map(([status, count]) => (
-                                    <div key={status} className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-2.5 h-2.5 rounded-full ${
-                                                status === 'active' ? 'bg-green-500' :
-                                                status === 'completed' ? 'bg-blue-500' : 'bg-gray-400'
-                                            }`} />
-                                            <span className="text-sm text-gray-600 capitalize">{status}</span>
-                                        </div>
-                                        <span className="text-sm font-semibold text-gray-900">{count}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-
-                    {/* SmartVOC Metrics Trends */}
-                    {summary?.metricsTrends && summary.metricsTrends.some(m => m.avgNps !== null || m.avgCsat !== null || m.avgCes !== null) && (
-                        <div className="bg-white rounded-lg border border-gray-100 p-4">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3">Metrics Trends</h3>
-                            <div className="space-y-2">
+                {/* Right Panel — Metrics Trends */}
+                {summary?.metricsTrends && summary.metricsTrends.some(m => m.avgNps !== null || m.avgCsat !== null || m.avgCes !== null) && (
+                    <div className="w-full xl:w-64 flex-shrink-0">
+                        <div className="rounded-xl border border-gray-100 bg-white p-4">
+                            <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Metrics</h3>
+                            <div className="space-y-2.5">
                                 {(['avgNps', 'avgCsat', 'avgCes'] as const).map(metric => {
                                     const label = metric === 'avgNps' ? 'NPS' : metric === 'avgCsat' ? 'CSAT' : 'CES';
-                                    const color = metric === 'avgNps' ? 'bg-blue-500' : metric === 'avgCsat' ? 'bg-green-500' : 'bg-amber-500';
+                                    const dot = metric === 'avgNps' ? 'bg-blue-500' : metric === 'avgCsat' ? 'bg-emerald-500' : 'bg-amber-500';
                                     const values = summary.metricsTrends.filter(m => m[metric] !== null);
                                     if (values.length === 0) return null;
                                     const latest = values[values.length - 1]?.[metric];
@@ -503,13 +559,13 @@ export const DashboardPage = () => {
                                     return (
                                         <div key={metric} className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <div className={`w-2.5 h-2.5 rounded-full ${color}`} />
-                                                <span className="text-sm text-gray-600">{label}</span>
+                                                <span className={`h-2 w-2 rounded-full ${dot}`} />
+                                                <span className="text-[13px] text-gray-600">{label}</span>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-semibold text-gray-900">{latest}</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[13px] font-semibold text-gray-900">{latest}</span>
                                                 {trend !== null && (
-                                                    <span className={`text-xs ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    <span className={`text-[11px] font-medium ${trend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                                                         {trend >= 0 ? '+' : ''}{Math.round(trend * 10) / 10}
                                                     </span>
                                                 )}
@@ -519,9 +575,8 @@ export const DashboardPage = () => {
                                 })}
                             </div>
                         </div>
-                    )}
-
-                </div>
+                    </div>
+                )}
             </div>
 
             {/* Delete Confirmation Modal */}
@@ -540,22 +595,22 @@ export const DashboardPage = () => {
             {/* Duplicate modal */}
             {duplicateModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Duplicate Research</h3>
-                        <p className="text-sm text-gray-600 mb-4">Enter a name for the duplicated research:</p>
+                    <div className="bg-white rounded-xl shadow-lg p-6 max-w-sm w-full mx-4 border border-gray-200/60">
+                        <h3 className="text-base font-semibold text-gray-900 mb-1">Duplicate Research</h3>
+                        <p className="text-[13px] text-gray-500 mb-4">Enter a name for the copy:</p>
                         <input
                             type="text"
                             value={duplicateName}
                             onChange={(e) => setDuplicateName(e.target.value)}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-4"
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-4"
                             autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter' && duplicateName.trim()) handleDuplicateConfirm(); }}
                         />
-                        <div className="flex justify-end gap-3">
+                        <div className="flex justify-end gap-2">
                             <button
                                 type="button"
                                 onClick={() => { setDuplicateModalOpen(false); setResearchToDuplicate(null); }}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                             >
                                 Cancel
                             </button>
@@ -563,7 +618,7 @@ export const DashboardPage = () => {
                                 type="button"
                                 onClick={handleDuplicateConfirm}
                                 disabled={!duplicateName.trim() || duplicateResearch.isPending}
-                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                             >
                                 {duplicateResearch.isPending ? 'Duplicating...' : 'Duplicate'}
                             </button>

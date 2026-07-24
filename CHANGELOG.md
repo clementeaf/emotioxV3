@@ -1,3 +1,13 @@
+## v0.89.0 — UI refresh: sidebar, login, dashboard (2026-07-24)
+
+### research-frontend
+- **Sidebar refresh (Linear-style).** Grouped navigation (Main + Manage sections), user avatar with initials + name/email footer, active indicator bar (3px blue left border), 13px font, PanelLeftClose/PanelLeft toggle, 240px→60px collapse. Consistent rounded-xl + `border-gray-200/60` borders.
+- **DashboardLayout.** Background `#f4f5f7`, padding/gap 3 (tighter), main content `rounded-xl` with subtle border.
+- **Login page.** Logo above card, title "Sign in to EmotioX", `rounded-2xl` card, `active:scale-[0.98]` on Google button, Terms footer.
+- **Dashboard Home.** Greeting header "Welcome back, {name}" + "New Research" button. Summary cards with sparklines (researches/participants over time) and month-over-month trends. Status filter pills (Active/Draft/Completed) with colored dots alongside type pills. Actions column hidden by default, revealed on row hover. Status badges with dot indicator. Removed redundant Status card from right panel. Date format "Jul 24, 2026". Duplicate modal rounded-xl.
+
+---
+
 ## v0.88.2 — Eye Tracking: preview modal + video view mode guards (2026-07-24)
 
 ### research-frontend
