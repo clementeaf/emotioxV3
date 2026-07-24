@@ -1,3 +1,21 @@
+## v0.88.0 — Eye Tracking: video gaze pipeline improvements (2026-07-24)
+
+### research-frontend
+- **Demographic filter for gazeTimeline.** `EyeTrackingResults` now filters `gazeTimeline` by selected demographic participant IDs. Previously video gaze overlay showed all participants regardless of active filters.
+- **Participant selector in VideoGazePlayer.** Dropdown to view gaze from individual participants or all combined. Same pattern as ScanpathOverlay.
+- **Temporal heatmap overlay.** VideoGazePlayer toggle between Dots (original) and Heatmap modes. Heatmap uses simpleheat with warm gradient (green→yellow→red), 1s accumulation window synced to video playback at 15fps.
+- **Video quality badges.** `StimulusCard` shows Completion rate, Gaze Coverage %, and Video Duration when video stimulus detected.
+- **V3 temporal density modes.** Density tab shows Density / First Look / Peak Time toggle for video stimuli with V3 data. First Look = earliest attention per cell, Peak Time = moment of maximum density contribution.
+
+### participant-frontend
+- **V3 temporal metadata.** `ProbabilisticHeatmap` now tracks per-cell `firstAttentionS` (earliest videoTime) and `peakTimeS` (videoTime of highest density contribution) during `addSample`. New `videoTimeS` parameter. Payload includes `firstAttentionBase64` and `peakTimeBase64` for video stimuli.
+
+### backend
+- **Video quality metrics.** `getEyeTrackingResults` computes `videoQuality`: completion rate (`videoEnded` flag), gaze coverage (% of 500ms bins with data), video duration. Only for video stimuli.
+- **V3 temporal aggregation.** `extractV3Heatmap` aggregates `firstAttentionBase64` (min across participants) and `peakTimeBase64` (from participant with highest cell density). `V3AggregatedHeatmap` includes `hasTemporalData`, `firstAttentionBase64`, `peakTimeBase64`.
+
+---
+
 ## v0.87.1 — Fix: Google OAuth "Premature close" on cPanel (2026-07-22)
 
 ### backend

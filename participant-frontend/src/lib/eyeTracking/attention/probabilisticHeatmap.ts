@@ -7,6 +7,10 @@
  *
  * AOI integration is optional: when AOI rects are provided, the accumulator
  * also tracks per-AOI expected dwell time and first-attention timestamp.
+ *
+ * For video stimuli, each cell also stores temporal metadata:
+ * - firstAttentionS: earliest videoTime when gaze contributed to this cell
+ * - peakTimeS: videoTime of the frame with highest density contribution
  */
 
 import type { DensityGrid, FrameUncertainty, AOIAttention } from './types';
@@ -21,18 +25,31 @@ const DEFAULT_GRID_COLS = 64;
 /** Truncate Gaussian splat at 3σ (exp(-4.5) ≈ 0.011 — negligible beyond). */
 const SPLAT_RADIUS_SIGMAS = 3;
 
+/** Minimum normalized weight to count as "attention" for temporal tracking. */
+const TEMPORAL_MIN_WEIGHT = 0.01;
+
 // ---------------------------------------------------------------------------
 // ProbabilisticHeatmap
 // ---------------------------------------------------------------------------
 
 export class ProbabilisticHeatmap {
   private readonly data: Float64Array;
+  /** Per-cell: earliest videoTimeS when gaze contributed (Infinity = never). */
+  private readonly firstAttention: Float64Array;
+  /** Per-cell: videoTimeS of frame with highest single-frame contribution. */
+  private readonly peakTime: Float64Array;
+  /** Per-cell: highest single-frame contribution (for tracking peak). */
+  private readonly peakWeight: Float64Array;
+
   readonly cols: number;
   readonly rows: number;
   readonly cellW: number;
   readonly cellH: number;
   // AOI tracking (optional)
   private aoiDwell: Map<string, { dwell: number; firstMs: number | null; peak: number; label: string }> = new Map();
+
+  /** Whether any temporal (video) data was recorded. */
+  hasTemporalData = false;
 
   /** Total seconds accumulated. */
   totalDurationS = 0;
@@ -42,7 +59,11 @@ export class ProbabilisticHeatmap {
     this.rows = Math.max(1, Math.round(cols * stimulusHeight / stimulusWidth));
     this.cellW = stimulusWidth / this.cols;
     this.cellH = stimulusHeight / this.rows;
-    this.data = new Float64Array(this.rows * this.cols);
+    const size = this.rows * this.cols;
+    this.data = new Float64Array(size);
+    this.firstAttention = new Float64Array(size).fill(Infinity);
+    this.peakTime = new Float64Array(size); // 0 = no peak
+    this.peakWeight = new Float64Array(size);
   }
 
   /**
@@ -54,6 +75,7 @@ export class ProbabilisticHeatmap {
    * @param dtS — frame duration in seconds (typically ~0.033 at 30fps)
    * @param timestampMs — session-relative timestamp (for AOI first-attention tracking)
    * @param aois — optional list of AOI rects for per-AOI tracking
+   * @param videoTimeS — video playback position in seconds (for temporal metadata)
    */
   addSample(
     gazeX: number,
@@ -62,6 +84,7 @@ export class ProbabilisticHeatmap {
     dtS: number,
     timestampMs?: number,
     aois?: readonly { id: string; label: string; x: number; y: number; width: number; height: number }[],
+    videoTimeS?: number,
   ): void {
     // Splat bounding box (3σ of major axis)
     const maxSigma = Math.max(uncertainty.sigma1, uncertainty.sigma2);
@@ -105,12 +128,29 @@ export class ProbabilisticHeatmap {
     if (kernelSum > 0) {
       this.totalDurationS += dtS;
       const scale = dtS / kernelSum;
+      const hasVt = videoTimeS != null && videoTimeS >= 0;
+      if (hasVt) this.hasTemporalData = true;
+
       for (let r = r0; r <= r1; r++) {
         const rowOff = (r - r0) * numCols;
         const gridRowOff = r * this.cols;
         for (let col = c0; col <= c1; col++) {
           const w = weights[rowOff + (col - c0)];
-          if (w > 0) this.data[gridRowOff + col] += w * scale;
+          if (w <= 0) continue;
+          const contribution = w * scale;
+          const idx = gridRowOff + col;
+          this.data[idx] += contribution;
+
+          // Temporal metadata (only for video)
+          if (hasVt && (w / kernelSum) >= TEMPORAL_MIN_WEIGHT) {
+            if (videoTimeS! < this.firstAttention[idx]) {
+              this.firstAttention[idx] = videoTimeS!;
+            }
+            if (contribution > this.peakWeight[idx]) {
+              this.peakWeight[idx] = contribution;
+              this.peakTime[idx] = videoTimeS!;
+            }
+          }
         }
       }
     }
@@ -174,6 +214,16 @@ export class ProbabilisticHeatmap {
     return norm;
   }
 
+  /** Get per-cell first attention time (seconds into video). Infinity = never attended. */
+  getFirstAttentionGrid(): Float64Array {
+    return new Float64Array(this.firstAttention);
+  }
+
+  /** Get per-cell peak attention time (seconds into video). 0 = no peak. */
+  getPeakTimeGrid(): Float64Array {
+    return new Float64Array(this.peakTime);
+  }
+
   /** Get per-AOI attention metrics. */
   getAOIMetrics(): AOIAttention[] {
     const totalDwell = Array.from(this.aoiDwell.values()).reduce((s, v) => s + v.dwell, 0);
@@ -196,7 +246,11 @@ export class ProbabilisticHeatmap {
   /** Reset all accumulated data. */
   reset(): void {
     this.data.fill(0);
+    this.firstAttention.fill(Infinity);
+    this.peakTime.fill(0);
+    this.peakWeight.fill(0);
     this.aoiDwell.clear();
     this.totalDurationS = 0;
+    this.hasTemporalData = false;
   }
 }

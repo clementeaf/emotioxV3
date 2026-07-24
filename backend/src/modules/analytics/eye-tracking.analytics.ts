@@ -105,6 +105,18 @@ interface EyeTrackingStimulus {
   predictionProcessedAt?: string;
   stimulusType?: 'image' | 'video';
   gazeTimeline?: Array<{ x: number; y: number; t: number; videoTime?: number; participantId: string }>;
+  /** Video-specific quality metrics (only for video stimuli) */
+  videoQuality?: {
+    /** % of participants who watched the video to completion */
+    completionRate: number;
+    /** Number of participants who completed vs total */
+    completed: number;
+    total: number;
+    /** % of 500ms time bins that have at least one gaze point (across all participants) */
+    gazeCoverage: number;
+    /** Video duration in seconds (max videoTime observed) */
+    videoDurationS: number;
+  };
   sequenceAnalysis?: {
     participantSequences: Array<{ participantId: string; sequence: string[] }>;
     transitionMatrix: Record<string, Record<string, number>>;
@@ -126,6 +138,10 @@ interface V3ParticipantPayload {
     cellW: number;
     cellH: number;
     densityBase64: string;
+    /** Per-cell earliest video time when gaze contributed (video only). */
+    firstAttentionBase64?: string;
+    /** Per-cell video time of peak density contribution (video only). */
+    peakTimeBase64?: string;
   };
   aoiMetrics: Array<{
     aoiId: string;
@@ -185,6 +201,12 @@ interface V3AggregatedHeatmap {
     /** Number of participants who attended this AOI. */
     participantCount: number;
   }>;
+  /** Per-cell earliest first-attention across participants (video only, base64 Float64Array). */
+  firstAttentionBase64?: string;
+  /** Per-cell peak attention time across participants (video only, base64 Float64Array). */
+  peakTimeBase64?: string;
+  /** Whether temporal data is available (video stimuli only). */
+  hasTemporalData?: boolean;
   /** Per-participant V3 summary (for quality filtering in frontend). */
   perParticipant: Array<{
     participantId: string;
@@ -844,8 +866,12 @@ function extractV3Heatmap(responses: any[]): V3AggregatedHeatmap | undefined {
   const ref = v3Payloads[0].payload.heatmap;
   const gridSize = ref.cols * ref.rows;
 
-  // Sum all density grids
+  // Sum all density grids + aggregate temporal data (min first-attention, weighted-avg peak)
   const sumGrid = new Float64Array(gridSize);
+  const aggFirstAttention = new Float64Array(gridSize).fill(Infinity);
+  const aggPeakTime = new Float64Array(gridSize);
+  const aggPeakWeight = new Float64Array(gridSize);
+  let hasTemporalData = false;
   const perParticipant: V3AggregatedHeatmap['perParticipant'] = [];
   let totalConfidence = 0;
   let totalCoverage = 0;
@@ -858,6 +884,29 @@ function extractV3Heatmap(responses: any[]): V3AggregatedHeatmap | undefined {
     if (!grid) continue;
 
     for (let i = 0; i < gridSize; i++) sumGrid[i] += grid[i];
+
+    // Temporal: min first-attention, peak from participant with highest contribution
+    if (payload.heatmap.firstAttentionBase64) {
+      const fa = decodeDensityBase64(payload.heatmap.firstAttentionBase64, gridSize);
+      if (fa) {
+        hasTemporalData = true;
+        for (let i = 0; i < gridSize; i++) {
+          if (fa[i] < aggFirstAttention[i]) aggFirstAttention[i] = fa[i];
+        }
+      }
+    }
+    if (payload.heatmap.peakTimeBase64) {
+      const pt = decodeDensityBase64(payload.heatmap.peakTimeBase64, gridSize);
+      if (pt && grid) {
+        for (let i = 0; i < gridSize; i++) {
+          // Keep peak time from the participant with highest density at that cell
+          if (grid[i] > aggPeakWeight[i]) {
+            aggPeakWeight[i] = grid[i];
+            aggPeakTime[i] = pt[i];
+          }
+        }
+      }
+    }
 
     totalConfidence += payload.confidence.score;
     totalCoverage += payload.confidence.spatialCoverage;
@@ -934,6 +983,11 @@ function extractV3Heatmap(responses: any[]): V3AggregatedHeatmap | undefined {
       participantCount: a.count,
     })),
     perParticipant,
+    ...(hasTemporalData ? {
+      hasTemporalData: true,
+      firstAttentionBase64: encodeDensityBase64(aggFirstAttention),
+      peakTimeBase64: encodeDensityBase64(aggPeakTime),
+    } : {}),
   };
 }
 
@@ -988,19 +1042,45 @@ export const getEyeTrackingResults = async (researchId: string) => {
     const predictionHeatmap = config.predictionHeatmap as Array<{ x: number; y: number; value: number }> | undefined;
     const predictionProcessedAt = config.predictionProcessedAt as string | undefined;
 
-    // Extract stimulus type and gaze timeline from responses (for video stimuli)
+    // Extract stimulus type, gaze timeline, and video quality from responses
     let stimulusType: 'image' | 'video' = 'image';
     const gazeTimeline: Array<{ x: number; y: number; t: number; videoTime?: number; participantId: string }> = [];
+    let videoCompleted = 0;
+    let videoTotal = 0;
     for (const row of responsesResult.rows) {
       try {
         const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-        if (parsed?.stimulusType === 'video') stimulusType = 'video';
+        if (parsed?.stimulusType === 'video') {
+          stimulusType = 'video';
+          videoTotal++;
+          if (parsed.videoEnded === true) videoCompleted++;
+        }
         if (parsed?.gazeTimeline && Array.isArray(parsed.gazeTimeline)) {
           for (const pt of parsed.gazeTimeline) {
             gazeTimeline.push({ ...pt, participantId: row.participant_id });
           }
         }
       } catch { /* skip */ }
+    }
+
+    // Compute video-specific quality metrics
+    let videoQuality: EyeTrackingStimulus['videoQuality'];
+    if (stimulusType === 'video' && gazeTimeline.length > 0) {
+      const maxVideoTime = gazeTimeline.reduce((m, p) => Math.max(m, p.videoTime ?? 0), 0);
+      // Bin gaze points into 500ms buckets — coverage = % of bins with data
+      const binSize = 0.5;
+      const totalBins = Math.max(1, Math.ceil(maxVideoTime / binSize));
+      const occupiedBins = new Set<number>();
+      for (const pt of gazeTimeline) {
+        if (pt.videoTime != null) occupiedBins.add(Math.floor(pt.videoTime / binSize));
+      }
+      videoQuality = {
+        completionRate: videoTotal > 0 ? Math.round((videoCompleted / videoTotal) * 100) : 0,
+        completed: videoCompleted,
+        total: videoTotal,
+        gazeCoverage: Math.round((occupiedBins.size / totalBins) * 100),
+        videoDurationS: Math.round(maxVideoTime * 10) / 10,
+      };
     }
 
     stimuli.push({
@@ -1016,6 +1096,7 @@ export const getEyeTrackingResults = async (researchId: string) => {
       predictionProcessedAt,
       stimulusType,
       gazeTimeline: gazeTimeline.length > 0 ? gazeTimeline : undefined,
+      videoQuality,
       v3Heatmap,
     });
   }

@@ -477,7 +477,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     const stimX = relX * initRect.width;
                     const stimY = relY * initRect.height;
                     if (dtS > 0 && dtS < 1) { // skip first frame (dtS=0) and outlier gaps
-                        v3HeatmapRef.current.addSample(stimX, stimY, unc, dtS);
+                        v3HeatmapRef.current.addSample(stimX, stimY, unc, dtS, undefined, undefined, videoTime);
                     }
 
                     // Debug info update (~4fps)
@@ -814,6 +814,12 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 );
                 confidence.spatialCoverage = computeSpatialCoverage(grid);
 
+                // Temporal grids (video only)
+                const temporalData = hm.hasTemporalData ? {
+                    firstAttentionBase64: btoa(String.fromCharCode(...new Uint8Array(hm.getFirstAttentionGrid().buffer))),
+                    peakTimeBase64: btoa(String.fromCharCode(...new Uint8Array(hm.getPeakTimeGrid().buffer))),
+                } : undefined;
+
                 v3Payload = {
                     version: 3,
                     heatmap: {
@@ -823,6 +829,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                         cellH: grid.cellH,
                         // Encode density as base64 for compact JSON transport
                         densityBase64: btoa(String.fromCharCode(...new Uint8Array(grid.data.buffer))),
+                        ...temporalData,
                     },
                     aoiMetrics,
                     totalMassS: totalMass,

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3 } from 'lucide-react';
+import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3, Film, Signal } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
@@ -20,32 +20,55 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const stimulus = { ...rawStimulus, stimulusUrl: resolveStimulusUrl(rawStimulus.stimulusUrl) };
   const hasZoneMass = stimulus.zoneMass && Object.values(stimulus.zoneMass).some(v => v > 0);
   const hasV3 = !!stimulus.v3Heatmap;
+  const hasV3Temporal = hasV3 && stimulus.v3Heatmap?.hasTemporalData;
   const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0 || hasV3;
   const [viewMode, setViewMode] = useState<ViewMode>(hasV3 ? 'density' : 'heatmap');
+  const [densityMode, setDensityMode] = useState<'density' | 'firstlook' | 'peak'>('density');
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
 
-  // Convert V3 density grid (base64 Float64Array) to HeatmapRenderer points
-  const v3HeatmapPoints = useMemo(() => {
-    const v3 = stimulus.v3Heatmap;
-    if (!v3?.normalizedBase64) return [];
+  /** Decode a base64 Float64Array grid into cell-center points with values. */
+  const decodeGridToPoints = useCallback((base64: string, cols: number, rows: number, cellW: number, cellH: number, minVal = 0.01) => {
     try {
-      const binary = Uint8Array.from(atob(v3.normalizedBase64), c => c.charCodeAt(0));
-      const grid = new Float64Array(binary.buffer, binary.byteOffset, v3.cols * v3.rows);
+      const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const grid = new Float64Array(binary.buffer, binary.byteOffset, cols * rows);
       const points: Array<{ x: number; y: number; value: number }> = [];
-      for (let r = 0; r < v3.rows; r++) {
-        for (let c = 0; c < v3.cols; c++) {
-          const val = grid[r * v3.cols + c];
-          if (val > 0.01) {
-            // Cell center in pixel coords (relative to stimulus)
-            points.push({ x: (c + 0.5) * v3.cellW, y: (r + 0.5) * v3.cellH, value: val });
+      // Find max for normalization
+      let max = 0;
+      for (let i = 0; i < grid.length; i++) {
+        if (grid[i] !== Infinity && grid[i] > max) max = grid[i];
+      }
+      if (max <= 0) return [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const raw = grid[r * cols + c];
+          if (raw === Infinity || raw <= 0) continue;
+          const val = raw / max;
+          if (val > minVal) {
+            points.push({ x: (c + 0.5) * cellW, y: (r + 0.5) * cellH, value: val });
           }
         }
       }
       return points;
     } catch { return []; }
-  }, [stimulus.v3Heatmap]);
+  }, []);
+
+  // Convert V3 density grid (base64 Float64Array) to HeatmapRenderer points
+  const v3HeatmapPoints = useMemo(() => {
+    const v3 = stimulus.v3Heatmap;
+    if (!v3?.normalizedBase64) return [];
+    return decodeGridToPoints(v3.normalizedBase64, v3.cols, v3.rows, v3.cellW, v3.cellH);
+  }, [stimulus.v3Heatmap, decodeGridToPoints]);
+
+  // Temporal V3 points (first-look or peak time)
+  const v3TemporalPoints = useMemo(() => {
+    const v3 = stimulus.v3Heatmap;
+    if (!v3?.hasTemporalData) return [];
+    const base64 = densityMode === 'firstlook' ? v3.firstAttentionBase64 : v3.peakTimeBase64;
+    if (!base64) return [];
+    return decodeGridToPoints(base64, v3.cols, v3.rows, v3.cellW, v3.cellH, 0);
+  }, [stimulus.v3Heatmap, densityMode, decodeGridToPoints]);
 
   const handleDownload = useCallback(async () => {
     if (!imageContainerRef) return;
@@ -98,6 +121,27 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             , <span className="font-medium text-amber-800">{stimulus.qualitySummary.low} excluded</span>
             <span className="text-amber-500 ml-1">(low calibration quality)</span>
           </span>
+        </div>
+      )}
+
+      {/* Video quality metrics */}
+      {stimulus.videoQuality && (
+        <div className="grid grid-cols-3 gap-4 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+          <MetricBadge
+            icon={<Film className="h-4 w-4" />}
+            label="Completion"
+            value={`${stimulus.videoQuality.completionRate}% (${stimulus.videoQuality.completed}/${stimulus.videoQuality.total})`}
+          />
+          <MetricBadge
+            icon={<Signal className="h-4 w-4" />}
+            label="Gaze Coverage"
+            value={`${stimulus.videoQuality.gazeCoverage}%`}
+          />
+          <MetricBadge
+            icon={<Clock className="h-4 w-4" />}
+            label="Video Duration"
+            value={`${stimulus.videoQuality.videoDurationS}s`}
+          />
         </div>
       )}
 
@@ -199,9 +243,26 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       <div className="px-5 pb-4">
         {viewMode === 'density' && hasV3 && stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto">
+            {hasV3Temporal && (
+              <div className="flex items-center gap-1 mb-3">
+                {(['density', 'firstlook', 'peak'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setDensityMode(mode)}
+                    className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                      densityMode === mode
+                        ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+                        : 'bg-white border-gray-200 text-slate-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    {mode === 'density' ? 'Density' : mode === 'firstlook' ? 'First Look' : 'Peak Time'}
+                  </button>
+                ))}
+              </div>
+            )}
             <HeatmapRenderer
               imageUrl={stimulus.stimulusUrl}
-              data={v3HeatmapPoints}
+              data={densityMode === 'density' || !hasV3Temporal ? v3HeatmapPoints : v3TemporalPoints}
               coordSystem="pixel"
               blur={heatmapSettings.blur}
               opacity={heatmapSettings.opacity}
@@ -210,7 +271,8 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             />
             <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
               <span>
-                V3 probabilistic · {stimulus.v3Heatmap!.participantCount} participant{stimulus.v3Heatmap!.participantCount !== 1 ? 's' : ''}
+                V3 {densityMode === 'density' ? 'probabilistic' : densityMode === 'firstlook' ? 'first look (temporal)' : 'peak attention (temporal)'}
+                {' · '}{stimulus.v3Heatmap!.participantCount} participant{stimulus.v3Heatmap!.participantCount !== 1 ? 's' : ''}
                 · confidence {(stimulus.v3Heatmap!.avgConfidence * 100).toFixed(0)}%
               </span>
               <span>

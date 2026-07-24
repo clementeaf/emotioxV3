@@ -506,6 +506,14 @@ export interface EyeTrackingStimulus {
     /** Gaze points with video timestamps (only for video stimuli) */
     gazeTimeline?: Array<{ x: number; y: number; t: number; videoTime?: number; participantId: string }>;
     stimulusType?: 'image' | 'video';
+    /** Video-specific quality metrics (only for video stimuli) */
+    videoQuality?: {
+        completionRate: number;
+        completed: number;
+        total: number;
+        gazeCoverage: number;
+        videoDurationS: number;
+    };
     /** AOI sequence analysis: visit order per participant + transition probabilities */
     sequenceAnalysis?: {
         participantSequences: Array<{ participantId: string; sequence: string[] }>;
@@ -535,6 +543,12 @@ export interface V3AggregatedHeatmap {
         earliestFirstAttentionMs: number | null;
         participantCount: number;
     }>;
+    /** Per-cell earliest first-attention across participants (video only, base64 Float64Array). */
+    firstAttentionBase64?: string;
+    /** Per-cell peak attention time across participants (video only, base64 Float64Array). */
+    peakTimeBase64?: string;
+    /** Whether temporal data is available (video stimuli only). */
+    hasTemporalData?: boolean;
     perParticipant: Array<{
         participantId: string;
         totalDurationS: number;
