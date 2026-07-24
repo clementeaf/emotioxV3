@@ -1,3 +1,10 @@
+## v0.89.3 — UI refresh: Research History page (2026-07-24)
+
+### research-frontend
+- **Research History page refresh.** Chart: cleaner axes (no lines/ticks), vertical grid removed, emerald/blue/amber colors, tooltip rounded. Client info: rounded-xl, stats cards rounded-lg, 11px section headers. Table: status dots, hover-reveal actions, click-to-open rows, 13px font. Skeleton/empty states consistent. Removed unused Button/Legend imports.
+
+---
+
 ## v0.89.2 — UI refresh: Research Tracking page (2026-07-24)
 
 ### research-frontend

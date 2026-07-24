@@ -1,19 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Trash2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ExternalLink, Trash2 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { enterprisesService, type Enterprise, type EnterpriseResearch } from '../../services/enterprises.service';
 import { researchService } from '../../services/research.service';
-import { Button } from '../../components/ui/Button';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { useToast } from '../../hooks/useToast';
 
-/** Status badge colors */
-const STATUS_STYLES: Record<string, string> = {
-    draft: 'bg-yellow-100 text-yellow-700',
-    active: 'bg-green-100 text-green-700',
-    completed: 'bg-blue-100 text-blue-700',
-    archived: 'bg-gray-100 text-gray-600',
+const STATUS_STYLES: Record<string, { dot: string; bg: string; text: string }> = {
+    draft:     { dot: 'bg-gray-400',    bg: 'bg-gray-50',    text: 'text-gray-600' },
+    active:    { dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    completed: { dot: 'bg-blue-500',    bg: 'bg-blue-50',    text: 'text-blue-700' },
+    archived:  { dot: 'bg-orange-400',  bg: 'bg-orange-50',  text: 'text-orange-700' },
 };
 
 export const ResearchHistoryPage = () => {
@@ -21,63 +19,41 @@ export const ResearchHistoryPage = () => {
     const toast = useToast();
 
     const [enterprises, setEnterprises] = useState<Enterprise[]>([]);
-    const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<string>('');
+    const [selectedEnterpriseId, setSelectedEnterpriseId] = useState('');
     const [selectedEnterprise, setSelectedEnterprise] = useState<Enterprise | null>(null);
     const [researches, setResearches] = useState<EnterpriseResearch[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Load enterprises list
     useEffect(() => {
         enterprisesService.list().then(res => {
             setEnterprises(res.enterprises);
-            if (res.enterprises.length > 0) {
-                setSelectedEnterpriseId(res.enterprises[0].id);
-            }
+            if (res.enterprises.length > 0) setSelectedEnterpriseId(res.enterprises[0].id);
         }).catch(() => toast.error('Failed to load clients')).finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount; toast is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Load selected enterprise details + researches
     useEffect(() => {
         if (!selectedEnterpriseId) return;
-        const ent = enterprises.find(e => e.id === selectedEnterpriseId);
-        setSelectedEnterprise(ent || null);
-
+        setSelectedEnterprise(enterprises.find(e => e.id === selectedEnterpriseId) || null);
         enterprisesService.listResearches(selectedEnterpriseId)
             .then(res => setResearches(res.researches))
             .catch(() => setResearches([]));
     }, [selectedEnterpriseId, enterprises]);
 
-    // Chart data: researches grouped by month with status counts
     const chartData = useMemo(() => {
         if (researches.length === 0) return [];
-
         const byMonth = new Map<string, { draft: number; active: number; completed: number }>();
-        const sorted = [...researches].sort(
-            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-
+        const sorted = [...researches].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
         for (const r of sorted) {
-            const d = new Date(r.created_at);
-            const key = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            const key = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
             const bucket = byMonth.get(key) || { draft: 0, active: 0, completed: 0 };
             const status = r.status as keyof typeof bucket;
-            if (status in bucket) {
-                bucket[status]++;
-            } else {
-                bucket.draft++;
-            }
+            if (status in bucket) bucket[status]++; else bucket.draft++;
             byMonth.set(key, bucket);
         }
-
-        return Array.from(byMonth.entries()).map(([month, counts]) => ({
-            month,
-            ...counts,
-            total: counts.draft + counts.active + counts.completed,
-        }));
+        return Array.from(byMonth.entries()).map(([month, c]) => ({ month, ...c, total: c.draft + c.active + c.completed }));
     }, [researches]);
 
-    // Stats for the info card
     const stats = useMemo(() => {
         const byStatus = { draft: 0, active: 0, completed: 0 };
         const types = new Set<string>();
@@ -95,26 +71,21 @@ export const ResearchHistoryPage = () => {
             await researchService.delete(research.id);
             setResearches(prev => prev.filter(r => r.id !== research.id));
             toast.success('Deleted');
-        } catch {
-            toast.error('Failed to delete');
-        }
+        } catch { toast.error('Failed to delete'); }
     };
 
     if (loading) {
         return (
-            <div className="flex flex-col h-full p-6 space-y-6 animate-pulse">
+            <div className="flex flex-col h-full p-6 space-y-4 animate-pulse">
                 <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                        <div className="h-6 w-48 bg-gray-200 rounded" />
-                        <div className="h-4 w-80 bg-gray-100 rounded" />
-                    </div>
-                    <div className="h-10 w-52 bg-gray-200 rounded" />
+                    <div className="space-y-2"><div className="h-5 w-40 bg-gray-100 rounded" /><div className="h-3 w-64 bg-gray-100 rounded" /></div>
+                    <div className="h-8 w-48 bg-gray-100 rounded-lg" />
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 h-72 bg-gray-100 rounded-lg" />
-                    <div className="h-72 bg-gray-100 rounded-lg" />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="lg:col-span-2 h-64 bg-gray-100 rounded-xl" />
+                    <div className="h-64 bg-gray-100 rounded-xl" />
                 </div>
-                <div className="h-48 bg-gray-100 rounded-lg" />
+                <div className="h-40 bg-gray-100 rounded-xl" />
             </div>
         );
     }
@@ -122,97 +93,75 @@ export const ResearchHistoryPage = () => {
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Research History</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        Overview of research activity per client
-                    </p>
+                    <h1 className="text-lg font-semibold text-gray-900">History</h1>
+                    <p className="text-[13px] text-gray-400 mt-0.5">Research activity per client</p>
                 </div>
-                {/* Client selector */}
-                <div className="w-52 flex-shrink-0">
+                <div className="w-48 flex-shrink-0">
                     <CustomSelect
                         value={selectedEnterpriseId}
                         onChange={setSelectedEnterpriseId}
                         options={enterprises.map(ent => ({ value: ent.id, label: ent.name }))}
-                        placeholder="Change client"
+                        placeholder="Select client"
                     />
                 </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
                 {/* Top row: Chart + Client Info */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Chart */}
-                    <div className="lg:col-span-2 bg-white border border-gray-100 rounded-lg p-4">
+                    <div className="lg:col-span-2 rounded-xl border border-gray-100 bg-white p-4">
                         <div className="flex items-center gap-3 mb-3">
-                            <h2 className="text-base font-semibold text-gray-900">
-                                {selectedEnterprise?.name || 'Client'}
-                            </h2>
-                            <span className="text-xs text-gray-500">
-                                {researches.length} research project{researches.length !== 1 ? 's' : ''}
-                            </span>
+                            <h2 className="text-[13px] font-semibold text-gray-900">{selectedEnterprise?.name || 'Client'}</h2>
+                            <span className="text-[11px] text-gray-400">{researches.length} project{researches.length !== 1 ? 's' : ''}</span>
                         </div>
                         {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={250}>
+                            <ResponsiveContainer width="100%" height={220}>
                                 <BarChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="completed" stackId="a" fill="#3b82f6" name="Completed" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="active" stackId="a" fill="#22c55e" name="Active" radius={[0, 0, 0, 0]} />
-                                    <Bar dataKey="draft" stackId="a" fill="#eab308" name="Draft" radius={[4, 4, 0, 0]} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} allowDecimals={false} axisLine={false} tickLine={false} width={28} />
+                                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                                    <Bar dataKey="completed" stackId="a" fill="#3b82f6" name="Completed" />
+                                    <Bar dataKey="active" stackId="a" fill="#10b981" name="Active" />
+                                    <Bar dataKey="draft" stackId="a" fill="#f59e0b" name="Draft" radius={[3, 3, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-[250px] flex items-center justify-center text-gray-400 text-sm">
-                                No research data available for this client
+                            <div className="h-[220px] flex items-center justify-center text-[13px] text-gray-400">
+                                No research data for this client
                             </div>
                         )}
                     </div>
 
                     {/* Client Info */}
-                    <div className="bg-white border border-gray-100 rounded-lg p-4">
-                        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Client</h2>
-                        <h3 className="text-lg font-bold text-gray-900 mb-3">
-                            {selectedEnterprise?.name || '—'}
-                        </h3>
+                    <div className="rounded-xl border border-gray-100 bg-white p-4">
+                        <h2 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Client</h2>
+                        <h3 className="text-base font-semibold text-gray-900 mb-2">{selectedEnterprise?.name || '—'}</h3>
 
-                        {selectedEnterprise?.description ? (
-                            <p className="text-sm text-gray-600 leading-relaxed mb-4">
-                                {selectedEnterprise.description}
-                            </p>
-                        ) : null}
+                        {selectedEnterprise?.description && (
+                            <p className="text-[13px] text-gray-500 leading-relaxed mb-4">{selectedEnterprise.description}</p>
+                        )}
 
-                        {/* Stats */}
                         {stats.total > 0 && (
                             <div className="space-y-3">
                                 <div className="grid grid-cols-3 gap-2">
-                                    <div className="text-center p-2 bg-yellow-50 rounded">
-                                        <p className="text-lg font-bold text-yellow-700">{stats.draft}</p>
-                                        <p className="text-[10px] text-yellow-600 uppercase font-medium">Draft</p>
-                                    </div>
-                                    <div className="text-center p-2 bg-green-50 rounded">
-                                        <p className="text-lg font-bold text-green-700">{stats.active}</p>
-                                        <p className="text-[10px] text-green-600 uppercase font-medium">Active</p>
-                                    </div>
-                                    <div className="text-center p-2 bg-blue-50 rounded">
-                                        <p className="text-lg font-bold text-blue-700">{stats.completed}</p>
-                                        <p className="text-[10px] text-blue-600 uppercase font-medium">Completed</p>
-                                    </div>
+                                    {([['draft', 'Draft', 'bg-amber-50 text-amber-700'], ['active', 'Active', 'bg-emerald-50 text-emerald-700'], ['completed', 'Done', 'bg-blue-50 text-blue-700']] as const).map(([key, label, cls]) => (
+                                        <div key={key} className={`text-center p-2 rounded-lg ${cls}`}>
+                                            <p className="text-lg font-semibold">{stats[key]}</p>
+                                            <p className="text-[10px] font-medium uppercase">{label}</p>
+                                        </div>
+                                    ))}
                                 </div>
-
                                 {stats.types.length > 0 && (
                                     <div>
-                                        <p className="text-xs text-gray-400 uppercase font-medium mb-1">Research types</p>
+                                        <p className="text-[11px] text-gray-400 uppercase font-medium mb-1.5">Types</p>
                                         <div className="flex flex-wrap gap-1">
                                             {stats.types.map(t => (
-                                                <span key={t} className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
-                                                    {t}
-                                                </span>
+                                                <span key={t} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">{t}</span>
                                             ))}
                                         </div>
                                     </div>
@@ -221,79 +170,60 @@ export const ResearchHistoryPage = () => {
                         )}
 
                         {stats.total === 0 && !selectedEnterprise?.description && (
-                            <p className="text-sm text-gray-400">No research history for this client yet.</p>
+                            <p className="text-[13px] text-gray-400">No history for this client.</p>
                         )}
                     </div>
                 </div>
 
-                {/* List of research */}
-                <div className="bg-white border border-gray-100 rounded-lg">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                        <h2 className="text-base font-semibold text-gray-900">Research list</h2>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase">
-                                    <th className="px-4 py-3 font-medium">Name</th>
-                                    <th className="px-4 py-3 font-medium">Type</th>
-                                    <th className="px-4 py-3 font-medium">Status</th>
-                                    <th className="px-4 py-3 font-medium">Date</th>
-                                    <th className="px-4 py-3 font-medium">Researcher</th>
-                                    <th className="px-4 py-3 font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {researches.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
-                                            No researches found for this client
-                                        </td>
-                                    </tr>
-                                ) : researches.map(r => (
-                                    <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
-                                        <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">
-                                            {r.name}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-600 max-w-[160px] truncate">
-                                            {r.research_type_name || '—'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[r.status] || STATUS_STYLES.draft}`}>
+                {/* Research table */}
+                <div className="rounded-xl border border-gray-100 overflow-hidden">
+                    <table className="w-full">
+                        <thead className="bg-gray-50/80 border-b border-gray-100">
+                            <tr>
+                                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell">Type</th>
+                                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden lg:table-cell">Created</th>
+                                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden xl:table-cell">Researcher</th>
+                                <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {researches.length === 0 ? (
+                                <tr><td colSpan={6} className="px-3 py-12 text-center text-[13px] text-gray-400">No researches for this client</td></tr>
+                            ) : researches.map(r => {
+                                const s = STATUS_STYLES[r.status] ?? STATUS_STYLES.draft;
+                                return (
+                                    <tr key={r.id} className="group hover:bg-gray-50/80 cursor-pointer transition-colors" onClick={() => navigate(`/research/${r.id}/builder`)}>
+                                        <td className="px-3 py-2.5 text-[13px] font-medium text-gray-900 max-w-[200px] truncate">{r.name}</td>
+                                        <td className="px-3 py-2.5 text-[13px] text-gray-500 hidden md:table-cell">{r.research_type_name || '—'}</td>
+                                        <td className="px-3 py-2.5">
+                                            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${s.bg} ${s.text}`}>
+                                                <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
                                                 {r.status}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600">
-                                            {new Date(r.created_at).toLocaleDateString('es-CL')}
+                                        <td className="px-3 py-2.5 text-[13px] text-gray-400 hidden lg:table-cell">
+                                            {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-600 max-w-[140px] truncate">
+                                        <td className="px-3 py-2.5 text-[13px] text-gray-500 hidden xl:table-cell truncate max-w-[140px]">
                                             {[r.creator_first_name, r.creator_last_name].filter(Boolean).join(' ') || r.creator_email || '—'}
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    title="View"
-                                                    onClick={() => navigate(`/research/${r.id}/builder`)}
-                                                >
-                                                    <Eye className="h-4 w-4 text-gray-500" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    title="Delete"
-                                                    onClick={() => handleDelete(r)}
-                                                >
-                                                    <Trash2 className="h-4 w-4 text-red-400" />
-                                                </Button>
+                                        <td className="px-3 py-2.5">
+                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                                <button onClick={() => navigate(`/research/${r.id}/builder`)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors" title="Open">
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button onClick={() => handleDelete(r)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors" title="Delete">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
