@@ -1,3 +1,10 @@
+## v0.89.2 — UI refresh: Research Tracking page (2026-07-24)
+
+### research-frontend
+- **Research Tracking page refresh.** Replaced inline thead filters with top-bar search + dropdowns (research, action). Action badges colored by type (created/updated/deleted/archived). Table: 13px, rounded-xl, hover transitions. Skeleton/empty/error states consistent with dashboard. Simplified from 5 filter inputs to 3 controls.
+
+---
+
 ## v0.89.1 — UI refresh: Research page (2026-07-24)
 
 ### research-frontend
