@@ -1,3 +1,10 @@
+## v0.89.1 — UI refresh: Research page (2026-07-24)
+
+### research-frontend
+- **Research page refresh.** Cards: compact `rounded-xl`, status dots, hover-reveal actions, 12px metadata, `line-clamp-1` description, click-to-open. Table: 13px font, status dots, hover-reveal actions, removed "Updated" column. Header: title + count + view toggle + Invite/New Research aligned. Filters: consistent with dashboard (search, dropdowns, archive toggle). Modals/drawers: `rounded-xl`, 13px font. Empty states refined.
+
+---
+
 ## v0.89.0 — UI refresh: sidebar, login, dashboard (2026-07-24)
 
 ### research-frontend
