@@ -1,3 +1,10 @@
+## v0.89.4 — UI refresh: Clients page (2026-07-24)
+
+### research-frontend
+- **Clients page refresh.** Same visual language as History: clean chart axes, status dot badges, hover-reveal table actions, latest project cards with dot status, rounded-xl containers, 13px font. Removed Button/Eye/Legend imports.
+
+---
+
 ## v0.89.3 — UI refresh: Research History page (2026-07-24)
 
 ### research-frontend
