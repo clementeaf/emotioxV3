@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useId } from 'react';
-import { Boxes, Plus, Trash2, Eye, FolderOpen, Copy, CheckSquare, Square, Download, X, SortAsc } from 'lucide-react';
-import { Button } from '../../components/ui/Button';
+import { Boxes, Plus, Trash2, Eye, Copy, CheckSquare, Square, Download, X, SortAsc, Search } from 'lucide-react';
 import { ModulePreviewModal } from '../../components/modules/ModulePreviewModal';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { moduleTemplatesService, type ModuleTemplate } from '../../services/moduleTemplates.service';
@@ -8,7 +7,6 @@ import { stageTemplatesService } from '../../services/stageTemplates.service';
 import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
-import { SearchInput } from '../../components/ui/SearchInput';
 import { ModulesGridSkeleton } from '../../components/ui/Skeleton';
 import { cn } from '../../lib/utils';
 import { flat } from '../../utils/radashi';
@@ -322,75 +320,47 @@ export const ModulesPage = () => {
     const renderModuleCard = (module: { id: string; name: string; description?: string | null }, fullModule?: ModuleTemplate) => {
         const isSelected = selectedModules.has(module.id);
         const usage = moduleUsage.get(module.id);
-        
+
         return (
             <div
                 key={module.id}
                 onClick={() => !isMultiSelectMode && navigate(`/modules/${module.id}`)}
                 className={cn(
-                    "bg-white rounded-lg border p-4 hover:shadow-md transition-all cursor-pointer group relative",
-                    isSelected ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200"
+                    "rounded-xl border bg-white px-4 py-3.5 hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer group relative",
+                    isSelected ? "border-blue-400 ring-1 ring-blue-200" : "border-gray-100"
                 )}
             >
                 {isMultiSelectMode && (
-                    <div 
-                        className="absolute top-2 left-2 z-10"
-                        onClick={(e) => handleToggleSelect(module.id, e)}
-                    >
-                        {isSelected ? (
-                            <CheckSquare className="h-5 w-5 text-blue-600" />
-                        ) : (
-                            <Square className="h-5 w-5 text-gray-400" />
-                        )}
+                    <div className="absolute top-3 left-3 z-10" onClick={(e) => handleToggleSelect(module.id, e)}>
+                        {isSelected ? <CheckSquare className="h-4 w-4 text-blue-600" /> : <Square className="h-4 w-4 text-gray-300" />}
                     </div>
                 )}
-                <div className="flex items-start justify-between mb-3">
-                    <div className="p-2 bg-blue-50 rounded-lg">
-                        <Boxes className="h-5 w-5 text-blue-600" />
+                <div className="flex items-start justify-between mb-2">
+                    <div className="p-1.5 bg-blue-50 rounded-lg">
+                        <Boxes className="h-4 w-4 text-blue-600" />
                     </div>
                     {fullModule && !isMultiSelectMode && (
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={(e) => handleDuplicateClick(fullModule, e)}
-                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
-                                title="Duplicate"
-                            >
-                                <Copy className="h-4 w-4" />
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => handleDuplicateClick(fullModule, e)} className="p-1.5 text-gray-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors" title="Duplicate">
+                                <Copy className="h-3.5 w-3.5" />
                             </button>
-                            <button
-                                onClick={(e) => handleDeleteClick(fullModule, e)}
-                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Delete"
-                            >
-                                <Trash2 className="h-4 w-4" />
+                            <button onClick={(e) => handleDeleteClick(fullModule, e)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-md hover:bg-red-50 transition-colors" title="Delete">
+                                <Trash2 className="h-3.5 w-3.5" />
                             </button>
                         </div>
                     )}
                 </div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
-                    {module.name}
-                </h4>
-                <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-                    {module.description || 'No description provided'}
-                </p>
+                <h4 className="text-[13px] font-medium text-gray-900 mb-0.5 group-hover:text-blue-600 transition-colors">{module.name}</h4>
+                <p className="text-[11px] text-gray-400 line-clamp-2 mb-2.5">{module.description || 'No description'}</p>
                 <div className="flex items-center justify-between">
                     {!isMultiSelectMode && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handlePreview(module.id);
-                            }}
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
-                        >
-                            <Eye className="h-3 w-3" />
-                            <span>Preview</span>
+                        <button onClick={(e) => { e.stopPropagation(); handlePreview(module.id); }} className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                            <Eye className="h-3 w-3" /> Preview
                         </button>
                     )}
                     {usage && usage.count > 0 && (
-                        <span 
-                            className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium"
-                            title={`Used in ${usage.count} research${usage.count !== 1 ? 'es' : ''}: ${usage.researches.map(r => r.name).join(', ')}`}
-                        >
+                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-medium"
+                            title={`Used in ${usage.count} research${usage.count !== 1 ? 'es' : ''}: ${usage.researches.map(r => r.name).join(', ')}`}>
                             {usage.count} use{usage.count !== 1 ? 's' : ''}
                         </span>
                     )}
@@ -401,73 +371,70 @@ export const ModulesPage = () => {
 
 
     return (
-        <div className="h-full p-6 space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="h-full flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 flex-shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Modules Management</h1>
-                    <p className="mt-1 text-sm text-gray-500">
-                        Manage and configure reusable research modules organized by stages
-                    </p>
+                    <h1 className="text-lg font-semibold text-gray-900">Modules</h1>
+                    <p className="text-[13px] text-gray-400 mt-0.5">Reusable research modules by stage</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {!isMultiSelectMode ? (
                         <>
-                            <Button 
-                                variant="outline" 
-                                onClick={() => {
-                                    setIsMultiSelectMode(true);
-                                    setSelectedModules(new Set());
-                                }}
+                            <button
+                                onClick={() => { setIsMultiSelectMode(true); setSelectedModules(new Set()); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                             >
-                                <CheckSquare className="h-4 w-4 mr-2" />
-                                Select Multiple
-                            </Button>
-                            <Button onClick={() => navigate('/modules/new')}>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Create Module
-                            </Button>
+                                <CheckSquare className="h-3.5 w-3.5" /> Select
+                            </button>
+                            <button
+                                onClick={() => navigate('/modules/new')}
+                                className="flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors active:scale-[0.98]"
+                            >
+                                <Plus className="h-3.5 w-3.5" /> New Module
+                            </button>
                         </>
                     ) : (
-                        <Button 
-                            variant="outline" 
-                            onClick={() => {
-                                setIsMultiSelectMode(false);
-                                setSelectedModules(new Set());
-                            }}
+                        <button
+                            onClick={() => { setIsMultiSelectMode(false); setSelectedModules(new Set()); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                         >
-                            <X className="h-4 w-4 mr-2" />
-                            Exit Selection Mode
-                        </Button>
+                            <X className="h-3.5 w-3.5" /> Exit Selection
+                        </button>
                     )}
                 </div>
             </div>
 
-            <div className="flex items-center gap-4">
-                <div className="flex-1 max-w-md">
-                    <SearchInput
+            {/* Search + Sort */}
+            <div className="flex items-center gap-3 px-6 pb-3 flex-shrink-0">
+                <div className="relative w-64">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search modules..."
                         value={searchQuery}
-                        onChange={setSearchQuery}
-                        placeholder="Search module templates..."
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-full focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-400"
                     />
                 </div>
                 {!isMultiSelectMode && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                         <select
                             id={sortSelectId}
                             name={sortSelectId}
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as 'name' | 'date' | 'usage')}
-                            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-500"
                         >
-                            <option value="name">Sort by Name</option>
-                            <option value="date">Sort by Date</option>
+                            <option value="name">Name</option>
+                            <option value="date">Date</option>
                         </select>
                         <button
                             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                            className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                             title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
                         >
-                            <SortAsc className={cn('h-4 w-4 text-gray-600', sortOrder === 'desc' && 'rotate-180')} />
+                            <SortAsc className={cn('h-3.5 w-3.5 text-gray-500', sortOrder === 'desc' && 'rotate-180')} />
                         </button>
                     </div>
                 )}
@@ -475,63 +442,38 @@ export const ModulesPage = () => {
 
             {/* Bulk Actions Bar */}
             {isMultiSelectMode && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <span className="text-sm font-medium text-blue-900">
-                            {selectedModules.size} module{selectedModules.size !== 1 ? 's' : ''} selected
+                <div className="mx-6 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <span className="text-[13px] font-medium text-blue-900">
+                            {selectedModules.size} selected
                         </span>
                         {currentTab && currentTab.modules.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleSelectAll}
-                                    className="text-blue-600 hover:text-blue-700"
-                                >
-                                    Select All ({currentTab.modules.length})
-                                </Button>
-                                {selectedModules.size > 0 && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleDeselectAll}
-                                        className="text-blue-600 hover:text-blue-700"
-                                    >
-                                        Deselect All
-                                    </Button>
-                                )}
+                            <div className="flex items-center gap-1.5">
+                                <button onClick={handleSelectAll} className="text-[12px] text-blue-600 hover:text-blue-700 font-medium">All ({currentTab.modules.length})</button>
+                                {selectedModules.size > 0 && <button onClick={handleDeselectAll} className="text-[12px] text-blue-600 hover:text-blue-700 font-medium">None</button>}
                             </div>
                         )}
                     </div>
                     {selectedModules.size > 0 && (
                         <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleExportSelected}
-                            >
-                                <Download className="h-4 w-4 mr-2" />
-                                Export Selected
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleBulkDelete}
-                                isLoading={isDeleting}
-                                className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
-                            >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Selected
-                            </Button>
+                            <button onClick={handleExportSelected} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-white transition-colors">
+                                <Download className="h-3.5 w-3.5" /> Export
+                            </button>
+                            <button onClick={handleBulkDelete} disabled={isDeleting} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
+                                <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </button>
                         </div>
                     )}
                 </div>
             )}
 
+            {/* Scrollable content */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4 space-y-4">
+
             {/* Horizontal Tabs */}
             {hasResults && allTabs.length > 0 && (
-                <div className="border-b border-gray-200">
-                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                <div className="border-b border-gray-100">
+                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
                         {allTabs.map((tab) => {
                             const isActive = activeTab === tab.id;
                             return (
@@ -539,18 +481,17 @@ export const ModulesPage = () => {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={cn(
-                                        'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                                        'px-3 py-2 text-[13px] font-medium whitespace-nowrap border-b-2 transition-colors',
                                         isActive
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            ? 'border-gray-900 text-gray-900'
+                                            : 'border-transparent text-gray-400 hover:text-gray-600'
                                     )}
                                 >
-                                    <span className="flex items-center gap-2">
-                                        <FolderOpen className={cn('h-4 w-4', isActive ? 'text-blue-600' : 'text-gray-400')} />
+                                    <span className="flex items-center gap-1.5">
                                         {tab.name}
                                         <span className={cn(
-                                            'px-2 py-0.5 rounded-full text-xs',
-                                            isActive ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                                            'px-1.5 py-0.5 rounded-full text-[10px]',
+                                            isActive ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'
                                         )}>
                                             {tab.modules.length}
                                         </span>
@@ -563,59 +504,38 @@ export const ModulesPage = () => {
             )}
 
             {isLoading ? (
-                <div className="py-8">
-                    <ModulesGridSkeleton count={8} />
-                </div>
+                <ModulesGridSkeleton count={8} />
             ) : error ? (
-                <div className="text-center py-12 text-red-600">
-                    {error}
-                </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-[13px] text-red-700">{error}</div>
             ) : !hasResults ? (
-                <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-                        <Boxes className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <h3 className="mt-4 text-lg font-semibold text-gray-900">No modules found</h3>
-                    <p className="mt-2 text-gray-500">
-                        {searchQuery ? 'Try adjusting your search.' : 'Get started by creating a new module template.'}
-                    </p>
+                <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+                    <Boxes className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-[13px] text-gray-400">{searchQuery ? 'No modules match search' : 'No modules yet'}</p>
                     {!searchQuery && (
-                        <div className="mt-6">
-                            <Button onClick={() => navigate('/modules/new')}>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Create Module
-                            </Button>
+                        <button onClick={() => navigate('/modules/new')} className="mt-3 text-[13px] text-blue-600 hover:text-blue-700 font-medium">Create first module</button>
+                    )}
+                </div>
+            ) : currentTab && (
+                <div className="space-y-3">
+                    {currentTab.description && <p className="text-[13px] text-gray-500">{currentTab.description}</p>}
+                    {currentTab.modules.length > 0 ? (
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {currentTab.modules.map(module => {
+                                const fullModule = ungroupedModules.find(m => m.id === module.id) ||
+                                    stages.flatMap(s => s.modules).find(m => m.id === module.id);
+                                return renderModuleCard(module, fullModule as ModuleTemplate | undefined);
+                            })}
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
+                            <Boxes className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-[13px] text-gray-400">{searchQuery ? 'No modules match search' : 'No modules in this stage'}</p>
                         </div>
                     )}
                 </div>
-            ) : (
-                currentTab && (
-                    <div className="space-y-4">
-                        {currentTab.description && (
-                            <p className="text-sm text-gray-600">{currentTab.description}</p>
-                        )}
-                        {currentTab.modules.length > 0 ? (
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                                {currentTab.modules.map(module => {
-                                    const fullModule = ungroupedModules.find(m => m.id === module.id) ||
-                                        stages.flatMap(s => s.modules).find(m => m.id === module.id);
-                                    return renderModuleCard(module, fullModule as ModuleTemplate | undefined);
-                                })}
-                            </div>
-                        ) : (
-                            <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-                                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gray-50">
-                                    <Boxes className="h-6 w-6 text-gray-400" />
-                                </div>
-                                <h3 className="mt-4 text-lg font-semibold text-gray-900">No modules in this stage</h3>
-                                <p className="mt-2 text-gray-500">
-                                    {searchQuery ? 'Try adjusting your search.' : 'This stage has no modules yet.'}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )
             )}
+
+            </div> {/* end scrollable content */}
 
             <ModulePreviewModal
                 module={selectedModule}

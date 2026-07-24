@@ -1,3 +1,10 @@
+## v0.89.6 — UI refresh: Modules page (2026-07-24)
+
+### research-frontend
+- **Modules page refresh.** Header/search/sort consistent. Tab active style: black underline + white-on-black count. Cards: rounded-xl, hover-reveal actions, 13px/11px text, smaller icon/badges. Bulk actions bar rounded-xl. Proper scrollable layout with overflow control. Removed SearchInput import.
+
+---
+
 ## v0.89.5 — UI refresh: Research Types page (2026-07-24)
 
 ### research-frontend
