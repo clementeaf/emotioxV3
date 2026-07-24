@@ -45,10 +45,6 @@ const VIEWING_DURATION_S = 10;
 const GRID_ROWS = 3;
 const GRID_COLS = 3;
 
-/** Dwell detection — same params as production EyeTrackingRenderer */
-const DWELL_THRESHOLD_MS = 1000;
-const DWELL_PROXIMITY_PX = 280;
-const DWELL_GRACE_MS = 300;
 const CALIBRATE_CALLS_PER_POINT = 3;
 
 const TEST_STIMULUS_URL = 'https://picsum.photos/800/600';
@@ -106,11 +102,7 @@ export function EyeTrackingV2TestPage() {
     rawX: 0, rawY: 0, corrX: 0, corrY: 0, gazeState: 'unknown',
   });
 
-  // Dwell calibration refs
-  const dwellStartRef = useRef<number | null>(null);
-  const dwellSamplesRef = useRef<{ x: number; y: number }[]>([]);
-  const dwellExitTimeRef = useRef<number | null>(null);
-  const dwellRafRef = useRef(0);
+  // Click calibration — user clicks each dot while looking at it
 
   // --- Gaze engines (both always called — React rules) ---
   const useMP = GAZE_ENGINE === 'mediapipe';
@@ -143,20 +135,25 @@ export function EyeTrackingV2TestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useMP, mpGaze.isLoaded, mpGaze.gazeState, blaze.isLoaded, blaze.gazeState]);
 
-  // Sync gazePosRef from active engine (same pattern as production renderer)
+  // Sync gazePosRef from active engine
+  // During calibration the Ridge predictor isn't trained yet so gazePosRef is null.
+  // Fall back to rawScreenRef (iris-based coords, no Ridge) so dwell detection works.
   useEffect(() => {
     if (phase !== 'calibrating' && phase !== 'viewing') return;
     let raf = 0;
     const sync = () => {
-      const pos = useMP ? mpGaze.gazePosRef.current : blaze.gazePosRef.current;
-      if (pos) {
-        gazePosRef.current = [pos.x, pos.y];
+      if (useMP) {
+        const pos = mpGaze.gazePosRef.current ?? mpGaze.rawScreenRef.current;
+        if (pos) gazePosRef.current = [pos.x, pos.y];
+      } else {
+        const pos = blaze.gazePosRef.current;
+        if (pos) gazePosRef.current = [pos.x, pos.y];
       }
       raf = requestAnimationFrame(sync);
     };
     raf = requestAnimationFrame(sync);
     return () => cancelAnimationFrame(raf);
-  }, [phase, useMP, mpGaze.gazePosRef, blaze.gazePosRef]);
+  }, [phase, useMP, mpGaze.gazePosRef, mpGaze.rawScreenRef, blaze.gazePosRef]);
 
   // -- Camera --
   useEffect(() => {
@@ -190,105 +187,48 @@ export function EyeTrackingV2TestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraReady, modelReady, stimulusLoaded, phase]);
 
-  // -- Dwell-based calibration (same as production EyeTrackingRenderer) --
-  useEffect(() => {
+  // -- Click-based calibration: user looks at dot and clicks to confirm --
+  const handleCalibrationClick = useCallback(() => {
     if (phase !== 'calibrating') return;
+    const stimEl = stimulusRef.current;
+    if (!stimEl) return;
+    const rect = stimEl.getBoundingClientRect();
+    const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
+    const idx = calibPointIndex;
+    if (idx >= pts.length) return;
 
-    dwellStartRef.current = null;
-    dwellSamplesRef.current = [];
-    dwellExitTimeRef.current = null;
+    const [ipx, ipy] = pts[idx];
+    const targetX = rect.left + (ipx / 100) * rect.width;
+    const targetY = rect.top + (ipy / 100) * rect.height;
+    const [gx, gy] = gazePosRef.current;
 
-    const loop = () => {
-      const stimEl = stimulusRef.current;
-      if (!stimEl) { dwellRafRef.current = requestAnimationFrame(loop); return; }
-      const rect = stimEl.getBoundingClientRect();
-      if (rect.width <= 0) { dwellRafRef.current = requestAnimationFrame(loop); return; }
+    // IDW residual
+    calibResidualsRef.current.push({
+      u: ipx / 100,
+      v: ipy / 100,
+      dx: targetX - gx,
+      dy: targetY - gy,
+    });
 
-      const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
-      const idx = calibPointIndex;
-      if (idx >= pts.length) return;
-
-      const [ipx, ipy] = pts[idx];
-      const dotX = rect.left + (ipx / 100) * rect.width;
-      const dotY = rect.top + (ipy / 100) * rect.height;
-      const [gx, gy] = gazePosRef.current;
-      const dist = Math.sqrt((gx - dotX) ** 2 + (gy - dotY) ** 2);
-      const now = performance.now();
-
-      if (dist <= DWELL_PROXIMITY_PX && gaze.gazeState === 'open') {
-        dwellExitTimeRef.current = null;
-
-        if (dwellStartRef.current === null) {
-          dwellStartRef.current = now;
-          dwellSamplesRef.current = [];
-        }
-        dwellSamplesRef.current.push({ x: gx, y: gy });
-
-        const elapsed = now - dwellStartRef.current;
-        if (elapsed >= DWELL_THRESHOLD_MS) {
-          // Dwell complete — calibrate this point
-          const samples = dwellSamplesRef.current;
-          let avgX = 0, avgY = 0;
-          for (const s of samples) { avgX += s.x; avgY += s.y; }
-          avgX /= samples.length;
-          avgY /= samples.length;
-
-          const targetX = dotX;
-          const targetY = dotY;
-
-          // IDW residual (same sign convention as production: target - gaze)
-          calibResidualsRef.current.push({
-            u: ipx / 100,
-            v: ipy / 100,
-            dx: targetX - avgX,
-            dy: targetY - avgY,
-          });
-
-          // Feed calibration to gaze engine
-          if (useMP) {
-            gaze.calibrate(targetX, targetY);
-          } else {
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
-            for (let c = 0; c < CALIBRATE_CALLS_PER_POINT; c++) {
-              gaze.calibrate(normX, normY);
-            }
-          }
-
-          dwellStartRef.current = null;
-          dwellSamplesRef.current = [];
-          dwellExitTimeRef.current = null;
-
-          if (idx + 1 >= pts.length) {
-            // All points done — train + start viewing
-            void finishCalibration();
-            return;
-          } else {
-            setCalibPointIndex(idx + 1);
-            return;
-          }
-        }
-      } else {
-        // Gaze outside proximity — grace period
-        if (dwellStartRef.current !== null) {
-          if (dwellExitTimeRef.current === null) {
-            dwellExitTimeRef.current = now;
-          } else if (now - dwellExitTimeRef.current > DWELL_GRACE_MS) {
-            dwellStartRef.current = null;
-            dwellSamplesRef.current = [];
-            dwellExitTimeRef.current = null;
-          }
-        }
+    // Feed calibration to gaze engine
+    if (useMP) {
+      gaze.calibrate(targetX, targetY);
+    } else {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const [normX, normY] = hybridImagePercentToBlazeNorm(rect, ipx, ipy, vw, vh);
+      for (let c = 0; c < CALIBRATE_CALLS_PER_POINT; c++) {
+        gaze.calibrate(normX, normY);
       }
+    }
 
-      dwellRafRef.current = requestAnimationFrame(loop);
-    };
-
-    dwellRafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(dwellRafRef.current);
+    if (idx + 1 >= pts.length) {
+      void finishCalibration();
+    } else {
+      setCalibPointIndex(idx + 1);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, calibPointIndex, gaze.gazeState, useMP]);
+  }, [phase, calibPointIndex, useMP, gaze]);
 
   // -- Finish calibration: train Ridge, compute RMSE, fit V3 ellipses --
   const finishCalibration = useCallback(async () => {
@@ -482,7 +422,6 @@ export function EyeTrackingV2TestPage() {
   useEffect(() => {
     return () => {
       cancelAnimationFrame(gazeLoopRef.current);
-      cancelAnimationFrame(dwellRafRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
       registryRef.current?.destroy();
       emitterRef.current?.destroy();
@@ -516,20 +455,6 @@ export function EyeTrackingV2TestPage() {
 
   const calibPoints = HYBRID_IMAGE_CALIBRATION_POINTS;
   const cp = calibPoints[calibPointIndex];
-  // Dwell progress for visual feedback
-  const [dwellProgress, setDwellProgress] = useState(0);
-  useEffect(() => {
-    if (phase !== 'calibrating') { setDwellProgress(0); return; }
-    const interval = setInterval(() => {
-      if (dwellStartRef.current !== null) {
-        const pct = Math.min(1, (performance.now() - dwellStartRef.current) / DWELL_THRESHOLD_MS);
-        setDwellProgress(pct);
-      } else {
-        setDwellProgress(0);
-      }
-    }, 50);
-    return () => clearInterval(interval);
-  }, [phase]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -587,6 +512,19 @@ export function EyeTrackingV2TestPage() {
           </div>
         )}
 
+        {/* Calibration debug */}
+        {phase === 'calibrating' && (
+          <div className="bg-slate-800 text-[10px] font-mono text-slate-300 rounded-lg p-2 mb-2 w-full max-w-[800px]">
+            <span>gazeState: <strong className={gaze.gazeState === 'open' ? 'text-green-400' : 'text-red-400'}>{gaze.gazeState}</strong></span>
+            <span className="ml-4">gazePos: <strong className="text-cyan-300">{Math.round(gazePosRef.current[0])},{Math.round(gazePosRef.current[1])}</strong></span>
+            <span className="ml-4">rawScreen: <strong className="text-yellow-300">
+              {useMP ? (mpGaze.rawScreenRef.current ? `${Math.round(mpGaze.rawScreenRef.current.x)},${Math.round(mpGaze.rawScreenRef.current.y)}` : 'null') : 'N/A'}
+            </strong></span>
+            <span className="ml-4">model: <strong className={modelReady ? 'text-green-400' : 'text-red-400'}>{modelReady ? 'ready' : 'loading'}</strong></span>
+            <span className="ml-4">engine: <strong className="text-purple-300">{GAZE_ENGINE}</strong></span>
+          </div>
+        )}
+
         {/* Stimulus (visible during loading/calibration/viewing) */}
         {(phase === 'loading' || phase === 'calibrating' || phase === 'viewing') && (
           <div className="relative">
@@ -639,39 +577,28 @@ export function EyeTrackingV2TestPage() {
               )}
             </div>
 
-            {/* Calibration dot with dwell progress ring */}
+            {/* Calibration dot — click to confirm */}
             {phase === 'calibrating' && cp && (
               <>
-                <div
-                  className="absolute z-10 flex items-center justify-center"
+                <button
+                  onClick={handleCalibrationClick}
+                  className="absolute z-10 flex items-center justify-center cursor-pointer"
                   style={{
                     left: `${cp[0]}%`,
                     top: `${cp[1]}%`,
                     transform: 'translate(-50%, -50%)',
-                    width: '36px',
-                    height: '36px',
+                    width: '44px',
+                    height: '44px',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
                   }}
                 >
-                  {/* Progress ring */}
-                  <svg className="absolute" width="36" height="36" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
-                    <circle
-                      cx="18" cy="18" r="15" fill="none" stroke="#22C55E" strokeWidth="3"
-                      strokeDasharray={`${dwellProgress * 94.2} 94.2`}
-                      strokeLinecap="round"
-                      transform="rotate(-90 18 18)"
-                      style={{ transition: 'stroke-dasharray 50ms linear' }}
-                    />
-                  </svg>
-                  {/* Center dot */}
-                  <div className={`w-4 h-4 rounded-full ${
-                    dwellProgress > 0 ? 'bg-amber-400' : 'bg-green-400 animate-pulse'
-                  } shadow-lg`} />
-                </div>
+                  <div className="w-5 h-5 rounded-full bg-green-400 animate-pulse shadow-lg ring-4 ring-green-400/30" />
+                </button>
                 <div className="absolute bottom-2 left-0 right-0 text-center z-10">
                   <span className="bg-black/70 text-white text-xs px-3 py-1 rounded">
-                    Mira el punto verde ({calibPointIndex + 1}/{calibPoints.length})
-                    {dwellProgress > 0 && ` — ${Math.round(dwellProgress * 100)}%`}
+                    Mira el punto y haz click ({calibPointIndex + 1}/{calibPoints.length})
                   </span>
                 </div>
               </>

@@ -286,8 +286,20 @@ export function useMediaPipeGaze(
       if ('videoRef' in pred) (pred as { videoRef: HTMLVideoElement | null }).videoRef = video;
       if ('landmarks' in pred) (pred as { landmarks: Array<{ x: number; y: number }> | null }).landmarks = landmarks;
 
-      // If predictor not trained yet, update state but no screen coords
+      // If predictor not trained yet, emit raw iris-based estimate so
+      // calibration dwell detection has coordinates to work with.
       if (!pred.isReady()) {
+        const lIris = landmarks[LANDMARK_INDICES.leftIrisCenter];
+        const rIris = landmarks[LANDMARK_INDICES.rightIrisCenter];
+        if (lIris && rIris) {
+          const vw = window.innerWidth;
+          const vh = window.innerHeight;
+          // Iris x is mirrored in selfie cam — invert
+          const rawX = (1 - (lIris.x + rIris.x) / 2) * vw;
+          const rawY = ((lIris.y + rIris.y) / 2) * vh;
+          rawScreenRef.current = { x: rawX, y: rawY };
+          gazePosRef.current = { x: rawX, y: rawY };
+        }
         if (lastEmittedGazeStateRef.current !== 'open') {
           lastEmittedGazeStateRef.current = 'open';
           setGazeState('open');

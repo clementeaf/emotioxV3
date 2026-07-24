@@ -1,3 +1,12 @@
+## v0.88.1 — Fix: Eye Tracking test page calibration + raw iris coords (2026-07-24)
+
+### participant-frontend
+- **Raw iris coords pre-calibration.** `useMediaPipeGaze` now computes screen coordinates from iris landmarks (468/473 avg, mirrored) even before Ridge predictor is trained. Previously `gazePosRef` and `rawScreenRef` were null pre-calibration, blocking any gaze-dependent logic during setup.
+- **Click-based calibration in test page.** Replaced dwell-based calibration with click-to-confirm in `EyeTrackingV2TestPage`. Raw iris tracking produces compressed coords near screen center — dwell detection either never triggered (corners) or auto-triggered everything (center). Click is reliable regardless of pre-calibration accuracy.
+- **Calibration debug panel.** Shows gazeState, gazePos, rawScreen, model status, and engine during calibration phase for live diagnostics.
+
+---
+
 ## v0.88.0 — Eye Tracking: video gaze pipeline improvements (2026-07-24)
 
 ### research-frontend
