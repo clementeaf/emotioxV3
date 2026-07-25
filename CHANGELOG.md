@@ -1,3 +1,25 @@
+## v0.90.0 — Website Tracking: Emotion Recognition (2026-07-25)
+
+### backend
+- **Emotion capture endpoints.** `POST /public/tracking/:id/emotions` saves face-api.js emotion samples (JSON array) to `tracking_sessions.emotion_samples` (LONGTEXT). `POST /public/tracking/:id/emotion-video` saves WebM webcam recording to filesystem (base64, 15MB cap).
+- **Emotion analytics endpoint.** `GET /tracking/:id/emotions?page=URL` aggregates emotion data across sessions: distribution (7 Ekman emotions as %), dominant emotion, avg confidence, 1-second timeline, Valence/Arousal (Russell's circumplex), per-session summary with video flag.
+- **Emotion video streaming.** `GET /tracking/:id/sessions/:sid/emotion-video` streams stored WebM file.
+- **Config extension.** `captureEmotions` and `emotionVideoEnabled` added to `TrackingConfig`. Passed to snippet as `C.emotions`, `C.emoVideo`, `C.emoModelUrl`.
+
+### participant-facing (tracking snippet)
+- **Emotion capture in snippet.** When `captureEmotions` enabled: requests camera (320x240), lazy-loads face-api.js from CDN + models from `emotio.cx/api/media/face-api-models/`, runs `detectSingleFace().withFaceExpressions()` at 2fps (500ms interval). Scores accumulated in `emoBuf[]`, flushed on session end (visibilitychange/beforeunload). 5-minute active cap (same as rrweb). Visibility-aware: pauses on tab hidden, resumes on visible.
+- **Video recording in snippet.** When `emotionVideoEnabled` enabled: `MediaRecorder` on camera stream (WebM VP8), chunks in memory, uploaded as base64 on session end (best-effort async).
+- **Graceful degradation.** Camera denial silently continues without emotions — no breakage of existing tracking.
+
+### research-frontend
+- **Config toggles.** "Emotions" and conditional "Record Video" toggles in WebsiteTrackingConfig capture section.
+- **Emotions results tab.** New "Emotions" tab in WebsiteTrackingResults with: summary cards (sessions, samples, dominant, confidence), Expression Intensity bars (7 emotions with %), Circumplex Model canvas (emotion dots sized by distribution + V/A trail), Valence & Arousal Timeline canvas (red/yellow lines), session list with emotion dot + video icon.
+
+### database
+- **Migration 032.** `ALTER TABLE tracking_sessions ADD COLUMN emotion_samples LONGTEXT, ADD COLUMN emotion_video_path VARCHAR(500)`.
+
+---
+
 ## v0.89.6 — UI refresh: Modules page (2026-07-24)
 
 ### research-frontend

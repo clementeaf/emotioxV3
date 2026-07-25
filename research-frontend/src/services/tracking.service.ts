@@ -37,6 +37,8 @@ export interface TrackingConfig {
     dataRetentionDays: number;
     funnels?: FunnelDefinition[];
     verified?: boolean;
+    captureEmotions: boolean;
+    emotionVideoEnabled: boolean;
 }
 
 export interface FunnelDropoffResult {
@@ -409,4 +411,42 @@ export const getTrackingReport = async (researchId: string): Promise<TrackingRep
 export const generateTrackingReport = async (researchId: string, sections?: Record<string, boolean> | object): Promise<TrackingReport> => {
     const res = await apiClient.post<{ report: TrackingReport }>(`/tracking/${researchId}/report`, { sections });
     return res.report;
+};
+
+// ─── Emotion Analytics ──────────────────────────────────────────────
+
+type EkmanEmotion = 'joy' | 'sadness' | 'surprise' | 'anger' | 'disgust' | 'fear' | 'neutral';
+
+export interface TrackingEmotionData {
+    totalSessions: number;
+    totalSamples: number;
+    distribution: Record<EkmanEmotion, number>;
+    dominantEmotion: EkmanEmotion;
+    avgConfidence: number;
+    timeline: Array<{ timestampS: number; emotion: EkmanEmotion; confidence: number }>;
+    perSession: Array<{
+        sessionId: string;
+        visitorId: string;
+        pageUrl: string;
+        dominantEmotion: EkmanEmotion;
+        sampleCount: number;
+        hasVideo: boolean;
+    }>;
+    valenceArousal: Array<{ timestampS: number; valence: number; arousal: number }>;
+}
+
+export const getTrackingEmotions = async (
+    researchId: string,
+    pageUrl?: string
+): Promise<TrackingEmotionData> => {
+    const params: Record<string, string> = {};
+    if (pageUrl) params.page = pageUrl;
+    return apiClient.get<TrackingEmotionData>(`/tracking/${researchId}/emotions`, { params });
+};
+
+export const getEmotionVideoUrl = (researchId: string, sessionId: string): string => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cfg = (window as any).__RUNTIME_CONFIG__ as { apiBaseUrl?: string } | undefined;
+    const baseUrl = cfg?.apiBaseUrl || '';
+    return `${baseUrl}/tracking/${researchId}/sessions/${sessionId}/emotion-video`;
 };

@@ -70,6 +70,8 @@ interface TrackingConfig {
     excludePages: string[];
     dataRetentionDays: number;
     funnels?: FunnelDefinition[];
+    captureEmotions: boolean;
+    emotionVideoEnabled: boolean;
 }
 
 // ─── Session Management ──────────────────────────────────────────────
@@ -280,6 +282,8 @@ export const getTrackingConfig = async (researchId: string): Promise<TrackingCon
         excludePages: (trackingConfig.excludePages as string[]) || [],
         dataRetentionDays: (trackingConfig.dataRetentionDays as number) || 90,
         funnels: (trackingConfig.funnels as FunnelDefinition[]) || [],
+        captureEmotions: trackingConfig.captureEmotions === true,
+        emotionVideoEnabled: trackingConfig.emotionVideoEnabled === true,
     };
 };
 
@@ -1391,4 +1395,87 @@ export const saveTrackingConfig = async (
         'UPDATE researches SET config = ? WHERE id = ?',
         [JSON.stringify(config), researchId]
     );
+};
+
+// ─── Emotion Samples Storage ─────────────────────────────────────────
+
+/**
+ * Append emotion samples to a session. Samples are stored as a JSON array
+ * in tracking_sessions.emotion_samples (LONGTEXT). Each call appends to
+ * the existing array so the snippet can send incremental batches.
+ */
+export const appendEmotionSamples = async (
+    sessionId: string,
+    samples: unknown[]
+): Promise<{ saved: number }> => {
+    if (samples.length === 0) return { saved: 0 };
+
+    const session = await pool.query(
+        'SELECT id, emotion_samples FROM tracking_sessions WHERE id = ?',
+        [sessionId]
+    );
+    if (session.rows.length === 0) throw new Error('Session not found');
+
+    let existing: unknown[] = [];
+    const raw = session.rows[0].emotion_samples;
+    if (raw) {
+        try { existing = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { existing = []; }
+    }
+
+    // Cap at 1000 samples per session (~150KB JSON)
+    const merged = [...existing, ...samples].slice(-1000);
+    const json = JSON.stringify(merged);
+
+    await pool.query(
+        'UPDATE tracking_sessions SET emotion_samples = ?, ended_at = NOW() WHERE id = ?',
+        [json, sessionId]
+    );
+
+    return { saved: samples.length };
+};
+
+// ─── Emotion Video Storage ───────────────────────────────────────────
+
+/**
+ * Save webcam recording for a tracking session.
+ * Stores WebM file on filesystem, path in tracking_sessions.emotion_video_path.
+ */
+export const saveEmotionVideo = async (
+    researchId: string,
+    sessionId: string,
+    videoBuffer: Buffer
+): Promise<{ path: string }> => {
+    // Validate session belongs to research
+    const session = await pool.query(
+        'SELECT id FROM tracking_sessions WHERE id = ? AND research_id = ?',
+        [sessionId, researchId]
+    );
+    if (session.rows.length === 0) throw new Error('Session not found');
+
+    const fileName = `emotion_${sessionId}_${Date.now()}.webm`;
+    const relativePath = `research/${researchId}/tracking/${fileName}`;
+    const fullPath = getMediaPath(relativePath);
+
+    ensureDirectoryExists(fullPath);
+    fs.writeFileSync(fullPath, videoBuffer);
+
+    await pool.query(
+        'UPDATE tracking_sessions SET emotion_video_path = ? WHERE id = ?',
+        [relativePath, sessionId]
+    );
+
+    return { path: relativePath };
+};
+
+// ─── Emotion Data Retrieval ──────────────────────────────────────────
+
+export const getSessionEmotionSamples = async (sessionId: string): Promise<unknown[]> => {
+    const result = await pool.query(
+        'SELECT emotion_samples FROM tracking_sessions WHERE id = ?',
+        [sessionId]
+    );
+    if (result.rows.length === 0) return [];
+    const raw = result.rows[0].emotion_samples;
+    if (!raw) return [];
+    try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return []; }
 };

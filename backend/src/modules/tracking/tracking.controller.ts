@@ -34,6 +34,8 @@ import {
     getSessionFrictionTags,
     appendRrwebEvents,
     getRrwebEvents,
+    appendEmotionSamples,
+    saveEmotionVideo,
 } from './tracking.service';
 import { generateTrackingSnippet, generateEmbedSnippet } from './tracking-snippet';
 
@@ -99,6 +101,9 @@ export const handlePublicTrackingRoutes = async (
                     samplingRate: config.samplingRate,
                     targetPages: config.targetPages,
                     excludePages: config.excludePages,
+                    captureEmotions: config.captureEmotions,
+                    emotionVideoEnabled: config.emotionVideoEnabled,
+                    emotionModelBaseUrl: apiBaseUrl + '/media/face-api-models',
                 });
 
                 return {
@@ -243,6 +248,37 @@ export const handlePublicTrackingRoutes = async (
             if (imageData.length > 5242880) return trackingError('Screenshot too large', 413);
             await savePageScreenshotFromBase64(researchId, pageUrl, imageData, deviceCategory);
             return trackingSuccess({ saved: true }, 201);
+        }
+
+        // POST /public/tracking/:researchId/emotions — save emotion samples for a session
+        const emotionsMatch = path.match(/^\/public\/tracking\/([^/]+)\/emotions$/);
+        if (emotionsMatch && httpMethod === 'POST') {
+            let body: Record<string, unknown>;
+            try { body = JSON.parse(event.body || '{}'); } catch { return trackingError('Invalid JSON'); }
+            const sessionId = body.sessionId as string;
+            const samples = body.samples as unknown[];
+            if (!sessionId || !Array.isArray(samples)) {
+                return trackingError('Missing sessionId or samples array');
+            }
+            if (samples.length > 1000) return trackingError('Too many samples (max 1000)', 413);
+            const result = await appendEmotionSamples(sessionId, samples);
+            return trackingSuccess(result, 201);
+        }
+
+        // POST /public/tracking/:researchId/emotion-video — upload webcam recording
+        const emotionVideoMatch = path.match(/^\/public\/tracking\/([^/]+)\/emotion-video$/);
+        if (emotionVideoMatch && httpMethod === 'POST') {
+            const researchId = emotionVideoMatch[1];
+            let body: Record<string, unknown>;
+            try { body = JSON.parse(event.body || '{}'); } catch { return trackingError('Invalid JSON'); }
+            const sessionId = body.sessionId as string;
+            const videoBase64 = body.video as string;
+            if (!sessionId || !videoBase64) return trackingError('Missing sessionId or video');
+            // Cap at 15MB base64 (~11MB raw)
+            if (videoBase64.length > 20_971_520) return trackingError('Video too large (max 15MB)', 413);
+            const videoBuffer = Buffer.from(videoBase64, 'base64');
+            const result = await saveEmotionVideo(researchId, sessionId, videoBuffer);
+            return trackingSuccess(result, 201);
         }
 
         return trackingError('Route not found', 404);
@@ -691,6 +727,46 @@ export const handleTrackingRoutes = async (
             const researchId = liveMatch[1];
             const data = await getLiveSessions(researchId);
             return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/emotions — aggregated emotion analytics
+        const emotionsAuthMatch = path.match(/^\/tracking\/([^/]+)\/emotions$/);
+        if (emotionsAuthMatch && httpMethod === 'GET') {
+            const researchId = emotionsAuthMatch[1];
+            const pageUrl = event.queryStringParameters?.page
+                ? decodeURIComponent(event.queryStringParameters.page)
+                : undefined;
+            const { getTrackingEmotionData } = await import('./tracking-emotion.analytics');
+            const data = await getTrackingEmotionData(researchId, pageUrl);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/sessions/:sessionId/emotion-video — stream webcam recording
+        const emotionVideoAuthMatch = path.match(/^\/tracking\/([^/]+)\/sessions\/([^/]+)\/emotion-video$/);
+        if (emotionVideoAuthMatch && httpMethod === 'GET') {
+            const sessionId = emotionVideoAuthMatch[2];
+            const dbPool = (await import('../../config/database')).default;
+            const session = await dbPool.query(
+                'SELECT emotion_video_path FROM tracking_sessions WHERE id = ?',
+                [sessionId]
+            );
+            const videoPath = session.rows[0]?.emotion_video_path;
+            if (!videoPath) return error('No emotion video found', 404, undefined, origin);
+            const { getMediaPath } = await import('../../config/local-storage');
+            const fs = await import('fs');
+            const fullPath = getMediaPath(videoPath);
+            if (!fs.existsSync(fullPath)) return error('Video file missing', 404, undefined, origin);
+            const videoBuffer = fs.readFileSync(fullPath);
+            return {
+                statusCode: 200,
+                headers: {
+                    'Content-Type': 'video/webm',
+                    'Content-Length': String(videoBuffer.length),
+                    ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
+                },
+                body: videoBuffer.toString('base64'),
+                isBase64Encoded: true,
+            };
         }
 
         // GET /tracking/:researchId/snippet — get embed snippet

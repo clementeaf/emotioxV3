@@ -29,6 +29,9 @@ interface SnippetConfig {
     samplingRate: number;
     targetPages: string[];
     excludePages: string[];
+    captureEmotions: boolean;
+    emotionVideoEnabled: boolean;
+    emotionModelBaseUrl: string;
 }
 
 export const generateTrackingSnippet = (config: SnippetConfig): string => {
@@ -51,6 +54,9 @@ var C=${JSON.stringify({
         sampling: config.samplingRate,
         targetPg: config.targetPages,
         excludePg: config.excludePages,
+        emotions: config.captureEmotions,
+        emoVideo: config.emotionVideoEnabled,
+        emoModelUrl: config.emotionModelBaseUrl,
     })};
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -217,6 +223,7 @@ function createSession(){
         if(buf.length>0)flush();
         startRrwebRecording();
         if(rrwebBuf.length>0)flushRrweb();
+        startEmotionCapture();
         // Capture DOM snapshot after JS has rendered (for heatmap backdrop)
         setTimeout(function(){
             try{
@@ -387,20 +394,25 @@ function startCapture(){
                 rrwebActiveMs+=Date.now()-rrwebStartTime;
                 try{rrwebStopFn();}catch(e){}rrwebStopFn=null;
             }
+            // Pause emotion capture
+            if(emoRunning){emoActiveMs+=Date.now()-emoStartTime;stopEmotionCapture();}
             // Flush pending data before going to background
             flush(true);
             flushRrweb(true);
+            flushEmotions(true);
         }else{
             // Tab regained focus
             var away=Date.now()-hiddenAt;
             if(away>30000){
                 // Away >30s — start fresh session (old one already flushed)
+                stopEmotionCapture();flushEmoVideo();
                 createSession();
             }else{
                 // Brief switch — resume existing session
                 paused=false;
                 activeStart=Date.now();
                 startRrwebRecording();
+                if(C.emotions&&emoStream&&!emoRunning){emoRunning=true;emoStartTime=Date.now();emoInterval=setInterval(sampleEmotion,500);}
             }
         }
     });
@@ -414,6 +426,9 @@ function startCapture(){
         }
         flush(true);
         flushRrweb(true);
+        stopEmotionCapture();
+        flushEmotions(true);
+        flushEmoVideo();
     });
 
     // SPA navigation — new session only when pathname changes, 1s debounce
@@ -462,6 +477,127 @@ function startSession(){
     vid=getVid();
     startCapture();
     createSession();
+}
+
+// ─── Emotion Recognition ─────────────────────────────────────────────
+
+var emoBuf=[],emoRunning=false,emoVideo=null,emoStream=null;
+var emoChunks=[],emoActiveMs=0,emoStartTime=0;
+var EMO_MAX_MS=300000; // 5 min cap
+var emoInterval=null;
+var EXPRESSION_MAP={happy:"joy",sad:"sadness",angry:"anger",surprised:"surprise",disgusted:"disgust",fearful:"fear",neutral:"neutral"};
+
+function startEmotionCapture(){
+    if(!C.emotions||emoRunning)return;
+    navigator.mediaDevices.getUserMedia({video:{width:320,height:240,facingMode:"user"},audio:false})
+    .then(function(stream){
+        emoStream=stream;
+        var v=document.createElement("video");
+        v.setAttribute("autoplay","");v.setAttribute("muted","");v.setAttribute("playsinline","");
+        v.style.cssText="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;";
+        v.srcObject=stream;
+        document.body.appendChild(v);
+        emoVideo=v;
+        loadFaceApi(function(){
+            loadEmoModels(function(){
+                emoRunning=true;
+                emoStartTime=Date.now();
+                emoInterval=setInterval(sampleEmotion,500);
+                if(C.emoVideo)startEmoRecording(stream);
+            });
+        });
+    })
+    .catch(function(e){
+        // Camera denied — continue without emotions
+    });
+}
+
+function loadFaceApi(cb){
+    if(window.faceapi){cb();return;}
+    var sc=document.createElement("script");
+    sc.src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js";
+    sc.onload=function(){cb();};
+    sc.onerror=function(){};
+    document.head.appendChild(sc);
+}
+
+function loadEmoModels(cb){
+    if(!window.faceapi)return;
+    Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(C.emoModelUrl),
+        faceapi.nets.faceExpressionNet.loadFromUri(C.emoModelUrl)
+    ]).then(cb).catch(function(){});
+}
+
+function sampleEmotion(){
+    if(!emoRunning||paused||!emoVideo||emoVideo.readyState<2)return;
+    var elapsed=emoActiveMs+(Date.now()-emoStartTime);
+    if(elapsed>EMO_MAX_MS){stopEmotionCapture();return;}
+    faceapi.detectSingleFace(emoVideo,new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:0.4}))
+    .withFaceExpressions()
+    .then(function(det){
+        if(!det||!emoRunning)return;
+        var expr=det.expressions;
+        var best="neutral",bestScore=0;
+        for(var k in expr){
+            if(expr[k]>bestScore){bestScore=expr[k];best=k;}
+        }
+        var mapped=EXPRESSION_MAP[best]||"neutral";
+        emoBuf.push({timestamp:Date.now()-emoStartTime,emotion:mapped,confidence:Math.round(bestScore*1000)/1000});
+    })
+    .catch(function(){});
+}
+
+function startEmoRecording(stream){
+    try{
+        var mr=new MediaRecorder(stream,{mimeType:"video/webm;codecs=vp8"});
+        emoChunks=[];
+        mr.ondataavailable=function(e){if(e.data.size>0)emoChunks.push(e.data);};
+        mr.start(1000);
+        emoVideo._recorder=mr;
+    }catch(e){}
+}
+
+function stopEmotionCapture(){
+    emoRunning=false;
+    if(emoInterval){clearInterval(emoInterval);emoInterval=null;}
+    if(emoVideo&&emoVideo._recorder){
+        try{emoVideo._recorder.stop();}catch(e){}
+    }
+}
+
+function flushEmotions(sync){
+    if(!emoBuf.length||!sid)return;
+    var batch=emoBuf.splice(0,emoBuf.length);
+    var body=JSON.stringify({sessionId:sid,samples:batch});
+    var url=C.api+"/public/tracking/"+C.rid+"/emotions";
+    try{
+        var xhr=new XMLHttpRequest();
+        xhr.open("POST",url,!sync);
+        xhr.setRequestHeader("Content-Type","application/json");
+        xhr.send(body);
+    }catch(e){}
+}
+
+function flushEmoVideo(){
+    if(!emoChunks.length||!sid||!C.emoVideo)return;
+    var blob=new Blob(emoChunks,{type:"video/webm"});
+    emoChunks=[];
+    // Convert to base64 and POST (best-effort, async)
+    var reader=new FileReader();
+    reader.onloadend=function(){
+        var b64=reader.result.split(",")[1];
+        if(!b64||b64.length>20971520)return; // 15MB cap
+        var body=JSON.stringify({sessionId:sid,video:b64});
+        var url=C.api+"/public/tracking/"+C.rid+"/emotion-video";
+        try{
+            var xhr=new XMLHttpRequest();
+            xhr.open("POST",url,true);
+            xhr.setRequestHeader("Content-Type","application/json");
+            xhr.send(body);
+        }catch(e){}
+    };
+    reader.readAsDataURL(blob);
 }
 
 // ─── Load rrweb ──────────────────────────────────────────────────────

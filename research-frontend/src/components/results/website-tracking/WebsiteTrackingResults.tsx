@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     MousePointerClick, Users, Activity,
-    Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3,
+    Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3, SmilePlus,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
 import { EmptyState } from '../../ui/EmptyState';
@@ -20,6 +20,7 @@ import { SessionReplayPlayer } from './SessionReplayPlayer';
 import { FunnelChart } from './FunnelChart';
 import { PageFlowDiagram } from './PageFlowDiagram';
 import { resolveMediaUrl } from '../../../services/media.service';
+import { TrackingEmotionsTab } from './TrackingEmotionsTab';
 
 const formatDateTime = (iso: string): string => {
     const d = new Date(iso);
@@ -27,7 +28,7 @@ const formatDateTime = (iso: string): string => {
         + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 };
 
-type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live';
+type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live' | 'emotions';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
 type FunnelSubTab = 'custom-funnels' | 'page-flow' | 'comparison';
 
@@ -147,6 +148,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" />, tooltip: 'Click, scroll, and attention overlays on your pages' },
         { id: 'sessions', label: 'Sessions', icon: <Users className="h-4 w-4" />, tooltip: 'Visitor journeys with session replay' },
         { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" />, tooltip: 'Currently active visitors on your site' },
+        { id: 'emotions', label: 'Emotions', icon: <SmilePlus className="h-4 w-4" />, tooltip: 'Visitor facial emotion analysis' },
     ];
 
     return (
@@ -348,6 +350,10 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
             {activeTab === 'live' && (
                 <LiveSessionsTab sessions={liveData?.sessions || []} onReplay={setReplaySessionId} />
+            )}
+
+            {activeTab === 'emotions' && (
+                <TrackingEmotionsTab researchId={researchId} selectedPageUrl={selectedPageUrl} />
             )}
 
             {activeTab === 'funnels' && (

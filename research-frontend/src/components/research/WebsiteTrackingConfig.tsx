@@ -42,6 +42,8 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
         targetPages: existingConfig.targetPages || [],
         excludePages: existingConfig.excludePages || [],
         dataRetentionDays: existingConfig.dataRetentionDays || 90,
+        captureEmotions: existingConfig.captureEmotions === true,
+        emotionVideoEnabled: existingConfig.emotionVideoEnabled === true,
     });
     const [domainInput, setDomainInput] = useState('');
 
@@ -237,6 +239,10 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                         <CompactToggle label="Scroll" enabled={config.captureScroll} onToggle={() => handleToggle('captureScroll')} />
                         <CompactToggle label="Mouse" enabled={config.captureMousemove} onToggle={() => handleToggle('captureMousemove')} />
                         <CompactToggle label="Consent" enabled={config.consentRequired} onToggle={() => handleToggle('consentRequired')} />
+                        <CompactToggle label="Emotions" enabled={config.captureEmotions} onToggle={() => handleToggle('captureEmotions')} />
+                        {config.captureEmotions && (
+                            <CompactToggle label="Record Video" enabled={config.emotionVideoEnabled} onToggle={() => handleToggle('emotionVideoEnabled')} />
+                        )}
                     </div>
                 </div>
             </div>
