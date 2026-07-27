@@ -5,7 +5,58 @@
 
 ---
 
-## Última actualización: 2026-06-08 (sesión 49)
+## Última actualización: 2026-07-27 (sesión 50)
+
+---
+
+## Sesión 50: 27 de julio de 2026 — Gauntlet de tests + medición real de Eye Tracking
+
+**Origen:** `docs/bob-martin.jpeg` — rodear al agente de restricciones (unit tests, coverage, mutation testing) en vez de leer su código.
+
+### Commit `9c3886b`
+Coverage en los 3 subproyectos, Stryker en backend y participant, 45 tests rojos reparados, 3 bugs reales de emociones corregidos. `tracking-emotion.analytics.ts` 0% → 100% líneas / 92.64% mutación. `zoneRegistry` 67.96% → 99.45% mutación. Detalle completo en CHANGELOG v0.90.1.
+
+### Medición de precisión de Eye Tracking (NO commiteado — solo medición)
+
+El harness `participant-frontend/eval/` funciona. Cómo correrlo:
+
+```bash
+cd participant-frontend
+./node_modules/.bin/vite --port 12600 --strictPort          # servidor (usar el binario, npx lo reescribe el hook RTK)
+EVAL_ENGINE=mediapipe EVAL_VIDEO_PATH="$PWD/eval/datasets/session-auto/video.y4m" \
+  ./node_modules/.bin/playwright test --config eval/playwright/playwright.eval.config.ts --project=desktop-1280x720
+```
+
+**Número actual (MediaPipe+Ridge, 1 sujeto, 3 repeticiones):** RMSE mediana **414 px** en viewport 1280×720 — unos **8-9°**, o el 32% del ancho de pantalla. Rango entre repeticiones 377–499 px, o sea ±60 px de varianza con el mismo video.
+
+Referencia: webcam calibrado en literatura anda en 1.5–3°; IR de laboratorio (Tobii/EyeLink) en 0.5°. Estamos 3-4× peor que el estándar de webcam.
+
+**Implicación:** una celda de grilla 3×3 mide 427×240 px. El error es del tamaño de la celda. La asignación de zona en 3×3 no es confiable hoy. Antes de encender `EYE_TRACKING_V2_ENABLED` hay que bajar el error o dimensionar las zonas al error real (2×2).
+
+### RESULTADO NEGATIVO — no repetir estos 3 intentos
+
+Los residuales por punto de calibración muestran compresión sistemática hacia el centro (la fila superior se predice ~250 px más abajo; el modelo recupera solo ~40% del rango vertical). Parece un bug. **No lo es.** Se probaron tres arreglos, cada uno aislado, 3 repeticiones, mismo código base:
+
+| Configuración | RMSE mediana |
+|---|---|
+| Control (como está hoy) | **414** |
+| Solo pruning de outliers por MAD | 439 |
+| Solo stretch calculado por centroides en vez de min/max | 499 |
+| Solo lambda elegido por LOOCV en vez del fijo `DEFAULT_RIDGE_LAMBDA = 10` | 613 |
+| Los tres juntos | 683 |
+
+**Los tres empeoran.** El más dañino es el lambda automático, y de la manera más engañosa: consigue el **mejor** cvRmse de calibración (541 vs 553 del control) y la **peor** precisión real. Optimizar la validación cruzada sobre los 9 puntos de calibración anticorrelaciona con el tracking: un lambda bajo ajusta mejor esos puntos pero se sobreajusta a la pose de cabeza del momento de calibrar.
+
+Conclusión: la compresión hacia el centro **es el shrinkage funcionando correctamente** bajo incertidumbre, no un defecto. `DEFAULT_RIDGE_LAMBDA = 10` es empíricamente mejor que elegirlo por CV. No tocar sin medir con el harness.
+
+**Lección de método:** `cvRmsePx` no sirve como métrica de calidad de calibración. El único juez válido es el RMSE del eval contra los puntos de evaluación.
+
+### Pendientes
+- Correr el eval con más sujetos y sesiones (1 sujeto no es validación).
+- Mobile usa "tap proxy" (un toque como sustituto de la mirada). Si se mezcla con gaze real en los mismos resultados hay que separarlo o etiquetarlo. **No verificado en código.**
+- `emoStartTime` se reinicia al volver la pestaña a visible (`tracking-snippet.ts:415`), solapando timestamps en sesiones con pausas. Afecta timeline y Valence/Arousal.
+- Tab "Original" de Attention Prediction no enciende overlays; contradice el spec P6 de v0.81.0.
+- Workflows de GitHub Actions no corren desde el 1 de julio — el deploy automático a cPanel está caído.
 
 ---
 
